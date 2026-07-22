@@ -280,6 +280,35 @@ final class MeetingArtifactStoreTests: XCTestCase {
         XCTAssertEqual(transcriptCalendar["confidence"] as? String, "confirmed")
     }
 
+    func testMaterializeWritesCaptureReportToSnapshotManifestAndTranscript() async throws {
+        let report = makePartialCaptureReport()
+        let transcription = makeMeeting(
+            notes: nil,
+            meetingCaptureReport: report
+        )
+
+        let snapshot = try await MeetingArtifactStore().materialize(
+            transcription: transcription,
+            promptResults: []
+        )
+
+        XCTAssertEqual(snapshot.meetingCaptureReport, report)
+
+        let manifest = try jsonObject(at: URL(fileURLWithPath: snapshot.manifestPath))
+        let meeting = try XCTUnwrap(manifest["meeting"] as? [String: Any])
+        let manifestReport = try XCTUnwrap(meeting["meetingCaptureReport"] as? [String: Any])
+        XCTAssertEqual(manifestReport["quality"] as? String, "partial")
+        XCTAssertEqual(manifestReport["elapsedDurationMs"] as? Int, 100_000)
+        XCTAssertEqual(manifestReport["capturedDurationMs"] as? Int, 1_000)
+        XCTAssertEqual(manifestReport["playbackFallbackSource"] as? String, "system")
+
+        let transcript = try jsonObject(at: URL(fileURLWithPath: snapshot.transcriptPath))
+        let transcriptReport = try XCTUnwrap(transcript["meetingCaptureReport"] as? [String: Any])
+        XCTAssertEqual(transcriptReport["quality"] as? String, "partial")
+        XCTAssertEqual(transcriptReport["capturedDurationMs"] as? Int, 1_000)
+        XCTAssertEqual(transcriptReport["playbackFallbackSource"] as? String, "system")
+    }
+
     func testMaterializeOmitsInvalidCleanedMicrophoneAudioPath() async throws {
         let cleanedURL = folderURL.appendingPathComponent("microphone-cleaned.m4a")
         try Data("partial m4a fragment".utf8).write(to: cleanedURL)
@@ -377,7 +406,8 @@ final class MeetingArtifactStoreTests: XCTestCase {
     private func makeMeeting(
         notes: String?,
         startContext: MeetingStartContext? = nil,
-        calendarEventSnapshot: MeetingCalendarSnapshot? = nil
+        calendarEventSnapshot: MeetingCalendarSnapshot? = nil,
+        meetingCaptureReport: MeetingCaptureReport? = nil
     ) -> Transcription {
         Transcription(
             id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
@@ -412,9 +442,35 @@ final class MeetingArtifactStoreTests: XCTestCase {
             sourceType: .meeting,
             userNotes: notes,
             meetingStartContext: startContext,
+            meetingCaptureReport: meetingCaptureReport,
             engine: "parakeet",
             engineVariant: "v3",
             calendarEventSnapshot: calendarEventSnapshot
+        )
+    }
+
+    private func makePartialCaptureReport() -> MeetingCaptureReport {
+        MeetingCaptureReport(
+            sourceMode: .microphoneAndSystem,
+            sourceAlignment: MeetingSourceAlignment(
+                meetingOriginHostTime: 100,
+                microphone: .init(
+                    firstHostTime: 100,
+                    lastHostTime: 200,
+                    startOffsetMs: 0,
+                    writtenFrameCount: 48_000,
+                    sampleRate: 48_000
+                ),
+                system: .init(
+                    firstHostTime: 100,
+                    lastHostTime: 200,
+                    startOffsetMs: 0,
+                    writtenFrameCount: 48_000,
+                    sampleRate: 48_000
+                )
+            ),
+            elapsedDurationMs: 100_000,
+            playbackFallbackSource: .system
         )
     }
 

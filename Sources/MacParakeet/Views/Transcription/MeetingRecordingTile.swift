@@ -393,7 +393,7 @@ struct MeetingRecordingTile: View {
     }
 
     var visibleSourceHealthWarning: MeetingSourceHealthChip? {
-        AppFeatures.meetingSourceHealthUIEnabled ? viewModel.mirroredSourceHealthWarning : nil
+        viewModel.mirroredVisibleSourceHealthWarning
     }
 }
 

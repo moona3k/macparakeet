@@ -15,8 +15,14 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
     /// waits on `cleanedMicrophoneReadiness` before preferring this artifact.
     public let cleanedMicrophoneAudioURL: URL?
     let cleanedMicrophoneReadiness: MeetingCleanedMicrophoneReadiness?
+    /// Probed duration of the canonical playback artifact, not wall-clock
+    /// meeting time. `captureReport` independently preserves source-timeline
+    /// truth, including sources that may be unavailable during crash recovery.
     public let durationSeconds: TimeInterval
     public let sourceAlignment: MeetingSourceAlignment
+    /// Durable capture quality and elapsed-vs-playable duration truth. `nil`
+    /// only for legacy meeting artifacts created before this report existed.
+    public let captureReport: MeetingCaptureReport?
     public let speechEngine: SpeechEngineSelection
     public let speechEngineWasCaptured: Bool
     public let previewSpeechEngine: SpeechEngineSelection?
@@ -29,6 +35,11 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
     /// Local calendar context captured when the recording started.
     public let calendarEventSnapshot: MeetingCalendarSnapshot?
 
+    /// Canonical duration persisted for playback and transcription rows.
+    public var playableDurationMs: Int {
+        max(0, Int((durationSeconds * 1_000).rounded()))
+    }
+
     public init(
         sessionID: UUID,
         displayName: String,
@@ -39,6 +50,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         cleanedMicrophoneAudioURL: URL? = nil,
         durationSeconds: TimeInterval,
         sourceAlignment: MeetingSourceAlignment,
+        captureReport: MeetingCaptureReport? = nil,
         speechEngine: SpeechEngineSelection = SpeechEngineSelection(engine: .parakeet),
         speechEngineWasCaptured: Bool = true,
         previewSpeechEngine: SpeechEngineSelection? = nil,
@@ -57,6 +69,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
             cleanedMicrophoneReadiness: nil,
             durationSeconds: durationSeconds,
             sourceAlignment: sourceAlignment,
+            captureReport: captureReport,
             speechEngine: speechEngine,
             speechEngineWasCaptured: speechEngineWasCaptured,
             previewSpeechEngine: previewSpeechEngine,
@@ -77,6 +90,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         cleanedMicrophoneReadiness: MeetingCleanedMicrophoneReadiness?,
         durationSeconds: TimeInterval,
         sourceAlignment: MeetingSourceAlignment,
+        captureReport: MeetingCaptureReport? = nil,
         speechEngine: SpeechEngineSelection = SpeechEngineSelection(engine: .parakeet),
         speechEngineWasCaptured: Bool = true,
         previewSpeechEngine: SpeechEngineSelection? = nil,
@@ -94,6 +108,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         self.cleanedMicrophoneReadiness = cleanedMicrophoneReadiness
         self.durationSeconds = durationSeconds
         self.sourceAlignment = sourceAlignment
+        self.captureReport = captureReport
         self.speechEngine = speechEngine
         self.speechEngineWasCaptured = speechEngineWasCaptured
         self.previewSpeechEngine = previewSpeechEngine
@@ -109,7 +124,8 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
     /// Performs synchronous filesystem stat calls, so avoid hot main-actor loops.
     public func microphoneTranscriptionURL(fileManager: FileManager = .default) -> URL {
         if let cleanedMicrophoneAudioURL,
-           Self.hasNonEmptyFile(at: cleanedMicrophoneAudioURL, fileManager: fileManager) {
+            Self.hasNonEmptyFile(at: cleanedMicrophoneAudioURL, fileManager: fileManager)
+        {
             return cleanedMicrophoneAudioURL
         }
         return microphoneAudioURL
@@ -120,7 +136,8 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
     /// background/actor transcription paths, not UI list population.
     func validatedMicrophoneTranscriptionURL(fileManager: FileManager = .default) -> URL {
         if let cleanedMicrophoneAudioURL,
-           Self.isViableCleanedMicrophoneFile(at: cleanedMicrophoneAudioURL, fileManager: fileManager) {
+            Self.isViableCleanedMicrophoneFile(at: cleanedMicrophoneAudioURL, fileManager: fileManager)
+        {
             return cleanedMicrophoneAudioURL
         }
         return microphoneAudioURL
@@ -131,12 +148,15 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         fileManager: FileManager = .default
     ) -> Bool {
         guard hasNonEmptyFile(at: url, fileManager: fileManager),
-              let file = try? AVAudioFile(forReading: url) else {
+            let file = try? AVAudioFile(forReading: url)
+        else {
             return false
         }
         return file.length > 0
     }
 
+    /// Reconstructs an archived meeting from its canonical folder. The supplied
+    /// duration is legacy fallback data; decodable playback media is authoritative.
     public static func loadArchived(
         displayName: String,
         mixedAudioURL: URL,
@@ -150,6 +170,11 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         let playbackAudio = MeetingArtifactAudioFileNames.resolvePlaybackURL(
             in: folderURL,
             fileManager: fileManager)
+        let playbackDurationSeconds =
+            probedDurationSeconds(
+                at: playbackAudio.url,
+                fileManager: fileManager
+            ) ?? durationSeconds
         let microphoneAudio = MeetingArtifactAudioFileNames.resolveRawMicrophoneURL(
             in: folderURL,
             fileManager: fileManager)
@@ -162,19 +187,22 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         // The decodability probe stays in `validatedMicrophoneTranscriptionURL`,
         // which is the actual STT routing gate and falls back to raw if the
         // artifact is corrupt or partial.
-        let cleanedMicrophoneAudioURL = hasNonEmptyFile(at: cleanedURL, fileManager: fileManager)
+        let cleanedMicrophoneAudioURL =
+            hasNonEmptyFile(at: cleanedURL, fileManager: fileManager)
             ? cleanedURL
             : nil
 
         if metadata.sourceAlignment.microphone != nil,
-           !microphoneAudio.exists {
+            !microphoneAudio.exists
+        {
             throw MeetingAudioError.storageFailed(
                 "Missing archived meeting source file: \(MeetingArtifactAudioFileNames.rawMicrophone)"
                     + " or \(MeetingArtifactAudioFileNames.legacyRawMicrophone)")
         }
 
         if metadata.sourceAlignment.system != nil,
-           !systemAudio.exists {
+            !systemAudio.exists
+        {
             throw MeetingAudioError.storageFailed(
                 "Missing archived meeting source file: \(MeetingArtifactAudioFileNames.rawSystem)"
                     + " or \(MeetingArtifactAudioFileNames.legacyRawSystem)")
@@ -188,8 +216,9 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
             microphoneAudioURL: microphoneAudio.url,
             systemAudioURL: systemAudio.url,
             cleanedMicrophoneAudioURL: cleanedMicrophoneAudioURL,
-            durationSeconds: durationSeconds,
+            durationSeconds: playbackDurationSeconds,
             sourceAlignment: metadata.sourceAlignment,
+            captureReport: metadata.captureReport,
             speechEngine: metadata.speechEngine,
             speechEngineWasCaptured: metadata.speechEngineWasCaptured,
             previewSpeechEngine: metadata.previewSpeechEngine,
@@ -198,12 +227,29 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         )
     }
 
+    private static func probedDurationSeconds(
+        at url: URL,
+        fileManager: FileManager
+    ) -> TimeInterval? {
+        guard hasNonEmptyFile(at: url, fileManager: fileManager),
+            let file = try? AVAudioFile(forReading: url),
+            file.length > 0
+        else {
+            return nil
+        }
+        let sampleRate = file.processingFormat.sampleRate
+        guard sampleRate.isFinite, sampleRate > 0 else { return nil }
+        let duration = Double(file.length) / sampleRate
+        return duration.isFinite && duration > 0 ? duration : nil
+    }
+
     private static func hasNonEmptyFile(
         at url: URL,
         fileManager: FileManager = .default
     ) -> Bool {
         guard hasFile(at: url, fileManager: fileManager),
-              let size = try? fileManager.attributesOfItem(atPath: url.path)[.size] as? NSNumber else {
+            let size = try? fileManager.attributesOfItem(atPath: url.path)[.size] as? NSNumber
+        else {
             return false
         }
         return size.int64Value > 0
@@ -226,6 +272,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
             && lhs.cleanedMicrophoneAudioURL == rhs.cleanedMicrophoneAudioURL
             && lhs.durationSeconds == rhs.durationSeconds
             && lhs.sourceAlignment == rhs.sourceAlignment
+            && lhs.captureReport == rhs.captureReport
             && lhs.speechEngine == rhs.speechEngine
             && lhs.speechEngineWasCaptured == rhs.speechEngineWasCaptured
             && lhs.previewSpeechEngine == rhs.previewSpeechEngine

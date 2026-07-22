@@ -1835,7 +1835,7 @@ authoritative transcript and is unchanged by this live-preview strategy.
 
 ## v0.7 Features (Meeting Reliability & Detection)
 
-> Status: **MIXED** — F44 / ADR-023 auto-stop Phases A+B are implemented behind a default-off flag. F45 / ADR-024 detection Phases A+B are implemented behind a default-off flag with no UI/coordinator wiring. F46 / ADR-025 reliability Phase A is implemented behind a default-on kill-switch with telemetry only. Remaining ADR-024 and ADR-025 phases remain proposed. User-visible meeting automation stays opt-in / flag-gated.
+> Status: **MIXED** — F44 / ADR-023 auto-stop Phases A+B are implemented behind a default-off flag. F45 / ADR-024 detection Phases A+B are implemented behind a default-off flag with no UI/coordinator wiring. F46 / ADR-025 implements direct source-lifecycle recovery, actionable warnings, and frame-derived capture reports; inferred-signal mic restart and VAD transcript-gap repair remain proposed. User-visible meeting automation stays opt-in / flag-gated.
 
 ### F44: Activity-Based Meeting Auto-Stop
 
@@ -1851,9 +1851,11 @@ authoritative transcript and is unchanged by this live-preview strategy.
 
 ### F46: Meeting Capture Reliability — Mic-Health Watchdog + Coverage Repair
 
-> Status: **PARTIAL IMPLEMENTATION** — ADR-025 Phase A implements REQ-MEET-017 detection-only telemetry behind `AppFeatures.meetingCaptureReliabilityEnabled = true`. Warning UI, live recovery, and REQ-MEET-018 coverage repair remain proposed.
+> Status: **PARTIAL IMPLEMENTATION** — Direct AVAudioEngine configuration-change recovery, typed system-source recovery, actionable source warnings, and finalized frame-derived capture reports are implemented. Mic restart inferred only from signal/callback health and REQ-MEET-018 VAD transcript-gap repair remain proposed.
 
-**What:** Two hardening measures for meeting capture. (1) A **mic-health watchdog** treats the system-audio stream as the liveness oracle: if "Others" are clearly talking but the microphone delivers nothing / all-zero / a stalled gap, Phase A emits privacy-safe `mic_stall_detected` telemetry for the first confirmed stall in a recording, suppresses repeats into count/seconds summaries, and does not change recording behavior; the gentle "may be missing your side" warning and auto-recovery remain deferred behind confirmed field signatures. (2) A **post-stop coverage repair** runs an offline VAD pass over the retained audio, measures how much detected speech the live transcript covered, and re-transcribes only the missed regions on the ADR-016 background slot — turning live preview from "best-effort, lossy on drop" into a guaranteed-complete final transcript. Refines REQ-MEET-013 (adds a completeness stage; per-chunk transcription is unchanged).
+**Implemented:** A stopped AVAudioEngine configuration-change episode rebuilds against the current route and format with bounded retries, and succeeds only after a replacement microphone buffer arrives. Typed ScreenCaptureKit first-buffer, heartbeat, and unexpected delegate failures similarly retry with fresh system streams while preserving the other source. Confirmed recovering, interrupted, stalled, or unavailable states surface non-blocking warnings. Finalization persists per-source written-frame coverage and partial-capture status in the meeting artifact; missing legacy reports mean unknown, not healthy.
+
+**Still proposed:** The metadata-only mic-health monitor emits privacy-safe `mic_stall_detected` telemetry, but does not restart a microphone merely because signal or callbacks imply a stall. The separately proposed offline VAD pass would find transcript gaps and re-transcribe missed speech; the implemented frame report measures recorded media coverage, not transcript completeness.
 
 ---
 

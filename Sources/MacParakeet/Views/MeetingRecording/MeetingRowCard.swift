@@ -120,6 +120,22 @@ struct MeetingRowCard<MenuContent: View>: View {
                     .accessibilityLabel("Recovered from a crash")
             }
 
+            if let partialCapture = MeetingPartialCapturePresentation.make(for: transcription) {
+                Text(partialCapture.badgeText)
+                    .font(DesignSystem.Typography.micro.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.warningAmber)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule()
+                            .fill(DesignSystem.Colors.warningAmber.opacity(0.10))
+                    )
+                    .fixedSize()
+                    .help(partialCapture.message)
+                    .accessibilityLabel(partialCapture.badgeText)
+                    .accessibilityHint(partialCapture.message)
+            }
+
             highlightedTitle
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(DesignSystem.Colors.textPrimary)

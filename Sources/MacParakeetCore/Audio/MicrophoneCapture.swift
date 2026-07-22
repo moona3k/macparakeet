@@ -114,11 +114,17 @@ public final class MicrophoneCapture: @unchecked Sendable {
     public typealias AudioBufferHandler = @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
     public typealias StallObserver = @Sendable (MeetingAudioError) -> Void
     private static let firstBufferTimeoutSeconds = 2.0
-    private enum LifecycleState {
+    private enum LifecycleState: Equatable {
         case idle
-        case starting
-        case running
-        case stopping
+        case starting(Int)
+        case running(Int)
+        case stopping(Int)
+    }
+
+    private enum StopAction {
+        case none
+        case wait(attemptID: Int)
+        case unsubscribe(token: SharedMicrophoneStream.SubscriberToken, attemptID: Int)
     }
 
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "MicrophoneCapture")
@@ -130,8 +136,11 @@ public final class MicrophoneCapture: @unchecked Sendable {
     private let watchdogLock = NSLock()
 
     private var state: LifecycleState = .idle
+    private var nextStartAttemptID = 0
+    private var stopSettlementWaiters: [(attemptID: Int, continuation: CheckedContinuation<Void, Never>)] = []
     private var bufferHandler: AudioBufferHandler?
     private var stallObserver: StallObserver?
+    private var handlerGeneration: Int?
     /// Buffer callbacks can arrive before `start()` returns and arms the watchdog.
     /// Generation state keeps those early callbacks tied to the correct start attempt.
     private var watchdogGeneration = 0
@@ -176,17 +185,34 @@ public final class MicrophoneCapture: @unchecked Sendable {
         handler: @escaping AudioBufferHandler,
         onStall: StallObserver? = nil
     ) async throws -> MeetingMicrophoneCaptureStartReport {
-        let alreadyStarting: Bool = lifecycleQueue.sync {
-            guard state == .idle else { return true }
-            state = .starting
-            return false
+        let stoppingAttemptID = lifecycleQueue.sync { () -> Int? in
+            guard case .stopping(let attemptID) = state else { return nil }
+            return attemptID
         }
-        if alreadyStarting {
+        if let stoppingAttemptID {
+            await waitForStopSettlement(attemptID: stoppingAttemptID)
+        }
+        let attemptID: Int? = lifecycleQueue.sync {
+            guard state == .idle else { return nil }
+            nextStartAttemptID += 1
+            state = .starting(nextStartAttemptID)
+            return nextStartAttemptID
+        }
+        guard let attemptID else {
             throw MeetingAudioError.alreadyRunning
+        }
+        var didClaimRunning = false
+        defer {
+            if !didClaimRunning {
+                completeStoppedStartIfOwned(attemptID: attemptID)
+            }
         }
 
         guard permissionProvider() else {
-            lifecycleQueue.sync { state = .idle }
+            _ = finalizeFailureIfOwned(
+                attemptID: attemptID,
+                handlerGeneration: nil
+            )
             AudioCaptureDiagnostics.append(
                 "meeting_mic_capture_start_failed mode=\(String(describing: processingMode)) reason=\"permission_denied\""
             )
@@ -197,17 +223,14 @@ public final class MicrophoneCapture: @unchecked Sendable {
             "meeting_mic_capture_starting requested_mode=\(String(describing: processingMode)) \(AudioCaptureDiagnostics.defaultInputDeviceSummary())"
         )
 
-        handlerLock.withLock {
-            bufferHandler = handler
-            stallObserver = onStall
-        }
-
-        let deathDispatch: SharedMicrophoneStream.EngineDeathHandler = { [weak self] in
-            guard let self else { return }
-            let observer = self.handlerLock.withLock { self.stallObserver }
-            observer?(.captureRuntimeFailure(
-                "shared microphone engine stopped unexpectedly"
-            ))
+        guard
+            var activeWatchdogGeneration = installHandlersIfOwned(
+                attemptID: attemptID,
+                handler: handler,
+                onStall: onStall
+            )
+        else {
+            throw MeetingAudioError.audioEngineStartFailed("stop_during_start")
         }
 
         let wantsVPIO: Bool
@@ -220,11 +243,10 @@ public final class MicrophoneCapture: @unchecked Sendable {
 
         let token: SharedMicrophoneStream.SubscriberToken
         var effectiveMode: MeetingMicProcessingEffectiveMode
-        var activeWatchdogGeneration = nextWatchdogGeneration()
         do {
             token = try await sharedStream.subscribe(
                 wantsVPIO: wantsVPIO,
-                onEngineDeath: deathDispatch,
+                onEngineDeath: makeEngineDeathDispatch(generation: activeWatchdogGeneration),
                 handler: makeBufferDispatch(generation: activeWatchdogGeneration)
             )
             // The effective mode reflects what the engine is actually
@@ -244,15 +266,24 @@ public final class MicrophoneCapture: @unchecked Sendable {
                     "meeting_mic_processing_fallback requested=vpioPreferred effective=raw \(AudioCaptureDiagnostics.errorFields(error))"
                 )
                 do {
-                    activeWatchdogGeneration = nextWatchdogGeneration()
+                    guard
+                        let fallbackGeneration = replaceHandlerGenerationIfOwned(
+                            attemptID: attemptID
+                        )
+                    else {
+                        throw MeetingAudioError.audioEngineStartFailed("stop_during_subscribe")
+                    }
+                    activeWatchdogGeneration = fallbackGeneration
                     token = try await sharedStream.subscribe(
                         wantsVPIO: false,
-                        onEngineDeath: deathDispatch,
+                        onEngineDeath: makeEngineDeathDispatch(generation: activeWatchdogGeneration),
                         handler: makeBufferDispatch(generation: activeWatchdogGeneration)
                     )
                     effectiveMode = .raw
                 } catch let fallbackError {
                     finalizeFailure(
+                        attemptID: attemptID,
+                        handlerGeneration: activeWatchdogGeneration,
                         processingMode: processingMode,
                         errorFields: AudioCaptureDiagnostics.errorFields(fallbackError)
                     )
@@ -263,6 +294,8 @@ public final class MicrophoneCapture: @unchecked Sendable {
                     "meeting_mic_processing_unavailable mode=vpioRequired \(AudioCaptureDiagnostics.errorFields(error))"
                 )
                 finalizeFailure(
+                    attemptID: attemptID,
+                    handlerGeneration: activeWatchdogGeneration,
                     processingMode: processingMode,
                     errorFields: AudioCaptureDiagnostics.errorFields(error)
                 )
@@ -272,6 +305,8 @@ public final class MicrophoneCapture: @unchecked Sendable {
                 )
             case .raw:
                 finalizeFailure(
+                    attemptID: attemptID,
+                    handlerGeneration: activeWatchdogGeneration,
                     processingMode: processingMode,
                     errorFields: AudioCaptureDiagnostics.errorFields(error)
                 )
@@ -286,6 +321,8 @@ public final class MicrophoneCapture: @unchecked Sendable {
                 "meeting_mic_processing_unavailable mode=vpioRequired reason_code=vpio_deferred"
             )
             finalizeFailure(
+                attemptID: attemptID,
+                handlerGeneration: activeWatchdogGeneration,
                 processingMode: processingMode,
                 errorFields: "reason_code=vpio_deferred"
             )
@@ -301,19 +338,19 @@ public final class MicrophoneCapture: @unchecked Sendable {
         // orphan token so the shared stream's engine isn't left with a live
         // subscriber that has no owner.
         let didTakeOwnership: Bool = lifecycleQueue.sync {
-            guard state == .starting else { return false }
+            guard state == .starting(attemptID) else { return false }
             sharedSubscriberToken = token
-            state = .running
+            state = .running(attemptID)
             return true
         }
         if !didTakeOwnership {
-            let stream = sharedStream
-            Task { await stream.unsubscribe(token) }
+            await sharedStream.unsubscribe(token)
             AudioCaptureDiagnostics.append(
                 "meeting_mic_capture_start_aborted reason=\"stop_during_subscribe\""
             )
             throw MeetingAudioError.audioEngineStartFailed("stop_during_subscribe")
         }
+        didClaimRunning = true
 
         // Watchdog must start AFTER the subscription is owned. Scheduling
         // earlier risks firing while a slow device-fallback chain is still
@@ -342,46 +379,146 @@ public final class MicrophoneCapture: @unchecked Sendable {
     }
 
     private func finalizeFailure(
+        attemptID: Int,
+        handlerGeneration: Int,
         processingMode: MeetingMicProcessingMode,
         errorFields: String
     ) {
-        handlerLock.withLock {
-            bufferHandler = nil
-            stallObserver = nil
-        }
-        resetDiagnosticsState()
-        lifecycleQueue.sync {
-            state = .idle
-        }
+        _ = finalizeFailureIfOwned(
+            attemptID: attemptID,
+            handlerGeneration: handlerGeneration
+        )
         AudioCaptureDiagnostics.append(
             "meeting_mic_capture_start_failed mode=\(String(describing: processingMode)) \(errorFields)"
         )
     }
 
-    public func stop() {
-        let snapshot: SharedMicrophoneStream.SubscriberToken? = lifecycleQueue.sync {
-            guard state != .idle else { return nil }
-            state = .stopping
-            let token = sharedSubscriberToken
-            sharedSubscriberToken = nil
+    private func installHandlersIfOwned(
+        attemptID: Int,
+        handler: @escaping AudioBufferHandler,
+        onStall: StallObserver?
+    ) -> Int? {
+        lifecycleQueue.sync {
+            guard state == .starting(attemptID) else { return nil }
+            let generation = nextWatchdogGeneration()
             handlerLock.withLock {
+                bufferHandler = handler
+                stallObserver = onStall
+                handlerGeneration = generation
+            }
+            return generation
+        }
+    }
+
+    private func replaceHandlerGenerationIfOwned(attemptID: Int) -> Int? {
+        lifecycleQueue.sync {
+            guard state == .starting(attemptID) else { return nil }
+            let generation = nextWatchdogGeneration()
+            handlerLock.withLock {
+                handlerGeneration = generation
+            }
+            return generation
+        }
+    }
+
+    @discardableResult
+    private func finalizeFailureIfOwned(
+        attemptID: Int,
+        handlerGeneration expectedHandlerGeneration: Int?
+    ) -> Bool {
+        lifecycleQueue.sync {
+            guard state == .starting(attemptID) else { return false }
+            state = .stopping(attemptID)
+            handlerLock.withLock {
+                guard
+                    expectedHandlerGeneration == nil
+                        || handlerGeneration == expectedHandlerGeneration
+                else { return }
                 bufferHandler = nil
                 stallObserver = nil
+                handlerGeneration = nil
             }
             resetDiagnosticsState()
             state = .idle
-            return token
+            return true
         }
-        guard let token = snapshot else { return }
-        // Fire-and-forget so `stop()` stays synchronous (the protocol requires
-        // it for the deinit path). The stream's engine queue serializes the
-        // unsubscribe behind any pending operations.
-        let stream = sharedStream
-        Task { await stream.unsubscribe(token) }
+    }
+
+    public func stop() async {
+        let action: StopAction = lifecycleQueue.sync {
+            switch state {
+            case .idle:
+                return .none
+            case .stopping(let attemptID):
+                return .wait(attemptID: attemptID)
+            case .starting(let attemptID):
+                beginStopLocked(attemptID: attemptID)
+                return .wait(attemptID: attemptID)
+            case .running(let attemptID):
+                beginStopLocked(attemptID: attemptID)
+                guard let token = sharedSubscriberToken else {
+                    return .wait(attemptID: attemptID)
+                }
+                sharedSubscriberToken = nil
+                return .unsubscribe(token: token, attemptID: attemptID)
+            }
+        }
+
+        switch action {
+        case .none:
+            return
+        case .wait(let attemptID):
+            await waitForStopSettlement(attemptID: attemptID)
+        case .unsubscribe(let token, let attemptID):
+            await sharedStream.unsubscribe(token)
+            finishStopIfOwned(attemptID: attemptID)
+        }
+
         logger.info("microphone_capture_stopped")
         AudioCaptureDiagnostics.append(
             "meeting_mic_capture_stopped \(AudioCaptureDiagnostics.defaultInputDeviceSummary())"
         )
+    }
+
+    private func beginStopLocked(attemptID: Int) {
+        state = .stopping(attemptID)
+        handlerLock.withLock {
+            bufferHandler = nil
+            stallObserver = nil
+            handlerGeneration = nil
+        }
+        resetDiagnosticsState()
+    }
+
+    private func completeStoppedStartIfOwned(attemptID: Int) {
+        finishStopIfOwned(attemptID: attemptID)
+    }
+
+    private func finishStopIfOwned(attemptID: Int) {
+        let waiters = lifecycleQueue.sync { () -> [CheckedContinuation<Void, Never>] in
+            guard state == .stopping(attemptID) else { return [] }
+            state = .idle
+            let matching =
+                stopSettlementWaiters
+                .filter { $0.attemptID == attemptID }
+                .map(\.continuation)
+            stopSettlementWaiters.removeAll { $0.attemptID == attemptID }
+            return matching
+        }
+        waiters.forEach { $0.resume() }
+    }
+
+    private func waitForStopSettlement(attemptID: Int) async {
+        await withCheckedContinuation { continuation in
+            let shouldResume = lifecycleQueue.sync { () -> Bool in
+                guard state == .stopping(attemptID) else { return true }
+                stopSettlementWaiters.append((attemptID, continuation))
+                return false
+            }
+            if shouldResume {
+                continuation.resume()
+            }
+        }
     }
 
     private func dispatchBuffer(
@@ -390,14 +527,42 @@ public final class MicrophoneCapture: @unchecked Sendable {
         extractVPIOChannelZero: Bool,
         generation: Int
     ) {
+        guard hasActiveHandlers(generation: generation) else { return }
         markFirstBufferReceived(generation: generation)
         let deliveredBuffer: AVAudioPCMBuffer
-        deliveredBuffer = microphoneCaptureMonoBuffer(
-            from: buffer,
-            extractVPIOChannelZero: extractVPIOChannelZero
-        ) ?? buffer
-        let callback = handlerLock.withLock { bufferHandler }
+        deliveredBuffer =
+            microphoneCaptureMonoBuffer(
+                from: buffer,
+                extractVPIOChannelZero: extractVPIOChannelZero
+            ) ?? buffer
+        let callback = handlerLock.withLock { () -> AudioBufferHandler? in
+            guard handlerGeneration == generation else { return nil }
+            return bufferHandler
+        }
         callback?(deliveredBuffer, time)
+    }
+
+    private func makeEngineDeathDispatch(
+        generation: Int
+    ) -> SharedMicrophoneStream.EngineDeathHandler {
+        { [weak self] in
+            guard let self else { return }
+            let observer = self.handlerLock.withLock { () -> StallObserver? in
+                guard self.handlerGeneration == generation else { return nil }
+                return self.stallObserver
+            }
+            observer?(
+                .captureRuntimeFailure(
+                    "shared microphone engine stopped unexpectedly"
+                )
+            )
+        }
+    }
+
+    private func hasActiveHandlers(generation: Int) -> Bool {
+        handlerLock.withLock {
+            handlerGeneration == generation && bufferHandler != nil
+        }
     }
 
     private func makeBufferDispatch(generation: Int) -> SharedMicrophoneStream.BufferHandler {
@@ -440,7 +605,10 @@ public final class MicrophoneCapture: @unchecked Sendable {
                 let error = MeetingAudioError.captureRuntimeFailure(
                     "microphone capture started but delivered no buffers within 2 seconds"
                 )
-                let observer = self.handlerLock.withLock { self.stallObserver }
+                let observer = self.handlerLock.withLock { () -> StallObserver? in
+                    guard self.handlerGeneration == generation else { return nil }
+                    return self.stallObserver
+                }
                 observer?(error)
 
                 let elapsedSeconds = String(

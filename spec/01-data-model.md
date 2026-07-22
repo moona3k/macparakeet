@@ -121,6 +121,7 @@ CREATE TABLE transcriptions (
     audioTrackOrdinal INTEGER,                         -- v0.29: Explicit zero-based 0:a:N selection
     meetingArtifactFolderPath TEXT,                    -- v0.22: Durable meeting artifact folder path
     meetingStartContext TEXT,                          -- v0.24: JSON one-shot meeting start context
+    meetingCaptureReport TEXT,                         -- v0.30: JSON finalized meeting frame coverage
     fileSizeBytes INTEGER,                             -- Original file size
     durationMs INTEGER,                                -- Audio/video duration in milliseconds
     rawTranscript TEXT,                                 -- Unprocessed STT output (nullable while processing)
@@ -170,6 +171,16 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
   legacy/automatic selection and is expected for single-track, URL, podcast,
   dictation, and meeting rows. Retranscription reuses a stored ordinal.
 - For meeting recordings, `filePath` points to the mixed `meeting-playback.m4a` artifact used for playback/export while retained. `meetingArtifactFolderPath` points to the durable session folder, so artifact actions and CLI output survive audio deletion or retention. The selected-source `microphone-raw.m4a` and/or `system-raw.m4a`, plus the `meeting-recording-metadata.json` sidecar, remain inside that same session folder while retained. The sidecar may include additive `echoSuppression` provenance (`reasonCode` plus optional model, render-timing, delay, and probe-correlation fields) after the cleaned-mic readiness gate resolves, so shared folders identify whether final STT used cleaned or raw mic and why. `meetingStartContext` stores the one-shot local-only start snapshot for meeting rows: trigger kind, configured source mode, and the frontmost app bundle id/name read at recording start. `calendarEventSnapshot` stores local EventKit context captured at start time for confirmed or probable calendar meetings. The folder is the first-class local artifact contract for the session, including the deterministic `meeting.md` Markdown view; the canonical filename/schema contract lives in [`spec/contracts/meeting-artifacts-v1.md`](contracts/meeting-artifacts-v1.md). The DB row remains canonical; the folder is refreshed after meeting finalization, `macparakeet-cli meetings artifact`, meeting-note writes, and prompt-result writes.
+- `meetingCaptureReport` is an optional v0.30 JSON blob for meeting rows. It
+  records frame-derived `healthy`/`partial` quality, selected source mode,
+  pause-adjusted elapsed duration, playable captured duration, per-source
+  written duration/coverage/status, terminal interruptions, and runtime capture
+  failure. It also records an optional playback-fallback source when healthy
+  raw tracks could not be combined and canonical playback contains only one.
+  `NULL` means legacy/unknown, not healthy. Meeting `durationMs` is the actual
+  playable captured duration; elapsed session time stays in this report. Capture
+  quality is orthogonal to `status`, so a partial recording can still have
+  `status = 'completed'` when transcription itself succeeds.
 - The meeting artifact root defaults to `~/Library/Application Support/MacParakeet/meeting-recordings`, and can be changed for future sessions through `macparakeet-cli config set meeting-artifacts-folder <absolute-path>`. Existing sessions keep their own folder path through `transcriptions.meetingArtifactFolderPath`, falling back to the parent of `transcriptions.filePath` for legacy rows.
 - Saved meeting retranscribes reconstruct the archived meeting from that folder when the sidecar exists, so the library path can reuse the same aligned dual-source finalization flow as the immediate post-stop path.
 - `sourceURL` distinguishes URL-sourced transcriptions (YouTube) from local file transcriptions. Added in v0.3.
@@ -692,6 +703,7 @@ struct Transcription: Codable, Identifiable {
     var audioTrackOrdinal: Int? // v0.29 — Explicit zero-based audio-stream ordinal
     var meetingArtifactFolderPath: String? // v0.22 — Durable meeting artifact folder
     var meetingStartContext: MeetingStartContext? // v0.24 — One-shot meeting start context
+    var meetingCaptureReport: MeetingCaptureReport? // v0.30 — Finalized writer-frame coverage
     var fileSizeBytes: Int?
     var durationMs: Int?
     var rawTranscript: String?
@@ -1243,6 +1255,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 // v0.27 — derived segments + external-content segments_fts (raw SQL)
 // v0.28 — derived cards + external-content cards_fts (raw SQL)
 // v0.29 — transcriptions.audioTrackOrdinal
+// v0.30 — transcriptions.meetingCaptureReport (optional JSON)
 ```
 
 ### Migration Rules
@@ -1268,6 +1281,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `transcriptions.calendarEventSnapshot` | v0.25 | Local JSON EventKit context snapshot for meeting recordings |
 | `transcriptions.titleOverride` | v0.26 | User-authored display title override for non-meeting transcription rows; does not rename source files |
 | `transcriptions.audioTrackOrdinal` | v0.29 | Explicit zero-based audio-stream ordinal reused by local-file retranscription; `NULL` means automatic |
+| `transcriptions.meetingCaptureReport` | v0.30 | Optional finalized meeting frame-coverage JSON; `NULL` means legacy/unknown and quality remains independent of transcription status |
 | `segments` / `segments_fts` | v0.27 | Derived, rebuildable meeting + file/URL retrieval segments and external-content FTS5 index; dictations excluded |
 | `cards` / `cards_fts` | v0.28 | Derived per-recording knowledge cards with provenance, cited candidates, and synopsis/topic FTS; dictations excluded |
 | `custom_words` | v0.2 | Vocabulary anchors and corrections |

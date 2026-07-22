@@ -411,6 +411,48 @@ final class DatabaseManagerTests: XCTestCase {
         }
     }
 
+    func testMeetingCaptureReportColumnExistsOnTranscriptions() throws {
+        let manager = try DatabaseManager()
+        try manager.dbQueue.read { db in
+            let columns = try db.columns(in: "transcriptions").map(\.name)
+            XCTAssertTrue(
+                columns.contains("meetingCaptureReport"),
+                "transcriptions should preserve finalized meeting capture quality JSON"
+            )
+        }
+    }
+
+    func testMeetingCaptureReportMigrationPreservesExistingTranscriptionRows() throws {
+        let dbPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("meeting_capture_report_upgrade_\(UUID().uuidString).db")
+            .path
+        defer { cleanupDatabaseFiles(atPath: dbPath) }
+
+        let previousVersionManager = try DatabaseManager(path: dbPath)
+        let existing = Transcription(
+            fileName: "Existing meeting",
+            rawTranscript: "User data must survive the v0.30 upgrade.",
+            status: .completed,
+            sourceType: .meeting
+        )
+        try TranscriptionRepository(dbQueue: previousVersionManager.dbQueue).save(existing)
+        try previousVersionManager.dbQueue.write { db in
+            try db.execute(sql: "ALTER TABLE transcriptions DROP COLUMN meetingCaptureReport")
+            try db.execute(
+                sql: "DELETE FROM grdb_migrations WHERE identifier = ?",
+                arguments: ["v0.30-meeting-capture-report"]
+            )
+        }
+
+        let upgradedManager = try DatabaseManager(path: dbPath)
+        let upgraded = try XCTUnwrap(
+            TranscriptionRepository(dbQueue: upgradedManager.dbQueue).fetch(id: existing.id)
+        )
+        XCTAssertEqual(upgraded.fileName, existing.fileName)
+        XCTAssertEqual(upgraded.rawTranscript, existing.rawTranscript)
+        XCTAssertNil(upgraded.meetingCaptureReport)
+    }
+
     // MARK: - ADR-020 v0.8 schema additions
 
     func testUserNotesColumnExistsOnTranscriptions() throws {

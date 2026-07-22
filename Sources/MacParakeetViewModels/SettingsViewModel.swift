@@ -1236,13 +1236,13 @@ public final class SettingsViewModel {
                     try await Task.sleep(for: .milliseconds(50))
                     microphoneTestLevel = levelBox.latestLevel
                 }
-                capture.stop()
+                await capture.stop()
                 guard !Task.isCancelled else { return }
                 microphoneTestState = levelBox.maxLevel > Self.microphoneTestSilenceThreshold
                     ? .succeeded
                     : .failed("No input detected. Check the selected microphone and try again.")
             } catch {
-                capture.stop()
+                await capture.stop()
                 guard !Task.isCancelled else { return }
                 microphoneTestState = .failed(error.localizedDescription)
             }

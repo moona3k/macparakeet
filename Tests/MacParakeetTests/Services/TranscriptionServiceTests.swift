@@ -1800,6 +1800,55 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(fetched.id, stub.id)
     }
 
+    func testPartialMeetingKeepsCompletedStatusAndPersistsPlayableDuration() async throws {
+        let alignment = MeetingSourceAlignment(
+            meetingOriginHostTime: 100,
+            microphone: .init(
+                firstHostTime: 100,
+                lastHostTime: 200,
+                startOffsetMs: 0,
+                writtenFrameCount: 48_000,
+                sampleRate: 48_000
+            ),
+            system: nil
+        )
+        let report = MeetingCaptureReport(
+            sourceMode: .microphoneOnly,
+            sourceAlignment: alignment,
+            elapsedDurationMs: 100_000
+        )
+        let recording = try makeOneSourceMeetingRecording(
+            displayName: "Partial Meeting",
+            captureReport: report,
+            durationSeconds: 1
+        )
+        defer { try? FileManager.default.removeItem(at: recording.folderURL) }
+        await mockSTT.configure(result: STTResult(
+            text: "Only the captured minute is available",
+            words: [
+                TimestampedWord(word: "Only", startMs: 0, endMs: 300, confidence: 0.95),
+                TimestampedWord(word: "available", startMs: 700, endMs: 1_500, confidence: 0.95),
+            ]
+        ))
+
+        let stub = try await service.prepareMeetingTranscription(recording: recording)
+        XCTAssertEqual(stub.durationMs, 1_000)
+        XCTAssertEqual(stub.meetingCaptureReport, report)
+
+        let completed = try await service.finalizeMeetingTranscription(
+            recording: recording,
+            updating: stub.id
+        )
+
+        XCTAssertEqual(completed.status, .completed)
+        XCTAssertEqual(completed.durationMs, 1_000)
+        XCTAssertEqual(completed.meetingCaptureReport, report)
+        let fetched = try XCTUnwrap(transcriptionRepo.fetch(id: stub.id))
+        XCTAssertEqual(fetched.status, .completed)
+        XCTAssertEqual(fetched.durationMs, 1_000)
+        XCTAssertEqual(fetched.meetingCaptureReport, report)
+    }
+
     func testTranscribeMeetingSkipsAIFormatterWhenRawTranscriptIsEmpty() async throws {
         await mockSTT.configure(result: STTResult(text: ""))
         let llm = MockLLMService()
@@ -3143,7 +3192,9 @@ final class TranscriptionServiceTests: XCTestCase {
 
     private func makeOneSourceMeetingRecording(
         displayName: String,
-        startContext: MeetingStartContext? = nil
+        startContext: MeetingStartContext? = nil,
+        captureReport: MeetingCaptureReport? = nil,
+        durationSeconds: TimeInterval = 3
     ) throws -> MeetingRecordingOutput {
         let recordingFolder = URL(fileURLWithPath: AppPaths.tempDir)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -3162,18 +3213,19 @@ final class TranscriptionServiceTests: XCTestCase {
             mixedAudioURL: mixedURL,
             microphoneAudioURL: microphoneURL,
             systemAudioURL: systemURL,
-            durationSeconds: 3.0,
+            durationSeconds: durationSeconds,
             sourceAlignment: MeetingSourceAlignment(
                 meetingOriginHostTime: nil,
                 microphone: .init(
                     firstHostTime: nil,
                     lastHostTime: nil,
                     startOffsetMs: 0,
-                    writtenFrameCount: 144_000,
+                    writtenFrameCount: Int64((durationSeconds * 48_000).rounded()),
                     sampleRate: 48_000
                 ),
                 system: nil
             ),
+            captureReport: captureReport,
             startContext: startContext
         )
     }

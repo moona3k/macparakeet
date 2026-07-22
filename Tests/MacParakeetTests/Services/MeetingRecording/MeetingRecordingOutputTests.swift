@@ -3,10 +3,8 @@ import Foundation
 import XCTest
 @testable import MacParakeetCore
 
-/// Coverage for the #605 cleaned-mic surface on `MeetingRecordingOutput`: the
-/// `microphoneTranscriptionURL` preference policy, the validated STT routing
-/// gate (U4), and the `loadArchived` disk probe that re-surfaces a derived
-/// cleaned mic on re-open.
+/// Coverage for `MeetingRecordingOutput` archive reconstruction, metadata
+/// compatibility, cleaned-microphone preference, and validated STT routing.
 final class MeetingRecordingOutputTests: XCTestCase {
     func testMicrophoneTranscriptionURLPrefersExistingCleanedMic() throws {
         let dir = try makeTempDir()
@@ -374,6 +372,36 @@ final class MeetingRecordingOutputTests: XCTestCase {
         XCTAssertNil(output.cleanedMicrophoneAudioURL)
     }
 
+    func testLoadArchivedUsesCanonicalPlaybackDurationInsteadOfStoredDuration() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try saveAlignmentMetadata(in: dir)
+        let playbackURL = dir.appendingPathComponent("meeting-playback.m4a")
+        try writeM4A(to: playbackURL)
+
+        let output = try MeetingRecordingOutput.loadArchived(
+            displayName: "Archived",
+            mixedAudioURL: playbackURL,
+            durationSeconds: 12
+        )
+
+        XCTAssertEqual(output.durationSeconds, 0.1, accuracy: 0.02)
+    }
+
+    func testLoadArchivedFallsBackToStoredDurationWhenPlaybackProbeFails() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try saveAlignmentMetadata(in: dir)
+
+        let output = try MeetingRecordingOutput.loadArchived(
+            displayName: "Archived",
+            mixedAudioURL: dir.appendingPathComponent("missing-playback.m4a"),
+            durationSeconds: 12
+        )
+
+        XCTAssertEqual(output.durationSeconds, 12)
+    }
+
     func testLoadArchivedReadsLegacyMeetingAudioFileNames() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -407,7 +435,7 @@ final class MeetingRecordingOutputTests: XCTestCase {
             scheduledStartAt: Date(timeIntervalSince1970: 1_720_000_000),
             scheduledEndAt: Date(timeIntervalSince1970: 1_720_003_600),
             attendees: [
-                MeetingCalendarPerson(name: "Alice Example", email: "alice@example.com"),
+                MeetingCalendarPerson(name: "Alice Example", email: "alice@example.com")
             ],
             organizer: MeetingCalendarPerson(name: "Omar Organizer", email: "omar@example.com"),
             meetingURL: "https://zoom.us/j/123456789",
@@ -436,26 +464,99 @@ final class MeetingRecordingOutputTests: XCTestCase {
         XCTAssertEqual(output.calendarEventSnapshot, calendarSnapshot)
     }
 
+    func testMetadataRoundTripsCaptureReportAndPreservesItDuringEchoUpdate() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let alignment = dualSourceAlignment()
+        let report = MeetingCaptureReport(
+            sourceMode: .microphoneAndSystem,
+            sourceAlignment: alignment,
+            elapsedDurationMs: 100_000,
+            playbackFallbackSource: .system
+        )
+        try MeetingRecordingMetadataStore.save(
+            MeetingRecordingMetadata(
+                sourceAlignment: alignment,
+                captureReport: report
+            ),
+            folderURL: dir
+        )
+
+        let loaded = try MeetingRecordingMetadataStore.load(from: dir)
+        XCTAssertEqual(loaded.captureReport, report)
+        XCTAssertEqual(loaded.captureReport?.playbackFallbackSource, .system)
+
+        try MeetingRecordingMetadataStore.updateEchoSuppression(
+            MeetingEchoSuppressionMetadata(reasonCode: .cleanedUsed),
+            folderURL: dir
+        )
+        let updated = try MeetingRecordingMetadataStore.load(from: dir)
+        XCTAssertEqual(updated.captureReport, report)
+        XCTAssertEqual(updated.echoSuppression?.reasonCode, .cleanedUsed)
+    }
+
+    func testLegacyMetadataWithoutCaptureReportDecodesAsUnknown() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try saveAlignmentMetadata(in: dir)
+
+        let metadata = try MeetingRecordingMetadataStore.load(from: dir)
+
+        XCTAssertNil(metadata.captureReport)
+        XCTAssertNil(metadata.sourceAlignment.microphone?.timelineFrameCount)
+        XCTAssertEqual(
+            metadata.sourceAlignment.microphone?.durationSeconds,
+            metadata.sourceAlignment.microphone.map {
+                Double($0.writtenFrameCount) / $0.sampleRate
+            }
+        )
+    }
+
     func testMetadataLoadIgnoresMalformedCalendarSnapshot() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         let json = """
-        {
-            "sourceAlignment": {
-                "meetingOriginHostTime": null,
-                "microphone": null,
-                "system": null
-            },
-            "speechEngine": {
-                "engine": "parakeet"
-            },
-            "calendarEventSnapshot": 42
-        }
-        """
+            {
+                "sourceAlignment": {
+                    "meetingOriginHostTime": null,
+                    "microphone": null,
+                    "system": null
+                },
+                "speechEngine": {
+                    "engine": "parakeet"
+                },
+                "calendarEventSnapshot": 42
+            }
+            """
         try Data(json.utf8).write(to: MeetingRecordingMetadataStore.metadataURL(for: dir))
 
         let metadata = try MeetingRecordingMetadataStore.load(from: dir)
         XCTAssertNil(metadata.calendarEventSnapshot)
+        XCTAssertEqual(metadata.speechEngine.engine, .parakeet)
+    }
+
+    func testMetadataLoadTreatsMalformedCaptureReportAsUnknown() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let json = """
+            {
+                "sourceAlignment": {
+                    "meetingOriginHostTime": 100,
+                    "microphone": null,
+                    "system": null
+                },
+                "speechEngine": {
+                    "engine": "parakeet"
+                },
+                "captureReport": 42
+            }
+            """
+        try Data(json.utf8).write(to: MeetingRecordingMetadataStore.metadataURL(for: dir))
+
+        let metadata = try MeetingRecordingMetadataStore.load(from: dir)
+
+        XCTAssertNil(metadata.captureReport)
+        XCTAssertEqual(metadata.sourceAlignment.meetingOriginHostTime, 100)
         XCTAssertEqual(metadata.speechEngine.engine, .parakeet)
     }
 
@@ -464,12 +565,14 @@ final class MeetingRecordingOutputTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: dir) }
         try saveAlignmentMetadata(in: dir)
 
-        XCTAssertThrowsError(try MeetingRecordingMetadataStore.load(
-            from: dir,
-            fileManager: ContentsProbeFailingFileManager())) { error in
-                XCTAssertTrue(
-                    error.localizedDescription.contains("Unable to read archived meeting metadata"),
-                    "Unexpected error: \(error)")
+        XCTAssertThrowsError(
+            try MeetingRecordingMetadataStore.load(
+                from: dir,
+                fileManager: ContentsProbeFailingFileManager())
+        ) { error in
+            XCTAssertTrue(
+                error.localizedDescription.contains("Unable to read archived meeting metadata"),
+                "Unexpected error: \(error)")
         }
     }
 
@@ -578,9 +681,10 @@ final class MeetingRecordingOutputTests: XCTestCase {
         )
 
         let url = MeetingRecordingMetadataStore.metadataURL(for: dir)
-        var json = try XCTUnwrap(JSONSerialization.jsonObject(
-            with: Data(contentsOf: url)
-        ) as? [String: Any])
+        var json = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: Data(contentsOf: url)
+            ) as? [String: Any])
         json["previewSpeechEngine"] = ["engine": "future_engine"]
         try JSONSerialization.data(withJSONObject: json).write(to: url, options: .atomic)
 
@@ -595,9 +699,10 @@ final class MeetingRecordingOutputTests: XCTestCase {
         try saveAlignmentMetadata(in: dir)
 
         let url = MeetingRecordingMetadataStore.metadataURL(for: dir)
-        var json = try XCTUnwrap(JSONSerialization.jsonObject(
-            with: Data(contentsOf: url)
-        ) as? [String: Any])
+        var json = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: Data(contentsOf: url)
+            ) as? [String: Any])
         json["startContext"] = [
             "triggerKind": "future_trigger",
             "sourceMode": "microphone_only",
@@ -637,8 +742,9 @@ final class MeetingRecordingOutputTests: XCTestCase {
             virtualFileManager.createdPaths,
             [MeetingRecordingMetadataStore.metadataURL(for: dir).path]
         )
-        XCTAssertFalse(FileManager.default.fileExists(
-            atPath: MeetingRecordingMetadataStore.metadataURL(for: dir).path))
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: MeetingRecordingMetadataStore.metadataURL(for: dir).path))
         let data = try XCTUnwrap(virtualFileManager.data)
         let metadata = try JSONDecoder().decode(MeetingRecordingMetadata.self, from: data)
         XCTAssertFalse(metadata.speechEngineWasCaptured)
@@ -655,11 +761,12 @@ final class MeetingRecordingOutputTests: XCTestCase {
             shouldCreateFileSucceed: false
         )
 
-        XCTAssertThrowsError(try MeetingRecordingMetadataStore.updateEchoSuppression(
-            MeetingEchoSuppressionMetadata(reasonCode: .cleanedUsed),
-            folderURL: dir,
-            fileManager: virtualFileManager
-        ))
+        XCTAssertThrowsError(
+            try MeetingRecordingMetadataStore.updateEchoSuppression(
+                MeetingEchoSuppressionMetadata(reasonCode: .cleanedUsed),
+                folderURL: dir,
+                fileManager: virtualFileManager
+            ))
 
         XCTAssertEqual(virtualFileManager.data, originalData)
         XCTAssertTrue(virtualFileManager.removedPaths.isEmpty)
@@ -698,9 +805,10 @@ final class MeetingRecordingOutputTests: XCTestCase {
     private func writeLegacyMetadataWithoutSpeechEngine(in dir: URL) throws {
         try saveAlignmentMetadata(in: dir)
         let url = MeetingRecordingMetadataStore.metadataURL(for: dir)
-        var json = try XCTUnwrap(JSONSerialization.jsonObject(
-            with: Data(contentsOf: url)
-        ) as? [String: Any])
+        var json = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: Data(contentsOf: url)
+            ) as? [String: Any])
         json.removeValue(forKey: "speechEngine")
         let data = try JSONSerialization.data(
             withJSONObject: json,

@@ -90,6 +90,41 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.sourceHealthChips.isEmpty)
     }
 
+    func testActionableWarningsIncludeRecoveryButExcludeSilenceAndMute() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        viewModel.state = .recording
+        viewModel.captureHealth = makeCaptureHealth(
+            microphone: MeetingSourceHealth(source: .microphone, status: .silent),
+            system: MeetingSourceHealth(source: .system, status: .recovering)
+        )
+
+        XCTAssertEqual(
+            viewModel.actionableSourceHealthWarnings.map(\.label),
+            ["System audio reconnecting"]
+        )
+
+        viewModel.captureHealth = makeCaptureHealth(
+            microphone: MeetingSourceHealth(source: .microphone, status: .muted),
+            system: MeetingSourceHealth(source: .system, status: .live)
+        )
+        XCTAssertTrue(viewModel.actionableSourceHealthWarnings.isEmpty)
+    }
+
+    func testVisibleWarningsApplyCurrentProductPolicy() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        viewModel.state = .recording
+        viewModel.captureHealth = makeCaptureHealth(
+            microphone: MeetingSourceHealth(source: .microphone, status: .silent),
+            system: MeetingSourceHealth(source: .system, status: .recovering)
+        )
+
+        XCTAssertFalse(AppFeatures.meetingSourceHealthUIEnabled)
+        XCTAssertEqual(
+            viewModel.visibleSourceHealthWarnings.map(\.label),
+            ["System audio reconnecting"]
+        )
+    }
+
     func testWordCountUpdatesWhenExistingSegmentGrows() {
         let viewModel = MeetingRecordingPanelViewModel()
         let initialLines = [

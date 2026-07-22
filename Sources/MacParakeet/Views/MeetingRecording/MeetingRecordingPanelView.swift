@@ -277,7 +277,7 @@ struct MeetingRecordingPanelView: View {
     }
 
     var visibleSourceHealthChips: [MeetingSourceHealthChip] {
-        AppFeatures.meetingSourceHealthUIEnabled ? viewModel.sourceHealthChips : []
+        viewModel.visibleSourceHealthWarnings
     }
 
     @ViewBuilder

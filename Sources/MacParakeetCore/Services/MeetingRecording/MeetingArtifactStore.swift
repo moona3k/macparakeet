@@ -41,6 +41,7 @@ public struct MeetingArtifactSnapshot: Codable, Sendable, Equatable {
     public let promptResultsDirectoryPath: String
     public let promptResultCount: Int
     public let calendarEventSnapshot: MeetingCalendarSnapshot?
+    public let meetingCaptureReport: MeetingCaptureReport?
 
     public init(
         schema: String = MeetingArtifactStore.schema,
@@ -60,7 +61,8 @@ public struct MeetingArtifactSnapshot: Codable, Sendable, Equatable {
         promptResultsPath: String,
         promptResultsDirectoryPath: String,
         promptResultCount: Int,
-        calendarEventSnapshot: MeetingCalendarSnapshot? = nil
+        calendarEventSnapshot: MeetingCalendarSnapshot? = nil,
+        meetingCaptureReport: MeetingCaptureReport? = nil
     ) {
         self.schema = schema
         self.schemaVersion = schemaVersion
@@ -80,6 +82,7 @@ public struct MeetingArtifactSnapshot: Codable, Sendable, Equatable {
         self.promptResultsDirectoryPath = promptResultsDirectoryPath
         self.promptResultCount = promptResultCount
         self.calendarEventSnapshot = calendarEventSnapshot
+        self.meetingCaptureReport = meetingCaptureReport
     }
 }
 
@@ -177,7 +180,8 @@ public final class MeetingArtifactStore: MeetingArtifactStoring, @unchecked Send
             promptResultsPath: promptResultsURL.path,
             promptResultsDirectoryPath: promptResultsDirectoryURL.path,
             promptResultCount: promptResults.count,
-            calendarEventSnapshot: transcription.calendarEventSnapshot
+            calendarEventSnapshot: transcription.calendarEventSnapshot,
+            meetingCaptureReport: transcription.meetingCaptureReport
         )
         if let markdownPath = artifactPaths.markdownPath {
             let markdown = MeetingMarkdownRenderer().render(
@@ -320,6 +324,7 @@ private struct MeetingArtifactMeetingSummary: Codable {
     let engine: String?
     let engineVariant: String?
     let calendarEventSnapshot: MeetingCalendarSnapshot?
+    let meetingCaptureReport: MeetingCaptureReport?
     let recoveredFromCrash: Bool
     let isTranscriptEdited: Bool
     let startContext: MeetingStartContext?
@@ -335,6 +340,7 @@ private struct MeetingArtifactMeetingSummary: Codable {
         engine = transcription.engine
         engineVariant = transcription.engineVariant
         calendarEventSnapshot = transcription.calendarEventSnapshot
+        meetingCaptureReport = transcription.meetingCaptureReport
         recoveredFromCrash = transcription.recoveredFromCrash
         isTranscriptEdited = transcription.isTranscriptEdited
         startContext = transcription.meetingStartContext
@@ -391,6 +397,7 @@ private struct MeetingArtifactTranscript: Codable {
     let engine: String?
     let engineVariant: String?
     let calendarEventSnapshot: MeetingCalendarSnapshot?
+    let meetingCaptureReport: MeetingCaptureReport?
     let sourceURL: String?
     let sourceType: Transcription.SourceType
     let recoveredFromCrash: Bool
@@ -417,6 +424,7 @@ private struct MeetingArtifactTranscript: Codable {
         engine = transcription.engine
         engineVariant = transcription.engineVariant
         calendarEventSnapshot = transcription.calendarEventSnapshot
+        meetingCaptureReport = transcription.meetingCaptureReport
         sourceURL = transcription.sourceURL
         sourceType = transcription.sourceType
         recoveredFromCrash = transcription.recoveredFromCrash

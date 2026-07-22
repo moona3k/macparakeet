@@ -102,4 +102,42 @@ final class MeetingRecordingPillViewModelTests: XCTestCase {
 
         XCTAssertNil(viewModel.mirroredSourceHealthWarning)
     }
+
+    func testActionableWarningExcludesSilentAndShowsRecovering() {
+        let viewModel = MeetingRecordingPillViewModel()
+        viewModel.state = .recording
+        viewModel.captureHealth = MeetingCaptureHealthSummary(
+            sourceMode: .microphoneAndSystem,
+            microphone: MeetingSourceHealth(source: .microphone, status: .silent),
+            system: MeetingSourceHealth(source: .system, status: .recovering)
+        )
+
+        XCTAssertEqual(
+            viewModel.mirroredActionableSourceHealthWarning?.label,
+            "System audio reconnecting"
+        )
+
+        viewModel.captureHealth = MeetingCaptureHealthSummary(
+            sourceMode: .microphoneAndSystem,
+            microphone: MeetingSourceHealth(source: .microphone, status: .silent),
+            system: MeetingSourceHealth(source: .system, status: .live)
+        )
+        XCTAssertNil(viewModel.mirroredActionableSourceHealthWarning)
+    }
+
+    func testVisibleWarningAppliesCurrentProductPolicy() {
+        let viewModel = MeetingRecordingPillViewModel()
+        viewModel.state = .recording
+        viewModel.captureHealth = MeetingCaptureHealthSummary(
+            sourceMode: .microphoneAndSystem,
+            microphone: MeetingSourceHealth(source: .microphone, status: .silent),
+            system: MeetingSourceHealth(source: .system, status: .recovering)
+        )
+
+        XCTAssertFalse(AppFeatures.meetingSourceHealthUIEnabled)
+        XCTAssertEqual(
+            viewModel.mirroredVisibleSourceHealthWarning?.label,
+            "System audio reconnecting"
+        )
+    }
 }

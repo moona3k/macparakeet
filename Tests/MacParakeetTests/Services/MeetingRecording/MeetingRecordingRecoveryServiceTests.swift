@@ -32,6 +32,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertEqual(transcriptionRepo.saved.last?.recoveredFromCrash, true)
         XCTAssertEqual(transcriptionService.recordings.count, 1)
         XCTAssertEqual(transcriptionService.recordings.first?.sessionID, fixture.lock.sessionId)
+        XCTAssertNil(transcriptionService.recordings.first?.captureReport)
         XCTAssertEqual(audioConverter.mixes.count, 1)
 
         let metadata = try MeetingRecordingMetadataStore.load(from: fixture.folderURL)
@@ -39,6 +40,234 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertNotNil(metadata.sourceAlignment.system)
         XCTAssertEqual(metadata.sourceAlignment.microphone?.startOffsetMs, 0)
         XCTAssertEqual(metadata.sourceAlignment.system?.startOffsetMs, 0)
+        XCTAssertNil(metadata.captureReport)
+    }
+
+    func testRecoverPreservesExistingTimelineAndProvenanceWhileRefreshingMediaFacts() async throws {
+        let fixture = try makeRecoverableSession()
+        let finalizedAlignment = MeetingSourceAlignment(
+            meetingOriginHostTime: 42,
+            microphone: MeetingSourceAlignment.Track(
+                firstHostTime: 42,
+                lastHostTime: 52,
+                startOffsetMs: 0,
+                writtenFrameCount: 8_000,
+                timelineFrameCount: 16_000,
+                sampleRate: 16_000
+            ),
+            system: MeetingSourceAlignment.Track(
+                firstHostTime: 43,
+                lastHostTime: 48,
+                startOffsetMs: 750,
+                writtenFrameCount: 12_000,
+                timelineFrameCount: 456_789,
+                sampleRate: 24_000
+            )
+        )
+        let captureReport = MeetingCaptureReport(
+            sourceMode: .microphoneAndSystem,
+            sourceAlignment: finalizedAlignment,
+            elapsedDurationMs: 20_000,
+            interruptedSources: [.system]
+        )
+        let finalSpeechEngine = SpeechEngineSelection(engine: .whisper, language: "ko")
+        let previewSpeechEngine = SpeechEngineSelection(engine: .parakeet)
+        let startContext = MeetingStartContext(
+            triggerKind: .calendarAutoStart,
+            frontmostApplication: .init(
+                bundleIdentifier: "us.zoom.xos",
+                localizedName: "zoom.us"
+            ),
+            sourceMode: .microphoneAndSystem
+        )
+        let echoSuppression = MeetingEchoSuppressionMetadata(
+            reasonCode: .cleanedUsed,
+            modelVersion: "test-aec-v1",
+            renderDurationMs: 321,
+            delayEstimateMs: 17,
+            probeBestCorrelation: 0.42
+        )
+        let calendarSnapshot = MeetingCalendarSnapshot(
+            confidence: .confirmed,
+            eventIdentifier: "event-851",
+            title: "Recovery Review",
+            scheduledStartAt: Date(timeIntervalSince1970: 1_700_000_000),
+            scheduledEndAt: Date(timeIntervalSince1970: 1_700_003_600),
+            capturedAt: Date(timeIntervalSince1970: 1_699_999_990)
+        )
+        try MeetingRecordingMetadataStore.save(
+            MeetingRecordingMetadata(
+                sourceAlignment: finalizedAlignment,
+                captureReport: captureReport,
+                speechEngine: finalSpeechEngine,
+                previewSpeechEngine: previewSpeechEngine,
+                startContext: startContext,
+                echoSuppression: echoSuppression,
+                calendarEventSnapshot: calendarSnapshot
+            ),
+            folderURL: fixture.folderURL
+        )
+
+        let recovered = try await recoveryService.recover(fixture.lock)
+
+        let recording = try XCTUnwrap(transcriptionService.recordings.first)
+        let rewrittenMetadata = try MeetingRecordingMetadataStore.load(from: fixture.folderURL)
+        XCTAssertEqual(rewrittenMetadata.sourceAlignment.meetingOriginHostTime, 42)
+        XCTAssertEqual(rewrittenMetadata.sourceAlignment.microphone?.firstHostTime, 42)
+        XCTAssertEqual(rewrittenMetadata.sourceAlignment.microphone?.lastHostTime, 52)
+        XCTAssertEqual(rewrittenMetadata.sourceAlignment.microphone?.startOffsetMs, 0)
+        XCTAssertEqual(rewrittenMetadata.sourceAlignment.system?.firstHostTime, 43)
+        XCTAssertEqual(rewrittenMetadata.sourceAlignment.system?.lastHostTime, 48)
+        XCTAssertEqual(rewrittenMetadata.sourceAlignment.system?.startOffsetMs, 750)
+        XCTAssertEqual(
+            try XCTUnwrap(rewrittenMetadata.sourceAlignment.microphone?.sampleRate),
+            48_000,
+            accuracy: 1
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(rewrittenMetadata.sourceAlignment.system?.sampleRate),
+            48_000,
+            accuracy: 1
+        )
+        XCTAssertEqual(
+            Double(try XCTUnwrap(rewrittenMetadata.sourceAlignment.microphone?.writtenFrameCount)),
+            24_000,
+            accuracy: 1_000
+        )
+        XCTAssertEqual(
+            Double(try XCTUnwrap(rewrittenMetadata.sourceAlignment.microphone?.timelineFrameCount)),
+            48_000,
+            accuracy: 2_000
+        )
+        XCTAssertEqual(
+            Double(try XCTUnwrap(rewrittenMetadata.sourceAlignment.system?.writtenFrameCount)),
+            24_000,
+            accuracy: 1_000
+        )
+        XCTAssertEqual(
+            Double(try XCTUnwrap(rewrittenMetadata.sourceAlignment.system?.timelineFrameCount)),
+            48_000,
+            accuracy: 2_000
+        )
+        let reconciledReport = try XCTUnwrap(rewrittenMetadata.captureReport)
+        XCTAssertEqual(reconciledReport.sourceMode, captureReport.sourceMode)
+        XCTAssertEqual(reconciledReport.elapsedDurationMs, captureReport.elapsedDurationMs)
+        XCTAssertEqual(reconciledReport.interruptedSources, captureReport.interruptedSources)
+        XCTAssertEqual(reconciledReport.captureFailed, captureReport.captureFailed)
+        XCTAssertEqual(reconciledReport.quality, .partial)
+        XCTAssertEqual(
+            reconciledReport.source(for: .microphone)?.writtenDurationMs,
+            captureReport.source(for: .microphone)?.writtenDurationMs
+        )
+        XCTAssertEqual(
+            reconciledReport.source(for: .microphone)?.coverageRatio,
+            captureReport.source(for: .microphone)?.coverageRatio
+        )
+        XCTAssertEqual(
+            reconciledReport.source(for: .microphone)?.status,
+            captureReport.source(for: .microphone)?.status
+        )
+        XCTAssertEqual(reconciledReport.capturedDurationMs, 1_750, accuracy: 100)
+        XCTAssertEqual(rewrittenMetadata.speechEngine, finalSpeechEngine)
+        XCTAssertEqual(rewrittenMetadata.previewSpeechEngine, previewSpeechEngine)
+        XCTAssertEqual(rewrittenMetadata.startContext, startContext)
+        XCTAssertEqual(rewrittenMetadata.echoSuppression, echoSuppression)
+        XCTAssertEqual(rewrittenMetadata.calendarEventSnapshot, calendarSnapshot)
+        XCTAssertEqual(recording.sourceAlignment, rewrittenMetadata.sourceAlignment)
+        XCTAssertEqual(recording.captureReport, reconciledReport)
+        XCTAssertEqual(recording.speechEngine, finalSpeechEngine)
+        XCTAssertEqual(recording.previewSpeechEngine, previewSpeechEngine)
+        XCTAssertEqual(recording.startContext, startContext)
+        XCTAssertEqual(recording.calendarEventSnapshot, calendarSnapshot)
+        XCTAssertEqual(recovered.meetingCaptureReport, reconciledReport)
+        XCTAssertEqual(transcriptionRepo.saved.last?.meetingCaptureReport, reconciledReport)
+        let playbackDuration = try await playableAudioDuration(at: recording.mixedAudioURL)
+        XCTAssertEqual(recording.durationSeconds, playbackDuration, accuracy: 0.02)
+        XCTAssertEqual(
+            reconciledReport.capturedDurationMs,
+            Int((playbackDuration * 1_000).rounded()),
+            accuracy: 100
+        )
+    }
+
+    func testRecoverMissingMicrophoneMaterializesDelayedSystemTimeline() async throws {
+        let fixture = try makeRecoverableSession()
+        let microphoneURL = fixture.folderURL.appendingPathComponent("microphone-raw.m4a")
+        try FileManager.default.removeItem(at: microphoneURL)
+        let originalAlignment = MeetingSourceAlignment(
+            meetingOriginHostTime: 100,
+            microphone: MeetingSourceAlignment.Track(
+                firstHostTime: 100,
+                lastHostTime: 200,
+                startOffsetMs: 0,
+                writtenFrameCount: 4_800_000,
+                timelineFrameCount: 4_800_000,
+                sampleRate: 48_000
+            ),
+            system: MeetingSourceAlignment.Track(
+                firstHostTime: 175,
+                lastHostTime: 275,
+                startOffsetMs: 750,
+                writtenFrameCount: 48_000,
+                timelineFrameCount: 48_000,
+                sampleRate: 48_000
+            )
+        )
+        let captureReport = MeetingCaptureReport(
+            sourceMode: .microphoneAndSystem,
+            sourceAlignment: originalAlignment,
+            elapsedDurationMs: 100_000,
+            interruptedSources: [.microphone]
+        )
+        try MeetingRecordingMetadataStore.save(
+            MeetingRecordingMetadata(
+                sourceAlignment: originalAlignment,
+                captureReport: captureReport
+            ),
+            folderURL: fixture.folderURL
+        )
+
+        _ = try await recoveryService.recover(fixture.lock)
+
+        let recording = try XCTUnwrap(transcriptionService.recordings.first)
+        let rewrittenMetadata = try MeetingRecordingMetadataStore.load(from: fixture.folderURL)
+        XCTAssertNil(rewrittenMetadata.sourceAlignment.microphone)
+        XCTAssertEqual(rewrittenMetadata.sourceAlignment.meetingOriginHostTime, 100)
+        XCTAssertEqual(rewrittenMetadata.sourceAlignment.system?.firstHostTime, 175)
+        XCTAssertEqual(rewrittenMetadata.sourceAlignment.system?.lastHostTime, 275)
+        XCTAssertEqual(rewrittenMetadata.sourceAlignment.system?.startOffsetMs, 750)
+        XCTAssertEqual(
+            try XCTUnwrap(rewrittenMetadata.sourceAlignment.system?.sampleRate),
+            48_000,
+            accuracy: 1
+        )
+        XCTAssertEqual(
+            Double(try XCTUnwrap(rewrittenMetadata.sourceAlignment.system?.writtenFrameCount)),
+            48_000,
+            accuracy: 2_000
+        )
+        XCTAssertEqual(
+            rewrittenMetadata.sourceAlignment.system?.timelineFrameCount,
+            rewrittenMetadata.sourceAlignment.system?.writtenFrameCount
+        )
+        let reconciledReport = try XCTUnwrap(rewrittenMetadata.captureReport)
+        XCTAssertEqual(reconciledReport.sourceMode, captureReport.sourceMode)
+        XCTAssertEqual(reconciledReport.elapsedDurationMs, captureReport.elapsedDurationMs)
+        XCTAssertEqual(reconciledReport.interruptedSources, captureReport.interruptedSources)
+        XCTAssertEqual(reconciledReport.captureFailed, captureReport.captureFailed)
+        XCTAssertEqual(reconciledReport.capturedDurationMs, 1_750, accuracy: 100)
+        XCTAssertTrue(audioConverter.mixes.isEmpty, "one surviving source is materialized without the mixer")
+
+        let playbackDuration = try await playableAudioDuration(at: recording.mixedAudioURL)
+        XCTAssertEqual(playbackDuration, 1.75, accuracy: 0.1)
+        XCTAssertEqual(recording.durationSeconds, playbackDuration, accuracy: 0.02)
+        XCTAssertEqual(recording.playableDurationMs, Int((playbackDuration * 1_000).rounded()))
+        XCTAssertEqual(recording.captureReport, reconciledReport)
+        XCTAssertEqual(
+            reconciledReport.capturedDurationMs,
+            recording.playableDurationMs,
+            accuracy: 100
+        )
     }
 
     func testRecoverLegacyLockWithoutSpeechEnginePreservesUncapturedProvenance() async throws {
@@ -77,6 +306,34 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
 
     func testRecoverContinuesWhenMixFails() async throws {
         let fixture = try makeRecoverableSession()
+        let sourceAlignment = MeetingSourceAlignment(
+            meetingOriginHostTime: 100,
+            microphone: MeetingSourceAlignment.Track(
+                firstHostTime: 100,
+                lastHostTime: 200,
+                startOffsetMs: 0,
+                writtenFrameCount: 48_000,
+                sampleRate: 48_000
+            ),
+            system: MeetingSourceAlignment.Track(
+                firstHostTime: 150,
+                lastHostTime: 250,
+                startOffsetMs: 500,
+                writtenFrameCount: 48_000,
+                sampleRate: 48_000
+            )
+        )
+        try MeetingRecordingMetadataStore.save(
+            MeetingRecordingMetadata(
+                sourceAlignment: sourceAlignment,
+                captureReport: MeetingCaptureReport(
+                    sourceMode: .microphoneAndSystem,
+                    sourceAlignment: sourceAlignment,
+                    elapsedDurationMs: 1_500
+                )
+            ),
+            folderURL: fixture.folderURL
+        )
         audioConverter.errorToThrow = RecoveryTestError.mixFailed
 
         let recovered = try await recoveryService.recover(fixture.lock)
@@ -85,14 +342,60 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertNil(try lockStore.read(folderURL: fixture.folderURL))
         XCTAssertEqual(transcriptionService.recordings.count, 1)
         XCTAssertEqual(audioConverter.mixes.count, 1)
-        XCTAssertEqual(
-            audioConverter.mixes.first?.output,
-            fixture.folderURL.appendingPathComponent("meeting-playback.m4a"))
-        XCTAssertFalse(
-            FileManager.default.fileExists(
-                atPath: fixture.folderURL.appendingPathComponent("meeting-playback.m4a").path),
-            "failed playback mix should not block source-based transcription"
+        let attemptedMixURL = try XCTUnwrap(audioConverter.mixes.first?.output)
+        XCTAssertEqual(attemptedMixURL.deletingLastPathComponent(), fixture.folderURL)
+        XCTAssertTrue(attemptedMixURL.lastPathComponent.hasPrefix(".meeting-playback-mix-"))
+        let recording = try XCTUnwrap(transcriptionService.recordings.first)
+        let playbackDuration = try await playableAudioDuration(at: recording.mixedAudioURL)
+        XCTAssertEqual(playbackDuration, 1.5, accuracy: 0.1)
+        XCTAssertEqual(recording.durationSeconds, playbackDuration, accuracy: 0.02)
+        XCTAssertEqual(recording.playableDurationMs, Int((playbackDuration * 1_000).rounded()))
+        XCTAssertEqual(recording.captureReport?.quality, .partial)
+        XCTAssertEqual(recording.captureReport?.playbackFallbackSource, .system)
+        let metadata = try MeetingRecordingMetadataStore.load(from: fixture.folderURL)
+        XCTAssertEqual(metadata.captureReport, recording.captureReport)
+    }
+
+    func testRecoverClearsStoredPlaybackFallbackWhenRemixSucceeds() async throws {
+        let fixture = try makeRecoverableSession()
+        let sourceAlignment = MeetingSourceAlignment(
+            meetingOriginHostTime: 100,
+            microphone: MeetingSourceAlignment.Track(
+                firstHostTime: 100,
+                lastHostTime: 200,
+                startOffsetMs: 0,
+                writtenFrameCount: 48_000,
+                sampleRate: 48_000
+            ),
+            system: MeetingSourceAlignment.Track(
+                firstHostTime: 100,
+                lastHostTime: 200,
+                startOffsetMs: 0,
+                writtenFrameCount: 48_000,
+                sampleRate: 48_000
+            )
         )
+        try MeetingRecordingMetadataStore.save(
+            MeetingRecordingMetadata(
+                sourceAlignment: sourceAlignment,
+                captureReport: MeetingCaptureReport(
+                    sourceMode: .microphoneAndSystem,
+                    sourceAlignment: sourceAlignment,
+                    elapsedDurationMs: 1_000,
+                    playbackFallbackSource: .microphone
+                )
+            ),
+            folderURL: fixture.folderURL
+        )
+        audioConverter.copyFirstInputAsMix = true
+
+        _ = try await recoveryService.recover(fixture.lock)
+
+        let recording = try XCTUnwrap(transcriptionService.recordings.first)
+        XCTAssertEqual(recording.captureReport?.quality, .healthy)
+        XCTAssertNil(recording.captureReport?.playbackFallbackSource)
+        let metadata = try MeetingRecordingMetadataStore.load(from: fixture.folderURL)
+        XCTAssertEqual(metadata.captureReport, recording.captureReport)
     }
 
     func testRecoverRetryReusesSavedTranscriptWhenLockDeletePreviouslyFailed() async throws {
@@ -173,8 +476,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
 
         XCTAssertTrue(transcription.recoveredFromCrash)
         XCTAssertEqual(transcriptionService.recordings.count, 1)
-        XCTAssertEqual(audioConverter.mixes.count, 1)
-        XCTAssertEqual(audioConverter.mixes.first?.inputs.map(\.lastPathComponent), ["microphone-raw.m4a"])
+        XCTAssertTrue(audioConverter.mixes.isEmpty)
         let metadata = try MeetingRecordingMetadataStore.load(from: fixture.folderURL)
         XCTAssertNotNil(metadata.sourceAlignment.microphone)
         XCTAssertNil(metadata.sourceAlignment.system)
@@ -210,7 +512,8 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertEqual(
             audioConverter.mixes.first?.inputs.map(\.lastPathComponent),
             ["microphone.m4a", "system.m4a"])
-        XCTAssertEqual(audioConverter.mixes.first?.output.lastPathComponent, "meeting-playback.m4a")
+        let attemptedMixURL = try XCTUnwrap(audioConverter.mixes.first?.output)
+        XCTAssertTrue(attemptedMixURL.lastPathComponent.hasPrefix(".meeting-playback-mix-"))
         XCTAssertTrue(
             FileManager.default.fileExists(
                 atPath: fixture.folderURL.appendingPathComponent("meeting-playback.m4a").path))
@@ -469,7 +772,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
 
         let recording = try XCTUnwrap(transcriptionService.recordings.first)
         let decision = try XCTUnwrap(transcriptionService.sourceDecisions.first)
-        XCTAssertEqual(recording.durationSeconds, threshold + 1, accuracy: 0.001)
+        XCTAssertEqual(recording.durationSeconds, 1, accuracy: 0.1)
         XCTAssertNil(recording.cleanedMicrophoneAudioURL)
         XCTAssertEqual(
             conditionerProbe.buildCount,
@@ -856,6 +1159,16 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         }
     }
 
+    private func playableAudioDuration(at url: URL) async throws -> TimeInterval {
+        let file = try AVAudioFile(forReading: url)
+        XCTAssertGreaterThan(file.length, 0, "playback artifact must contain decodable audio frames")
+        let assetDuration = try await AVURLAsset(url: url).load(.duration)
+        let duration = assetDuration.seconds
+        XCTAssertTrue(duration.isFinite)
+        XCTAssertGreaterThan(duration, 0)
+        return duration
+    }
+
 }
 
 private enum RecoveryTestError: Error {
@@ -944,6 +1257,7 @@ private final class RecoveryMockAudioConverter: AudioFileConverting, @unchecked 
     private let lock = NSLock()
     private(set) var mixes: [(inputs: [URL], output: URL)] = []
     var errorToThrow: Error?
+    var copyFirstInputAsMix = false
 
     func convert(fileURL: URL) async throws -> URL { fileURL }
 
@@ -956,6 +1270,10 @@ private final class RecoveryMockAudioConverter: AudioFileConverting, @unchecked 
             mixes.append((inputURLs, outputURL))
         }
         if let errorToThrow { throw errorToThrow }
+        if copyFirstInputAsMix, let firstInput = inputURLs.first {
+            try FileManager.default.copyItem(at: firstInput, to: outputURL)
+            return
+        }
         FileManager.default.createFile(atPath: outputURL.path, contents: Data("mixed".utf8))
     }
 }
@@ -1007,7 +1325,8 @@ private final class RecoveryMockTranscriptionService: TranscriptionServiceProtoc
             filePath: recording.mixedAudioURL.path,
             meetingArtifactFolderPath: recording.folderURL.path,
             status: .completed,
-            sourceType: .meeting
+            sourceType: .meeting,
+            meetingCaptureReport: recording.captureReport
         )
         try transcriptionRepo?.save(transcription)
         return transcription
@@ -1041,7 +1360,8 @@ private final class RecoveryMockTranscriptionService: TranscriptionServiceProtoc
             filePath: recording.mixedAudioURL.path,
             meetingArtifactFolderPath: recording.folderURL.path,
             status: .completed,
-            sourceType: .meeting
+            sourceType: .meeting,
+            meetingCaptureReport: recording.captureReport
         )
         try transcriptionRepo?.save(transcription)
         return transcription

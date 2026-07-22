@@ -64,7 +64,20 @@ The v1 folder can contain these stable filenames:
   folders can explain cleaned-vs-raw microphone routing without app logs. It
   may also include additive `startContext` with the one-shot local start
   snapshot. `calendarEventSnapshot`, when present, is local EventKit context
-  and can include attendee/organizer names and emails.
+  and can include attendee/organizer names and emails. New finalized recordings
+  also include additive `captureReport`, the frame-derived recording coverage
+  report described below; legacy sidecars may omit it. An unreadable optional
+  report is treated as unknown without invalidating the remaining sidecar.
+  Each source-alignment track keeps `writtenFrameCount` as real captured frames
+  and may include `timelineFrameCount` for its playable end after inserting
+  silence across capture-recovery gaps. Legacy tracks omit the latter and use
+  written frames for both meanings. New captures derive start offsets from each
+  writer's effective file origin, so leading buffers without a valid host time
+  are not shifted a second time when timestamps become available. Crash
+  recovery preserves known host times and start offsets, rescales the real
+  written duration to a repaired file's sample rate (clamped to surviving
+  media), refreshes the playable timeline from the repaired media, and drops
+  tracks whose media cannot be recovered.
 - `manifest.json`: folder manifest.
 - `meeting.md`: deterministic Markdown view for users and local agents. It
   keeps YAML frontmatter with local metadata and stable sections for title,
@@ -109,6 +122,7 @@ raw-audio filenames.
 - `promptResultsDirectoryPath`
 - `promptResultCount`
 - `calendarEventSnapshot`
+- `meetingCaptureReport`
 
 `manifest.json` keeps:
 
@@ -123,6 +137,37 @@ raw-audio filenames.
 EventKit snapshot shape as `transcriptions.calendarEventSnapshot`: confidence,
 event identifiers, scheduled time range, title, attendee/organizer names and
 emails, meeting URL/service, and capture timestamp.
+
+`manifest.meeting.meetingCaptureReport`, `transcript.json`'s optional
+`meetingCaptureReport`, and `MeetingArtifactSnapshot.meetingCaptureReport` use
+the same additive shape as `transcriptions.meetingCaptureReport`:
+
+- `quality`: `healthy` or `partial`
+- `sourceMode`: `microphone_only`, `system_only`, or `microphone_and_system`
+- `elapsedDurationMs`: pause-adjusted time capture was expected to be active
+- `capturedDurationMs`: end of the longest selected playable source timeline,
+  including silence inserted to preserve capture-recovery gaps
+- `sources`: stable microphone/system-order records with `source`,
+  `writtenDurationMs`, `coverageRatio`, and `status` (`complete`,
+  `coverage_shortfall`, `interrupted`, `unavailable`, or `capture_failed`)
+- `interruptedSources`: terminally interrupted selected sources
+- `captureFailed`: runtime capture-control failure, kept separate from final
+  frame-derived quality
+- `playbackFallbackSource`: optional `microphone` or `system` marker when both
+  selected source files were decodable but canonical playback had to use only
+  the named source because combining them failed; its presence makes `quality`
+  partial without changing otherwise-complete source capture statuses
+
+Meeting `durationMs` is the probed duration of the decodable
+`meeting-playback.m4a` artifact. Normal finalization keeps it equal to
+`capturedDurationMs`. Crash recovery refreshes surviving source media facts and
+rebuilds `capturedDurationMs`, while preserving elapsed/interruption history,
+so both values remain coherent even when a damaged source must be dropped. A
+partial report does not change transcription `status`: successfully processed
+partial audio remains `completed`. Archived reconstruction re-probes the
+resolved canonical playback file and uses a supplied stored duration only when
+that media probe fails. Missing or unreadable reports on legacy artifacts mean
+unknown, not healthy.
 
 `manifest.files` keeps path fields for `folderPath`, `playbackAudioPath`,
 `rawMicrophoneAudioPath`, `cleanedMicrophoneAudioPath`, `rawSystemAudioPath`,
@@ -140,7 +185,7 @@ artifact paths.
 `durationMs`, `status`, raw/clean/transcript text, word/speaker/diarization
 fields, durable `transcriptSegments`, `userNotes`, language/engine attribution,
 `sourceType`, `recoveredFromCrash`, `isTranscriptEdited`, and optional
-`startContext` and `calendarEventSnapshot`.
+`startContext`, `calendarEventSnapshot`, and `meetingCaptureReport`.
 
 `transcriptSegments` is an additive v1 field populated from the DB row when a
 meeting has durable segments. Each segment keeps `id`, `startMs`, `endMs`,

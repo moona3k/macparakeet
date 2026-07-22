@@ -51,6 +51,8 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
     /// the injected `echoSuppressionConfiguration`; resolves to passthrough
     /// (→ no cleaned file) without bundled AEC assets.
     private let micConditionerFactory: @Sendable () -> any MicConditioning
+    /// Testable estimate used only by the cleaned-microphone render guard.
+    /// Persisted meeting duration always comes from the probed playback file.
     private let recordingDurationProvider: @Sendable ([TimeInterval], Date) -> TimeInterval
 
     public convenience init(
@@ -193,6 +195,10 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         let incompleteRows = try existingIncompleteTranscriptions(in: folderURL)
         let rowToUpdate = selectedIncompleteTranscription(from: incompleteRows)
         try deleteDuplicateIncompleteTranscriptions(incompleteRows, keeping: rowToUpdate?.id)
+        let existingMetadata = try? MeetingRecordingMetadataStore.load(
+            from: folderURL,
+            fileManager: fileManager
+        )
 
         var recoveredSources: [RecoverableSource] = []
         for (source, audio) in [(AudioSource.microphone, microphoneAudio), (.system, systemAudio)] {
@@ -216,28 +222,83 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             throw MeetingRecordingRecoveryError.noRecoverableAudio
         }
 
-        let sourceAlignment = makeRecoveredAlignment(from: recoveredSources)
-        try MeetingRecordingMetadataStore.save(
-            MeetingRecordingMetadata(
+        let sourceAlignment = makeRecoveredAlignment(
+            from: recoveredSources,
+            preserving: existingMetadata?.sourceAlignment
+        )
+        let captureReport = existingMetadata?.captureReport.map { existingReport in
+            reconciledCaptureReport(
+                from: existingReport,
                 sourceAlignment: sourceAlignment,
-                speechEngine: lock.speechEngine,
-                speechEngineWasCaptured: lock.speechEngineWasCaptured,
-                startContext: lock.startContext,
-                calendarEventSnapshot: lock.calendarEventSnapshot
-            ),
-            folderURL: folderURL
+                playbackFallbackSource: existingReport.playbackFallbackSource
+            )
+        }
+        var recoveredMetadata = MeetingRecordingMetadata(
+            sourceAlignment: sourceAlignment,
+            captureReport: captureReport,
+            speechEngine: existingMetadata?.speechEngine ?? lock.speechEngine,
+            speechEngineWasCaptured: existingMetadata?.speechEngineWasCaptured
+                ?? lock.speechEngineWasCaptured,
+            previewSpeechEngine: existingMetadata?.previewSpeechEngine,
+            startContext: existingMetadata?.startContext ?? lock.startContext,
+            echoSuppression: existingMetadata?.echoSuppression,
+            calendarEventSnapshot: existingMetadata?.calendarEventSnapshot
+                ?? lock.calendarEventSnapshot
+        )
+        try MeetingRecordingMetadataStore.save(
+            recoveredMetadata,
+            folderURL: folderURL,
+            fileManager: fileManager
         )
 
         await writeNotesSidecar(for: lock, folderURL: folderURL)
 
+        let playbackCandidates = recoveredSources.compactMap {
+            source -> MeetingPlaybackArtifactBuilder.Candidate? in
+            guard let track = sourceAlignment.track(for: source.source) else { return nil }
+            return MeetingPlaybackArtifactBuilder.Candidate(
+                source: source.source,
+                url: source.url,
+                track: track
+            )
+        }
+        let playbackArtifact: MeetingPlaybackArtifactBuilder.Result
         do {
-            try await audioConverter.mixToM4A(
-                inputURLs: recoveredSources.map(\.url),
+            playbackArtifact = try await MeetingPlaybackArtifactBuilder(
+                audioConverter: audioConverter,
+                fileManager: MeetingPlaybackArtifactBuilder.SendableFileManager(fileManager)
+            ).build(
+                candidates: playbackCandidates,
                 outputURL: mixedURL,
                 sourceAlignment: sourceAlignment
             )
+            if playbackArtifact.method == .bestSourceFallback {
+                logger.warning(
+                    "meeting_recovery_playback_fallback session=\(lock.sessionId.uuidString, privacy: .public) source=\(String(describing: playbackArtifact.source), privacy: .public)"
+                )
+            }
         } catch {
-            logger.error("meeting_recovery_mix_failed_nonfatal session=\(lock.sessionId.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+            logger.error("meeting_recovery_playback_failed session=\(lock.sessionId.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+            throw MeetingRecordingRecoveryError.mixFailed(error.localizedDescription)
+        }
+
+        let finalizedCaptureReport = captureReport.map { preliminaryReport in
+            reconciledCaptureReport(
+                from: preliminaryReport,
+                sourceAlignment: sourceAlignment,
+                playbackFallbackSource: playbackArtifact.method == .bestSourceFallback
+                    ? playbackArtifact.source
+                    : nil
+            )
+        }
+        let finalizedMetadata = recoveredMetadata.withCaptureReport(finalizedCaptureReport)
+        if finalizedMetadata != recoveredMetadata {
+            try MeetingRecordingMetadataStore.save(
+                finalizedMetadata,
+                folderURL: folderURL,
+                fileManager: fileManager
+            )
+            recoveredMetadata = finalizedMetadata
         }
 
         let recoveredBySource = Dictionary(
@@ -245,14 +306,17 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         // Clamp the provider output to non-negative. If the user's clock
         // skewed backwards between lock-file write and recovery, fallback
         // wall-clock duration can otherwise corrupt the recovered output.
-        let duration = max(0, recordingDurationProvider(recoveredSources.map(\.duration), lock.startedAt))
+        let renderGuardDuration = max(
+            0,
+            recordingDurationProvider(recoveredSources.map(\.duration), lock.startedAt)
+        )
         let cleanedMicrophoneReadiness = scheduleCleanedMicrophoneRender(
             folderURL: folderURL,
             microphoneURL: recoveredBySource[.microphone],
             systemURL: recoveredBySource[.system],
             sourceAlignment: sourceAlignment,
             sessionID: lock.sessionId,
-            recordingDuration: duration
+            recordingDuration: renderGuardDuration
         )
 
         let recording = MeetingRecordingOutput(
@@ -264,13 +328,15 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             systemAudioURL: systemAudio.url,
             cleanedMicrophoneAudioURL: cleanedMicrophoneReadiness.outputURL,
             cleanedMicrophoneReadiness: cleanedMicrophoneReadiness,
-            durationSeconds: duration,
+            durationSeconds: playbackArtifact.durationSeconds,
             sourceAlignment: sourceAlignment,
-            speechEngine: lock.speechEngine,
-            speechEngineWasCaptured: lock.speechEngineWasCaptured,
-            startContext: lock.startContext,
+            captureReport: recoveredMetadata.captureReport,
+            speechEngine: recoveredMetadata.speechEngine,
+            speechEngineWasCaptured: recoveredMetadata.speechEngineWasCaptured,
+            previewSpeechEngine: recoveredMetadata.previewSpeechEngine,
+            startContext: recoveredMetadata.startContext,
             userNotes: lock.notes,
-            calendarEventSnapshot: lock.calendarEventSnapshot
+            calendarEventSnapshot: recoveredMetadata.calendarEventSnapshot
         )
 
         do {
@@ -343,23 +409,57 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
     }
 
     private func makeRecoveredAlignment(
-        from sources: [RecoverableSource]
+        from sources: [RecoverableSource],
+        preserving existing: MeetingSourceAlignment?
     ) -> MeetingSourceAlignment {
         func track(for source: AudioSource) -> MeetingSourceAlignment.Track? {
-            guard let source = sources.first(where: { $0.source == source }) else { return nil }
+            guard let recoveredSource = sources.first(where: { $0.source == source }) else {
+                return nil
+            }
+            let existingTrack = existing?.track(for: recoveredSource.source)
+            let timelineFrameCount = Int64(
+                (recoveredSource.duration * recoveredSource.sampleRate).rounded())
+            let writtenDuration: TimeInterval
+            if let existingTrack,
+               existingTrack.sampleRate.isFinite,
+               existingTrack.sampleRate > 0 {
+                writtenDuration = min(
+                    recoveredSource.duration,
+                    Double(max(0, existingTrack.writtenFrameCount)) / existingTrack.sampleRate
+                )
+            } else {
+                writtenDuration = recoveredSource.duration
+            }
             return MeetingSourceAlignment.Track(
-                firstHostTime: nil,
-                lastHostTime: nil,
-                startOffsetMs: 0,
-                writtenFrameCount: Int64((source.duration * source.sampleRate).rounded()),
-                sampleRate: source.sampleRate
+                firstHostTime: existingTrack?.firstHostTime,
+                lastHostTime: existingTrack?.lastHostTime,
+                startOffsetMs: existingTrack?.startOffsetMs ?? 0,
+                writtenFrameCount: Int64(
+                    (writtenDuration * recoveredSource.sampleRate).rounded()),
+                timelineFrameCount: timelineFrameCount,
+                sampleRate: recoveredSource.sampleRate
             )
         }
 
         return MeetingSourceAlignment(
-            meetingOriginHostTime: nil,
+            meetingOriginHostTime: existing?.meetingOriginHostTime,
             microphone: track(for: .microphone),
             system: track(for: .system)
+        )
+    }
+
+    private func reconciledCaptureReport(
+        from report: MeetingCaptureReport,
+        sourceAlignment: MeetingSourceAlignment,
+        playbackFallbackSource: AudioSource?
+    ) -> MeetingCaptureReport {
+        MeetingCaptureReport(
+            sourceMode: report.sourceMode,
+            sourceAlignment: sourceAlignment,
+            elapsedDurationMs: report.elapsedDurationMs,
+            interruptedSources: Set(report.interruptedSources),
+            captureFailed: report.captureFailed,
+            playbackFallbackSource: playbackFallbackSource
         )
     }
 

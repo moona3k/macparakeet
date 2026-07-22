@@ -1176,7 +1176,7 @@ private extension CLISpecCommand {
                 databaseOption,
             ],
             output:
-                "MeetingArtifactSnapshot object with folderPath, manifestPath, markdownPath, transcriptPath, prompt-result paths, and optional rawMicrophoneAudioPath, cleanedMicrophoneAudioPath, rawSystemAudioPath, and playbackAudioPath."
+                "MeetingArtifactSnapshot object with folderPath, manifestPath, markdownPath, transcriptPath, prompt-result paths, optional meetingCaptureReport (absence on legacy recordings means unknown), and optional rawMicrophoneAudioPath, cleanedMicrophoneAudioPath, rawSystemAudioPath, and playbackAudioPath."
         ),
         CLISpecCommand(
             ["meetings", "export"],

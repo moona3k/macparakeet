@@ -50,6 +50,110 @@ final class MeetingAudioStorageWriterTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(fragments.count, 1)
     }
 
+    func testTimelineGapWritesSilenceWithoutInflatingCapturedFrameMetrics() async throws {
+        let writer = try MeetingAudioStorageWriter(folderURL: tempFolder)
+        let first = try makeSineBuffer(frameCount: 48_000, frequency: 220)
+        let recovered = try makeSineBuffer(frameCount: 48_000, frequency: 440)
+
+        try writer.write(
+            first,
+            source: .microphone,
+            timelineTimeSeconds: 100
+        )
+        try writer.write(
+            recovered,
+            source: .microphone,
+            timelineTimeSeconds: 103
+        )
+
+        let metrics = writer.metrics(for: .microphone)
+        XCTAssertEqual(metrics.writtenFrameCount, 96_000)
+        XCTAssertEqual(metrics.timelineFrameCount, 192_000)
+
+        await finalize(writer)
+
+        let duration = try await audioDuration(writer.microphoneAudioURL)
+        XCTAssertEqual(duration, 4.0, accuracy: 0.35)
+    }
+
+    func testFirstValidTimelineTimestampAccountsForEarlierUntimedAudio() async throws {
+        let writer = try MeetingAudioStorageWriter(folderURL: tempFolder)
+        let buffer = try makeSineBuffer(frameCount: 48_000, frequency: 220)
+
+        try writer.write(buffer, source: .system)
+        try writer.write(buffer, source: .system, timelineTimeSeconds: 101)
+        try writer.write(buffer, source: .system, timelineTimeSeconds: 103)
+
+        let metrics = writer.metrics(for: .system)
+        XCTAssertEqual(metrics.writtenFrameCount, 144_000)
+        XCTAssertEqual(metrics.timelineFrameCount, 192_000)
+        XCTAssertEqual(try XCTUnwrap(metrics.timelineOriginSeconds), 100, accuracy: 0.001)
+
+        await finalize(writer)
+        let duration = try await audioDuration(writer.systemAudioURL)
+        XCTAssertEqual(duration, 4.0, accuracy: 0.35)
+    }
+
+    func testBoundedRouteRecoveryGapCanBeMaterializedWithoutBackpressureLoss() async throws {
+        let writer = try MeetingAudioStorageWriter(folderURL: tempFolder)
+        let buffer = try makeSineBuffer(frameCount: 4_800, frequency: 220)
+
+        try writer.write(buffer, source: .microphone, timelineTimeSeconds: 100)
+        try writer.write(buffer, source: .microphone, timelineTimeSeconds: 132)
+        try writer.write(buffer, source: .microphone, timelineTimeSeconds: 132.1)
+        try writer.write(buffer, source: .microphone, timelineTimeSeconds: 132.2)
+        try writer.write(buffer, source: .microphone, timelineTimeSeconds: 132.3)
+
+        let metrics = writer.metrics(for: .microphone)
+        XCTAssertEqual(metrics.writtenFrameCount, 24_000)
+        XCTAssertEqual(metrics.timelineFrameCount, 1_555_200)
+
+        await finalize(writer)
+        let duration = try await audioDuration(writer.microphoneAudioURL)
+        XCTAssertEqual(duration, 32.4, accuracy: 0.35)
+    }
+
+    func testSuccessfulFinalizationReportsNoFailedWrittenSources() async throws {
+        let writer = try MeetingAudioStorageWriter(folderURL: tempFolder)
+        try writeSeconds(1, source: .microphone, writer: writer)
+        try writeSeconds(1, source: .system, writer: writer)
+
+        let report = await finalize(writer)
+
+        XCTAssertTrue(report.failedSources.isEmpty)
+    }
+
+    func testFinalizationFailurePolicyIgnoresUnwrittenSources() {
+        XCTAssertFalse(
+            MeetingAudioStorageWriter.shouldReportFinalizationFailure(
+                status: .failed,
+                hasError: true,
+                writtenFrameCount: 0
+            )
+        )
+        XCTAssertTrue(
+            MeetingAudioStorageWriter.shouldReportFinalizationFailure(
+                status: .failed,
+                hasError: true,
+                writtenFrameCount: 48_000
+            )
+        )
+        XCTAssertFalse(
+            MeetingAudioStorageWriter.shouldReportFinalizationFailure(
+                status: .completed,
+                hasError: false,
+                writtenFrameCount: 48_000
+            )
+        )
+        XCTAssertTrue(
+            MeetingAudioStorageWriter.shouldReportFinalizationFailure(
+                status: .completed,
+                hasError: true,
+                writtenFrameCount: 48_000
+            )
+        )
+    }
+
     func testWriterDoesNotReferenceAVAudioFile() throws {
         let sourceURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
             .appendingPathComponent("Sources/MacParakeetCore/Audio/MeetingAudioStorageWriter.swift")
@@ -71,25 +175,30 @@ final class MeetingAudioStorageWriterTests: XCTestCase {
         }
     }
 
-    private func finalize(_ writer: MeetingAudioStorageWriter) async {
+    @discardableResult
+    private func finalize(
+        _ writer: MeetingAudioStorageWriter
+    ) async -> MeetingAudioStorageWriter.FinalizationReport {
         await withCheckedContinuation { continuation in
-            writer.finalize {
-                continuation.resume()
+            writer.finalize { report in
+                continuation.resume(returning: report)
             }
         }
     }
 
     private func makeSineBuffer(frameCount: Int, frequency: Double) throws -> AVAudioPCMBuffer {
-        guard let format = AVAudioFormat(
-            commonFormat: .pcmFormatFloat32,
-            sampleRate: 48_000,
-            channels: 1,
-            interleaved: false
-        ),
-        let buffer = AVAudioPCMBuffer(
-            pcmFormat: format,
-            frameCapacity: AVAudioFrameCount(frameCount)
-        ) else {
+        guard
+            let format = AVAudioFormat(
+                commonFormat: .pcmFormatFloat32,
+                sampleRate: 48_000,
+                channels: 1,
+                interleaved: false
+            ),
+            let buffer = AVAudioPCMBuffer(
+                pcmFormat: format,
+                frameCapacity: AVAudioFrameCount(frameCount)
+            )
+        else {
             throw TestError.failedToCreateBuffer
         }
 
@@ -121,7 +230,8 @@ final class MeetingAudioStorageWriterTests: XCTestCase {
         var offsets: [Int] = []
         var searchStart = data.startIndex
         while searchStart < data.endIndex,
-              let range = data.range(of: marker, options: [], in: searchStart..<data.endIndex) {
+            let range = data.range(of: marker, options: [], in: searchStart..<data.endIndex)
+        {
             offsets.append(range.lowerBound - 4)
             searchStart = range.upperBound
         }

@@ -54,6 +54,11 @@ public struct Transcription: Codable, Identifiable, Sendable {
     /// One-shot context captured when a meeting recording starts. `nil` for
     /// non-meeting rows and legacy meetings.
     public var meetingStartContext: MeetingStartContext?
+    /// Finalized writer-frame coverage for a meeting recording. This is
+    /// independent of transcription processing status; a partial recording can
+    /// still have a successfully completed transcript. `nil` means legacy or
+    /// unknown, never implicitly healthy.
+    public var meetingCaptureReport: MeetingCaptureReport?
     /// STT engine that produced this transcript (`"parakeet"` / `"nemotron"` /
     /// `"cohere"` / `"whisper"`).
     /// `nil` for rows created before the v0.8 engine-attribution migration.
@@ -116,6 +121,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         isTranscriptEdited: Bool = false,
         userNotes: String? = nil,
         meetingStartContext: MeetingStartContext? = nil,
+        meetingCaptureReport: MeetingCaptureReport? = nil,
         engine: String? = nil,
         engineVariant: String? = nil,
         calendarEventSnapshot: MeetingCalendarSnapshot? = nil,
@@ -154,6 +160,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         self.isTranscriptEdited = isTranscriptEdited
         self.userNotes = userNotes
         self.meetingStartContext = meetingStartContext
+        self.meetingCaptureReport = meetingCaptureReport
         self.engine = engine
         self.engineVariant = engineVariant
         self.calendarEventSnapshot = calendarEventSnapshot
@@ -326,7 +333,7 @@ extension Transcription: FetchableRecord, PersistableRecord {
         case rawTranscript, cleanTranscript, wordTimestamps, language
         case speakerCount, speakers, diarizationSegments, transcriptSegments, chatMessages
         case status, errorMessage, exportPath, sourceURL
-        case thumbnailURL, channelName, videoDescription, isFavorite, sourceType, recoveredFromCrash, isTranscriptEdited, userNotes, meetingStartContext, engine, engineVariant, titleOverride, derivedTitle, derivedSnippet, updatedAt
+        case thumbnailURL, channelName, videoDescription, isFavorite, sourceType, recoveredFromCrash, isTranscriptEdited, userNotes, meetingStartContext, meetingCaptureReport, engine, engineVariant, titleOverride, derivedTitle, derivedSnippet, updatedAt
         case calendarEventSnapshot
     }
 
@@ -392,6 +399,10 @@ extension Transcription: FetchableRecord, PersistableRecord {
         isTranscriptEdited = try container.decodeIfPresent(Bool.self, forKey: .isTranscriptEdited) ?? false
         userNotes = try container.decodeIfPresent(String.self, forKey: .userNotes)
         meetingStartContext = (try? container.decodeIfPresent(MeetingStartContext.self, forKey: .meetingStartContext)) ?? nil
+        meetingCaptureReport = (try? container.decodeIfPresent(
+            MeetingCaptureReport.self,
+            forKey: .meetingCaptureReport
+        )) ?? nil
         engine = try container.decodeIfPresent(String.self, forKey: .engine)
         engineVariant = try container.decodeIfPresent(String.self, forKey: .engineVariant)
         calendarEventSnapshot = (try? container.decodeIfPresent(

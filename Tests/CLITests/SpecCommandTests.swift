@@ -29,6 +29,9 @@ final class SpecCommandTests: XCTestCase {
 
         let artifact = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["meetings", "artifact"] })
         XCTAssertEqual(artifact["readOnly"] as? Bool, false)
+        let artifactOutput = try XCTUnwrap(artifact["output"] as? String)
+        XCTAssertTrue(artifactOutput.contains("meetingCaptureReport"))
+        XCTAssertTrue(artifactOutput.contains("legacy recordings means unknown"))
         let artifactOptions = try XCTUnwrap(artifact["options"] as? [[String: Any]])
         XCTAssertTrue(artifactOptions.contains { ($0["name"] as? String) == "--envelope" })
 

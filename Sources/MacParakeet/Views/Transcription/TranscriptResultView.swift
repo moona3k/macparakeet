@@ -1095,6 +1095,14 @@ struct TranscriptResultView: View {
                         tint: DesignSystem.Colors.warningAmber
                     )
                 }
+
+                if let partialCapture = MeetingPartialCapturePresentation.make(for: activeTranscription) {
+                    metadataChip(
+                        icon: "exclamationmark.triangle.fill",
+                        text: partialCapture.badgeText,
+                        tint: DesignSystem.Colors.warningAmber
+                    )
+                }
             }
         }
     }
@@ -1214,6 +1222,10 @@ struct TranscriptResultView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
                     transcriptPaneHeader
+
+                    if let partialCapture = MeetingPartialCapturePresentation.make(for: activeTranscription) {
+                        meetingPartialCaptureBanner(partialCapture)
+                    }
 
                     if activeTranscription.sourceType == .meeting,
                        !activeTranscription.hasWordTimestamps,
@@ -2834,6 +2846,33 @@ struct TranscriptResultView: View {
             RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
                 .fill(DesignSystem.Colors.accentLight)
         )
+    }
+
+    private func meetingPartialCaptureBanner(
+        _ presentation: MeetingPartialCapturePresentation
+    ) -> some View {
+        HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(DesignSystem.Colors.warningAmber)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(presentation.title)
+                    .font(DesignSystem.Typography.body.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                Text(presentation.message)
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+            }
+
+            Spacer()
+        }
+        .padding(DesignSystem.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .fill(DesignSystem.Colors.warningAmber.opacity(0.08))
+        )
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder

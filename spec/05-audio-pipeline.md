@@ -262,16 +262,18 @@ is the artifact and sidecar contract.
 
 | Component | Purpose |
 |-----------|---------|
-| `SystemAudioStream` | ScreenCaptureKit system-audio wrapper - creates an audio-only `SCStream`, adapts `CMSampleBuffer` to `AVAudioPCMBuffer`, and emits stall diagnostics |
-| `SharedMicrophoneStream` | Process-wide microphone engine owner, VPIO arbiter, and synchronous buffer fan-out |
-| `MicrophoneCapture` | Meeting mic subscriber with explicit mic-processing policy, effective-mode reporting, and stall diagnostics |
-| `MeetingAudioCaptureService` | Actor combining the selected source stream(s) into `AsyncStream<MeetingAudioCaptureEvent>` with unbounded buffering and runtime error emission where available |
+| `SystemAudioStream` | ScreenCaptureKit system-audio wrapper - creates an audio-only `SCStream`, adapts `CMSampleBuffer` to `AVAudioPCMBuffer`, and maps first-buffer, heartbeat, and unexpected delegate stops into typed lifecycle failures |
+| `SharedMicrophoneStream` | Process-wide microphone engine owner, VPIO arbiter, synchronous buffer fan-out, and terminal engine-death propagation after bounded configuration-change recovery is exhausted |
+| `MicrophoneCapture` | Meeting mic subscriber with explicit mic-processing policy, effective-mode reporting, awaited teardown, and typed stall propagation |
+| `MeetingAudioCaptureService` | Actor combining the selected source stream(s) into `AsyncStream<MeetingAudioCaptureEvent>`; owns bounded fresh-instance system recovery, coalesces duplicate failures, and lets Stop invalidate every retry generation |
 | `CaptureOrchestrator` | Owns ingest/join/offset/chunk flow for live preview |
 | `MicConditioner` | Meeting-side seam for mic samples; passthrough is the default, and an optional `StreamingMeetingEchoSuppressor` can use paired system reference samples when the runtime/model are available |
 | `MeetingCleanedMicRenderer` | Post-stop offline derivation of `microphone-cleaned.m4a` from the raw mic + system sources through a freshly built suppressor; skips when no echo path/single-source and never throws into finalize |
 | `LiveChunkTranscriber` | Owns live chunk queueing, cancellation, ordering, STT invocation |
-| `MeetingAudioStorageWriter` | Writes separate M4A files per selected source (mic and/or system) |
-| `MeetingRecordingMetadataStore` | Persists `MeetingSourceAlignment` for post-stop merge correctness |
+| `MeetingAudioStorageWriter` | Writes separate fragmented M4A files per source, preserves genuine recovery gaps as silence, distinguishes real captured frames from padded timeline frames, and reports per-source finalization failure |
+| `MeetingPlaybackArtifactBuilder` | Probes finalized sources, installs validated mixed playback atomically, or uses the longest aligned source as an explicit partial-playback fallback |
+| `MeetingCaptureReport` | Pure finalized truth for elapsed time, captured/timeline duration, per-source coverage/interruption, runtime failure, and canonical-playback fallback |
+| `MeetingRecordingMetadataStore` | Persists source alignment, capture report, and speech/AEC provenance atomically for normal and crash-recovery paths |
 | `MeetingRecordingLockFileStore` | Persists in-progress session state, notes, and captured final speech engine for crash recovery |
 | `MeetingRecordingSettlement` | Sole completion-path owner of `recording.lock` deletion; re-fetches the saved row and deletes the lock only after verifying a completed meeting Transcription for that artifact folder (see [meeting-recovery-retention contract](contracts/meeting-recovery-retention.md#lock-deletion-authority)) |
 | `MeetingTranscriptionQueue` | Owns FIFO background finalization for stopped meetings after audio + lock + Library stub are durable |
@@ -293,10 +295,13 @@ User clicks "Start Meeting Recording"
     → Consume AsyncStream<MeetingAudioCaptureEvent>, write buffers to M4A files
       and keep `recording.lock` current with session state/notes/final speech engine
     → User clicks Stop
-    → Stop capture and finalize the captured source file(s)
-    → Persist `meeting-recording-metadata.json` with source alignment, final
-      speech engine, and optional preview-engine provenance
-    → Merge streams into `meeting-playback.m4a` (stereo for dual input; mono for single input)
+    → Stop capture and finalize the captured source file(s); if a written source
+      cannot finalize, preserve the lock/source artifacts and abort settlement
+    → Persist `meeting-recording-metadata.json` with source alignment,
+      frame-derived capture report, final speech engine, and optional provenance
+    → Build and probe `meeting-playback.m4a` (stereo for dual input; mono for
+      single input); a failed dual mix installs the longest aligned source and
+      durably marks playback partial
     → Atomically rewrite `recording.lock` to `awaitingTranscription`
     → Save a processing Transcription row with sourceType = .meeting and filePath = `meeting-playback.m4a`
     → Enqueue background finalization and return recorder to idle
@@ -330,7 +335,7 @@ the stopped meeting waits for that job to finish; once the slot is free,
     ├── system-raw.m4a        # System audio when captured (AAC, 48kHz mono)
     ├── microphone-cleaned.m4a  # Optional derived echo-cancelled mic (16kHz mono); STT input for the "Me" track only after readiness/decodability gates pass
     ├── meeting-playback.m4a       # Playback/export artifact (stereo dual-source when both tracks exist)
-    ├── meeting-recording-metadata.json  # Source timing/alignment + final engine + optional preview engine / echoSuppression provenance
+    ├── meeting-recording-metadata.json  # Source timing/alignment + capture report + final engine + optional preview engine / echoSuppression provenance
     ├── recording.lock     # Recovery state, notes, and captured final engine (schema v2 unchanged)
     └── chunks/            # Live-preview scratch chunks
 ```

@@ -78,4 +78,20 @@ public final class MeetingRecordingPillViewModel {
             return nil
         }
     }
+
+    public var mirroredActionableSourceHealthWarning: MeetingSourceHealthChip? {
+        switch state {
+        case .recording, .paused:
+            return MeetingSourceHealthChip.primaryActionableWarning(for: captureHealth)
+        case .idle, .completing, .transcribing, .completed, .error:
+            return nil
+        }
+    }
+
+    /// Product-policy filtered health shared by the pill and its mirrored tile.
+    public var mirroredVisibleSourceHealthWarning: MeetingSourceHealthChip? {
+        AppFeatures.meetingSourceHealthUIEnabled
+            ? mirroredSourceHealthWarning
+            : mirroredActionableSourceHealthWarning
+    }
 }

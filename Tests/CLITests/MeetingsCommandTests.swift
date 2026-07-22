@@ -17,12 +17,17 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertNoThrow(try MeetingsCommand.ShowSubcommand.parse(["abcd", "--json"]))
         XCTAssertNoThrow(try MeetingsCommand.TranscriptSubcommand.parse(["abcd", "--format", "srt"]))
         XCTAssertNoThrow(try MeetingsCommand.NotesSubcommand.GetSubcommand.parse(["abcd", "--envelope"]))
-        XCTAssertNoThrow(try MeetingsCommand.NotesSubcommand.SetSubcommand.parse(["abcd", "--text", "Decision: ship", "--envelope"]))
-        XCTAssertNoThrow(try MeetingsCommand.NotesSubcommand.AppendSubcommand.parse(["abcd", "--text", "Decision: ship"]))
+        XCTAssertNoThrow(
+            try MeetingsCommand.NotesSubcommand.SetSubcommand.parse(["abcd", "--text", "Decision: ship", "--envelope"]))
+        XCTAssertNoThrow(
+            try MeetingsCommand.NotesSubcommand.AppendSubcommand.parse(["abcd", "--text", "Decision: ship"]))
         XCTAssertNoThrow(try MeetingsCommand.NotesSubcommand.ClearSubcommand.parse(["abcd", "--envelope"]))
         XCTAssertNoThrow(try MeetingsCommand.NotesSubcommand.ClearSubcommand.parse(["abcd", "--json"]))
         XCTAssertNoThrow(try MeetingsCommand.ResultsSubcommand.ListSubcommand.parse(["abcd", "--json"]))
-        XCTAssertNoThrow(try MeetingsCommand.ResultsSubcommand.AddSubcommand.parse(["abcd", "--name", "Agent Notes", "--content", "Decision: ship", "--json"]))
+        XCTAssertNoThrow(
+            try MeetingsCommand.ResultsSubcommand.AddSubcommand.parse([
+                "abcd", "--name", "Agent Notes", "--content", "Decision: ship", "--json",
+            ]))
         XCTAssertNoThrow(try MeetingsCommand.ArtifactSubcommand.parse(["abcd", "--json"]))
         XCTAssertNoThrow(try MeetingsCommand.ArtifactSubcommand.parse(["abcd", "--envelope"]))
         XCTAssertNoThrow(try MeetingsCommand.ExportSubcommand.parse(["abcd", "--format", "md", "--stdout"]))
@@ -46,7 +51,9 @@ final class MeetingsCommandTests: XCTestCase {
             try MeetingsCommand.NotesSubcommand.SetSubcommand.parse(["abcd", "--text", "note", "--json", "--envelope"])
         }
         assertRejectsJSONEnvelope {
-            try MeetingsCommand.NotesSubcommand.AppendSubcommand.parse(["abcd", "--text", "note", "--json", "--envelope"])
+            try MeetingsCommand.NotesSubcommand.AppendSubcommand.parse([
+                "abcd", "--text", "note", "--json", "--envelope",
+            ])
         }
         assertRejectsJSONEnvelope {
             try MeetingsCommand.NotesSubcommand.ClearSubcommand.parse(["abcd", "--json", "--envelope"])
@@ -86,22 +93,22 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertThrowsError(try MeetingsCommand.ResultsSubcommand.AddSubcommand.parse(["abcd", "--name", "Result"]))
         XCTAssertThrowsError(
             try MeetingsCommand.ResultsSubcommand.AddSubcommand.parse([
-                "abcd", "--name", "Result", "--content", "body", "--stdin"
+                "abcd", "--name", "Result", "--content", "body", "--stdin",
             ])
         )
         XCTAssertThrowsError(
             try MeetingsCommand.ResultsSubcommand.AddSubcommand.parse([
-                "abcd", "--name", "   ", "--content", "body"
+                "abcd", "--name", "   ", "--content", "body",
             ])
         )
         XCTAssertNoThrow(
             try MeetingsCommand.ResultsSubcommand.AddSubcommand.parse([
-                "abcd", "--name", "Result", "--content", "body"
+                "abcd", "--name", "Result", "--content", "body",
             ])
         )
         XCTAssertNoThrow(
             try MeetingsCommand.ResultsSubcommand.AddSubcommand.parse([
-                "abcd", "--name", "Result", "--stdin"
+                "abcd", "--name", "Result", "--stdin",
             ])
         )
     }
@@ -174,12 +181,13 @@ final class MeetingsCommandTests: XCTestCase {
             sourceType: .meeting
         )
         try transcriptionRepo.save(meeting)
-        try resultRepo.save(PromptResult(
-            transcriptionId: meeting.id,
-            promptName: "Executive Summary",
-            promptContent: "Summarize the meeting.",
-            content: "Keep the CLI contract explicit."
-        ))
+        try resultRepo.save(
+            PromptResult(
+                transcriptionId: meeting.id,
+                promptName: "Executive Summary",
+                promptContent: "Summarize the meeting.",
+                content: "Keep the CLI contract explicit."
+            ))
 
         let listCommand = try MeetingsCommand.ListSubcommand.parse([
             "--json",
@@ -305,7 +313,7 @@ final class MeetingsCommandTests: XCTestCase {
                     speakerLabel: "Me",
                     text: "Ship it.",
                     wordRange: TranscriptSegmentWordRange(startIndex: 0, endIndexExclusive: 2)
-                ),
+                )
             ],
             status: .completed,
             sourceType: .meeting
@@ -388,7 +396,7 @@ final class MeetingsCommandTests: XCTestCase {
             .appendingPathComponent("macparakeet-cli-meeting-artifact-\(UUID().uuidString)")
         defer {
             try? FileManager.default.removeItem(at: dbURL)
-        try? FileManager.default.removeItem(at: folderURL)
+            try? FileManager.default.removeItem(at: folderURL)
         }
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
         try Data("audio".utf8).write(to: folderURL.appendingPathComponent("meeting-playback.m4a"))
@@ -399,6 +407,29 @@ final class MeetingsCommandTests: XCTestCase {
         let db = try DatabaseManager(path: dbURL.path)
         let transcriptionRepo = TranscriptionRepository(dbQueue: db.dbQueue)
         let resultRepo = PromptResultRepository(dbQueue: db.dbQueue)
+        let captureReport = MeetingCaptureReport(
+            sourceMode: .microphoneAndSystem,
+            sourceAlignment: MeetingSourceAlignment(
+                meetingOriginHostTime: 100,
+                microphone: .init(
+                    firstHostTime: 100,
+                    lastHostTime: 200,
+                    startOffsetMs: 0,
+                    writtenFrameCount: 160_000,
+                    sampleRate: 16_000
+                ),
+                system: .init(
+                    firstHostTime: 100,
+                    lastHostTime: 200,
+                    startOffsetMs: 0,
+                    writtenFrameCount: 80_000,
+                    sampleRate: 16_000
+                )
+            ),
+            elapsedDurationMs: 10_000,
+            interruptedSources: [.system],
+            playbackFallbackSource: .microphone
+        )
         let meeting = Transcription(
             fileName: "Artifact Review",
             filePath: folderURL.appendingPathComponent("meeting-playback.m4a").path,
@@ -406,15 +437,17 @@ final class MeetingsCommandTests: XCTestCase {
             cleanTranscript: "Meeting folders are first-class.",
             status: .completed,
             sourceType: .meeting,
-            userNotes: "Use the folder as the contract."
+            userNotes: "Use the folder as the contract.",
+            meetingCaptureReport: captureReport
         )
         try transcriptionRepo.save(meeting)
-        try resultRepo.save(PromptResult(
-            transcriptionId: meeting.id,
-            promptName: "Agent Summary",
-            promptContent: "Summarize.",
-            content: "Meeting folders become the artifact contract."
-        ))
+        try resultRepo.save(
+            PromptResult(
+                transcriptionId: meeting.id,
+                promptName: "Agent Summary",
+                promptContent: "Summarize.",
+                content: "Meeting folders become the artifact contract."
+            ))
 
         let command = try MeetingsCommand.ArtifactSubcommand.parse([
             meeting.id.uuidString,
@@ -432,8 +465,12 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertEqual(snapshot["schema"] as? String, MeetingArtifactStore.schema)
         XCTAssertEqual(snapshot["schemaVersion"] as? Int, MeetingArtifactStore.schemaVersion)
         XCTAssertEqual(snapshot["folderPath"] as? String, folderURL.path)
-        XCTAssertEqual(snapshot["manifestPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.manifestFileName).path)
-        XCTAssertEqual(snapshot["markdownPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.markdownFileName).path)
+        XCTAssertEqual(
+            snapshot["manifestPath"] as? String,
+            folderURL.appendingPathComponent(MeetingArtifactStore.manifestFileName).path)
+        XCTAssertEqual(
+            snapshot["markdownPath"] as? String,
+            folderURL.appendingPathComponent(MeetingArtifactStore.markdownFileName).path)
         XCTAssertEqual(
             snapshot["rawMicrophoneAudioPath"] as? String,
             folderURL.appendingPathComponent("microphone-raw.m4a").path)
@@ -446,23 +483,53 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertEqual(
             snapshot["playbackAudioPath"] as? String,
             folderURL.appendingPathComponent("meeting-playback.m4a").path)
-        XCTAssertEqual(snapshot["transcriptPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.transcriptFileName).path)
+        XCTAssertEqual(
+            snapshot["transcriptPath"] as? String,
+            folderURL.appendingPathComponent(MeetingArtifactStore.transcriptFileName).path)
         XCTAssertEqual(snapshot["notesPath"] as? String, MeetingNotesFile.fileURL(for: folderURL).path)
-        XCTAssertEqual(snapshot["promptResultsPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.promptResultsFileName).path)
-        XCTAssertEqual(snapshot["promptResultsDirectoryPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.promptResultsDirectoryName).path)
+        XCTAssertEqual(
+            snapshot["promptResultsPath"] as? String,
+            folderURL.appendingPathComponent(MeetingArtifactStore.promptResultsFileName).path)
+        XCTAssertEqual(
+            snapshot["promptResultsDirectoryPath"] as? String,
+            folderURL.appendingPathComponent(MeetingArtifactStore.promptResultsDirectoryName).path)
         XCTAssertEqual(snapshot["promptResultCount"] as? Int, 1)
-        XCTAssertTrue(FileManager.default.fileExists(
-            atPath: folderURL.appendingPathComponent(MeetingArtifactStore.manifestFileName).path
-        ))
-        XCTAssertTrue(FileManager.default.fileExists(
-            atPath: folderURL.appendingPathComponent(MeetingArtifactStore.transcriptFileName).path
-        ))
-        XCTAssertTrue(FileManager.default.fileExists(
-            atPath: folderURL.appendingPathComponent(MeetingArtifactStore.markdownFileName).path
-        ))
-        XCTAssertTrue(FileManager.default.fileExists(
-            atPath: MeetingNotesFile.fileURL(for: folderURL).path
-        ))
+        let snapshotCaptureReport = try XCTUnwrap(
+            snapshot["meetingCaptureReport"] as? [String: Any]
+        )
+        XCTAssertEqual(snapshotCaptureReport["quality"] as? String, "partial")
+        XCTAssertEqual(
+            snapshotCaptureReport["sourceMode"] as? String,
+            "microphone_and_system"
+        )
+        XCTAssertEqual(snapshotCaptureReport["captureFailed"] as? Bool, false)
+        XCTAssertEqual(
+            snapshotCaptureReport["playbackFallbackSource"] as? String,
+            "microphone"
+        )
+        let sourceReports = try XCTUnwrap(
+            snapshotCaptureReport["sources"] as? [[String: Any]]
+        )
+        let systemReport = try XCTUnwrap(
+            sourceReports.first { $0["source"] as? String == "system" }
+        )
+        XCTAssertEqual(systemReport["status"] as? String, "interrupted")
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: folderURL.appendingPathComponent(MeetingArtifactStore.manifestFileName).path
+            ))
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: folderURL.appendingPathComponent(MeetingArtifactStore.transcriptFileName).path
+            ))
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: folderURL.appendingPathComponent(MeetingArtifactStore.markdownFileName).path
+            ))
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: MeetingNotesFile.fileURL(for: folderURL).path
+            ))
 
         let exportCommand = try MeetingsCommand.ExportSubcommand.parse([
             meeting.id.uuidString,
@@ -476,7 +543,9 @@ final class MeetingsCommandTests: XCTestCase {
         let exportPayload = try XCTUnwrap(
             JSONSerialization.jsonObject(with: Data(exportOutput.utf8)) as? [String: Any]
         )
-        XCTAssertEqual(exportPayload["artifactMarkdownPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.markdownFileName).path)
+        XCTAssertEqual(
+            exportPayload["artifactMarkdownPath"] as? String,
+            folderURL.appendingPathComponent(MeetingArtifactStore.markdownFileName).path)
         XCTAssertEqual(
             exportPayload["rawMicrophoneAudioPath"] as? String,
             folderURL.appendingPathComponent("microphone-raw.m4a").path)
@@ -526,12 +595,13 @@ final class MeetingsCommandTests: XCTestCase {
             updatedAt: Date(timeIntervalSince1970: 1_720_000_001)
         )
         try transcriptionRepo.save(meeting)
-        try resultRepo.save(PromptResult(
-            transcriptionId: meeting.id,
-            promptName: "Agent Summary",
-            promptContent: "Summarize.",
-            content: "Ship the Markdown artifact."
-        ))
+        try resultRepo.save(
+            PromptResult(
+                transcriptionId: meeting.id,
+                promptName: "Agent Summary",
+                promptContent: "Summarize.",
+                content: "Ship the Markdown artifact."
+            ))
 
         let artifactCommand = try MeetingsCommand.ArtifactSubcommand.parse([
             meeting.id.uuidString,
@@ -544,6 +614,7 @@ final class MeetingsCommandTests: XCTestCase {
         let artifact = try XCTUnwrap(
             JSONSerialization.jsonObject(with: Data(artifactOutput.utf8)) as? [String: Any]
         )
+        XCTAssertNil(artifact["meetingCaptureReport"])
         let markdownPath = try XCTUnwrap(artifact["markdownPath"] as? String)
         let materializedMarkdown = try String(contentsOfFile: markdownPath, encoding: .utf8)
 
@@ -708,10 +779,18 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertEqual(data["schema"] as? String, MeetingArtifactStore.schema)
         XCTAssertEqual(data["schemaVersion"] as? Int, MeetingArtifactStore.schemaVersion)
         XCTAssertEqual(data["folderPath"] as? String, folderURL.path)
-        XCTAssertEqual(data["manifestPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.manifestFileName).path)
-        XCTAssertEqual(data["transcriptPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.transcriptFileName).path)
-        XCTAssertEqual(data["promptResultsPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.promptResultsFileName).path)
-        XCTAssertEqual(data["promptResultsDirectoryPath"] as? String, folderURL.appendingPathComponent(MeetingArtifactStore.promptResultsDirectoryName).path)
+        XCTAssertEqual(
+            data["manifestPath"] as? String,
+            folderURL.appendingPathComponent(MeetingArtifactStore.manifestFileName).path)
+        XCTAssertEqual(
+            data["transcriptPath"] as? String,
+            folderURL.appendingPathComponent(MeetingArtifactStore.transcriptFileName).path)
+        XCTAssertEqual(
+            data["promptResultsPath"] as? String,
+            folderURL.appendingPathComponent(MeetingArtifactStore.promptResultsFileName).path)
+        XCTAssertEqual(
+            data["promptResultsDirectoryPath"] as? String,
+            folderURL.appendingPathComponent(MeetingArtifactStore.promptResultsDirectoryName).path)
         let meta = try XCTUnwrap(envelope["meta"] as? [String: Any])
         XCTAssertEqual(meta["schemaVersion"] as? Int, 1)
     }
@@ -783,10 +862,12 @@ final class MeetingsCommandTests: XCTestCase {
             JSONSerialization.jsonObject(with: Data(artifactOutput.utf8)) as? [String: Any]
         )
         XCTAssertEqual(artifactPayload["folderPath"] as? String, expectedFolderPath)
-        XCTAssertEqual(artifactPayload["notesPath"] as? String, MeetingNotesFile.fileURL(for: folderURL).standardizedFileURL.path)
-        XCTAssertTrue(FileManager.default.fileExists(
-            atPath: folderURL.appendingPathComponent(MeetingArtifactStore.manifestFileName).path
-        ))
+        XCTAssertEqual(
+            artifactPayload["notesPath"] as? String, MeetingNotesFile.fileURL(for: folderURL).standardizedFileURL.path)
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: folderURL.appendingPathComponent(MeetingArtifactStore.manifestFileName).path
+            ))
     }
 
     func testShowJSONIncludesCalendarEventSnapshot() async throws {
@@ -803,7 +884,7 @@ final class MeetingsCommandTests: XCTestCase {
             scheduledStartAt: scheduledStart,
             scheduledEndAt: scheduledEnd,
             attendees: [
-                MeetingCalendarPerson(name: "Alice Example", email: "alice@example.com"),
+                MeetingCalendarPerson(name: "Alice Example", email: "alice@example.com")
             ],
             organizer: MeetingCalendarPerson(name: "Omar Organizer", email: "omar@example.com"),
             meetingURL: "https://meet.google.com/abc-defg-hij",

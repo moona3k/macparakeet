@@ -44,11 +44,25 @@ public struct MeetingSourceHealthChip: Identifiable, Sendable, Equatable {
         summary.primaryDegradedSource.map(MeetingSourceHealthChip.init)
     }
 
+    public static func actionableWarnings(
+        for summary: MeetingCaptureHealthSummary
+    ) -> [MeetingSourceHealthChip] {
+        [summary.microphone, summary.system]
+            .filter { $0.status.isActionableWarning }
+            .map(MeetingSourceHealthChip.init)
+    }
+
+    public static func primaryActionableWarning(
+        for summary: MeetingCaptureHealthSummary
+    ) -> MeetingSourceHealthChip? {
+        summary.primaryActionableSource.map(MeetingSourceHealthChip.init)
+    }
+
     private static func severity(for status: MeetingSourceHealth.Status) -> MeetingSourceHealthSeverity {
         switch status {
         case .live:
             return .good
-        case .muted, .silent, .stalled:
+        case .muted, .silent, .stalled, .recovering:
             return .warning
         case .interrupted, .unavailable:
             return .critical
@@ -68,6 +82,8 @@ public struct MeetingSourceHealthChip: Identifiable, Sendable, Equatable {
             return "mic.slash.fill"
         case (.microphone, .silent), (.microphone, .stalled), (.microphone, .interrupted), (.microphone, .unavailable):
             return "exclamationmark.triangle.fill"
+        case (.microphone, .recovering):
+            return "arrow.trianglehead.2.clockwise.rotate.90"
         case (.microphone, .starting):
             return "mic"
         case (.system, .live):
@@ -76,6 +92,8 @@ public struct MeetingSourceHealthChip: Identifiable, Sendable, Equatable {
             return "speaker.slash.fill"
         case (.system, .silent), (.system, .stalled), (.system, .interrupted), (.system, .unavailable):
             return "exclamationmark.triangle.fill"
+        case (.system, .recovering):
+            return "arrow.trianglehead.2.clockwise.rotate.90"
         case (.system, .starting), (.system, .muted):
             return "speaker.wave.2"
         }

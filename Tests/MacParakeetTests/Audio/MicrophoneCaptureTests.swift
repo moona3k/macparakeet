@@ -17,7 +17,7 @@ final class MicrophoneCaptureTests: XCTestCase {
             handler: { _, _ in },
             onStall: nil
         )
-        defer { capture.stop() }
+        addTeardownBlock { await capture.stop() }
 
         XCTAssertEqual(report.requestedMode, .vpioPreferred)
         XCTAssertEqual(report.effectiveMode, .vpio)
@@ -39,7 +39,7 @@ final class MicrophoneCaptureTests: XCTestCase {
             handler: { _, _ in },
             onStall: nil
         )
-        defer { capture.stop() }
+        addTeardownBlock { await capture.stop() }
 
         XCTAssertEqual(report.effectiveMode, .raw)
         XCTAssertEqual(platform.configureAndStartCalls.first?.vpioEnabled, false)
@@ -59,7 +59,7 @@ final class MicrophoneCaptureTests: XCTestCase {
             handler: { _, _ in counter.increment() },
             onStall: nil
         )
-        defer { capture.stop() }
+        addTeardownBlock { await capture.stop() }
 
         let buffer = makeSharedTestBuffer()
         let time = AVAudioTime(hostTime: 0)
@@ -87,7 +87,7 @@ final class MicrophoneCaptureTests: XCTestCase {
             handler: { _, _ in },
             onStall: { error in stallBox.record(error) }
         )
-        defer { capture.stop() }
+        addTeardownBlock { await capture.stop() }
 
         try await Task.sleep(for: .milliseconds(2200))
         XCTAssertNil(
@@ -111,7 +111,7 @@ final class MicrophoneCaptureTests: XCTestCase {
             handler: { _, _ in },
             onStall: { error in stallBox.record(error) }
         )
-        defer { capture.stop() }
+        addTeardownBlock { await capture.stop() }
 
         let line = try await waitForDiagnosticsLine(
             containing: "meeting_mic_capture_no_buffers_within_timeout",
@@ -142,7 +142,7 @@ final class MicrophoneCaptureTests: XCTestCase {
             handler: { buffer, _ in snapshotBox.record(buffer) },
             onStall: nil
         )
-        defer { capture.stop() }
+        addTeardownBlock { await capture.stop() }
 
         let buffer = try makeSharedMultiChannelFloatBuffer(channels: 4, frames: 16) { channel, frame in
             channel == 0 ? Float(frame) + 0.25 : Float((channel + 1) * 100 + frame)
@@ -171,7 +171,7 @@ final class MicrophoneCaptureTests: XCTestCase {
             handler: { buffer, _ in snapshotBox.record(buffer) },
             onStall: nil
         )
-        defer { capture.stop() }
+        addTeardownBlock { await capture.stop() }
 
         let buffer = try makeSharedMultiChannelFloatBuffer(channels: 4, frames: 8) { channel, frame in
             channel == 1 ? Float(frame) + 0.5 : 0
@@ -205,10 +205,11 @@ final class MicrophoneCaptureTests: XCTestCase {
             handler: { _, _ in },
             onStall: nil
         )
-        defer { capture.stop() }
+        addTeardownBlock { await capture.stop() }
 
         XCTAssertEqual(report.effectiveMode, .raw, "vpioPreferred falls back to raw when VPIO subscribe fails")
-        XCTAssertGreaterThanOrEqual(platform.configureAndStartCalls.count, 2, "Both vpio and raw subscribe attempts occur")
+        XCTAssertGreaterThanOrEqual(
+            platform.configureAndStartCalls.count, 2, "Both vpio and raw subscribe attempts occur")
         XCTAssertEqual(platform.configureAndStartCalls.last?.vpioEnabled, false, "Final attempt must be the raw retry")
     }
 
@@ -287,7 +288,8 @@ final class MicrophoneCaptureTests: XCTestCase {
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
-        XCTAssertEqual(platform.configureAndStartCalls.count, 0, "Permission gate must short-circuit before any platform call")
+        XCTAssertEqual(
+            platform.configureAndStartCalls.count, 0, "Permission gate must short-circuit before any platform call")
     }
 
     func testSharedModeStopDuringSubscribeUnsubscribesOrphanToken() async throws {
@@ -320,7 +322,7 @@ final class MicrophoneCaptureTests: XCTestCase {
 
         XCTAssertEqual(arrived.wait(timeout: .now() + 5), .success, "Mock platform should have been entered")
         // stop() runs while subscribe is paused inside the platform.
-        capture.stop()
+        let stopTask = Task { await capture.stop() }
         // Let subscribe complete. start's post-subscribe re-check must now
         // detect the missing .starting state and clean up.
         release.signal()
@@ -333,11 +335,115 @@ final class MicrophoneCaptureTests: XCTestCase {
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
+        await stopTask.value
 
-        // Wait for the fire-and-forget orphan-unsubscribe Task to settle.
-        try await Task.sleep(for: .milliseconds(50))
         XCTAssertEqual(stream.diagnostics.subscriberCount, 0, "Orphan token must be unsubscribed")
         XCTAssertFalse(stream.diagnostics.engineRunning, "Engine must be stopped after orphan cleanup")
+    }
+
+    func testStopReturnsOnlyAfterSharedSubscriptionIsRemoved() async throws {
+        let platform = SharedMicTestPlatform()
+        let stopEntered = DispatchSemaphore(value: 0)
+        let releaseStop = DispatchSemaphore(value: 0)
+        platform.stopEngineHook = {
+            stopEntered.signal()
+            releaseStop.wait()
+        }
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let capture = MicrophoneCapture(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+        _ = try await capture.start(
+            processingMode: .raw,
+            handler: { _, _ in },
+            onStall: nil
+        )
+
+        let stopCompleted = MicrophoneCaptureTestCounter()
+        let stopReturned = DispatchSemaphore(value: 0)
+        let stopTask = Task {
+            await capture.stop()
+            stopCompleted.increment()
+            stopReturned.signal()
+        }
+
+        XCTAssertEqual(stopEntered.wait(timeout: .now() + 5), .success)
+        XCTAssertEqual(
+            stopReturned.wait(timeout: .now() + 0.05),
+            .timedOut,
+            "Stop must await physical subscription teardown"
+        )
+
+        releaseStop.signal()
+        await stopTask.value
+
+        XCTAssertEqual(stream.diagnostics.subscriberCount, 0)
+        XCTAssertFalse(stream.diagnostics.engineRunning)
+        XCTAssertEqual(stopCompleted.value, 1)
+    }
+
+    func testStoppedStartCannotClaimReplacementSession() async throws {
+        let platform = SharedMicTestPlatform()
+        let firstConfigureEntered = DispatchSemaphore(value: 0)
+        let releaseFirstConfigure = DispatchSemaphore(value: 0)
+        let configureCount = MicrophoneCaptureTestCounter()
+        platform.configureAndStartHook = {
+            guard configureCount.incrementAndGet() == 1 else { return }
+            firstConfigureEntered.signal()
+            releaseFirstConfigure.wait()
+        }
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let capture = MicrophoneCapture(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+        let firstSessionBuffers = MicrophoneCaptureTestCounter()
+        let replacementSessionBuffers = MicrophoneCaptureTestCounter()
+
+        let firstStart = Task {
+            try await capture.start(
+                processingMode: .raw,
+                handler: { _, _ in firstSessionBuffers.increment() },
+                onStall: nil
+            )
+        }
+        XCTAssertEqual(
+            firstConfigureEntered.wait(timeout: .now() + 5),
+            .success,
+            "the first subscription should be suspended inside engine start"
+        )
+
+        let stopTask = Task { await capture.stop() }
+        try await Task.sleep(for: .milliseconds(10))
+        let replacementStart = Task {
+            try await capture.start(
+                processingMode: .raw,
+                handler: { _, _ in replacementSessionBuffers.increment() },
+                onStall: nil
+            )
+        }
+        releaseFirstConfigure.signal()
+
+        do {
+            _ = try await firstStart.value
+            XCTFail("the stopped start attempt must not claim the replacement session")
+        } catch MeetingAudioError.audioEngineStartFailed {
+            // Expected.
+        }
+        await stopTask.value
+        _ = try await replacementStart.value
+        addTeardownBlock { await capture.stop() }
+
+        let orphanSettled = await waitUntil(timeoutSeconds: 1) {
+            stream.diagnostics.subscriberCount == 1
+        }
+        XCTAssertTrue(orphanSettled)
+        XCTAssertTrue(stream.diagnostics.engineRunning)
+
+        platform.deliverBuffer(makeSharedTestBuffer(), time: AVAudioTime(hostTime: 0))
+        XCTAssertEqual(firstSessionBuffers.value, 0)
+        XCTAssertEqual(replacementSessionBuffers.value, 1)
     }
 
     func testSharedModeEngineDeathSurfacesAsStall() async throws {
@@ -360,7 +466,7 @@ final class MicrophoneCaptureTests: XCTestCase {
             handler: { _, _ in },
             onStall: { error in stallBox.record(error) }
         )
-        defer { capture.stop() }
+        addTeardownBlock { await capture.stop() }
         XCTAssertTrue(stream.diagnostics.vpioDeferred)
 
         // Make the deferred promotion fail when the blocker leaves.
@@ -369,6 +475,59 @@ final class MicrophoneCaptureTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(50))
 
         XCTAssertNotNil(stallBox.recordedError, "Engine death must reach onStall")
+    }
+
+    func testStaleEngineDeathDoesNotInterruptNewCaptureSession() async throws {
+        let platform = SharedMicTestPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let capture = MicrophoneCapture(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+        let callbackQueueBlocked = DispatchSemaphore(value: 0)
+        let releaseCallbackQueue = DispatchSemaphore(value: 0)
+
+        _ = try await stream.subscribe(
+            wantsVPIO: false,
+            onEngineDeath: {
+                callbackQueueBlocked.signal()
+                releaseCallbackQueue.wait()
+            }
+        ) { _, _ in }
+        platform.simulateUnexpectedStop()
+        XCTAssertEqual(
+            callbackQueueBlocked.wait(timeout: .now() + 1),
+            .success,
+            "the first death callback should hold the stream callback queue"
+        )
+
+        _ = try await capture.start(
+            processingMode: .raw,
+            handler: { _, _ in },
+            onStall: { _ in }
+        )
+        platform.simulateUnexpectedStop()
+        let oldSessionInvalidated = await waitUntil(timeoutSeconds: 1) {
+            stream.diagnostics.subscriberCount == 0
+        }
+        XCTAssertTrue(oldSessionInvalidated)
+        await capture.stop()
+
+        let newSessionStall = MicrophoneCaptureTestStallBox()
+        _ = try await capture.start(
+            processingMode: .raw,
+            handler: { _, _ in },
+            onStall: { error in newSessionStall.record(error) }
+        )
+        addTeardownBlock { await capture.stop() }
+
+        releaseCallbackQueue.signal()
+        try await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertNil(
+            newSessionStall.recordedError,
+            "a queued death callback from the retired subscription must not target the new session"
+        )
     }
 
     func testInputDeviceAttemptsPreferSelectedThenDefaultThenBuiltIn() {
@@ -417,7 +576,7 @@ final class MicrophoneCaptureTests: XCTestCase {
         XCTAssertEqual(
             attempts,
             [
-                .implicitSystemDefault(resolvedDeviceID: 30),
+                .implicitSystemDefault(resolvedDeviceID: 30)
             ]
         )
     }
@@ -480,7 +639,7 @@ final class MicrophoneCaptureTests: XCTestCase {
         XCTAssertEqual(
             attempts,
             [
-                .implicitSystemDefault(resolvedDeviceID: 30),
+                .implicitSystemDefault(resolvedDeviceID: 30)
             ]
         )
     }
@@ -589,12 +748,13 @@ final class MicrophoneCaptureTests: XCTestCase {
     ) throws -> AVAudioPCMBuffer {
         let layoutTag = AudioChannelLayoutTag(kAudioChannelLayoutTag_DiscreteInOrder) | channels
         let layout = try XCTUnwrap(AVAudioChannelLayout(layoutTag: layoutTag))
-        let format = try XCTUnwrap(AVAudioFormat(
-            commonFormat: .pcmFormatFloat32,
-            sampleRate: 48_000,
-            interleaved: false,
-            channelLayout: layout
-        ))
+        let format = try XCTUnwrap(
+            AVAudioFormat(
+                commonFormat: .pcmFormatFloat32,
+                sampleRate: 48_000,
+                interleaved: false,
+                channelLayout: layout
+            ))
         let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames))
         buffer.frameLength = frames
         let data = try XCTUnwrap(buffer.floatChannelData)
@@ -632,6 +792,12 @@ private final class MicrophoneCaptureTestCounter: @unchecked Sendable {
     private let lock = NSLock()
     private var _value = 0
     func increment() { lock.withLock { _value += 1 } }
+    func incrementAndGet() -> Int {
+        lock.withLock {
+            _value += 1
+            return _value
+        }
+    }
     var value: Int { lock.withLock { _value } }
 }
 
@@ -693,6 +859,7 @@ private final class SharedMicTestPlatform: MicrophoneEnginePlatform, @unchecked 
     private var _configureCalls: [ConfigureCall] = []
     private var _stopCount = 0
     private var _tapHandler: (@Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void)?
+    private var _unexpectedStopHandler: (@Sendable () -> Void)?
     var configureAndStartError: Error?
     /// Counts down on each successful start. While >0, treat the call as a
     /// failure even if `configureAndStartError` is nil. Lets a test simulate
@@ -706,6 +873,7 @@ private final class SharedMicTestPlatform: MicrophoneEnginePlatform, @unchecked 
     private let hookLock = NSLock()
     private var _configureAndStartHook: (@Sendable () -> Void)?
     private var _afterConfigureAndStartHook: (@Sendable () -> Void)?
+    private var _stopEngineHook: (@Sendable () -> Void)?
     var configureAndStartHook: (@Sendable () -> Void)? {
         get { hookLock.withLock { _configureAndStartHook } }
         set { hookLock.withLock { _configureAndStartHook = newValue } }
@@ -713,6 +881,10 @@ private final class SharedMicTestPlatform: MicrophoneEnginePlatform, @unchecked 
     var afterConfigureAndStartHook: (@Sendable () -> Void)? {
         get { hookLock.withLock { _afterConfigureAndStartHook } }
         set { hookLock.withLock { _afterConfigureAndStartHook = newValue } }
+    }
+    var stopEngineHook: (@Sendable () -> Void)? {
+        get { hookLock.withLock { _stopEngineHook } }
+        set { hookLock.withLock { _stopEngineHook = newValue } }
     }
 
     var isEngineRunning: Bool {
@@ -757,11 +929,27 @@ private final class SharedMicTestPlatform: MicrophoneEnginePlatform, @unchecked 
     }
 
     func stopEngine() {
+        stopEngineHook?()
         lock.withLock {
             _isRunning = false
             _tapHandler = nil
             _stopCount += 1
         }
+    }
+
+    func setUnexpectedStopHandler(_ handler: (@Sendable () -> Void)?) {
+        lock.withLock {
+            _unexpectedStopHandler = handler
+        }
+    }
+
+    func simulateUnexpectedStop() {
+        let handler = lock.withLock { () -> (@Sendable () -> Void)? in
+            _isRunning = false
+            _tapHandler = nil
+            return _unexpectedStopHandler
+        }
+        handler?()
     }
 
     func deliverBuffer(_ buffer: AVAudioPCMBuffer, time: AVAudioTime) {
