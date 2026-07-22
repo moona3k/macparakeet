@@ -17,6 +17,51 @@ final class TranscriptFormatterTests: XCTestCase {
         XCTAssertEqual(mockLLMService.formatTranscriptCallCount, 0)
     }
 
+    func testSkippedWhenInputIsWhitespaceOnlyDoesNotCallLLM() async throws {
+        let mockLLMService = MockLLMService()
+        let formatter = makeFormatter(llmService: mockLLMService)
+        let promptResolved = expectation(description: "prompt not resolved")
+        promptResolved.isInverted = true
+        let started = expectation(description: "formatter start not posted")
+        started.isInverted = true
+        let finished = expectation(description: "formatter finish not posted")
+        finished.isInverted = true
+        let startObserver = NotificationCenter.default.addObserver(
+            forName: .macParakeetAIFormatterDidStart,
+            object: nil,
+            queue: nil
+        ) { _ in
+            started.fulfill()
+        }
+        let finishObserver = NotificationCenter.default.addObserver(
+            forName: .macParakeetAIFormatterDidFinish,
+            object: nil,
+            queue: nil
+        ) { _ in
+            finished.fulfill()
+        }
+        defer {
+            NotificationCenter.default.removeObserver(startObserver)
+            NotificationCenter.default.removeObserver(finishObserver)
+        }
+
+        let outcome = try await formatter.format(
+            " \n\t ",
+            runSource: LLMRunSource(dictationId: UUID()),
+            lane: .dictation,
+            resolvePrompt: {
+                promptResolved.fulfill()
+                return (AIFormatter.defaultPromptTemplate, nil)
+            }
+        )
+
+        await fulfillment(of: [promptResolved, started, finished], timeout: 0.1)
+        XCTAssertNil(outcome.text)
+        XCTAssertNil(outcome.run)
+        XCTAssertNil(outcome.resolution)
+        XCTAssertEqual(mockLLMService.formatTranscriptCallCount, 0)
+    }
+
     func testTranscriptionLaneSkipsWhenInputExceedsMaxInputChars() async throws {
         let mockLLMService = MockLLMService()
         let formatter = makeFormatter(llmService: mockLLMService)

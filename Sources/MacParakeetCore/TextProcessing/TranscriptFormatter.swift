@@ -24,6 +24,10 @@ struct TranscriptFormatter: Sendable {
             return .skipped
         }
 
+        guard text.contains(where: { !$0.isWhitespace }) else {
+            return .skipped
+        }
+
         // The formatter rewrites the full text, so output length tracks input
         // length; past the cap slow providers can stall finalization until
         // timeout before falling back anyway (issue #493).
