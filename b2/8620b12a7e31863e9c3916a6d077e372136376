@@ -1,0 +1,57 @@
+plans/completed/2026-07-20-dapt-export.md
+  s_6b60a355f5f8d4::t_755502a286bf7f 7-9,16-19
+Sources/CLI/CHANGELOG.md
+  s_6b60a355f5f8d4::t_e893028f61ba8f 92-93
+spec/README.md
+  s_6b60a355f5f8d4::t_e893028f61ba8f 67-71
+  s_6b60a355f5f8d4::t_fba484d67193d7 66,72-74
+Sources/CLI/MacParakeetCLI.swift
+  s_6b60a355f5f8d4::t_e893028f61ba8f 11
+README.md
+  s_6b60a355f5f8d4::t_e893028f61ba8f 75
+  s_6b60a355f5f8d4::t_fba484d67193d7 67
+plans/README.md
+  s_6b60a355f5f8d4::t_e893028f61ba8f 4-5,49,90-97
+  s_6b60a355f5f8d4::t_9b3c10bbbfe05f 98
+Sources/MacParakeetCore/Audio/MicrophoneEnginePlatform.swift
+  s_6b60a355f5f8d4::t_55bd67af9f8c73 1085-1089
+spec/03-architecture.md
+  s_6b60a355f5f8d4::t_185d8961ee50b6 1288
+  s_6b60a355f5f8d4::t_c75d54d74488a0 588-590,592-594,599
+  s_6b60a355f5f8d4::t_e893028f61ba8f 51
+plans/active/2026-06-14-meeting-mic-reliability.md
+  s_6b60a355f5f8d4::t_fba484d67193d7 156,167
+  s_6b60a355f5f8d4::t_e893028f61ba8f 3-8,11,16,18-21,24-27,34-36,46-48,58-60,87,89-98,100-102,139-140,151,160-161,163,168,179-183
+docs/audits/2026-07-22-post-0.7.3-release-prep.md
+  s_6b60a355f5f8d4::t_fba484d67193d7 1-58,61-69,83-97,119,124-176
+  s_6b60a355f5f8d4::t_185d8961ee50b6 59-60
+  s_6b60a355f5f8d4::t_c51f9233edcf92 75-82,98-110
+  s_6b60a355f5f8d4::t_19f6e1338d1bd8 111-118,120-123
+  s_6b60a355f5f8d4::t_8959b2a146b896 70-74
+scripts/dev/ci_local.sh
+  s_6b60a355f5f8d4::t_8959b2a146b896 13,15
+docs/distribution.md
+  s_6b60a355f5f8d4::t_e893028f61ba8f 189-193,210-213
+  s_6b60a355f5f8d4::t_66381cf25ae4df 214
+plans/completed/2026-07-04-meeting-health-artifacts-speaker-rename.md
+  s_6b60a355f5f8d4::t_755502a286bf7f 8-10
+  s_6b60a355f5f8d4::t_01137be319e3b6 705,707-708,710-715,717-718
+Tests/MacParakeetTests/Audio/MicrophoneEnginePlatformConfigChangeRecoveryTests.swift
+  s_6b60a355f5f8d4::t_55bd67af9f8c73 413
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "b28620b12a7e31863e9c3916a6d077e372136376",
+  "prompts": {},
+  "sessions": {
+    "s_6b60a355f5f8d4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f8bc5-48c5-7853-83ea-e4c648e46831",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
