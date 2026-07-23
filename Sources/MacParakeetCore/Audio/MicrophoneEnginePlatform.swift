@@ -384,6 +384,12 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     private var recoveryAttemptCountLocked = 0
     private var recoveryRetryPendingLocked = false
     private var terminalRecoveryGenerationLocked: UInt64?
+    /// A first usable replacement buffer proves startup readiness, not durable
+    /// recovery. Keep the episode open until one full liveness window passes so
+    /// a route that emits one good buffer and then dies cannot replenish its
+    /// retry budget forever.
+    private var recoveryProbationGenerationLocked: UInt64?
+    private var recoveryProbationStartedAtLocked: UInt64?
     private var unexpectedStopHandlerLocked: (@Sendable () -> Void)?
     private var callbackLivenessTimerLocked: DispatchSourceTimer?
 
@@ -1405,7 +1411,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         guard !engineBox.isEngineRunning() else { return }
         guard activeStartRequestLocked != nil else { return }
 
-        beginRecoveryEpisodeLocked(trigger: "configuration_change")
+        recoverAfterLivenessFailureLocked(trigger: "configuration_change")
     }
 
     private func beginRecoveryEpisodeLocked(trigger: String) {
@@ -1415,6 +1421,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         recoveryAttemptCountLocked = 0
         recoveryRetryPendingLocked = false
         terminalRecoveryGenerationLocked = nil
+        clearRecoveryProbationLocked()
         attemptRecoveryLocked(
             episodeGeneration: recoveryEpisodeGenerationLocked,
             trigger: trigger
@@ -1450,13 +1457,20 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         guard running,
             activeStartRequestLocked != nil,
             !recoveryRetryPendingLocked,
-            tapHandlerBox === tapHandler,
+            tapHandlerBox === tapHandler
+        else { return }
+
+        let now = callbackUptimeProvider()
+        guard
             let failure = tapHandler.livenessFailure(
-                nowUptimeNanoseconds: callbackUptimeProvider(),
+                nowUptimeNanoseconds: now,
                 callbackStallTimeout: callbackStallTimeout,
                 zeroFilledTimeout: zeroFilledTimeout
             )
-        else { return }
+        else {
+            completeRecoveryProbationIfHealthyLocked(nowUptimeNanoseconds: now)
+            return
+        }
 
         let engineIsRunning = audioEngine.isRunning
         let trigger: String
@@ -1479,7 +1493,24 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             )
         }
         cancelCallbackLivenessTimerLocked()
-        beginRecoveryEpisodeLocked(trigger: trigger)
+        recoverAfterLivenessFailureLocked(trigger: trigger)
+    }
+
+    /// A replacement remains provisional until it survives one complete
+    /// liveness window. Failure during that probation continues the same
+    /// episode and consumes its existing retry schedule instead of starting a
+    /// fresh, unbounded episode.
+    private func recoverAfterLivenessFailureLocked(trigger: String) {
+        guard recoveryProbationGenerationLocked == recoveryEpisodeGenerationLocked else {
+            beginRecoveryEpisodeLocked(trigger: trigger)
+            return
+        }
+
+        clearRecoveryProbationLocked()
+        tearDownLocked(preserveRouteObservation: true)
+        scheduleNextRecoveryRetryLocked(
+            episodeGeneration: recoveryEpisodeGenerationLocked
+        )
     }
 
     /// System Default can move to a new endpoint without changing this
@@ -1570,16 +1601,49 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         else { return }
 
         recoveryScheduleGenerationLocked &+= 1
+        recoveryRetryPendingLocked = false
+        terminalRecoveryGenerationLocked = nil
+        recoveryProbationGenerationLocked = episodeGeneration
+        recoveryProbationStartedAtLocked = callbackUptimeProvider()
+        AudioCaptureDiagnostics.append(
+            "shared_mic_engine_config_change_recovery_ready attempt=\(attempt) trigger=\(trigger)"
+        )
+        logger.info(
+            "shared_mic_engine_config_change_recovery_ready attempt=\(attempt, privacy: .public) trigger=\(trigger, privacy: .public)"
+        )
+    }
+
+    private func completeRecoveryProbationIfHealthyLocked(nowUptimeNanoseconds: UInt64) {
+        guard recoveryProbationGenerationLocked == recoveryEpisodeGenerationLocked,
+            let startedAt = recoveryProbationStartedAtLocked
+        else { return }
+
+        let probationInterval = max(callbackStallTimeout, zeroFilledTimeout)
+        let elapsedNanoseconds =
+            nowUptimeNanoseconds >= startedAt
+            ? nowUptimeNanoseconds - startedAt
+            : 0
+        let elapsed = Double(elapsedNanoseconds) / 1_000_000_000
+        guard probationInterval <= 0 || elapsed >= probationInterval else { return }
+
+        let completedEpisode = recoveryEpisodeGenerationLocked
+        clearRecoveryProbationLocked()
+        recoveryScheduleGenerationLocked &+= 1
         nextRecoveryRetryIndexLocked = 0
         recoveryAttemptCountLocked = 0
         recoveryRetryPendingLocked = false
         terminalRecoveryGenerationLocked = nil
         AudioCaptureDiagnostics.append(
-            "shared_mic_engine_config_change_recovery_succeeded attempt=\(attempt) trigger=\(trigger)"
+            "shared_mic_engine_config_change_recovery_succeeded episode=\(completedEpisode)"
         )
         logger.info(
-            "shared_mic_engine_config_change_recovery_succeeded attempt=\(attempt, privacy: .public) trigger=\(trigger, privacy: .public)"
+            "shared_mic_engine_config_change_recovery_succeeded episode=\(completedEpisode, privacy: .public)"
         )
+    }
+
+    private func clearRecoveryProbationLocked() {
+        recoveryProbationGenerationLocked = nil
+        recoveryProbationStartedAtLocked = nil
     }
 
     private func scheduleNextRecoveryRetryLocked(episodeGeneration: UInt64) {
@@ -1654,6 +1718,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         recoveryScheduleGenerationLocked &+= 1
         recoveryRetryPendingLocked = false
         terminalRecoveryGenerationLocked = episodeGeneration
+        clearRecoveryProbationLocked()
         removeConfigurationChangeObserverLocked()
         removeRouteChangeObserversLocked()
         AudioCaptureDiagnostics.append(
@@ -1684,6 +1749,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         recoveryAttemptCountLocked = 0
         recoveryRetryPendingLocked = false
         terminalRecoveryGenerationLocked = nil
+        clearRecoveryProbationLocked()
         if clearActiveRequest {
             activeStartRequestLocked = nil
         }

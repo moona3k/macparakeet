@@ -307,10 +307,14 @@ its live format. Failures use a bounded 31.5-second backoff; default-input
 changes trailing-debounce a pending attempt so a USB/Bluetooth handoff can
 settle without causing a restart storm. An engine start is only a candidate
 recovery: the same source-owned readiness gate used by initial startup requires
-the replacement's first usable buffer before accepting the attempt. A replacement
-with no usable first buffer is torn down and retried. Explicit Stop cancels that
-wait as well as the episode, and no queued retry may resurrect capture. If every retry fails, the
-platform reports terminal engine death to `SharedMicrophoneStream`, which
+the replacement's first usable buffer before accepting the attempt. That first
+buffer begins a liveness probation window; only a replacement that remains
+healthy for the full window resets the episode's retry budget. A replacement
+with no usable first buffer is torn down and retried, while one that becomes
+silent during probation consumes the same bounded episode. Explicit Stop
+cancels that wait as well as the episode, and no queued retry may resurrect
+capture. If every retry fails, the platform reports terminal engine death to
+`SharedMicrophoneStream`, which
 invalidates subscriptions and fires their existing `onEngineDeath` handlers.
 Meeting capture maps that terminal death to a microphone-source interruption
 when system audio is also selected, so the healthy sibling source continues;
