@@ -148,14 +148,13 @@ final class MutableMicrophoneTapHandler: @unchecked Sendable {
 
     func invoke(buffer: AVAudioPCMBuffer, time: AVAudioTime) {
         let now = nowUptimeNanoseconds()
-        let requiresNonZeroSignal = state.withLock { $0.requiresNonZeroSignal }
-        let hasUsableSignal =
-            !requiresNonZeroSignal
-            || Self.hasNonZeroSample(
-                buffer,
-                channelZeroOnly: checksOnlyChannelZeroForSignal
-            )
         let current: Target? = state.withLock { state -> Target? in
+            let hasUsableSignal =
+                !state.requiresNonZeroSignal
+                || Self.hasNonZeroSample(
+                    buffer,
+                    channelZeroOnly: checksOnlyChannelZeroForSignal
+                )
             if state.monitoringCallbacks {
                 state.lastCallbackUptimeNanoseconds = now
                 if !hasUsableSignal {
