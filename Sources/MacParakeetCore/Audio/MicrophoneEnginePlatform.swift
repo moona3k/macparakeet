@@ -148,7 +148,9 @@ final class MutableMicrophoneTapHandler: @unchecked Sendable {
 
     func invoke(buffer: AVAudioPCMBuffer, time: AVAudioTime) {
         let now = nowUptimeNanoseconds()
-        let current: Target? = state.withLock { state -> Target? in
+        // The render callback owns `buffer` for this synchronous critical
+        // section; it is read here but never stored or allowed to escape.
+        let current: Target? = state.withLockUnchecked { state -> Target? in
             let hasUsableSignal =
                 !state.requiresNonZeroSignal
                 || Self.hasNonZeroSample(
