@@ -41,9 +41,6 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     private var transcribeFileMenuItems: [NSMenuItem] = []
     private var transcribeYouTubeMenuItems: [NSMenuItem] = []
     private var hotkeyMenuItem: NSMenuItem?
-    /// "Cohere Language ▸" submenu — only shown while Cohere is the active engine
-    /// (Cohere has no auto-detect, so the language must be chosen).
-    private var cohereLanguageMenuItem: NSMenuItem?
 
     struct MeetingRecordingMenuPresentation: Equatable {
         let recordingTitle: String
@@ -452,23 +449,6 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
-        let cohereLanguageItem = NSMenuItem(title: "Cohere Language", action: nil, keyEquivalent: "")
-        let cohereLanguageSubmenu = NSMenu()
-        for language in CohereTranscribeEngine.supportedLanguages {
-            let languageItem = NSMenuItem(
-                title: language.name,
-                action: #selector(selectCohereLanguage(_:)),
-                keyEquivalent: ""
-            )
-            languageItem.target = self
-            languageItem.representedObject = language.code
-            cohereLanguageSubmenu.addItem(languageItem)
-        }
-        cohereLanguageItem.submenu = cohereLanguageSubmenu
-        cohereLanguageItem.isHidden = true
-        menu.addItem(cohereLanguageItem)
-        cohereLanguageMenuItem = cohereLanguageItem
-
         let hotkeyItem = NSMenuItem(
             title: hotkeyMenuTitleProvider(),
             action: nil,
@@ -509,29 +489,6 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
 
     func refreshHotkeyTitle() {
         hotkeyMenuItem?.title = hotkeyMenuTitleProvider()
-    }
-
-    /// Show the Cohere-language submenu only while Cohere is the active engine,
-    /// and check the chosen language. Cohere has no auto-detect, so this is how
-    /// the user picks among its 14 languages without opening the app.
-    private func updateCohereLanguageMenu() {
-        guard let item = cohereLanguageMenuItem else { return }
-        let isCohere =
-            SpeechEnginePreference.current() == .cohere
-            || SpeechEnginePreference.finalTranscription() == .cohere
-        item.isHidden = !isCohere
-        guard isCohere, let submenu = item.submenu else { return }
-        let selected = SpeechEnginePreference.cohereDefaultLanguage() ?? "en"
-        for languageItem in submenu.items {
-            languageItem.state = (languageItem.representedObject as? String) == selected ? .on : .off
-        }
-    }
-
-    @objc private func selectCohereLanguage(_ sender: NSMenuItem) {
-        guard let code = sender.representedObject as? String else { return }
-        SpeechEnginePreference.saveCohereDefaultLanguage(code)
-        Telemetry.send(.settingChanged(setting: .cohereLanguage))
-        updateCohereLanguageMenu()
     }
 
     func refreshMeetingHotkeyShortcut() {
@@ -732,8 +689,6 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         }
         openLiveMeetingPanelMenuItem?.isHidden = meetingPresentation.openLiveMeetingPanelHidden
         openLiveMeetingPanelMenuItem?.isEnabled = meetingPresentation.openLiveMeetingPanelEnabled
-
-        updateCohereLanguageMenu()
 
         guard let env = environmentProvider() else {
             pasteLastMenuItem?.isEnabled = false

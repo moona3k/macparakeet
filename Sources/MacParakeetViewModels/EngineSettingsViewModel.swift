@@ -50,9 +50,7 @@ public final class EngineSettingsViewModel {
             Telemetry.send(.settingChanged(setting: .whisperDefaultLanguage))
         }
     }
-    /// Where Cohere runs its model — `.gpu` (fastest warm latency, pays a
-    /// one-time ~2-minute Core ML optimization in the background after each
-    /// launch) or `.ane` (slower warm, no startup wait). Persist-only: the
+    /// Where transcribe.cpp runs Cohere, using Metal or CPU. Persist-only: the
     /// engine re-reads it on its next construction (`STTRuntime.ensureCohereEngine`),
     /// so a change takes effect the next time Cohere loads rather than reloading
     /// the live engine. Mirrors the `whisperDefaultLanguage` save-on-didSet shape.
@@ -112,7 +110,7 @@ public final class EngineSettingsViewModel {
     public var isCohereModelDownloaded: Bool {
         cohereModelStatus == .ready || cohereModelStatus == .notLoaded
     }
-    /// Cohere's CoreML model has a large runtime footprint; on a low-memory Mac
+    /// Cohere's GGUF model has a large runtime footprint; on a low-memory Mac
     /// it risks an OS jetsam kill mid-transcription that no `catch` can recover.
     /// Selecting Cohere or downloading its model is gated through the shared
     /// capability-registry memory floor.
@@ -195,6 +193,7 @@ public final class EngineSettingsViewModel {
     private var sttClient: STTClientProtocol?
     private var speechEngineSwitcher: SpeechEngineSwitching?
     private var speechEngineSwitchAvailabilityProvider: SpeechEngineSwitchAvailabilityProviding?
+    private var cohereModelDeleter: CohereModelDeleting?
     private let defaults: UserDefaults
     /// The Cohere compute policy as it was at launch (what the running engine
     /// loaded). Compared against `cohereComputePolicy` to detect a persisted-but-
@@ -279,6 +278,9 @@ public final class EngineSettingsViewModel {
     ) {
         self.sttClient = sttClient
         self.speechEngineSwitcher = speechEngineSwitcher
+        cohereModelDeleter =
+            (speechEngineSwitcher as? CohereModelDeleting)
+            ?? (sttClient as? CohereModelDeleting)
         self.speechEngineSwitchAvailabilityProvider = speechEngineSwitchAvailabilityProvider
             ?? (speechEngineSwitcher as? SpeechEngineSwitchAvailabilityProviding)
             ?? (sttClient as? SpeechEngineSwitchAvailabilityProviding)
@@ -1419,10 +1421,19 @@ public final class EngineSettingsViewModel {
         cohereCacheDirectoryExists = false
         applyCohereDownloadedStatus(false)
         let deleter = deleteCohereModelOnDisk
+        let lifecycleDeleter = cohereModelDeleter
         Task { @MainActor [weak self] in
-            await Task.detached(priority: .userInitiated) {
-                _ = deleter()
-            }.value
+            if let lifecycleDeleter {
+                do {
+                    try await lifecycleDeleter.deleteCohereModel()
+                } catch {
+                    self?.speechEngineError = error.localizedDescription
+                }
+            } else {
+                await Task.detached(priority: .userInitiated) {
+                    _ = deleter()
+                }.value
+            }
             guard let self else { return }
             self.cohereDeleting = false
             self.refreshModelStatus()
@@ -1479,7 +1490,7 @@ public final class EngineSettingsViewModel {
         case .whisper:
             "Optimizing Whisper for this Mac..."
         case .cohere:
-            "Loading Cohere with Core ML..."
+            "Loading Cohere with transcribe.cpp..."
         }
     }
 

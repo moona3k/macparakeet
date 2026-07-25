@@ -149,7 +149,7 @@ final class ModelLifecycleCommandTests: XCTestCase {
                 name: "Cohere Transcribe",
                 engine: "cohere",
                 variant: nil,
-                size: "~2.1 GB",
+                size: "~1.65 GB",
                 installed: false,
                 selected: false,
                 language: "en"

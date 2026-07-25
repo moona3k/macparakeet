@@ -12,6 +12,7 @@
 > Amendment (2026-06-17): NVIDIA Parakeet Unified EN 0.6B (`unified`) is added as a third opt-in Parakeet build (English-only). Unlike the v2/v3 TDT builds it is a separate FluidAudio runtime (`UnifiedAsrManager`, no `AsrModelVersion`) served by a dedicated `ParakeetUnifiedEngine`, but it is presented to users as a Parakeet model. Parakeet v3 remains the primary/default; Unified provides strong English offline accuracy with punctuation/capitalization (FluidAudio v0.15.4 CoreML benchmark: 2.15% average / 1.68% aggregate WER on LibriSpeech test-clean; NVIDIA upstream card: 1.63% offline WER). Phase 1 shipped offline-only; the 2026-07-06 amendment below supersedes that initial runtime shape with FluidAudio's native low-latency streaming build (`parakeet-unified-2080ms`). Issue #520.
 > Amendment (2026-07-06): Parakeet Unified now uses FluidAudio's native `StreamingUnifiedAsrManager` (`parakeet-unified-2080ms`) for final file transcription, meeting finalization, recorded-file dictation, and live dictation preview. FluidAudio v0.15.4 exposes token timings from that manager, so MacParakeet converts them into word timestamps for exports and speaker alignment. Unified remains English-only, opt-in, and non-default.
 > Amendment (2026-06-19, integrated 2026-06-27): Cohere Transcribe (`cohere-transcribe-03-2026`, 2B, Apache-2.0) is added as an opt-in local accuracy engine. It runs fully on-device through the FluidAudio CoreML SDK already vendored here (FluidAudio >= 0.15.4 exposes a public `CoherePipeline`/`CohereAsrConfig` and a q8 CoreML repo); no MLX runtime or other new dependency is required, unlike the MLX-only candidates (Qwen3-ASR, Moonshine), which stay deferred. The gold-standard benchmark (`benchmarks/asr/`, hardened + independently verified in PR #568) found Cohere the most accurate on-device engine (full-LibriSpeech macro WER 2.07% vs 2.38% Parakeet-unified; best Japanese), but with a decisive cost: high resident memory, heavier cold-start/model prep, and ~2.1 GB download. Decision: Parakeet v3 remains the primary/default; Cohere is explicit opt-in, batch-only, user-downloaded, warned in Settings for model size/memory, and routed through `STTRuntime` by `CohereTranscribeEngine`. It has no live dictation preview, no meeting live chunks, and no word timestamps.
+> Amendment (2026-07-25): ADR-029 replaces only Cohere's FluidAudio/CoreML execution backend with a pinned transcribe.cpp adapter and Q5_K_M GGUF model. Cohere remains the same opt-in local batch engine with the same scheduler and persistence identity. The backend transcribes without a caller language hint and classifies returned text locally, replacing the manual picker. Release remains blocked until the self-built owned arm64 XCFramework is published and checksum-pinned.
 > Clarification (2026-07-16): "primary/default" describes the standard engine-family path. Locale-aware first-run setup selects WhisperKit when preferred languages contain no English and include Korean, Japanese, Chinese, or Cantonese; this does not overturn Parakeet's primary status for supported languages.
 
 ## Context
@@ -220,7 +221,8 @@ fresh installs still default to Parakeet v3.
 ## Addendum: Cohere Transcribe Opt-In Engine (June 2026)
 
 > Date: 2026-06-19
-> Status: **Accepted** (integrated 2026-06-27 as opt-in, batch-only)
+> Status: **Historical backend record**. Product adoption remains accepted,
+> while ADR-029 supersedes the FluidAudio/CoreML implementation below.
 
 A gold-standard cross-engine benchmark (`benchmarks/asr/`, hardened and
 independently verified in PR #568) evaluated Cohere Transcribe
@@ -228,10 +230,10 @@ independently verified in PR #568) evaluated Cohere Transcribe
 Leaderboard) as a candidate on-device engine. PR #602 integrates it as an
 explicit opt-in engine for accuracy-critical record-then-transcribe work.
 
-**It is FluidAudio CoreML, not MLX.** FluidAudio ≥ 0.15.4 — the exact SDK
+**Historical implementation:** FluidAudio >= 0.15.4, the SDK
 MacParakeet already depends on — ships a public `CoherePipeline` actor and a q8
 CoreML model repo (`FluidInference/cohere-transcribe-03-2026-coreml`). So Cohere
-needs **no new runtime**: `CohereTranscribeEngine` wraps the FluidAudio pipeline,
+originally needed no new runtime: `CohereTranscribeEngine` wrapped the FluidAudio pipeline,
 routes inside `STTRuntime`, and uses a user-triggered `cohere-transcribe` model
 download. This is what distinguishes it from the deferred MLX-only candidates
 (Qwen3-ASR, Moonshine).
@@ -271,5 +273,6 @@ candidate landscape.
 - [parakeet-mlx](https://github.com/senstella/parakeet-mlx) -- MLX port (original runtime, superseded)
 - [ADR-021: WhisperKit as Optional Multilingual STT Engine](021-whisperkit-multilingual-stt.md)
 - [Nemotron 3.5 ASR Streaming 0.6B](https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b)
-- [FluidInference/cohere-transcribe-03-2026-coreml](https://huggingface.co/FluidInference/cohere-transcribe-03-2026-coreml) -- q8 CoreML conversion of Cohere Transcribe (the on-device path; evaluated in PR #568 and integrated as opt-in in PR #602)
+- [ADR-029](029-cohere-transcribe-cpp-backend.md) -- current Cohere execution backend, pins, and release prerequisite
+- [FluidInference/cohere-transcribe-03-2026-coreml](https://huggingface.co/FluidInference/cohere-transcribe-03-2026-coreml) -- historical q8 CoreML benchmark and implementation source
 - Oatmeal project ADR-011 (prior art for Parakeet selection)

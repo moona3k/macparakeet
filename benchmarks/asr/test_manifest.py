@@ -49,7 +49,11 @@ def test_manifest_covers_shipping_engines() -> None:
         check("cohere engine exists in manifest", False, "cohere engine not found")
         return
     check("cohere excluded from live preview", "dictation_live_preview" not in cohere.get("product_surfaces", []))
-    check("cohere caveat records no auto-detect", "no auto language detection" in cohere.get("caveat", ""))
+    check(
+        "cohere records composed automatic language behavior",
+        "automatic language behavior is composed" in cohere.get("caveat", ""),
+    )
+    check("cohere release pin is explicit", cohere.get("status") == "release_ready_pinned_artifact")
 
 
 def test_summary_mentions_gates() -> None:

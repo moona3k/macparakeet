@@ -144,10 +144,10 @@
     },
     {
       "id": "cohere",
-      "name": "Cohere Transcribe 03-2026 q8",
-      "runtime": "FluidAudio CoreML/ANE via macparakeet-cli",
-      "status": "shipping_opt_in",
-      "language_scope": "selected_languages",
+      "name": "Cohere Transcribe 03-2026 Q5_K_M",
+      "runtime": "Pinned transcribe.cpp Metal/CPU adapter via macparakeet-cli",
+      "status": "release_ready_pinned_artifact",
+      "language_scope": "automatic_multilingual",
       "product_surfaces": [
         "dictation_final",
         "meeting_final",
@@ -156,11 +156,9 @@
       ],
       "cli_flags": [
         "--engine",
-        "cohere",
-        "--language",
-        "en"
+        "cohere"
       ],
-      "caveat": "Batch-only, no live preview, no word timestamps, no auto language detection, and should stay 16 GB+ gated unless new memory evidence says otherwise."
+      "caveat": "Batch-only, no live preview, no word timestamps, automatic language behavior is composed from unhinted native transcription plus local transcript classification, and the engine should stay 16 GB+ gated unless new memory evidence says otherwise. The owned arm64 artifact is immutable, attested, and checksum-pinned; full-corpus accuracy remains historical CoreML evidence until rerun on Q5_K_M."
     }
   ],
   "datasets": [
@@ -449,8 +447,8 @@
         "peak_rss_mb"
       ],
       "status": "current_reference_evidence",
-      "runner": "speed_bench.py; use cohere-fa-reference only for legacy FluidAudio comparisons.",
-      "publication_rule": "Report hardware, macOS version, model path, runtime path, contention assumptions, and whether Cohere was measured through macparakeet-cli or FluidAudio reference CLI."
+      "runner": "speed_bench.py and cohere_multilingual_speed.py; use cohere-fa-reference only for legacy FluidAudio comparisons.",
+      "publication_rule": "Report hardware, macOS version, exact runtime commit and artifact checksum, model revision and checksum, contention assumptions, and whether Cohere was measured through macparakeet-cli or the historical FluidAudio reference CLI."
     }
   ],
   "quality_gates": [

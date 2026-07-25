@@ -4,6 +4,9 @@
 > implementation record archived at
 > `plans/completed/2026-07-03-stt-capability-registry.md`)
 > Date: 2026-07-03
+> Amendment 2026-07-25: ADR-029 approves one narrow third-runtime exception for
+> the existing Cohere engine. The engine roster and capability-registry rules do
+> not change.
 > Related: ADR-001 (Parakeet primary STT + benchmark amendment), ADR-002
 > (local-only), ADR-007 (FluidAudio CoreML), ADR-016 (centralized STT
 > runtime + scheduler), ADR-021 (WhisperKit multilingual)
@@ -12,9 +15,9 @@
 
 ## Context
 
-MacParakeet ships four speech engines — Parakeet (default), Nemotron
-streaming (Beta), Whisper, and Cohere Transcribe — across two runtimes:
-FluidAudio CoreML/ANE and WhisperKit. The engine roster has grown one
+MacParakeet ships four speech engines across three narrowly scoped runtimes:
+Parakeet and Nemotron use FluidAudio CoreML, Whisper uses WhisperKit, and
+Cohere uses the pinned transcribe.cpp adapter approved by ADR-029. The roster has grown one
 engine at a time (ADR-001 → ADR-021 → Nemotron → Cohere) without a
 standing rule for *how* it grows. Each addition has re-answered the same
 questions ad hoc: which runtime, which UI surface, which capability gaps
@@ -57,11 +60,13 @@ No cloud ASR engines, ever (no Deepgram/Groq/etc.). Speech audio and
 transcripts stay on-device for all three capture modes. This is the
 product's identity, not a temporary posture.
 
-### 2. Two runtimes, and only two
+### 2. Two general runtimes plus one narrow Cohere adapter
 
 FluidAudio is the primary runtime and center of gravity; WhisperKit is a
-maintained legacy fallback. **Adding a third runtime requires a new ADR**
-with evidence that a needed model cannot reach FluidAudio/WhisperKit.
+maintained legacy fallback. ADR-029 approves a small pinned transcribe.cpp
+adapter only for the existing Cohere engine because it replaces a backend
+without adding a product engine. Any other runtime still requires a new ADR
+with evidence that a needed model cannot reach an existing runtime.
 Cost basis: a new FluidAudio variant is ~200–500 LOC; a new runtime is
 1,500–3,000+ LOC across 12–20+ files plus sandbox/notarization review
 and a permanent maintenance seat.

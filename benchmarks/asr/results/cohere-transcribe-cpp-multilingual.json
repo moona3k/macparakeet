@@ -1,0 +1,128 @@
+{
+  "engine": "cohere",
+  "backend": "transcribe.cpp",
+  "runtime_commit": "51aa23592167cc32f8f3c5d2155d9f9937324c8d",
+  "artifact_sha256": "caad2e1ce80801e5d0adb7e2bb9bcf8e7d1fd295657af281d8260d5dcc629350",
+  "artifact_release_tag": "macparakeet-v0.1.3-arm64.1",
+  "artifact_release_url": "https://github.com/DudeMeister23/transcribe.cpp/releases/tag/macparakeet-v0.1.3-arm64.1",
+  "artifact_release_immutable": true,
+  "release_attestation_verified": true,
+  "model_revision": "dfa4adebb64f3076b7b6b90b721275cc069cb421",
+  "model_sha256": "14d02f1ad6dd77b3a60f82639879012c3adb4fe25c50a5a47a2c4c661daf1558",
+  "automatic_language_detection": true,
+  "warm_repetitions": 12,
+  "environment": {
+    "chip": "Apple M1 Max",
+    "memory_bytes": 68719476736,
+    "architecture": "arm64",
+    "macos_version": "27.0",
+    "macos_build": "26A5388g"
+  },
+  "methodology": {
+    "cold": "fresh process and fresh native model/context; OS file cache not purged",
+    "warm": "per-file wall-time slope from the repeated process",
+    "peak_rss": "maximum resident set size of the repeated process"
+  },
+  "measurements": [
+    {
+      "language": "en",
+      "fixture": "/Users/fabian/dev/transcribe.cpp-macparakeet/samples/jfk.wav",
+      "audio_seconds": 11.0,
+      "cold_first_transcript_seconds": 1.291114749998087,
+      "warm_transcription_seconds": 0.392202856090576,
+      "realtime_factor": 0.03565480509914327,
+      "realtime_multiple": 28.046710596772506,
+      "peak_rss_mb": 1841.890625,
+      "cold_transcript": "And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country.",
+      "warm_transcripts": [
+        "And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country.",
+        "And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country.",
+        "And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country.",
+        "And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country.",
+        "And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country.",
+        "And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country.",
+        "And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country.",
+        "And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country.",
+        "And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country.",
+        "And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country.",
+        "And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country.",
+        "And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country."
+      ]
+    },
+    {
+      "language": "de",
+      "fixture": "/Users/fabian/dev/transcribe.cpp-macparakeet/samples/german.wav",
+      "audio_seconds": 29.3355,
+      "cold_first_transcript_seconds": 1.645443792003789,
+      "warm_transcription_seconds": 0.7710538825459398,
+      "realtime_factor": 0.02628398638325373,
+      "realtime_multiple": 38.04597922928191,
+      "peak_rss_mb": 1865.859375,
+      "cold_transcript": "Am Strand, der Badeanzug, die Badehose, die Sandalen, die Luftmatratze, das Handtuch, das Eis, der Ball, die Sonne, das Meer, die Wellen",
+      "warm_transcripts": [
+        "Am Strand, der Badeanzug, die Badehose, die Sandalen, die Luftmatratze, das Handtuch, das Eis, der Ball, die Sonne, das Meer, die Wellen",
+        "Am Strand, der Badeanzug, die Badehose, die Sandalen, die Luftmatratze, das Handtuch, das Eis, der Ball, die Sonne, das Meer, die Wellen",
+        "Am Strand, der Badeanzug, die Badehose, die Sandalen, die Luftmatratze, das Handtuch, das Eis, der Ball, die Sonne, das Meer, die Wellen",
+        "Am Strand, der Badeanzug, die Badehose, die Sandalen, die Luftmatratze, das Handtuch, das Eis, der Ball, die Sonne, das Meer, die Wellen",
+        "Am Strand, der Badeanzug, die Badehose, die Sandalen, die Luftmatratze, das Handtuch, das Eis, der Ball, die Sonne, das Meer, die Wellen",
+        "Am Strand, der Badeanzug, die Badehose, die Sandalen, die Luftmatratze, das Handtuch, das Eis, der Ball, die Sonne, das Meer, die Wellen",
+        "Am Strand, der Badeanzug, die Badehose, die Sandalen, die Luftmatratze, das Handtuch, das Eis, der Ball, die Sonne, das Meer, die Wellen",
+        "Am Strand, der Badeanzug, die Badehose, die Sandalen, die Luftmatratze, das Handtuch, das Eis, der Ball, die Sonne, das Meer, die Wellen",
+        "Am Strand, der Badeanzug, die Badehose, die Sandalen, die Luftmatratze, das Handtuch, das Eis, der Ball, die Sonne, das Meer, die Wellen",
+        "Am Strand, der Badeanzug, die Badehose, die Sandalen, die Luftmatratze, das Handtuch, das Eis, der Ball, die Sonne, das Meer, die Wellen",
+        "Am Strand, der Badeanzug, die Badehose, die Sandalen, die Luftmatratze, das Handtuch, das Eis, der Ball, die Sonne, das Meer, die Wellen",
+        "Am Strand, der Badeanzug, die Badehose, die Sandalen, die Luftmatratze, das Handtuch, das Eis, der Ball, die Sonne, das Meer, die Wellen"
+      ]
+    },
+    {
+      "language": "ja",
+      "fixture": "/Users/fabian/dev/transcribe.cpp-macparakeet/samples/ja.wav",
+      "audio_seconds": 7.224,
+      "cold_first_transcript_seconds": 1.1900475829897914,
+      "warm_transcription_seconds": 0.31306316663738637,
+      "realtime_factor": 0.04333654023219634,
+      "realtime_multiple": 23.07521538733871,
+      "peak_rss_mb": 1835.1875,
+      "cold_transcript": "うちの中学は弁当制で、持って行けない場合は、五十円の学校販売のパンを買う。",
+      "warm_transcripts": [
+        "うちの中学は弁当制で、持って行けない場合は、五十円の学校販売のパンを買う。",
+        "うちの中学は弁当制で、持って行けない場合は、五十円の学校販売のパンを買う。",
+        "うちの中学は弁当制で、持って行けない場合は、五十円の学校販売のパンを買う。",
+        "うちの中学は弁当制で、持って行けない場合は、五十円の学校販売のパンを買う。",
+        "うちの中学は弁当制で、持って行けない場合は、五十円の学校販売のパンを買う。",
+        "うちの中学は弁当制で、持って行けない場合は、五十円の学校販売のパンを買う。",
+        "うちの中学は弁当制で、持って行けない場合は、五十円の学校販売のパンを買う。",
+        "うちの中学は弁当制で、持って行けない場合は、五十円の学校販売のパンを買う。",
+        "うちの中学は弁当制で、持って行けない場合は、五十円の学校販売のパンを買う。",
+        "うちの中学は弁当制で、持って行けない場合は、五十円の学校販売のパンを買う。",
+        "うちの中学は弁当制で、持って行けない場合は、五十円の学校販売のパンを買う。",
+        "うちの中学は弁当制で、持って行けない場合は、五十円の学校販売のパンを買う。"
+      ]
+    },
+    {
+      "language": "zh",
+      "fixture": "/Users/fabian/dev/transcribe.cpp-macparakeet/samples/zh.wav",
+      "audio_seconds": 5.616,
+      "cold_first_transcript_seconds": 1.1388027079956373,
+      "warm_transcription_seconds": 0.2719932538192635,
+      "realtime_factor": 0.048431847190039796,
+      "realtime_multiple": 20.64757092737223,
+      "peak_rss_mb": 1832.390625,
+      "cold_transcript": "开放时间早上九点至下午五点。",
+      "warm_transcripts": [
+        "开放时间早上九点至下午五点。",
+        "开放时间早上九点至下午五点。",
+        "开放时间早上九点至下午五点。",
+        "开放时间早上九点至下午五点。",
+        "开放时间早上九点至下午五点。",
+        "开放时间早上九点至下午五点。",
+        "开放时间早上九点至下午五点。",
+        "开放时间早上九点至下午五点。",
+        "开放时间早上九点至下午五点。",
+        "开放时间早上九点至下午五点。",
+        "开放时间早上九点至下午五点。",
+        "开放时间早上九点至下午五点。"
+      ]
+    }
+  ]
+}

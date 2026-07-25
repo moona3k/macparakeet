@@ -724,7 +724,7 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 │ ┌──────────────────────────────────────────────────────────────┐ │
 │ │ Engine: [ Parakeet ] [ Nemotron Beta ] [ Cohere ] [ Whisper ]│ │
 │ │ Nemotron model: [ Multilingual Beta ] [ English Beta ]       │ │
-│ │ Cohere language: [ English ▾ ]                               │ │
+│ │ Cohere language: Automatic                                  │ │
 │ │ Whisper language: [ Auto-detect ▾ ]                          │ │
 │ │ Parakeet        Ready                         [Repair]       │ │
 │ │ Nemotron        Not Downloaded                [Download]     │ │
@@ -755,7 +755,7 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 | Meeting audio retention | Keep forever / Remove after N days / Remove audio after transcription | Keep forever |
 | Speech recognition engine | Parakeet / Nemotron Beta / Cohere / Whisper | Parakeet |
 | Nemotron model | Multilingual Beta (~1.5 GB) / English Beta (~600 MB, English-only) | Multilingual Beta |
-| Cohere language | Supported Cohere language code | English |
+| Cohere language | Automatic detection, no manual control | Automatic |
 | Whisper language | Auto-detect or language code | Auto-detect |
 | Speech model controls | Parakeet repair, Nemotron download/delete, Cohere download/delete, Whisper download/delete | Available |
 
@@ -768,7 +768,7 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 - [x] YouTube storage toggle controls whether downloaded URL audio is kept after transcription
 - [x] "Clear All" requires confirmation, deletes audio files and database entries
 - [x] Permission status shown with current grant state
-- [x] Speech Recognition panel shows Parakeet status/repair plus Nemotron, Cohere, and Whisper download/language controls
+- [x] Speech Recognition panel shows Parakeet status/repair, Nemotron and Cohere model controls, and Whisper download/language controls
 - [x] Nemotron Model card (Nemotron engine only) persists the selected build; Multilingual Beta is the default, English Beta is a smaller English-only download
 
 ---
@@ -1893,7 +1893,7 @@ Read surrounding text from the active app via macOS Accessibility APIs (AXUIElem
 | Clean pipeline | <1ms | Deterministic, pure string operations |
 | Memory usage (idle) | <200MB | Menu bar + default STT readiness path |
 | Memory usage (active) | Engine-dependent | Current Parakeet builds measure 115–131 MB peak RSS on the M4 Pro reference benchmark; Nemotron, Cohere, and Whisper depend on selected model/runtime |
-| App size | <100MB | Plus ~465 MB per Parakeet build, ~1.5 GB or ~600 MB optional Nemotron download (per selected build), ~2.1 GB optional Cohere download, and optional Whisper download |
+| App size | <100MB | Plus ~465 MB per Parakeet build, ~1.5 GB or ~600 MB optional Nemotron download (per selected build), ~1.65 GB optional Cohere download, and optional Whisper download |
 | Startup time | <2s | Cold start to menu bar ready |
 | File transcription | 1 hour audio in <45s | Reference target for current Parakeet builds on the M4 Pro benchmark machine; hardware, audio, and engine choice affect elapsed time |
 
@@ -1913,7 +1913,7 @@ MacParakeet's brand is privacy. These are non-negotiable.
 | Explicit network surfaces | Model download, update checks, optional LLM providers, optional telemetry/crash reporting, retained purchase activation endpoints if explicitly invoked, and YouTube download |
 
 **What "supports a fully local setup" means:**
-- Parakeet, Nemotron, and Cohere STT run locally via FluidAudio CoreML; WhisperKit also runs locally when selected
+- Parakeet and Nemotron run locally via FluidAudio CoreML, Cohere runs locally via pinned transcribe.cpp, and WhisperKit runs locally when selected
 - Audio never leaves the device
 - Transcripts stay local unless the user explicitly enables external AI features
 - Users can remain fully local by sticking to offline/core features and local providers such as Ollama

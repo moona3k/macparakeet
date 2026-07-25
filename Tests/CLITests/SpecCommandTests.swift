@@ -354,7 +354,7 @@ final class SpecCommandTests: XCTestCase {
         let language = try XCTUnwrap(options.first { ($0["name"] as? String) == "--language" })
         XCTAssertEqual(
             language["summary"] as? String,
-            "Language hint for Nemotron, Whisper, or Cohere; Cohere has no auto-detect."
+            "Language hint for Nemotron or Whisper; legacy Cohere values are accepted but ignored."
         )
     }
 

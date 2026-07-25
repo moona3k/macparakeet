@@ -82,7 +82,7 @@
 │  └──────────────────────────────┘                                                │
 │  ┌──────────────────────────────┐                                                │
 │  │   Cohere STT (optional)      │                                                │
-│  │   FluidAudio CoreML batch    │                                                │
+│  │   transcribe.cpp Metal/CPU   │                                                │
 │  │   Accuracy-focused           │                                                │
 │  └──────────────────────────────┘                                                │
 │  ┌──────────────────────────────┐                                                │
@@ -101,8 +101,7 @@
 │  └──────────┘  └──────────┘  └─────────────┘  └──────────────┘  └─────────┘│
 │                                                                                  │
 │  * Current M4 Pro reference benchmark; varies by Parakeet build and hardware    │
-│  Cohere cache: ~/Library/Application Support/FluidAudio/Models/                 │
-│                cohere-transcribe/q8                                             │
+│  Cohere cache: ~/Library/Application Support/MacParakeet/models/stt/cohere/     │
 │  Whisper cache: ~/Library/Application Support/MacParakeet/models/stt/whisper/   │
 │  Recommended: 8 GB RAM default path; Cohere has higher memory needs.            │
 └──────────────────────────────────────────────────────────────────────────────────┘
@@ -413,7 +412,7 @@ protocol AudioProcessorProtocol: Sendable {
 
 #### 2.5 STT Runtime + Scheduler
 
-**Responsibility:** The shared STT stack owns one process-wide runtime actor plus one explicit scheduler. `STTRuntime` owns FluidAudio model lifecycle, the slot-scoped Parakeet TDT `AsrManager` set for the selected v2/v3 build, the dedicated Parakeet Unified engine, the Nemotron engines, optional `WhisperEngine` lifecycle, and engine dispatch. `STTScheduler` owns admission, slot assignment, in-slot priority, backpressure, cancellation, request-scoped progress, speech-engine leases, and guarded engine/model switching. `STTClient` remains as a compatibility facade, not as an app-owned second runtime.
+**Responsibility:** The shared STT stack owns one process-wide runtime actor plus one explicit scheduler. `STTRuntime` owns FluidAudio model lifecycle for Parakeet and Nemotron, the dedicated Parakeet Unified engine, optional WhisperKit lifecycle, the actor-owned transcribe.cpp Cohere adapter, and engine dispatch. `STTScheduler` owns admission, slot assignment, in-slot priority, backpressure, cancellation, request-scoped progress, speech-engine leases, and guarded engine/model switching. `STTClient` remains as a compatibility facade, not as an app-owned second runtime.
 
 **Key Types/Protocols:**
 ```swift
@@ -481,7 +480,7 @@ public enum NemotronModelVariant: String, CaseIterable, Codable, Sendable {
 
 public struct SpeechEngineSelection: Codable, Equatable, Sendable {
     let engine: SpeechEnginePreference
-    let language: String?  // Whisper/Nemotron hint, or Cohere's required language; nil means engine default/auto where supported
+    let language: String?  // Whisper/Nemotron hint; legacy Cohere values are ignored
 }
 
 public struct SpeechEngineLease: Equatable, Sendable {
@@ -514,12 +513,13 @@ struct TimestampedWord: Sendable {
 }
 ```
 
-**Dependencies:** FluidAudio SDK (CoreML, runs on ANE) for Parakeet, Nemotron, and Cohere, plus optional WhisperKit.
+**Dependencies:** FluidAudio SDK for Parakeet and Nemotron, optional WhisperKit, and the pinned transcribe.cpp Swift wrapper plus CTranscribe XCFramework for Cohere.
 
 **Architecture:**
 ```
 CPU:  MacParakeet app (UI, hotkeys, clipboard, history)
-ANE:  Parakeet/Nemotron/Cohere STT (via FluidAudio/CoreML) — dedicated ML accelerator
+ANE:  Parakeet/Nemotron STT via FluidAudio/CoreML
+GPU or CPU: Cohere STT via transcribe.cpp
 CPU/GPU/CoreML as selected by WhisperKit: optional multilingual STT
 ```
 
@@ -752,26 +752,27 @@ Speech recognition runs in the app process. Parakeet via FluidAudio CoreML on th
 
 | Optional Engine (Cohere Transcribe) | Value |
 |-----------------|-------|
-| Model | Cohere Transcribe 03-2026 q8 CoreML (`cohere-transcribe`) |
-| Runtime | FluidAudio `CoherePipeline` through `CohereTranscribeEngine` |
-| Languages | Supported Cohere language codes; no auto-detect |
+| Model | `cohere-transcribe-03-2026-Q5_K_M.gguf`, exact revision, size, and SHA-256 pinned in ADR-029 |
+| Runtime | actor-owned transcribe.cpp adapter through `CohereTranscribeEngine` |
+| Languages | Automatic detection across the native reported Cohere set; legacy hints ignored |
 | Output | Plain transcript text; no word timestamps, speaker labels, or live partials |
-| Model cache | `~/Library/Application Support/FluidAudio/Models/cohere-transcribe/q8` |
-| Selection | Settings speech-engine picker or CLI `--engine cohere --language <code>` |
+| Model cache | `~/Library/Application Support/MacParakeet/models/stt/cohere/` |
+| Selection | Settings speech-engine picker or CLI `--engine cohere` |
 
 **Why In-Process (Not Daemon)?**
-- FluidAudio provides native Swift async/await API — no IPC overhead
-- CoreML models run on the ANE, leaving GPU free for the rest of macOS
+- Native Swift adapters provide async APIs with no IPC overhead
+- Parakeet and Nemotron use the ANE; Cohere uses its explicitly selected Metal or CPU backend
 - Simpler lifecycle: download models once, initialize, call transcribe()
-- No Python, no subprocess, no JSON-RPC for STT — pure Swift local engines
+- No Python, no subprocess, and no JSON-RPC for STT
 
 ```
 ~/Library/Application Support/MacParakeet/
     └── models/
         └── stt/
+            ├── cohere/        # revision-scoped verified GGUF cache
             └── whisper/        # WhisperKit model cache
 
-Parakeet, Nemotron, and Cohere FluidAudio caches are managed by FluidAudio per selected build/engine. `models/stt/whisper/` is the MacParakeet-owned cache for WhisperKit downloads.
+Parakeet and Nemotron caches are managed by FluidAudio per selected build and engine. MacParakeet owns the Cohere and Whisper directories shown above.
 ```
 
 ---
@@ -1052,7 +1053,7 @@ deleted.
 | Dictation audio | `~/Library/Application Support/MacParakeet/dictations/` |
 | Transcription exports | `~/Library/Application Support/MacParakeet/transcriptions/` |
 | Parakeet STT models | FluidAudio-managed CoreML cache (~465 MB per build) |
-| Cohere STT model | `~/Library/Application Support/FluidAudio/Models/cohere-transcribe/q8` |
+| Cohere STT model | `~/Library/Application Support/MacParakeet/models/stt/cohere/` |
 | Whisper STT models | `~/Library/Application Support/MacParakeet/models/stt/whisper/` |
 | Local LLM models (developer-gated, opt-in download) | `~/Library/Application Support/MacParakeet/LLMModels/` |
 | yt-dlp binary | `~/Library/Application Support/MacParakeet/bin/yt-dlp` |
@@ -1086,7 +1087,8 @@ deleted.
 
 | Package | SPM ID | Purpose | Notes |
 |---------|--------|---------|-------|
-| FluidAudio | `FluidAudio` | Default STT engine (Parakeet TDT via CoreML/ANE), optional Nemotron/Cohere engines, and diarization | Apache 2.0. Use `FluidAudio` product only — NOT `FluidAudioEspeak` (GPL-3.0, would require open-sourcing). |
+| FluidAudio | `FluidAudio` | Default STT engine (Parakeet TDT via CoreML/ANE), optional Nemotron engines, and diarization | Apache 2.0. Use `FluidAudio` product only; do not add `FluidAudioEspeak` (GPL-3.0). |
+| transcribe.cpp Swift wrapper | local package plus `CTranscribe.framework` | Cohere Transcribe only | Exact source, wrapper, owned artifact, model, and license gates are in ADR-029. |
 | WhisperKit | `argmax-oss-swift` | Optional local multilingual STT engine | Exact 0.18.0 when enabled; `MACPARAKEET_SKIP_WHISPERKIT=1` skips the package for compatibility checks. |
 | GRDB.swift | `GRDB` | SQLite database | v6.29.0+, single-file storage, migrations, Codable records |
 | swift-argument-parser | `ArgumentParser` | CLI (implemented) | `macparakeet-cli transcribe`, `history`, `health`, `models`, `vocab`, `transforms` |
@@ -1236,7 +1238,7 @@ The current Apple M4 Pro speed/memory micro-benchmark measures roughly 81x realt
 ### Memory Management
 
 - **Parakeet model:** One shared runtime owner keeps its managers initialized after first use. The current M4 Pro micro-benchmark measures 115–131 MB peak process RSS by build, before recognition-time custom-vocabulary boosting. Real total memory depends on loaded managers, model-mapped pages, scheduler activity, and whether diarization assets are also resident; do not treat the benchmark row as a fixed per-slot allocation.
-- **Cohere model:** Loaded only when selected; downloaded explicitly to the FluidAudio cache. It is batch-only and has a larger resident footprint than Parakeet, so it is not part of the default readiness path.
+- **Cohere model:** Loaded only when selected; downloaded explicitly to MacParakeet's revision-scoped, checksum-verified GGUF cache. It is batch-only and has a larger resident footprint than Parakeet, so it is not part of the default readiness path.
 - **Whisper model:** Loaded only when selected; model size and runtime memory are variant-dependent. Default cache is `models/stt/whisper/`.
 - **Audio buffers:** Dictation writes temp WAV on stop; meeting recording writes fragmented source M4A files and lock files during capture. Completed meeting audio is retained by default but can be detached from the transcript through GUI/CLI cleanup. No recording duration limit beyond disk space and practical UI constraints.
 - **Database:** GRDB uses WAL mode by default. No connection pooling needed (single-user app).

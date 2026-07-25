@@ -5,8 +5,12 @@ import Foundation
 
 let skipWhisperKit = ProcessInfo.processInfo.environment["MACPARAKEET_SKIP_WHISPERKIT"] == "1"
 let enableMLXLocalLLM = ProcessInfo.processInfo.environment["MACPARAKEET_ENABLE_MLX_LOCAL_LLM"] == "1"
+let transcribeCppPackagePath =
+    ProcessInfo.processInfo.environment["MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH"]
+let enableTranscribeCpp =
+    transcribeCppPackagePath?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
 
-let packageDependencies: [Package.Dependency] = [
+var packageDependencies: [Package.Dependency] = [
     // GRDB for SQLite (dictation history + transcription records)
     .package(url: "https://github.com/groue/GRDB.swift", from: "7.0.0"),
     // FluidAudio for Parakeet and Nemotron STT on CoreML/ANE. Keep this exact
@@ -24,7 +28,17 @@ let packageDependencies: [Package.Dependency] = [
     // as a target dependency for the first-party Swift 6 syntax/concurrency
     // compile check without removing its lockfile pins.
     .package(url: "https://github.com/argmaxinc/argmax-oss-swift", exact: "0.18.0")
-] + (enableMLXLocalLLM ? [
+]
+
+if let transcribeCppPackagePath, enableTranscribeCpp {
+    // Release builds must point this at the verified package assembled from the
+    // owned MacParakeet fork and its pinned arm64 XCFramework.
+    packageDependencies.append(
+        .package(name: "transcribe-cpp", path: transcribeCppPackagePath)
+    )
+}
+
+packageDependencies += (enableMLXLocalLLM ? [
     // Opt-in only. mlx-swift-lm currently needs Swift tools 6.1 and Xcode-built
     // Metal shaders, so plain `swift build` / `swift test` / CI must not resolve it.
     .package(url: "https://github.com/ml-explore/mlx-swift-lm", exact: "3.31.4"),
@@ -37,7 +51,7 @@ let packageDependencies: [Package.Dependency] = [
     .package(url: "https://github.com/huggingface/swift-transformers", "1.1.6" ..< "1.2.0"),
 ] : [])
 
-let coreDependencies: [Target.Dependency] = [
+var coreDependencies: [Target.Dependency] = [
     .product(name: "GRDB", package: "GRDB.swift"),
     .product(name: "FluidAudio", package: "FluidAudio"),
     .product(name: "yyjson", package: "yyjson"),
@@ -46,13 +60,25 @@ let coreDependencies: [Target.Dependency] = [
     .product(name: "WhisperKit", package: "argmax-oss-swift")
 ])
 
+if enableTranscribeCpp {
+    coreDependencies.append(.product(name: "TranscribeCpp", package: "transcribe-cpp"))
+}
+
 let whisperKitSwiftSettings: [SwiftSetting] = skipWhisperKit ? [] : [
     .define("MACPARAKEET_HAS_WHISPERKIT")
 ]
 
+let transcribeCppSwiftSettings: [SwiftSetting] = enableTranscribeCpp ? [
+    .define("MACPARAKEET_HAS_TRANSCRIBE_CPP")
+] : []
+
 let mlxLocalLLMSwiftSettings: [SwiftSetting] = enableMLXLocalLLM ? [
     .define("MACPARAKEET_HAS_MLX_LOCAL_LLM")
 ] : []
+
+let coreSwiftSettings = whisperKitSwiftSettings + transcribeCppSwiftSettings
+let testSwiftSettings =
+    whisperKitSwiftSettings + mlxLocalLLMSwiftSettings + transcribeCppSwiftSettings
 
 let appDependencies: [Target.Dependency] = [
     "MacParakeetCore",
@@ -144,7 +170,7 @@ let package = Package(
                 "STT/README.md",
                 "TextProcessing/README.md",
             ],
-            swiftSettings: whisperKitSwiftSettings
+            swiftSettings: coreSwiftSettings
         ),
         // ViewModels library (testable, depends on Core + AppKit/SwiftUI)
         .target(
@@ -157,7 +183,7 @@ let package = Package(
             name: "MacParakeetTests",
             dependencies: appTestDependencies,
             path: "Tests/MacParakeetTests",
-            swiftSettings: whisperKitSwiftSettings + mlxLocalLLMSwiftSettings
+            swiftSettings: testSwiftSettings
         ),
         .testTarget(
             name: "CLITests",
