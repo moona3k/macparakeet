@@ -266,6 +266,8 @@ final class SpecCommandTests: XCTestCase {
         let cohereValues = try XCTUnwrap(cohereLanguage["allowedValues"] as? [String])
         XCTAssertTrue(cohereValues.contains("en"))
         XCTAssertTrue(cohereValues.contains("ja"))
+        XCTAssertTrue(cohereValues.contains("hi"))
+        XCTAssertTrue(cohereValues.contains("ru"))
 
         let nemotronLanguage = try XCTUnwrap(configKeys.first { ($0["key"] as? String) == "nemotron-language" })
         XCTAssertNil(nemotronLanguage["allowedValues"] as? [String])

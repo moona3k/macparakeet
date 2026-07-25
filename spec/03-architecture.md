@@ -516,7 +516,7 @@ struct TimestampedWord: Sendable {
 **Dependencies:** FluidAudio SDK for Parakeet and Nemotron, optional WhisperKit, and the pinned transcribe.cpp Swift wrapper plus CTranscribe XCFramework for Cohere.
 
 **Architecture:**
-```
+```text
 CPU:  MacParakeet app (UI, hotkeys, clipboard, history)
 ANE:  Parakeet/Nemotron STT via FluidAudio/CoreML
 GPU or CPU: Cohere STT via transcribe.cpp
@@ -765,7 +765,7 @@ Speech recognition runs in the app process. Parakeet via FluidAudio CoreML on th
 - Simpler lifecycle: download models once, initialize, call transcribe()
 - No Python, no subprocess, and no JSON-RPC for STT
 
-```
+```text
 ~/Library/Application Support/MacParakeet/
     └── models/
         └── stt/
@@ -1072,6 +1072,7 @@ deleted.
     │   └── ...
     ├── models/                     # MacParakeet-owned downloaded ML models
     │   └── stt/
+    │       ├── cohere/             # Revision-scoped verified GGUF cache
     │       └── whisper/            # WhisperKit models
     ├── LLMModels/                  # Verified opt-in local LLM model cache (developer-gated)
     └── bin/                        # Standalone binaries

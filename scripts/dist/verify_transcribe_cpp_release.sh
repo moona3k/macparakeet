@@ -12,6 +12,9 @@ fail() {
   exit 1
 }
 
+[[ "${UNIVERSAL:-0}" != "1" ]] ||
+  fail "UNIVERSAL=1 is incompatible with the arm64-only transcribe.cpp release artifact."
+
 [[ -n "$TRANSCRIBE_CPP_OWNED_FORK_COMMIT" ]] ||
   fail "the owned transcribe.cpp fork commit is not pinned. See scripts/dist/transcribe_cpp_release_pins.sh."
 [[ -n "$TRANSCRIBE_CPP_OWNED_ARTIFACT_SHA256" ]] ||

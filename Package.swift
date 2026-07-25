@@ -6,9 +6,10 @@ import Foundation
 let skipWhisperKit = ProcessInfo.processInfo.environment["MACPARAKEET_SKIP_WHISPERKIT"] == "1"
 let enableMLXLocalLLM = ProcessInfo.processInfo.environment["MACPARAKEET_ENABLE_MLX_LOCAL_LLM"] == "1"
 let transcribeCppPackagePath =
-    ProcessInfo.processInfo.environment["MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH"]
+    ProcessInfo.processInfo.environment["MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH"]?
+    .trimmingCharacters(in: .whitespacesAndNewlines)
 let enableTranscribeCpp =
-    transcribeCppPackagePath?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    transcribeCppPackagePath?.isEmpty == false
 
 var packageDependencies: [Package.Dependency] = [
     // GRDB for SQLite (dictation history + transcription records)

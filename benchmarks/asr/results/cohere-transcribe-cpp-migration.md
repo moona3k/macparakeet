@@ -62,12 +62,11 @@ as transcribe.cpp performance:
 ```bash
 python3 benchmarks/asr/cohere_multilingual_speed.py \
   --cli /absolute/path/to/macparakeet-cli \
+  --artifact-zip /absolute/path/to/TranscribeCpp-macOS-arm64-v0.1.3-macparakeet.1.xcframework.zip \
   --fixture en=/absolute/path/to/english.wav \
   --fixture de=/absolute/path/to/german.wav \
   --fixture ja=/absolute/path/to/japanese.wav \
   --fixture zh=/absolute/path/to/chinese.wav \
-  --runtime-commit <owned-fork-commit> \
-  --artifact-sha256 <owned-xcframework-sha256> \
   --warm-repetitions 12 \
   --output benchmarks/asr/results/cohere-transcribe-cpp-multilingual.json
 ```
@@ -75,4 +74,8 @@ python3 benchmarks/asr/cohere_multilingual_speed.py \
 Run on an idle system and record hardware and macOS version beside the output.
 The script repeats each fixture inside a single CLI batch to isolate a warm
 increment, never passes `--language`, disables history and diarization, and
-captures peak process RSS with `/usr/bin/time -l`.
+captures peak process RSS with `/usr/bin/time -l`. Before measuring, it loads
+the immutable runtime, artifact, model, fixture, and transcript pins from
+`benchmarks/asr/cohere_transcribe_cpp_release.json`; hashes the local archive
+and fixtures; and uses `gh release view` plus `gh release verify` to confirm the
+immutable release and its Sigstore attestation.

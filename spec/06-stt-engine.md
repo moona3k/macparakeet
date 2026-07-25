@@ -98,7 +98,7 @@ The backend always invokes Cohere without a caller language hint. The pinned mod
 
 Each ML workload runs on the chip it was designed for:
 
-```
+```text
 CPU:  MacParakeet app (UI, shortcuts, clipboard, history)
 ANE/CoreML: Parakeet STT and Nemotron Beta via FluidAudio/CoreML
 GPU or CPU: Cohere Transcribe via transcribe.cpp

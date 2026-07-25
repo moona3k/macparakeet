@@ -299,8 +299,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         speechEngine: SpeechEngineSelection
     ) throws {
         guard speechEngine.engine == .cohere, let explicitLanguage else { return }
-        let languagePolicy = SpeechEngineCapabilityRegistry.capabilities(for: .cohere).supportedLanguages
-        let supportedLanguageCodes = languagePolicy.supportedLanguageCodes ?? []
+        let supportedLanguageCodes = CohereTranscribeEngine.legacyCompatibleLanguageCodes
         guard let normalizedLanguage = SpeechEnginePreference.normalizeCohereLanguage(explicitLanguage),
               supportedLanguageCodes.contains(normalizedLanguage) else {
             let supported = supportedLanguageCodes.joined(separator: ", ")

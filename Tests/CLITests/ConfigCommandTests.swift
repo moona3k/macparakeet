@@ -548,6 +548,17 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertNil(defaults.string(forKey: SpeechEnginePreference.cohereDefaultLanguageKey))
     }
 
+    func testWriteCohereLanguageRetainsLegacyHindiAndRussianValues() throws {
+        XCTAssertEqual(
+            try ConfigCommand.write(key: "cohere-language", value: "hi-IN", defaults: defaults),
+            "hi"
+        )
+        XCTAssertEqual(
+            try ConfigCommand.write(key: "cohere-language", value: "ru-RU", defaults: defaults),
+            "ru"
+        )
+    }
+
     func testWriteAcceptsAllBoolSynonyms() throws {
         for (synonym, expectedBool) in [
             ("on", true), ("ON", true), ("true", true), ("yes", true),

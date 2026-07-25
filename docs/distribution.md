@@ -43,6 +43,12 @@ export MACPARAKEET_TRANSCRIBE_CPP_ARTIFACT_ZIP=/absolute/path/to/TranscribeCpp-m
 VERSION=X.Y.Z scripts/dist/build_app_bundle.sh
 ```
 
+The owned native artifact is arm64-only, so release builds must keep
+`UNIVERSAL=0` (the default). The bundle builder and release verifier fail
+before compilation if `UNIVERSAL=1` is combined with the transcribe.cpp
+package. Universal local stub builds remain available only when that native
+package is not linked.
+
 The exact owned commit, immutable release tag, artifact filename, download URL,
 and archive checksum live in `scripts/dist/transcribe_cpp_release_pins.sh`.
 The published release is
@@ -686,7 +692,9 @@ Users can control auto-update behavior in Settings > Updates:
 ## Notes
 
 - **Sparkle.framework must be embedded in the .app bundle.** The `build_app_bundle.sh` script copies it to `Contents/Frameworks/`. If the framework is missing, the app will crash immediately at launch with a dyld `Library not loaded: @rpath/Sparkle.framework` error. The script now fails the build if Sparkle.framework cannot be found — do not bypass this check.
-- The scripts default to a single-arch Release build. For a universal binary:
+- The scripts default to a single-arch Release build. A universal local stub
+  build remains available only when the arm64-only transcribe.cpp package is
+  not linked:
 
 ```bash
 UNIVERSAL=1 scripts/dist/build_app_bundle.sh

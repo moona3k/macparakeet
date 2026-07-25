@@ -14,6 +14,7 @@ by ADR-029.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -27,6 +28,240 @@ from pathlib import Path
 _LANGUAGES = ("en", "de", "ja", "zh")
 _RSS_RE = re.compile(r"^\s*(\d+)\s+maximum resident set size", re.MULTILINE)
 _AFINFO_DURATION_RE = re.compile(r"^\s*([0-9]+(?:\.[0-9]+)?) sec,", re.MULTILINE)
+_DEFAULT_RELEASE_MANIFEST = Path(__file__).with_name(
+    "cohere_transcribe_cpp_release.json"
+)
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def load_release_manifest(path: Path) -> dict:
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise SystemExit(f"cannot load release manifest {path}: {error}") from error
+
+    if manifest.get("schema_version") != 1:
+        raise SystemExit("unsupported Cohere benchmark release manifest schema")
+    runtime = manifest.get("runtime")
+    model = manifest.get("model")
+    fixtures = manifest.get("fixtures")
+    if not isinstance(runtime, dict) or not isinstance(model, dict):
+        raise SystemExit("release manifest must contain runtime and model objects")
+    if not isinstance(fixtures, dict) or set(fixtures) != set(_LANGUAGES):
+        raise SystemExit(
+            f"release manifest fixtures must be exactly {', '.join(_LANGUAGES)}"
+        )
+
+    runtime_fields = (
+        "repository",
+        "commit",
+        "release_tag",
+        "release_url",
+        "artifact_filename",
+        "artifact_sha256",
+        "attestation_predicate_type",
+    )
+    model_fields = ("repository", "revision", "filename", "size_bytes", "sha256")
+    for field in runtime_fields:
+        if not runtime.get(field):
+            raise SystemExit(f"release manifest runtime.{field} is required")
+    for field in model_fields:
+        if not model.get(field):
+            raise SystemExit(f"release manifest model.{field} is required")
+    if runtime.get("release_immutable") is not True:
+        raise SystemExit("release manifest must require an immutable release")
+
+    for language in _LANGUAGES:
+        fixture = fixtures[language]
+        if not isinstance(fixture, dict):
+            raise SystemExit(f"release manifest fixture {language} must be an object")
+        for field in ("id", "sha256", "expected_transcript"):
+            if not fixture.get(field):
+                raise SystemExit(
+                    f"release manifest fixture {language}.{field} is required"
+                )
+    return manifest
+
+
+def command_json(command: list[str], description: str) -> dict:
+    process = subprocess.run(
+        command,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if process.returncode != 0:
+        raise SystemExit(
+            f"{description} failed with exit {process.returncode}:\n"
+            f"{process.stderr[-2000:]}"
+        )
+    try:
+        payload = json.loads(process.stdout)
+    except json.JSONDecodeError as error:
+        raise SystemExit(f"{description} returned invalid JSON: {error}") from error
+    if not isinstance(payload, dict):
+        raise SystemExit(f"{description} returned an unexpected JSON value")
+    return payload
+
+
+def validate_release_metadata(
+    manifest: dict,
+    artifact_sha256: str,
+    release: dict,
+    attestation: dict,
+) -> None:
+    runtime = manifest["runtime"]
+    if release.get("isImmutable") is not True:
+        raise SystemExit("GitHub release is not immutable")
+    if release.get("tagName") != runtime["release_tag"]:
+        raise SystemExit("GitHub release tag does not match the checked-in manifest")
+    if release.get("targetCommitish") != runtime["commit"]:
+        raise SystemExit("GitHub release commit does not match the checked-in manifest")
+    if release.get("url", "").lower() != runtime["release_url"].lower():
+        raise SystemExit("GitHub release URL does not match the checked-in manifest")
+
+    assets = release.get("assets")
+    if not isinstance(assets, list):
+        raise SystemExit("GitHub release asset metadata is missing")
+    expected_asset = next(
+        (
+            asset
+            for asset in assets
+            if asset.get("name") == runtime["artifact_filename"]
+        ),
+        None,
+    )
+    if expected_asset is None:
+        raise SystemExit("the pinned XCFramework archive is missing from the release")
+    if expected_asset.get("digest") != f"sha256:{artifact_sha256}":
+        raise SystemExit("GitHub release asset digest does not match the local archive")
+
+    verification = attestation.get("verificationResult")
+    statement = verification.get("statement") if isinstance(verification, dict) else None
+    if not isinstance(statement, dict):
+        raise SystemExit("release attestation statement is missing")
+    if statement.get("predicateType") != runtime["attestation_predicate_type"]:
+        raise SystemExit("release attestation predicate type does not match the manifest")
+    predicate = statement.get("predicate")
+    if not isinstance(predicate, dict):
+        raise SystemExit("release attestation predicate is missing")
+    if predicate.get("repository", "").lower() != runtime["repository"].lower():
+        raise SystemExit("release attestation repository does not match the manifest")
+    if predicate.get("tag") != runtime["release_tag"]:
+        raise SystemExit("release attestation tag does not match the manifest")
+    subjects = statement.get("subject")
+    if not isinstance(subjects, list):
+        raise SystemExit("release attestation subjects are missing")
+
+    artifact_subject = next(
+        (
+            subject
+            for subject in subjects
+            if subject.get("name") == runtime["artifact_filename"]
+        ),
+        None,
+    )
+    if artifact_subject is None or artifact_subject.get("digest", {}).get(
+        "sha256"
+    ) != artifact_sha256:
+        raise SystemExit("release attestation does not bind the pinned archive digest")
+    commit_subject = next(
+        (
+            subject
+            for subject in subjects
+            if subject.get("digest", {}).get("sha1") == runtime["commit"]
+            and subject.get("uri", "").lower()
+            == (
+                f"pkg:github/{runtime['repository']}@{runtime['release_tag']}"
+            ).lower()
+        ),
+        None,
+    )
+    if commit_subject is None:
+        raise SystemExit("release attestation does not bind the pinned runtime commit")
+
+
+def verify_release_provenance(manifest: dict, artifact_zip: Path) -> str:
+    runtime = manifest["runtime"]
+    artifact = artifact_zip.expanduser().resolve()
+    if not artifact.is_file():
+        raise SystemExit(f"XCFramework archive does not exist: {artifact}")
+    if artifact.name != runtime["artifact_filename"]:
+        raise SystemExit(
+            f"XCFramework archive must be named {runtime['artifact_filename']}"
+        )
+    artifact_sha256 = sha256_file(artifact)
+    if artifact_sha256 != runtime["artifact_sha256"]:
+        raise SystemExit(
+            "XCFramework archive checksum does not match the checked-in manifest"
+        )
+
+    release = command_json(
+        [
+            "gh",
+            "release",
+            "view",
+            runtime["release_tag"],
+            "--repo",
+            runtime["repository"],
+            "--json",
+            "tagName,isImmutable,targetCommitish,url,assets",
+        ],
+        "GitHub immutable-release lookup",
+    )
+    attestation = command_json(
+        [
+            "gh",
+            "release",
+            "verify",
+            runtime["release_tag"],
+            "--repo",
+            runtime["repository"],
+            "--format",
+            "json",
+        ],
+        "GitHub release attestation verification",
+    )
+    validate_release_metadata(manifest, artifact_sha256, release, attestation)
+    return artifact_sha256
+
+
+def validate_fixture(manifest: dict, language: str, path: Path) -> dict:
+    expected = manifest["fixtures"][language]
+    actual_sha256 = sha256_file(path)
+    if actual_sha256 != expected["sha256"]:
+        raise SystemExit(
+            f"{language} fixture checksum mismatch for {expected['id']}: "
+            f"expected {expected['sha256']}, got {actual_sha256}"
+        )
+    return expected
+
+
+def validate_transcripts(
+    language: str,
+    phase: str,
+    transcripts: list[str],
+    expected: str,
+) -> None:
+    expected_sha256 = sha256_text(expected)
+    for index, transcript in enumerate(transcripts, start=1):
+        if transcript != expected:
+            raise SystemExit(
+                f"{language} {phase} transcript {index} did not match "
+                f"reference SHA-256 {expected_sha256}; "
+                f"got {sha256_text(transcript)}"
+            )
 
 
 def parse_fixture(value: str) -> tuple[str, Path]:
@@ -158,24 +393,27 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cli", type=Path, required=True)
     parser.add_argument("--fixture", type=parse_fixture, action="append", required=True)
-    parser.add_argument("--runtime-commit", required=True)
-    parser.add_argument("--artifact-sha256", required=True)
+    parser.add_argument("--artifact-zip", type=Path, required=True)
+    parser.add_argument(
+        "--release-manifest",
+        type=Path,
+        default=_DEFAULT_RELEASE_MANIFEST,
+    )
     parser.add_argument(
         "--warm-repetitions",
         type=int,
         default=12,
         help="Number of copies in the repeated process used for the warm slope.",
     )
-    parser.add_argument(
-        "--model-revision",
-        default="dfa4adebb64f3076b7b6b90b721275cc069cb421",
-    )
-    parser.add_argument(
-        "--model-sha256",
-        default="14d02f1ad6dd77b3a60f82639879012c3adb4fe25c50a5a47a2c4c661daf1558",
-    )
     parser.add_argument("--output", type=Path, required=True)
     arguments = parser.parse_args()
+
+    release_manifest_path = arguments.release_manifest.expanduser().resolve()
+    release_manifest = load_release_manifest(release_manifest_path)
+    verified_artifact_sha256 = verify_release_provenance(
+        release_manifest,
+        arguments.artifact_zip,
+    )
 
     fixtures = dict(arguments.fixture)
     missing = set(_LANGUAGES) - set(fixtures)
@@ -194,12 +432,30 @@ def main() -> int:
     records = []
     for language in _LANGUAGES:
         fixture = fixtures[language]
+        fixture_reference = validate_fixture(
+            release_manifest,
+            language,
+            fixture,
+        )
+        expected_transcript = fixture_reference["expected_transcript"]
         duration = audio_seconds(fixture)
         cold_wall, _, cold_transcripts = run_cli(cli, fixture, 1)
+        validate_transcripts(
+            language,
+            "cold",
+            cold_transcripts,
+            expected_transcript,
+        )
         repeated_wall, peak_rss_mb, repeated_transcripts = run_cli(
             cli,
             fixture,
             arguments.warm_repetitions,
+        )
+        validate_transcripts(
+            language,
+            "warm",
+            repeated_transcripts,
+            expected_transcript,
         )
         warm_wall = (repeated_wall - cold_wall) / (
             arguments.warm_repetitions - 1
@@ -213,7 +469,9 @@ def main() -> int:
         records.append(
             {
                 "language": language,
-                "fixture": str(fixture),
+                "fixture_id": fixture_reference["id"],
+                "fixture_sha256": fixture_reference["sha256"],
+                "reference_transcript_sha256": sha256_text(expected_transcript),
                 "audio_seconds": duration,
                 "cold_first_transcript_seconds": cold_wall,
                 "warm_transcription_seconds": warm_wall,
@@ -228,10 +486,17 @@ def main() -> int:
     payload = {
         "engine": "cohere",
         "backend": "transcribe.cpp",
-        "runtime_commit": arguments.runtime_commit,
-        "artifact_sha256": arguments.artifact_sha256,
-        "model_revision": arguments.model_revision,
-        "model_sha256": arguments.model_sha256,
+        "runtime_commit": release_manifest["runtime"]["commit"],
+        "artifact_sha256": verified_artifact_sha256,
+        "artifact_release_tag": release_manifest["runtime"]["release_tag"],
+        "artifact_release_url": release_manifest["runtime"]["release_url"],
+        "artifact_release_immutable": True,
+        "release_attestation_verified": True,
+        "release_attestation_predicate_type": release_manifest["runtime"][
+            "attestation_predicate_type"
+        ],
+        "model_revision": release_manifest["model"]["revision"],
+        "model_sha256": release_manifest["model"]["sha256"],
         "automatic_language_detection": True,
         "warm_repetitions": arguments.warm_repetitions,
         "environment": benchmark_environment(),

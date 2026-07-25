@@ -1893,7 +1893,7 @@ Read surrounding text from the active app via macOS Accessibility APIs (AXUIElem
 | Clean pipeline | <1ms | Deterministic, pure string operations |
 | Memory usage (idle) | <200MB | Menu bar + default STT readiness path |
 | Memory usage (active) | Engine-dependent | Current Parakeet builds measure 115–131 MB peak RSS on the M4 Pro reference benchmark; Nemotron, Cohere, and Whisper depend on selected model/runtime |
-| App size | <100MB | Plus ~465 MB per Parakeet build, ~1.5 GB or ~600 MB optional Nemotron download (per selected build), ~1.65 GB optional Cohere download, and optional Whisper download |
+| App size | <100MB | Plus ~465 MB per Parakeet build, ~1.5 GB or ~600 MB optional Nemotron download (per selected build), ~1.65 GiB optional Cohere download, and optional Whisper download |
 | Startup time | <2s | Cold start to menu bar ready |
 | File transcription | 1 hour audio in <45s | Reference target for current Parakeet builds on the M4 Pro benchmark machine; hardware, audio, and engine choice affect elapsed time |
 

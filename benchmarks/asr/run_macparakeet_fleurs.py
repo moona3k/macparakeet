@@ -71,7 +71,8 @@ def main() -> int:
     cmd = [str(args.cli.expanduser().resolve()), "transcribe", *[str(p) for p in wavs],
            "--format", "transcript", "--output-dir", str(out_dir),
            *ENGINES[args.engine](hint), "--speaker-detection", "off", "--no-history"]
-    print(f"engine={args.engine} lang={args.lang} hint={hint} files={len(wavs)}")
+    language_log = "language=automatic" if args.engine == "cohere" else f"hint={hint}"
+    print(f"engine={args.engine} lang={args.lang} {language_log} files={len(wavs)}")
     t0 = time.monotonic()
     res = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     wall = time.monotonic() - t0

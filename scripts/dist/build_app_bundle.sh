@@ -20,7 +20,8 @@ set -euo pipefail
 #   BUILD_DATE_UTC      (default: current UTC ISO-8601 timestamp)
 #   BUILD_SOURCE        (default: dist-<build-system>-release)
 #   MIN_MACOS_VERSION   (default: 14.2)
-#   UNIVERSAL           (default: 0) build universal (arm64+x86_64) if 1
+#   UNIVERSAL           (default: 0) build universal (arm64+x86_64) if 1;
+#                       incompatible with the arm64-only transcribe.cpp package
 #   SKIP_BUILD          (default: 0) reuse existing Release binary if 1
 #   BUILD_SYSTEM        (default: xcodebuild) 'xcodebuild' or 'swiftpm'
 #   XCODE_DERIVED_DATA  (default: .build/xcode-dist) derived data path for xcodebuild
@@ -61,6 +62,12 @@ SKIP_BUILD="${SKIP_BUILD:-0}"
 BUILD_SYSTEM="${BUILD_SYSTEM:-xcodebuild}"
 BUILD_SOURCE="${BUILD_SOURCE:-dist-${BUILD_SYSTEM}-release}"
 XCODE_DERIVED_DATA="${XCODE_DERIVED_DATA:-$ROOT_DIR/.build/xcode-dist}"
+
+if [[ "$UNIVERSAL" == "1" && -n "${MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH:-}" ]]; then
+  echo "Error: UNIVERSAL=1 is incompatible with the arm64-only transcribe.cpp release artifact." >&2
+  echo "Build the supported Apple Silicon release with UNIVERSAL=0." >&2
+  exit 1
+fi
 
 APP_DIR="$DIST_DIR/${APP_NAME}.app"
 CONTENTS_DIR="$APP_DIR/Contents"

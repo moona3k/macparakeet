@@ -150,7 +150,9 @@ harness conventions.
 | `score_multi.py` | Multilingual scorer — WER (en/EU) or CER (ko/ja/zh) via `BasicTextNormalizer`; `--ci N`. |
 | `paired_delta.py` | Paired bootstrap CI on the WER/CER *difference* between two engines (the significance test). |
 | `speed_bench.py` | Speed/memory — steady RTFx, cold-start, peak RSS, one engine at a time. Uses `macparakeet-cli` for shipping engines, including Cohere; `cohere-fa-reference` is legacy-only. |
-| `cohere_multilingual_speed.py` | Required release comparison for English, German, Japanese, and Chinese without language hints. Records cold first transcript, warm transcription, realtime factor, and peak RSS. |
+| `cohere_multilingual_speed.py` | Required release comparison for English, German, Japanese, and Chinese without language hints. Verifies the immutable release, artifact, fixtures, and transcript references before recording cold first transcript, warm transcription, realtime factor, and peak RSS. |
+| `cohere_transcribe_cpp_release.json` | Immutable Cohere benchmark provenance: owned runtime/release, artifact, compatible model, fixture digests, and exact transcript references. |
+| `test_cohere_multilingual_speed.py` | Repo-only tests for Cohere release-pin drift, immutable attestation metadata, fixture/transcript validation, and committed-result path redaction. |
 | `test_scorers.py` | Scorer correctness tests (run: `python3 test_scorers.py`). |
 | `manifest.json` | Benchmark contract — engines, datasets, metrics, tasks, product surfaces, and quality gates. |
 | `manifest_tool.py` / `test_manifest.py` | Repo-only contract validation and summary rendering. |

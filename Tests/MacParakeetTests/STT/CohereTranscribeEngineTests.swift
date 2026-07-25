@@ -476,7 +476,7 @@ final class CohereTranscribeEngineTests: XCTestCase {
         let backend = MockCohereTranscribeBackend(blockLoad: true)
         let engine = makeEngine(backend: backend)
         let task = Task { try await engine.prepare() }
-        await backend.waitUntilLoadStarted()
+        try await backend.waitUntilLoadStarted()
 
         let clock = ContinuousClock()
         let started = clock.now
@@ -504,7 +504,7 @@ final class CohereTranscribeEngineTests: XCTestCase {
                 [Float](repeating: 0, count: 8_000)
             )
         }
-        await backend.waitUntilTranscriptionStarted()
+        try await backend.waitUntilTranscriptionStarted()
         task.cancel()
 
         do {
@@ -764,6 +764,10 @@ final class CohereTranscribeEngineTests: XCTestCase {
     }
 }
 
+private enum MockCohereTranscribeBackendError: Error {
+    case waitTimedOut(String)
+}
+
 private actor MockCohereTranscribeBackend: CohereTranscribeBackend {
     private let capabilities: CohereNativeCapabilities
     private var queuedTranscripts: [CohereNativeTranscript]
@@ -843,15 +847,32 @@ private actor MockCohereTranscribeBackend: CohereTranscribeBackend {
         unloadCalls += 1
     }
 
-    func waitUntilLoadStarted() async {
-        while !loadStarted {
-            await Task.yield()
-        }
+    func waitUntilLoadStarted() async throws {
+        try await wait(
+            for: "native load",
+            until: { loadStarted }
+        )
     }
 
-    func waitUntilTranscriptionStarted() async {
-        while !transcriptionStarted {
-            await Task.yield()
+    func waitUntilTranscriptionStarted() async throws {
+        try await wait(
+            for: "native transcription",
+            until: { transcriptionStarted }
+        )
+    }
+
+    private func wait(
+        for operation: String,
+        timeout: Duration = .seconds(2),
+        until condition: () -> Bool
+    ) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while !condition() {
+            guard clock.now < deadline else {
+                throw MockCohereTranscribeBackendError.waitTimedOut(operation)
+            }
+            try await Task.sleep(for: .milliseconds(1))
         }
     }
 

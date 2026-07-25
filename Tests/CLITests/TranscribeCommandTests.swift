@@ -376,8 +376,7 @@ final class TranscribeCommandTests: XCTestCase {
 
         XCTAssertThrowsError(try TranscribeCommand.validateCohereLanguageOverride("auto", speechEngine: selection)) { error in
             let message = String(describing: error)
-            let supportedCodes = SpeechEngineCapabilityRegistry.capabilities(for: .cohere)
-                .supportedLanguages.supportedLanguageCodes ?? []
+            let supportedCodes = CohereTranscribeEngine.legacyCompatibleLanguageCodes
             let supported = supportedCodes.joined(separator: ", ")
             XCTAssertTrue(message.contains("Invalid legacy value"), message)
             XCTAssertTrue(message.contains("detects language automatically"), message)
@@ -398,6 +397,24 @@ final class TranscribeCommandTests: XCTestCase {
 
         try TranscribeCommand.validateCohereLanguageOverride("zh_CN", speechEngine: selection)
         XCTAssertEqual(selection.language, "zh")
+    }
+
+    func testValidateCohereLanguageOverrideAllowsLegacyHindiAndRussianCodes() throws {
+        for code in ["hi-IN", "ru-RU"] {
+            let selection = TranscribeCommand.resolveSpeechEngine(
+                .cohere,
+                storedEngine: SpeechEnginePreference.parakeet.rawValue,
+                storedLanguage: nil,
+                storedCohereLanguage: "fr",
+                explicitLanguage: code,
+                physicalMemoryBytes: 32 * 1024 * 1024 * 1024
+            )
+
+            try TranscribeCommand.validateCohereLanguageOverride(
+                code,
+                speechEngine: selection
+            )
+        }
     }
 
     func testNemotronLanguageOverridePolicyReadsCapabilityRegistry() {
