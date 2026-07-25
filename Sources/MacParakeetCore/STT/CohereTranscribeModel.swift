@@ -106,14 +106,12 @@ enum CohereTranscribeModelCatalog {
 
     static func makeDownloader(
         cacheBase: URL = cacheBaseDirectory(),
-        transport: any InProcessModelDownloadTransport = URLSessionInProcessModelDownloadTransport(),
-        fileManager: FileManager = .default
+        transport: any InProcessModelDownloadTransport = URLSessionInProcessModelDownloadTransport()
     ) -> InProcessModelDownloader {
         InProcessModelDownloader(
             manifest: manifest,
             cacheRoot: cacheBase,
-            transport: transport,
-            fileManager: fileManager
+            transport: transport
         )
     }
 }
