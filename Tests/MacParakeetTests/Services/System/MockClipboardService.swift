@@ -21,6 +21,7 @@ public actor MockClipboardService: ClipboardServiceProtocol {
     public var pasteCallCount = 0
     private var pasteError: Error?
     private var pasteDelayMs: UInt64 = 0
+    private var postPasteActionFired = true
 
     public init() {}
 
@@ -79,7 +80,7 @@ public actor MockClipboardService: ClipboardServiceProtocol {
         lastPostPasteAction = postPasteAction
         lastRequiredFrontmostBundleIdentifier = requiredFrontmostBundleIdentifier
         try await pasteText(text, restoresClipboard: restoresClipboard)
-        return postPasteAction != nil
+        return postPasteAction != nil && postPasteActionFired
     }
 
     public func copyToClipboard(_ text: String) async -> Bool {
@@ -93,5 +94,9 @@ public actor MockClipboardService: ClipboardServiceProtocol {
 
     public func setPasteDelayMs(_ delayMs: UInt64) {
         pasteDelayMs = delayMs
+    }
+
+    public func setPostPasteActionFired(_ fired: Bool) {
+        postPasteActionFired = fired
     }
 }

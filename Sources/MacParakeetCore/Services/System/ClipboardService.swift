@@ -21,21 +21,6 @@ public protocol ClipboardServiceProtocol: Sendable {
     func copyToClipboard(_ text: String) async -> Bool
 }
 
-public extension ClipboardServiceProtocol {
-    func pasteTextWithAction(
-        _ text: String,
-        postPasteAction: KeyAction?,
-        restoresClipboard: Bool,
-        requiredFrontmostBundleIdentifier: String?
-    ) async throws -> Bool {
-        try await pasteTextWithAction(
-            text,
-            postPasteAction: postPasteAction,
-            restoresClipboard: restoresClipboard
-        )
-    }
-}
-
 public enum ClipboardServiceError: LocalizedError {
     case accessibilityPermissionRequired
     case eventSourceUnavailable

@@ -136,11 +136,17 @@ final class DictationFlowCoordinator {
             if case .accessibilityPermissionRequired? = clipboardError {
                 return "Accessibility permission is required for auto-paste. Copied to clipboard. Press Cmd+V."
             }
+            if case .requiredFrontmostApplicationUnavailable? = clipboardError {
+                return "Codex lost focus. Copied to clipboard. Return to Codex and press Cmd+V."
+            }
             return "Copied to clipboard. Press Cmd+V."
         }
 
         if case .accessibilityPermissionRequired? = clipboardError {
             return "Accessibility permission is required for auto-paste, but the clipboard could not be updated."
+        }
+        if case .requiredFrontmostApplicationUnavailable? = clipboardError {
+            return "Codex lost focus, and the clipboard could not be updated."
         }
 
         return "Paste failed and the clipboard could not be updated."
@@ -630,6 +636,7 @@ final class DictationFlowCoordinator {
                     && insertionStyle == .inline
                 )
                 let normalPasteText = appendsTrailingSpace ? transcript + " " : transcript
+                var guardedSubmissionWasSuppressed = false
 
                 do {
                     if action == nil && !transcriptHasText {
@@ -650,6 +657,8 @@ final class DictationFlowCoordinator {
                         )
                         if keystrokeFired {
                             Telemetry.send(.keystrokeSnippetFired(action: action.rawValue))
+                        } else if requiredFrontmostBundleIdentifier != nil {
+                            guardedSubmissionWasSuppressed = true
                         }
                     } else {
                         // Normal paste path: spacing follows the style used to shape this dictation.
@@ -676,6 +685,18 @@ final class DictationFlowCoordinator {
                     let rawChars = dictation.rawTranscript.count
                     let cleanChars = dictation.cleanTranscript?.count ?? 0
                     let app = completedDictation.pastedToApp ?? "none"
+                    if guardedSubmissionWasSuppressed {
+                        self.dictationLog.notice("dictation_completed gen=\(gen) outcome=submit_suppressed rawChars=\(rawChars) cleanChars=\(cleanChars) autoPasted=true pastedToApp=\(app, privacy: .public)")
+                        guard self.stateMachine.generation == gen else { return }
+                        self.dismissCaption(outcome: .failure)
+                        self.sendEvent(
+                            .pasteFailed(
+                                generation: gen,
+                                message: "Dictation was pasted, but not submitted because Codex lost focus. Return to Codex and press Return."
+                            )
+                        )
+                        return
+                    }
                     self.dictationLog.notice("dictation_completed gen=\(gen) outcome=success rawChars=\(rawChars) cleanChars=\(cleanChars) autoPasted=true pastedToApp=\(app, privacy: .public)")
 
                     guard self.stateMachine.generation == gen else { return }
@@ -1240,6 +1261,7 @@ final class DictationFlowCoordinator {
             case .eventSourceUnavailable: return "paste_event_source_unavailable"
             case .eventCreationFailed: return "paste_event_creation_failed"
             case .pasteboardWriteFailed: return "pasteboard_write_failed"
+            case .requiredFrontmostApplicationUnavailable: return "paste_frontmost_application_changed"
             }
         }
         return "unknown"

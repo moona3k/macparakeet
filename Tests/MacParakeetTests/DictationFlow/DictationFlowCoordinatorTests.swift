@@ -54,7 +54,7 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         )
         await harness.stt.configureSequence(results: [STTResult(text: "send this to Forge")])
 
-        harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
+        harness.coordinator.startDictation(mode: .holdToTalk, trigger: .hotkey)
         let started = await waitUntil {
             self.isFlowRecording(harness.coordinator.flowStateForTesting)
         }
@@ -72,6 +72,117 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(snapshot.lastPastedText, "send this to Forge")
         XCTAssertEqual(snapshot.lastPostPasteAction, .returnKey)
         XCTAssertEqual(snapshot.lastRequiredFrontmostBundleIdentifier, "com.openai.codex")
+    }
+
+    func testCodexAutoSubmitFocusRejectionCopiesTranscriptAndReportsWhy() async throws {
+        let harness = try await makeRecordingHarness(
+            autoSubmitCodexDictation: true,
+            focusedContext: AppPromptContext(bundleIdentifier: "com.openai.codex", displayName: "Codex")
+        )
+        await harness.stt.configureSequence(results: [STTResult(text: "keep this safe")])
+        await harness.clipboard.setPasteError(
+            ClipboardServiceError.requiredFrontmostApplicationUnavailable
+        )
+
+        harness.coordinator.startDictation(mode: .holdToTalk, trigger: .hotkey)
+        let started = await waitUntil {
+            self.isFlowRecording(harness.coordinator.flowStateForTesting)
+        }
+        XCTAssertTrue(started)
+
+        harness.coordinator.stopDictation()
+        let reported = await waitUntil {
+            harness.coordinator.flowStateForTesting == .finishing(
+                outcome: .pasteFailedCopied(
+                    "Codex lost focus. Copied to clipboard. Return to Codex and press Cmd+V."
+                )
+            )
+        }
+
+        XCTAssertTrue(reported)
+        let snapshot = await harness.clipboard.snapshot()
+        XCTAssertEqual(snapshot.lastCopiedText, "keep this safe")
+        XCTAssertEqual(snapshot.lastPostPasteAction, .returnKey)
+        XCTAssertEqual(snapshot.lastRequiredFrontmostBundleIdentifier, "com.openai.codex")
+    }
+
+    func testCodexAutoSubmitFocusLossAfterPasteSuppressesReturnAndReportsPartialCompletion() async throws {
+        let harness = try await makeRecordingHarness(
+            autoSubmitCodexDictation: true,
+            focusedContext: AppPromptContext(bundleIdentifier: "com.openai.codex", displayName: "Codex")
+        )
+        await harness.stt.configureSequence(results: [STTResult(text: "do not submit this elsewhere")])
+        await harness.clipboard.setPostPasteActionFired(false)
+
+        harness.coordinator.startDictation(mode: .holdToTalk, trigger: .hotkey)
+        let started = await waitUntil {
+            self.isFlowRecording(harness.coordinator.flowStateForTesting)
+        }
+        XCTAssertTrue(started)
+
+        harness.coordinator.stopDictation()
+        let reported = await waitUntil {
+            harness.coordinator.flowStateForTesting == .finishing(
+                outcome: .pasteFailedCopied(
+                    "Dictation was pasted, but not submitted because Codex lost focus. Return to Codex and press Return."
+                )
+            )
+        }
+
+        XCTAssertTrue(reported)
+        let snapshot = await harness.clipboard.snapshot()
+        XCTAssertEqual(snapshot.lastPastedText, "do not submit this elsewhere")
+        XCTAssertNil(snapshot.lastCopiedText)
+        XCTAssertEqual(snapshot.lastPostPasteAction, .returnKey)
+        XCTAssertEqual(snapshot.lastRequiredFrontmostBundleIdentifier, "com.openai.codex")
+    }
+
+    func testDisabledCodexAutoSubmitUsesOrdinaryPasteWithoutReturn() async throws {
+        let harness = try await makeRecordingHarness(
+            autoSubmitCodexDictation: false,
+            focusedContext: AppPromptContext(bundleIdentifier: "com.openai.codex", displayName: "Codex")
+        )
+        await harness.stt.configureSequence(results: [STTResult(text: "draft only")])
+
+        harness.coordinator.startDictation(mode: .holdToTalk, trigger: .hotkey)
+        let started = await waitUntil {
+            self.isFlowRecording(harness.coordinator.flowStateForTesting)
+        }
+        XCTAssertTrue(started)
+        harness.coordinator.stopDictation()
+
+        let pasted = await waitUntilAsync {
+            let snapshot = await harness.clipboard.snapshot()
+            return snapshot.lastPastedText == "draft only "
+        }
+        XCTAssertTrue(pasted)
+        let snapshot = await harness.clipboard.snapshot()
+        XCTAssertNil(snapshot.lastPostPasteAction)
+        XCTAssertNil(snapshot.lastRequiredFrontmostBundleIdentifier)
+    }
+
+    func testEnabledCodexAutoSubmitDoesNotSubmitIntoAnotherApplication() async throws {
+        let harness = try await makeRecordingHarness(
+            autoSubmitCodexDictation: true,
+            focusedContext: AppPromptContext(bundleIdentifier: "com.apple.TextEdit", displayName: "TextEdit")
+        )
+        await harness.stt.configureSequence(results: [STTResult(text: "paste elsewhere")])
+
+        harness.coordinator.startDictation(mode: .holdToTalk, trigger: .hotkey)
+        let started = await waitUntil {
+            self.isFlowRecording(harness.coordinator.flowStateForTesting)
+        }
+        XCTAssertTrue(started)
+        harness.coordinator.stopDictation()
+
+        let pasted = await waitUntilAsync {
+            let snapshot = await harness.clipboard.snapshot()
+            return snapshot.lastPastedText == "paste elsewhere "
+        }
+        XCTAssertTrue(pasted)
+        let snapshot = await harness.clipboard.snapshot()
+        XCTAssertNil(snapshot.lastPostPasteAction)
+        XCTAssertNil(snapshot.lastRequiredFrontmostBundleIdentifier)
     }
 
     func testPillStartedPersistentRecordingSyncsFnHotkeyToStop() async throws {
@@ -343,6 +454,12 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(
             DictationFlowCoordinator.commandFailureBucket(for: ClipboardServiceError.pasteboardWriteFailed),
             "pasteboard_write_failed"
+        )
+        XCTAssertEqual(
+            DictationFlowCoordinator.commandFailureBucket(
+                for: ClipboardServiceError.requiredFrontmostApplicationUnavailable
+            ),
+            "paste_frontmost_application_changed"
         )
     }
 
