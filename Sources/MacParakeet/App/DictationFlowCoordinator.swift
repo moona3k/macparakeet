@@ -692,7 +692,7 @@ final class DictationFlowCoordinator {
                         self.sendEvent(
                             .pasteFailed(
                                 generation: gen,
-                                message: "Dictation was pasted, but not submitted because Codex lost focus. Return to Codex and press Return."
+                                message: "Dictation was pasted, but Return was not sent. Keep Codex frontmost and press Return."
                             )
                         )
                         return

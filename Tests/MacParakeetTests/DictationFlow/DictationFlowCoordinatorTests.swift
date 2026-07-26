@@ -124,7 +124,7 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         let reported = await waitUntil {
             harness.coordinator.flowStateForTesting == .finishing(
                 outcome: .pasteFailedCopied(
-                    "Dictation was pasted, but not submitted because Codex lost focus. Return to Codex and press Return."
+                    "Dictation was pasted, but Return was not sent. Keep Codex frontmost and press Return."
                 )
             )
         }
