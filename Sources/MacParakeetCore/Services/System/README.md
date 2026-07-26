@@ -15,7 +15,8 @@ replace them with mocks.
 
 - `PermissionService.swift` -- microphone, screen recording, and Accessibility
   checks/prompts/settings links.
-- `ClipboardService.swift` -- pasteboard writes and restore behavior.
+- `ClipboardService.swift` -- pasteboard writes, restore behavior, post-paste
+  keystrokes, and optional fail-closed frontmost-application guarding.
 - `SelectionCaptureService.swift` and `SelectionReplacementService.swift` --
   Accessibility-backed selected-text capture and replacement.
 - `FocusedAppContextService.swift` -- frontmost app metadata for contextual

@@ -200,6 +200,7 @@ Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migra
 ├─────────────────────────────────────────────────────────────────┤
 │ 6. Result                                                        │
 │    - Auto-paste into target app (NSPasteboard + simulated Cmd+V) │
+│    - Optional Codex-only submit after guarded focus revalidation  │
 │    - Previous clipboard restored by default; opt-in retain mode  │
 │      leaves the exact pasted text available for manual Cmd+V      │
 │    - Save to dictation history (database)                        │
@@ -207,6 +208,13 @@ Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migra
 │    - Overlay shows success checkmark, auto-dismisses             │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+**Codex auto-submit (opt-in Beta):**
+- Disabled by default.
+- When enabled, a non-empty dictation whose paste-time frontmost bundle is exactly `com.openai.codex` is pasted without a trailing space and followed by Return.
+- The clipboard service validates the Codex bundle before paste and again after the existing 200 ms paste-settling delay. If Codex is not frontmost before paste, the normal paste-failure recovery copies the transcript for manual use. If focus leaves Codex after paste, Return is suppressed.
+- An explicit Voice Return action takes precedence and preserves its existing cross-app behavior.
+- The guard identifies the frontmost Codex application, not a particular task or editor. The user must keep the intended Codex composer focused until submission.
 
 **Text insertion:**
 

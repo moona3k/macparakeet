@@ -39,6 +39,19 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertTrue(preferences.shouldKeepDictationOnClipboard)
     }
 
+    func testCodexAutoSubmitDefaultsToFalseAndReadsStoredValue() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
+
+        XCTAssertFalse(preferences.shouldAutoSubmitCodexDictation)
+
+        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.autoSubmitCodexDictationKey)
+
+        XCTAssertTrue(preferences.shouldAutoSubmitCodexDictation)
+    }
+
     func testCustomVocabularyRecognitionBoostingDefaultsOffAndReadsStoredValue() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

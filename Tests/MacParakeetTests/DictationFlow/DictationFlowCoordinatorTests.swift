@@ -5,6 +5,75 @@ import XCTest
 
 @MainActor
 final class DictationFlowCoordinatorTests: XCTestCase {
+    func testCodexAutoSubmitEligibilityIsExactAndFailClosed() {
+        let codexContext = AppPromptContext(bundleIdentifier: "COM.OPENAI.CODEX")
+        let otherContext = AppPromptContext(bundleIdentifier: "com.apple.TextEdit")
+
+        XCTAssertTrue(DictationFlowCoordinator.shouldAutoSubmitCodexDictation(
+            enabled: true,
+            transcriptHasText: true,
+            requestedAction: nil,
+            focusedContext: codexContext
+        ))
+        XCTAssertFalse(DictationFlowCoordinator.shouldAutoSubmitCodexDictation(
+            enabled: false,
+            transcriptHasText: true,
+            requestedAction: nil,
+            focusedContext: codexContext
+        ))
+        XCTAssertFalse(DictationFlowCoordinator.shouldAutoSubmitCodexDictation(
+            enabled: true,
+            transcriptHasText: false,
+            requestedAction: nil,
+            focusedContext: codexContext
+        ))
+        XCTAssertFalse(DictationFlowCoordinator.shouldAutoSubmitCodexDictation(
+            enabled: true,
+            transcriptHasText: true,
+            requestedAction: .returnKey,
+            focusedContext: codexContext
+        ))
+        XCTAssertFalse(DictationFlowCoordinator.shouldAutoSubmitCodexDictation(
+            enabled: true,
+            transcriptHasText: true,
+            requestedAction: nil,
+            focusedContext: otherContext
+        ))
+        XCTAssertFalse(DictationFlowCoordinator.shouldAutoSubmitCodexDictation(
+            enabled: true,
+            transcriptHasText: true,
+            requestedAction: nil,
+            focusedContext: nil
+        ))
+    }
+
+    func testCompletedCodexDictationPastesWithoutTrailingSpaceAndRequestsGuardedReturn() async throws {
+        let harness = try await makeRecordingHarness(
+            autoSubmitCodexDictation: true,
+            focusedContext: AppPromptContext(bundleIdentifier: "com.openai.codex", displayName: "Codex")
+        )
+        await harness.stt.configureSequence(results: [STTResult(text: "send this to Forge")])
+
+        harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
+        let started = await waitUntil {
+            self.isFlowRecording(harness.coordinator.flowStateForTesting)
+        }
+        XCTAssertTrue(started)
+
+        harness.coordinator.stopDictation()
+        let submitted = await waitUntilAsync {
+            let snapshot = await harness.clipboard.snapshot()
+            return snapshot.lastPostPasteAction == .returnKey
+                && snapshot.lastRequiredFrontmostBundleIdentifier == DictationFlowCoordinator.codexBundleIdentifier
+        }
+
+        XCTAssertTrue(submitted)
+        let snapshot = await harness.clipboard.snapshot()
+        XCTAssertEqual(snapshot.lastPastedText, "send this to Forge")
+        XCTAssertEqual(snapshot.lastPostPasteAction, .returnKey)
+        XCTAssertEqual(snapshot.lastRequiredFrontmostBundleIdentifier, "com.openai.codex")
+    }
+
     func testPillStartedPersistentRecordingSyncsFnHotkeyToStop() async throws {
         let harness = try await makeRecordingHarness()
         let fnManager = HotkeyManager(trigger: .fn)
@@ -330,7 +399,10 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         )
     }
 
-    private func makeRecordingHarness() async throws -> RecordingHarness {
+    private func makeRecordingHarness(
+        autoSubmitCodexDictation: Bool = false,
+        focusedContext: AppPromptContext? = nil
+    ) async throws -> RecordingHarness {
         let dbManager = try DatabaseManager()
         let audio = MockAudioProcessor()
         let stt = MockSTTClient()
@@ -345,9 +417,12 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         let settingsDefaults = makeTestDefaults(prefix: "recording-settings")
         settingsDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.showIdlePillKey)
         let settings = SettingsViewModel(defaults: settingsDefaults)
-        let preferences = UserDefaultsAppRuntimePreferences(
-            defaults: makeTestDefaults(prefix: "recording-preferences")
+        let preferenceDefaults = makeTestDefaults(prefix: "recording-preferences")
+        preferenceDefaults.set(
+            autoSubmitCodexDictation,
+            forKey: UserDefaultsAppRuntimePreferences.autoSubmitCodexDictationKey
         )
+        let preferences = UserDefaultsAppRuntimePreferences(defaults: preferenceDefaults)
         let entitlements = EntitlementsService(
             config: LicensingConfig(checkoutURL: nil, expectedVariantID: nil),
             store: InMemoryKeyValueStore(),
@@ -363,6 +438,7 @@ final class DictationFlowCoordinatorTests: XCTestCase {
             sttRuntime: AlwaysReadySTTReadinessChecker(),
             runtimePreferences: preferences,
             permissionService: MockPermissionService(),
+            focusedAppContextService: StaticFocusedAppContextProvider(context: focusedContext),
             overlayControllerFactory: { MicPermissionSpyDictationOverlayController(viewModel: $0) },
             onMenuBarIconUpdate: { _ in },
             onHistoryReload: {},
@@ -444,6 +520,13 @@ final class DictationFlowCoordinatorTests: XCTestCase {
 
 private struct AlwaysReadySTTReadinessChecker: DictationSTTReadinessChecking {
     func isReady() async -> Bool { true }
+}
+
+private struct StaticFocusedAppContextProvider: FocusedAppContextProviding {
+    let context: AppPromptContext?
+
+    @MainActor
+    func currentContext() -> AppPromptContext? { context }
 }
 
 @MainActor

@@ -39,6 +39,20 @@ private enum ProcessingLoadCaptionOutcome {
 
 @MainActor
 final class DictationFlowCoordinator {
+    static let codexBundleIdentifier = "com.openai.codex"
+
+    static func shouldAutoSubmitCodexDictation(
+        enabled: Bool,
+        transcriptHasText: Bool,
+        requestedAction: KeyAction?,
+        focusedContext: AppPromptContext?
+    ) -> Bool {
+        enabled
+            && transcriptHasText
+            && requestedAction == nil
+            && focusedContext?.bundleIdentifier == codexBundleIdentifier
+    }
+
     private static let silenceAutoStopThreshold: Float = 0.03
     private static let microphoneAccessRequiredMessage = "Microphone access required"
 
@@ -595,11 +609,22 @@ final class DictationFlowCoordinator {
             let insertionStyle = currentDictationInsertionStyle
             Task { @MainActor in
                 var completedDictation = dictation
-                let action = self.pendingPostPasteAction
+                let requestedAction = self.pendingPostPasteAction
                 self.pendingPostPasteAction = nil
-                let pastedToAppAtDispatch = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+                let focusedContext = self.focusedAppContextService.currentContext()
+                let pastedToAppAtDispatch = focusedContext?.bundleIdentifier
                 let keepDictationOnClipboard = self.runtimePreferences.shouldKeepDictationOnClipboard
                 let transcriptHasText = !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                let autoSubmitsToCodex = Self.shouldAutoSubmitCodexDictation(
+                    enabled: self.runtimePreferences.shouldAutoSubmitCodexDictation,
+                    transcriptHasText: transcriptHasText,
+                    requestedAction: requestedAction,
+                    focusedContext: focusedContext
+                )
+                let action = requestedAction ?? (autoSubmitsToCodex ? .returnKey : nil)
+                let requiredFrontmostBundleIdentifier = autoSubmitsToCodex
+                    ? Self.codexBundleIdentifier
+                    : nil
                 let appendsTrailingSpace = !(
                     dictation.processingMode.usesDeterministicPipeline
                     && insertionStyle == .inline
@@ -620,7 +645,8 @@ final class DictationFlowCoordinator {
                         let keystrokeFired = try await self.clipboardService.pasteTextWithAction(
                             transcript,
                             postPasteAction: action,
-                            restoresClipboard: !keepDictationOnClipboard
+                            restoresClipboard: !keepDictationOnClipboard,
+                            requiredFrontmostBundleIdentifier: requiredFrontmostBundleIdentifier
                         )
                         if keystrokeFired {
                             Telemetry.send(.keystrokeSnippetFired(action: action.rawValue))
