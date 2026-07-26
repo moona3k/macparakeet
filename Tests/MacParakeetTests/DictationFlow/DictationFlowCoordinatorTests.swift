@@ -123,7 +123,7 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         harness.coordinator.stopDictation()
         let reported = await waitUntil {
             harness.coordinator.flowStateForTesting == .finishing(
-                outcome: .pasteFailedCopied(
+                outcome: .postPasteActionSuppressed(
                     "Dictation was pasted, but Return was not sent. Keep Codex frontmost and press Return."
                 )
             )
@@ -325,6 +325,7 @@ final class DictationFlowCoordinatorTests: XCTestCase {
             .finishing(outcome: .noSpeech),
             .finishing(outcome: .error("boom")),
             .finishing(outcome: .pasteFailedCopied("Copied to clipboard. Press Cmd+V.")),
+            .finishing(outcome: .postPasteActionSuppressed("Pasted, but Return was not sent.")),
         ]
 
         for state in states {
@@ -349,6 +350,7 @@ final class DictationFlowCoordinatorTests: XCTestCase {
             .finishing(outcome: .noSpeech),
             .finishing(outcome: .error("boom")),
             .finishing(outcome: .pasteFailedCopied("Copied to clipboard. Press Cmd+V.")),
+            .finishing(outcome: .postPasteActionSuppressed("Pasted, but Return was not sent.")),
         ]
 
         for state in states {
@@ -371,6 +373,7 @@ final class DictationFlowCoordinatorTests: XCTestCase {
             .finishing(outcome: .noSpeech),
             .finishing(outcome: .error("boom")),
             .finishing(outcome: .pasteFailedCopied("Copied to clipboard. Press Cmd+V.")),
+            .finishing(outcome: .postPasteActionSuppressed("Pasted, but Return was not sent.")),
         ]
 
         for state in states {

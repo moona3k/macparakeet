@@ -391,7 +391,7 @@ final class DictationFlowCoordinator {
         switch stateMachine.state {
         case .finishing(let outcome):
             switch outcome {
-            case .error, .noSpeech, .pasteFailedCopied:
+            case .error, .noSpeech, .pasteFailedCopied, .postPasteActionSuppressed:
                 sendEvent(.dismissRequested)
             case .success:
                 break
@@ -690,7 +690,7 @@ final class DictationFlowCoordinator {
                         guard self.stateMachine.generation == gen else { return }
                         self.dismissCaption(outcome: .failure)
                         self.sendEvent(
-                            .pasteFailed(
+                            .postPasteActionSuppressed(
                                 generation: gen,
                                 message: "Dictation was pasted, but Return was not sent. Keep Codex frontmost and press Return."
                             )
@@ -1281,6 +1281,7 @@ final class DictationFlowCoordinator {
             switch outcome {
             case .success: return "finishing.success"
             case .pasteFailedCopied: return "finishing.pasteFailed"
+            case .postPasteActionSuppressed: return "finishing.postPasteActionSuppressed"
             case .noSpeech: return "finishing.noSpeech"
             case .error: return "finishing.error"
             }
