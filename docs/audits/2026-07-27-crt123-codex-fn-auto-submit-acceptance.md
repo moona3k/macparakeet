@@ -146,7 +146,7 @@ reproducible diagnostic packet if the symptom recurs.
   bounded runs. They do not prove durable TCC state, fresh-machine behavior,
   Developer ID signing, notarization, or distribution readiness.
 - The frontmost-bundle guard does not provide exact-task routing.
-- Two successful application canaries do not generalize to arbitrary focus
+- These bounded application canaries do not generalize to arbitrary focus
   transitions, future application versions, future speech providers, or other
   runtime environments.
 - Matching CI proves the named source and deterministic test contract. It does
