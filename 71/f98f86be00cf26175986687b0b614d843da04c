@@ -1,0 +1,21 @@
+spec/04-ui-patterns.md
+  s_557109b6e131b4::t_f6f077e78e42a2 131-136
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_557109b6e131b4::t_f6f077e78e42a2 1706
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "71f98f86be00cf26175986687b0b614d843da04c",
+  "prompts": {},
+  "sessions": {
+    "s_557109b6e131b4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa4cc-252a-7751-b90c-71689437cbb4",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
