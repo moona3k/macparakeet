@@ -1,0 +1,36 @@
+spec/contracts/meeting-recovery-retention.md
+  s_557109b6e131b4::t_4359aa0359c4e0 119-122
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingTranscriptionQueueTests.swift
+  s_557109b6e131b4::t_d3222c295836d3 23-24,69-70,115,140-141,169,215,242,279-280,320
+  s_557109b6e131b4::t_b040100f1c94ca 82,251,616,622-625,637
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_557109b6e131b4::t_ef7f594ddcb9e5 920
+Sources/MacParakeet/App/MeetingTranscriptionQueue.swift
+  s_557109b6e131b4::t_ef7f594ddcb9e5 120,125,141,173,185,204,219,291,293,295-297
+Tests/MacParakeetTests/App/MeetingFinalizationReconcilerTests.swift
+  s_557109b6e131b4::t_d3222c295836d3 195
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingLockFileStoreTests.swift
+  s_557109b6e131b4::t_4359aa0359c4e0 171-209
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingRecoveryService.swift
+  s_557109b6e131b4::t_4359aa0359c4e0 192-198
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingLockFileStore.swift
+  s_557109b6e131b4::t_ef7f594ddcb9e5 529,535
+  s_557109b6e131b4::t_4359aa0359c4e0 290-291,363-366,382-384,392-399,401-408,520-528,530-534,536-538
+  s_557109b6e131b4::t_620abc4eef046b 539-540
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "33ef9f071d56108b635436747ff178a2bf68894d",
+  "prompts": {},
+  "sessions": {
+    "s_557109b6e131b4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa4cc-252a-7751-b90c-71689437cbb4",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
