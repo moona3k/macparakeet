@@ -354,7 +354,7 @@ public final class HotkeyManager {
                     if passiveFnInputIsContaminated(flags: flags) {
                         targetModifierGestureIsActive = false
                         bareTap = false
-                        return []
+                        return interruptPendingPassiveFnWindow()
                     }
                 }
                 if gestureMode == .singleTapToggle {
@@ -377,11 +377,10 @@ public final class HotkeyManager {
             return outputs
         }
 
-        // Additional modifier changes while the trigger is still held invalidate the
-        // "bare modifier" assumption just like a regular keyDown would. For the
-        // passive built-in Fn gesture, key off the physical transition rather than
-        // the currently-active flags so a modifier release also cancels the gesture.
-        guard targetModifierGestureIsActive else { return [] }
+        // Additional modifier changes invalidate the "bare modifier" assumption
+        // just like a regular keyDown would. For passive built-in Fn, key off the
+        // physical transition rather than current flags so both press and release
+        // cancel an active gesture or an outstanding second-tap window.
         if trigger == .fn {
             let changedModifiers = Self.changedTrackedModifierKeyCodes(
                 from: previousModifierFlags,
@@ -392,10 +391,14 @@ public final class HotkeyManager {
                 && previousModifierFlags.contains(.maskAlphaShift) != flags.contains(.maskAlphaShift)
             guard !changedModifiers.isEmpty || capsLockChanged else { return [] }
 
-            bareTap = false
-            return gestureMode == .singleTapToggle ? [] : gestureController.interrupted()
+            if targetModifierGestureIsActive {
+                bareTap = false
+                return gestureMode == .singleTapToggle ? [] : gestureController.interrupted()
+            }
+            return interruptPendingPassiveFnWindow()
         }
 
+        guard targetModifierGestureIsActive else { return [] }
         let activeTrackedModifiers = flags.intersection(ModifierKeyMatcher.trackedModifierMasks)
         let nonTargetTrackedModifiers = activeTrackedModifiers.subtracting(mask)
         guard !nonTargetTrackedModifiers.isEmpty else { return [] }
@@ -1066,7 +1069,7 @@ public final class HotkeyManager {
                 return true
             }
             if trigger == .fn {
-                if currentFlags.contains(.maskAlphaShift) || !pressedNonFnKeyCodes.isEmpty {
+                if !pressedNonFnKeyCodes.isEmpty {
                     return true
                 }
             }
@@ -1100,9 +1103,18 @@ public final class HotkeyManager {
     private func passiveFnInputIsContaminated(flags: CGEventFlags) -> Bool {
         guard let fnMask = targetMask else { return true }
         let activeTrackedModifiers = flags.intersection(ModifierKeyMatcher.trackedModifierMasks)
+        // Alpha Shift is a latched state, not proof that Caps Lock is held.
+        // A physical Caps key is covered by the key ledger; transitions are
+        // handled from changedKeyCode in modifierFlagsChangedOutputs.
         return !activeTrackedModifiers.subtracting(fnMask).isEmpty
-            || flags.contains(.maskAlphaShift)
             || !pressedNonFnKeyCodes.isEmpty
+    }
+
+    private func interruptPendingPassiveFnWindow() -> [HotkeyGestureController.Output] {
+        guard activeRecordingMode == nil, gestureController.hasPendingTriggerPress else {
+            return []
+        }
+        return gestureController.interrupted()
     }
 
     private func chordTriggerKeyUpOutputs(

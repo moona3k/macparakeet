@@ -153,11 +153,15 @@ Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migra
   observed cancellation event pass through unchanged. Other configurable
   hotkeys retain their established active-tap behavior.
 - Built-in Fn is admitted only when a combined-session snapshot shows no
-  pre-held non-Fn modifier or ordinary physical key. While Fn is held, every
+  pre-held non-Fn modifier or ordinary physical key. A latched Caps Lock state
+  alone is allowed because it does not prove the physical key remains held;
+  an observed Caps Lock transition still cancels. While Fn is held, every
   non-Fn key-down/key-up (including Escape) or modifier transition cancels the
-  pending gesture. Tap-disable recovery reconciles that passive key-state
-  ledger and fails closed when input is contaminated. A cancelled gesture's
-  later Fn/key release cannot stop, transcribe, paste, or submit.
+  gesture. Those transitions also invalidate an outstanding second-tap window,
+  including a rejected contaminated Fn admission. Tap-disable recovery
+  reconciles the passive key-state ledger and fails closed on physical input
+  contamination. A cancelled gesture's later Fn/key release cannot stop,
+  transcribe, paste, or submit.
 - `HotkeyTrigger` struct with `.modifier` / `.keyCode` / `.chord` / `.modifierChord` kind discriminator (see ADR-009)
 - Modifier triggers: `flagsChanged` events with `CGEventFlags` mask, bare-tap filtering
 - KeyCode triggers: `keyDown`/`keyUp` events with event swallowing, edge detection via `triggerKeyIsPressed` boolean
