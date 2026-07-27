@@ -15,13 +15,6 @@ public protocol TranscriptionRepositoryProtocol: Sendable {
     func delete(id: UUID) throws -> Bool
     func deleteAll() throws
     func updateStatus(id: UUID, status: Transcription.TranscriptionStatus, errorMessage: String?) throws
-    @discardableResult
-    func transitionStatus(
-        id: UUID,
-        from expectedStatus: Transcription.TranscriptionStatus,
-        to status: Transcription.TranscriptionStatus,
-        errorMessage: String?
-    ) throws -> Bool
     func updateFileName(id: UUID, fileName: String) throws
     func updateTitleOverride(id: UUID, titleOverride: String?) throws
     func updateChatMessages(id: UUID, chatMessages: [ChatMessage]?) throws
@@ -115,19 +108,6 @@ extension TranscriptionRepositoryProtocol {
         )
     }
     public func clearStoredAudioPathsForURLTranscriptions() throws {}
-    @discardableResult
-    public func transitionStatus(
-        id: UUID,
-        from expectedStatus: Transcription.TranscriptionStatus,
-        to status: Transcription.TranscriptionStatus,
-        errorMessage: String?
-    ) throws -> Bool {
-        guard try fetch(id: id)?.status == expectedStatus else {
-            return false
-        }
-        try updateStatus(id: id, status: status, errorMessage: errorMessage)
-        return true
-    }
     @discardableResult
     public func clearStoredAudioPathsForMeetingTranscriptions(under directoryPath: String) throws -> [UUID] { [] }
     public func updateFileName(id: UUID, fileName: String) throws {}

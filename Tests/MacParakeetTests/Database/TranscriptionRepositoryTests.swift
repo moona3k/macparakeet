@@ -786,6 +786,53 @@ final class TranscriptionRepositoryTests: XCTestCase {
         XCTAssertNil(try repo.fetch(id: transcription.id)?.errorMessage)
     }
 
+    func testConcurrentCompletionAlwaysWinsOverReconciliationAcrossRepositories() async throws {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TranscriptionRepositoryRace-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+        let databasePath = directoryURL.appendingPathComponent("macparakeet.db").path
+        let firstManager = try DatabaseManager(path: databasePath)
+        let secondManager = try DatabaseManager(path: databasePath)
+        let firstRepository = TranscriptionRepository(dbQueue: firstManager.dbQueue)
+        let secondRepository = TranscriptionRepository(dbQueue: secondManager.dbQueue)
+
+        for iteration in 0..<25 {
+            let transcription = Transcription(
+                fileName: "race-\(iteration).m4a",
+                status: .processing,
+                sourceType: .meeting
+            )
+            try firstRepository.save(transcription)
+
+            let reconciliation = Task.detached {
+                try firstRepository.transitionStatus(
+                    id: transcription.id,
+                    from: .processing,
+                    to: .error,
+                    errorMessage: "Interrupted"
+                )
+            }
+            let completion = Task.detached {
+                try secondRepository.updateStatus(
+                    id: transcription.id,
+                    status: .completed,
+                    errorMessage: nil
+                )
+            }
+
+            _ = try await reconciliation.value
+            try await completion.value
+
+            XCTAssertEqual(
+                try firstRepository.fetch(id: transcription.id)?.status,
+                .completed,
+                "Completion was regressed in iteration \(iteration)"
+            )
+            XCTAssertNil(try firstRepository.fetch(id: transcription.id)?.errorMessage)
+        }
+    }
+
     func testUpdateFileName() throws {
         let transcription = Transcription(
             fileName: "Meeting Apr 5",

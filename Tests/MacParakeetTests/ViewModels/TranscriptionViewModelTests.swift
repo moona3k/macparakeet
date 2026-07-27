@@ -1238,6 +1238,71 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.hasConversations)
     }
 
+    func testQueuedCompletionRefreshesMatchingDetailWithoutSelectingDuringAnotherMeeting() {
+        let id = UUID()
+        let processing = Transcription(
+            id: id,
+            fileName: "first meeting",
+            status: .processing,
+            sourceType: .meeting
+        )
+        let completed = Transcription(
+            id: id,
+            fileName: "first meeting",
+            rawTranscript: "Finished while another meeting was recording.",
+            status: .completed,
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [completed]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = processing
+        viewModel.selectedTab = .chat
+        viewModel.hasConversations = true
+
+        viewModel.presentCompletedTranscription(
+            completed,
+            autoSave: false,
+            runAutoPrompts: false,
+            selectTranscription: false
+        )
+
+        XCTAssertEqual(viewModel.currentTranscription?.id, id)
+        XCTAssertEqual(viewModel.currentTranscription?.status, .completed)
+        XCTAssertEqual(
+            viewModel.currentTranscription?.rawTranscript,
+            "Finished while another meeting was recording."
+        )
+        XCTAssertEqual(viewModel.selectedTab, .chat)
+        XCTAssertTrue(viewModel.hasConversations)
+    }
+
+    func testQueuedCompletionDoesNotReplaceUnrelatedDetailWhenSelectionIsSuppressed() {
+        let displayed = Transcription(
+            fileName: "displayed meeting",
+            rawTranscript: "Keep this detail open.",
+            status: .completed,
+            sourceType: .meeting
+        )
+        let completed = Transcription(
+            fileName: "background meeting",
+            rawTranscript: "Completed in the background.",
+            status: .completed,
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [displayed, completed]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = displayed
+
+        viewModel.presentCompletedTranscription(
+            completed,
+            autoSave: false,
+            runAutoPrompts: false,
+            selectTranscription: false
+        )
+
+        XCTAssertEqual(viewModel.currentTranscription?.id, displayed.id)
+    }
+
     func testRefreshingSameTranscriptionDoesNotResetSelectedTab() {
         let id = UUID()
         let first = Transcription(id: id, fileName: "first.mp3", rawTranscript: "First", status: .completed)

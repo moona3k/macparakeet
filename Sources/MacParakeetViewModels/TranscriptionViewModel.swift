@@ -1230,7 +1230,7 @@ public final class TranscriptionViewModel {
         applyMeetingRetention: Bool = true,
         selectTranscription: Bool = true
     ) {
-        if selectTranscription {
+        if selectTranscription || currentTranscription?.id == transcription.id {
             currentTranscription = transcription
         }
         loadTranscriptions()

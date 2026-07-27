@@ -32,7 +32,6 @@ final class MeetingTranscriptProcessingPresentationTests: XCTestCase {
     func testActionsStayUnavailableWhileMeetingFinalizationIsProcessing() {
         XCTAssertFalse(
             TranscriptDetailActionAvailability.canEdit(
-                transcriptText: "",
                 status: .processing
             ))
         XCTAssertFalse(
@@ -45,7 +44,6 @@ final class MeetingTranscriptProcessingPresentationTests: XCTestCase {
     func testCompletedTranscriptRetainsExistingActionAvailability() {
         XCTAssertTrue(
             TranscriptDetailActionAvailability.canEdit(
-                transcriptText: "Finished transcript",
                 status: .completed
             ))
         XCTAssertTrue(
@@ -53,9 +51,8 @@ final class MeetingTranscriptProcessingPresentationTests: XCTestCase {
                 hasRetainedAudio: true,
                 status: .completed
             ))
-        XCTAssertFalse(
+        XCTAssertTrue(
             TranscriptDetailActionAvailability.canEdit(
-                transcriptText: " \n ",
                 status: .completed
             ))
     }

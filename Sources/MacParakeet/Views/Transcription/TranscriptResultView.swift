@@ -143,11 +143,9 @@ struct MeetingTranscriptProcessingPresentation: Equatable {
 
 enum TranscriptDetailActionAvailability {
     static func canEdit(
-        transcriptText: String,
         status: Transcription.TranscriptionStatus
     ) -> Bool {
         status != .processing
-            && !transcriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     static func canRetranscribe(
@@ -1689,7 +1687,6 @@ struct TranscriptResultView: View {
                 .disabled(
                     transcriptDisplayMode != .text
                         || !TranscriptDetailActionAvailability.canEdit(
-                            transcriptText: transcriptText,
                             status: activeTranscription.status
                         )
                 )
