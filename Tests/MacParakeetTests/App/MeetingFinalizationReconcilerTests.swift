@@ -224,7 +224,8 @@ private final class ReconcilerStatusRepository: MeetingFinalizationStatusReposit
     ) throws -> [Transcription] {
         lock.lock()
         defer { lock.unlock() }
-        return rows
+        return
+            rows
             .filter { $0.sourceType == .meeting && $0.status == status }
             .sorted { $0.createdAt > $1.createdAt }
     }

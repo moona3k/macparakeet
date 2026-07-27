@@ -131,12 +131,14 @@ struct MeetingTranscriptProcessingPresentation: Equatable {
         status: Transcription.TranscriptionStatus
     ) -> MeetingTranscriptProcessingPresentation? {
         guard sourceType == .meeting,
-              status == .processing else {
+            status == .processing
+        else {
             return nil
         }
         return MeetingTranscriptProcessingPresentation(
             title: "Transcribing meeting",
-            message: "Your audio is saved. Final transcription is continuing in the background. You can leave this page and return later."
+            message:
+                "Your audio is saved. Final transcription is continuing in the background. You can leave this page and return later."
         )
     }
 }

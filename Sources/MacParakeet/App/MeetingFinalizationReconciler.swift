@@ -46,10 +46,11 @@ enum MeetingFinalizationReconciler {
 
             for row in processingRows {
                 if let folderPath = row.meetingArtifactFolderPath,
-                   !folderPath.isEmpty,
-                   try ownershipChecker.hasLiveOwner(
-                       folderURL: URL(fileURLWithPath: folderPath, isDirectory: true)
-                   ) {
+                    !folderPath.isEmpty,
+                    try ownershipChecker.hasLiveOwner(
+                        folderURL: URL(fileURLWithPath: folderPath, isDirectory: true)
+                    )
+                {
                     continue
                 }
 
