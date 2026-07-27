@@ -453,7 +453,9 @@ public final class HotkeyManager {
             return []
         }
         pressedNonFnKeyCodes.remove(physicalKeyCode)
-        guard targetModifierGestureIsActive else { return [] }
+        guard targetModifierGestureIsActive else {
+            return interruptPendingPassiveFnWindow()
+        }
 
         bareTap = false
         return gestureMode == .singleTapToggle ? [] : gestureController.interrupted()

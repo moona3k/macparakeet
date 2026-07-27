@@ -159,9 +159,11 @@ Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migra
   non-Fn key-down/key-up (including Escape) or modifier transition cancels the
   gesture. Those transitions also invalidate an outstanding second-tap window,
   including a rejected contaminated Fn admission. Tap-disable recovery
-  reconciles the passive key-state ledger and fails closed on physical input
-  contamination, including a Caps Lock latch delta from the last delivered
-  modifier snapshot. A stable pre-latched Caps Lock state remains allowed. A
+  detects non-Fn keys and modifiers that remain held, plus a Caps Lock latch
+  delta from the last delivered modifier snapshot. A stable pre-latched Caps
+  Lock state remains allowed. A non-latching ordinary key pressed and released
+  wholly while the event tap is disabled leaves no current state or latch delta
+  and is inherently unobservable; this remains a runtime proof limit. A
   cancelled gesture's later Fn/key release cannot stop, transcribe, paste, or
   submit.
 - `HotkeyTrigger` struct with `.modifier` / `.keyCode` / `.chord` / `.modifierChord` kind discriminator (see ADR-009)

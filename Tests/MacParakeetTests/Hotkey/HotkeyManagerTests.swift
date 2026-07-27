@@ -375,6 +375,102 @@ final class HotkeyManagerTests: XCTestCase {
         )
     }
 
+    func testPassiveFnKeyUpOnlyBetweenTapsInvalidatesPendingWindowOnce() {
+        let manager = HotkeyManager(trigger: .fn, gestureMode: .doubleTapAndHold)
+        manager.setPhysicalKeyStateProviderForTesting { _ in false }
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskSecondaryFn],
+                timestampMs: 1_000,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            ),
+            [
+                .scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs),
+                .scheduleHoldWindow(milliseconds: FnKeyStateMachine.defaultTapThresholdMs),
+            ]
+        )
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_050,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            ),
+            [.cancelStartupDebounce, .cancelHoldWindow, .showReadyForSecondTap]
+        )
+        XCTAssertEqual(
+            manager.modifierKeyUpOutputsForTesting(keyCode: 0, timestampMs: 1_100),
+            [.cancelStartupDebounce, .cancelHoldWindow]
+        )
+        XCTAssertEqual(manager.modifierKeyUpOutputsForTesting(keyCode: 0, timestampMs: 1_125), [])
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [])
+        XCTAssertEqual(manager.holdWindowElapsedForTesting(), [])
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskSecondaryFn],
+                timestampMs: 1_150,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            ),
+            [
+                .scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs),
+                .scheduleHoldWindow(milliseconds: FnKeyStateMachine.defaultTapThresholdMs),
+            ]
+        )
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_200,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            ),
+            [.cancelStartupDebounce, .cancelHoldWindow, .showReadyForSecondTap]
+        )
+    }
+
+    func testPassiveFnKeyUpOnlyDoesNotCancelOwnedPersistentRecording() {
+        let manager = HotkeyManager(trigger: .fn, gestureMode: .doubleTapOnly)
+        manager.setPhysicalKeyStateProviderForTesting { _ in false }
+
+        _ = manager.modifierFlagsChangedOutputsForTesting(
+            flags: [.maskSecondaryFn],
+            timestampMs: 1_000,
+            changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+        )
+        _ = manager.modifierFlagsChangedOutputsForTesting(
+            flags: [],
+            timestampMs: 1_050,
+            changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+        )
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskSecondaryFn],
+                timestampMs: 1_100,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            ),
+            [.startRecording(mode: .persistent)]
+        )
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_125,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            ),
+            [.cancelStartupDebounce, .cancelHoldWindow]
+        )
+
+        XCTAssertEqual(manager.modifierKeyUpOutputsForTesting(keyCode: 0, timestampMs: 1_150), [])
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [])
+        XCTAssertEqual(manager.holdWindowElapsedForTesting(), [])
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskSecondaryFn],
+                timestampMs: 1_200,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            ),
+            [.stopRecording]
+        )
+    }
+
     func testPassiveFnContaminatedAdmissionPreservesActivePersistentOwnership() {
         let manager = HotkeyManager(trigger: .fn, gestureMode: .doubleTapOnly)
         manager.setPhysicalKeyStateProviderForTesting { _ in false }
