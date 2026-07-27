@@ -94,9 +94,13 @@ Use the narrow predicate that matches the operation:
 - Automatic destructive sweep safety: any file named `recording.lock` in the
   session folder, whether it is parseable or not.
 
-`discoverActiveSessions(...)` is PID-live only. It is not a generic "safe to
-mutate" predicate. A dead-owner `awaitingTranscription` lock can still point at
-valid audio that has not been finalized into a completed transcript.
+`discoverActiveSessions(...)` is PID-live except that the process which
+recorded an exact lease token as relinquished excludes that token from its
+active results and exposes it through orphan discovery instead. The registry
+is process-local, so out-of-process callers such as the CLI conservatively
+remain PID-live only. Active discovery is not a generic "safe to mutate"
+predicate. A dead-owner `awaitingTranscription` lock can still point at valid
+audio that has not been finalized into a completed transcript.
 
 ## Processing Row Reconciliation
 

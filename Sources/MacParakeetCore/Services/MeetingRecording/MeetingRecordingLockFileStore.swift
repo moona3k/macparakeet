@@ -446,14 +446,16 @@ public final class MeetingRecordingLockFileStore:
         }
     }
 
-    /// Lock files in `meetingsRoot` whose owning process is still alive — i.e.
-    /// meetings actively recording or awaiting transcription inside a running
-    /// MacParakeet instance. The inverse of `discoverOrphans`.
+    /// Lock files in `meetingsRoot` whose owning process is still alive, minus
+    /// an exact lease token this process recorded as relinquished after a
+    /// restore failure. The in-process result is the inverse of
+    /// `discoverOrphans`.
     ///
     /// Used by out-of-process callers (the CLI) that cannot observe the GUI's
     /// live recording state but must avoid clobbering an in-progress session's
-    /// folder on disk. Same disk signal the recovery service already trusts:
-    /// `pid` liveness via `ProcessAliveChecking`.
+    /// folder on disk. The relinquishment registry is process-local, so those
+    /// callers conservatively see the same disk signal recovery otherwise
+    /// trusts: `pid` liveness via `ProcessAliveChecking`.
     public func discoverActiveSessions(meetingsRoot: URL) throws -> [MeetingRecordingLockFile] {
         try sortedSessions(meetingsRoot: meetingsRoot) {
             !hasRelinquishedFinalizationLease($0)
