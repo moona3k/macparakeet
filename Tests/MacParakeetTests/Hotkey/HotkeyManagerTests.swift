@@ -1915,7 +1915,8 @@ final class HotkeyManagerTests: XCTestCase {
         XCTAssertEqual(
             manager.modifierFlagsChangedOutputsForTesting(
                 flags: [.maskSecondaryFn, .maskControl],
-                timestampMs: 1_050
+                timestampMs: 1_050,
+                changedKeyCode: 59
             ),
             [
                 .cancelStartupDebounce,
@@ -2008,7 +2009,8 @@ final class HotkeyManagerTests: XCTestCase {
         XCTAssertEqual(
             manager.modifierFlagsChangedOutputsForTesting(
                 flags: [.maskSecondaryFn, .maskControl],
-                timestampMs: 1_175
+                timestampMs: 1_175,
+                changedKeyCode: 59
             ),
             [
                 .cancelStartupDebounce,
