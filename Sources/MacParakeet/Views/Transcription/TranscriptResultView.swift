@@ -1703,7 +1703,7 @@ struct TranscriptResultView: View {
             return "Editing is available after transcription finishes."
         }
         if transcriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "No transcript text to edit."
+            return "Add transcript text manually."
         }
         return "Edit the transcript text"
     }

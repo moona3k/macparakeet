@@ -128,9 +128,12 @@ truth. The transcript pane shows an indeterminate "Transcribing meeting"
 surface, states that the audio is saved and final transcription continues in
 the background, and tells the user they may leave and return later. It must not
 use the terminal "No transcript available" empty state. Edit and Retranscribe
-are unavailable while the row is processing; they become available according
-to their existing text/audio predicates after the row reaches a terminal
-state.
+are unavailable while the row is processing. After the row reaches a terminal
+state, Text mode permits Edit even when transcription produced no text so the
+user can enter it manually; Retranscribe still requires retained audio. If the
+matching detail page is already open when background finalization finishes, it
+refreshes in place even while another meeting is recording. That refresh must
+not navigate, activate a window, or replace an unrelated open detail page.
 
 ### Local Transcription Rename
 
