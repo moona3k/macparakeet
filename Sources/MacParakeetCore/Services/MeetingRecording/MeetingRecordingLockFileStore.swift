@@ -347,6 +347,7 @@ public final class MeetingRecordingLockFileStore:
             return false
         }
         return processChecker.isAlive(pid: lockFile.pid)
+            && !hasRelinquishedFinalizationLease(lockFile)
     }
 
     public func claimFinalizationOwnership(
@@ -373,7 +374,9 @@ public final class MeetingRecordingLockFileStore:
             let lease = MeetingFinalizationOwnershipLease(
                 id: UUID(),
                 folderURL: folderURL.standardizedFileURL,
-                previousLock: currentLock
+                previousLock: currentLock.finalizationLeaseId.flatMap {
+                    Self.relinquishedFinalizationLeases.previousLock(for: $0)
+                } ?? currentLock
             )
             try write(
                 currentLock.withFinalizationOwner(pid: processID, leaseID: lease.id),
@@ -404,7 +407,7 @@ public final class MeetingRecordingLockFileStore:
             // transient I/O failure. Remember that exact token so a later
             // retry in this process can replace it without treating abandoned
             // work as an active same-process finalization.
-            Self.relinquishedFinalizationLeases.insert(lease.id)
+            Self.relinquishedFinalizationLeases.insert(lease)
             throw error
         }
     }
@@ -434,8 +437,13 @@ public final class MeetingRecordingLockFileStore:
 
     public func discoverOrphans(meetingsRoot: URL) throws -> [MeetingRecordingLockFile] {
         // Orphans are crashed sessions: a lock file whose owning process is no
-        // longer alive. Their audio is recoverable, not in active use.
-        try sortedSessions(meetingsRoot: meetingsRoot) { !processChecker.isAlive(pid: $0.pid) }
+        // longer alive, or a same-process finalization lease explicitly
+        // relinquished after lock restoration failed. Their audio is
+        // recoverable, not in active use.
+        try sortedSessions(meetingsRoot: meetingsRoot) {
+            hasRelinquishedFinalizationLease($0)
+                || !processChecker.isAlive(pid: $0.pid)
+        }
     }
 
     /// Lock files in `meetingsRoot` whose owning process is still alive — i.e.
@@ -447,7 +455,10 @@ public final class MeetingRecordingLockFileStore:
     /// folder on disk. Same disk signal the recovery service already trusts:
     /// `pid` liveness via `ProcessAliveChecking`.
     public func discoverActiveSessions(meetingsRoot: URL) throws -> [MeetingRecordingLockFile] {
-        try sortedSessions(meetingsRoot: meetingsRoot) { processChecker.isAlive(pid: $0.pid) }
+        try sortedSessions(meetingsRoot: meetingsRoot) {
+            !hasRelinquishedFinalizationLease($0)
+                && processChecker.isAlive(pid: $0.pid)
+        }
     }
 
     /// Every readable recording lock under `meetingsRoot`, regardless of PID
@@ -491,6 +502,16 @@ public final class MeetingRecordingLockFileStore:
         }
     }
 
+    private func hasRelinquishedFinalizationLease(
+        _ lockFile: MeetingRecordingLockFile
+    ) -> Bool {
+        guard lockFile.pid == processID,
+              let leaseID = lockFile.finalizationLeaseId else {
+            return false
+        }
+        return Self.relinquishedFinalizationLeases.contains(leaseID)
+    }
+
     private func withFinalizationOwnershipMutex<T>(
         folderURL: URL,
         _ operation: () throws -> T
@@ -519,21 +540,25 @@ public final class MeetingRecordingLockFileStore:
 
 private final class MeetingFinalizationRelinquishedLeaseRegistry: @unchecked Sendable {
     private let lock = NSLock()
-    private var leaseIDs: Set<UUID> = []
+    private var previousLocksByLeaseID: [UUID: MeetingRecordingLockFile] = [:]
 
     func contains(_ leaseID: UUID) -> Bool {
-        lock.withLock { leaseIDs.contains(leaseID) }
+        lock.withLock { previousLocksByLeaseID[leaseID] != nil }
     }
 
-    func insert(_ leaseID: UUID) {
-        _ = lock.withLock {
-            leaseIDs.insert(leaseID)
+    func previousLock(for leaseID: UUID) -> MeetingRecordingLockFile? {
+        lock.withLock { previousLocksByLeaseID[leaseID] }
+    }
+
+    func insert(_ lease: MeetingFinalizationOwnershipLease) {
+        lock.withLock {
+            previousLocksByLeaseID[lease.id] = lease.previousLock
         }
     }
 
     func remove(_ leaseID: UUID) {
         _ = lock.withLock {
-            leaseIDs.remove(leaseID)
+            previousLocksByLeaseID.removeValue(forKey: leaseID)
         }
     }
 }

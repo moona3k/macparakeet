@@ -84,7 +84,9 @@ accept supported older versions and reject newer, unknown versions.
 
 Use the narrow predicate that matches the operation:
 
-- Recovery orphan discovery: valid/readable lock plus dead owner PID.
+- Recovery orphan discovery: valid/readable lock plus dead owner PID, or an
+  exact same-process lease token recorded as relinquished after restoration
+  failed.
 - Processing-row reconciliation protection: a current-process queue entry or
   a valid/readable lock at the row's artifact folder plus live owner PID.
 - Active-session CLI refusal: valid/readable lock plus live owner PID, or
@@ -119,7 +121,10 @@ duplicate admission restores the exact prior lock only when its lease token
 still matches; successful settlement deletes the lock instead. If restoring
 the prior lock hits an I/O error, that exact relinquished token may be replaced
 by a later claim in the same process; unrelated and still-active lease tokens
-remain protected.
+remain protected. The replacement inherits the relinquished lease's original
+pre-claim lock, so repeated fail/retry cycles cannot restore an abandoned lease
+or wedge the next retry. A relinquished token is not a live owner and remains
+visible to recovery discovery even while its former process PID is alive.
 
 ## Retention Rule
 
