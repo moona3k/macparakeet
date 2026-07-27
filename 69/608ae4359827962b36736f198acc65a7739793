@@ -1,0 +1,80 @@
+spec/05-audio-pipeline.md
+  s_557109b6e131b4::t_a834ced83a7513 330-334,373-376
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingTranscriptionQueueTests.swift
+  s_557109b6e131b4::t_7f3548c78c3dc3 40,48-49,51-53,81
+  s_557109b6e131b4::t_ac178d9efd8c2d 87,95-96,98-100,119,298,306-307,309-311,328,343-359,609-632
+  s_557109b6e131b4::t_b65622e08c1de0 633-634
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingRecoveryService.swift
+  s_557109b6e131b4::t_19ba9e5cf34422 60-61,85-86,186-194,206-212,372-378
+  s_557109b6e131b4::t_99e59152192e0a 43,62,87
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_557109b6e131b4::t_b72305a1ce8e7c 1306-1353
+spec/adr/014-meeting-recording.md
+  s_557109b6e131b4::t_a834ced83a7513 106-110
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_557109b6e131b4::t_acd806d24a56f2 1432-1478
+  s_557109b6e131b4::t_30ea061e4481a8 132,146-147,163,186,198,226-280
+Tests/MacParakeetTests/App/MeetingFinalizationReconcilerTests.swift
+  s_557109b6e131b4::t_7713e6907a569a 107-158,330-337
+  s_557109b6e131b4::t_0b2b268d1bb632 47,60,81,317-319,322-329
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_557109b6e131b4::t_04a38980b5d126 32,156
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingLockFileStore.swift
+  s_557109b6e131b4::t_7ba209354080c9 356,401
+  s_557109b6e131b4::t_67c68814f0f51b 28-30,53,67,81,127,144,162,180-201,219-243,245-265,284-290,292,294-297,299,350-352,357-359,365-385,388-397,402-408,475-499
+  s_557109b6e131b4::t_99e59152192e0a 98-101,386-387
+  s_557109b6e131b4::t_622098cd4e9ade 353-355,398-400
+  s_557109b6e131b4::t_cfd3dec8b510ba 244
+  s_557109b6e131b4::t_19b09b40fe180d 360-364
+Sources/MacParakeet/App/MeetingFinalizationReconciler.swift
+  s_557109b6e131b4::t_7937300b1f60ac 33-34,42-47,49-50,54-59
+  s_557109b6e131b4::t_99e59152192e0a 52
+  s_557109b6e131b4::t_47d5d3375ef2b3 51
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingLockFileStoreTests.swift
+  s_557109b6e131b4::t_3dc75cebf62372 96-146,171-195,199-210
+  s_557109b6e131b4::t_94b0d9eed2e123 196-198
+  s_557109b6e131b4::t_19b09b40fe180d 147-170
+spec/04-ui-patterns.md
+  s_557109b6e131b4::t_a834ced83a7513 135-137
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_557109b6e131b4::t_72178022b8e316 1543-1544
+  s_557109b6e131b4::t_99e59152192e0a 1538,1541-1542,1588
+  s_557109b6e131b4::t_cfd3dec8b510ba 1539-1540
+  s_557109b6e131b4::t_c0031fc75a91b9 93,158-159,164,190-191,200,1585-1587
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift
+  s_557109b6e131b4::t_ac178d9efd8c2d 303-307
+  s_557109b6e131b4::t_133505f15bacca 1226-1230,1262-1273
+spec/adr/019-crash-resilient-meeting-recording.md
+  s_557109b6e131b4::t_a834ced83a7513 188-192
+Sources/MacParakeet/App/MeetingTranscriptionQueue.swift
+  s_557109b6e131b4::t_38da598d1b6ee5 41-56,84,97-99,104,185,204,291-299
+  s_557109b6e131b4::t_b50b0b20ae6f57 119-120,125-126,131
+  s_557109b6e131b4::t_72178022b8e316 173,219
+  s_557109b6e131b4::t_2d1d2239e63894 14-32
+  s_557109b6e131b4::t_cfd3dec8b510ba 134-141
+  s_557109b6e131b4::t_704d0ce364b7e1 132-133
+  s_557109b6e131b4::t_14d9ced5d341f6 300-301
+spec/contracts/meeting-recovery-retention.md
+  s_557109b6e131b4::t_a834ced83a7513 51,65-71,113-120,153-154,198-200
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_557109b6e131b4::t_66e429da41b899 1469-1476
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_557109b6e131b4::t_66e429da41b899 329,354,356-358
+  s_557109b6e131b4::t_f38a2bde9d4f32 395-396
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "69608ae4359827962b36736f198acc65a7739793",
+  "prompts": {},
+  "sessions": {
+    "s_557109b6e131b4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa4cc-252a-7751-b90c-71689437cbb4",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
