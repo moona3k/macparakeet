@@ -85,6 +85,41 @@ final class MeetingFinalizationReconcilerTests: XCTestCase {
         XCTAssertEqual(try repo.fetch(id: processingMeeting.id)?.status, .error)
     }
 
+    func testReconcileContinuesAfterAnotherRowsOwnershipCheckFails() async throws {
+        let repo = ReconcilerStatusRepository()
+        let failingFolderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MeetingFinalizationUnreadable-\(UUID().uuidString)")
+        let recoverableFolderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MeetingFinalizationRecoverable-\(UUID().uuidString)")
+        let failingMeeting = Transcription(
+            createdAt: Date(timeIntervalSince1970: 2),
+            fileName: "Unreadable meeting",
+            meetingArtifactFolderPath: failingFolderURL.path,
+            status: .processing,
+            sourceType: .meeting
+        )
+        let recoverableMeeting = Transcription(
+            createdAt: Date(timeIntervalSince1970: 1),
+            fileName: "Recoverable meeting",
+            meetingArtifactFolderPath: recoverableFolderURL.path,
+            status: .processing,
+            sourceType: .meeting
+        )
+        try repo.save(failingMeeting)
+        try repo.save(recoverableMeeting)
+
+        let reconciledIDs = try await MeetingFinalizationReconciler.reconcileStaleProcessingRows(
+            repository: repo,
+            ownershipCoordinator: ReconcilerOwnershipCoordinator(
+                failingFolderPaths: [failingFolderURL.standardizedFileURL.path]
+            )
+        )
+
+        XCTAssertEqual(reconciledIDs, [recoverableMeeting.id])
+        XCTAssertEqual(try repo.fetch(id: failingMeeting.id)?.status, .processing)
+        XCTAssertEqual(try repo.fetch(id: recoverableMeeting.id)?.status, .error)
+    }
+
     func testReconcileOmitsRowWhenAtomicTransitionLosesToCompletion() async throws {
         let repo = ReconcilerStatusRepository()
         let processingMeeting = Transcription(
@@ -318,16 +353,25 @@ private struct ReconcilerOwnershipCoordinator:
     MeetingFinalizationReconciliationCoordinating
 {
     var liveFolderPaths: Set<String> = []
+    var failingFolderPaths: Set<String> = []
 
     func reconcileIfUnowned(
         folderURL: URL,
         transition: @Sendable () throws -> Bool
     ) throws -> Bool {
-        guard !liveFolderPaths.contains(folderURL.standardizedFileURL.path) else {
+        let folderPath = folderURL.standardizedFileURL.path
+        if failingFolderPaths.contains(folderPath) {
+            throw ReconcilerOwnershipError.unreadableLock
+        }
+        guard !liveFolderPaths.contains(folderPath) else {
             return false
         }
         return try transition()
     }
+}
+
+private enum ReconcilerOwnershipError: Error {
+    case unreadableLock
 }
 
 private struct ReconcilerProcessAliveChecker: ProcessAliveChecking {

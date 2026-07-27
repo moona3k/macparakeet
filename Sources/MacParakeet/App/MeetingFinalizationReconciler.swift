@@ -1,5 +1,6 @@
 import Foundation
 import MacParakeetCore
+import OSLog
 
 /// The narrow persistence capability startup reconciliation needs.
 ///
@@ -23,6 +24,11 @@ protocol MeetingFinalizationStatusRepository: Sendable {
 extension TranscriptionRepository: MeetingFinalizationStatusRepository {}
 
 enum MeetingFinalizationReconciler {
+    private static let logger = Logger(
+        subsystem: "com.macparakeet",
+        category: "MeetingFinalizationReconciler"
+    )
+
     static let staleProcessingErrorMessage =
         "MacParakeet quit before meeting transcription finished. Your audio is saved."
 
@@ -39,27 +45,36 @@ enum MeetingFinalizationReconciler {
             var reconciledIDs: [UUID] = []
 
             for row in processingRows {
-                let transition: @Sendable () throws -> Bool = {
-                    try repository.transitionStatus(
-                        id: row.id,
-                        from: .processing,
-                        to: .error,
-                        errorMessage: staleProcessingErrorMessage
+                do {
+                    let transition: @Sendable () throws -> Bool = {
+                        try repository.transitionStatus(
+                            id: row.id,
+                            from: .processing,
+                            to: .error,
+                            errorMessage: staleProcessingErrorMessage
+                        )
+                    }
+                    let didReconcile: Bool
+                    if let folderPath = row.meetingArtifactFolderPath,
+                        !folderPath.isEmpty
+                    {
+                        didReconcile = try ownershipCoordinator.reconcileIfUnowned(
+                            folderURL: URL(fileURLWithPath: folderPath, isDirectory: true),
+                            transition: transition
+                        )
+                    } else {
+                        didReconcile = try transition()
+                    }
+                    if didReconcile {
+                        reconciledIDs.append(row.id)
+                    }
+                } catch {
+                    logger.error(
+                        """
+                        Failed to reconcile stale meeting \(row.id.uuidString, privacy: .public): \
+                        \(error.localizedDescription, privacy: .private)
+                        """
                     )
-                }
-                let didReconcile: Bool
-                if let folderPath = row.meetingArtifactFolderPath,
-                    !folderPath.isEmpty
-                {
-                    didReconcile = try ownershipCoordinator.reconcileIfUnowned(
-                        folderURL: URL(fileURLWithPath: folderPath, isDirectory: true),
-                        transition: transition
-                    )
-                } else {
-                    didReconcile = try transition()
-                }
-                if didReconcile {
-                    reconciledIDs.append(row.id)
                 }
             }
             return reconciledIDs

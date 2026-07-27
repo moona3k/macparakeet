@@ -116,6 +116,11 @@ compare-and-set on the persisted status. If another process completed or
 otherwise settled the row after the startup read, reconciliation leaves the
 newer state intact and does not report the row as reconciled.
 
+Ownership inspection and transition failures are isolated per row. The affected
+row remains unchanged and the failure is logged, while reconciliation continues
+with unrelated processing meetings; one unreadable lock cannot wedge recovery
+for every other meeting at startup.
+
 The live-owner check and compare-and-set run while holding a per-session
 advisory mutex. Retry and crash recovery claim ownership under that same mutex
 by atomically rewriting the lock with their PID and a unique
