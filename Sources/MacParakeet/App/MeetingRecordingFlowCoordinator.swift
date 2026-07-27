@@ -917,7 +917,7 @@ final class MeetingRecordingFlowCoordinator {
                         )
                         self.persistLiveAskConversationIfNeeded(transcriptionID: prepared.id)
                         let enqueueStartedAt = Date()
-                        meetingTranscriptionQueue.enqueue(
+                        await meetingTranscriptionQueue.enqueue(
                             MeetingTranscriptionQueue.Item(
                                 recording: output,
                                 transcriptionID: prepared.id,

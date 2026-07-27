@@ -20,8 +20,8 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         let second = makeItem(name: "B")
         try persistProcessingRows([first, second], in: transcriptionRepo)
 
-        queue.enqueue(first)
-        queue.enqueue(second)
+        await queue.enqueue(first)
+        await queue.enqueue(second)
         await queue.waitUntilIdle()
 
         let transcriptionSnapshot = await transcriptionService.snapshot()
@@ -66,8 +66,8 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
             }
         }
 
-        queue.enqueue(first)
-        queue.enqueue(second)
+        await queue.enqueue(first)
+        await queue.enqueue(second)
         await queue.waitUntilIdle()
 
         let transcriptionSnapshot = await transcriptionService.snapshot()
@@ -79,6 +79,7 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         XCTAssertNotNil(failed.errorMessage)
         XCTAssertTrue(FileManager.default.fileExists(atPath: first.recording.mixedAudioURL.path))
         XCTAssertEqual(ownershipClaimer.releasedLeaseIDs, [lease.id])
+        XCTAssertEqual(ownershipClaimer.releaseMainThreadValues, [false])
     }
 
     func testSettlementRefusalAfterFinalizeStillReportsSuccessAndRetainsLock() async throws {
@@ -111,7 +112,7 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
             }
         }
 
-        queue.enqueue(item)
+        await queue.enqueue(item)
         await queue.waitUntilIdle()
 
         XCTAssertEqual(completions, ["success:A"])
@@ -136,8 +137,8 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         let second = makeItem(name: "B")
         try persistProcessingRows([first, second], in: transcriptionRepo)
 
-        queue.enqueue(first)
-        queue.enqueue(second)
+        await queue.enqueue(first)
+        await queue.enqueue(second)
         try await waitUntil {
             queue.snapshot.activeItem?.transcriptionID == first.transcriptionID
                 && queue.snapshot.pendingCount == 1
@@ -165,7 +166,7 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         )
         let item = makeItem(name: "Missing Row")
 
-        queue.enqueue(item)
+        await queue.enqueue(item)
         try await waitUntil {
             queue.snapshot.activeItem?.transcriptionID != nil
                 && queue.snapshot.activeItem?.transcriptionID != item.transcriptionID
@@ -211,7 +212,7 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         try transcriptionRepo.save(failed)
         try createAudioFile(for: item)
 
-        queue.enqueue(item)
+        await queue.enqueue(item)
         await queue.waitUntilIdle()
 
         let fetched = try XCTUnwrap(transcriptionRepo.fetch(id: item.transcriptionID))
@@ -238,7 +239,7 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         try createAudioFile(for: item)
         await transcriptionService.cancel(transcriptionID: item.transcriptionID)
 
-        queue.enqueue(item)
+        await queue.enqueue(item)
         await queue.waitUntilIdle()
 
         let cancelled = try XCTUnwrap(transcriptionRepo.fetch(id: item.transcriptionID))
@@ -247,7 +248,7 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: item.recording.mixedAudioURL.path))
 
         await transcriptionService.clearFailures(transcriptionID: item.transcriptionID)
-        queue.enqueue(item)
+        await queue.enqueue(item)
         await queue.waitUntilIdle()
 
         let retried = try XCTUnwrap(transcriptionRepo.fetch(id: item.transcriptionID))
@@ -275,8 +276,8 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         try persistRow(status: .error, item: item, in: transcriptionRepo)
         try createAudioFile(for: item)
 
-        queue.enqueue(item)
-        queue.enqueue(item)
+        await queue.enqueue(item)
+        await queue.enqueue(item)
         try await waitUntil {
             queue.snapshot.activeItem?.transcriptionID == item.transcriptionID
         }
@@ -316,7 +317,7 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
             completions.append(completion)
         }
 
-        queue.enqueue(item)
+        await queue.enqueue(item)
         await queue.waitUntilIdle()
 
         XCTAssertTrue(completions.isEmpty)
@@ -612,9 +613,14 @@ private final class QueueFinalizationOwnershipClaimer:
 {
     private let lock = NSLock()
     private var releasedIDs: [UUID] = []
+    private var releaseWasOnMainThread: [Bool] = []
 
     var releasedLeaseIDs: [UUID] {
         lock.withLock { releasedIDs }
+    }
+
+    var releaseMainThreadValues: [Bool] {
+        lock.withLock { releaseWasOnMainThread }
     }
 
     func claimFinalizationOwnership(
@@ -628,6 +634,7 @@ private final class QueueFinalizationOwnershipClaimer:
     ) throws {
         lock.withLock {
             releasedIDs.append(lease.id)
+            releaseWasOnMainThread.append(Thread.isMainThread)
         }
     }
 }

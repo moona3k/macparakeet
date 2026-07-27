@@ -168,6 +168,45 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         XCTAssertNotEqual(claimed.finalizationLeaseId, staleLeaseID)
     }
 
+    func testFailedOwnershipReleaseCanBeReclaimedBySameProcess() throws {
+        let folderURL = tempRoot.appendingPathComponent("failed-release-session")
+        let claimingStore = MeetingRecordingLockFileStore(
+            processChecker: MockProcessAliveChecker(alivePIDs: [101]),
+            processID: 101
+        )
+        try claimingStore.write(
+            makeLockFile(
+                pid: 42,
+                state: .awaitingTranscription,
+                folderURL: folderURL
+            ),
+            folderURL: folderURL
+        )
+        let abandonedLease = try claimingStore.claimFinalizationOwnership(
+            folderURL: folderURL
+        )
+        let claimedLock = try XCTUnwrap(
+            claimingStore.read(folderURL: folderURL)
+        )
+
+        try FileManager.default.removeItem(at: folderURL)
+        XCTAssertThrowsError(
+            try claimingStore.releaseFinalizationOwnership(abandonedLease)
+        )
+
+        try claimingStore.write(claimedLock, folderURL: folderURL)
+        let replacementLease = try claimingStore.claimFinalizationOwnership(
+            folderURL: folderURL
+        )
+
+        XCTAssertNotEqual(replacementLease.id, abandonedLease.id)
+        let replacementLock = try XCTUnwrap(
+            claimingStore.read(folderURL: folderURL)
+        )
+        XCTAssertEqual(replacementLock.pid, 101)
+        XCTAssertEqual(replacementLock.finalizationLeaseId, replacementLease.id)
+    }
+
     func testConcurrentFinalizationOwnershipClaimsAdmitOneProcess() async throws {
         let folderURL = tempRoot.appendingPathComponent("concurrent-claim-session")
         let processChecker = MockProcessAliveChecker(alivePIDs: [101, 202])

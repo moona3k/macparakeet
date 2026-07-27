@@ -189,7 +189,13 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         var shouldRestoreOwnership = true
         defer {
             if shouldRestoreOwnership {
-                try? lockFileStore.releaseFinalizationOwnership(ownershipLease)
+                do {
+                    try lockFileStore.releaseFinalizationOwnership(ownershipLease)
+                } catch {
+                    logger.error(
+                        "meeting_recovery_ownership_release_failed session=\(lock.sessionId.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .private)"
+                    )
+                }
             }
         }
 

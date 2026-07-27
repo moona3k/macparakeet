@@ -116,7 +116,10 @@ by atomically rewriting the lock with their PID and a unique
 `finalizationLeaseId`. This closes the check-to-write race: startup
 reconciliation and finalization admission cannot both win. A failed or
 duplicate admission restores the exact prior lock only when its lease token
-still matches; successful settlement deletes the lock instead.
+still matches; successful settlement deletes the lock instead. If restoring
+the prior lock hits an I/O error, that exact relinquished token may be replaced
+by a later claim in the same process; unrelated and still-active lease tokens
+remain protected.
 
 ## Retention Rule
 

@@ -192,7 +192,7 @@ final class MeetingFinalizationReconcilerTests: XCTestCase {
             liveTranscriptLagged: false
         )
 
-        queue.enqueue(item)
+        await queue.enqueue(item)
         try await waitUntil {
             queue.queuedTranscriptionIDs == [transcriptionID]
         }

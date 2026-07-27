@@ -287,6 +287,8 @@ public final class MeetingRecordingLockFileStore:
     MeetingFinalizationReconciliationCoordinating
 {
     private static let finalizationOwnershipMutexFileName = ".finalization-ownership.lock"
+    private static let relinquishedFinalizationLeases =
+        MeetingFinalizationRelinquishedLeaseRegistry()
 
     private let processChecker: any ProcessAliveChecking
     private let processID: Int32
@@ -358,7 +360,10 @@ public final class MeetingRecordingLockFileStore:
                 throw MeetingFinalizationOwnershipError.missingLock
             }
             let currentProcessAlreadyOwnsLease =
-                currentLock.finalizationLeaseId != nil && currentLock.pid == processID
+                currentLock.pid == processID
+                && currentLock.finalizationLeaseId.map {
+                    !Self.relinquishedFinalizationLeases.contains($0)
+                } == true
             let anotherProcessIsAlive =
                 currentLock.pid != processID && processChecker.isAlive(pid: currentLock.pid)
             if currentProcessAlreadyOwnsLease || anotherProcessIsAlive {
@@ -374,6 +379,9 @@ public final class MeetingRecordingLockFileStore:
                 currentLock.withFinalizationOwner(pid: processID, leaseID: lease.id),
                 folderURL: folderURL
             )
+            if let previousLeaseID = currentLock.finalizationLeaseId {
+                Self.relinquishedFinalizationLeases.remove(previousLeaseID)
+            }
             return lease
         }
     }
@@ -381,13 +389,23 @@ public final class MeetingRecordingLockFileStore:
     public func releaseFinalizationOwnership(
         _ lease: MeetingFinalizationOwnershipLease
     ) throws {
-        try withFinalizationOwnershipMutex(folderURL: lease.folderURL) {
-            guard let currentLock = try read(folderURL: lease.folderURL),
-                currentLock.finalizationLeaseId == lease.id
-            else {
-                return
+        do {
+            try withFinalizationOwnershipMutex(folderURL: lease.folderURL) {
+                guard let currentLock = try read(folderURL: lease.folderURL),
+                    currentLock.finalizationLeaseId == lease.id
+                else {
+                    return
+                }
+                try write(lease.previousLock, folderURL: lease.folderURL)
             }
-            try write(lease.previousLock, folderURL: lease.folderURL)
+            Self.relinquishedFinalizationLeases.remove(lease.id)
+        } catch {
+            // The owner has finished even when restoring the prior lock hits a
+            // transient I/O failure. Remember that exact token so a later
+            // retry in this process can replace it without treating abandoned
+            // work as an active same-process finalization.
+            Self.relinquishedFinalizationLeases.insert(lease.id)
+            throw error
         }
     }
 
@@ -496,6 +514,27 @@ public final class MeetingRecordingLockFileStore:
         defer { _ = flock(fileDescriptor, LOCK_UN) }
 
         return try operation()
+    }
+}
+
+private final class MeetingFinalizationRelinquishedLeaseRegistry: @unchecked Sendable {
+    private let lock = NSLock()
+    private var leaseIDs: Set<UUID> = []
+
+    func contains(_ leaseID: UUID) -> Bool {
+        lock.withLock { leaseIDs.contains(leaseID) }
+    }
+
+    func insert(_ leaseID: UUID) {
+        _ = lock.withLock {
+            leaseIDs.insert(leaseID)
+        }
+    }
+
+    func remove(_ leaseID: UUID) {
+        _ = lock.withLock {
+            leaseIDs.remove(leaseID)
+        }
     }
 }
 

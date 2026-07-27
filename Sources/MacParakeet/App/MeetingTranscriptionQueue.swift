@@ -117,12 +117,12 @@ final class MeetingTranscriptionQueue {
     }
 
     @discardableResult
-    func enqueue(_ item: Item) -> Bool {
+    func enqueue(_ item: Item) async -> Bool {
         guard !containsQueuedTranscription(id: item.transcriptionID) else {
             logger.info(
                 "queued_meeting_transcription_duplicate_dropped id=\(item.transcriptionID.uuidString, privacy: .public)"
             )
-            restoreFinalizationOwnershipIfNeeded(for: item)
+            await restoreFinalizationOwnershipIfNeeded(for: item)
             return false
         }
         pendingItems.append(item)
@@ -138,7 +138,7 @@ final class MeetingTranscriptionQueue {
                 folderURL: item.recording.folderURL
             )
         }.value
-        return enqueue(item.withFinalizationOwnershipLease(lease))
+        return await enqueue(item.withFinalizationOwnershipLease(lease))
     }
 
     func waitUntilIdle() async {
@@ -170,7 +170,7 @@ final class MeetingTranscriptionQueue {
                 logger.info(
                     "queued_meeting_transcription_already_completed id=\(transcription.id.uuidString, privacy: .public)"
                 )
-                restoreFinalizationOwnershipIfNeeded(for: originalItem)
+                await restoreFinalizationOwnershipIfNeeded(for: originalItem)
                 finishActiveItem(nil)
                 return
             }
@@ -182,7 +182,7 @@ final class MeetingTranscriptionQueue {
             logger.error(
                 "queued_meeting_transcription_prepare_failed session=\(originalItem.recording.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
             )
-            restoreFinalizationOwnershipIfNeeded(for: originalItem)
+            await restoreFinalizationOwnershipIfNeeded(for: originalItem)
             finishActiveItem(.failure(item: originalItem, error: error))
             return
         }
@@ -201,7 +201,7 @@ final class MeetingTranscriptionQueue {
                 "queued_meeting_transcription_failed session=\(item.recording.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
             )
             await markFailed(item, error: error)
-            restoreFinalizationOwnershipIfNeeded(for: item)
+            await restoreFinalizationOwnershipIfNeeded(for: item)
             finishActiveItem(.failure(item: item, error: error))
             return
         }
@@ -216,7 +216,7 @@ final class MeetingTranscriptionQueue {
             logger.error(
                 "queued_meeting_settlement_failed_lock_retained_for_recovery session=\(item.recording.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
             )
-            restoreFinalizationOwnershipIfNeeded(for: item)
+            await restoreFinalizationOwnershipIfNeeded(for: item)
         }
         finishActiveItem(.success(item: item, transcription: transcription))
     }
@@ -288,10 +288,13 @@ final class MeetingTranscriptionQueue {
         activeItem?.transcriptionID == id || pendingItems.contains { $0.transcriptionID == id }
     }
 
-    private func restoreFinalizationOwnershipIfNeeded(for item: Item) {
+    private func restoreFinalizationOwnershipIfNeeded(for item: Item) async {
         guard let lease = item.finalizationOwnershipLease else { return }
+        let ownershipClaimer = finalizationOwnershipClaimer
         do {
-            try finalizationOwnershipClaimer.releaseFinalizationOwnership(lease)
+            try await Task.detached(priority: .utility) {
+                try ownershipClaimer.releaseFinalizationOwnership(lease)
+            }.value
         } catch {
             logger.error(
                 "queued_meeting_ownership_release_failed id=\(item.transcriptionID.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .private)"
