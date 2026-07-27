@@ -902,8 +902,16 @@ public final class HotkeyManager {
 
         if trigger == .fn {
             let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
+            let capsLockChangedWhileTapWasDisabled =
+                previousModifierFlags.contains(.maskAlphaShift)
+                != currentFlags.contains(.maskAlphaShift)
+            let capsLockContaminatesCurrentGesture =
+                capsLockChangedWhileTapWasDisabled
+                && (targetModifierGestureIsActive || gestureController.hasPendingTriggerPress)
             reconcilePassiveFnKeyState()
-            if triggerPressed, passiveFnInputIsContaminated(flags: currentFlags) {
+            if triggerPressed,
+               passiveFnInputIsContaminated(flags: currentFlags)
+               || capsLockContaminatesCurrentGesture {
                 cancelStartupTimer()
                 cancelHoldTimer()
                 syncRecoveredTriggerState(
