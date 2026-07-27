@@ -15,6 +15,202 @@ final class HotkeyManagerTests: XCTestCase {
         CGEventFlags(rawValue: masks.reduce(0, |))
     }
 
+    func testBareFnUsesListenOnlyTapWithoutChangingOtherHotkeyTapBehavior() {
+        let keyUpMask: CGEventMask = 1 << CGEventType.keyUp.rawValue
+
+        XCTAssertEqual(HotkeyManager.eventTapOptions(for: .fn), .listenOnly)
+        XCTAssertEqual(HotkeyManager.eventTapOptions(for: .control), .defaultTap)
+        XCTAssertEqual(HotkeyManager.eventTapOptions(for: .fnSpace), .defaultTap)
+        XCTAssertEqual(
+            HotkeyManager.eventTapOptions(for: .fromKeyCode(119)),
+            .defaultTap
+        )
+        XCTAssertEqual(HotkeyManager.eventMask(for: .fn) & keyUpMask, keyUpMask)
+        XCTAssertEqual(HotkeyManager.eventMask(for: .control) & keyUpMask, 0)
+    }
+
+    func testPassiveFnCleanHoldReleaseStartsAndStopsExactlyOnceDespiteNoise() {
+        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskSecondaryFn],
+                timestampMs: 1_000,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            ),
+            [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs)]
+        )
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskSecondaryFn],
+                timestampMs: 1_010,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            ),
+            []
+        )
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [])
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_250,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            ),
+            [.cancelStartupDebounce, .cancelHoldWindow, .stopRecording]
+        )
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_260,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            ),
+            []
+        )
+    }
+
+    func testPassiveFnOtherKeyCancellationCannotStopOrRestartOnRelease() {
+        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+
+        _ = manager.modifierFlagsChangedOutputsForTesting(
+            flags: [.maskSecondaryFn],
+            timestampMs: 1_000,
+            changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+        )
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
+        XCTAssertEqual(
+            manager.modifierKeyDownOutputsForTesting(keyCode: 0, timestampMs: 1_200),
+            [.cancelStartupDebounce, .cancelHoldWindow, .cancelRecording]
+        )
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_250,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            ),
+            [.cancelStartupDebounce, .cancelHoldWindow]
+        )
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [])
+        XCTAssertEqual(manager.holdWindowElapsedForTesting(), [])
+    }
+
+    func testPassiveFnReleaseOfAlreadyHeldOtherKeyCancelsGesture() {
+        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+
+        _ = manager.modifierFlagsChangedOutputsForTesting(
+            flags: [.maskSecondaryFn],
+            timestampMs: 1_000,
+            changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+        )
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
+        XCTAssertEqual(
+            manager.modifierKeyUpOutputsForTesting(keyCode: 0, timestampMs: 1_200),
+            [.cancelStartupDebounce, .cancelHoldWindow, .cancelRecording]
+        )
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_250,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            ),
+            [.cancelStartupDebounce, .cancelHoldWindow]
+        )
+    }
+
+    func testPassiveFnOtherModifierTransitionCancelsWithoutPostCancelStop() {
+        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+
+        _ = manager.modifierFlagsChangedOutputsForTesting(
+            flags: [.maskSecondaryFn],
+            timestampMs: 1_000,
+            changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+        )
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskSecondaryFn, .maskControl],
+                timestampMs: 1_200,
+                changedKeyCode: 59
+            ),
+            [.cancelStartupDebounce, .cancelHoldWindow, .cancelRecording]
+        )
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskSecondaryFn],
+                timestampMs: 1_220,
+                changedKeyCode: 59
+            ),
+            [.cancelStartupDebounce, .cancelHoldWindow]
+        )
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_250,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            ),
+            [.cancelStartupDebounce, .cancelHoldWindow]
+        )
+    }
+
+    func testPassiveFnCapsLockTransitionCancelsPendingGesture() {
+        let manager = HotkeyManager(trigger: .fn)
+
+        _ = manager.modifierFlagsChangedOutputsForTesting(
+            flags: [.maskSecondaryFn],
+            timestampMs: 1_000,
+            changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+        )
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskSecondaryFn, .maskAlphaShift],
+                timestampMs: 1_050,
+                changedKeyCode: 57
+            ),
+            [.cancelStartupDebounce, .cancelHoldWindow]
+        )
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [])
+        XCTAssertEqual(manager.holdWindowElapsedForTesting(), [])
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskAlphaShift],
+                timestampMs: 1_100,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            ),
+            [.cancelStartupDebounce, .cancelHoldWindow]
+        )
+    }
+
+    func testPassiveFnTapRecoveryAndResetCannotDuplicateActions() {
+        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+
+        _ = manager.modifierFlagsChangedOutputsForTesting(
+            flags: [.maskSecondaryFn],
+            timestampMs: 1_000,
+            changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+        )
+        XCTAssertEqual(
+            manager.recoverFromDisabledTapForTesting(
+                flags: [.maskSecondaryFn],
+                triggerKeyPressed: true,
+                timestampMs: 1_050
+            ),
+            []
+        )
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [.startRecording(mode: .holdToTalk)])
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [])
+
+        manager.suppressUntilReset()
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_200,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            ),
+            []
+        )
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [])
+        XCTAssertEqual(manager.holdWindowElapsedForTesting(), [])
+    }
+
     func testDoubleTapOnlyGestureModeDoesNotStartHoldRecording() {
         let manager = HotkeyManager(trigger: .fn, gestureMode: .doubleTapOnly)
 

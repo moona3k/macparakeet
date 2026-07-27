@@ -149,7 +149,12 @@ Dictation defaults to a built-in shared `Fn` gesture preset: hold `Fn` for push-
 Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migrate to the shared `Fn` gesture preset. Legacy single-hotkey installs are migrated to the shared default gesture when the stored trigger is `Fn`. Otherwise the old trigger becomes push-to-talk, while hands-free moves to the default `Fn` preset or disables itself if that would conflict.
 
 **Implementation:**
-- `CGEvent` tap for system-wide key event interception
+- The built-in bare-`Fn` gesture uses a listen-only `CGEvent` tap: Fn and every
+  observed cancellation event pass through unchanged. Other configurable
+  hotkeys retain their established active-tap behavior.
+- While built-in Fn is held, any other physical key-down/key-up or modifier
+  transition cancels the pending gesture. Its later Fn release cannot stop,
+  transcribe, paste, or submit that cancelled gesture.
 - `HotkeyTrigger` struct with `.modifier` / `.keyCode` / `.chord` / `.modifierChord` kind discriminator (see ADR-009)
 - Modifier triggers: `flagsChanged` events with `CGEventFlags` mask, bare-tap filtering
 - KeyCode triggers: `keyDown`/`keyUp` events with event swallowing, edge detection via `triggerKeyIsPressed` boolean

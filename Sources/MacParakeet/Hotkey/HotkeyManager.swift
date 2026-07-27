@@ -79,6 +79,23 @@ public final class HotkeyManager {
         self.requiredChordFlags = trigger.chordEventFlags
     }
 
+    /// The built-in bare-Fn gesture is observational only. A listen-only tap
+    /// cannot consume or rewrite the physical Fn event (or any cancellation
+    /// event observed while Fn is held). Configurable non-Fn triggers retain
+    /// their established active-tap behavior.
+    static func eventTapOptions(for trigger: HotkeyTrigger) -> CGEventTapOptions {
+        trigger == .fn ? .listenOnly : .defaultTap
+    }
+
+    static func eventMask(for trigger: HotkeyTrigger) -> CGEventMask {
+        var mask: CGEventMask = (1 << CGEventType.flagsChanged.rawValue)
+            | (1 << CGEventType.keyDown.rawValue)
+        if trigger == .fn || trigger.kind == .keyCode || trigger.kind == .chord {
+            mask |= (1 << CGEventType.keyUp.rawValue)
+        }
+        return mask
+    }
+
     deinit {
         // Inline cleanup — deinit is nonisolated, can't call @MainActor stop().
         // Safe because deinit guarantees exclusive access to self.
@@ -99,16 +116,12 @@ public final class HotkeyManager {
         // Guard against double-start: stop existing tap to prevent leaking it
         if eventTap != nil { stop() }
 
-        var eventMask: CGEventMask = (1 << CGEventType.flagsChanged.rawValue)
-            | (1 << CGEventType.keyDown.rawValue)
-        if trigger.kind == .keyCode || trigger.kind == .chord {
-            eventMask |= (1 << CGEventType.keyUp.rawValue)
-        }
+        let eventMask = Self.eventMask(for: trigger)
 
         guard let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
-            options: .defaultTap,
+            options: Self.eventTapOptions(for: trigger),
             eventsOfInterest: eventMask,
             callback: { _, type, event, refcon -> Unmanaged<CGEvent>? in
                 guard let refcon else { return Unmanaged.passUnretained(event) }
@@ -221,6 +234,14 @@ public final class HotkeyManager {
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
             handleOutputs(
                 modifierKeyDownOutputs(
+                    keyCode: keyCode,
+                    timestampMs: timestampMs
+                )
+            )
+        } else if type == .keyUp {
+            let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+            handleOutputs(
+                modifierKeyUpOutputs(
                     keyCode: keyCode,
                     timestampMs: timestampMs
                 )
@@ -339,8 +360,24 @@ public final class HotkeyManager {
         }
 
         // Additional modifier changes while the trigger is still held invalidate the
-        // "bare modifier" assumption just like a regular keyDown would.
+        // "bare modifier" assumption just like a regular keyDown would. For the
+        // passive built-in Fn gesture, key off the physical transition rather than
+        // the currently-active flags so a modifier release also cancels the gesture.
         guard targetModifierGestureIsActive else { return [] }
+        if trigger == .fn {
+            let changedModifiers = Self.changedTrackedModifierKeyCodes(
+                from: previousModifierFlags,
+                to: flags,
+                changedKeyCode: changedKeyCode
+            ).subtracting([HotkeyTrigger.canonicalFnKeyCode])
+            let capsLockChanged = changedKeyCode == 57
+                && previousModifierFlags.contains(.maskAlphaShift) != flags.contains(.maskAlphaShift)
+            guard !changedModifiers.isEmpty || capsLockChanged else { return [] }
+
+            bareTap = false
+            return gestureMode == .singleTapToggle ? [] : gestureController.interrupted()
+        }
+
         let activeTrackedModifiers = flags.intersection(ModifierKeyMatcher.trackedModifierMasks)
         let nonTargetTrackedModifiers = activeTrackedModifiers.subtracting(mask)
         guard !nonTargetTrackedModifiers.isEmpty else { return [] }
@@ -375,6 +412,20 @@ public final class HotkeyManager {
         return []
     }
 
+    private func modifierKeyUpOutputs(
+        keyCode: Int64,
+        timestampMs _: UInt64
+    ) -> [HotkeyGestureController.Output] {
+        guard trigger == .fn,
+              targetModifierGestureIsActive,
+              !HotkeyTrigger.isFnKeyCode(UInt16(keyCode)) else {
+            return []
+        }
+
+        bareTap = false
+        return gestureMode == .singleTapToggle ? [] : gestureController.interrupted()
+    }
+
     // Test seam: lets unit tests exercise the real modifier-path state logic
     // without constructing CGEvents or arming timers.
     func modifierFlagsChangedOutputsForTesting(
@@ -397,6 +448,15 @@ public final class HotkeyManager {
         timestampMs: UInt64
     ) -> [HotkeyGestureController.Output] {
         let outputs = modifierKeyDownOutputs(keyCode: keyCode, timestampMs: timestampMs)
+        rememberRecordingState(for: outputs)
+        return outputs
+    }
+
+    func modifierKeyUpOutputsForTesting(
+        keyCode: Int64,
+        timestampMs: UInt64
+    ) -> [HotkeyGestureController.Output] {
+        let outputs = modifierKeyUpOutputs(keyCode: keyCode, timestampMs: timestampMs)
         rememberRecordingState(for: outputs)
         return outputs
     }
