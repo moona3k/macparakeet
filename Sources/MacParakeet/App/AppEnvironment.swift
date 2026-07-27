@@ -29,6 +29,7 @@ final class AppEnvironment {
     let sttScheduler: STTScheduler
     let sharedMicStream: SharedMicrophoneStream
     let audioProcessor: AudioProcessor
+    let meetingRecordingLockFileStore: MeetingRecordingLockFileStore
     let meetingRecordingService: MeetingRecordingService
     let meetingRecordingSettlement: MeetingRecordingSettlement
     let meetingRecordingRecoveryService: MeetingRecordingRecoveryService
@@ -152,7 +153,7 @@ final class AppEnvironment {
             // burst into a single warm-engine restart (issue #481).
             warmCaptureRefreshDebounce: 0.5
         )
-        let meetingRecordingLockFileStore = MeetingRecordingLockFileStore()
+        meetingRecordingLockFileStore = MeetingRecordingLockFileStore()
         meetingRecordingService = MeetingRecordingService(
             micProcessingMode: meetingMicProcessingMode,
             audioCaptureService: MeetingAudioCaptureService(

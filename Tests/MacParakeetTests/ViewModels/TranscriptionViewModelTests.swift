@@ -1303,6 +1303,54 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.currentTranscription?.id, displayed.id)
     }
 
+    func testQueuedFailureRefreshesMatchingProcessingDetailInPlace() {
+        let id = UUID()
+        let processing = Transcription(
+            id: id,
+            fileName: "failed meeting",
+            status: .processing,
+            sourceType: .meeting
+        )
+        let failed = Transcription(
+            id: id,
+            fileName: "failed meeting",
+            status: .error,
+            errorMessage: "Speech model failed",
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [failed]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = processing
+        viewModel.selectedTab = .chat
+
+        viewModel.refreshCurrentTranscriptionIfMatching(id: id)
+
+        XCTAssertEqual(viewModel.currentTranscription?.status, .error)
+        XCTAssertEqual(viewModel.currentTranscription?.errorMessage, "Speech model failed")
+        XCTAssertEqual(viewModel.selectedTab, .chat)
+    }
+
+    func testQueuedFailureDoesNotRefreshUnrelatedDetail() {
+        let displayed = Transcription(
+            fileName: "displayed meeting",
+            rawTranscript: "Keep this detail open.",
+            status: .completed,
+            sourceType: .meeting
+        )
+        let failed = Transcription(
+            fileName: "failed meeting",
+            status: .error,
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [displayed, failed]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = displayed
+
+        viewModel.refreshCurrentTranscriptionIfMatching(id: failed.id)
+
+        XCTAssertEqual(viewModel.currentTranscription?.id, displayed.id)
+    }
+
     func testRefreshingSameTranscriptionDoesNotResetSelectedTab() {
         let id = UUID()
         let first = Transcription(id: id, fileName: "first.mp3", rawTranscript: "First", status: .completed)

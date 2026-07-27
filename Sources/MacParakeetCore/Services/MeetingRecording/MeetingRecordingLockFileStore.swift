@@ -25,6 +25,9 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
     public let pid: Int32
     public let displayName: String
     public let state: MeetingRecordingLockState
+    /// Unique token while a retry or crash recovery owns finalization. `nil`
+    /// for the original recording/finalization path and legacy lock files.
+    public let finalizationLeaseId: UUID?
     public let speechEngine: SpeechEngineSelection
     /// Whether `speechEngine` was explicitly persisted by the recording build.
     /// Legacy locks without the field retain the Parakeet decode fallback but
@@ -47,6 +50,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         case pid
         case displayName
         case state
+        case finalizationLeaseId
         case speechEngine
         case startContext
         case calendarEventSnapshot
@@ -60,6 +64,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         pid: Int32 = ProcessInfo.processInfo.processIdentifier,
         displayName: String,
         state: MeetingRecordingLockState = .recording,
+        finalizationLeaseId: UUID? = nil,
         speechEngine: SpeechEngineSelection = SpeechEngineSelection(engine: .parakeet),
         speechEngineWasCaptured: Bool = true,
         startContext: MeetingStartContext? = nil,
@@ -73,6 +78,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         self.pid = pid
         self.displayName = displayName
         self.state = state
+        self.finalizationLeaseId = finalizationLeaseId
         self.speechEngine = speechEngine
         self.speechEngineWasCaptured = speechEngineWasCaptured
         self.startContext = startContext
@@ -89,6 +95,10 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         pid = try container.decode(Int32.self, forKey: .pid)
         displayName = try container.decode(String.self, forKey: .displayName)
         state = try container.decodeIfPresent(MeetingRecordingLockState.self, forKey: .state) ?? .recording
+        finalizationLeaseId = try container.decodeIfPresent(
+            UUID.self,
+            forKey: .finalizationLeaseId
+        )
         let decodedSpeechEngine = try container.decodeIfPresent(SpeechEngineSelection.self, forKey: .speechEngine)
         speechEngine = decodedSpeechEngine ?? SpeechEngineSelection(engine: .parakeet)
         speechEngineWasCaptured = schemaVersion >= 2 && decodedSpeechEngine != nil
@@ -114,6 +124,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         try container.encode(pid, forKey: .pid)
         try container.encode(displayName, forKey: .displayName)
         try container.encode(state, forKey: .state)
+        try container.encodeIfPresent(finalizationLeaseId, forKey: .finalizationLeaseId)
         if speechEngineWasCaptured {
             try container.encode(speechEngine, forKey: .speechEngine)
         }
@@ -130,6 +141,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
             pid: pid,
             displayName: displayName,
             state: state,
+            finalizationLeaseId: finalizationLeaseId,
             speechEngine: speechEngine,
             speechEngineWasCaptured: speechEngineWasCaptured,
             startContext: startContext,
@@ -147,6 +159,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
             pid: pid,
             displayName: displayName,
             state: state,
+            finalizationLeaseId: finalizationLeaseId,
             speechEngine: speechEngine,
             speechEngineWasCaptured: speechEngineWasCaptured,
             startContext: startContext,
@@ -164,6 +177,28 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
             pid: pid,
             displayName: displayName,
             state: state,
+            finalizationLeaseId: finalizationLeaseId,
+            speechEngine: speechEngine,
+            speechEngineWasCaptured: speechEngineWasCaptured,
+            startContext: startContext,
+            calendarEventSnapshot: calendarEventSnapshot,
+            notes: notes,
+            folderURL: folderURL
+        )
+    }
+
+    public func withFinalizationOwner(
+        pid: Int32,
+        leaseID: UUID
+    ) -> MeetingRecordingLockFile {
+        MeetingRecordingLockFile(
+            schemaVersion: schemaVersion,
+            sessionId: sessionId,
+            startedAt: startedAt,
+            pid: pid,
+            displayName: displayName,
+            state: .awaitingTranscription,
+            finalizationLeaseId: leaseID,
             speechEngine: speechEngine,
             speechEngineWasCaptured: speechEngineWasCaptured,
             startContext: startContext,
@@ -179,6 +214,53 @@ public protocol MeetingRecordingLockFileStoring: Sendable {
     func read(folderURL: URL) throws -> MeetingRecordingLockFile?
     func delete(folderURL: URL) throws
     func discoverOrphans(meetingsRoot: URL) throws -> [MeetingRecordingLockFile]
+}
+
+public struct MeetingFinalizationOwnershipLease: Sendable, Equatable {
+    public let id: UUID
+    public let folderURL: URL
+    public let previousLock: MeetingRecordingLockFile
+
+    public init(
+        id: UUID,
+        folderURL: URL,
+        previousLock: MeetingRecordingLockFile
+    ) {
+        self.id = id
+        self.folderURL = folderURL
+        self.previousLock = previousLock
+    }
+}
+
+public enum MeetingFinalizationOwnershipError: Error, LocalizedError, Sendable, Equatable {
+    case missingLock
+    case ownedByLiveProcess(pid: Int32)
+
+    public var errorDescription: String? {
+        switch self {
+        case .missingLock:
+            return "The meeting recovery record is missing. The saved audio was not changed."
+        case .ownedByLiveProcess:
+            return "This meeting is already being transcribed by MacParakeet."
+        }
+    }
+}
+
+public protocol MeetingFinalizationOwnershipClaiming: Sendable {
+    func claimFinalizationOwnership(
+        folderURL: URL
+    ) throws -> MeetingFinalizationOwnershipLease
+    func releaseFinalizationOwnership(_ lease: MeetingFinalizationOwnershipLease) throws
+}
+
+public protocol MeetingFinalizationReconciliationCoordinating: Sendable {
+    /// Runs `transition` only while this folder has no live owner. The
+    /// ownership check and transition are serialized against retry/recovery
+    /// claims by the folder's advisory lock.
+    func reconcileIfUnowned(
+        folderURL: URL,
+        transition: @Sendable () throws -> Bool
+    ) throws -> Bool
 }
 
 public protocol ProcessAliveChecking: Sendable {
@@ -199,11 +281,22 @@ public struct LiveProcessChecker: ProcessAliveChecking {
     }
 }
 
-public final class MeetingRecordingLockFileStore: MeetingRecordingLockFileStoring {
-    private let processChecker: any ProcessAliveChecking
+public final class MeetingRecordingLockFileStore:
+    MeetingRecordingLockFileStoring,
+    MeetingFinalizationOwnershipClaiming,
+    MeetingFinalizationReconciliationCoordinating
+{
+    private static let finalizationOwnershipMutexFileName = ".finalization-ownership.lock"
 
-    public init(processChecker: any ProcessAliveChecking = LiveProcessChecker()) {
+    private let processChecker: any ProcessAliveChecking
+    private let processID: Int32
+
+    public init(
+        processChecker: any ProcessAliveChecking = LiveProcessChecker(),
+        processID: Int32 = ProcessInfo.processInfo.processIdentifier
+    ) {
         self.processChecker = processChecker
+        self.processID = processID
     }
 
     public static func lockFileURL(for folderURL: URL) -> URL {
@@ -252,6 +345,65 @@ public final class MeetingRecordingLockFileStore: MeetingRecordingLockFileStorin
             return false
         }
         return processChecker.isAlive(pid: lockFile.pid)
+    }
+
+    public func claimFinalizationOwnership(
+        folderURL: URL
+    ) throws -> MeetingFinalizationOwnershipLease {
+        guard FileManager.default.fileExists(atPath: folderURL.path) else {
+            throw MeetingFinalizationOwnershipError.missingLock
+        }
+        return try withFinalizationOwnershipMutex(folderURL: folderURL) {
+            guard let currentLock = try read(folderURL: folderURL) else {
+                throw MeetingFinalizationOwnershipError.missingLock
+            }
+            let currentProcessAlreadyOwnsLease =
+                currentLock.finalizationLeaseId != nil && currentLock.pid == processID
+            let anotherProcessIsAlive =
+                currentLock.pid != processID && processChecker.isAlive(pid: currentLock.pid)
+            if currentProcessAlreadyOwnsLease || anotherProcessIsAlive {
+                throw MeetingFinalizationOwnershipError.ownedByLiveProcess(pid: currentLock.pid)
+            }
+
+            let lease = MeetingFinalizationOwnershipLease(
+                id: UUID(),
+                folderURL: folderURL.standardizedFileURL,
+                previousLock: currentLock
+            )
+            try write(
+                currentLock.withFinalizationOwner(pid: processID, leaseID: lease.id),
+                folderURL: folderURL
+            )
+            return lease
+        }
+    }
+
+    public func releaseFinalizationOwnership(
+        _ lease: MeetingFinalizationOwnershipLease
+    ) throws {
+        try withFinalizationOwnershipMutex(folderURL: lease.folderURL) {
+            guard let currentLock = try read(folderURL: lease.folderURL),
+                currentLock.finalizationLeaseId == lease.id
+            else {
+                return
+            }
+            try write(lease.previousLock, folderURL: lease.folderURL)
+        }
+    }
+
+    public func reconcileIfUnowned(
+        folderURL: URL,
+        transition: @Sendable () throws -> Bool
+    ) throws -> Bool {
+        guard FileManager.default.fileExists(atPath: folderURL.path) else {
+            return try transition()
+        }
+        return try withFinalizationOwnershipMutex(folderURL: folderURL) {
+            guard try !hasLiveOwner(folderURL: folderURL) else {
+                return false
+            }
+            return try transition()
+        }
     }
 
     public func delete(folderURL: URL) throws {
@@ -319,6 +471,31 @@ public final class MeetingRecordingLockFileStore: MeetingRecordingLockFileStorin
             }
             return $0.startedAt < $1.startedAt
         }
+    }
+
+    private func withFinalizationOwnershipMutex<T>(
+        folderURL: URL,
+        _ operation: () throws -> T
+    ) throws -> T {
+        let mutexURL = folderURL.appendingPathComponent(
+            Self.finalizationOwnershipMutexFileName
+        )
+        let fileDescriptor = open(
+            mutexURL.path,
+            O_CREAT | O_RDWR,
+            S_IRUSR | S_IWUSR
+        )
+        guard fileDescriptor >= 0 else {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+        defer { close(fileDescriptor) }
+
+        guard flock(fileDescriptor, LOCK_EX) == 0 else {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+        defer { _ = flock(fileDescriptor, LOCK_UN) }
+
+        return try operation()
     }
 }
 

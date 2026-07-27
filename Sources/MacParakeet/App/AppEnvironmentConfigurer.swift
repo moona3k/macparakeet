@@ -326,6 +326,7 @@ final class AppEnvironmentConfigurer {
             llmService: hasLLMConfig ? env.llmService : nil,
             pillViewModel: meetingPillViewModel,
             meetingRecordingSettlement: env.meetingRecordingSettlement,
+            finalizationOwnershipClaimer: env.meetingRecordingLockFileStore,
             onMenuBarIconUpdate: { _ in callbacks.onMenuBarIconUpdate() },
             onTranscriptionReady: { [weak self] transcription in
                 guard let self else { return }
@@ -350,8 +351,11 @@ final class AppEnvironmentConfigurer {
                     callbacks.onOpenMainWindow()
                 }
             },
-            onQueuedTranscriptionFailed: { [weak self] content in
+            onQueuedTranscriptionFailed: { [weak self] transcriptionID, content in
                 guard let self else { return }
+                self.transcriptionViewModel.refreshCurrentTranscriptionIfMatching(
+                    id: transcriptionID
+                )
                 self.libraryViewModel.loadTranscriptions()
                 self.meetingsWorkspaceViewModel.refreshRecentMeetings()
                 TranscriptionCompletionPresenter.presentNotification(content)
@@ -388,7 +392,8 @@ final class AppEnvironmentConfigurer {
                 let protectedIDs = meetingCoordinator.queuedMeetingTranscriptionIDs
                 let reconciled = try await MeetingFinalizationReconciler.reconcileStaleProcessingRows(
                     repository: env.transcriptionRepo,
-                    excludingTranscriptionIDs: protectedIDs
+                    excludingTranscriptionIDs: protectedIDs,
+                    ownershipCoordinator: env.meetingRecordingLockFileStore
                 )
                 guard !reconciled.isEmpty, let self else { return }
                 self.libraryViewModel.loadTranscriptions()

@@ -1466,6 +1466,14 @@ public final class TranscriptionViewModel {
         refreshPromptResultStatus()
     }
 
+    public func refreshCurrentTranscriptionIfMatching(id: UUID) {
+        guard currentTranscription?.id == id,
+              let fresh = try? transcriptionRepo?.fetch(id: id) else {
+            return
+        }
+        currentTranscription = fresh
+    }
+
     public func updateConversationStatus(id: UUID, hasConversations: Bool) {
         guard currentTranscription?.id == id else { return }
         self.hasConversations = hasConversations

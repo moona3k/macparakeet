@@ -300,7 +300,11 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             _ = try await recoveryService.recover(fixture.lock)
             XCTFail("Expected recovery to throw")
         } catch {
-            XCTAssertNotNil(try lockStore.read(folderURL: fixture.folderURL))
+            let restoredLock = try XCTUnwrap(
+                lockStore.read(folderURL: fixture.folderURL)
+            )
+            XCTAssertEqual(restoredLock, fixture.lock)
+            XCTAssertNil(restoredLock.finalizationLeaseId)
         }
     }
 
@@ -1219,7 +1223,11 @@ private struct RecoveryProcessChecker: ProcessAliveChecking {
     func isAlive(pid: Int32) -> Bool { alivePIDs.contains(pid) }
 }
 
-private final class RecoveryRecordingLockFileStore: MeetingRecordingLockFileStoring, @unchecked Sendable {
+private final class RecoveryRecordingLockFileStore:
+    MeetingRecordingLockFileStoring,
+    MeetingFinalizationOwnershipClaiming,
+    @unchecked Sendable
+{
     private let delegate: MeetingRecordingLockFileStore
     private let lock = NSLock()
     var deleteErrorsRemaining = 0
@@ -1250,6 +1258,18 @@ private final class RecoveryRecordingLockFileStore: MeetingRecordingLockFileStor
 
     func discoverOrphans(meetingsRoot: URL) throws -> [MeetingRecordingLockFile] {
         try delegate.discoverOrphans(meetingsRoot: meetingsRoot)
+    }
+
+    func claimFinalizationOwnership(
+        folderURL: URL
+    ) throws -> MeetingFinalizationOwnershipLease {
+        try delegate.claimFinalizationOwnership(folderURL: folderURL)
+    }
+
+    func releaseFinalizationOwnership(
+        _ lease: MeetingFinalizationOwnershipLease
+    ) throws {
+        try delegate.releaseFinalizationOwnership(lease)
     }
 }
 

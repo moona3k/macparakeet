@@ -11,6 +11,25 @@ final class MeetingTranscriptionQueue {
         let trigger: TelemetryMeetingOperationTrigger?
         let liveWordCount: Int
         let liveTranscriptLagged: Bool
+        let finalizationOwnershipLease: MeetingFinalizationOwnershipLease?
+
+        init(
+            recording: MeetingRecordingOutput,
+            transcriptionID: UUID,
+            operationContext: ObservabilityOperationContext,
+            trigger: TelemetryMeetingOperationTrigger?,
+            liveWordCount: Int,
+            liveTranscriptLagged: Bool,
+            finalizationOwnershipLease: MeetingFinalizationOwnershipLease? = nil
+        ) {
+            self.recording = recording
+            self.transcriptionID = transcriptionID
+            self.operationContext = operationContext
+            self.trigger = trigger
+            self.liveWordCount = liveWordCount
+            self.liveTranscriptLagged = liveTranscriptLagged
+            self.finalizationOwnershipLease = finalizationOwnershipLease
+        }
 
         func withTranscriptionID(_ transcriptionID: UUID) -> Item {
             Item(
@@ -19,7 +38,22 @@ final class MeetingTranscriptionQueue {
                 operationContext: operationContext,
                 trigger: trigger,
                 liveWordCount: liveWordCount,
-                liveTranscriptLagged: liveTranscriptLagged
+                liveTranscriptLagged: liveTranscriptLagged,
+                finalizationOwnershipLease: finalizationOwnershipLease
+            )
+        }
+
+        func withFinalizationOwnershipLease(
+            _ lease: MeetingFinalizationOwnershipLease
+        ) -> Item {
+            Item(
+                recording: recording,
+                transcriptionID: transcriptionID,
+                operationContext: operationContext,
+                trigger: trigger,
+                liveWordCount: liveWordCount,
+                liveTranscriptLagged: liveTranscriptLagged,
+                finalizationOwnershipLease: lease
             )
         }
     }
@@ -47,6 +81,7 @@ final class MeetingTranscriptionQueue {
     private let transcriptionService: TranscriptionServiceProtocol
     private let transcriptionRepo: TranscriptionRepositoryProtocol
     private let meetingRecordingSettlement: MeetingRecordingSettlement
+    private let finalizationOwnershipClaimer: any MeetingFinalizationOwnershipClaiming
 
     private var pendingItems: [Item] = []
     private var activeItem: Item?
@@ -59,11 +94,14 @@ final class MeetingTranscriptionQueue {
     init(
         transcriptionService: TranscriptionServiceProtocol,
         transcriptionRepo: TranscriptionRepositoryProtocol,
-        meetingRecordingSettlement: MeetingRecordingSettlement
+        meetingRecordingSettlement: MeetingRecordingSettlement,
+        finalizationOwnershipClaimer: any MeetingFinalizationOwnershipClaiming =
+            MeetingRecordingLockFileStore()
     ) {
         self.transcriptionService = transcriptionService
         self.transcriptionRepo = transcriptionRepo
         self.meetingRecordingSettlement = meetingRecordingSettlement
+        self.finalizationOwnershipClaimer = finalizationOwnershipClaimer
     }
 
     var snapshot: Snapshot {
@@ -78,16 +116,29 @@ final class MeetingTranscriptionQueue {
         return ids
     }
 
-    func enqueue(_ item: Item) {
+    @discardableResult
+    func enqueue(_ item: Item) -> Bool {
         guard !containsQueuedTranscription(id: item.transcriptionID) else {
             logger.info(
                 "queued_meeting_transcription_duplicate_dropped id=\(item.transcriptionID.uuidString, privacy: .public)"
             )
-            return
+            restoreFinalizationOwnershipIfNeeded(for: item)
+            return false
         }
         pendingItems.append(item)
         notifyStateChanged()
         startNextIfNeeded()
+        return true
+    }
+
+    func enqueueClaimingFinalizationOwnership(_ item: Item) async throws -> Bool {
+        let ownershipClaimer = finalizationOwnershipClaimer
+        let lease = try await Task.detached(priority: .userInitiated) {
+            try ownershipClaimer.claimFinalizationOwnership(
+                folderURL: item.recording.folderURL
+            )
+        }.value
+        return enqueue(item.withFinalizationOwnershipLease(lease))
     }
 
     func waitUntilIdle() async {
@@ -119,6 +170,7 @@ final class MeetingTranscriptionQueue {
                 logger.info(
                     "queued_meeting_transcription_already_completed id=\(transcription.id.uuidString, privacy: .public)"
                 )
+                restoreFinalizationOwnershipIfNeeded(for: originalItem)
                 finishActiveItem(nil)
                 return
             }
@@ -130,6 +182,7 @@ final class MeetingTranscriptionQueue {
             logger.error(
                 "queued_meeting_transcription_prepare_failed session=\(originalItem.recording.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
             )
+            restoreFinalizationOwnershipIfNeeded(for: originalItem)
             finishActiveItem(.failure(item: originalItem, error: error))
             return
         }
@@ -148,6 +201,7 @@ final class MeetingTranscriptionQueue {
                 "queued_meeting_transcription_failed session=\(item.recording.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
             )
             await markFailed(item, error: error)
+            restoreFinalizationOwnershipIfNeeded(for: item)
             finishActiveItem(.failure(item: item, error: error))
             return
         }
@@ -162,6 +216,7 @@ final class MeetingTranscriptionQueue {
             logger.error(
                 "queued_meeting_settlement_failed_lock_retained_for_recovery session=\(item.recording.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
             )
+            restoreFinalizationOwnershipIfNeeded(for: item)
         }
         finishActiveItem(.success(item: item, transcription: transcription))
     }
@@ -231,6 +286,17 @@ final class MeetingTranscriptionQueue {
 
     private func containsQueuedTranscription(id: UUID) -> Bool {
         activeItem?.transcriptionID == id || pendingItems.contains { $0.transcriptionID == id }
+    }
+
+    private func restoreFinalizationOwnershipIfNeeded(for item: Item) {
+        guard let lease = item.finalizationOwnershipLease else { return }
+        do {
+            try finalizationOwnershipClaimer.releaseFinalizationOwnership(lease)
+        } catch {
+            logger.error(
+                "queued_meeting_ownership_release_failed id=\(item.transcriptionID.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .private)"
+            )
+        }
     }
 
     private func finishActiveItem(_ completion: Completion?) {

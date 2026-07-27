@@ -22,13 +22,6 @@ protocol MeetingFinalizationStatusRepository: Sendable {
 
 extension TranscriptionRepository: MeetingFinalizationStatusRepository {}
 
-/// Answers ownership for one canonical meeting-artifact folder.
-protocol MeetingFinalizationOwnershipChecking: Sendable {
-    func hasLiveOwner(folderURL: URL) throws -> Bool
-}
-
-extension MeetingRecordingLockFileStore: MeetingFinalizationOwnershipChecking {}
-
 enum MeetingFinalizationReconciler {
     static let staleProcessingErrorMessage =
         "MacParakeet quit before meeting transcription finished. Your audio is saved."
@@ -37,7 +30,8 @@ enum MeetingFinalizationReconciler {
     static func reconcileStaleProcessingRows(
         repository: any MeetingFinalizationStatusRepository,
         excludingTranscriptionIDs protectedIDs: Set<UUID> = [],
-        ownershipChecker: any MeetingFinalizationOwnershipChecking = MeetingRecordingLockFileStore()
+        ownershipCoordinator: any MeetingFinalizationReconciliationCoordinating =
+            MeetingRecordingLockFileStore()
     ) async throws -> [UUID] {
         try await Task.detached(priority: .utility) {
             let processingRows = try repository.fetchMeetings(withStatus: .processing)
@@ -45,21 +39,25 @@ enum MeetingFinalizationReconciler {
             var reconciledIDs: [UUID] = []
 
             for row in processingRows {
-                if let folderPath = row.meetingArtifactFolderPath,
-                    !folderPath.isEmpty,
-                    try ownershipChecker.hasLiveOwner(
-                        folderURL: URL(fileURLWithPath: folderPath, isDirectory: true)
+                let transition: @Sendable () throws -> Bool = {
+                    try repository.transitionStatus(
+                        id: row.id,
+                        from: .processing,
+                        to: .error,
+                        errorMessage: staleProcessingErrorMessage
                     )
-                {
-                    continue
                 }
-
-                let didReconcile = try repository.transitionStatus(
-                    id: row.id,
-                    from: .processing,
-                    to: .error,
-                    errorMessage: staleProcessingErrorMessage
-                )
+                let didReconcile: Bool
+                if let folderPath = row.meetingArtifactFolderPath,
+                    !folderPath.isEmpty
+                {
+                    didReconcile = try ownershipCoordinator.reconcileIfUnowned(
+                        folderURL: URL(fileURLWithPath: folderPath, isDirectory: true),
+                        transition: transition
+                    )
+                } else {
+                    didReconcile = try transition()
+                }
                 if didReconcile {
                     reconciledIDs.append(row.id)
                 }

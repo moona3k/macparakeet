@@ -44,7 +44,7 @@ final class MeetingFinalizationReconcilerTests: XCTestCase {
         let repo = ReconcilerStatusRepository()
         let folderURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("MeetingFinalizationReconcilerTests-\(UUID().uuidString)")
-        let ownershipChecker = ReconcilerOwnershipChecker(
+        let ownershipCoordinator = ReconcilerOwnershipCoordinator(
             liveFolderPaths: [folderURL.standardizedFileURL.path]
         )
         let processingMeeting = Transcription(
@@ -57,7 +57,7 @@ final class MeetingFinalizationReconcilerTests: XCTestCase {
 
         let reconciledIDs = try await MeetingFinalizationReconciler.reconcileStaleProcessingRows(
             repository: repo,
-            ownershipChecker: ownershipChecker
+            ownershipCoordinator: ownershipCoordinator
         )
 
         XCTAssertTrue(reconciledIDs.isEmpty)
@@ -78,7 +78,7 @@ final class MeetingFinalizationReconcilerTests: XCTestCase {
 
         let reconciledIDs = try await MeetingFinalizationReconciler.reconcileStaleProcessingRows(
             repository: repo,
-            ownershipChecker: ReconcilerOwnershipChecker()
+            ownershipCoordinator: ReconcilerOwnershipCoordinator()
         )
 
         XCTAssertEqual(reconciledIDs, [processingMeeting.id])
@@ -102,6 +102,58 @@ final class MeetingFinalizationReconcilerTests: XCTestCase {
         XCTAssertTrue(reconciledIDs.isEmpty)
         XCTAssertEqual(try repo.fetch(id: processingMeeting.id)?.status, .completed)
         XCTAssertNil(try repo.fetch(id: processingMeeting.id)?.errorMessage)
+    }
+
+    func testReconcileSkipsDeadOwnerMeetingAfterAnotherProcessClaimsRetry() async throws {
+        let manager = try DatabaseManager()
+        let repo = TranscriptionRepository(dbQueue: manager.dbQueue)
+        let folderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MeetingFinalizationRetryLease-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+        let processChecker = ReconcilerProcessAliveChecker(alivePIDs: [101])
+        let retryStore = MeetingRecordingLockFileStore(
+            processChecker: processChecker,
+            processID: 101
+        )
+        let reconcilingStore = MeetingRecordingLockFileStore(
+            processChecker: processChecker,
+            processID: 202
+        )
+        try retryStore.write(
+            MeetingRecordingLockFile(
+                sessionId: UUID(),
+                startedAt: Date(),
+                pid: 42,
+                displayName: "Retry meeting",
+                state: .awaitingTranscription
+            ),
+            folderURL: folderURL
+        )
+        let retryableMeeting = Transcription(
+            fileName: "Retry meeting",
+            meetingArtifactFolderPath: folderURL.path,
+            status: .error,
+            sourceType: .meeting
+        )
+        try repo.save(retryableMeeting)
+
+        let lease = try retryStore.claimFinalizationOwnership(
+            folderURL: folderURL
+        )
+        defer { try? retryStore.releaseFinalizationOwnership(lease) }
+        try repo.updateStatus(
+            id: retryableMeeting.id,
+            status: .processing,
+            errorMessage: nil
+        )
+
+        let reconciledIDs = try await MeetingFinalizationReconciler.reconcileStaleProcessingRows(
+            repository: repo,
+            ownershipCoordinator: reconcilingStore
+        )
+
+        XCTAssertTrue(reconciledIDs.isEmpty)
+        XCTAssertEqual(try repo.fetch(id: retryableMeeting.id)?.status, .processing)
     }
 
     @MainActor
@@ -262,11 +314,27 @@ private final class ReconcilerStatusRepository: MeetingFinalizationStatusReposit
     }
 }
 
-private struct ReconcilerOwnershipChecker: MeetingFinalizationOwnershipChecking {
+private struct ReconcilerOwnershipCoordinator:
+    MeetingFinalizationReconciliationCoordinating
+{
     var liveFolderPaths: Set<String> = []
 
-    func hasLiveOwner(folderURL: URL) throws -> Bool {
-        liveFolderPaths.contains(folderURL.standardizedFileURL.path)
+    func reconcileIfUnowned(
+        folderURL: URL,
+        transition: @Sendable () throws -> Bool
+    ) throws -> Bool {
+        guard !liveFolderPaths.contains(folderURL.standardizedFileURL.path) else {
+            return false
+        }
+        return try transition()
+    }
+}
+
+private struct ReconcilerProcessAliveChecker: ProcessAliveChecking {
+    let alivePIDs: Set<Int32>
+
+    func isAlive(pid: Int32) -> Bool {
+        alivePIDs.contains(pid)
     }
 }
 

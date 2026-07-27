@@ -48,6 +48,7 @@ Stable lock fields:
 - `pid`
 - `displayName`
 - `state`
+- `finalizationLeaseId`
 - `speechEngine`
 - `notes`
 
@@ -60,6 +61,13 @@ Stable states:
 `notes` is a backward-compatible additive field. Missing values decode to safe
 defaults, and malformed `notes` does not block recovery of the structural lock
 metadata.
+
+`finalizationLeaseId` is a backward-compatible optional ownership token.
+Normal stop-and-queue locks and older locks omit it. Retry and crash-recovery
+flows write a fresh token together with the claiming process PID before they
+touch the transcript row or start STT. A missing token decodes as `nil`; a
+malformed token makes the structural lock unreadable rather than silently
+discarding ownership evidence.
 
 Speech-engine provenance is versioned because schema v1 writers always encoded
 the former shared engine route. A v1 `speechEngine` therefore does not prove
@@ -102,6 +110,14 @@ compare-and-set on the persisted status. If another process completed or
 otherwise settled the row after the startup read, reconciliation leaves the
 newer state intact and does not report the row as reconciled.
 
+The live-owner check and compare-and-set run while holding a per-session
+advisory mutex. Retry and crash recovery claim ownership under that same mutex
+by atomically rewriting the lock with their PID and a unique
+`finalizationLeaseId`. This closes the check-to-write race: startup
+reconciliation and finalization admission cannot both win. A failed or
+duplicate admission restores the exact prior lock only when its lease token
+still matches; successful settlement deletes the lock instead.
+
 ## Retention Rule
 
 Automatic retention-like deletion must skip a meeting folder whenever
@@ -134,7 +150,8 @@ failed cleanup (for example, discard must not report success while
 can re-settle the completed row on a later scan. On the transcription-queue
 path a settlement error after a successful finalize is caught by the queue:
 the completed transcript is already durably saved, so the queue still reports
-success and leaves the lock for recovery to re-settle.
+success and restores any retry ownership lease to the prior protective lock so
+recovery can re-settle it later.
 
 The non-settlement deletion paths are intentionally limited to flows that are
 not final-transcription completion:
@@ -178,8 +195,9 @@ retention barrier.
 - `MeetingAudioRetentionSweeperTests`
 - `MeetingRecordingServiceTests`
 
-Focused coverage pins dead-PID `awaitingTranscription` reads, live-owner
-processing-row protection across app processes, atomic refusal to regress a
+Focused coverage pins dead-PID `awaitingTranscription` reads, serialized
+single-owner retry/recovery admission, live-owner processing-row protection
+across app processes, atomic refusal to regress a
 completed row, the distinction between active-session discovery and retention
 safety, completed recovery lock cleanup, and retention sweeps skipping valid,
 zero-byte, corrupt, and future-schema lock files. Settlement coverage pins

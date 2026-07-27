@@ -129,6 +129,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         let settlementHarness = await makeSettlementHarness(transcriptionService: transcriptionService)
 
         var retryNotifications: [TranscriptionCompletionNotifier.Content] = []
+        var failedTranscriptionIDs: [UUID] = []
         let coordinator = MeetingRecordingFlowCoordinator(
             meetingRecordingService: recordingService,
             transcriptionService: transcriptionService,
@@ -142,7 +143,8 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             meetingRecordingSettlement: settlementHarness.settlement,
             onMenuBarIconUpdate: { _ in },
             onTranscriptionReady: { _ in },
-            onQueuedTranscriptionFailed: { content in
+            onQueuedTranscriptionFailed: { transcriptionID, content in
+                failedTranscriptionIDs.append(transcriptionID)
                 retryNotifications.append(content)
             }
         )
@@ -158,6 +160,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(row.status, .error)
         XCTAssertEqual(row.sourceType, .meeting)
         XCTAssertEqual(row.errorMessage, FlowTestError.finalizationFailed.localizedDescription)
+        XCTAssertEqual(failedTranscriptionIDs, [row.id])
         XCTAssertEqual(retryNotifications, [TranscriptionCompletionNotifier.meetingNeedsRetryContent()])
         XCTAssertTrue(settlementHarness.lockStore.deletes.isEmpty)
     }
@@ -180,6 +183,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             sourceType: .meeting
         )
         try settlementHarness.transcriptionRepo.save(failed)
+        let ownershipClaimer = FlowFinalizationOwnershipClaimer()
         let coordinator = MeetingRecordingFlowCoordinator(
             meetingRecordingService: MeetingRecordingServiceSpy(output: makeRecordingOutput()),
             transcriptionService: transcriptionService,
@@ -191,6 +195,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             llmService: nil,
             pillViewModel: MeetingRecordingPillViewModel(),
             meetingRecordingSettlement: settlementHarness.settlement,
+            finalizationOwnershipClaimer: ownershipClaimer,
             onMenuBarIconUpdate: { _ in },
             onTranscriptionReady: { _ in }
         )
@@ -218,6 +223,61 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(snapshot.finalizedMeetingTranscriptionIDs, [failed.id])
         XCTAssertEqual(snapshot.finalizedMeetingRecordings.first?.displayName, failed.fileName)
         XCTAssertEqual(snapshot.finalizedMeetingRecordings.first?.durationSeconds, 12)
+        XCTAssertEqual(ownershipClaimer.claimedFolderURLs, [folderURL.standardizedFileURL])
+    }
+
+    func testRetryMeetingFinalizationDoesNotQueueWithoutOwnership() async throws {
+        let transcriptionService = MockTranscriptionService()
+        let settlementHarness = await makeSettlementHarness(
+            transcriptionService: transcriptionService
+        )
+        let folderURL = try makeArchivedRetryFolder()
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+        let failed = Transcription(
+            fileName: "Retry meeting",
+            filePath: folderURL.appendingPathComponent(
+                MeetingArtifactAudioFileNames.playback
+            ).path,
+            meetingArtifactFolderPath: folderURL.path,
+            status: .error,
+            sourceType: .meeting
+        )
+        try settlementHarness.transcriptionRepo.save(failed)
+        let ownershipClaimer = FlowFinalizationOwnershipClaimer(
+            claimError: MeetingFinalizationOwnershipError.ownedByLiveProcess(pid: 42)
+        )
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: MeetingRecordingServiceSpy(output: makeRecordingOutput()),
+            transcriptionService: transcriptionService,
+            permissionService: MockPermissionService(),
+            transcriptionRepo: settlementHarness.transcriptionRepo,
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            llmService: nil,
+            pillViewModel: MeetingRecordingPillViewModel(),
+            meetingRecordingSettlement: settlementHarness.settlement,
+            finalizationOwnershipClaimer: ownershipClaimer,
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in }
+        )
+
+        do {
+            try await coordinator.retryMeetingFinalization(failed)
+            XCTFail("Expected an active owner to refuse retry admission")
+        } catch {
+            XCTAssertEqual(
+                error as? MeetingFinalizationOwnershipError,
+                .ownedByLiveProcess(pid: 42)
+            )
+        }
+
+        let snapshot = await transcriptionService.meetingFlowSnapshot()
+        XCTAssertEqual(snapshot.finalizeMeetingCallCount, 0)
+        XCTAssertEqual(
+            try settlementHarness.transcriptionRepo.fetch(id: failed.id)?.status,
+            .error
+        )
     }
 
     func testCaptureFailureSignalUsesStopTranscribeFlowExactlyOnce() async throws {
@@ -1367,6 +1427,53 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
 
 private final class ProbableCalendarSnapshotHolder: @unchecked Sendable {
     var snapshot: MeetingCalendarSnapshot?
+}
+
+private final class FlowFinalizationOwnershipClaimer:
+    MeetingFinalizationOwnershipClaiming,
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private let claimError: Error?
+    private(set) var claimedFolderURLs: [URL] = []
+    private(set) var releasedLeaseIDs: [UUID] = []
+
+    init(claimError: Error? = nil) {
+        self.claimError = claimError
+    }
+
+    func claimFinalizationOwnership(
+        folderURL: URL
+    ) throws -> MeetingFinalizationOwnershipLease {
+        if let claimError {
+            throw claimError
+        }
+        return lock.withLock {
+            let standardizedFolderURL = folderURL.standardizedFileURL
+            claimedFolderURLs.append(standardizedFolderURL)
+            let leaseID = UUID()
+            return MeetingFinalizationOwnershipLease(
+                id: leaseID,
+                folderURL: standardizedFolderURL,
+                previousLock: MeetingRecordingLockFile(
+                    sessionId: UUID(),
+                    startedAt: Date(),
+                    pid: 42,
+                    displayName: "Retry meeting",
+                    state: .awaitingTranscription,
+                    folderURL: standardizedFolderURL
+                )
+            )
+        }
+    }
+
+    func releaseFinalizationOwnership(
+        _ lease: MeetingFinalizationOwnershipLease
+    ) throws {
+        lock.withLock {
+            releasedLeaseIDs.append(lease.id)
+        }
+    }
 }
 
 private final class FlowRecordingLockFileStore: MeetingRecordingLockFileStoring, @unchecked Sendable {
