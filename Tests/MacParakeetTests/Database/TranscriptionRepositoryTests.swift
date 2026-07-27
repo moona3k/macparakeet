@@ -757,6 +757,35 @@ final class TranscriptionRepositoryTests: XCTestCase {
         XCTAssertEqual(try repo.fetch(id: transcription.id)?.status, .cancelled)
     }
 
+    func testTransitionStatusUpdatesOnlyExpectedState() throws {
+        let transcription = Transcription(fileName: "test.mp3")
+        try repo.save(transcription)
+
+        XCTAssertTrue(try repo.transitionStatus(
+            id: transcription.id,
+            from: .processing,
+            to: .error,
+            errorMessage: "Interrupted"
+        ))
+        XCTAssertEqual(try repo.fetch(id: transcription.id)?.status, .error)
+        XCTAssertEqual(try repo.fetch(id: transcription.id)?.errorMessage, "Interrupted")
+    }
+
+    func testTransitionStatusCannotRegressCompletedRow() throws {
+        let transcription = Transcription(fileName: "test.mp3")
+        try repo.save(transcription)
+        try repo.updateStatus(id: transcription.id, status: .completed)
+
+        XCTAssertFalse(try repo.transitionStatus(
+            id: transcription.id,
+            from: .processing,
+            to: .error,
+            errorMessage: "Interrupted"
+        ))
+        XCTAssertEqual(try repo.fetch(id: transcription.id)?.status, .completed)
+        XCTAssertNil(try repo.fetch(id: transcription.id)?.errorMessage)
+    }
+
     func testUpdateFileName() throws {
         let transcription = Transcription(
             fileName: "Meeting Apr 5",

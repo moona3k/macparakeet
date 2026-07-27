@@ -98,6 +98,12 @@ It marks the durable stop boundary: source audio, `meeting-playback.m4a`,
 `recording.lock(state=awaitingTranscription)`, and the processing Library row
 exist on disk, so the recorder returns to idle and another meeting can start.
 Final STT runs through `MeetingTranscriptionQueue` and updates that row later.
+The green completion check and "Saved to Library" copy acknowledge this
+durable boundary, not transcript completion. Opening the processing row shows
+an indeterminate transcription state that explicitly says the audio is saved
+and background work is continuing. Transcript editing and manual
+retranscription stay unavailable until that queued finalization reaches a
+terminal state.
 
 Stop is durable even in `starting`. It immediately enters `stopping` and runs
 the normal stop-and-queue effect instead of waiting for a `recordingStarted`

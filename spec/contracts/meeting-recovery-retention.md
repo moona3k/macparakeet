@@ -17,6 +17,9 @@ actions, and protect folders from automatic destructive sweeps.
   delete `recording.lock` after final transcription.
 - `MeetingRecordingRecoveryService`: reads orphaned locks, recovers audio, and
   routes completed-session lock cleanup through settlement.
+- `MeetingFinalizationReconciler`: uses queue ownership, the row's artifact
+  lock, and an atomic status transition to identify interrupted processing
+  rows without clobbering work in another live app process.
 - `MeetingAudioRetentionSweeper`: detaches completed meeting audio after the
   configured retention window.
 - `history clear-meeting-audio`: refuses clear-all when any readable lock
@@ -26,6 +29,7 @@ actions, and protect folders from automatic destructive sweeps.
 
 - Launch/settings recovery UI.
 - Background meeting finalization.
+- Startup processing-row reconciliation.
 - CLI clear-audio safeguards.
 - Meeting audio retention sweeps.
 - Support diagnostics and future smoke tests.
@@ -73,6 +77,8 @@ accept supported older versions and reject newer, unknown versions.
 Use the narrow predicate that matches the operation:
 
 - Recovery orphan discovery: valid/readable lock plus dead owner PID.
+- Processing-row reconciliation protection: a current-process queue entry or
+  a valid/readable lock at the row's artifact folder plus live owner PID.
 - Active-session CLI refusal: valid/readable lock plus live owner PID, or
   stricter readable-session checks for clear-all operations.
 - Automatic destructive sweep safety: any file named `recording.lock` in the
@@ -81,6 +87,20 @@ Use the narrow predicate that matches the operation:
 `discoverActiveSessions(...)` is PID-live only. It is not a generic "safe to
 mutate" predicate. A dead-owner `awaitingTranscription` lock can still point at
 valid audio that has not been finalized into a completed transcript.
+
+## Processing Row Reconciliation
+
+At startup, a processing meeting row is stale only when no current-process
+queue item owns its transcription id and no readable lock at its
+`meetingArtifactFolderPath` has a live owner PID. The per-folder check is
+intentional: it supports custom artifact roots and avoids treating the new
+process's empty in-memory queue as global truth.
+
+After those ownership checks, reconciliation changes the row from `processing`
+to a retryable `error` with an audio-saved explanation. That write is a
+compare-and-set on the persisted status. If another process completed or
+otherwise settled the row after the startup read, reconciliation leaves the
+newer state intact and does not report the row as reconciled.
 
 ## Retention Rule
 
@@ -149,6 +169,8 @@ retention barrier.
 ## Tests that enforce this
 
 - `MeetingRecordingLockFileStoreTests`
+- `MeetingFinalizationReconcilerTests`
+- `TranscriptionRepositoryTests`
 - `MeetingRecordingSettlementTests`
 - `MeetingRecordingRecoveryServiceTests`
 - `MeetingTranscriptionQueueTests`
@@ -156,14 +178,15 @@ retention barrier.
 - `MeetingAudioRetentionSweeperTests`
 - `MeetingRecordingServiceTests`
 
-Focused coverage pins dead-PID `awaitingTranscription` reads, the distinction
-between active-session discovery and retention safety, completed recovery lock
-cleanup, and retention sweeps skipping valid, zero-byte, corrupt, and
-future-schema lock files. Settlement coverage pins refusal for missing or
-non-completed rows, rethrown delete I/O failure (including discard surfacing a
-retained lock and staying retryable), queue success/failure lock behavior, and
-crash-point convergence for awaiting locks with no row, processing rows, and
-completed rows whose lock is still present.
+Focused coverage pins dead-PID `awaitingTranscription` reads, live-owner
+processing-row protection across app processes, atomic refusal to regress a
+completed row, the distinction between active-session discovery and retention
+safety, completed recovery lock cleanup, and retention sweeps skipping valid,
+zero-byte, corrupt, and future-schema lock files. Settlement coverage pins
+refusal for missing or non-completed rows, rethrown delete I/O failure
+(including discard surfacing a retained lock and staying retryable), queue
+success/failure lock behavior, and crash-point convergence for awaiting locks
+with no row, processing rows, and completed rows whose lock is still present.
 
 ## When this changes
 

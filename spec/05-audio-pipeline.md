@@ -322,6 +322,12 @@ B can start only after Meeting A's source audio, mixed playback artifact,
 `awaitingTranscription` lock, and processing Library row are durable. Meeting
 A's final STT then continues in the queue-owned background path.
 
+On app startup, processing-row reconciliation excludes both finalizations in
+the current process's queue and rows whose exact artifact folder has a readable
+lock owned by another live process. An unowned row becomes retryable error only
+if its persisted status is still `processing` at the atomic update boundary;
+this prevents startup cleanup from regressing a concurrently completed row.
+
 This is a recorder-availability guarantee, not an instant-transcript guarantee.
 Queued meeting finalization still uses the shared `STTScheduler` background
 slot. If file, folder, YouTube, podcast, or media URL STT is already running,

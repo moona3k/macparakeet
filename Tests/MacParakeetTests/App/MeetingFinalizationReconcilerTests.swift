@@ -41,6 +41,76 @@ final class MeetingFinalizationReconcilerTests: XCTestCase {
         XCTAssertEqual(try repo.fetch(id: processingFile.id)?.status, .processing)
     }
 
+    func testReconcileSkipsProcessingRowOwnedByAnotherLiveProcess() async throws {
+        let repo = MockTranscriptionRepository()
+        let folderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MeetingFinalizationReconcilerTests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+        let lockStore = MeetingRecordingLockFileStore(
+            processChecker: ReconcilerProcessAliveChecker(alivePIDs: [42])
+        )
+        try lockStore.write(
+            MeetingRecordingLockFile(
+                sessionId: UUID(),
+                startedAt: Date(),
+                pid: 42,
+                displayName: "Meeting owned by another app process",
+                state: .awaitingTranscription
+            ),
+            folderURL: folderURL
+        )
+        let processingMeeting = Transcription(
+            fileName: "Live meeting",
+            meetingArtifactFolderPath: folderURL.path,
+            status: .processing,
+            sourceType: .meeting
+        )
+        try repo.save(processingMeeting)
+
+        let reconciledIDs = try await MeetingFinalizationReconciler.reconcileStaleProcessingRows(
+            repository: repo,
+            lockFileStore: lockStore
+        )
+
+        XCTAssertTrue(reconciledIDs.isEmpty)
+        XCTAssertEqual(try repo.fetch(id: processingMeeting.id)?.status, .processing)
+    }
+
+    func testReconcileMarksProcessingRowWithDeadLockOwnerFailed() async throws {
+        let repo = MockTranscriptionRepository()
+        let folderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MeetingFinalizationReconcilerTests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+        let lockStore = MeetingRecordingLockFileStore(
+            processChecker: ReconcilerProcessAliveChecker(alivePIDs: [])
+        )
+        try lockStore.write(
+            MeetingRecordingLockFile(
+                sessionId: UUID(),
+                startedAt: Date(),
+                pid: 42,
+                displayName: "Interrupted meeting",
+                state: .awaitingTranscription
+            ),
+            folderURL: folderURL
+        )
+        let processingMeeting = Transcription(
+            fileName: "Interrupted meeting",
+            meetingArtifactFolderPath: folderURL.path,
+            status: .processing,
+            sourceType: .meeting
+        )
+        try repo.save(processingMeeting)
+
+        let reconciledIDs = try await MeetingFinalizationReconciler.reconcileStaleProcessingRows(
+            repository: repo,
+            lockFileStore: lockStore
+        )
+
+        XCTAssertEqual(reconciledIDs, [processingMeeting.id])
+        XCTAssertEqual(try repo.fetch(id: processingMeeting.id)?.status, .error)
+    }
+
     @MainActor
     func testReconcileSkipsProcessingRowsOwnedByQueue() async throws {
         let repo = MockTranscriptionRepository()
@@ -139,4 +209,12 @@ private final class ReconcilerRecordingLockFileStore: MeetingRecordingLockFileSt
     func read(folderURL: URL) throws -> MeetingRecordingLockFile? { nil }
     func delete(folderURL: URL) throws {}
     func discoverOrphans(meetingsRoot: URL) throws -> [MeetingRecordingLockFile] { [] }
+}
+
+private struct ReconcilerProcessAliveChecker: ProcessAliveChecking {
+    let alivePIDs: Set<Int32>
+
+    func isAlive(pid: Int32) -> Bool {
+        alivePIDs.contains(pid)
+    }
 }

@@ -67,6 +67,32 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         XCTAssertEqual(readLockFile.folderURL?.standardizedFileURL, folderURL.standardizedFileURL)
     }
 
+    func testHasLiveOwnerUsesReadableLockPID() throws {
+        let folderURL = tempRoot.appendingPathComponent("session")
+        let liveStore = MeetingRecordingLockFileStore(
+            processChecker: MockProcessAliveChecker(alivePIDs: [42])
+        )
+        try liveStore.write(
+            makeLockFile(pid: 42, state: .awaitingTranscription),
+            folderURL: folderURL
+        )
+
+        XCTAssertTrue(try liveStore.hasLiveOwner(folderURL: folderURL))
+    }
+
+    func testHasLiveOwnerReturnsFalseForDeadOrMissingOwner() throws {
+        let deadFolderURL = tempRoot.appendingPathComponent("dead-session")
+        try store.write(
+            makeLockFile(pid: 42, state: .awaitingTranscription),
+            folderURL: deadFolderURL
+        )
+
+        XCTAssertFalse(try store.hasLiveOwner(folderURL: deadFolderURL))
+        XCTAssertFalse(try store.hasLiveOwner(
+            folderURL: tempRoot.appendingPathComponent("missing-session")
+        ))
+    }
+
     func testDeleteRemovesFile() throws {
         let folderURL = tempRoot.appendingPathComponent("session")
         try store.write(makeLockFile(), folderURL: folderURL)

@@ -243,6 +243,17 @@ public final class MeetingRecordingLockFileStore: MeetingRecordingLockFileStorin
         }
     }
 
+    /// Whether a readable lock in this exact session folder belongs to a
+    /// process that is still alive. Startup reconciliation uses the per-folder
+    /// check because a meeting row already carries its canonical artifact path;
+    /// scanning a global root would miss custom roots and do unnecessary I/O.
+    public func hasLiveOwner(folderURL: URL) throws -> Bool {
+        guard let lockFile = try read(folderURL: folderURL) else {
+            return false
+        }
+        return processChecker.isAlive(pid: lockFile.pid)
+    }
+
     public func delete(folderURL: URL) throws {
         let lockFileURL = Self.lockFileURL(for: folderURL)
         guard FileManager.default.fileExists(atPath: lockFileURL.path) else {

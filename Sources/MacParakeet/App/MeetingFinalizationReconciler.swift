@@ -8,19 +8,34 @@ enum MeetingFinalizationReconciler {
     @discardableResult
     static func reconcileStaleProcessingRows(
         repository: TranscriptionRepositoryProtocol,
-        excludingTranscriptionIDs protectedIDs: Set<UUID> = []
+        excludingTranscriptionIDs protectedIDs: Set<UUID> = [],
+        lockFileStore: MeetingRecordingLockFileStore = MeetingRecordingLockFileStore()
     ) async throws -> [UUID] {
         try await Task.detached(priority: .utility) {
-            let staleRows = try repository.fetchMeetings(withStatus: .processing)
+            let processingRows = try repository.fetchMeetings(withStatus: .processing)
                 .filter { !protectedIDs.contains($0.id) }
-            for row in staleRows {
-                try repository.updateStatus(
+            var reconciledIDs: [UUID] = []
+
+            for row in processingRows {
+                if let folderPath = row.meetingArtifactFolderPath,
+                   !folderPath.isEmpty,
+                   try lockFileStore.hasLiveOwner(
+                       folderURL: URL(fileURLWithPath: folderPath, isDirectory: true)
+                   ) {
+                    continue
+                }
+
+                let didReconcile = try repository.transitionStatus(
                     id: row.id,
-                    status: .error,
+                    from: .processing,
+                    to: .error,
                     errorMessage: staleProcessingErrorMessage
                 )
+                if didReconcile {
+                    reconciledIDs.append(row.id)
+                }
             }
-            return staleRows.map(\.id)
+            return reconciledIDs
         }.value
     }
 }
