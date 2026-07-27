@@ -50,7 +50,13 @@ public final class HotkeyManager {
     private var modifierChordBlockedUntilRelease = false
     private var activeRecordingMode: FnKeyStateMachine.RecordingMode?
 
-    /// Bare-tap filtering: true until a non-Escape key is pressed while modifier is held.
+    /// Passive ledger for ordinary virtual key codes. The canonical macOS
+    /// keyboard range is 0...127; Fn's synthetic 179 is deliberately excluded.
+    private static let ordinaryKeyCodeRange: ClosedRange<UInt16> = 0...127
+    private var pressedNonFnKeyCodes: Set<UInt16> = []
+    private var physicalKeyStateProvider: (UInt16) -> Bool
+
+    /// Bare-tap filtering: true until another physical key or modifier transition is observed.
     private var bareTap = true
 
     /// Mask of the 4 relevant modifier bits (⌃⌥⇧⌘) for chord matching.
@@ -77,6 +83,9 @@ public final class HotkeyManager {
         self.tapThresholdMs = self.gestureController.tapThresholdMs
         self.targetMask = trigger.kind == .modifier ? ModifierKeyMatcher.mask(for: trigger.modifierName) : nil
         self.requiredChordFlags = trigger.chordEventFlags
+        self.physicalKeyStateProvider = { keyCode in
+            CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(keyCode))
+        }
     }
 
     /// The built-in bare-Fn gesture is observational only. A listen-only tap
@@ -185,6 +194,7 @@ public final class HotkeyManager {
         modifierChordGestureIsActive = false
         modifierChordBlockedUntilRelease = false
         activeRecordingMode = nil
+        pressedNonFnKeyCodes.removeAll(keepingCapacity: true)
         bareTap = true
         gestureController.reset()
     }
@@ -339,6 +349,14 @@ public final class HotkeyManager {
                 targetModifierGestureIsActive = true
                 // Modifier down — start bare-tap tracking
                 bareTap = true
+                if trigger == .fn {
+                    reconcilePassiveFnKeyState()
+                    if passiveFnInputIsContaminated(flags: flags) {
+                        targetModifierGestureIsActive = false
+                        bareTap = false
+                        return []
+                    }
+                }
                 if gestureMode == .singleTapToggle {
                     return []
                 }
@@ -390,9 +408,19 @@ public final class HotkeyManager {
         keyCode: Int64,
         timestampMs: UInt64
     ) -> [HotkeyGestureController.Output] {
+        let physicalKeyCode = UInt16(keyCode)
+        if trigger == .fn, Self.isTrackableNonFnKeyCode(physicalKeyCode) {
+            guard pressedNonFnKeyCodes.insert(physicalKeyCode).inserted else {
+                return []
+            }
+            if targetModifierGestureIsActive {
+                bareTap = false
+            }
+        }
+
         if keyCode == 53 { // Escape
             return gestureController.escapePressed()
-        } else if !HotkeyTrigger.isFnKeyCode(UInt16(keyCode)) {
+        } else if !HotkeyTrigger.isFnKeyCode(physicalKeyCode) {
             // Skip Fn/Globe key (63/179) — macOS generates a synthetic keyDown
             // with keyCode 179 when Fn is released (for "Change Input Source" or
             // "Show Emoji & Symbols"). Without this guard, that keyDown resets the
@@ -416,11 +444,13 @@ public final class HotkeyManager {
         keyCode: Int64,
         timestampMs _: UInt64
     ) -> [HotkeyGestureController.Output] {
+        let physicalKeyCode = UInt16(keyCode)
         guard trigger == .fn,
-              targetModifierGestureIsActive,
-              !HotkeyTrigger.isFnKeyCode(UInt16(keyCode)) else {
+              Self.isTrackableNonFnKeyCode(physicalKeyCode) else {
             return []
         }
+        pressedNonFnKeyCodes.remove(physicalKeyCode)
+        guard targetModifierGestureIsActive else { return [] }
 
         bareTap = false
         return gestureMode == .singleTapToggle ? [] : gestureController.interrupted()
@@ -459,6 +489,13 @@ public final class HotkeyManager {
         let outputs = modifierKeyUpOutputs(keyCode: keyCode, timestampMs: timestampMs)
         rememberRecordingState(for: outputs)
         return outputs
+    }
+
+    func setPhysicalKeyStateProviderForTesting(
+        _ provider: @escaping (UInt16) -> Bool
+    ) {
+        physicalKeyStateProvider = provider
+        reconcilePassiveFnKeyState()
     }
 
     func startupDebounceElapsedForTesting() -> [HotkeyGestureController.Output] {
@@ -860,6 +897,25 @@ public final class HotkeyManager {
             triggerKeyPressed: triggerKeyPressed
         )
 
+        if trigger == .fn {
+            let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
+            reconcilePassiveFnKeyState()
+            if triggerPressed, passiveFnInputIsContaminated(flags: currentFlags) {
+                cancelStartupTimer()
+                cancelHoldTimer()
+                syncRecoveredTriggerState(
+                    flags: flags,
+                    triggerKeyPressed: triggerKeyPressed,
+                    triggerPressed: triggerPressed
+                )
+                let outputs = gestureController.interrupted()
+                targetModifierGestureIsActive = false
+                bareTap = false
+                handleOutputs(outputs)
+                return outputs
+            }
+        }
+
         switch activeRecordingMode {
         case .holdToTalk:
             cancelStartupTimer()
@@ -921,6 +977,7 @@ public final class HotkeyManager {
         activeRecordingMode = nil
         bareTap = true
         gestureController.reset()
+        reconcilePassiveFnKeyState()
         syncModifierPressedState(flags: flags)
         syncModifierChordPressedState(flags: flags)
     }
@@ -1008,6 +1065,11 @@ public final class HotkeyManager {
             if !activeTrackedModifiers.subtracting(mask).isEmpty {
                 return true
             }
+            if trigger == .fn {
+                if currentFlags.contains(.maskAlphaShift) || !pressedNonFnKeyCodes.isEmpty {
+                    return true
+                }
+            }
             if let targetKeyCode = trigger.modifierKeyCode {
                 return ModifierKeyMatcher.oppositeSideModifierIsPressed(
                     flags: currentFlags,
@@ -1020,6 +1082,27 @@ public final class HotkeyManager {
         default:
             return false
         }
+    }
+
+    private static func isTrackableNonFnKeyCode(_ keyCode: UInt16) -> Bool {
+        ordinaryKeyCodeRange.contains(keyCode) && !HotkeyTrigger.isFnKeyCode(keyCode)
+    }
+
+    private func reconcilePassiveFnKeyState() {
+        guard trigger == .fn else { return }
+        pressedNonFnKeyCodes = Set(
+            Self.ordinaryKeyCodeRange.filter { keyCode in
+                !HotkeyTrigger.isFnKeyCode(keyCode) && physicalKeyStateProvider(keyCode)
+            }
+        )
+    }
+
+    private func passiveFnInputIsContaminated(flags: CGEventFlags) -> Bool {
+        guard let fnMask = targetMask else { return true }
+        let activeTrackedModifiers = flags.intersection(ModifierKeyMatcher.trackedModifierMasks)
+        return !activeTrackedModifiers.subtracting(fnMask).isEmpty
+            || flags.contains(.maskAlphaShift)
+            || !pressedNonFnKeyCodes.isEmpty
     }
 
     private func chordTriggerKeyUpOutputs(
