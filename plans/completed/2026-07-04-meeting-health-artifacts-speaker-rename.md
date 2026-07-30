@@ -5,7 +5,9 @@
 > promotion), and PR #710 (speaker rename UX + rollback guard). Remaining:
 > health UI hidden behind default-off flag per product decision 2026-07-04
 > (chips read as warnings during normal quiet capture); model/plumbing
-> retained; future direction = invisible-until-confirmed-actionable surface.
+> retained. PRs #857/#860 later supplied the invisible-until-actionable
+> recovery surface; that continuing lifecycle contract belongs to ADR-025 and
+> the still-active meeting mic-reliability plan.
 > **Date:** 2026-07-04
 > **Priority:** P1 for visible source health, P2 for artifact/CLI promotion and
 > speaker rename polish
@@ -700,20 +702,20 @@ Full `swift test` should run at most once as a final gate for the branch.
 
 ## Done Criteria
 
-- [ ] Live meeting UI shows separate readable mic/system health for selected
+- [x] Live meeting UI shows separate readable mic/system health for selected
   sources.
-- [ ] Source health warnings are non-modal and do not stop recording.
-- [ ] `manifest.files.cleanedMicrophoneAudioPath` behavior (already on main via
+- [x] Source health warnings are non-modal and do not stop recording.
+- [x] `manifest.files.cleanedMicrophoneAudioPath` behavior (already on main via
   PR #671) is verified unchanged by this work.
-- [ ] `meeting.md` is materialized as a stable top-level artifact.
-- [ ] CLI Markdown export and artifact Markdown share the same renderer.
-- [ ] CLI spec/docs describe the saved-meeting workflow accurately.
-- [ ] Speaker rename has a visible affordance and keyboard/accessibility support.
-- [ ] Speaker rename updates persisted labels and exported/artifact views.
-- [ ] No live diarization, speaker profiles, or AEC/source-trust changes are
+- [x] `meeting.md` is materialized as a stable top-level artifact.
+- [x] CLI Markdown export and artifact Markdown share the same renderer.
+- [x] CLI spec/docs describe the saved-meeting workflow accurately.
+- [x] Speaker rename has a visible affordance and keyboard/accessibility support.
+- [x] Speaker rename updates persisted labels and exported/artifact views.
+- [x] No live diarization, speaker profiles, or AEC/source-trust changes are
   introduced by this plan.
-- [ ] Focused tests for touched areas pass.
-- [ ] Contract docs and changelog entries are updated with the implementation.
+- [x] Focused tests for touched areas pass.
+- [x] Contract docs and changelog entries are updated with the implementation.
 
 ## Open Questions
 

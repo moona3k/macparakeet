@@ -48,7 +48,7 @@
 │  │                               │                                           │  │
 │  │  ┌──────────────┐  ┌────────▼──────────────────────────────────────────┐ │  │
 │  │  │ExportService │  │               Data Layer                          │ │  │
-│  │  │(7 formats)   │  │  Models: Dictation, Transcription, Prompt,       │ │  │
+│  │  │(8 formats)   │  │  Models: Dictation, Transcription, Prompt,       │ │  │
 │  │  └──────────────┘  │          PromptResult, ChatConversation,         │ │  │
 │  │                     │          QuickPrompt, TransformHistory, LLMRun,  │ │  │
 │  │                     │          CustomWord, TextSnippet                 │ │  │
@@ -585,12 +585,18 @@ Product-level readiness can coordinate additional services beyond the two STT sl
 ```swift
 protocol ExportServiceProtocol: Sendable {
     func exportToTxt(transcription: Transcription, url: URL) throws
+    func exportToMarkdown(transcription: Transcription, url: URL) throws
+    func exportToSRT(transcription: Transcription, url: URL) throws
+    func exportToVTT(transcription: Transcription, url: URL) throws
     func exportToDAPT(transcription: Transcription, url: URL) throws
+    func exportToJSON(transcription: Transcription, url: URL) throws
+    @MainActor func exportToDocx(transcription: Transcription, url: URL) throws
+    @MainActor func exportToPDF(transcription: Transcription, url: URL) throws
     func formatDAPT(transcription: Transcription) -> String
     func formatForClipboard(transcription: Transcription) -> String
 }
 
-// v0.1: .txt only. SRT/VTT/JSON added in v0.3; DAPT added after v0.7.3.
+// Current file formats: TXT, Markdown, SRT, VTT, DAPT, DOCX, PDF, and JSON.
 ```
 
 **Dependencies:** Foundation (file I/O), `NSPasteboard` (clipboard)
@@ -1279,7 +1285,7 @@ MacParakeet has a small surface area compared to Oatmeal. Focus testing on the c
 - **TextProcessingPipeline** — Every stage, edge cases, custom word matching, snippet expansion
 - **Models** — Codable round-trip, validation, edge cases
 - **Repositories** — CRUD operations, search queries, migration correctness
-- **ExportService** — Format generation (TXT in v0.1; SRT, VTT, JSON in v0.3; DAPT after v0.7.3)
+- **ExportService** — TXT, Markdown, SRT, VTT, DAPT, DOCX, PDF, and JSON generation
 - **STT scheduler/runtime boundary** — mock the `STTClientProtocol` interface (`STTManaging`) rather than real FluidAudio
 - **AudioProcessor** — Format detection, conversion parameter correctness (mock FFmpeg)
 
