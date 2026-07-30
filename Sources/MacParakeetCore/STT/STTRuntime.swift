@@ -38,6 +38,7 @@ protocol STTRuntimeProtocol: Sendable {
     func isReady(speechEngine: SpeechEngineSelection) async -> Bool
     func shutdown() async
     func clearModelCache() async
+    func deleteCohereModel() async throws
     func setSpeechEngine(_ preference: SpeechEnginePreference) async throws
     func setSpeechEngine(
         _ preference: SpeechEnginePreference,
@@ -60,6 +61,10 @@ protocol STTRuntimeProtocol: Sendable {
 }
 
 extension STTRuntimeProtocol {
+    func deleteCohereModel() async throws {
+        throw STTError.engineStartFailed("This speech runtime cannot delete the Cohere model.")
+    }
+
     func warmUp(
         speechEngine: SpeechEngineSelection,
         onProgress: (@Sendable (String) -> Void)?
@@ -260,9 +265,9 @@ public actor STTRuntime: STTRuntimeProtocol {
     private var nemotronModelVariant: NemotronModelVariant
     private var whisperEngine: WhisperEngine?
     private let whisperModelVariant: String
-    /// Owns the Cohere Transcribe runtime (FluidAudio `CoherePipeline`). Lazily
-    /// created on first use; sibling of the other speech engines. Batch-only
-    /// (no live dictation / preview path).
+    /// Owns the Cohere Transcribe runtime backed by transcribe.cpp. It is
+    /// created lazily on first use and remains batch-only, with no live
+    /// dictation or preview path.
     private var cohereEngine: CohereTranscribeEngine?
     private let defaults: UserDefaults
     private let physicalMemoryBytes: @Sendable () -> UInt64
@@ -1521,8 +1526,8 @@ public actor STTRuntime: STTRuntimeProtocol {
         _ = Self.removeNemotronModelFiles(
             at: NemotronEnglishEngine.defaultCacheRoot().deletingLastPathComponent()
         )
-        // Cohere caches under `…/Models/cohere-transcribe/q8`; remove the family
-        // root so a full clear can't strand the precision subdirectory.
+        // Remove the MacParakeet-owned Cohere family root so interrupted
+        // downloads and verification markers cannot survive a full clear.
         _ = CohereTranscribeEngine.deleteModel(
             cacheRoot: CohereTranscribeEngine.defaultCacheRoot().deletingLastPathComponent()
         )
@@ -1553,6 +1558,22 @@ public actor STTRuntime: STTRuntimeProtocol {
 
     public func setSpeechEngine(_ preference: SpeechEnginePreference) async throws {
         try await setSpeechEngine(preference, onProgress: nil)
+    }
+
+    public func deleteCohereModel() async throws {
+        try Task.checkCancellation()
+        guard speechEngineActivity.count(for: .cohere) == 0 else {
+            throw STTError.engineBusy
+        }
+        await unloadCohere()
+        try Task.checkCancellation()
+        guard !CohereTranscribeEngine.hasModelCacheDirectory()
+            || CohereTranscribeEngine.deleteModel()
+        else {
+            throw STTError.engineStartFailed(
+                "Could not delete Cohere Transcribe after releasing its native context."
+            )
+        }
     }
 
     public func setSpeechEngine(

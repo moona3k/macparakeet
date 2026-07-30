@@ -474,7 +474,7 @@ Ship-quality polish. Direct distribution via notarized DMG.
 - Source-aware final transcription with prompt results and chat in the library
 - Parakeet model selection: v3 multilingual default, v2 English-only TDT opt-in, and Unified English opt-in
 - Optional local WhisperKit and Cohere Transcribe engines for languages or accuracy needs outside the default Parakeet coverage
-- Settings speech-engine picker, Parakeet model picker, Nemotron controls, Cohere language picker, and Whisper language picker
+- Settings speech-engine picker, Parakeet model picker, Nemotron controls, automatic-language Cohere performance controls, and Whisper language picker
 - CLI `transcribe --engine parakeet|nemotron|whisper|cohere --language --parakeet-model`
 - Meeting recordings pin engine/language for live preview, recovery, and finalization
 - Calendar auto-start is implemented and enabled (`AppFeatures.calendarEnabled = true`); defaults to opt-in mode `.off`. Calendar-driven auto-stop was removed (ADR-017 amendment); recordings stop manually

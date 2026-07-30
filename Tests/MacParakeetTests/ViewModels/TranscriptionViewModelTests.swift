@@ -3137,9 +3137,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testRetranscriptionCohereChoiceCarriesStoredLanguage() throws {
-        // Cohere has no auto-detect and the engine defaults to English, so the
-        // retranscription choice must carry the persisted picker language —
-        // otherwise a non-English Cohere user gets silently English output.
+        // Retain the saved language in the retranscription choice for
+        // compatibility. The transcribe.cpp adapter ignores it.
         let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }

@@ -48,7 +48,7 @@ MP_ENGINES = {
     "nemotron-en": ["--engine", "nemotron", "--nemotron-model", "english-1120ms"],
     "nemotron-multi": ["--engine", "nemotron", "--nemotron-model", "multilingual-1120ms"],
     "whisper": ["--engine", "whisper"],
-    "cohere": ["--engine", "cohere", "--language", "en"],
+    "cohere": ["--engine", "cohere"],
 }
 REFERENCE_ENGINES = ("cohere-fa-reference",)
 ALL_ENGINES = (*MP_ENGINES, *REFERENCE_ENGINES, "all")

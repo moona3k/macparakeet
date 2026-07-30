@@ -32,10 +32,10 @@ macparakeet-cli transcribe ~/Downloads/audio.mp3 --format json
 
 **Requirements:** macOS 14.2+ (Sonoma) on Apple Silicon (M1, M2, M3, M4).
 
-The first transcription with a local engine downloads the selected CoreML
-model. Parakeet, Nemotron, and Cohere models are cached under
-`~/Library/Application Support/FluidAudio/Models/`; optional Whisper models
-use `~/Library/Application Support/MacParakeet/models/stt/whisper/`.
+The first transcription with a local engine downloads the selected model.
+Parakeet and Nemotron models are cached under FluidAudio Application Support.
+Cohere and optional Whisper models use MacParakeet's `models/stt/cohere/` and
+`models/stt/whisper/` Application Support directories.
 Subsequent transcription with that model is fully offline.
 
 **Source:** <https://github.com/moona3k/macparakeet>

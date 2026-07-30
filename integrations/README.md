@@ -16,7 +16,8 @@ testing.
 
 - **Local transcription** -- audio/video files, folders, public media URLs,
   Apple Podcasts links/searches, and YouTube to text, with engine selection
-  (Parakeet / Nemotron / Cohere / Whisper) and per-invocation language hints.
+  (Parakeet / Nemotron / Cohere / Whisper) and per-invocation language hints
+  for Nemotron and Whisper. Cohere detects language automatically.
 - **Scriptable shared defaults** -- `config get|set|list` over the same
   preference suite the GUI reads (`com.macparakeet.MacParakeet`). CLI-only
   installs work; a later GUI install picks up the same values.
@@ -92,8 +93,9 @@ macparakeet-cli health --json
 
 This installs the standalone CLI plus its Homebrew-managed `ffmpeg` and
 `yt-dlp` runtime dependencies. It does not require `MacParakeet.app`.
-Parakeet, Nemotron, and Cohere CoreML caches are managed by FluidAudio.
-WhisperKit model downloads live under
+Parakeet and Nemotron CoreML caches are managed by FluidAudio. Cohere's
+checksum-pinned GGUF and WhisperKit model downloads live under
+`~/Library/Application Support/MacParakeet/models/stt/cohere/` and
 `~/Library/Application Support/MacParakeet/models/stt/whisper/`.
 
 **Bundled app alternative:** after installing
@@ -318,9 +320,9 @@ macparakeet-cli config set youtube-audio-quality m4a
 ```
 
 `--engine whisper` uses Whisper with auto-detected language unless `--language`
-is passed. `--engine cohere` uses the saved Cohere language unless `--language`
-is passed, because Cohere has no auto-detect. Saved engine-specific languages
-are used when `--engine app-default` resolves to that engine.
+is passed. `--engine cohere` always uses automatic language detection. The
+saved `cohere-language` value and explicit Cohere hints remain accepted for
+CLI compatibility but do not affect decoding.
 
 ### Transcribe a media URL
 

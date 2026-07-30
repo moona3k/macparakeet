@@ -23,7 +23,8 @@ public enum STTSchedulerError: Error, LocalizedError, Equatable {
 /// meeting and file work share an explicitly prioritized background path.
 public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechEngineRoutedTranscribing,
     STTLiveDictationTranscribing, SpeechEngineSwitching, SpeechEngineSwitchAvailabilityProviding,
-    SpeechEngineSessionManaging, SpeechEngineTelemetryAttributing, SpeechEngineRoutedWarmUpManaging
+    CohereModelDeleting, SpeechEngineSessionManaging, SpeechEngineTelemetryAttributing,
+    SpeechEngineRoutedWarmUpManaging
 {
     private struct ScheduledJob: Sendable {
         let id: UUID
@@ -366,6 +367,34 @@ public actor STTScheduler: STTManaging, STTDictationPreviewTranscribing, SpeechE
 
     public func setSpeechEngine(_ preference: SpeechEnginePreference) async throws {
         try await setSpeechEngine(preference, onProgress: nil)
+    }
+
+    public func deleteCohereModel() async throws {
+        guard acceptsNewJobs,
+            activeSpeechEngineSessionIDs.isEmpty,
+            dictationPreviewExecution == nil,
+            !hasQueuedOrRunningJobs,
+            speechEngineSwitchTask == nil
+        else {
+            throw STTError.engineBusy
+        }
+
+        acceptsNewJobs = false
+        let deleteTask = Task {
+            try await runtime.deleteCohereModel()
+        }
+        speechEngineSwitchTask = deleteTask
+        defer {
+            speechEngineSwitchTask = nil
+            acceptsNewJobs = true
+        }
+        try await observingRuntimeTimeoutThrowing(reason: "delete_cohere_model") {
+            try await withTaskCancellationHandler {
+                try await deleteTask.value
+            } onCancel: {
+                deleteTask.cancel()
+            }
+        }
     }
 
     public func setSpeechEngine(

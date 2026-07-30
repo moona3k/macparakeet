@@ -356,8 +356,7 @@ public enum SpeechEngineCapabilityRegistry {
             supportsNativeLiveDictation: false,
             supportsTailPreview: false,
             providesWordTimestamps: false,
-            supportedLanguages: .selectable(
-                defaultLanguage: "en",
+            supportedLanguages: .automatic(
                 supportedLanguageCodes: CohereTranscribeEngine.supportedLanguages.map(\.code)
             ),
             supportsCustomVocabulary: false,
@@ -365,7 +364,7 @@ public enum SpeechEngineCapabilityRegistry {
                 modelName: "Cohere Transcribe",
                 variantID: nil,
                 selectableVariantIDs: [],
-                approximateDownloadSize: "~2.1 GB",
+                approximateDownloadSize: "~1.65 GB",
                 isUserDeletable: true,
                 minimumMemoryBytes: cohereMinimumMemoryBytes
             ),

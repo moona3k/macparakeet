@@ -7,7 +7,7 @@ private struct PreviewCallWaiter {
     let continuation: CheckedContinuation<Bool, Never>
 }
 
-public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, SpeechEngineRoutedTranscribing, STTLiveDictationTranscribing, SpeechEngineSwitching, SpeechEngineTelemetryAttributing, SpeechEngineRoutedWarmUpManaging {
+public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, SpeechEngineRoutedTranscribing, STTLiveDictationTranscribing, SpeechEngineSwitching, CohereModelDeleting, SpeechEngineTelemetryAttributing, SpeechEngineRoutedWarmUpManaging {
     public var transcribeResult: STTResult?
     public var transcribeError: Error?
     public var transcribeCallCount = 0
@@ -29,6 +29,7 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
     public var warmUpProgressPhases: [String]?
     public var warmUpHangIndefinitely = false
     public var clearModelCacheCalled = false
+    public var cohereModelDeleteCallCount = 0
     public var shutdownCalled = false
     public var speechEngineSwitches: [SpeechEnginePreference] = []
     public var speechEngineSwitchError: Error?
@@ -563,6 +564,10 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
         clearModelCacheCalled = true
         ready = false
         setWarmUpState(.idle)
+    }
+
+    public func deleteCohereModel() async throws {
+        cohereModelDeleteCallCount += 1
     }
 
     public func shutdown() async {

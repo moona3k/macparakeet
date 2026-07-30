@@ -14,7 +14,7 @@ Engines (`--engine` value -> macparakeet-cli flags):
     nemotron-en                  -> --engine nemotron --nemotron-model english-1120ms
     nemotron-multi               -> --engine nemotron --nemotron-model multilingual-1120ms
     whisper                      -> --engine whisper
-    cohere                       -> --engine cohere --language en
+    cohere                       -> --engine cohere (automatic language detection)
 
 RTFx note: proc_s is the batch wall-clock (incl. one-time model load) amortized
 across files proportional to audio length, so the scorer's RTFx column reflects
@@ -39,7 +39,7 @@ ENGINES = {
     "nemotron-en": ["--engine", "nemotron", "--nemotron-model", "english-1120ms"],
     "nemotron-multi": ["--engine", "nemotron", "--nemotron-model", "multilingual-1120ms"],
     "whisper": ["--engine", "whisper"],
-    "cohere": ["--engine", "cohere", "--language", "en"],
+    "cohere": ["--engine", "cohere"],
 }
 
 

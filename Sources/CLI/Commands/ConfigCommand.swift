@@ -39,7 +39,7 @@ struct ConfigCommand: ParsableCommand {
           nemotron-language         auto|<Nemotron language code>   default: auto
                                     (multilingual build only)
           whisper-language          auto|<Whisper language code>    default: auto
-          cohere-language           <Cohere language code>          default: en (no auto)
+          cohere-language           <legacy Cohere language code>   retained for compatibility
           speaker-detection         on|off                          default: on
           meeting-speaker-detection on|off                          default: on
           auto-meeting-titles       on|off                          default: on
@@ -118,9 +118,9 @@ struct ConfigCommand: ParsableCommand {
         ),
         CLIConfigKeySpec(
             key: "cohere-language",
-            valueSyntax: CohereTranscribeEngine.supportedLanguages.map(\.code).joined(separator: "|"),
-            allowedValues: CohereTranscribeEngine.supportedLanguages.map(\.code),
-            summary: "Default Cohere Transcribe language; Cohere has no auto-detect."
+            valueSyntax: CohereTranscribeEngine.legacyCompatibleLanguageCodes.joined(separator: "|"),
+            allowedValues: CohereTranscribeEngine.legacyCompatibleLanguageCodes,
+            summary: "Legacy Cohere language preference retained for compatibility; Cohere now detects language automatically."
         ),
         CLIConfigKeySpec(
             key: "speaker-detection",
@@ -603,7 +603,7 @@ struct ConfigCommand: ParsableCommand {
     static func parseCohereLanguage(_ value: String) throws -> String {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let language = SpeechEnginePreference.normalizeCohereLanguage(trimmed) else {
-            let supported = CohereTranscribeEngine.supportedLanguages.map(\.code).joined(separator: ", ")
+            let supported = CohereTranscribeEngine.legacyCompatibleLanguageCodes.joined(separator: ", ")
             throw ValidationError("Invalid value for cohere-language: '\(value)'. Use one of: \(supported).")
         }
         return language

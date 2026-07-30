@@ -120,6 +120,11 @@ public enum AppPaths {
         "\(appSupportDir)/LLMModels"
     }
 
+    /// Verified GGUF cache for the transcribe.cpp Cohere backend.
+    public static var cohereModelsDir: String {
+        "\(appSupportDir)/models/stt/cohere"
+    }
+
     /// FluidAudio model cache base.
     ///
     /// Production intentionally delegates to FluidAudio's own default resolver.

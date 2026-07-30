@@ -107,7 +107,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     @Option(help: "Speech engine: app-default, parakeet, nemotron, whisper, cohere. Parakeet is the local default; app-default follows the saved GUI preference.")
     var engine: TranscribeSpeechEngine = .parakeet
 
-    @Option(help: "Language hint for Nemotron, Whisper, or Cohere, such as ko, en, or en-US. Cohere requires a supported language; Parakeet and the English-only Nemotron build ignore this flag.")
+    @Option(help: "Language hint for Nemotron or Whisper, such as ko, en, or en-US. Cohere accepts its legacy supported codes for compatibility but detects language automatically. Parakeet and the English-only Nemotron build ignore this flag.")
     var language: String?
 
     @Option(name: .long, help: "Parakeet build: app-default, v3 (English + supported European languages), v2 (English word timestamps), unified (readable English with word timestamps). app-default follows the saved preference; ignored for Nemotron, Cohere, and Whisper.")
@@ -299,14 +299,13 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         speechEngine: SpeechEngineSelection
     ) throws {
         guard speechEngine.engine == .cohere, let explicitLanguage else { return }
-        let languagePolicy = SpeechEngineCapabilityRegistry.capabilities(for: .cohere).supportedLanguages
-        let supportedLanguageCodes = languagePolicy.supportedLanguageCodes ?? []
+        let supportedLanguageCodes = CohereTranscribeEngine.legacyCompatibleLanguageCodes
         guard let normalizedLanguage = SpeechEnginePreference.normalizeCohereLanguage(explicitLanguage),
               supportedLanguageCodes.contains(normalizedLanguage) else {
             let supported = supportedLanguageCodes.joined(separator: ", ")
             throw ValidationError(
-                "Invalid value for --language with Cohere: '\(explicitLanguage)'. "
-                    + "Cohere has no auto-detect; use one of: \(supported)."
+                "Invalid legacy value for --language with Cohere: '\(explicitLanguage)'. "
+                    + "Use one of: \(supported). Cohere detects language automatically."
             )
         }
     }
@@ -622,8 +621,9 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 whisperEngine = createdWhisperEngine
                 sttTranscriber = createdWhisperEngine
             case .cohere:
-                // Thread the resolved language into the engine — the no-`language:`
-                // transcribe path the CLI uses otherwise falls back to English.
+                // Retain the resolved legacy value for persistence and CLI
+                // compatibility. The transcribe.cpp adapter does not pass a
+                // caller language hint.
                 let createdCohereEngine = CohereTranscribeEngine(
                     computePolicy: CohereTranscribeEngine.ComputePolicy.current(defaults: defaults),
                     defaultLanguageCode: speechEngine.language

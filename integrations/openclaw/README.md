@@ -23,8 +23,9 @@ Silicon. Wraps `macparakeet-cli` so an OpenClaw skill can:
 - Inspect meeting recordings and store external meeting results.
 - Run a prompt against a transcription (action items, summary, etc.).
 
-Speech-to-text execution is local on Apple Silicon. Parakeet, Nemotron, and
-Cohere use FluidAudio/CoreML; Whisper uses WhisperKit. No cloud STT.
+Speech-to-text execution is local on Apple Silicon. Parakeet and Nemotron use
+FluidAudio/CoreML, Cohere uses pinned transcribe.cpp, and Whisper uses
+WhisperKit. No cloud STT.
 
 ## Install
 
@@ -35,9 +36,9 @@ macparakeet-cli health --json
 ```
 
 Requires macOS 14.2+ on Apple Silicon. The Homebrew formula installs FFmpeg
-and yt-dlp as runtime dependencies. Parakeet, Nemotron, and Cohere CoreML
-model caches are managed by FluidAudio; WhisperKit model downloads live under
-`~/Library/Application Support/MacParakeet/models/stt/whisper/`.
+and yt-dlp as runtime dependencies. Parakeet and Nemotron CoreML model caches
+are managed by FluidAudio. Cohere and WhisperKit model downloads live under
+MacParakeet's `models/stt/` Application Support directory.
 
 If MacParakeet.app is already installed, the bundled CLI is also available at
 `/Applications/MacParakeet.app/Contents/MacOS/macparakeet-cli`.
@@ -83,10 +84,11 @@ failure. JSON schemas are stable within a major CLI version (semver, see
 UUID, UUID prefix (>= 4 chars), or case-insensitive name. Prompt and LLM
 wrappers should pass `--json` when the skill expects an envelope.
 
-Cohere is a local batch plain-text engine. It can be used for dictation final
-transcription, file transcription, and meeting finalization, but it has no live
-dictation preview, no meeting live-preview chunks, no word timestamps or
-speaker labels, and no auto language detection. The ~2.1 GB model must be
+Cohere is a local batch plain-text engine with automatic multilingual
+transcription. It can be used for dictation final transcription, file
+transcription, and meeting finalization, but it has no live dictation preview,
+meeting live-preview chunks, word timestamps, or speaker labels. The
+1,770,270,208-byte checksum-pinned model must be
 downloaded explicitly before
 `--engine cohere`, `models select cohere-transcribe`, or app-default Cohere
 transcription will run; normal transcription paths do not implicitly download
