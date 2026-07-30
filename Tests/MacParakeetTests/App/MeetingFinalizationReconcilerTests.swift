@@ -5,7 +5,7 @@ import XCTest
 
 final class MeetingFinalizationReconcilerTests: XCTestCase {
     func testReconcileStaleProcessingRowsMarksOnlyProcessingMeetingsFailed() async throws {
-        let repo = MockTranscriptionRepository()
+        let repo = ReconcilerStatusRepository()
         let staleMeeting = Transcription(
             fileName: "Stale meeting",
             status: .processing,
@@ -29,7 +29,6 @@ final class MeetingFinalizationReconcilerTests: XCTestCase {
             repository: repo
         )
 
-        XCTAssertEqual(repo.fetchMeetingsWithStatusCalls, [.processing])
         XCTAssertEqual(reconciledIDs, [staleMeeting.id])
         let reconciled = try XCTUnwrap(repo.fetch(id: staleMeeting.id))
         XCTAssertEqual(reconciled.status, .error)
@@ -41,9 +40,161 @@ final class MeetingFinalizationReconcilerTests: XCTestCase {
         XCTAssertEqual(try repo.fetch(id: processingFile.id)?.status, .processing)
     }
 
+    func testReconcileSkipsProcessingRowOwnedByAnotherLiveProcess() async throws {
+        let repo = ReconcilerStatusRepository()
+        let folderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MeetingFinalizationReconcilerTests-\(UUID().uuidString)")
+        let ownershipCoordinator = ReconcilerOwnershipCoordinator(
+            liveFolderPaths: [folderURL.standardizedFileURL.path]
+        )
+        let processingMeeting = Transcription(
+            fileName: "Live meeting",
+            meetingArtifactFolderPath: folderURL.path,
+            status: .processing,
+            sourceType: .meeting
+        )
+        try repo.save(processingMeeting)
+
+        let reconciledIDs = try await MeetingFinalizationReconciler.reconcileStaleProcessingRows(
+            repository: repo,
+            ownershipCoordinator: ownershipCoordinator
+        )
+
+        XCTAssertTrue(reconciledIDs.isEmpty)
+        XCTAssertEqual(try repo.fetch(id: processingMeeting.id)?.status, .processing)
+    }
+
+    func testReconcileMarksProcessingRowWithDeadLockOwnerFailed() async throws {
+        let repo = ReconcilerStatusRepository()
+        let folderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MeetingFinalizationReconcilerTests-\(UUID().uuidString)")
+        let processingMeeting = Transcription(
+            fileName: "Interrupted meeting",
+            meetingArtifactFolderPath: folderURL.path,
+            status: .processing,
+            sourceType: .meeting
+        )
+        try repo.save(processingMeeting)
+
+        let reconciledIDs = try await MeetingFinalizationReconciler.reconcileStaleProcessingRows(
+            repository: repo,
+            ownershipCoordinator: ReconcilerOwnershipCoordinator()
+        )
+
+        XCTAssertEqual(reconciledIDs, [processingMeeting.id])
+        XCTAssertEqual(try repo.fetch(id: processingMeeting.id)?.status, .error)
+    }
+
+    func testReconcileContinuesAfterAnotherRowsOwnershipCheckFails() async throws {
+        let repo = ReconcilerStatusRepository()
+        let failingFolderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MeetingFinalizationUnreadable-\(UUID().uuidString)")
+        let recoverableFolderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MeetingFinalizationRecoverable-\(UUID().uuidString)")
+        let failingMeeting = Transcription(
+            createdAt: Date(timeIntervalSince1970: 2),
+            fileName: "Unreadable meeting",
+            meetingArtifactFolderPath: failingFolderURL.path,
+            status: .processing,
+            sourceType: .meeting
+        )
+        let recoverableMeeting = Transcription(
+            createdAt: Date(timeIntervalSince1970: 1),
+            fileName: "Recoverable meeting",
+            meetingArtifactFolderPath: recoverableFolderURL.path,
+            status: .processing,
+            sourceType: .meeting
+        )
+        try repo.save(failingMeeting)
+        try repo.save(recoverableMeeting)
+
+        let reconciledIDs = try await MeetingFinalizationReconciler.reconcileStaleProcessingRows(
+            repository: repo,
+            ownershipCoordinator: ReconcilerOwnershipCoordinator(
+                failingFolderPaths: [failingFolderURL.standardizedFileURL.path]
+            )
+        )
+
+        XCTAssertEqual(reconciledIDs, [recoverableMeeting.id])
+        XCTAssertEqual(try repo.fetch(id: failingMeeting.id)?.status, .processing)
+        XCTAssertEqual(try repo.fetch(id: recoverableMeeting.id)?.status, .error)
+    }
+
+    func testReconcileOmitsRowWhenAtomicTransitionLosesToCompletion() async throws {
+        let repo = ReconcilerStatusRepository()
+        let processingMeeting = Transcription(
+            fileName: "Finishing meeting",
+            status: .processing,
+            sourceType: .meeting
+        )
+        try repo.save(processingMeeting)
+        repo.completeBeforeNextTransition(id: processingMeeting.id)
+
+        let reconciledIDs = try await MeetingFinalizationReconciler.reconcileStaleProcessingRows(
+            repository: repo
+        )
+
+        XCTAssertTrue(reconciledIDs.isEmpty)
+        XCTAssertEqual(try repo.fetch(id: processingMeeting.id)?.status, .completed)
+        XCTAssertNil(try repo.fetch(id: processingMeeting.id)?.errorMessage)
+    }
+
+    func testReconcileSkipsDeadOwnerMeetingAfterAnotherProcessClaimsRetry() async throws {
+        let manager = try DatabaseManager()
+        let repo = TranscriptionRepository(dbQueue: manager.dbQueue)
+        let folderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MeetingFinalizationRetryLease-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+        let processChecker = ReconcilerProcessAliveChecker(alivePIDs: [101])
+        let retryStore = MeetingRecordingLockFileStore(
+            processChecker: processChecker,
+            processID: 101
+        )
+        let reconcilingStore = MeetingRecordingLockFileStore(
+            processChecker: processChecker,
+            processID: 202
+        )
+        try retryStore.write(
+            MeetingRecordingLockFile(
+                sessionId: UUID(),
+                startedAt: Date(),
+                pid: 42,
+                displayName: "Retry meeting",
+                state: .awaitingTranscription
+            ),
+            folderURL: folderURL
+        )
+        let retryableMeeting = Transcription(
+            fileName: "Retry meeting",
+            meetingArtifactFolderPath: folderURL.path,
+            status: .error,
+            sourceType: .meeting
+        )
+        try repo.save(retryableMeeting)
+
+        let lease = try retryStore.claimFinalizationOwnership(
+            folderURL: folderURL
+        )
+        defer { try? retryStore.releaseFinalizationOwnership(lease) }
+        try repo.updateStatus(
+            id: retryableMeeting.id,
+            status: .processing,
+            errorMessage: nil
+        )
+
+        let reconciledIDs = try await MeetingFinalizationReconciler.reconcileStaleProcessingRows(
+            repository: repo,
+            ownershipCoordinator: reconcilingStore
+        )
+
+        XCTAssertTrue(reconciledIDs.isEmpty)
+        XCTAssertEqual(try repo.fetch(id: retryableMeeting.id)?.status, .processing)
+    }
+
     @MainActor
     func testReconcileSkipsProcessingRowsOwnedByQueue() async throws {
-        let repo = MockTranscriptionRepository()
+        let manager = try DatabaseManager()
+        let repo = TranscriptionRepository(dbQueue: manager.dbQueue)
         let transcriptionService = MockTranscriptionService()
         await transcriptionService.holdMeetingFinalization()
         await transcriptionService.persistFinalizedMeetings(to: repo)
@@ -76,7 +227,7 @@ final class MeetingFinalizationReconcilerTests: XCTestCase {
             liveTranscriptLagged: false
         )
 
-        queue.enqueue(item)
+        await queue.enqueue(item)
         try await waitUntil {
             queue.queuedTranscriptionIDs == [transcriptionID]
         }
@@ -131,6 +282,103 @@ final class MeetingFinalizationReconcilerTests: XCTestCase {
             }
             try await Task.sleep(for: .milliseconds(10))
         }
+    }
+}
+
+private final class ReconcilerStatusRepository: MeetingFinalizationStatusRepository, @unchecked Sendable {
+    private let lock = NSLock()
+    private var rows: [Transcription] = []
+    private var completionBeforeTransitionIDs: Set<UUID> = []
+
+    func save(_ transcription: Transcription) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        if let index = rows.firstIndex(where: { $0.id == transcription.id }) {
+            rows[index] = transcription
+        } else {
+            rows.append(transcription)
+        }
+    }
+
+    func fetch(id: UUID) throws -> Transcription? {
+        lock.lock()
+        defer { lock.unlock() }
+        return rows.first { $0.id == id }
+    }
+
+    func fetchMeetings(
+        withStatus status: Transcription.TranscriptionStatus
+    ) throws -> [Transcription] {
+        lock.lock()
+        defer { lock.unlock() }
+        return
+            rows
+            .filter { $0.sourceType == .meeting && $0.status == status }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    func completeBeforeNextTransition(id: UUID) {
+        lock.lock()
+        defer { lock.unlock() }
+        completionBeforeTransitionIDs.insert(id)
+    }
+
+    @discardableResult
+    func transitionStatus(
+        id: UUID,
+        from expectedStatus: Transcription.TranscriptionStatus,
+        to status: Transcription.TranscriptionStatus,
+        errorMessage: String?
+    ) throws -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard let index = rows.firstIndex(where: { $0.id == id }) else {
+            return false
+        }
+        if completionBeforeTransitionIDs.remove(id) != nil {
+            rows[index].status = .completed
+            rows[index].errorMessage = nil
+        }
+        guard rows[index].status == expectedStatus else {
+            return false
+        }
+        rows[index].status = status
+        rows[index].errorMessage = errorMessage
+        return true
+    }
+}
+
+private struct ReconcilerOwnershipCoordinator:
+    MeetingFinalizationReconciliationCoordinating
+{
+    var liveFolderPaths: Set<String> = []
+    var failingFolderPaths: Set<String> = []
+
+    func reconcileIfUnowned(
+        folderURL: URL,
+        transition: @Sendable () throws -> Bool
+    ) throws -> Bool {
+        let folderPath = folderURL.standardizedFileURL.path
+        if failingFolderPaths.contains(folderPath) {
+            throw ReconcilerOwnershipError.unreadableLock
+        }
+        guard !liveFolderPaths.contains(folderPath) else {
+            return false
+        }
+        return try transition()
+    }
+}
+
+private enum ReconcilerOwnershipError: Error {
+    case unreadableLock
+}
+
+private struct ReconcilerProcessAliveChecker: ProcessAliveChecking {
+    let alivePIDs: Set<Int32>
+
+    func isAlive(pid: Int32) -> Bool {
+        alivePIDs.contains(pid)
     }
 }
 

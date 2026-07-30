@@ -67,6 +67,204 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         XCTAssertEqual(readLockFile.folderURL?.standardizedFileURL, folderURL.standardizedFileURL)
     }
 
+    func testHasLiveOwnerUsesReadableLockPID() throws {
+        let folderURL = tempRoot.appendingPathComponent("session")
+        let liveStore = MeetingRecordingLockFileStore(
+            processChecker: MockProcessAliveChecker(alivePIDs: [42])
+        )
+        try liveStore.write(
+            makeLockFile(pid: 42, state: .awaitingTranscription),
+            folderURL: folderURL
+        )
+
+        XCTAssertTrue(try liveStore.hasLiveOwner(folderURL: folderURL))
+    }
+
+    func testHasLiveOwnerReturnsFalseForDeadOrMissingOwner() throws {
+        let deadFolderURL = tempRoot.appendingPathComponent("dead-session")
+        try store.write(
+            makeLockFile(pid: 42, state: .awaitingTranscription),
+            folderURL: deadFolderURL
+        )
+
+        XCTAssertFalse(try store.hasLiveOwner(folderURL: deadFolderURL))
+        XCTAssertFalse(try store.hasLiveOwner(
+            folderURL: tempRoot.appendingPathComponent("missing-session")
+        ))
+    }
+
+    func testFinalizationOwnershipClaimRewritesAndReleaseRestoresDeadOwner() throws {
+        let folderURL = tempRoot.appendingPathComponent("claim-session")
+        let original = makeLockFile(
+            pid: 42,
+            state: .awaitingTranscription,
+            folderURL: folderURL
+        )
+        let claimingStore = MeetingRecordingLockFileStore(
+            processChecker: MockProcessAliveChecker(alivePIDs: [101]),
+            processID: 101
+        )
+        try claimingStore.write(original, folderURL: folderURL)
+
+        let lease = try claimingStore.claimFinalizationOwnership(
+            folderURL: folderURL
+        )
+
+        let claimed = try XCTUnwrap(claimingStore.read(folderURL: folderURL))
+        XCTAssertEqual(claimed.pid, 101)
+        XCTAssertEqual(claimed.state, .awaitingTranscription)
+        XCTAssertEqual(claimed.finalizationLeaseId, lease.id)
+
+        try claimingStore.releaseFinalizationOwnership(lease)
+
+        XCTAssertEqual(try claimingStore.read(folderURL: folderURL), original)
+    }
+
+    func testFinalizationOwnershipClaimRefusesLiveOwner() throws {
+        let folderURL = tempRoot.appendingPathComponent("live-claim-session")
+        let claimingStore = MeetingRecordingLockFileStore(
+            processChecker: MockProcessAliveChecker(alivePIDs: [42, 101]),
+            processID: 101
+        )
+        let original = makeLockFile(
+            pid: 42,
+            state: .awaitingTranscription,
+            folderURL: folderURL
+        )
+        try claimingStore.write(original, folderURL: folderURL)
+
+        XCTAssertThrowsError(
+            try claimingStore.claimFinalizationOwnership(folderURL: folderURL)
+        ) { error in
+            XCTAssertEqual(
+                error as? MeetingFinalizationOwnershipError,
+                .ownedByLiveProcess(pid: 42)
+            )
+        }
+        XCTAssertEqual(try claimingStore.read(folderURL: folderURL), original)
+    }
+
+    func testFinalizationOwnershipClaimReplacesDeadProcessLease() throws {
+        let folderURL = tempRoot.appendingPathComponent("stale-lease-session")
+        let staleLeaseID = UUID()
+        let staleLock = makeLockFile(
+            pid: 42,
+            state: .awaitingTranscription,
+            folderURL: folderURL
+        ).withFinalizationOwner(pid: 42, leaseID: staleLeaseID)
+        let claimingStore = MeetingRecordingLockFileStore(
+            processChecker: MockProcessAliveChecker(alivePIDs: [101]),
+            processID: 101
+        )
+        try claimingStore.write(staleLock, folderURL: folderURL)
+
+        let replacementLease = try claimingStore.claimFinalizationOwnership(
+            folderURL: folderURL
+        )
+
+        let claimed = try XCTUnwrap(claimingStore.read(folderURL: folderURL))
+        XCTAssertEqual(claimed.pid, 101)
+        XCTAssertEqual(claimed.finalizationLeaseId, replacementLease.id)
+        XCTAssertNotEqual(claimed.finalizationLeaseId, staleLeaseID)
+    }
+
+    func testFailedOwnershipReleaseCanBeReclaimedBySameProcess() throws {
+        let folderURL = tempRoot.appendingPathComponent("failed-release-session")
+        let claimingStore = MeetingRecordingLockFileStore(
+            processChecker: MockProcessAliveChecker(alivePIDs: [101]),
+            processID: 101
+        )
+        let original = makeLockFile(
+            pid: 42,
+            state: .awaitingTranscription,
+            folderURL: folderURL
+        )
+        try claimingStore.write(
+            original,
+            folderURL: folderURL
+        )
+        let abandonedLease = try claimingStore.claimFinalizationOwnership(
+            folderURL: folderURL
+        )
+        let claimedLock = try XCTUnwrap(
+            claimingStore.read(folderURL: folderURL)
+        )
+
+        try FileManager.default.removeItem(at: folderURL)
+        XCTAssertThrowsError(
+            try claimingStore.releaseFinalizationOwnership(abandonedLease)
+        )
+
+        try claimingStore.write(claimedLock, folderURL: folderURL)
+        XCTAssertFalse(try claimingStore.hasLiveOwner(folderURL: folderURL))
+        XCTAssertEqual(
+            try claimingStore.discoverOrphans(meetingsRoot: tempRoot).map(\.sessionId),
+            [original.sessionId]
+        )
+        XCTAssertTrue(
+            try claimingStore.discoverActiveSessions(meetingsRoot: tempRoot).isEmpty
+        )
+
+        let replacementLease = try claimingStore.claimFinalizationOwnership(
+            folderURL: folderURL
+        )
+
+        XCTAssertNotEqual(replacementLease.id, abandonedLease.id)
+        let replacementLock = try XCTUnwrap(
+            claimingStore.read(folderURL: folderURL)
+        )
+        XCTAssertEqual(replacementLock.pid, 101)
+        XCTAssertEqual(replacementLock.finalizationLeaseId, replacementLease.id)
+
+        try claimingStore.releaseFinalizationOwnership(replacementLease)
+        XCTAssertEqual(try claimingStore.read(folderURL: folderURL), original)
+
+        let thirdLease = try claimingStore.claimFinalizationOwnership(
+            folderURL: folderURL
+        )
+        XCTAssertNotEqual(thirdLease.id, replacementLease.id)
+    }
+
+    func testConcurrentFinalizationOwnershipClaimsAdmitOneProcess() async throws {
+        let folderURL = tempRoot.appendingPathComponent("concurrent-claim-session")
+        let processChecker = MockProcessAliveChecker(alivePIDs: [101, 202])
+        let firstStore = MeetingRecordingLockFileStore(
+            processChecker: processChecker,
+            processID: 101
+        )
+        let secondStore = MeetingRecordingLockFileStore(
+            processChecker: processChecker,
+            processID: 202
+        )
+        let original = makeLockFile(
+            pid: 42,
+            state: .awaitingTranscription,
+            folderURL: folderURL
+        )
+
+        for iteration in 0..<25 {
+            try firstStore.write(original, folderURL: folderURL)
+            let firstTask = Task.detached {
+                try? firstStore.claimFinalizationOwnership(folderURL: folderURL)
+            }
+            let secondTask = Task.detached {
+                try? secondStore.claimFinalizationOwnership(folderURL: folderURL)
+            }
+            let firstLease = await firstTask.value
+            let secondLease = await secondTask.value
+            let leases = [firstLease, secondLease].compactMap { $0 }
+
+            XCTAssertEqual(
+                leases.count,
+                1,
+                "Expected one finalization owner in iteration \(iteration)"
+            )
+            if let lease = leases.first {
+                try firstStore.releaseFinalizationOwnership(lease)
+            }
+        }
+    }
+
     func testDeleteRemovesFile() throws {
         let folderURL = tempRoot.appendingPathComponent("session")
         try store.write(makeLockFile(), folderURL: folderURL)

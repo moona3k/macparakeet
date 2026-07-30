@@ -40,7 +40,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "MeetingRecordingRecoveryService")
 
     private let meetingsRoot: URL
-    private let lockFileStore: MeetingRecordingLockFileStoring
+    private let lockFileStore: any MeetingRecordingLockFileStoring & MeetingFinalizationOwnershipClaiming
     private let transcriptionService: TranscriptionServiceProtocol
     private let transcriptionRepo: TranscriptionRepositoryProtocol
     private let settlement: MeetingRecordingSettlement
@@ -57,7 +57,9 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
 
     public convenience init(
         meetingsRoot: URL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true),
-        lockFileStore: MeetingRecordingLockFileStoring = MeetingRecordingLockFileStore(),
+        lockFileStore:
+            any MeetingRecordingLockFileStoring & MeetingFinalizationOwnershipClaiming =
+            MeetingRecordingLockFileStore(),
         transcriptionService: TranscriptionServiceProtocol,
         transcriptionRepo: TranscriptionRepositoryProtocol,
         audioConverter: AudioFileConverting = AudioFileConverter(),
@@ -80,7 +82,9 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
 
     init(
         meetingsRoot: URL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true),
-        lockFileStore: MeetingRecordingLockFileStoring = MeetingRecordingLockFileStore(),
+        lockFileStore:
+            any MeetingRecordingLockFileStoring & MeetingFinalizationOwnershipClaiming =
+            MeetingRecordingLockFileStore(),
         transcriptionService: TranscriptionServiceProtocol,
         transcriptionRepo: TranscriptionRepositoryProtocol,
         settlement: MeetingRecordingSettlement? = nil,
@@ -179,6 +183,21 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         guard fileManager.fileExists(atPath: folderURL.path) else {
             throw MeetingRecordingRecoveryError.missingSessionFolder
         }
+        let ownershipLease = try lockFileStore.claimFinalizationOwnership(
+            folderURL: folderURL
+        )
+        var shouldRestoreOwnership = true
+        defer {
+            if shouldRestoreOwnership {
+                do {
+                    try lockFileStore.releaseFinalizationOwnership(ownershipLease)
+                } catch {
+                    logger.error(
+                        "meeting_recovery_ownership_release_failed session=\(lock.sessionId.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .private)"
+                    )
+                }
+            }
+        }
 
         let microphoneAudio = MeetingArtifactAudioFileNames.resolveRawMicrophoneURL(
             in: folderURL,
@@ -190,7 +209,13 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
 
         if let existing = try existingCompletedTranscription(in: folderURL) {
             await writeNotesSidecar(for: lock, folderURL: folderURL)
-            return try await completeExistingTranscription(existing, folderURL: folderURL, lock: lock)
+            let completed = try await completeExistingTranscription(
+                existing,
+                folderURL: folderURL,
+                lock: lock
+            )
+            shouldRestoreOwnership = false
+            return completed
         }
         let incompleteRows = try existingIncompleteTranscriptions(in: folderURL)
         let rowToUpdate = selectedIncompleteTranscription(from: incompleteRows)
@@ -350,7 +375,13 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             } else {
                 transcription = try await transcriptionService.transcribeMeeting(recording: recording, onProgress: nil)
             }
-            return try await completeRecovery(transcription, folderURL: folderURL, lock: lock)
+            let completed = try await completeRecovery(
+                transcription,
+                folderURL: folderURL,
+                lock: lock
+            )
+            shouldRestoreOwnership = false
+            return completed
         } catch {
             logger.error("meeting_recovery_transcription_failed session=\(lock.sessionId.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
             throw error

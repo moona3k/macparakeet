@@ -122,6 +122,42 @@ struct MeetingTimedTranscriptRecoveryBannerPresentation: Equatable {
     }
 }
 
+struct MeetingTranscriptProcessingPresentation: Equatable {
+    let title: String
+    let message: String
+
+    static func make(
+        sourceType: Transcription.SourceType,
+        status: Transcription.TranscriptionStatus
+    ) -> MeetingTranscriptProcessingPresentation? {
+        guard sourceType == .meeting,
+            status == .processing
+        else {
+            return nil
+        }
+        return MeetingTranscriptProcessingPresentation(
+            title: "Transcribing meeting",
+            message:
+                "Your audio is saved. Final transcription is continuing in the background. You can leave this page and return later."
+        )
+    }
+}
+
+enum TranscriptDetailActionAvailability {
+    static func canEdit(
+        status: Transcription.TranscriptionStatus
+    ) -> Bool {
+        status != .processing
+    }
+
+    static func canRetranscribe(
+        hasRetainedAudio: Bool,
+        status: Transcription.TranscriptionStatus
+    ) -> Bool {
+        hasRetainedAudio && status != .processing
+    }
+}
+
 struct TranscriptResultView: View {
     let transcription: Transcription
     @Bindable var viewModel: TranscriptionViewModel
@@ -609,15 +645,18 @@ struct TranscriptResultView: View {
                       : "Meeting artifact folder is not available")
             }
 
-            if onRetranscribe != nil, let filePath = transcription.filePath,
-               FileManager.default.fileExists(atPath: filePath) {
-                let engineOption = viewModel.retranscriptionEngineOption(for: transcription)
+            if onRetranscribe != nil, let filePath = activeTranscription.filePath,
+               TranscriptDetailActionAvailability.canRetranscribe(
+                   hasRetainedAudio: FileManager.default.fileExists(atPath: filePath),
+                   status: activeTranscription.status
+               ) {
+                let engineOption = viewModel.retranscriptionEngineOption(for: activeTranscription)
                 Button {
                     if engineOption != nil {
                         showingRetranscribeOptions.toggle()
                     } else {
                         retranscriptionConfirmation = RetranscriptionConfirmation(
-                            transcriptionID: transcription.id,
+                            transcriptionID: activeTranscription.id,
                             speechEngineOverride: nil
                         )
                     }
@@ -1228,6 +1267,7 @@ struct TranscriptResultView: View {
                     }
 
                     if activeTranscription.sourceType == .meeting,
+                       activeTranscription.status != .processing,
                        !activeTranscription.hasWordTimestamps,
                        let banner = meetingNoWordTimestampsBannerPresentation {
                         meetingNoWordTimestampsBanner(banner)
@@ -1248,6 +1288,10 @@ struct TranscriptResultView: View {
                             .foregroundStyle(DesignSystem.Colors.errorRed)
                     }
 
+                    if let presentation = meetingTranscriptProcessingPresentation {
+                        meetingTranscriptProcessingState(presentation)
+                    }
+
                     if editingTranscript {
                         transcriptEditor
                     } else if transcriptDisplayMode == .timed,
@@ -1257,9 +1301,9 @@ struct TranscriptResultView: View {
                             speakerSummaryPanel(speakers: speakers)
                         }
                         timestampedView(words: timestamps)
-                    } else if !transcriptText.isEmpty {
+                    } else if !transcriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         transcriptTextBlock
-                    } else {
+                    } else if meetingTranscriptProcessingPresentation == nil {
                         Text("No transcript available")
                             .foregroundStyle(DesignSystem.Colors.textSecondary)
                     }
@@ -1642,12 +1686,60 @@ struct TranscriptResultView: View {
                     Label("Edit", systemImage: "pencil")
                 }
                 .parakeetAction(.secondary)
-                .disabled(transcriptDisplayMode != .text)
-                .help(transcriptDisplayMode == .text
-                    ? "Edit the transcript text"
-                    : "Switch to Text to edit. Edits apply to the text transcript; timestamps are preserved.")
+                .disabled(
+                    transcriptDisplayMode != .text
+                        || !TranscriptDetailActionAvailability.canEdit(
+                            status: activeTranscription.status
+                        )
+                )
+                .help(transcriptEditHelp)
             }
         }
+    }
+
+    private var transcriptEditHelp: String {
+        if transcriptDisplayMode != .text {
+            return "Switch to Text to edit. Edits apply to the text transcript; timestamps are preserved."
+        }
+        if activeTranscription.status == .processing {
+            return "Editing is available after transcription finishes."
+        }
+        if transcriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "Add transcript text manually."
+        }
+        return "Edit the transcript text"
+    }
+
+    private var meetingTranscriptProcessingPresentation: MeetingTranscriptProcessingPresentation? {
+        MeetingTranscriptProcessingPresentation.make(
+            sourceType: activeTranscription.sourceType,
+            status: activeTranscription.status
+        )
+    }
+
+    private func meetingTranscriptProcessingState(
+        _ presentation: MeetingTranscriptProcessingPresentation
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                ParakeetSpinner(.inline, tint: DesignSystem.Colors.accent)
+                Text(presentation.title)
+                    .font(DesignSystem.Typography.body.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+            }
+
+            Text(presentation.message)
+                .font(DesignSystem.Typography.body)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(DesignSystem.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .fill(DesignSystem.Colors.surfaceElevated)
+        )
+        .accessibilityElement(children: .combine)
     }
 
     private var transcriptEditor: some View {

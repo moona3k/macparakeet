@@ -482,7 +482,7 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
         meetingFinalizationHeld = true
     }
 
-    func persistFinalizedMeetings(to repository: MockTranscriptionRepository) {
+    func persistFinalizedMeetings(to repository: any TranscriptionRepositoryProtocol) {
         preparedMeetingSaveHook = { transcription in
             try? repository.save(transcription)
         }

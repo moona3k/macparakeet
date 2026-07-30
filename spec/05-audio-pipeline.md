@@ -322,6 +322,17 @@ B can start only after Meeting A's source audio, mixed playback artifact,
 `awaitingTranscription` lock, and processing Library row are durable. Meeting
 A's final STT then continues in the queue-owned background path.
 
+On app startup, processing-row reconciliation excludes both finalizations in
+the current process's queue and rows whose exact artifact folder has a readable
+lock owned by another live process. An unowned row becomes retryable error only
+if its persisted status is still `processing` at the atomic update boundary;
+this prevents startup cleanup from regressing a concurrently completed row.
+Retry and crash recovery first claim that folder by rewriting the lock with
+their PID and a unique lease token. The claim and startup reconciliation share
+a per-folder advisory mutex, so the ownership check and compare-and-set cannot
+race a newly admitted finalization. Failed admission restores the prior lock;
+successful settlement deletes it.
+
 This is a recorder-availability guarantee, not an instant-transcript guarantee.
 Queued meeting finalization still uses the shared `STTScheduler` background
 slot. If file, folder, YouTube, podcast, or media URL STT is already running,
@@ -359,9 +370,10 @@ Full meeting deletion is the path that removes the session folder.
 Scheduled retention only detaches audio for completed meeting rows with stored
 audio paths. It skips any session folder that still has `recording.lock`, live
 or dead PID, because those files are active or recoverable recording input.
-Crash-recovered meetings are protected while recovery runs; once the lock is
-removed and the recovered row is completed, normal retention applies. The same
-lock guard protects manual cleanup: both `TranscriptionAssetCleanup` and the
+Crash-recovered meetings are protected while recovery runs by the claiming
+process PID and finalization lease; once the lock is removed and the recovered
+row is completed, normal retention applies. The same lock guard protects
+manual cleanup: both `TranscriptionAssetCleanup` and the
 `clear-meeting-audio` CLI refuse to remove a session folder while a
 `recording.lock` is present, including dead-owner `awaitingTranscription` locks
 whose audio is still queued for background transcription (back-to-back meeting

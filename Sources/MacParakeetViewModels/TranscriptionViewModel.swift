@@ -1230,7 +1230,7 @@ public final class TranscriptionViewModel {
         applyMeetingRetention: Bool = true,
         selectTranscription: Bool = true
     ) {
-        if selectTranscription {
+        if selectTranscription || currentTranscription?.id == transcription.id {
             currentTranscription = transcription
         }
         loadTranscriptions()
@@ -1464,6 +1464,14 @@ public final class TranscriptionViewModel {
             currentTranscription = fresh
         }
         refreshPromptResultStatus()
+    }
+
+    public func refreshCurrentTranscriptionIfMatching(id: UUID) {
+        guard currentTranscription?.id == id,
+              let fresh = try? transcriptionRepo?.fetch(id: id) else {
+            return
+        }
+        currentTranscription = fresh
     }
 
     public func updateConversationStatus(id: UUID, hasConversations: Bool) {

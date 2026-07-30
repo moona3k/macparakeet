@@ -90,7 +90,7 @@ final class MeetingRecordingFlowCoordinator {
     private let onMenuBarIconUpdate: (BreathWaveIcon.MenuBarState) -> Void
     private let onTranscriptionReady: (Transcription) -> Void
     private let onQueuedTranscriptionReady: (Transcription, Bool) -> Void
-    private let onQueuedTranscriptionFailed: (TranscriptionCompletionNotifier.Content) -> Void
+    private let onQueuedTranscriptionFailed: (UUID, TranscriptionCompletionNotifier.Content) -> Void
     private let onRecordingBegan: () -> Void
     private let onRecordingStopping: () -> Void
     private let onFlowReturnedToIdle: () -> Void
@@ -155,11 +155,13 @@ final class MeetingRecordingFlowCoordinator {
         llmService: LLMServiceProtocol?,
         pillViewModel: MeetingRecordingPillViewModel,
         meetingRecordingSettlement: MeetingRecordingSettlement,
+        finalizationOwnershipClaimer: any MeetingFinalizationOwnershipClaiming =
+            MeetingRecordingLockFileStore(),
         meetingTranscriptionQueue: MeetingTranscriptionQueue? = nil,
         onMenuBarIconUpdate: @escaping (BreathWaveIcon.MenuBarState) -> Void,
         onTranscriptionReady: @escaping (Transcription) -> Void,
         onQueuedTranscriptionReady: ((Transcription, Bool) -> Void)? = nil,
-        onQueuedTranscriptionFailed: ((TranscriptionCompletionNotifier.Content) -> Void)? = nil,
+        onQueuedTranscriptionFailed: ((UUID, TranscriptionCompletionNotifier.Content) -> Void)? = nil,
         onRecordingBegan: @escaping () -> Void = {},
         onRecordingStopping: @escaping () -> Void = {},
         onFlowReturnedToIdle: @escaping () -> Void = {}
@@ -185,7 +187,8 @@ final class MeetingRecordingFlowCoordinator {
             ?? MeetingTranscriptionQueue(
                 transcriptionService: transcriptionService,
                 transcriptionRepo: transcriptionRepo,
-                meetingRecordingSettlement: meetingRecordingSettlement
+                meetingRecordingSettlement: meetingRecordingSettlement,
+                finalizationOwnershipClaimer: finalizationOwnershipClaimer
             )
         self.onMenuBarIconUpdate = onMenuBarIconUpdate
         self.onTranscriptionReady = onTranscriptionReady
@@ -194,7 +197,7 @@ final class MeetingRecordingFlowCoordinator {
                 onTranscriptionReady(transcription)
             }
         self.onQueuedTranscriptionFailed =
-            onQueuedTranscriptionFailed ?? { content in
+            onQueuedTranscriptionFailed ?? { _, content in
                 TranscriptionCompletionPresenter.presentNotification(content)
             }
         self.onRecordingBegan = onRecordingBegan
@@ -914,7 +917,7 @@ final class MeetingRecordingFlowCoordinator {
                         )
                         self.persistLiveAskConversationIfNeeded(transcriptionID: prepared.id)
                         let enqueueStartedAt = Date()
-                        meetingTranscriptionQueue.enqueue(
+                        await meetingTranscriptionQueue.enqueue(
                             MeetingTranscriptionQueue.Item(
                                 recording: output,
                                 transcriptionID: prepared.id,
@@ -1532,7 +1535,13 @@ final class MeetingRecordingFlowCoordinator {
 
     func retryMeetingFinalization(_ transcription: Transcription) async throws {
         let item = try await makeRetryQueueItem(from: transcription)
-        meetingTranscriptionQueue.enqueue(item)
+        guard
+            try await meetingTranscriptionQueue.enqueueClaimingFinalizationOwnership(
+                item
+            )
+        else {
+            throw MeetingFinalizationRetryError.alreadyProcessing
+        }
     }
 
     var queuedMeetingTranscriptionIDs: Set<UUID> {
@@ -1573,7 +1582,10 @@ final class MeetingRecordingFlowCoordinator {
                 liveTranscriptLagged: item.liveTranscriptLagged,
                 errorType: TelemetryErrorClassifier.classify(error)
             )
-            onQueuedTranscriptionFailed(TranscriptionCompletionNotifier.meetingNeedsRetryContent())
+            onQueuedTranscriptionFailed(
+                item.transcriptionID,
+                TranscriptionCompletionNotifier.meetingNeedsRetryContent()
+            )
         }
     }
 

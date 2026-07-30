@@ -179,6 +179,18 @@ Declining the prompt **keeps** the lock file and audio — the user
 can retry recovery later from a Settings affordance ("Pending
 recovery: 1 partial recording").
 
+Startup also reconciles processing meeting rows left behind by an interrupted
+finalization. That reconciliation must distinguish a stale row from work owned
+by another live MacParakeet process: a readable lock at the row's artifact
+folder with a live PID protects the row, even when the new process has no local
+queue entry for it. An unowned processing row may move to a retryable error
+only through an atomic compare-and-set from `processing`, so a concurrent
+successful finalization cannot be overwritten. Retry and recovery first claim
+the folder by rewriting the lock with their PID and a unique optional
+`finalizationLeaseId`. Claiming and reconciliation share a per-folder advisory
+mutex; only one can win, and failed finalization restores the prior lock only
+if the same lease still owns it.
+
 ### 3. Schema version on the lock file
 
 The original lock file embedded `schemaVersion: 1`; schema v2 distinguishes an

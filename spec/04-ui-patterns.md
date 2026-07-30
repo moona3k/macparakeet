@@ -123,6 +123,19 @@ The tile body is informational. Only the visible Start and Stop capsules are rea
 
 When `Library.filter == .meeting`, the view renders a date-grouped list (`Today` / `Yesterday` / `Previous 7 Days` / `Previous 30 Days` / `{Month Year}`) using `MeetingDateGroupHeader` + `MeetingRowCard` instead of the thumbnail grid the other filters use. Meeting rows surface saved-audio state directly (`Audio saved`, `Audio removed`, or `Audio missing`) so playback/retranscription expectations are visible before the user opens a menu.
 
+Opening an empty processing meeting row must preserve that same lifecycle
+truth. The transcript pane shows an indeterminate "Transcribing meeting"
+surface, states that the audio is saved and final transcription continues in
+the background, and tells the user they may leave and return later. It must not
+use the terminal "No transcript available" empty state. Edit and Retranscribe
+are unavailable while the row is processing. After the row reaches a terminal
+state, Text mode permits Edit even when transcription produced no text so the
+user can enter it manually; Retranscribe still requires retained audio. If the
+matching detail page is already open when background finalization finishes, it
+refreshes in place on either success or terminal failure, even while another
+meeting is recording. That refresh must not navigate, activate a window, or
+replace an unrelated open detail page.
+
 ### Local Transcription Rename
 
 Local transcription rows expose `Rename...` with a `pencil` symbol in the same Library card/context menu as `Open`, placed before selection and destructive actions. The dialog is compact, prefilled with the effective display title, and rejects blank titles. Until the user explicitly renames it, a Local row's effective title is its original media filename rather than transcript-derived opening words. Rename is a display-metadata operation only: the original source filename/path remain unchanged, and copy-on-import/media-retention behavior is not implied.

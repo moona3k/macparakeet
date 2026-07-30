@@ -469,6 +469,26 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
         }
     }
 
+    @discardableResult
+    public func transitionStatus(
+        id: UUID,
+        from expectedStatus: Transcription.TranscriptionStatus,
+        to status: Transcription.TranscriptionStatus,
+        errorMessage: String? = nil
+    ) throws -> Bool {
+        try dbQueue.write { db in
+            guard var transcription = try Transcription.fetchOne(db, key: id),
+                  transcription.status == expectedStatus else {
+                return false
+            }
+            transcription.status = status
+            transcription.errorMessage = errorMessage
+            transcription.updatedAt = Date()
+            try transcription.update(db)
+            return true
+        }
+    }
+
     public func updateFileName(id: UUID, fileName: String) throws {
         try dbQueue.write { db in
             guard var transcription = try Transcription.fetchOne(db, key: id) else { return }

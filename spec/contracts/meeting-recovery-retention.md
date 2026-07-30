@@ -17,6 +17,9 @@ actions, and protect folders from automatic destructive sweeps.
   delete `recording.lock` after final transcription.
 - `MeetingRecordingRecoveryService`: reads orphaned locks, recovers audio, and
   routes completed-session lock cleanup through settlement.
+- `MeetingFinalizationReconciler`: uses queue ownership, the row's artifact
+  lock, and an atomic status transition to identify interrupted processing
+  rows without clobbering work in another live app process.
 - `MeetingAudioRetentionSweeper`: detaches completed meeting audio after the
   configured retention window.
 - `history clear-meeting-audio`: refuses clear-all when any readable lock
@@ -26,6 +29,7 @@ actions, and protect folders from automatic destructive sweeps.
 
 - Launch/settings recovery UI.
 - Background meeting finalization.
+- Startup processing-row reconciliation.
 - CLI clear-audio safeguards.
 - Meeting audio retention sweeps.
 - Support diagnostics and future smoke tests.
@@ -44,6 +48,7 @@ Stable lock fields:
 - `pid`
 - `displayName`
 - `state`
+- `finalizationLeaseId`
 - `speechEngine`
 - `notes`
 
@@ -56,6 +61,13 @@ Stable states:
 `notes` is a backward-compatible additive field. Missing values decode to safe
 defaults, and malformed `notes` does not block recovery of the structural lock
 metadata.
+
+`finalizationLeaseId` is a backward-compatible optional ownership token.
+Normal stop-and-queue locks and older locks omit it. Retry and crash-recovery
+flows write a fresh token together with the claiming process PID before they
+touch the transcript row or start STT. A missing token decodes as `nil`; a
+malformed token makes the structural lock unreadable rather than silently
+discarding ownership evidence.
 
 Speech-engine provenance is versioned because schema v1 writers always encoded
 the former shared engine route. A v1 `speechEngine` therefore does not prove
@@ -72,15 +84,56 @@ accept supported older versions and reject newer, unknown versions.
 
 Use the narrow predicate that matches the operation:
 
-- Recovery orphan discovery: valid/readable lock plus dead owner PID.
+- Recovery orphan discovery: valid/readable lock plus dead owner PID, or an
+  exact same-process lease token recorded as relinquished after restoration
+  failed.
+- Processing-row reconciliation protection: a current-process queue entry or
+  a valid/readable lock at the row's artifact folder plus live owner PID.
 - Active-session CLI refusal: valid/readable lock plus live owner PID, or
   stricter readable-session checks for clear-all operations.
 - Automatic destructive sweep safety: any file named `recording.lock` in the
   session folder, whether it is parseable or not.
 
-`discoverActiveSessions(...)` is PID-live only. It is not a generic "safe to
-mutate" predicate. A dead-owner `awaitingTranscription` lock can still point at
-valid audio that has not been finalized into a completed transcript.
+`discoverActiveSessions(...)` is PID-live except that the process which
+recorded an exact lease token as relinquished excludes that token from its
+active results and exposes it through orphan discovery instead. The registry
+is process-local, so out-of-process callers such as the CLI conservatively
+remain PID-live only. Active discovery is not a generic "safe to mutate"
+predicate. A dead-owner `awaitingTranscription` lock can still point at valid
+audio that has not been finalized into a completed transcript.
+
+## Processing Row Reconciliation
+
+At startup, a processing meeting row is stale only when no current-process
+queue item owns its transcription id and no readable lock at its
+`meetingArtifactFolderPath` has a live owner PID. The per-folder check is
+intentional: it supports custom artifact roots and avoids treating the new
+process's empty in-memory queue as global truth.
+
+After those ownership checks, reconciliation changes the row from `processing`
+to a retryable `error` with an audio-saved explanation. That write is a
+compare-and-set on the persisted status. If another process completed or
+otherwise settled the row after the startup read, reconciliation leaves the
+newer state intact and does not report the row as reconciled.
+
+Ownership inspection and transition failures are isolated per row. The affected
+row remains unchanged and the failure is logged, while reconciliation continues
+with unrelated processing meetings; one unreadable lock cannot wedge recovery
+for every other meeting at startup.
+
+The live-owner check and compare-and-set run while holding a per-session
+advisory mutex. Retry and crash recovery claim ownership under that same mutex
+by atomically rewriting the lock with their PID and a unique
+`finalizationLeaseId`. This closes the check-to-write race: startup
+reconciliation and finalization admission cannot both win. A failed or
+duplicate admission restores the exact prior lock only when its lease token
+still matches; successful settlement deletes the lock instead. If restoring
+the prior lock hits an I/O error, that exact relinquished token may be replaced
+by a later claim in the same process; unrelated and still-active lease tokens
+remain protected. The replacement inherits the relinquished lease's original
+pre-claim lock, so repeated fail/retry cycles cannot restore an abandoned lease
+or wedge the next retry. A relinquished token is not a live owner and remains
+visible to recovery discovery even while its former process PID is alive.
 
 ## Retention Rule
 
@@ -114,7 +167,8 @@ failed cleanup (for example, discard must not report success while
 can re-settle the completed row on a later scan. On the transcription-queue
 path a settlement error after a successful finalize is caught by the queue:
 the completed transcript is already durably saved, so the queue still reports
-success and leaves the lock for recovery to re-settle.
+success and restores any retry ownership lease to the prior protective lock so
+recovery can re-settle it later.
 
 The non-settlement deletion paths are intentionally limited to flows that are
 not final-transcription completion:
@@ -149,6 +203,8 @@ retention barrier.
 ## Tests that enforce this
 
 - `MeetingRecordingLockFileStoreTests`
+- `MeetingFinalizationReconcilerTests`
+- `TranscriptionRepositoryTests`
 - `MeetingRecordingSettlementTests`
 - `MeetingRecordingRecoveryServiceTests`
 - `MeetingTranscriptionQueueTests`
@@ -156,14 +212,16 @@ retention barrier.
 - `MeetingAudioRetentionSweeperTests`
 - `MeetingRecordingServiceTests`
 
-Focused coverage pins dead-PID `awaitingTranscription` reads, the distinction
-between active-session discovery and retention safety, completed recovery lock
-cleanup, and retention sweeps skipping valid, zero-byte, corrupt, and
-future-schema lock files. Settlement coverage pins refusal for missing or
-non-completed rows, rethrown delete I/O failure (including discard surfacing a
-retained lock and staying retryable), queue success/failure lock behavior, and
-crash-point convergence for awaiting locks with no row, processing rows, and
-completed rows whose lock is still present.
+Focused coverage pins dead-PID `awaitingTranscription` reads, serialized
+single-owner retry/recovery admission, live-owner processing-row protection
+across app processes, atomic refusal to regress a
+completed row, the distinction between active-session discovery and retention
+safety, completed recovery lock cleanup, and retention sweeps skipping valid,
+zero-byte, corrupt, and future-schema lock files. Settlement coverage pins
+refusal for missing or non-completed rows, rethrown delete I/O failure
+(including discard surfacing a retained lock and staying retryable), queue
+success/failure lock behavior, and crash-point convergence for awaiting locks
+with no row, processing rows, and completed rows whose lock is still present.
 
 ## When this changes
 
