@@ -329,6 +329,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         onShowIdlePillChanged: { [weak self] in
             self?.handleShowIdlePillChange()
         },
+        onShowDiscoverChanged: { [weak self] in
+            self?.setupDiscoverContent()
+        },
         onShowMeetingRecordingPillChanged: { [weak self] in
             self?.handleShowMeetingRecordingPillChange()
         },
@@ -631,6 +634,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func setupDiscoverContent() {
+        // Respect the user preference before touching the network. When
+        // Discover is hidden the feed is neither loaded nor fetched, so the
+        // app makes no request to the Discover endpoint at launch.
+        guard settingsViewModel.showDiscover else {
+            discoverViewModel.cancelDiscover()
+            return
+        }
         guard let fallbackURL = Bundle.module.url(forResource: "discover-fallback", withExtension: "json"),
               let data = try? Data(contentsOf: fallbackURL) else { return }
 

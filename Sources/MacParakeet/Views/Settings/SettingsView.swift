@@ -701,19 +701,29 @@ struct SettingsView: View {
             subtitle: "Choose how MacParakeet looks across app windows.",
             icon: "circle.lefthalf.filled"
         ) {
-            SettingsRow(
-                title: "Theme",
-                detail: viewModel.appAppearanceMode.detail
-            ) {
-                Picker("Theme", selection: $viewModel.appAppearanceMode) {
-                    ForEach(AppAppearanceMode.allCases, id: \.self) { mode in
-                        Text(mode.displayTitle).tag(mode)
+            VStack(spacing: DesignSystem.Spacing.md) {
+                SettingsRow(
+                    title: "Theme",
+                    detail: viewModel.appAppearanceMode.detail
+                ) {
+                    Picker("Theme", selection: $viewModel.appAppearanceMode) {
+                        ForEach(AppAppearanceMode.allCases, id: \.self) { mode in
+                            Text(mode.displayTitle).tag(mode)
+                        }
                     }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(width: 260)
+                    .accessibilityHint("Choose whether MacParakeet follows macOS or uses a fixed light or dark appearance.")
                 }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .frame(width: 260)
-                .accessibilityHint("Choose whether MacParakeet follows macOS or uses a fixed light or dark appearance.")
+
+                Divider()
+
+                settingsToggleRow(
+                    title: "Show Discover in the sidebar",
+                    detail: "When off, the Discover card is hidden and its feed is not requested.",
+                    isOn: $viewModel.showDiscover
+                )
             }
         }
     }

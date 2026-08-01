@@ -483,6 +483,7 @@ public enum VoiceReturnTriggerPhrases: Sendable {
 public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProtocol, @unchecked Sendable {
     public static let defaultVoiceReturnTrigger = VoiceReturnTriggerPhrases.defaultTrigger
     public static let showIdlePillKey = "showIdlePill"
+    public static let showDiscoverKey = "showDiscover"
     public static let showMeetingRecordingPillKey = "showMeetingRecordingPill"
     public static let silenceAutoStopKey = "silenceAutoStop"
     public static let silenceDelayKey = "silenceDelay"

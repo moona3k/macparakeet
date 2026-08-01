@@ -52,7 +52,8 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     }
 
     /// Note: `.discover` is intentionally excluded from the arrays above.
-    /// It renders as a pinned card below the sidebar list via `safeAreaInset`.
+    /// It renders as a pinned card below the sidebar list via `safeAreaInset`,
+    /// gated on the user preference `SettingsViewModel.showDiscover`.
 }
 
 struct MainWindowView: View {
@@ -104,11 +105,20 @@ struct MainWindowView: View {
                 .listStyle(.sidebar)
                 .tint(DesignSystem.Colors.accent)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    DiscoverSidebarCard(
-                        viewModel: discoverViewModel,
-                        isSelected: state.selectedItem == .discover,
-                        onTap: { state.selectedItem = .discover }
-                    )
+                    if settingsViewModel.showDiscover {
+                        DiscoverSidebarCard(
+                            viewModel: discoverViewModel,
+                            isSelected: state.selectedItem == .discover,
+                            onTap: { state.selectedItem = .discover }
+                        )
+                    }
+                }
+                .onChange(of: settingsViewModel.showDiscover) { _, isVisible in
+                    // Turning the card off while Discover is the active detail
+                    // would strand the user on a pane they can no longer reach.
+                    if !isVisible, state.selectedItem == .discover {
+                        state.selectedItem = .transcribe
+                    }
                 }
                 .navigationSplitViewColumnWidth(min: 170, ideal: DesignSystem.Layout.sidebarMinWidth, max: 240)
             } detail: {
