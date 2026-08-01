@@ -272,6 +272,30 @@ public enum SettingsSearchIndex {
             cardAnchor: "meeting"
         ),
         SettingsSearchEntry(
+            id: "meeting.openAppAfterEnd",
+            tab: .capture,
+            title: "Open app when meeting ends",
+            subtitle: "in Meeting Recording",
+            keywords: [
+                "open app", "auto open", "auto-open", "bring forward", "focus",
+                "steal focus", "meeting ends", "after meeting", "stop recording",
+                "background", "stay in background"
+            ],
+            cardAnchor: "meeting"
+        ),
+        SettingsSearchEntry(
+            id: "meeting.notifyOnEnd",
+            tab: .capture,
+            title: "Notify when transcript is ready",
+            subtitle: "in Meeting Recording",
+            keywords: [
+                "notification", "notify", "banner", "chime", "sound",
+                "meeting ready", "transcript ready", "meeting complete",
+                "meeting notification"
+            ],
+            cardAnchor: "meeting"
+        ),
+        SettingsSearchEntry(
             id: "meeting.speakerDetection",
             tab: .capture,
             title: "Speaker detection",

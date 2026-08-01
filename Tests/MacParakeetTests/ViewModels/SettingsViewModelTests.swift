@@ -233,6 +233,8 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.meetingHotkeyTrigger, .chord(modifiers: ["command", "shift"], keyCode: 46))
         XCTAssertEqual(viewModel.meetingAudioSourceMode, .microphoneAndSystem)
         XCTAssertTrue(viewModel.showMeetingRecordingPill, "showMeetingRecordingPill should default to true")
+        XCTAssertTrue(viewModel.openAppAfterMeetingEnd, "openAppAfterMeetingEnd should default to true")
+        XCTAssertTrue(viewModel.notifyOnMeetingEnd, "notifyOnMeetingEnd should default to true")
         XCTAssertFalse(viewModel.meetingAutoStopEnabled, "meeting auto-stop should default to false")
         XCTAssertEqual(
             viewModel.selectedMicrophoneDeviceUID,
@@ -269,6 +271,8 @@ final class SettingsViewModelTests: XCTestCase {
             forKey: UserDefaultsAppRuntimePreferences.meetingAudioSourceModeKey
         )
         testDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.showMeetingRecordingPillKey)
+        testDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.openAppAfterMeetingEndKey)
+        testDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.notifyOnMeetingEndKey)
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.meetingAutoStopEnabledKey)
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey)
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.instantDictationEnabledKey)
@@ -296,11 +300,51 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.selectedMicrophoneDeviceUID, "usb-mic-uid")
         XCTAssertEqual(vm.meetingAudioSourceMode, .systemOnly)
         XCTAssertFalse(vm.showMeetingRecordingPill)
+        XCTAssertFalse(vm.openAppAfterMeetingEnd)
+        XCTAssertFalse(vm.notifyOnMeetingEnd)
         XCTAssertTrue(vm.meetingAutoStopEnabled)
         XCTAssertTrue(vm.pauseMediaDuringDictation)
         XCTAssertTrue(vm.instantDictationEnabled)
         XCTAssertFalse(vm.showLiveDictationPreview)
         XCTAssertEqual(vm.meetingHotkeyTrigger, .chord(modifiers: ["control", "option"], keyCode: 46))
+    }
+
+    func testOpenAppAfterMeetingEndPersistsAndEmitsTelemetry() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        viewModel.openAppAfterMeetingEnd = false
+
+        XCTAssertFalse(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.openAppAfterMeetingEndKey))
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences.openAppAfterMeetingEnd(defaults: testDefaults))
+
+        viewModel.openAppAfterMeetingEnd = true
+
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences.openAppAfterMeetingEnd(defaults: testDefaults))
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting, _) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.openAppAfterMeetingEnd, .openAppAfterMeetingEnd])
+    }
+
+    func testNotifyOnMeetingEndPersistsAndEmitsTelemetry() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        viewModel.notifyOnMeetingEnd = false
+
+        XCTAssertFalse(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.notifyOnMeetingEndKey))
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences.notifyOnMeetingEnd(defaults: testDefaults))
+
+        viewModel.notifyOnMeetingEnd = true
+
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences.notifyOnMeetingEnd(defaults: testDefaults))
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting, _) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.notifyOnMeetingEnd, .notifyOnMeetingEnd])
     }
 
     func testMeetingAutoStopPersistsEmitsTelemetryAndPostsNotification() {

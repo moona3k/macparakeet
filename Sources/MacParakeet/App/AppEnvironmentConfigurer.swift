@@ -332,8 +332,11 @@ final class AppEnvironmentConfigurer {
                 self.transcriptionViewModel.presentCompletedTranscription(transcription, autoSave: true)
                 self.libraryViewModel.loadTranscriptions()
                 self.meetingsWorkspaceViewModel.refreshRecentMeetings()
-                self.mainWindowState.navigateToTranscription(from: .library)
-                callbacks.onOpenMainWindow()
+                self.presentMeetingTranscriptReady(
+                    transcription,
+                    preferences: env.runtimePreferences,
+                    openMainWindow: callbacks.onOpenMainWindow
+                )
             },
             onQueuedTranscriptionReady: { [weak self] transcription, selectTranscription in
                 guard let self else { return }
@@ -346,8 +349,11 @@ final class AppEnvironmentConfigurer {
                 self.libraryViewModel.loadTranscriptions()
                 self.meetingsWorkspaceViewModel.refreshRecentMeetings()
                 if selectTranscription {
-                    self.mainWindowState.navigateToTranscription(from: .library)
-                    callbacks.onOpenMainWindow()
+                    self.presentMeetingTranscriptReady(
+                        transcription,
+                        preferences: env.runtimePreferences,
+                        openMainWindow: callbacks.onOpenMainWindow
+                    )
                 }
             },
             onQueuedTranscriptionFailed: { [weak self] content in
@@ -491,6 +497,34 @@ final class AppEnvironmentConfigurer {
             meetingAutoStartCoordinator: calendarCoordinator,
             meetingAutoStopCoordinator: meetingAutoStopCoordinator
         )
+    }
+
+    /// Act on a finished meeting transcript per the meetings-tab settings:
+    /// open the app on the transcript, or — on the quiet path — play a chime
+    /// plus (while the app is backgrounded) a banner instead of stealing
+    /// focus. Clicking the banner activates the app; the meeting is already at
+    /// the top of the library. The decision itself is the unit-tested
+    /// `TranscriptionCompletionNotifier.meetingEndPresentation`.
+    private func presentMeetingTranscriptReady(
+        _ transcription: Transcription,
+        preferences: AppRuntimePreferencesProtocol,
+        openMainWindow: () -> Void
+    ) {
+        let text = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
+        switch TranscriptionCompletionNotifier.meetingEndPresentation(
+            openAppEnabled: preferences.openAppAfterMeetingEnd,
+            notifyEnabled: preferences.notifyOnMeetingEnd,
+            meetingTitle: transcription.effectiveDisplayTitle,
+            wordCount: text.split(whereSeparator: { $0.isWhitespace }).count
+        ) {
+        case .openApp:
+            mainWindowState.navigateToTranscription(from: .library)
+            openMainWindow()
+        case .quietSignal(let content):
+            TranscriptionCompletionPresenter.present(content)
+        case .silent:
+            break
+        }
     }
 
     func refreshLLMAvailability(in env: AppEnvironment) {

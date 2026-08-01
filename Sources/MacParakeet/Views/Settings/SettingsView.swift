@@ -1219,6 +1219,23 @@ struct SettingsView: View {
 
                 Divider()
 
+                settingsToggleRow(
+                    title: "Open app when meeting ends",
+                    detail: "Brings MacParakeet forward showing the transcript when a recording finishes. Turn this off to keep working — the meeting saves to your library in the background.",
+                    isOn: $viewModel.openAppAfterMeetingEnd
+                )
+
+                Divider()
+
+                settingsToggleRow(
+                    title: "Notify when transcript is ready",
+                    detail: "Plays a chime and shows a notification when a meeting finishes transcribing in the background. Applies when the app isn't set to open automatically.",
+                    isOn: $viewModel.notifyOnMeetingEnd
+                )
+                .disabled(viewModel.openAppAfterMeetingEnd)
+
+                Divider()
+
                 HStack(alignment: .center) {
                     rowText(
                         title: "Audio sources",

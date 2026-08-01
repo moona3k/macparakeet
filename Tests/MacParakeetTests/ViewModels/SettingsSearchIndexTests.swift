@@ -164,6 +164,28 @@ final class SettingsSearchIndexTests: XCTestCase {
         }
     }
 
+    func testMeetingEndBehaviorQueriesFindNewToggles() {
+        let openQueries = ["auto open", "steal focus", "bring forward", "stay in background"]
+        for query in openQueries {
+            let ids = Set(SettingsSearchIndex.matches(query).map(\.id))
+            if AppFeatures.meetingRecordingEnabled {
+                XCTAssertTrue(ids.contains("meeting.openAppAfterEnd"), "Query \(query) should find open-app toggle")
+            } else {
+                XCTAssertFalse(ids.contains("meeting.openAppAfterEnd"), "Query \(query) should not reveal hidden meeting settings")
+            }
+        }
+
+        let notifyQueries = ["chime", "transcript ready", "meeting notification"]
+        for query in notifyQueries {
+            let ids = Set(SettingsSearchIndex.matches(query).map(\.id))
+            if AppFeatures.meetingRecordingEnabled {
+                XCTAssertTrue(ids.contains("meeting.notifyOnEnd"), "Query \(query) should find notify toggle")
+            } else {
+                XCTAssertFalse(ids.contains("meeting.notifyOnEnd"), "Query \(query) should not reveal hidden meeting settings")
+            }
+        }
+    }
+
     func testMeetingSpeakerDetectionQueriesFindMeetingSetting() {
         let queries = ["system audio", "participants", "others", "speaker labels"]
 

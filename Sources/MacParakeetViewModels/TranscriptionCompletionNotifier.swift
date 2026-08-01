@@ -53,6 +53,54 @@ public enum TranscriptionCompletionNotifier {
         )
     }
 
+    /// Signal content for a meeting that finished transcribing while the
+    /// "Open app when meeting ends" setting is off — the quiet path's only
+    /// signal that the transcript is ready, or `nil` when the user has also
+    /// turned the meeting-end notification off.
+    ///
+    /// `settingEnabled` is the meetings-scoped `notifyOnMeetingEnd` toggle,
+    /// deliberately independent of `notifyOnTranscriptionComplete`: that
+    /// toggle lives in the Transcriptions settings tab and governs file/URL
+    /// work, while both meeting-end toggles live together in Meetings.
+    public static func meetingReadyContent(
+        settingEnabled: Bool,
+        meetingTitle: String,
+        wordCount: Int
+    ) -> Content? {
+        guard settingEnabled else { return nil }
+        return Content(
+            title: meetingTitle,
+            body: "Meeting transcript ready \u{00B7} \(wordsLabel(wordCount))"
+        )
+    }
+
+    /// How the app should respond when a meeting's transcript finishes.
+    public enum MeetingEndPresentation: Equatable, Sendable {
+        case openApp
+        case quietSignal(Content)
+        case silent
+    }
+
+    /// Decide the meeting-end behavior from the two meetings-tab settings.
+    /// Auto-open wins: while it is on, the app opens on the transcript and no
+    /// banner is needed, so `notifyEnabled` only matters on the quiet path.
+    public static func meetingEndPresentation(
+        openAppEnabled: Bool,
+        notifyEnabled: Bool,
+        meetingTitle: String,
+        wordCount: Int
+    ) -> MeetingEndPresentation {
+        if openAppEnabled { return .openApp }
+        guard
+            let content = meetingReadyContent(
+                settingEnabled: notifyEnabled,
+                meetingTitle: meetingTitle,
+                wordCount: wordCount
+            )
+        else { return .silent }
+        return .quietSignal(content)
+    }
+
     /// Critical meeting finalization failure content. This is independent of
     /// the completion-notification preference because it tells the user saved
     /// audio needs action, not that background work succeeded.

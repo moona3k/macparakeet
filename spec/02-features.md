@@ -1857,6 +1857,17 @@ authoritative transcript and is unchanged by this live-preview strategy.
 
 **Still proposed:** The metadata-only mic-health monitor emits privacy-safe `mic_stall_detected` telemetry, but signal amplitude alone does not restart the microphone. The separately proposed offline VAD pass would find transcript gaps and re-transcribe missed speech; the implemented frame report measures recorded media coverage, not transcript completeness.
 
+### F47: Meeting-End Focus & Notification Controls
+
+> Status: **IMPLEMENTED**
+
+**What:** Make the end-of-meeting handoff optional instead of always stealing focus. Two toggles in the Meeting Recording settings card, both default on to preserve prior behavior:
+
+- **Open app when meeting ends** (`openAppAfterMeetingEnd`): when on, finishing a meeting transcription navigates the main window to the transcript and activates the app (prior behavior). When off, the meeting still saves, the library still refreshes, and auto-prompts still run — the app just stays in the background.
+- **Notify when transcript is ready** (`notifyOnMeetingEnd`): governs the quiet path's completion signal — a chime plus, while the app is backgrounded, a clickable banner ("*Meeting title* — Meeting transcript ready · N words"). Disabled in the UI while auto-open is on, since the banner only fires on the quiet path. Deliberately independent of the Transcriptions-tab `notifyOnTranscriptionComplete` setting: meeting-end behavior is owned entirely by meetings settings.
+
+The open-vs-notify-vs-silent decision is the pure, unit-tested `TranscriptionCompletionNotifier.meetingEndPresentation`; the app layer (`AppEnvironmentConfigurer.presentMeetingTranscriptReady`) only executes the chosen effect. Both settings emit `setting_changed` telemetry and are registered in the settings search index.
+
 ---
 
 ## Future Features (Post-Launch)
