@@ -1292,6 +1292,10 @@ private func convertDictationBuffer(
         incomingBufferFormat: bufferFormat
     ) {
         converterCache.converter = AVAudioConverter(from: bufferFormat, to: outputFormat)
+        // Dictation supplies live chunks and cannot provide the converter's
+        // requested read-ahead frames. Apple's real-time mode avoids treating
+        // those unavailable trailing frames as a reason to withhold output.
+        converterCache.converter?.primeMethod = .none
         converterCache.sourceFormat = bufferFormat
     }
     guard let converter = converterCache.converter else {
@@ -1334,7 +1338,13 @@ private func convertDictationBuffer(
     case .error:
         let errorFields = error.map(AudioCaptureDiagnostics.errorFields) ?? "error_type=unknown"
         return .failed("converter_error \(errorFields)")
-    case .endOfStream, .inputRanDry:
+    case .inputRanDry:
+        // A stateful sample-rate converter can consume the complete input
+        // chunk and return valid partial output without filling the requested
+        // destination capacity. This is common for AirPods' 24 kHz input.
+        // Discarding that partial buffer drops roughly one third of speech.
+        return convertedBuffer.frameLength > 0 ? .converted(convertedBuffer) : .noData
+    case .endOfStream:
         return .noData
     @unknown default:
         return .noData

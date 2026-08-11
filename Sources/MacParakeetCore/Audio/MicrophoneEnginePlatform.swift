@@ -98,12 +98,15 @@ final class MutableMicrophoneTapHandler: @unchecked Sendable {
         var monitoringCallbacks = false
         var requiresNonZeroSignal: Bool
         var receivedUsableBuffer = false
+        var tracksStartupConfiguration = false
+        var latestUsableBufferConfigurationGeneration: UInt64?
         var lastCallbackUptimeNanoseconds: UInt64?
         var zeroFilledSinceUptimeNanoseconds: UInt64?
     }
 
     private let state: OSAllocatedUnfairLock<State>
     private let nowUptimeNanoseconds: @Sendable () -> UInt64
+    private let configurationGenerationProvider: @Sendable () -> UInt64
     private let checksOnlyChannelZeroForSignal: Bool
 
     init(
@@ -112,9 +115,11 @@ final class MutableMicrophoneTapHandler: @unchecked Sendable {
         nowUptimeNanoseconds: @escaping @Sendable () -> UInt64 = {
             DispatchTime.now().uptimeNanoseconds
         },
+        configurationGenerationProvider: @escaping @Sendable () -> UInt64 = { 0 },
         _ handler: @escaping Handler
     ) {
         self.nowUptimeNanoseconds = nowUptimeNanoseconds
+        self.configurationGenerationProvider = configurationGenerationProvider
         self.checksOnlyChannelZeroForSignal = checksOnlyChannelZeroForSignal
         self.state = OSAllocatedUnfairLock(
             initialState: State(
@@ -141,6 +146,8 @@ final class MutableMicrophoneTapHandler: @unchecked Sendable {
         state.withLock { state in
             state.monitoringCallbacks = true
             state.receivedUsableBuffer = false
+            state.tracksStartupConfiguration = true
+            state.latestUsableBufferConfigurationGeneration = nil
             state.lastCallbackUptimeNanoseconds = nil
             state.zeroFilledSinceUptimeNanoseconds = nil
         }
@@ -166,6 +173,10 @@ final class MutableMicrophoneTapHandler: @unchecked Sendable {
                 }
                 state.zeroFilledSinceUptimeNanoseconds = nil
                 state.receivedUsableBuffer = true
+                if state.tracksStartupConfiguration {
+                    state.latestUsableBufferConfigurationGeneration =
+                        configurationGenerationProvider()
+                }
             }
             return state.target
         }
@@ -174,6 +185,20 @@ final class MutableMicrophoneTapHandler: @unchecked Sendable {
 
     func hasReceivedUsableBuffer() -> Bool {
         state.withLock { $0.monitoringCallbacks && $0.receivedUsableBuffer }
+    }
+
+    func latestUsableBufferConfigurationGeneration() -> UInt64? {
+        state.withLock { state in
+            guard state.monitoringCallbacks, state.receivedUsableBuffer else { return nil }
+            return state.latestUsableBufferConfigurationGeneration
+        }
+    }
+
+    /// Stop the startup-only generation snapshot after the route is committed,
+    /// avoiding an additional generation-lock read on the steady-state render
+    /// callback path.
+    func completeStartupConfigurationTracking() {
+        state.withLock { $0.tracksStartupConfiguration = false }
     }
 
     @discardableResult
@@ -277,6 +302,8 @@ final class MutableMicrophoneTapHandler: @unchecked Sendable {
             state.target = nil
             state.monitoringCallbacks = false
             state.receivedUsableBuffer = false
+            state.tracksStartupConfiguration = false
+            state.latestUsableBufferConfigurationGeneration = nil
             state.lastCallbackUptimeNanoseconds = nil
             state.zeroFilledSinceUptimeNanoseconds = nil
             return previous
@@ -888,6 +915,9 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             requiresNonZeroSignal: requiresNonZeroSignal,
             checksOnlyChannelZeroForSignal: vpioEnabled,
             nowUptimeNanoseconds: callbackUptimeProvider,
+            configurationGenerationProvider: { [weak self] in
+                self?.configurationChangeGeneration.withLock { $0 } ?? 0
+            },
             tapHandler
         )
         guard startNow else {
@@ -916,14 +946,22 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             replaceEngineAfterFailureLocked()
             throw error
         }
+        // AirPods commonly emit a configuration change while switching into
+        // their capture profile. A usable buffer stamped after that change
+        // proves the installed tap survived the new graph. A change after the
+        // last usable buffer still invalidates this attempt below.
+        let readinessConfigurationGeneration =
+            installedTapHandler.latestUsableBufferConfigurationGeneration()
+            ?? startupConfigurationGeneration
         let configurationStayedCurrent = commitRunningIfStartupStayedCurrent(
-            configurationGeneration: startupConfigurationGeneration,
+            configurationGeneration: readinessConfigurationGeneration,
             defaultInputGeneration: expectedDefaultInputGeneration
         )
         guard configurationStayedCurrent else {
             replaceEngineAfterFailureLocked()
             throw AVAudioEngineMicrophonePlatformError.inputRouteChangedDuringStartup
         }
+        installedTapHandler.completeStartupConfigurationTracking()
         armCallbackLivenessTimerLocked(tapHandler: installedTapHandler)
     }
 
@@ -1019,6 +1057,9 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             requiresNonZeroSignal: requiresNonZeroSignal,
             checksOnlyChannelZeroForSignal: vpioEnabled,
             nowUptimeNanoseconds: callbackUptimeProvider,
+            configurationGenerationProvider: { [weak self] in
+                self?.configurationChangeGeneration.withLock { $0 } ?? 0
+            },
             tapHandler
         )
         do {
@@ -1094,14 +1135,18 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             replaceEngineAfterFailureLocked()
             throw error
         }
+        let readinessConfigurationGeneration =
+            installedTapHandler.latestUsableBufferConfigurationGeneration()
+            ?? startupConfigurationGeneration
         let configurationStayedCurrent = commitRunningIfStartupStayedCurrent(
-            configurationGeneration: startupConfigurationGeneration,
+            configurationGeneration: readinessConfigurationGeneration,
             defaultInputGeneration: expectedDefaultInputGeneration
         )
         guard configurationStayedCurrent else {
             replaceEngineAfterFailureLocked()
             throw AVAudioEngineMicrophonePlatformError.inputRouteChangedDuringStartup
         }
+        installedTapHandler.completeStartupConfigurationTracking()
         armCallbackLivenessTimerLocked(tapHandler: installedTapHandler)
         let totalMilliseconds = Self.elapsedMilliseconds(
             from: totalStartedAt,
@@ -1196,8 +1241,11 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             if wasCancelled { throw error }
             return false
         }
+        let readinessConfigurationGeneration =
+            tapHandlerBox.latestUsableBufferConfigurationGeneration()
+            ?? preparedConfigurationGeneration
         let configurationStayedCurrent = commitRunningIfStartupStayedCurrent(
-            configurationGeneration: preparedConfigurationGeneration,
+            configurationGeneration: readinessConfigurationGeneration,
             defaultInputGeneration: expectedDefaultInputGeneration
         )
         guard configurationStayedCurrent else {
@@ -1207,6 +1255,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             tearDownLocked()
             return false
         }
+        tapHandlerBox.completeStartupConfigurationTracking()
         prepared = false
         preparedRouteSnapshot = nil
         installConfigurationChangeObserverLocked()

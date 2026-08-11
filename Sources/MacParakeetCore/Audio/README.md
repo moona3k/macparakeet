@@ -33,9 +33,12 @@ owned by `AppEnvironment`.
 - `AudioRecorder.swift` — dictation capture.
   `subscribe(wantsVPIO: false)`. Writes 16 kHz mono Float32 WAVs to
   `$TMPDIR/macparakeet/`. VPIO buffers use channel 0; raw multichannel
-  device buffers are downmixed to mono. Owns the dictation diagnostic timers
-  (first-buffer watchdog + recording heartbeat). Optional Instant
-  Dictation keeps a passive warm subscriber attached while idle,
+  device buffers are downmixed to mono. Live sample-rate conversion uses
+  `AVAudioConverter`'s real-time priming mode and retains partial output when
+  the converter consumes an input chunk without filling the destination; this
+  preserves duration for AirPods' 24 kHz capture profile. Owns the dictation
+  diagnostic timers (first-buffer watchdog + recording heartbeat). Optional
+  Instant Dictation keeps a passive warm subscriber attached while idle,
   stores a 1-second RAM-only 16 kHz mono ring buffer, and prepends up
   to 0.45 seconds when the user starts dictation. It does not run STT
   while idle. The warm hold is suppressed while the resolved input is
@@ -269,10 +272,12 @@ without imposing an acoustic threshold on positively identified USB, built-in,
 or virtual inputs. For VPIO buffers, readiness inspects only microphone channel
 0 so render/reference audio cannot hide a failed mic; raw multichannel input
 checks every input channel. System Default generation is captured before route
-resolution, engine-configuration observation begins before `start()`, and a
-relevant change before readiness invalidates that attempt instead of accepting
-a stale route snapshot. Default-input changes do not invalidate an explicitly
-pinned named device.
+resolution, and engine-configuration observation begins before `start()`.
+Each usable buffer is stamped with the configuration generation that produced
+it: a Bluetooth profile-change notification before that buffer is accepted,
+while a change after the last usable buffer still invalidates the stale
+attempt. Default-input changes continue to invalidate System Default attempts
+and do not invalidate an explicitly pinned named device.
 
 **Diagnostics stay narrow.** The recording heartbeat in `AudioRecorder`
 remains observability-only. The first-buffer watchdog is now also a

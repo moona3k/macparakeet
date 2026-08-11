@@ -36,6 +36,65 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
         )
     }
 
+    func testTwentyFourKilohertzInputPreservesDurationWhenResampled() async throws {
+        try await assertResamplingPreservesDuration(
+            inputSampleRate: 24_000,
+            routeDescription: "24 kHz AirPods input"
+        )
+    }
+
+    func testFortyEightKilohertzInputPreservesDurationWhenResampled() async throws {
+        try await assertResamplingPreservesDuration(
+            inputSampleRate: 48_000,
+            routeDescription: "48 kHz built-in input"
+        )
+    }
+
+    private func assertResamplingPreservesDuration(
+        inputSampleRate: Double,
+        routeDescription: String
+    ) async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 4_096)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+        let inputFrameCount = 4_096
+        let bufferCount = 12
+
+        try await startRecorder(
+            recorder,
+            stream: stream,
+            platform: platform,
+            firstBuffer: try makeMonoFloatBuffer(
+                frameCount: inputFrameCount,
+                sampleRate: inputSampleRate
+            )
+        )
+        for _ in 1..<bufferCount {
+            platform.deliverBuffer(
+                try makeMonoFloatBuffer(
+                    frameCount: inputFrameCount,
+                    sampleRate: inputSampleRate
+                )
+            )
+        }
+
+        let url = try await recorder.stop()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let samples = try readFloatSamples(from: url)
+        let expectedOutputFrames =
+            Double(inputFrameCount * bufferCount) * 16_000 / inputSampleRate
+        XCTAssertEqual(
+            Double(samples.count),
+            expectedOutputFrames,
+            accuracy: 64,
+            "\(routeDescription) must preserve duration while converting to 16 kHz."
+        )
+    }
+
     func testSharedModeStopAcceptsFluidAudioMinimumSamples() async throws {
         let platform = AudioRecorderBlockingPlatform()
         let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)

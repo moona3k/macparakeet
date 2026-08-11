@@ -286,6 +286,37 @@ final class MicrophoneEnginePlatformStartupReadinessTests: XCTestCase {
         XCTAssertTrue(platform.isEngineRunning)
     }
 
+    func testBluetoothProfileChangeBeforeUsableBufferDoesNotInvalidateStartup() throws {
+        let buffer = UncheckedSendableAudioPCMBuffer(
+            makeStartupReadinessBuffer(nonZero: true)
+        )
+        let platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: {
+                [.implicitSystemDefault(resolvedDeviceID: 10)]
+            },
+            inputDeviceSetter: { _, _ in true },
+            startupReadinessTimeout: 0,
+            bluetoothInputState: { $0 == 10 },
+            engineStarter: { engine, _, _, tapHandler in
+                NotificationCenter.default.post(
+                    name: .AVAudioEngineConfigurationChange,
+                    object: engine
+                )
+                tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
+            }
+        )
+        defer { platform.stopEngine() }
+
+        XCTAssertNoThrow(
+            try platform.configureAndStart(
+                vpioEnabled: false,
+                bufferSize: 256,
+                tapHandler: { _, _ in }
+            ),
+            "A usable buffer from the post-change AirPods graph should certify startup"
+        )
+    }
+
     func testColdStartFallsBackWhenConfigurationChangesDuringReadiness() throws {
         let currentEngine = OSAllocatedUnfairLock<AVAudioEngine?>(initialState: nil)
         let currentDefaultDeviceID = OSAllocatedUnfairLock<AudioDeviceID>(initialState: 10)

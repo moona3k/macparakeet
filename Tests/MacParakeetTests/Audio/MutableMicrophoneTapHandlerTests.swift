@@ -153,6 +153,39 @@ final class MutableMicrophoneTapHandlerTests: XCTestCase {
         XCTAssertEqual(invocationCount.withLock { $0 }, 1)
     }
 
+    func testUsableBufferRecordsCurrentConfigurationGeneration() throws {
+        let (buffer, time) = try makeBufferAndTime()
+        let configurationGeneration = OSAllocatedUnfairLock(initialState: UInt64(3))
+        let handler = MutableMicrophoneTapHandler(
+            configurationGenerationProvider: {
+                configurationGeneration.withLock { $0 }
+            }
+        ) { _, _ in }
+        handler.activateCallbackMonitoring()
+
+        handler.invoke(buffer: buffer, time: time)
+        XCTAssertEqual(handler.latestUsableBufferConfigurationGeneration(), 3)
+
+        configurationGeneration.withLock { $0 = 4 }
+        XCTAssertEqual(
+            handler.latestUsableBufferConfigurationGeneration(),
+            3,
+            "A route change after the last usable buffer must leave that buffer stamped stale"
+        )
+
+        handler.invoke(buffer: buffer, time: time)
+        XCTAssertEqual(handler.latestUsableBufferConfigurationGeneration(), 4)
+
+        handler.completeStartupConfigurationTracking()
+        configurationGeneration.withLock { $0 = 5 }
+        handler.invoke(buffer: buffer, time: time)
+        XCTAssertEqual(
+            handler.latestUsableBufferConfigurationGeneration(),
+            4,
+            "Steady-state callbacks should stop reading startup configuration generations."
+        )
+    }
+
     private func makeBufferAndTime(
         channels: AVAudioChannelCount = 1
     ) throws -> (AVAudioPCMBuffer, AVAudioTime) {
