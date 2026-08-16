@@ -166,3 +166,8 @@ for significant work, not ceremony for every typo.
 - Active/completed plans: [`plans/README.md`](./plans/README.md)
 - Distribution/release steps: [`docs/distribution.md`](./docs/distribution.md)
 - CLI automation contract: [`integrations/README.md`](./integrations/README.md)
+- Human-readable PR/issue walkthroughs: publish self-contained HTML at
+  `https://macparakeet.com/dev/pr/<number>` or
+  `/dev/issue/<number>`. Conventions live in the website repo
+  [`public/dev/README.md`](https://github.com/moona3k/macparakeet-website/blob/main/public/dev/README.md).
+  Link the live URL from the GitHub thread. Skip for typos and one-line fixes.

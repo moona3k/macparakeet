@@ -158,6 +158,11 @@ Write it for a smart reader who wasn't in the room.
       changelog when public-facing, and AGENTS.md/CLAUDE.md only when agent
       workflow guidance changes
 - [ ] PR description is audience-friendly and complete
+- [ ] For substantial reviews, a self-contained HTML walkthrough is
+      published at `https://macparakeet.com/dev/pr/<number>` (or
+      `/dev/issue/<number>`) and linked from the GitHub thread. Skip
+      for typos and one-line fixes. See the website
+      [`public/dev/README.md`](https://github.com/moona3k/macparakeet-website/blob/main/public/dev/README.md).
 - [ ] Merged into `main`; branch deleted
 
 ## Anti-patterns
