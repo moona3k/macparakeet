@@ -1,0 +1,30 @@
+public/dev/README.md
+  s_663bc47e3f060c::t_f441b525d2aff2 3-7,9-34,36-53
+public/dev/index.html
+  s_663bc47e3f060c::t_b9e0c9977946d0 41-46
+public/dev/pr/899/index.html
+  s_663bc47e3f060c::t_56023bdd480482 941-943
+  s_663bc47e3f060c::t_ac618ef6ef0920 6
+  s_663bc47e3f060c::t_bdd7d4e8007035 451
+  s_663bc47e3f060c::t_2d74704d25d03c 3-5
+  s_663bc47e3f060c::t_b0a9295efe035b 7-9,448-450
+  s_663bc47e3f060c::t_2f30c1d2c81fd4 452-454,938-940
+  s_663bc47e3f060c::t_a795e0457d51cb 944-946
+  s_663bc47e3f060c::t_0269c72995cee5 1-2,10-447,455-937,947-1084
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "797154bc77c937bd1d43604e4c13219f152e39da",
+  "prompts": {},
+  "sessions": {
+    "s_663bc47e3f060c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "93f7ddf1-2ee4-4086-80af-0b1d824f1a04",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
