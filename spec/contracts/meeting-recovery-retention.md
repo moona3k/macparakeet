@@ -66,10 +66,13 @@ metadata.
 Normal stop-and-queue locks and older locks omit it. Retry and crash-recovery
 flows write a fresh token together with the claiming process PID before they
 touch the transcript row or start STT. A missing token decodes as `nil`. A
-malformed token, zero-byte file, or future schema makes `read` return `nil`
-(the same as today's corrupt-JSON path). Reconciliation then treats the row as
-unowned and marks it retryable; claim treats a *present but unreadable* lock
-as dead evidence and writes a fresh ownership lock so Retry is not bricked.
+malformed token or zero-byte file makes `read` return `nil` (the same as
+today's corrupt-JSON path). Reconciliation then treats that row as unowned
+and marks it retryable; claim treats a *present but unreadable* lock as dead
+evidence and writes a fresh ownership lock so Retry is not bricked. A future
+schema is also unreadable to this build, but a peeked live PID still counts
+as a live owner so an older process cannot fail the newer build's in-flight
+work. A future-schema lock whose peeked PID is dead remains claimable.
 
 A second file, `.finalization-ownership.lock`, is an advisory mutex created
 inside the session folder. It is not user data, is hidden from folder

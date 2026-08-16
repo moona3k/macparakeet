@@ -188,6 +188,57 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         XCTAssertEqual(claimed.state, .awaitingTranscription)
     }
 
+    func testHasLiveOwnerHonorsPeekedPIDOnNewerSchemaLock() throws {
+        let folderURL = tempRoot.appendingPathComponent("future-schema-live")
+        let liveStore = MeetingRecordingLockFileStore(
+            processChecker: MockProcessAliveChecker(alivePIDs: [42])
+        )
+        try writeRawLockFile(makeLockFile(schemaVersion: 999, pid: 42), folderURL: folderURL)
+
+        XCTAssertNil(try liveStore.read(folderURL: folderURL))
+        XCTAssertTrue(try liveStore.hasLiveOwner(folderURL: folderURL))
+        XCTAssertFalse(
+            try MeetingRecordingLockFileStore(
+                processChecker: MockProcessAliveChecker(alivePIDs: [])
+            ).hasLiveOwner(folderURL: folderURL)
+        )
+    }
+
+    func testFinalizationOwnershipClaimRefusesLiveNewerSchemaLock() throws {
+        let folderURL = tempRoot.appendingPathComponent("future-schema-claim")
+        try writeRawLockFile(makeLockFile(schemaVersion: 999, pid: 42), folderURL: folderURL)
+        let claimingStore = MeetingRecordingLockFileStore(
+            processChecker: MockProcessAliveChecker(alivePIDs: [42, 101]),
+            processID: 101
+        )
+
+        XCTAssertThrowsError(
+            try claimingStore.claimFinalizationOwnership(folderURL: folderURL)
+        ) { error in
+            XCTAssertEqual(
+                error as? MeetingFinalizationOwnershipError,
+                .ownedByLiveProcess(pid: 42)
+            )
+        }
+        XCTAssertNil(try claimingStore.read(folderURL: folderURL))
+    }
+
+    func testFinalizationOwnershipClaimReplacesDeadNewerSchemaLock() throws {
+        let folderURL = tempRoot.appendingPathComponent("future-schema-dead")
+        try writeRawLockFile(makeLockFile(schemaVersion: 999, pid: 42), folderURL: folderURL)
+        let claimingStore = MeetingRecordingLockFileStore(
+            processChecker: MockProcessAliveChecker(alivePIDs: [101]),
+            processID: 101
+        )
+
+        let lease = try claimingStore.claimFinalizationOwnership(folderURL: folderURL)
+
+        let claimed = try XCTUnwrap(claimingStore.read(folderURL: folderURL))
+        XCTAssertEqual(claimed.pid, 101)
+        XCTAssertEqual(claimed.finalizationLeaseId, lease.id)
+        XCTAssertEqual(claimed.schemaVersion, MeetingRecordingLockFile.currentSchemaVersion)
+    }
+
     func testFinalizationOwnershipClaimTreatsZeroByteLockAsDeadEvidence() throws {
         let folderURL = tempRoot.appendingPathComponent("zero-byte-claim-session")
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)

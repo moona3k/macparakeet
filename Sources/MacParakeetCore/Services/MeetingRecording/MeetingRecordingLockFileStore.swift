@@ -344,11 +344,22 @@ public final class MeetingRecordingLockFileStore:
     /// check because a meeting row already carries its canonical artifact path;
     /// scanning a global root would miss custom roots and do unnecessary I/O.
     public func hasLiveOwner(folderURL: URL) throws -> Bool {
-        guard let lockFile = try read(folderURL: folderURL) else {
-            return false
+        if let lockFile = try read(folderURL: folderURL) {
+            return processChecker.isAlive(pid: lockFile.pid)
+                && !hasRelinquishedFinalizationLease(lockFile)
         }
-        return processChecker.isAlive(pid: lockFile.pid)
-            && !hasRelinquishedFinalizationLease(lockFile)
+        // `read` maps a newer schema to nil so older builds do not invent
+        // fields they cannot understand. Reconciliation must still honor a
+        // peeked live PID, or an older process will mark the newer build's
+        // in-flight row failed.
+        if let header = peekLockFileHeader(folderURL: folderURL),
+            let schemaVersion = header.schemaVersion,
+            schemaVersion > MeetingRecordingLockFile.currentSchemaVersion,
+            let pid = header.pid
+        {
+            return processChecker.isAlive(pid: pid)
+        }
+        return false
     }
 
     public func claimFinalizationOwnership(
@@ -508,14 +519,25 @@ public final class MeetingRecordingLockFileStore:
     }
 
     /// Retry must still be able to take over a folder whose `recording.lock`
-    /// is present but unreadable (corrupt JSON, zero-byte, future schema).
-    /// `read` maps those to `nil`, which used to look like a missing lock and
-    /// bricked claim after reconciliation had already marked the row retryable.
+    /// is present but unreadable (corrupt JSON, zero-byte). `read` maps those
+    /// to `nil`, which used to look like a missing lock and bricked claim
+    /// after reconciliation had already marked the row retryable.
+    ///
+    /// A newer schema is different: if its peeked PID is still alive, claim
+    /// must refuse rather than overwrite a lock this build cannot interpret.
     private func readableOrUnreadablePresentLock(
         folderURL: URL
     ) throws -> MeetingRecordingLockFile? {
         if let readableLock = try read(folderURL: folderURL) {
             return readableLock
+        }
+        if let header = peekLockFileHeader(folderURL: folderURL),
+            let schemaVersion = header.schemaVersion,
+            schemaVersion > MeetingRecordingLockFile.currentSchemaVersion,
+            let pid = header.pid,
+            processChecker.isAlive(pid: pid)
+        {
+            throw MeetingFinalizationOwnershipError.ownedByLiveProcess(pid: pid)
         }
         guard
             FileManager.default.fileExists(
@@ -531,6 +553,35 @@ public final class MeetingRecordingLockFileStore:
             displayName: folderURL.lastPathComponent,
             state: .awaitingTranscription
         )
+    }
+
+    private struct LockFileHeader {
+        var schemaVersion: Int?
+        var pid: Int32?
+    }
+
+    private func peekLockFileHeader(folderURL: URL) -> LockFileHeader? {
+        let lockFileURL = Self.lockFileURL(for: folderURL)
+        guard FileManager.default.fileExists(atPath: lockFileURL.path),
+            let data = try? Data(contentsOf: lockFileURL),
+            let object = try? JSONSerialization.jsonObject(with: data),
+            let dictionary = object as? [String: Any]
+        else {
+            return nil
+        }
+        let schemaVersion = intValue(in: dictionary, key: "schemaVersion")
+        let pid = intValue(in: dictionary, key: "pid").map(Int32.init)
+        return LockFileHeader(schemaVersion: schemaVersion, pid: pid)
+    }
+
+    private func intValue(in dictionary: [String: Any], key: String) -> Int? {
+        if let value = dictionary[key] as? Int {
+            return value
+        }
+        if let value = dictionary[key] as? NSNumber {
+            return value.intValue
+        }
+        return nil
     }
 
     private func hasRelinquishedFinalizationLease(
