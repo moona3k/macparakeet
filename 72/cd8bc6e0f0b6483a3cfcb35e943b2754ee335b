@@ -1,0 +1,21 @@
+public/dev/index.html
+  s_663bc47e3f060c::t_a16f4b65fc06e4 42
+public/dev/pr/869/index.html
+  s_663bc47e3f060c::t_fd1f9210d2d9ff 451,454
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "72cd8bc6e0f0b6483a3cfcb35e943b2754ee335b",
+  "prompts": {},
+  "sessions": {
+    "s_663bc47e3f060c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "93f7ddf1-2ee4-4086-80af-0b1d824f1a04",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
