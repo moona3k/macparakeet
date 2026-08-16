@@ -171,6 +171,39 @@ final class TranscriptChatViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.inputText, "")
     }
 
+    func testUpdateTranscriptTextPreservesHistoryAndIsUsedOnNextSend() async throws {
+        let transcriptionId = UUID()
+        let conv = ChatConversation(
+            transcriptionId: transcriptionId,
+            title: "Restored",
+            messages: [
+                ChatMessage(role: .user, content: "Question"),
+                ChatMessage(role: .assistant, content: "Answer"),
+            ]
+        )
+        mockConversationRepo.conversations = [conv]
+        viewModel.loadTranscript("Plain transcript", transcriptionId: transcriptionId)
+
+        XCTAssertEqual(viewModel.messages.count, 2)
+        XCTAssertEqual(viewModel.conversations.count, 1)
+
+        viewModel.updateTranscriptText("Rich upgraded context")
+
+        XCTAssertEqual(viewModel.messages.count, 2)
+        XCTAssertEqual(viewModel.messages[0].content, "Question")
+        XCTAssertEqual(viewModel.conversations.count, 1)
+        XCTAssertEqual(viewModel.currentConversation?.id, conv.id)
+        XCTAssertEqual(viewModel.inputText, "")
+
+        mockService.streamTokens = ["ok"]
+        viewModel.inputText = "Follow up"
+        viewModel.sendMessage()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertEqual(mockService.lastChatTranscript, "Rich upgraded context")
+        XCTAssertEqual(viewModel.messages.count, 4)
+    }
+
     // MARK: - Cancel Streaming
 
     func testCancelStreaming() {

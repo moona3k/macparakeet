@@ -1458,11 +1458,12 @@ public final class TranscriptionViewModel {
         }
     }
 
+    /// Refreshes prompt-result tab chrome for the already-selected row.
+    ///
+    /// Library and Meetings already hand a fully decoded `Transcription`.
+    /// Re-fetching the row here would JSON-decode word timestamps on the
+    /// main actor before the detail view's first frame.
     public func loadPersistedContent() {
-        if let id = currentTranscription?.id,
-           let fresh = try? transcriptionRepo?.fetch(id: id) {
-            currentTranscription = fresh
-        }
         refreshPromptResultStatus()
     }
 
