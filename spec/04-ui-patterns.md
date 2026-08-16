@@ -133,8 +133,10 @@ state, Text mode permits Edit even when transcription produced no text so the
 user can enter it manually; Retranscribe still requires retained audio. If the
 matching detail page is already open when background finalization finishes, it
 refreshes in place on either success or terminal failure, even while another
-meeting is recording. That refresh must not navigate, activate a window, or
-replace an unrelated open detail page.
+meeting is recording. That in-place refresh must not navigate, activate a
+window, or replace an unrelated open detail page. Recorder-idle queued
+completion may still present the finished meeting, matching the existing
+queued-completion behavior.
 
 ### Local Transcription Rename
 

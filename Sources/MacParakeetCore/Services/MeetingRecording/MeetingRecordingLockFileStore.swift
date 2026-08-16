@@ -105,10 +105,11 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         startContext = (try? container.decodeIfPresent(MeetingStartContext.self, forKey: .startContext)) ?? nil
         // Calendar snapshots are best-effort context. A malformed optional
         // snapshot must not block lock-file recovery of the audio metadata.
-        calendarEventSnapshot = (try? container.decodeIfPresent(
-            MeetingCalendarSnapshot.self,
-            forKey: .calendarEventSnapshot
-        )) ?? nil
+        calendarEventSnapshot =
+            (try? container.decodeIfPresent(
+                MeetingCalendarSnapshot.self,
+                forKey: .calendarEventSnapshot
+            )) ?? nil
         // Notes are decoded independently — see ADR-020 §9. If a future encoder
         // bug or hand-edited file produces a malformed `notes` value, recovery
         // of the audio metadata still succeeds; only the typed notes are lost.
@@ -357,7 +358,8 @@ public final class MeetingRecordingLockFileStore:
             throw MeetingFinalizationOwnershipError.missingLock
         }
         return try withFinalizationOwnershipMutex(folderURL: folderURL) {
-            guard let currentLock = try read(folderURL: folderURL) else {
+            guard let currentLock = try readableOrUnreadablePresentLock(folderURL: folderURL)
+            else {
                 throw MeetingFinalizationOwnershipError.missingLock
             }
             let currentProcessAlreadyOwnsLease =
@@ -488,8 +490,9 @@ public final class MeetingRecordingLockFileStore:
         var matches: [MeetingRecordingLockFile] = []
         for folderURL in sessionFolders {
             guard try folderURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true,
-                  let lockFile = try read(folderURL: folderURL),
-                  predicate(lockFile) else {
+                let lockFile = try read(folderURL: folderURL),
+                predicate(lockFile)
+            else {
                 continue
             }
 
@@ -504,11 +507,38 @@ public final class MeetingRecordingLockFileStore:
         }
     }
 
+    /// Retry must still be able to take over a folder whose `recording.lock`
+    /// is present but unreadable (corrupt JSON, zero-byte, future schema).
+    /// `read` maps those to `nil`, which used to look like a missing lock and
+    /// bricked claim after reconciliation had already marked the row retryable.
+    private func readableOrUnreadablePresentLock(
+        folderURL: URL
+    ) throws -> MeetingRecordingLockFile? {
+        if let readableLock = try read(folderURL: folderURL) {
+            return readableLock
+        }
+        guard
+            FileManager.default.fileExists(
+                atPath: Self.lockFileURL(for: folderURL).path
+            )
+        else {
+            return nil
+        }
+        return MeetingRecordingLockFile(
+            sessionId: UUID(),
+            startedAt: Date(),
+            pid: 0,
+            displayName: folderURL.lastPathComponent,
+            state: .awaitingTranscription
+        )
+    }
+
     private func hasRelinquishedFinalizationLease(
         _ lockFile: MeetingRecordingLockFile
     ) -> Bool {
         guard lockFile.pid == processID,
-              let leaseID = lockFile.finalizationLeaseId else {
+            let leaseID = lockFile.finalizationLeaseId
+        else {
             return false
         }
         return Self.relinquishedFinalizationLeases.contains(leaseID)

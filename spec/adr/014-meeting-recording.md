@@ -105,6 +105,7 @@ and background work is continuing. Transcript editing and manual
 retranscription stay unavailable until that queued finalization reaches a
 terminal state. If the detail is already open, both completion and terminal
 failure refresh that same row in place without navigating or stealing focus.
+Recorder-idle queued completion may still present the finished meeting.
 Manual retry and crash recovery claim the session lock with the current PID and
 a unique lease before admission; startup reconciliation shares the same
 per-folder mutex so it cannot mark newly claimed work as interrupted.

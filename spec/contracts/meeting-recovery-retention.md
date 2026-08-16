@@ -65,9 +65,15 @@ metadata.
 `finalizationLeaseId` is a backward-compatible optional ownership token.
 Normal stop-and-queue locks and older locks omit it. Retry and crash-recovery
 flows write a fresh token together with the claiming process PID before they
-touch the transcript row or start STT. A missing token decodes as `nil`; a
-malformed token makes the structural lock unreadable rather than silently
-discarding ownership evidence.
+touch the transcript row or start STT. A missing token decodes as `nil`. A
+malformed token, zero-byte file, or future schema makes `read` return `nil`
+(the same as today's corrupt-JSON path). Reconciliation then treats the row as
+unowned and marks it retryable; claim treats a *present but unreadable* lock
+as dead evidence and writes a fresh ownership lock so Retry is not bricked.
+
+A second file, `.finalization-ownership.lock`, is an advisory mutex created
+inside the session folder. It is not user data, is hidden from folder
+enumeration, and is not a retention barrier.
 
 Speech-engine provenance is versioned because schema v1 writers always encoded
 the former shared engine route. A v1 `speechEngine` therefore does not prove
@@ -185,7 +191,12 @@ not final-transcription completion:
 
 ## Non-Stable Fields
 
-- PID liveness is process-local and time-sensitive.
+- PID liveness is process-local and time-sensitive. `kill(pid, 0)` cannot
+  distinguish MacParakeet from a later process that reused the same PID. A
+  long-lived reused PID can leave a `.processing` row looking owned, which
+  suppresses reconciliation, recovery, and Retry until that PID exits. This
+  remaining hole is accepted; do not add a schema bump or process-birth
+  discriminator in this change.
 - `startedAt` and folder paths vary by session.
 - Preview-engine provenance is intentionally not part of the lock. It is
   additive archived metadata only; recovery needs the authoritative final route.

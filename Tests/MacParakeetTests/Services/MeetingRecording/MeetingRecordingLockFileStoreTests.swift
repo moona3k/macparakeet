@@ -88,9 +88,10 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         )
 
         XCTAssertFalse(try store.hasLiveOwner(folderURL: deadFolderURL))
-        XCTAssertFalse(try store.hasLiveOwner(
-            folderURL: tempRoot.appendingPathComponent("missing-session")
-        ))
+        XCTAssertFalse(
+            try store.hasLiveOwner(
+                folderURL: tempRoot.appendingPathComponent("missing-session")
+            ))
     }
 
     func testFinalizationOwnershipClaimRewritesAndReleaseRestoresDeadOwner() throws {
@@ -166,6 +167,41 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         XCTAssertEqual(claimed.pid, 101)
         XCTAssertEqual(claimed.finalizationLeaseId, replacementLease.id)
         XCTAssertNotEqual(claimed.finalizationLeaseId, staleLeaseID)
+    }
+
+    func testFinalizationOwnershipClaimTreatsUnreadablePresentLockAsDeadEvidence() throws {
+        let folderURL = tempRoot.appendingPathComponent("corrupt-claim-session")
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        try Data("{not-json".utf8).write(
+            to: MeetingRecordingLockFileStore.lockFileURL(for: folderURL)
+        )
+        let claimingStore = MeetingRecordingLockFileStore(
+            processChecker: MockProcessAliveChecker(alivePIDs: [101]),
+            processID: 101
+        )
+
+        let lease = try claimingStore.claimFinalizationOwnership(folderURL: folderURL)
+
+        let claimed = try XCTUnwrap(claimingStore.read(folderURL: folderURL))
+        XCTAssertEqual(claimed.pid, 101)
+        XCTAssertEqual(claimed.finalizationLeaseId, lease.id)
+        XCTAssertEqual(claimed.state, .awaitingTranscription)
+    }
+
+    func testFinalizationOwnershipClaimTreatsZeroByteLockAsDeadEvidence() throws {
+        let folderURL = tempRoot.appendingPathComponent("zero-byte-claim-session")
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        try Data().write(to: MeetingRecordingLockFileStore.lockFileURL(for: folderURL))
+        let claimingStore = MeetingRecordingLockFileStore(
+            processChecker: MockProcessAliveChecker(alivePIDs: [101]),
+            processID: 101
+        )
+
+        let lease = try claimingStore.claimFinalizationOwnership(folderURL: folderURL)
+
+        let claimed = try XCTUnwrap(claimingStore.read(folderURL: folderURL))
+        XCTAssertEqual(claimed.pid, 101)
+        XCTAssertEqual(claimed.finalizationLeaseId, lease.id)
     }
 
     func testFailedOwnershipReleaseCanBeReclaimedBySameProcess() throws {
@@ -271,9 +307,10 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
 
         try store.delete(folderURL: folderURL)
 
-        XCTAssertFalse(FileManager.default.fileExists(
-            atPath: MeetingRecordingLockFileStore.lockFileURL(for: folderURL).path
-        ))
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: MeetingRecordingLockFileStore.lockFileURL(for: folderURL).path
+            ))
     }
 
     func testDiscoverOrphansSkipsLiveOwners() throws {
@@ -407,10 +444,12 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
 
         XCTAssertEqual(sessions.map(\.sessionId), [live.sessionId, deadAwaiting.sessionId])
         XCTAssertEqual(sessions.map(\.state), [.recording, .awaitingTranscription])
-        XCTAssertEqual(sessions.map { $0.folderURL?.standardizedFileURL }, [
-            liveFolderURL.standardizedFileURL,
-            deadFolderURL.standardizedFileURL,
-        ])
+        XCTAssertEqual(
+            sessions.map { $0.folderURL?.standardizedFileURL },
+            [
+                liveFolderURL.standardizedFileURL,
+                deadFolderURL.standardizedFileURL,
+            ])
     }
 
     // MARK: - ADR-020 §9 — notes field
@@ -445,15 +484,15 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         let folderURL = tempRoot.appendingPathComponent("session")
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
         let json = """
-        {
-            "schemaVersion": 1,
-            "sessionId": "11111111-2222-3333-4444-555555555555",
-            "startedAt": "2026-04-25T12:00:00Z",
-            "pid": 123,
-            "displayName": "Old Session",
-            "state": "recording"
-        }
-        """
+            {
+                "schemaVersion": 1,
+                "sessionId": "11111111-2222-3333-4444-555555555555",
+                "startedAt": "2026-04-25T12:00:00Z",
+                "pid": 123,
+                "displayName": "Old Session",
+                "state": "recording"
+            }
+            """
         try Data(json.utf8).write(to: MeetingRecordingLockFileStore.lockFileURL(for: folderURL))
 
         let readLockFile = try XCTUnwrap(store.read(folderURL: folderURL))
@@ -495,16 +534,16 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         let folderURL = tempRoot.appendingPathComponent("session")
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
         let json = """
-        {
-            "schemaVersion": 1,
-            "sessionId": "11111111-2222-3333-4444-555555555555",
-            "startedAt": "2026-04-25T12:00:00Z",
-            "pid": 123,
-            "displayName": "Recoverable Session",
-            "state": "recording",
-            "notes": 42
-        }
-        """
+            {
+                "schemaVersion": 1,
+                "sessionId": "11111111-2222-3333-4444-555555555555",
+                "startedAt": "2026-04-25T12:00:00Z",
+                "pid": 123,
+                "displayName": "Recoverable Session",
+                "state": "recording",
+                "notes": 42
+            }
+            """
         try Data(json.utf8).write(to: MeetingRecordingLockFileStore.lockFileURL(for: folderURL))
 
         let readLockFile = try XCTUnwrap(store.read(folderURL: folderURL))
@@ -516,19 +555,19 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         let folderURL = tempRoot.appendingPathComponent("session-start-context")
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
         let json = """
-        {
-            "schemaVersion": 1,
-            "sessionId": "11111111-2222-3333-4444-555555555555",
-            "startedAt": "2026-04-25T12:00:00Z",
-            "pid": 123,
-            "displayName": "Recoverable Session",
-            "state": "recording",
-            "startContext": {
-                "triggerKind": "future_trigger",
-                "sourceMode": "microphone_only"
+            {
+                "schemaVersion": 1,
+                "sessionId": "11111111-2222-3333-4444-555555555555",
+                "startedAt": "2026-04-25T12:00:00Z",
+                "pid": 123,
+                "displayName": "Recoverable Session",
+                "state": "recording",
+                "startContext": {
+                    "triggerKind": "future_trigger",
+                    "sourceMode": "microphone_only"
+                }
             }
-        }
-        """
+            """
         try Data(json.utf8).write(to: MeetingRecordingLockFileStore.lockFileURL(for: folderURL))
 
         let readLockFile = try XCTUnwrap(store.read(folderURL: folderURL))
@@ -541,16 +580,16 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         let folderURL = tempRoot.appendingPathComponent("session-calendar-snapshot")
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
         let json = """
-        {
-            "schemaVersion": 1,
-            "sessionId": "11111111-2222-3333-4444-555555555555",
-            "startedAt": "2026-04-25T12:00:00Z",
-            "pid": 123,
-            "displayName": "Recoverable Session",
-            "state": "recording",
-            "calendarEventSnapshot": 42
-        }
-        """
+            {
+                "schemaVersion": 1,
+                "sessionId": "11111111-2222-3333-4444-555555555555",
+                "startedAt": "2026-04-25T12:00:00Z",
+                "pid": 123,
+                "displayName": "Recoverable Session",
+                "state": "recording",
+                "calendarEventSnapshot": 42
+            }
+            """
         try Data(json.utf8).write(to: MeetingRecordingLockFileStore.lockFileURL(for: folderURL))
 
         let readLockFile = try XCTUnwrap(store.read(folderURL: folderURL))
