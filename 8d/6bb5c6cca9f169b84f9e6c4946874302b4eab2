@@ -1,0 +1,41 @@
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_6cace46ad2d3e0::t_6816b0b52eb5ee 3479,3491
+  s_6cace46ad2d3e0::t_5a284233f2f5a7 340-344,346-347,350-352,356-358,362-364
+  s_6cace46ad2d3e0::t_444f592b452457 3275-3277
+  s_6cace46ad2d3e0::t_b4cdec98f0ca0a 237-239
+  s_6cace46ad2d3e0::t_d22dda3fc324ed 3119
+  s_6cace46ad2d3e0::t_9a7303b913f9db 3160
+  s_6cace46ad2d3e0::t_efcc1eb9719a7f 371
+  s_6cace46ad2d3e0::t_e996110a3ca6b1 1369-1371
+  s_6cace46ad2d3e0::t_623a8291d4ef90 3302-3326,3330-3342,3344-3349,3351-3355,3357-3366
+  s_6cace46ad2d3e0::t_3b71cb64656549 287-290,293-294
+  s_6cace46ad2d3e0::t_e5d7176b7a57cb 914
+  s_6cace46ad2d3e0::t_64efa44f293bdc 4082-4123
+Sources/MacParakeet/Views/Components/SonicMandalaView.swift
+  s_6cace46ad2d3e0::t_31ab14257d3454 169,171,173,176
+  s_6cace46ad2d3e0::t_64f56d421bddd9 143-144,147-148
+Tests/MacParakeetTests/Views/MandalaDataTests.swift
+  s_6cace46ad2d3e0::t_be33d6fd5fb618 1-38
+Tests/MacParakeetTests/ViewModels/TranscriptChatViewModelTests.swift
+  s_6cace46ad2d3e0::t_e22ea2f7eae739 174-206
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_6cace46ad2d3e0::t_e1134ef9acfe81 2403-2412,2419,2423,2433-2434
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_6cace46ad2d3e0::t_f453f0037f2657 1461-1465
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "8d6bb5c6cca9f169b84f9e6c4946874302b4eab2",
+  "prompts": {},
+  "sessions": {
+    "s_6cace46ad2d3e0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "b0e3e0b4-8306-42c0-ab31-1934a6b33de8",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
