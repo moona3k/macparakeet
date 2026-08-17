@@ -174,9 +174,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         // after a full meeting means the tap only ever delivered silence.
         var microphonePeakLevel: Float = 0
         var systemPeakLevel: Float = 0
-        // Set for every system buffer that reaches the recording, unlike
-        // `systemFirstBufferSeen`, which needs a valid host time.
-        var systemBufferObserved = false
     }
 
     private struct Session: Sendable {
@@ -1414,7 +1411,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 )
                 recordCaptureMetrics(for: .system, time: time)
                 let systemLevel = buffer.rmsLevel
-                captureHealthMetrics.systemBufferObserved = true
                 captureHealthMetrics.systemPeakLevel = max(
                     captureHealthMetrics.systemPeakLevel,
                     systemLevel
@@ -1746,16 +1742,19 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 asOf: now
             )
         }
+        // A buffer reaching this point has been written, so the source has
+        // produced audio regardless of whether its host time is usable. Only
+        // the host-time metrics below depend on that.
+        switch source {
+        case .microphone:
+            captureHealthMetrics.microphoneFirstBufferSeen = true
+        case .system:
+            captureHealthMetrics.systemFirstBufferSeen = true
+        }
         guard time.isHostTimeValid else { return }
         var metrics = sourceCaptureMetrics[source] ?? SourceCaptureMetrics()
         if metrics.firstHostTime == nil {
             metrics.firstHostTime = time.hostTime
-            switch source {
-            case .microphone:
-                captureHealthMetrics.microphoneFirstBufferSeen = true
-            case .system:
-                captureHealthMetrics.systemFirstBufferSeen = true
-            }
         }
         metrics.lastHostTime = time.hostTime
         sourceCaptureMetrics[source] = metrics
@@ -1973,7 +1972,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private var systemAudioSignalVerdict: MeetingSystemAudioSignalVerdict {
         MeetingSystemAudioSignalVerdict.evaluate(
             capturesSystemAudio: captureHealthMetrics.sourceMode?.capturesSystemAudio ?? false,
-            systemBufferObserved: captureHealthMetrics.systemBufferObserved,
+            systemBufferObserved: captureHealthMetrics.systemFirstBufferSeen,
             systemPeakLevel: captureHealthMetrics.systemPeakLevel
         )
     }

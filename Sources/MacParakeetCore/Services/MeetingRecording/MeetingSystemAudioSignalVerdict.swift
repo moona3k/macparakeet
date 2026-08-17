@@ -20,9 +20,8 @@ public enum MeetingSystemAudioSignalVerdict: String, Sendable, Equatable {
     case silent
 
     /// - Parameter systemBufferObserved: whether any system buffer reached the
-    ///   recording. Deliberately not `systemFirstBufferSeen`, which is only set
-    ///   for buffers carrying a valid host time; tying the verdict to timestamp
-    ///   validity would report a broken tap as `notCaptured` and swallow the
+    ///   recording. This must not be conditioned on host-time validity: a
+    ///   broken tap would then be reported as `notCaptured`, swallowing the
     ///   warning this type exists to raise.
     public static func evaluate(
         capturesSystemAudio: Bool,
