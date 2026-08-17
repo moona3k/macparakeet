@@ -1377,12 +1377,16 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                     timelineTimeSeconds: pauseAdjustedHostTimeSeconds(for: time)
                 )
                 recordCaptureMetrics(for: .microphone, time: time)
+                // Peak tracks every buffer that reaches the file, including the
+                // pre-pause buffers `preserveAudioOnly` writes without processing,
+                // so the reported level always describes the recorded audio.
+                let microphoneLevel = muted ? 0 : recordingBuffer.rmsLevel
+                captureHealthMetrics.microphonePeakLevel = max(
+                    captureHealthMetrics.microphonePeakLevel,
+                    microphoneLevel
+                )
                 if handling == .recordAndProcess {
-                    latestLevels.microphone = muted ? 0 : recordingBuffer.rmsLevel
-                    captureHealthMetrics.microphonePeakLevel = max(
-                        captureHealthMetrics.microphonePeakLevel,
-                        latestLevels.microphone
-                    )
+                    latestLevels.microphone = microphoneLevel
                     updateMicrophoneRms(with: latestLevels.microphone)
                     if let samples = AudioChunker.extractAndResample(from: recordingBuffer) {
                         await ingestResampledSamples(
@@ -1406,12 +1410,13 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                     timelineTimeSeconds: pauseAdjustedHostTimeSeconds(for: time)
                 )
                 recordCaptureMetrics(for: .system, time: time)
+                let systemLevel = buffer.rmsLevel
+                captureHealthMetrics.systemPeakLevel = max(
+                    captureHealthMetrics.systemPeakLevel,
+                    systemLevel
+                )
                 if handling == .recordAndProcess {
-                    latestLevels.system = buffer.rmsLevel
-                    captureHealthMetrics.systemPeakLevel = max(
-                        captureHealthMetrics.systemPeakLevel,
-                        latestLevels.system
-                    )
+                    latestLevels.system = systemLevel
                     updateSystemRms(with: latestLevels.system)
                     if let samples = AudioChunker.extractAndResample(from: buffer) {
                         await ingestResampledSamples(
