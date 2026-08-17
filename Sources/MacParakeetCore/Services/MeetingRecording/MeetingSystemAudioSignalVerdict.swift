@@ -19,12 +19,17 @@ public enum MeetingSystemAudioSignalVerdict: String, Sendable, Equatable {
     /// The system track was digital silence from start to finish.
     case silent
 
+    /// - Parameter systemBufferObserved: whether any system buffer reached the
+    ///   recording. Deliberately not `systemFirstBufferSeen`, which is only set
+    ///   for buffers carrying a valid host time; tying the verdict to timestamp
+    ///   validity would report a broken tap as `notCaptured` and swallow the
+    ///   warning this type exists to raise.
     public static func evaluate(
         capturesSystemAudio: Bool,
-        systemFirstBufferSeen: Bool,
+        systemBufferObserved: Bool,
         systemPeakLevel: Float
     ) -> Self {
-        guard capturesSystemAudio, systemFirstBufferSeen else { return .notCaptured }
+        guard capturesSystemAudio, systemBufferObserved else { return .notCaptured }
         return systemPeakLevel > 0 ? .present : .silent
     }
 

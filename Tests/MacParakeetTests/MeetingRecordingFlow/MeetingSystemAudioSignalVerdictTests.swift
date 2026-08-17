@@ -11,7 +11,7 @@ final class MeetingSystemAudioSignalVerdictTests: XCTestCase {
         XCTAssertEqual(
             Verdict.evaluate(
                 capturesSystemAudio: false,
-                systemFirstBufferSeen: false,
+                systemBufferObserved: false,
                 systemPeakLevel: 0
             ),
             .notCaptured
@@ -22,7 +22,7 @@ final class MeetingSystemAudioSignalVerdictTests: XCTestCase {
         XCTAssertEqual(
             Verdict.evaluate(
                 capturesSystemAudio: true,
-                systemFirstBufferSeen: false,
+                systemBufferObserved: false,
                 systemPeakLevel: 0
             ),
             .notCaptured
@@ -33,7 +33,7 @@ final class MeetingSystemAudioSignalVerdictTests: XCTestCase {
         XCTAssertEqual(
             Verdict.evaluate(
                 capturesSystemAudio: true,
-                systemFirstBufferSeen: true,
+                systemBufferObserved: true,
                 systemPeakLevel: 0.42
             ),
             .present
@@ -44,7 +44,7 @@ final class MeetingSystemAudioSignalVerdictTests: XCTestCase {
         XCTAssertEqual(
             Verdict.evaluate(
                 capturesSystemAudio: true,
-                systemFirstBufferSeen: true,
+                systemBufferObserved: true,
                 systemPeakLevel: .leastNormalMagnitude
             ),
             .present
@@ -55,7 +55,7 @@ final class MeetingSystemAudioSignalVerdictTests: XCTestCase {
         XCTAssertEqual(
             Verdict.evaluate(
                 capturesSystemAudio: true,
-                systemFirstBufferSeen: true,
+                systemBufferObserved: true,
                 systemPeakLevel: 0
             ),
             .silent

@@ -174,6 +174,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         // after a full meeting means the tap only ever delivered silence.
         var microphonePeakLevel: Float = 0
         var systemPeakLevel: Float = 0
+        // Set for every system buffer that reaches the recording, unlike
+        // `systemFirstBufferSeen`, which needs a valid host time.
+        var systemBufferObserved = false
     }
 
     private struct Session: Sendable {
@@ -1411,6 +1414,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 )
                 recordCaptureMetrics(for: .system, time: time)
                 let systemLevel = buffer.rmsLevel
+                captureHealthMetrics.systemBufferObserved = true
                 captureHealthMetrics.systemPeakLevel = max(
                     captureHealthMetrics.systemPeakLevel,
                     systemLevel
@@ -1969,7 +1973,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private var systemAudioSignalVerdict: MeetingSystemAudioSignalVerdict {
         MeetingSystemAudioSignalVerdict.evaluate(
             capturesSystemAudio: captureHealthMetrics.sourceMode?.capturesSystemAudio ?? false,
-            systemFirstBufferSeen: captureHealthMetrics.systemFirstBufferSeen,
+            systemBufferObserved: captureHealthMetrics.systemBufferObserved,
             systemPeakLevel: captureHealthMetrics.systemPeakLevel
         )
     }
