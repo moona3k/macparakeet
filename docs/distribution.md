@@ -186,6 +186,11 @@ Before building, verify the codebase is ready:
 # All tests must pass
 swift test
 
+# The app bundle includes the public CLI. If Sources/CLI/CHANGELOG.md has
+# non-empty Unreleased entries, promote them to the required semver release and
+# bump CLI.cliVersion before building the app candidate.
+swift test --filter CLIVersionTests
+
 # Fresh SwiftPM checkouts must be able to update package submodules. The bundle
 # script automatically lends xcodebuild the shell Git helper path when needed.
 { test -n "${GIT_EXEC_PATH:-}" && test -x "$GIT_EXEC_PATH/git-submodule"; } || \
@@ -201,6 +206,11 @@ curl -s "https://macparakeet.com/appcast.xml" | grep -E "sparkle:version|sparkle
 ```
 
 Decide on the version number (see Version bumping below).
+
+Do not ship new CLI behavior under a previously published CLI version. The
+standalone Homebrew formula may remain on the prior version until its matching
+signed/notarized archive is published, but the CLI embedded in a new app bundle
+must report the promoted semver from `Sources/CLI/CHANGELOG.md`.
 
 ### Version bumping
 
