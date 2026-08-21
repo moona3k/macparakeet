@@ -456,7 +456,7 @@ public actor InProcessModelDownloader: InProcessModelDownloading {
 
     public nonisolated func defaultModelDirectory() -> URL {
         InProcessLocalModelCatalog.modelDirectory(
-            for: InProcessLocalModelCatalog.defaultManifest.modelID,
+            for: manifest.modelID,
             cacheRoot: cacheRoot
         )
     }

@@ -144,7 +144,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
     @Option(help: "Speech engine: app-default, parakeet, nemotron, whisper, cohere. Parakeet is the local default; app-default follows the saved GUI preference.")
     var engine: TranscribeSpeechEngine = .parakeet
 
-    @Option(help: "Language hint for Nemotron, Whisper, or Cohere, such as ko, en, or en-US. Cohere requires a supported language; Parakeet and the English-only Nemotron build ignore this flag.")
+    @Option(help: "Language hint for Nemotron or Whisper, such as ko, en, or en-US. Cohere accepts its legacy supported codes for compatibility but detects language automatically. Parakeet and the English-only Nemotron build ignore this flag.")
     var language: String?
 
     @Option(name: .long, help: "Parakeet build: app-default, v3 (English + supported European languages), v2 (English word timestamps), unified (readable English with word timestamps). Ignored for Nemotron, Cohere, and Whisper.")

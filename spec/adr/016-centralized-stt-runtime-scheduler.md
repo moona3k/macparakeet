@@ -10,6 +10,7 @@
 > Amendment 2026-06-27: Cohere Transcribe routes through the same runtime owner as an opt-in, explicitly downloaded, batch-only FluidAudio CoreML engine. It is allowed for recorded dictation finalization, file transcription, and meeting finalization/retranscribe, but it must not enter live dictation preview or meeting live-chunk paths because it emits no live partials, word timestamps, or speaker labels. Because the Cohere runtime is a single large batch pipeline rather than separate interactive/background managers, the scheduler treats Cohere as a global single-flight resource instead of hiding cross-slot waits inside the engine.
 > Amendment 2026-07-11: GUI routing preferences are split by workflow. `speechRecognitionEngine` remains the dictation engine; `transcriptionSpeechRecognitionEngine` routes file/media/URL jobs and is captured by new meeting leases. Missing workflow state inherits dictation for backward compatibility. Both routes remain inside the single runtime/scheduler control plane.
 > Amendment 2026-07-15: The GUI split is defined by live-vs-final responsibility rather than feature grouping. `speechRecognitionEngine` is Live Speech for dictation and meeting preview. `transcriptionSpeechRecognitionEngine` is an optional Advanced Final Transcription override for post-meeting and file/media work; absence means inheritance. Meetings always lease Live Speech and capture a separate immutable final route.
+> Amendment 2026-07-25: ADR-029 replaces the internal Cohere FluidAudio pipeline with a pinned transcribe.cpp adapter. Runtime ownership, scheduler-wide single-flight admission, workflow routing, cancellation, and the batch-only capability contract are unchanged. The runtime now deterministically drains the native session before releasing its model or deleting model files.
 
 ## Context
 
@@ -51,7 +52,7 @@ Feature services submit jobs to the control plane; they do not own their own STT
 
 ### 2. One shared STT runtime owner
 
-The control plane coordinates one shared STT runtime owner for speech model lifecycle. Parakeet's FluidAudio managers, Parakeet Unified's dedicated FluidAudio engine, Nemotron's FluidAudio managers, Cohere's FluidAudio pipeline, and the optional WhisperKit engine live behind this owner; callers do not own model lifecycles directly.
+The control plane coordinates one shared STT runtime owner for speech model lifecycle. Parakeet's FluidAudio managers, Parakeet Unified's dedicated FluidAudio engine, Nemotron's FluidAudio managers, Cohere's transcribe.cpp adapter, and the optional WhisperKit engine live behind this owner; callers do not own model lifecycles directly.
 
 That runtime is the sole owner of:
 

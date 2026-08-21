@@ -835,7 +835,7 @@ final class DictationFlowCoordinator {
         guard let state = overlayViewModel?.state, case .processing = state else { return }
 
         let firstInstall = !runtimePreferences.hasCompletedFirstDictation
-        // Cohere has its own model download / Core ML preparation path, and a
+        // Cohere has its own model download and native preparation path, and a
         // user may switch to it after already completing dictation with another
         // engine. Keep its load caption specific even when this is not the
         // app's first completed dictation.

@@ -149,6 +149,12 @@ public protocol SpeechEngineSwitchAvailabilityProviding: Sendable {
     func engineSwitchAvailability() async -> SpeechEngineSwitchAvailability
 }
 
+/// Destructive Cohere model removal must cross the scheduler lifecycle gate so
+/// it cannot race a native run, cancellation drain, or context teardown.
+public protocol CohereModelDeleting: Sendable {
+    func deleteCohereModel() async throws
+}
+
 extension SpeechEngineSwitching {
     public func setSpeechEngine(
         _ preference: SpeechEnginePreference,

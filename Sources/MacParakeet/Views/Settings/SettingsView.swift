@@ -564,7 +564,7 @@ struct SettingsView: View {
             return "This removes the configured Whisper model download from this Mac. You can download it again at any time."
         case .cohere:
             let lifecycle = cohereModelLifecycle
-            let size = sentenceDownloadSize(for: lifecycle, fallback: "about 2.1 GB")
+            let size = sentenceDownloadSize(for: lifecycle, fallback: "about 1.65 GB")
             return "This frees \(size). You can download \(lifecycle.modelName) again at any time."
         }
     }
@@ -610,7 +610,7 @@ struct SettingsView: View {
         case .parakeet:
             return "Switching back to Parakeet reloads the speech engine. Dictation, file transcription, and meetings pause until the switch finishes."
         case .cohere:
-            return "Cohere is a local batch engine. It records first and transcribes after you stop, with no live preview, word timestamps, speaker labels, or auto language detection. Dictation, file transcription, and meetings pause until the switch finishes."
+            return "Cohere is a local batch engine with automatic multilingual transcription. It records first and transcribes after you stop, with no live preview, word timestamps, or speaker labels. Dictation, file transcription, and meetings pause until the switch finishes."
         }
     }
 
@@ -2200,10 +2200,10 @@ struct SettingsView: View {
             tagline: "Local batch plain text",
             strengths: [
                 "Local record-then-transcribe",
-                "Plain text with set language",
+                "Automatic multilingual plain text",
                 "No dictation or meeting preview"
             ],
-            helpText: "Choose Cohere when a local batch plain-text transcript is enough and you can set the language. It has no live preview, word timestamps, speaker labels, or auto language detection.",
+            helpText: "Choose Cohere for local batch plain-text transcription with automatic language detection. It has no live preview, word timestamps, or speaker labels.",
             modelStatus: displayedCohereModelStatus,
             isSelected: viewModel.engine.speechEnginePreference == .cohere,
             isBusy: viewModel.engine.speechEngineSwitching,
@@ -2569,11 +2569,7 @@ struct SettingsView: View {
         }
     }
 
-    /// Cohere-only contextual card: where Cohere runs its model. The choice takes
-    /// effect the next time Cohere loads (the engine captures the policy at
-    /// construction), so the copy says so rather than implying an instant switch.
-    /// Mirrors `engineLanguageCard` (one contextual card, gated on the active
-    /// engine, `.transition(.opacity)`).
+    /// Cohere-only contextual card for transcribe.cpp compute selection.
     @ViewBuilder
     private var engineCohereModelCard: some View {
         @Bindable var engine = viewModel.engine
@@ -2581,7 +2577,7 @@ struct SettingsView: View {
             SettingsCard(
                 title: "Cohere Performance",
                 subtitle: engineModelSubtitle(
-                    "GPU can finish Cohere batches faster after Core ML setup. Neural Engine avoids that setup wait. Changes apply next time Cohere loads.",
+                    "Metal is fastest on Apple Silicon. CPU avoids GPU use. Changes apply next time Cohere loads.",
                     for: .cohere
                 ),
                 icon: "bolt"
@@ -2593,8 +2589,8 @@ struct SettingsView: View {
                     )
                     Spacer(minLength: DesignSystem.Spacing.md)
                     Picker("Compute", selection: $engine.cohereComputePolicy) {
-                        Text("Faster (GPU)").tag(CohereTranscribeEngine.ComputePolicy.gpu)
-                        Text("Balanced (ANE)").tag(CohereTranscribeEngine.ComputePolicy.ane)
+                        Text("Metal").tag(CohereTranscribeEngine.ComputePolicy.metal)
+                        Text("CPU").tag(CohereTranscribeEngine.ComputePolicy.cpu)
                     }
                     .labelsHidden()
                     .pickerStyle(.segmented)
@@ -2874,7 +2870,7 @@ struct SettingsView: View {
               currentSpeechEngineSwitchTarget == .cohere else {
             return viewModel.engine.cohereModelStatusDetail
         }
-        return viewModel.engine.speechEngineSwitchDetail ?? "Loading Cohere with Core ML..."
+        return viewModel.engine.speechEngineSwitchDetail ?? "Loading Cohere with transcribe.cpp..."
     }
 
     private var displayedNemotronModelStatusDetail: String {
@@ -2997,7 +2993,7 @@ struct SettingsView: View {
         }
         switch viewModel.engine.cohereModelStatus {
         case .notDownloaded:
-            let size = sentenceStartDownloadSize(for: cohereModelLifecycle, fallback: "About 2.1 GB")
+            let size = sentenceStartDownloadSize(for: cohereModelLifecycle, fallback: "About 1.65 GB")
             return (.download, "\(size) · local batch transcripts, no preview or timestamps")
         case .repairing:
             return (.downloading, viewModel.engine.cohereModelStatusDetail)

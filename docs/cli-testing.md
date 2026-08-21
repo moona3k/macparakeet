@@ -237,10 +237,10 @@ swift run macparakeet-cli transcribe "<FILE_OR_MEDIA_URL>" \
 ```
 
 Use Cohere explicitly for local batch plain-text runs after downloading the
-local Cohere model. Cohere requires a supported language hint or saved
-`cohere-language` default, which you can set or inspect with `config`. It has no
-live preview, word timestamps, speaker labels, diarization, or auto language
-detection:
+local Cohere model. Cohere detects supported languages automatically and has
+no live preview, word timestamps, speaker labels, or diarization. The legacy
+`cohere-language` setting remains readable and writable for compatibility but
+does not affect the transcribe.cpp backend:
 
 ```bash
 swift run macparakeet-cli models download cohere-transcribe
@@ -248,14 +248,12 @@ swift run macparakeet-cli config set cohere-language ja
 swift run macparakeet-cli config get cohere-language
 
 swift run macparakeet-cli transcribe "<FILE_OR_MEDIA_URL>" \
-  --engine cohere \
-  --language ja
+  --engine cohere
 ```
 
 `--language auto` or omitting `--language` lets Nemotron or Whisper detect the
-language. Cohere has no auto-detect; `--engine cohere` uses the saved
-`cohere-language` default unless `--language` is passed. When `--engine
-app-default` resolves to Nemotron, Whisper, or Cohere, an explicit `--language`
+language. Cohere always detects language automatically. When `--engine
+app-default` resolves to Nemotron or Whisper, an explicit `--language`
 overrides the saved language for that invocation.
 
 ### Retranscribe Existing Records
