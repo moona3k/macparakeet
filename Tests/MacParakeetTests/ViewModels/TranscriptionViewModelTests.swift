@@ -2400,20 +2400,27 @@ final class TranscriptionViewModelTests: XCTestCase {
 
     // MARK: - Persisted Content
 
-    func testLoadPersistedContentRefreshesCurrentTranscriptionFromDB() {
-        let t = Transcription(fileName: "test.mp3", status: .completed)
-        mockRepo.transcriptions = [t]
+    func testLoadPersistedContentRefreshesPromptResultTabsWithoutRefetchingRow() {
+        let handed = Transcription(
+            fileName: "handed.mp3",
+            rawTranscript: "already loaded from Library",
+            status: .completed
+        )
+        var stored = handed
+        stored.rawTranscript = "stale or different DB copy"
+        stored.fileName = "from-db.mp3"
+        mockRepo.transcriptions = [stored]
 
         viewModel.configure(
             transcriptionService: mockService,
             transcriptionRepo: mockRepo,
             promptResultRepo: mockPromptResultRepo
         )
-        viewModel.currentTranscription = t
+        viewModel.currentTranscription = handed
 
         mockPromptResultRepo.promptResults = [
             PromptResult(
-                transcriptionId: t.id,
+                transcriptionId: handed.id,
                 promptName: "Concise Summary",
                 promptContent: Prompt.defaultPrompt.content,
                 content: "Migrated summary"
@@ -2423,6 +2430,8 @@ final class TranscriptionViewModelTests: XCTestCase {
         viewModel.loadPersistedContent()
 
         XCTAssertTrue(viewModel.hasPromptResultTabs)
+        XCTAssertEqual(viewModel.currentTranscription?.rawTranscript, "already loaded from Library")
+        XCTAssertEqual(viewModel.currentTranscription?.fileName, "handed.mp3")
     }
 
     // MARK: - Retranscribe

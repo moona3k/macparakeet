@@ -139,16 +139,13 @@ struct MandalaData {
         guard !wordTimestamps.isEmpty else { return .fallback }
 
         let sampleCount = 24
-        let confidences = wordTimestamps.map { CGFloat($0.confidence) }
-
-        // Resample to fixed point count
         var points: [CGFloat] = []
-        let step = max(1.0, Double(confidences.count) / Double(sampleCount))
+        points.reserveCapacity(sampleCount)
+        let step = max(1.0, Double(wordTimestamps.count) / Double(sampleCount))
 
         for i in 0..<sampleCount {
-            let idx = Int(Double(i) * step)
-            let safeIdx = min(idx, confidences.count - 1)
-            points.append(confidences[safeIdx])
+            let idx = min(Int(Double(i) * step), wordTimestamps.count - 1)
+            points.append(CGFloat(wordTimestamps[idx].confidence))
         }
 
         // Mirror for symmetry — makes it look intentional and organic
@@ -169,13 +166,14 @@ struct MandalaData {
 
         let sampleCount = 24
         var points: [CGFloat] = []
+        points.reserveCapacity(sampleCount)
 
-        // Use a deterministic hash of the text characters to generate the pattern
+        // Use a deterministic hash of the leading characters to generate the pattern
         var hashState: UInt64 = UInt64(durationMs) ^ 0x517cc1b727220a95
-        let chars = Array(text.utf8)
+        let prefix = Array(text.utf8.prefix(sampleCount))
 
         for i in 0..<sampleCount {
-            let charIdx = i < chars.count ? Int(chars[i]) : (i * 37)
+            let charIdx = i < prefix.count ? Int(prefix[i]) : (i * 37)
             hashState = hashState &* 6364136223846793005 &+ UInt64(charIdx)
             let value = CGFloat((hashState >> 33) & 0xFFFF) / CGFloat(0xFFFF)
             // Clamp to 0.2...1.0 range for visual appeal (avoid too-small petals)
