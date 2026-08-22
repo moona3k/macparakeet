@@ -80,19 +80,30 @@ public enum SettingsSearchIndex {
     /// Shared anchor for the advanced recordings/files engine control.
     public static let advancedTranscriptionAnchor = "engine.transcriptionSelector"
 
+    /// The anchor of the Meeting Recording card, which the view gates on
+    /// `AppFeatures.meetingRecordingEnabled` along with every row inside it.
+    private static let meetingCardAnchor = "meeting"
+
     /// Ids whose destination card or row is gated on
     /// `AppFeatures.meetingRecordingEnabled`. When the flag is off these
     /// entries are filtered out so search never lands on a destination
     /// that won't render.
-    private static let meetingGatedIds: Set<String> = [
-        "meeting",
-        "meeting.hotkey",
-        "meeting.floatingControls",
-        "meeting.speakerDetection",
-        "meeting.autoStop",
-        "meeting.calendar",
-        "system.permissions.screen"
-    ]
+    ///
+    /// Derived from the card anchor rather than hand-listed: the whole card
+    /// disappears with the flag, so every entry pointing at it must too, and
+    /// deriving means adding a meeting setting cannot forget to gate its
+    /// search row. Only entries that sit under a different anchor yet exist
+    /// solely to serve meeting recording — screen-recording permission — are
+    /// named explicitly.
+    private static let meetingGatedIds: Set<String> = {
+        var ids = Set(
+            allEntries
+                .filter { $0.cardAnchor == meetingCardAnchor }
+                .map(\.id)
+        )
+        ids.insert("system.permissions.screen")
+        return ids
+    }()
 
     /// Ids gated on `AppFeatures.calendarEnabled` independently of meeting
     /// recording. Filtered out when the flag is off so search doesn't land
@@ -268,6 +279,30 @@ public enum SettingsSearchIndex {
                 "floating controls", "meeting pill", "recording pill",
                 "hide meeting", "hide recording", "recording ui", "menu bar",
                 "overlay"
+            ],
+            cardAnchor: "meeting"
+        ),
+        SettingsSearchEntry(
+            id: "meeting.openAppAfterEnd",
+            tab: .capture,
+            title: "Open app when meeting ends",
+            subtitle: "in Meeting Recording",
+            keywords: [
+                "open app", "auto open", "auto-open", "bring forward", "focus",
+                "steal focus", "meeting ends", "after meeting", "stop recording",
+                "background", "stay in background"
+            ],
+            cardAnchor: "meeting"
+        ),
+        SettingsSearchEntry(
+            id: "meeting.notifyOnEnd",
+            tab: .capture,
+            title: "Notify when transcript is ready",
+            subtitle: "in Meeting Recording",
+            keywords: [
+                "notification", "notify", "banner", "chime", "sound",
+                "meeting ready", "transcript ready", "meeting complete",
+                "meeting notification"
             ],
             cardAnchor: "meeting"
         ),

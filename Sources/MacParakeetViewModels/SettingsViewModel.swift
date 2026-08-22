@@ -203,6 +203,30 @@ public final class SettingsViewModel {
             ))
         }
     }
+    public var openAppAfterMeetingEnd: Bool {
+        didSet {
+            defaults.set(
+                openAppAfterMeetingEnd,
+                forKey: UserDefaultsAppRuntimePreferences.openAppAfterMeetingEndKey
+            )
+            Telemetry.send(.settingChanged(
+                setting: .openAppAfterMeetingEnd,
+                value: Self.settingValue(openAppAfterMeetingEnd)
+            ))
+        }
+    }
+    public var notifyOnMeetingEnd: Bool {
+        didSet {
+            defaults.set(
+                notifyOnMeetingEnd,
+                forKey: UserDefaultsAppRuntimePreferences.notifyOnMeetingEndKey
+            )
+            Telemetry.send(.settingChanged(
+                setting: .notifyOnMeetingEnd,
+                value: Self.settingValue(notifyOnMeetingEnd)
+            ))
+        }
+    }
     public var meetingAutoStopEnabled: Bool {
         didSet {
             defaults.set(
@@ -771,6 +795,8 @@ public final class SettingsViewModel {
         )
         meetingAudioSourceMode = MeetingAudioSourceMode.current(defaults: defaults)
         showMeetingRecordingPill = UserDefaultsAppRuntimePreferences.showMeetingRecordingPill(defaults: defaults)
+        openAppAfterMeetingEnd = UserDefaultsAppRuntimePreferences.openAppAfterMeetingEnd(defaults: defaults)
+        notifyOnMeetingEnd = UserDefaultsAppRuntimePreferences.notifyOnMeetingEnd(defaults: defaults)
         meetingAutoStopEnabled = defaults.object(
             forKey: UserDefaultsAppRuntimePreferences.meetingAutoStopEnabledKey
         ) as? Bool ?? false

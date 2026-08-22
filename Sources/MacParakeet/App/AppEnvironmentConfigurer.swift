@@ -329,27 +329,20 @@ final class AppEnvironmentConfigurer {
             finalizationOwnershipClaimer: env.meetingRecordingLockFileStore,
             onMenuBarIconUpdate: { _ in callbacks.onMenuBarIconUpdate() },
             onTranscriptionReady: { [weak self] transcription in
-                guard let self else { return }
-                self.transcriptionViewModel.presentCompletedTranscription(transcription, autoSave: true)
-                self.libraryViewModel.loadTranscriptions()
-                self.meetingsWorkspaceViewModel.refreshRecentMeetings()
-                self.mainWindowState.navigateToTranscription(from: .library)
-                callbacks.onOpenMainWindow()
-            },
-            onQueuedTranscriptionReady: { [weak self] transcription, selectTranscription in
-                guard let self else { return }
-                self.transcriptionViewModel.presentCompletedTranscription(
+                self?.handleMeetingTranscriptReady(
                     transcription,
-                    autoSave: true,
-                    runAutoPrompts: true,
-                    selectTranscription: selectTranscription
+                    preferences: env.runtimePreferences,
+                    canPresent: true,
+                    openMainWindow: callbacks.onOpenMainWindow
                 )
-                self.libraryViewModel.loadTranscriptions()
-                self.meetingsWorkspaceViewModel.refreshRecentMeetings()
-                if selectTranscription {
-                    self.mainWindowState.navigateToTranscription(from: .library)
-                    callbacks.onOpenMainWindow()
-                }
+            },
+            onQueuedTranscriptionReady: { [weak self] transcription, canPresent in
+                self?.handleMeetingTranscriptReady(
+                    transcription,
+                    preferences: env.runtimePreferences,
+                    canPresent: canPresent,
+                    openMainWindow: callbacks.onOpenMainWindow
+                )
             },
             onQueuedTranscriptionFailed: { [weak self] transcriptionID, content in
                 guard let self else { return }
@@ -495,6 +488,45 @@ final class AppEnvironmentConfigurer {
             hotkeyCoordinator: hotkeyCoordinator,
             meetingAutoStartCoordinator: calendarCoordinator,
             meetingAutoStopCoordinator: meetingAutoStopCoordinator
+        )
+    }
+
+    /// Act on a finished meeting transcript per the meetings-tab settings:
+    /// open the app on the transcript, or — on the quiet path — play a chime
+    /// plus (while the app is backgrounded) a banner instead of stealing
+    /// focus. Clicking the banner activates the app; the meeting is already at
+    /// the top of the library. Saving, selection, and presentation are ordered
+    /// by the tested `MeetingCompletionRouter`, which reads the preferences
+    /// before selecting so the quiet path leaves the user's tab alone.
+    private func handleMeetingTranscriptReady(
+        _ transcription: Transcription,
+        preferences: AppRuntimePreferencesProtocol,
+        canPresent: Bool,
+        openMainWindow: @escaping () -> Void
+    ) {
+        MeetingCompletionRouter(
+            presentCompleted: { [transcriptionViewModel] transcription, selectTranscription in
+                transcriptionViewModel.presentCompletedTranscription(
+                    transcription,
+                    autoSave: true,
+                    runAutoPrompts: true,
+                    selectTranscription: selectTranscription
+                )
+            },
+            reloadLibrary: { [libraryViewModel] in libraryViewModel.loadTranscriptions() },
+            refreshRecentMeetings: { [meetingsWorkspaceViewModel] in
+                meetingsWorkspaceViewModel.refreshRecentMeetings()
+            },
+            navigateToTranscription: { [mainWindowState] in
+                mainWindowState.navigateToTranscription(from: .library)
+            },
+            openMainWindow: openMainWindow,
+            presentSignal: { TranscriptionCompletionPresenter.present($0) }
+        ).handle(
+            transcription,
+            openAppEnabled: preferences.openAppAfterMeetingEnd,
+            notifyEnabled: preferences.notifyOnMeetingEnd,
+            canPresent: canPresent
         )
     }
 
