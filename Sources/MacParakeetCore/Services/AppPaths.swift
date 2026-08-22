@@ -82,8 +82,32 @@ public enum AppPaths {
         return defaultMeetingRecordingsDir(environment: environment)
     }
 
+    /// Opens the named suite (falling back to `.standard` when the suite
+    /// cannot be created), regardless of which process calls it. A
+    /// process whose own bundle identifier equals `preferencesSuiteName`
+    /// (the app itself, or a helper embedded in its bundle) reopening that
+    /// domain as a named suite makes Foundation log a nonsensical-suite
+    /// warning to stderr; such callers should read `appDefaults(bundleIdentifier:)`
+    /// instead, which avoids that self-reopen.
     public static func sharedAppDefaults() -> UserDefaults {
         UserDefaults(suiteName: preferencesSuiteName) ?? .standard
+    }
+
+    /// Resolves the MacParakeet preferences domain the way a caller safely
+    /// can from any process: `.standard` when the current process's own
+    /// bundle identifier already is `preferencesSuiteName` (the running app,
+    /// or an executable embedded in its `.app` bundle — both already read
+    /// and write that domain as their own `.standard` defaults), and the
+    /// named suite otherwise (a standalone binary such as the Homebrew CLI,
+    /// whose own domain differs from the app's and therefore needs to open
+    /// it explicitly to share preferences with the app).
+    public static func appDefaults(
+        bundleIdentifier: String? = Bundle.main.bundleIdentifier
+    ) -> UserDefaults {
+        if bundleIdentifier == preferencesSuiteName {
+            return .standard
+        }
+        return sharedAppDefaults()
     }
 
     public static func normalizedMeetingArtifactsFolder(_ value: String) -> String? {

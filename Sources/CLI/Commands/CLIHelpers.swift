@@ -10,15 +10,13 @@ struct CLIJSONEnvelopeExit: Error {
     let originalError: Error
 }
 
+/// CLI-local alias for `AppPaths.appDefaults(bundleIdentifier:)`, kept so the
+/// existing call sites across `Sources/CLI/Commands/` don't need to name
+/// the `AppPaths` type at every use.
 func macParakeetAppDefaults(
     bundleIdentifier: String? = Bundle.main.bundleIdentifier
 ) -> UserDefaults {
-    // The bundled CLI already inherits the app's defaults domain. Reopening it
-    // as a named suite makes Foundation emit a nonsensical-suite warning.
-    if bundleIdentifier == AppPaths.preferencesSuiteName {
-        return .standard
-    }
-    return AppPaths.sharedAppDefaults()
+    AppPaths.appDefaults(bundleIdentifier: bundleIdentifier)
 }
 
 func validateCLISpeechEngineMemoryRequirement(
