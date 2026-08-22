@@ -5,9 +5,12 @@ import XCTest
 
 final class AppRuntimePreferencesTests: XCTestCase {
     private func makePreferences() -> UserDefaultsAppRuntimePreferences {
-        UserDefaultsAppRuntimePreferences(
-            defaults: UserDefaults(suiteName: "app-runtime-prefs-\(UUID().uuidString)")!
-        )
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        addTeardownBlock {
+            UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
+        }
+        return UserDefaultsAppRuntimePreferences(defaults: defaults)
     }
 
     func testMarkFirstDictationCompletedReturnsTrueOnlyOnFirstTransition() {
@@ -33,6 +36,7 @@ final class AppRuntimePreferencesTests: XCTestCase {
     func testKeepDictationOnClipboardReadsStoredValue() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.keepDictationOnClipboardKey)
 
         let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
@@ -111,6 +115,7 @@ final class AppRuntimePreferencesTests: XCTestCase {
     func testVoiceReturnTriggersAreDisabledWhenToggleIsOff() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(["press return"], forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggersKey)
 
         let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
@@ -121,6 +126,7 @@ final class AppRuntimePreferencesTests: XCTestCase {
     func testVoiceReturnTriggersDefaultWhenEnabledWithoutStoredValue() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
 
         let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
@@ -131,6 +137,7 @@ final class AppRuntimePreferencesTests: XCTestCase {
     func testVoiceReturnTriggersReadLegacySingleTrigger() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
         defaults.set(" zatwierdź ", forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey)
 
@@ -142,6 +149,7 @@ final class AppRuntimePreferencesTests: XCTestCase {
     func testVoiceReturnTriggersNormalizeStoredList() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
         defaults.set(
             [" press return ", "PRESS RETURN", "", "zatwierdź"],
@@ -155,6 +163,7 @@ final class AppRuntimePreferencesTests: XCTestCase {
     func testVoiceReturnTriggersFallBackToLegacyWhenStoredListNormalizesEmpty() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
         defaults.set([" ", ""], forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggersKey)
         defaults.set(" zatwierdź ", forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey)
@@ -166,6 +175,7 @@ final class AppRuntimePreferencesTests: XCTestCase {
     func testVoiceReturnTriggersFallBackToDefaultWhenStoredValuesNormalizeEmpty() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
         defaults.set([" ", ""], forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggersKey)
         defaults.set(" ", forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey)
@@ -187,7 +197,9 @@ final class AppRuntimePreferencesTests: XCTestCase {
 
     func testDictationUndoCountdownRoundTripsStoredValue() {
         for countdown in DictationUndoCountdown.allCases {
-            let defaults = UserDefaults(suiteName: "app-runtime-prefs-\(UUID().uuidString)")!
+            let suite = "app-runtime-prefs-\(UUID().uuidString)"
+            let defaults = UserDefaults(suiteName: suite)!
+            defer { defaults.removePersistentDomain(forName: suite) }
             defaults.set(
                 countdown.rawValue,
                 forKey: UserDefaultsAppRuntimePreferences.dictationUndoCountdownKey
@@ -197,7 +209,9 @@ final class AppRuntimePreferencesTests: XCTestCase {
     }
 
     func testDictationUndoCountdownFallsBackForUnknownValue() {
-        let defaults = UserDefaults(suiteName: "app-runtime-prefs-\(UUID().uuidString)")!
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(
             "not-a-real-value",
             forKey: UserDefaultsAppRuntimePreferences.dictationUndoCountdownKey
@@ -392,6 +406,7 @@ final class AppRuntimePreferencesTests: XCTestCase {
     func testFirstDictationFlagPersistsAcrossInstances() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let first = UserDefaultsAppRuntimePreferences(defaults: defaults)
         XCTAssertTrue(first.markFirstDictationCompleted())

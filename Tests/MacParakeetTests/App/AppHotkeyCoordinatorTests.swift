@@ -9,7 +9,9 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
     private func makeViewModel(functionName: String = #function) -> SettingsViewModel {
         let suiteName = "AppHotkeyCoordinatorTests.\(functionName).\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        addTeardownBlock {
+            UserDefaults(suiteName: suiteName)?.removePersistentDomain(forName: suiteName)
+        }
         return SettingsViewModel(defaults: defaults)
     }
 

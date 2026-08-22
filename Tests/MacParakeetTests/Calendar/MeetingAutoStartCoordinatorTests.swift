@@ -9,6 +9,7 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
     // MARK: - Fixtures
 
     private var defaults: UserDefaults!
+    private var defaultsSuiteName: String!
     private var settingsViewModel: SettingsViewModel!
     private var calendarService: MockCalendarService!
 
@@ -23,9 +24,8 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        let suite = "com.macparakeet.tests.coordinator.\(UUID().uuidString)"
-        defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defaultsSuiteName = "com.macparakeet.tests.coordinator.\(UUID().uuidString)"
+        defaults = UserDefaults(suiteName: defaultsSuiteName)!
         // Tests seed defaults before constructing SettingsViewModel via
         // `seedSettings(...)` so VM init reads the right values without
         // firing `didSet` (which under `.notify`/`.autoStart` would call
@@ -54,6 +54,8 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
     }
 
     override func tearDown() {
+        defaults.removePersistentDomain(forName: defaultsSuiteName)
+        defaultsSuiteName = nil
         defaults = nil
         settingsViewModel = nil
         calendarService = nil

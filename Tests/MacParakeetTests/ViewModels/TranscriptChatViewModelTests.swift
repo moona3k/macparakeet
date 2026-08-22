@@ -233,7 +233,9 @@ final class TranscriptChatViewModelTests: XCTestCase {
     }
 
     func testRefreshModelInfoShowsLocalCLIPresetName() throws {
-        let defaults = UserDefaults(suiteName: "test.chat.localcli.\(UUID().uuidString)")!
+        let suiteName = "test.chat.localcli.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         let cliStore = LocalCLIConfigStore(defaults: defaults)
         try cliStore.save(
             LocalCLIConfig(commandTemplate: "codex exec --skip-git-repo-check --model gpt-5.4-mini")
@@ -259,7 +261,9 @@ final class TranscriptChatViewModelTests: XCTestCase {
     }
 
     func testRefreshModelInfoShowsCustomCLILabel() throws {
-        let defaults = UserDefaults(suiteName: "test.chat.customcli.\(UUID().uuidString)")!
+        let suiteName = "test.chat.customcli.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         let cliStore = LocalCLIConfigStore(defaults: defaults)
         try cliStore.save(LocalCLIConfig(commandTemplate: "python llm_wrapper.py"))
 

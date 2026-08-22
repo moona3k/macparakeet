@@ -1478,12 +1478,16 @@ final class TelemetryServiceTests: XCTestCase {
     // MARK: - AppPreferences
 
     func testTelemetryEnabledDefault() {
-        let defaults = UserDefaults(suiteName: "test-telemetry-\(UUID().uuidString)")!
+        let suiteName = "test-telemetry-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         XCTAssertTrue(AppPreferences.isTelemetryEnabled(defaults: defaults))
     }
 
     func testTelemetryEnabledRespectsUserChoice() {
-        let defaults = UserDefaults(suiteName: "test-telemetry-\(UUID().uuidString)")!
+        let suiteName = "test-telemetry-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         defaults.set(false, forKey: AppPreferences.telemetryEnabledKey)
         XCTAssertFalse(AppPreferences.isTelemetryEnabled(defaults: defaults))
     }

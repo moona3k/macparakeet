@@ -1223,7 +1223,9 @@ final class DictationServiceTests: XCTestCase {
     }
 
     func testFirstDictationFlagFlipsAfterSuccessfulSave() async throws {
-        let defaults = UserDefaults(suiteName: "dictation-first-success-\(UUID().uuidString)")!
+        let suiteName = "dictation-first-success-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
         XCTAssertFalse(preferences.hasCompletedFirstDictation)
 
@@ -1250,7 +1252,9 @@ final class DictationServiceTests: XCTestCase {
     }
 
     func testFirstDictationFlagDoesNotFlipOnFailedDictation() async throws {
-        let defaults = UserDefaults(suiteName: "dictation-first-failure-\(UUID().uuidString)")!
+        let suiteName = "dictation-first-failure-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
 
         service = DictationService(

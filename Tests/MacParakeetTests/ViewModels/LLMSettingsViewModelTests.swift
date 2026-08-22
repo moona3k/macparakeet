@@ -1309,7 +1309,9 @@ final class LLMSettingsViewModelTests: XCTestCase {
     }
 
     func testHasUnsavedChangesTracksLocalCLIConfigDraft() throws {
-        let defaults = UserDefaults(suiteName: "test.vm.\(UUID().uuidString)")!
+        let suiteName = "test.vm.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         let cliStore = LocalCLIConfigStore(defaults: defaults)
         try cliStore.save(
             LocalCLIConfig(commandTemplate: "claude -p --model haiku", timeoutSeconds: 90)
@@ -1594,7 +1596,9 @@ final class LLMSettingsViewModelTests: XCTestCase {
     }
 
     func testLoadsExistingLocalCLIConfigRehydratesPresetSelection() throws {
-        let defaults = UserDefaults(suiteName: "test.vm.\(UUID().uuidString)")!
+        let suiteName = "test.vm.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         let cliStore = LocalCLIConfigStore(defaults: defaults)
         try cliStore.save(
             LocalCLIConfig(
@@ -1613,7 +1617,10 @@ final class LLMSettingsViewModelTests: XCTestCase {
     }
 
     func testLocalCLICanSaveWithCommand() {
-        let cliStore = LocalCLIConfigStore(defaults: UserDefaults(suiteName: "test.vm.\(UUID().uuidString)")!)
+        let suiteName = "test.vm.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let cliStore = LocalCLIConfigStore(defaults: defaults)
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient, cliConfigStore: cliStore)
         viewModel.selectedProviderID = .localCLI
         viewModel.commandTemplate = "claude -p --model haiku"
@@ -1637,7 +1644,9 @@ final class LLMSettingsViewModelTests: XCTestCase {
     }
 
     func testLocalCLISaveDuringConnectionTestDoesNotRestoreStaleCommand() async throws {
-        let defaults = UserDefaults(suiteName: "test.vm.\(UUID().uuidString)")!
+        let suiteName = "test.vm.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         let cliStore = LocalCLIConfigStore(defaults: defaults)
         try cliStore.save(LocalCLIConfig(commandTemplate: "echo OLD", timeoutSeconds: 10))
 
@@ -1657,7 +1666,9 @@ final class LLMSettingsViewModelTests: XCTestCase {
     }
 
     func testClearKeepsSavedLocalCLIConfigAfterUnsavedProviderSwitch() throws {
-        let defaults = UserDefaults(suiteName: "test.vm.\(UUID().uuidString)")!
+        let suiteName = "test.vm.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         let cliStore = LocalCLIConfigStore(defaults: defaults)
         try cliStore.save(
             LocalCLIConfig(
