@@ -739,6 +739,19 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertTrue(effects.contains(.startDisplayDismissTimer(seconds: 5)))
     }
 
+    func testFinishingPostPasteActionSuppressedDoesNotClaimClipboardCopy() {
+        var m = machineInProcessing()
+        let gen = m.generation
+        _ = m.handle(.transcriptionCompleted(generation: gen))
+        let message = "Dictation was pasted, but Return was not sent."
+
+        let effects = m.handle(.postPasteActionSuppressed(generation: gen, message: message))
+
+        XCTAssertEqual(m.state, .finishing(outcome: .postPasteActionSuppressed(message)))
+        XCTAssertTrue(effects.contains(.showError(message)))
+        XCTAssertTrue(effects.contains(.startDisplayDismissTimer(seconds: 5)))
+    }
+
     func testFinishingDisplayDismissExpired() {
         var m = machineInProcessing()
         let gen = m.generation

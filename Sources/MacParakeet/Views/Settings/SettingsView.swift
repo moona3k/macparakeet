@@ -1173,6 +1173,15 @@ struct SettingsView: View {
                     detail: "Leaves the same text MacParakeet pastes on the clipboard, useful when remote desktops need a manual ⌘V.",
                     isOn: $viewModel.keepDictationOnClipboard
                 )
+
+                Divider()
+
+                settingsToggleRow(
+                    title: "Auto-submit dictation in Codex",
+                    detail: "When Codex remains frontmost, pastes a completed dictation and presses Return to submit it. Keep the intended Codex composer focused until submission.",
+                    isBeta: true,
+                    isOn: $viewModel.autoSubmitCodexDictation
+                )
             }
         }
     }

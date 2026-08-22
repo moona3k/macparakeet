@@ -35,6 +35,8 @@ public enum DictationFlowFinishOutcome: Equatable, Sendable {
     case success
     /// Paste failed after successful transcription — text copied to clipboard.
     case pasteFailedCopied(String)
+    /// Text was pasted, but the requested post-paste action was not confirmed.
+    case postPasteActionSuppressed(String)
     /// No speech detected.
     case noSpeech
     /// An error occurred (start failed, transcription failed, stop rejected).
@@ -71,6 +73,7 @@ public enum DictationFlowEvent: Equatable, Sendable {
     case transcriptionFailed(generation: Int, message: String)
     case pasteSucceeded(generation: Int)
     case pasteFailed(generation: Int, message: String)
+    case postPasteActionSuppressed(generation: Int, message: String)
 
     // Timers (carry generation for stale rejection)
     case cancelCountdownExpired(generation: Int)
@@ -469,6 +472,11 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
         case (.finishing(.success), .pasteFailed(let gen, let message)):
             guard gen == generation else { return [] }
             state = .finishing(outcome: .pasteFailedCopied(message))
+            return [.showError(message), .startDisplayDismissTimer(seconds: 5)]
+
+        case (.finishing(.success), .postPasteActionSuppressed(let gen, let message)):
+            guard gen == generation else { return [] }
+            state = .finishing(outcome: .postPasteActionSuppressed(message))
             return [.showError(message), .startDisplayDismissTimer(seconds: 5)]
 
         case (.finishing, .displayDismissExpired(let gen)):

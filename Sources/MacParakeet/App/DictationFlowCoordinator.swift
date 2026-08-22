@@ -39,6 +39,20 @@ private enum ProcessingLoadCaptionOutcome {
 
 @MainActor
 final class DictationFlowCoordinator {
+    static let codexBundleIdentifier = "com.openai.codex"
+
+    static func shouldAutoSubmitCodexDictation(
+        enabled: Bool,
+        transcriptHasText: Bool,
+        requestedAction: KeyAction?,
+        focusedContext: AppPromptContext?
+    ) -> Bool {
+        enabled
+            && transcriptHasText
+            && requestedAction == nil
+            && focusedContext?.bundleIdentifier == codexBundleIdentifier
+    }
+
     private static let silenceAutoStopThreshold: Float = 0.03
     private static let microphoneAccessRequiredMessage = "Microphone access required"
 
@@ -122,11 +136,17 @@ final class DictationFlowCoordinator {
             if case .accessibilityPermissionRequired? = clipboardError {
                 return "Accessibility permission is required for auto-paste. Copied to clipboard. Press Cmd+V."
             }
+            if case .requiredFrontmostApplicationUnavailable? = clipboardError {
+                return "Codex lost focus. Copied to clipboard. Return to Codex and press Cmd+V."
+            }
             return "Copied to clipboard. Press Cmd+V."
         }
 
         if case .accessibilityPermissionRequired? = clipboardError {
             return "Accessibility permission is required for auto-paste, but the clipboard could not be updated."
+        }
+        if case .requiredFrontmostApplicationUnavailable? = clipboardError {
+            return "Codex lost focus, and the clipboard could not be updated."
         }
 
         return "Paste failed and the clipboard could not be updated."
@@ -371,7 +391,7 @@ final class DictationFlowCoordinator {
         switch stateMachine.state {
         case .finishing(let outcome):
             switch outcome {
-            case .error, .noSpeech, .pasteFailedCopied:
+            case .error, .noSpeech, .pasteFailedCopied, .postPasteActionSuppressed:
                 sendEvent(.dismissRequested)
             case .success:
                 break
@@ -595,16 +615,28 @@ final class DictationFlowCoordinator {
             let insertionStyle = currentDictationInsertionStyle
             Task { @MainActor in
                 var completedDictation = dictation
-                let action = self.pendingPostPasteAction
+                let requestedAction = self.pendingPostPasteAction
                 self.pendingPostPasteAction = nil
-                let pastedToAppAtDispatch = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+                let focusedContext = self.focusedAppContextService.currentContext()
+                let pastedToAppAtDispatch = focusedContext?.bundleIdentifier
                 let keepDictationOnClipboard = self.runtimePreferences.shouldKeepDictationOnClipboard
                 let transcriptHasText = !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                let autoSubmitsToCodex = Self.shouldAutoSubmitCodexDictation(
+                    enabled: self.runtimePreferences.shouldAutoSubmitCodexDictation,
+                    transcriptHasText: transcriptHasText,
+                    requestedAction: requestedAction,
+                    focusedContext: focusedContext
+                )
+                let action = requestedAction ?? (autoSubmitsToCodex ? .returnKey : nil)
+                let requiredFrontmostBundleIdentifier = autoSubmitsToCodex
+                    ? Self.codexBundleIdentifier
+                    : nil
                 let appendsTrailingSpace = !(
                     dictation.processingMode.usesDeterministicPipeline
                     && insertionStyle == .inline
                 )
                 let normalPasteText = appendsTrailingSpace ? transcript + " " : transcript
+                var guardedSubmissionWasSuppressed = false
 
                 do {
                     if action == nil && !transcriptHasText {
@@ -620,10 +652,13 @@ final class DictationFlowCoordinator {
                         let keystrokeFired = try await self.clipboardService.pasteTextWithAction(
                             transcript,
                             postPasteAction: action,
-                            restoresClipboard: !keepDictationOnClipboard
+                            restoresClipboard: !keepDictationOnClipboard,
+                            requiredFrontmostBundleIdentifier: requiredFrontmostBundleIdentifier
                         )
                         if keystrokeFired {
                             Telemetry.send(.keystrokeSnippetFired(action: action.rawValue))
+                        } else if requiredFrontmostBundleIdentifier != nil {
+                            guardedSubmissionWasSuppressed = true
                         }
                     } else {
                         // Normal paste path: spacing follows the style used to shape this dictation.
@@ -650,6 +685,18 @@ final class DictationFlowCoordinator {
                     let rawChars = dictation.rawTranscript.count
                     let cleanChars = dictation.cleanTranscript?.count ?? 0
                     let app = completedDictation.pastedToApp ?? "none"
+                    if guardedSubmissionWasSuppressed {
+                        self.dictationLog.notice("dictation_completed gen=\(gen) outcome=submit_suppressed rawChars=\(rawChars) cleanChars=\(cleanChars) autoPasted=true pastedToApp=\(app, privacy: .public)")
+                        guard self.stateMachine.generation == gen else { return }
+                        self.dismissCaption(outcome: .failure)
+                        self.sendEvent(
+                            .postPasteActionSuppressed(
+                                generation: gen,
+                                message: "Dictation was pasted, but Return was not sent. Keep Codex frontmost and press Return."
+                            )
+                        )
+                        return
+                    }
                     self.dictationLog.notice("dictation_completed gen=\(gen) outcome=success rawChars=\(rawChars) cleanChars=\(cleanChars) autoPasted=true pastedToApp=\(app, privacy: .public)")
 
                     guard self.stateMachine.generation == gen else { return }
@@ -1214,6 +1261,7 @@ final class DictationFlowCoordinator {
             case .eventSourceUnavailable: return "paste_event_source_unavailable"
             case .eventCreationFailed: return "paste_event_creation_failed"
             case .pasteboardWriteFailed: return "pasteboard_write_failed"
+            case .requiredFrontmostApplicationUnavailable: return "paste_frontmost_application_changed"
             }
         }
         return "unknown"
@@ -1233,6 +1281,7 @@ final class DictationFlowCoordinator {
             switch outcome {
             case .success: return "finishing.success"
             case .pasteFailedCopied: return "finishing.pasteFailed"
+            case .postPasteActionSuppressed: return "finishing.postPasteActionSuppressed"
             case .noSpeech: return "finishing.noSpeech"
             case .error: return "finishing.error"
             }
