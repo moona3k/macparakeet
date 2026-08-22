@@ -1035,11 +1035,11 @@ Button to re-run onboarding flow: "Run Onboarding Again..."
 
 ## Discover (v0.4)
 
-A curated content feed displayed as a sidebar item with a full-page content view. Discover surfaces tips, quotes, affirmations, and sponsored items fetched from a remote JSON feed (`macparakeet.com/api/discover.json`) with local cache fallback and a bundled default.
+A curated content feed displayed as a sidebar item with a full-page content view. Discover surfaces tips, quotes, affirmations, and sponsored items fetched from a remote JSON feed (`macparakeet.com/api/discover.json`) with local cache fallback and a bundled default. Visibility and the launch fetch are gated by Settings → System → Appearance → **Show Discover in the sidebar** (`showDiscover`, default on). When the preference is off, the card is omitted and `DiscoverService` is never configured, so launch makes no request to the feed endpoint.
 
 ### Sidebar Card
 
-The Discover item is **not** part of the regular sidebar `List`. It renders as a pinned card below the sidebar list via `.safeAreaInset(edge: .bottom)`. This keeps it visually distinct and always visible regardless of scroll position.
+The Discover item is **not** part of the regular sidebar `List`. When `showDiscover` is on, it renders as a pinned card below the sidebar list via `.safeAreaInset(edge: .bottom)`. This keeps it visually distinct and always visible regardless of scroll position. Turning the preference off hides the card and, if Discover is the active detail pane, falls back to Transcribe.
 
 ```
 ┌──────────────────┐
@@ -1122,9 +1122,13 @@ Users can submit suggestions via a text form at the bottom of the feed. Submissi
 ### Data Flow
 
 ```
-App launch → DiscoverViewModel.loadCached() → DiscoverService reads disk cache (or bundled fallback)
-          → DiscoverViewModel.refreshInBackground() → DiscoverService fetches remote JSON, writes cache
-          → Sidebar card rotates through items every 30s
+App launch
+  showDiscover == false → DiscoverViewModel.cancelDiscover(); no service, no request
+  showDiscover == true  → DiscoverViewModel.loadCached() → DiscoverService reads disk cache (or bundled fallback)
+                        → DiscoverViewModel.refreshInBackground() → DiscoverService fetches remote JSON, writes cache
+                        → Sidebar card rotates through items every 30s
+Toggle off  → cancel in-flight load/refresh/rotation and drop the feed
+Toggle on   → setupDiscoverContent() again (no relaunch)
 ```
 
 ---

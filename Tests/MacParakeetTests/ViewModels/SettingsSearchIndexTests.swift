@@ -63,6 +63,15 @@ final class SettingsSearchIndexTests: XCTestCase {
         )
     }
 
+    func testDiscoverQueryFindsShowDiscoverSetting() {
+        let results = SettingsSearchIndex.matches("discover")
+
+        XCTAssertTrue(
+            results.contains(where: { $0.id == "system.appearance.discover" }),
+            "Discover should land on the Show Discover appearance row"
+        )
+    }
+
     func testTitleMatches() {
         let results = SettingsSearchIndex.matches("Speech Engine")
         XCTAssertTrue(results.contains(where: { $0.id == "engine.selector" }))

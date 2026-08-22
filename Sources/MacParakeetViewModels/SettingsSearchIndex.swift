@@ -450,6 +450,14 @@ public enum SettingsSearchIndex {
             cardAnchor: "system.appearance"
         ),
         SettingsSearchEntry(
+            id: "system.appearance.discover",
+            tab: .system,
+            title: "Show Discover in the sidebar",
+            subtitle: "in Appearance",
+            keywords: ["discover", "sidebar", "hide discover", "feed"],
+            cardAnchor: "system.appearance"
+        ),
+        SettingsSearchEntry(
             id: "system.startup",
             tab: .system,
             title: "Startup",

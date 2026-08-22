@@ -67,6 +67,19 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .hidePill, value: Self.settingValue(!showIdlePill)))
         }
     }
+    /// Show the Discover card in the main sidebar. Defaults to `true`, so
+    /// nothing changes for existing users until they turn it off.
+    ///
+    /// `MainWindowView` reads this directly (`SettingsViewModel` is
+    /// `@Observable`, so the sidebar re-renders on change). The notification
+    /// exists for `AppDelegate`, which owns the Discover service lifecycle and
+    /// needs to start the feed the first time the toggle is switched back on.
+    public var showDiscover: Bool {
+        didSet {
+            defaults.set(showDiscover, forKey: UserDefaultsAppRuntimePreferences.showDiscoverKey)
+            NotificationCenter.default.post(name: .macParakeetShowDiscoverDidChange, object: nil)
+        }
+    }
     public var telemetryEnabled: Bool {
         didSet {
             defaults.set(telemetryEnabled, forKey: AppPreferences.telemetryEnabledKey)
@@ -738,6 +751,7 @@ public final class SettingsViewModel {
         menuBarOnlyMode = AppPreferences.isMenuBarOnlyModeEnabled(defaults: defaults)
         appAppearanceMode = AppPreferences.appearanceMode(defaults: defaults)
         showIdlePill = defaults.object(forKey: UserDefaultsAppRuntimePreferences.showIdlePillKey) as? Bool ?? true
+        showDiscover = defaults.object(forKey: UserDefaultsAppRuntimePreferences.showDiscoverKey) as? Bool ?? true
         telemetryEnabled = AppPreferences.isTelemetryEnabled(defaults: defaults)
         notifyOnTranscriptionComplete = defaults.object(
             forKey: UserDefaultsAppRuntimePreferences.notifyOnTranscriptionCompleteKey
