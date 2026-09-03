@@ -730,6 +730,27 @@ Export bar:
 - Export .txt + Copy buttons, bordered style
 ```
 
+### Transcript Body Layout Rules
+
+The Library "freeze at 100% CPU" bug (macOS 26) was a self-feeding SwiftUI
+update loop in the timed transcript: a `LazyVStack` view cache re-measuring
+and re-instantiating rows after a scroll, each row's `.textSelection(.enabled)`
+platform overlay requesting another update, and hover re-dispatch after every
+update keeping it alive. Rules that follow from it:
+
+- Small transcripts render in a plain `VStack`; only transcripts above
+  `TranscriptBodyLayout.nonLazyRowLimit` rows use `LazyVStack` (issue #848
+  still needs bounded cards there). The decision lives in
+  `TranscriptBodyLayout.usesLazyStack(rowCount:)`; DEBUG launches can flip it
+  and per-row text selection with `MACPARAKEET_DEBUG_TRANSCRIPT_LAZY` and
+  `MACPARAKEET_DEBUG_TRANSCRIPT_SELECTION` to bisect a recurrence.
+- Do not put more AppKit platform views (representables, selectable text
+  overlays) inside lazily measured rows than the row already has.
+- `Tests/MacParakeetTests/Views/TranscriptTimestampedLayoutSmokeTests.swift`
+  hosts the real view offscreen, scrolls it down and back, and fails if layout
+  keeps re-running; hover itself cannot be simulated offscreen and stays a
+  manual check.
+
 ### Recent Transcriptions List
 
 Appears below the drop zone when transcription history exists. Section header includes count badge.

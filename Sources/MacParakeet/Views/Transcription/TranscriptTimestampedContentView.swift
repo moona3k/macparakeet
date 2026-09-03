@@ -151,6 +151,10 @@ struct TranscriptTimestampedContentView<SpeakerLabelContent: View>: View {
     var highlightRangesByStartMs: [Int: [NSRange]] = [:]
     /// The single emphasized ("current") match, identified by its row `startMs`.
     var currentHighlight: (id: Int, range: NSRange)?
+    /// Per-row `.textSelection(.enabled)`. Each selectable `Text` is an AppKit
+    /// platform overlay; `TranscriptBodyLayout.rowTextSelectionEnabled` lets a
+    /// DEBUG launch turn them off to bisect the transcript freeze.
+    var textSelectionEnabled: Bool = true
 
     var body: some View {
         if hasSpeakers {
@@ -175,7 +179,8 @@ struct TranscriptTimestampedContentView<SpeakerLabelContent: View>: View {
                     bodyFont: bodyFont,
                     highlightRangesByStartMs: highlightRangesByStartMs,
                     currentHighlight: currentHighlight,
-                    onTimestampTap: onTimestampTap
+                    onTimestampTap: onTimestampTap,
+                    textSelectionEnabled: textSelectionEnabled
                 )
                 // Preserve the existing first-segment/card scroll target while
                 // later rows expose their own anchors for mid-turn find results.
@@ -197,7 +202,8 @@ struct TranscriptTimestampedContentView<SpeakerLabelContent: View>: View {
                         showRowBackground: true,
                         highlightRanges: highlightRangesByStartMs[segment.startMs] ?? [],
                         currentRange: currentHighlight?.id == segment.startMs ? currentHighlight?.range : nil,
-                        onPlayFromHere: { onTimestampTap(segment.startMs) }
+                        onPlayFromHere: { onTimestampTap(segment.startMs) },
+                        textSelectionEnabled: textSelectionEnabled
                     )
                 }
             }
@@ -225,6 +231,7 @@ private struct TranscriptTurnCardView<SpeakerLabelContent: View>: View {
     var highlightRangesByStartMs: [Int: [NSRange]] = [:]
     var currentHighlight: (id: Int, range: NSRange)?
     let onTimestampTap: (Int) -> Void
+    var textSelectionEnabled: Bool = true
 
     @State private var isHovering = false
 
@@ -282,7 +289,8 @@ private struct TranscriptTurnCardView<SpeakerLabelContent: View>: View {
             showRowBackground: false,
             highlightRanges: highlightRangesByStartMs[segment.startMs] ?? [],
             currentRange: currentHighlight?.id == segment.startMs ? currentHighlight?.range : nil,
-            onPlayFromHere: { onTimestampTap(segment.startMs) }
+            onPlayFromHere: { onTimestampTap(segment.startMs) },
+            textSelectionEnabled: textSelectionEnabled
         )
         if index == 0 {
             row
@@ -334,6 +342,7 @@ private struct TranscriptSegmentRow: View {
     /// The emphasized match within this row, if the find cursor is on it.
     var currentRange: NSRange?
     let onPlayFromHere: () -> Void
+    var textSelectionEnabled: Bool = true
 
     @State private var isHovering = false
 
@@ -346,10 +355,7 @@ private struct TranscriptSegmentRow: View {
                 onTap: { _ in onPlayFromHere() }
             )
 
-            bodyTextCore
-                .foregroundStyle(DesignSystem.Colors.textPrimary)
-                .textSelection(.enabled)
-                .lineSpacing(5)
+            bodyText
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(showRowBackground ? DesignSystem.Spacing.md : 0)
@@ -371,6 +377,18 @@ private struct TranscriptSegmentRow: View {
             withAnimation(DesignSystem.Animation.hoverTransition) {
                 isHovering = hovering
             }
+        }
+    }
+
+    @ViewBuilder
+    private var bodyText: some View {
+        let styled = bodyTextCore
+            .foregroundStyle(DesignSystem.Colors.textPrimary)
+            .lineSpacing(5)
+        if textSelectionEnabled {
+            styled.textSelection(.enabled)
+        } else {
+            styled.textSelection(.disabled)
         }
     }
 

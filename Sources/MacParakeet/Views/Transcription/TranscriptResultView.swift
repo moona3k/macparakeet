@@ -229,6 +229,8 @@ struct TranscriptResultView: View {
     @State private var lastScrolledSegmentMs: Int = -1
     // Cached transcript data — recomputed only when transcription.id changes, not on every playback tick
     @State private var cachedSegments: [TranscriptSegment] = []
+    /// Total timed rows (cards' segments or flat segments); drives the lazy/non-lazy choice.
+    @State private var cachedTranscriptRowCount = 0
     @State private var cachedIdentifiedTurnCards: [IdentifiedSpeakerTurn] = []
     @State private var cachedHasSpeakers: Bool = false
     @State private var cachedSpeakerColorMap: [String: Color] = [:]
@@ -1252,6 +1254,23 @@ struct TranscriptResultView: View {
         .padding(DesignSystem.Spacing.lg)
     }
 
+    /// Small transcripts render in a plain `VStack`; only very long ones use a
+    /// `LazyVStack`. See `TranscriptBodyLayout` for the freeze this avoids.
+    private var transcriptBodyUsesLazyStack: Bool {
+        TranscriptBodyLayout.usesLazyStack(rowCount: cachedTranscriptRowCount)
+    }
+
+    @ViewBuilder
+    private func transcriptBodyStack<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        if transcriptBodyUsesLazyStack {
+            LazyVStack(alignment: .leading, spacing: DesignSystem.Spacing.md, content: content)
+        } else {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.md, content: content)
+        }
+    }
+
     private var transcriptPane: some View {
         VStack(spacing: 0) {
             if findBarVisible {
@@ -1259,7 +1278,7 @@ struct TranscriptResultView: View {
             }
             ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+                transcriptBodyStack {
                     transcriptPaneHeader
 
                     if let partialCapture = MeetingPartialCapturePresentation.make(for: activeTranscription) {
@@ -3090,7 +3109,8 @@ struct TranscriptResultView: View {
             },
             bodyFont: scaledTranscriptFont,
             highlightRangesByStartMs: highlights,
-            currentHighlight: current
+            currentHighlight: current,
+            textSelectionEnabled: TranscriptBodyLayout.rowTextSelectionEnabled
         )
     }
 
@@ -3287,6 +3307,7 @@ struct TranscriptResultView: View {
     private func rebuildSegmentCache() {
         guard let words = activeTranscription.wordTimestamps, !words.isEmpty else {
             cachedSegments = []
+            cachedTranscriptRowCount = 0
             cachedIdentifiedTurnCards = []
             cachedHasSpeakers = false
             cachedSpeakerColorMap = [:]
@@ -3313,8 +3334,10 @@ struct TranscriptResultView: View {
                 }
             )
             cachedIdentifiedTurnCards = identifiedSpeakerTurnCards(turns)
+            cachedTranscriptRowCount = cachedIdentifiedTurnCards.reduce(0) { $0 + $1.turn.segments.count }
         } else {
             cachedIdentifiedTurnCards = []
+            cachedTranscriptRowCount = segments.count
         }
     }
 
