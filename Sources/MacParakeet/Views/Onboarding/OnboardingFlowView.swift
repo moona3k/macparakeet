@@ -1024,6 +1024,14 @@ struct OnboardingFlowView: View {
     private func engineRecoveryTips(for message: String) -> [String] {
         let lower = message.lowercased()
 
+        if lower.contains("speaker diarization") || lower.contains("speaker models") {
+            return [
+                "Make the required speaker diarization models available, then retry setup.",
+                "If this Mac cannot download models, copy the complete local model cache from another Mac, then retry.",
+                "Setup remains blocked until the required local speaker models are present."
+            ]
+        }
+
         if lower.contains("network") || lower.contains("internet") || lower.contains("timed out") {
             return [
                 "Check your internet connection, then retry setup.",

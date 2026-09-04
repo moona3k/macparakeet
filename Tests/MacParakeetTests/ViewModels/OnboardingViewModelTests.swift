@@ -1068,8 +1068,54 @@ final class OnboardingViewModelTests: XCTestCase {
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(150))
 
-        XCTAssertEqual(vm.engineState, .failed(message: STTError.modelDownloadFailed.localizedDescription))
+        XCTAssertEqual(
+            vm.engineState,
+            .failed(message: STTError.engineStartFailed(
+                "Speaker diarization model preparation failed. Make the required speaker models available, then retry setup."
+            ).localizedDescription)
+        )
         XCTAssertFalse(vm.canContinueFromCurrentStep())
+    }
+
+    func testMissingDiarizationModelsSurfaceActionableFailureAndRetryAfterModelsBecomeAvailable() async throws {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let diarization = MockDiarizationService()
+        await diarization.configureCachedModels(false)
+        await diarization.configureReady(false)
+        await diarization.configurePrepareModels(error: STTError.modelDownloadFailed)
+        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+
+        let vm = makeViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            diarizationService: diarization,
+            defaults: defaults,
+            isSpeechModelCached: { true }
+        )
+        vm.jump(to: .engine)
+
+        vm.startEngineWarmUp()
+        try await waitUntil {
+            if case .failed = vm.engineState { return true }
+            return false
+        }
+
+        XCTAssertEqual(
+            vm.engineState,
+            .failed(message: STTError.engineStartFailed(
+                "Speaker diarization model preparation failed. Make the required speaker models available, then retry setup."
+            ).localizedDescription)
+        )
+        XCTAssertFalse(vm.engineBusy)
+        XCTAssertFalse(vm.canContinueFromCurrentStep())
+
+        await diarization.configurePrepareModels(error: nil)
+        await diarization.configureCachedModels(true)
+        vm.retryEngineWarmUp()
+        try await waitUntil { vm.engineState == .ready }
+
+        XCTAssertTrue(vm.canContinueFromCurrentStep())
     }
 
     func testMarkOnboardingCompletedPersistsToDefaults() {

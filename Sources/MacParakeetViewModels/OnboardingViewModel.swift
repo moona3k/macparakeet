@@ -732,6 +732,8 @@ public final class OnboardingViewModel {
                     self.engineState = .working(message: "Speaker models: \(message)", progress: nil)
                 }
             })
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             logger.error("diarization_model_prep_failed error=\(error.localizedDescription, privacy: .public)")
             Telemetry.send(.errorOccurred(
@@ -739,7 +741,9 @@ public final class OnboardingViewModel {
                 code: "model_prep_failed",
                 description: TelemetryErrorClassifier.errorDetail(error)
             ))
-            throw error
+            throw STTError.engineStartFailed(
+                "Speaker diarization model preparation failed. Make the required speaker models available, then retry setup."
+            )
         }
     }
 
