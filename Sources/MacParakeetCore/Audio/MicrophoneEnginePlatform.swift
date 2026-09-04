@@ -427,6 +427,23 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     private var prepared = false
     private var preparedAttempt: MeetingInputDeviceAttempt?
     private var preparedRouteSnapshot: [MeetingInputDeviceAttempt]?
+    private struct InputConfigurationSnapshot: Equatable {
+        let sampleRate: Double
+        let channelCount: AVAudioChannelCount
+        let commonFormat: AVAudioCommonFormat
+        let isInterleaved: Bool
+
+        init?(_ format: AVAudioFormat?) {
+            guard let format, format.sampleRate > 0, format.channelCount > 0 else {
+                return nil
+            }
+            sampleRate = format.sampleRate
+            channelCount = format.channelCount
+            commonFormat = format.commonFormat
+            isInterleaved = format.isInterleaved
+        }
+    }
+    private var preparedInputConfiguration: InputConfigurationSnapshot?
     private var preparedVPIO = false
     private var preparedBufferSize: AVAudioFrameCount = 0
     private var tapHandlerBox: MutableMicrophoneTapHandler?
@@ -678,6 +695,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             } catch {
                 prepared = false
                 preparedRouteSnapshot = nil
+                preparedInputConfiguration = nil
                 AudioCaptureDiagnostics.append(
                     "shared_mic_engine_prepare_failed \(AudioCaptureDiagnostics.errorFields(error))"
                 )
@@ -1165,6 +1183,9 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     ) {
         prepared = true
         preparedAttempt = attempt
+        preparedInputConfiguration = InputConfigurationSnapshot(
+            UncheckedSendableAudioEngine(audioEngine).inputFormat()
+        )
         preparedVPIO = vpioEnabled
         preparedBufferSize = bufferSize
         // AVAudioEngine can emit a configuration-change notification as a
@@ -1258,6 +1279,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         tapHandlerBox.completeStartupConfigurationTracking()
         prepared = false
         preparedRouteSnapshot = nil
+        preparedInputConfiguration = nil
         installConfigurationChangeObserverLocked()
         installRouteChangeObserversLocked()
         armCallbackLivenessTimerLocked(tapHandler: tapHandlerBox)
@@ -1271,6 +1293,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         cancelCallbackLivenessTimerLocked()
         prepared = false
         preparedRouteSnapshot = nil
+        preparedInputConfiguration = nil
         preparedConfigurationGeneration = 0
         tapHandlerBox?.clear()
         tapHandlerBox = nil
@@ -1312,6 +1335,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         cancelCallbackLivenessTimerLocked()
         prepared = false
         preparedRouteSnapshot = nil
+        preparedInputConfiguration = nil
         preparedConfigurationGeneration = 0
         tapHandlerBox?.clear()
         tapHandlerBox = nil
@@ -1369,6 +1393,28 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                     "shared_mic_engine_configuration_changed sr=\(snapshot.sr, privacy: .public) ch=\(snapshot.ch, privacy: .public) isRunning=\(snapshot.isRunning, privacy: .public) engine_is_running=\(snapshot.engineIsRunning, privacy: .public)"
                 )
                 self.refreshActiveTapSignalPolicyLocked()
+                if self.prepared,
+                    self.deviceAttemptsBuilder?() == self.preparedRouteSnapshot,
+                    Self.preparedAttemptIsSafe(
+                        self.preparedAttempt,
+                        bluetoothInputState: self.bluetoothInputState
+                    ),
+                    let preparedInputConfiguration = self.preparedInputConfiguration,
+                    InputConfigurationSnapshot(format) == preparedInputConfiguration
+                {
+                    // Device selection / prepare can post its own notification
+                    // after markPreparedLocked has installed the observer. If
+                    // the resolved route and negotiated input configuration are
+                    // still identical, absorb that delayed setup echo into the
+                    // existing generation snapshot. A later real mutation still
+                    // fails these checks and follows the invalidation path.
+                    self.preparedConfigurationGeneration =
+                        self.configurationChangeGeneration.withLock { $0 }
+                    AudioCaptureDiagnostics.append(
+                        "shared_mic_engine_configuration_change_ignored reason=unchanged_prepared_setup"
+                    )
+                    return
+                }
                 // The device ID can stay constant while a Bluetooth aggregate
                 // changes transport/profile. Route consumers must re-evaluate
                 // warm-capture eligibility for configuration changes too, not
