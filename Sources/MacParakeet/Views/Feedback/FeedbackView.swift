@@ -14,6 +14,11 @@ struct FeedbackView: View {
     @State private var isLogRowHovered = false
     @FocusState private var messageFocused: Bool
 
+    /// Single source of truth for the message editor's content inset, shared
+    /// by the `TextEditor` and its overlaid placeholder so the insertion
+    /// point and placeholder text always start from the same position.
+    private let messageContentInset = DesignSystem.Spacing.sm
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
@@ -184,7 +189,7 @@ struct FeedbackView: View {
                         .scrollContentBackground(.hidden)
                         .tint(DesignSystem.Colors.accent)
                         .focused($messageFocused)
-                        .padding(DesignSystem.Spacing.sm)
+                        .padding(messageContentInset)
                         .frame(minHeight: 120)
                         .background(
                             RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
@@ -205,7 +210,7 @@ struct FeedbackView: View {
                         Text(placeholderText)
                             .font(DesignSystem.Typography.body)
                             .foregroundStyle(.tertiary)
-                            .padding(DesignSystem.Spacing.sm + 5)
+                            .padding(messageContentInset)
                             .allowsHitTesting(false)
                     }
                 }
