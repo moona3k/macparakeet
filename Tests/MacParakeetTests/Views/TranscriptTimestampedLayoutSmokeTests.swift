@@ -88,7 +88,7 @@ final class TranscriptTimestampedLayoutSmokeTests: XCTestCase {
         let content = ScrollViewReader { _ in
             ScrollView {
                 Group {
-                    if TranscriptBodyLayout.usesLazyStack(rowCount: rowCount) {
+                    if TranscriptBodyLayout.usesLazyStack(rowCount: rowCount, environment: [:]) {
                         LazyVStack(alignment: .leading, spacing: DesignSystem.Spacing.md) { body }
                     } else {
                         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) { body }
@@ -194,7 +194,10 @@ final class TranscriptTimestampedLayoutSmokeTests: XCTestCase {
         let segments = segments(count: TranscriptBodyLayout.nonLazyRowLimit, speakers: ["S1", "S2"])
         let cards = cards(for: segments)
         XCTAssertFalse(
-            TranscriptBodyLayout.usesLazyStack(rowCount: cards.reduce(0) { $0 + $1.turn.segments.count })
+            TranscriptBodyLayout.usesLazyStack(
+                rowCount: cards.reduce(0) { $0 + $1.turn.segments.count },
+                environment: [:]
+            )
         )
         let view = host(hasSpeakers: true, cards: cards, segments: [])
 
@@ -207,7 +210,10 @@ final class TranscriptTimestampedLayoutSmokeTests: XCTestCase {
         let segments = segments(count: 964, speakers: ["S1"])
         let cards = cards(for: segments)
         XCTAssertTrue(
-            TranscriptBodyLayout.usesLazyStack(rowCount: cards.reduce(0) { $0 + $1.turn.segments.count })
+            TranscriptBodyLayout.usesLazyStack(
+                rowCount: cards.reduce(0) { $0 + $1.turn.segments.count },
+                environment: [:]
+            )
         )
         let view = host(hasSpeakers: true, cards: cards, segments: [])
 

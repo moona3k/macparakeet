@@ -382,7 +382,8 @@ private struct TranscriptSegmentRow: View {
 
     @ViewBuilder
     private var bodyText: some View {
-        let styled = bodyTextCore
+        let styled =
+            bodyTextCore
             .foregroundStyle(DesignSystem.Colors.textPrimary)
             .lineSpacing(5)
         if textSelectionEnabled {
@@ -398,12 +399,13 @@ private struct TranscriptSegmentRow: View {
         guard !highlightRanges.isEmpty else {
             return Text(text).font(bodyFont)
         }
-        return Text(TranscriptFindHighlight.attributed(
-            text,
-            ranges: highlightRanges,
-            current: currentRange,
-            baseFont: bodyFont
-        ))
+        return Text(
+            TranscriptFindHighlight.attributed(
+                text,
+                ranges: highlightRanges,
+                current: currentRange,
+                baseFont: bodyFont
+            ))
     }
 
     private var hoverActions: some View {
