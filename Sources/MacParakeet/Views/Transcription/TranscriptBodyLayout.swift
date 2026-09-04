@@ -16,13 +16,17 @@ enum TranscriptBodyLayout {
     /// The #845 reporter case was 964 rows; typical meetings are far smaller.
     static let nonLazyRowLimit = 400
 
+    /// A missing count means the detached segment cache is still building.
+    /// Stay lazy until the exact count arrives so a large first-open cannot
+    /// briefly materialize every timed row.
     static func usesLazyStack(
-        rowCount: Int,
+        rowCount: Int?,
         environment: [String: String] = launchEnvironment
     ) -> Bool {
         if let override = debugOverride(named: "MACPARAKEET_DEBUG_TRANSCRIPT_LAZY", environment: environment) {
             return override
         }
+        guard let rowCount else { return true }
         return rowCount > nonLazyRowLimit
     }
 

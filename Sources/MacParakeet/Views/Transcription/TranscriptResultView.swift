@@ -64,6 +64,66 @@ private enum TranscriptDisplayMode: String, CaseIterable, Hashable {
     case timed = "Timed"
 }
 
+/// Owns rich-context work so every replacement cancels and invalidates the
+/// previous request. The returned task makes completion observable in tests;
+/// production callers retain it here rather than relying on untracked work.
+@MainActor
+final class TranscriptRichContextLoader {
+    typealias Builder = @Sendable (Transcription, TranscriptAIContextMode) async -> String
+
+    struct Request: Equatable, Sendable {
+        let transcriptionID: UUID
+        let contentRevision: UInt64
+    }
+
+    private let builder: Builder
+    private var generation: UInt64 = 0
+    private var task: Task<Void, Never>?
+
+    init(
+        builder: @escaping Builder = { transcription, mode in
+            await Task.detached(priority: .userInitiated) {
+                TranscriptAIContextFormatter.format(transcription: transcription, mode: mode)
+            }.value
+        }
+    ) {
+        self.builder = builder
+    }
+
+    @discardableResult
+    func schedule(
+        transcription: Transcription,
+        mode: TranscriptAIContextMode,
+        contentRevision: UInt64,
+        apply: @escaping @MainActor (Request, String) -> Void
+    ) -> Task<Void, Never> {
+        invalidate()
+        let request = Request(
+            transcriptionID: transcription.id,
+            contentRevision: contentRevision
+        )
+        let requestGeneration = generation
+        let builder = builder
+        let task = Task { [weak self] in
+            let text = await builder(transcription, mode)
+            guard !Task.isCancelled,
+                let self,
+                self.generation == requestGeneration
+            else { return }
+            apply(request, text)
+            self.task = nil
+        }
+        self.task = task
+        return task
+    }
+
+    func invalidate() {
+        generation &+= 1
+        task?.cancel()
+        task = nil
+    }
+}
+
 /// Records the user's engine choice from the retranscribe popover so the
 /// confirmation alert can be presented in a *separate* render cycle from
 /// the popover dismissal — chaining popover → alert in the same cycle on
@@ -230,12 +290,17 @@ struct TranscriptResultView: View {
     // Cached transcript data — recomputed only when transcription.id changes, not on every playback tick
     @State private var cachedSegments: [TranscriptSegment] = []
     /// Total timed rows (cards' segments or flat segments); drives the lazy/non-lazy choice.
-    @State private var cachedTranscriptRowCount = 0
+    /// `nil` means the detached cache build is still pending, which must use
+    /// the conservative lazy layout so a large first-open never renders eagerly.
+    @State private var cachedTranscriptRowCount: Int?
     @State private var cachedIdentifiedTurnCards: [IdentifiedSpeakerTurn] = []
     @State private var cachedHasSpeakers: Bool = false
     @State private var cachedSpeakerColorMap: [String: Color] = [:]
     @State private var cachedSpeakerLabelMap: [String: String] = [:]
     @State private var cachedSegmentStartMs: [Int] = []  // sorted, for binary search
+    @State private var cachedSpeakerStats: [String: SpeakerStatistics] = [:]
+    @State private var segmentCacheRequestID = UUID()
+    @State private var richContextLoader = TranscriptRichContextLoader()
     @State private var autoScrollPaused = false
     @State private var scrollPauseTask: Task<Void, Never>?
     @State private var scrollMonitor: Any?
@@ -282,13 +347,15 @@ struct TranscriptResultView: View {
                     playerViewModel.loadSubtitleCues(from: words)
                 }
             }
-            rebuildSegmentCache()
-            viewModel.loadPersistedContent()
             syncTranscriptDisplayMode()
+                if transcriptDisplayMode == .timed {
+                    scheduleSegmentCacheRebuild()
+                }
+            viewModel.loadPersistedContent()
             promptResultsViewModel.loadVisiblePrompts()
             promptResultsViewModel.loadPromptResults(transcriptionId: transcription.id)
-            let text = currentAIContextText
-            chatViewModel.loadTranscript(text, transcriptionId: viewModel.currentTranscription?.id)
+                chatViewModel.loadTranscript(transcriptText, transcriptionId: viewModel.currentTranscription?.id)
+                scheduleRichAIContextLoad()
             // Feed the user's typed meeting notes (if any) into chat alongside
             // the transcript. The closure is re-evaluated on every chat-send so
             // a CLI edit to userNotes in another process is visible to the next
@@ -309,7 +376,6 @@ struct TranscriptResultView: View {
                     playerViewModel.loadSubtitleCues(from: words)
                 }
             }
-            rebuildSegmentCache()
             headerExpanded = false
             speakerOverviewExpanded = true
             editingTitle = false
@@ -335,27 +401,46 @@ struct TranscriptResultView: View {
             viewModel.selectedTab = .transcript
             viewModel.loadPersistedContent()
             syncTranscriptDisplayMode()
+                if transcriptDisplayMode == .timed {
+                    scheduleSegmentCacheRebuild()
+                } else {
+                    applyEmptySegmentCache()
+                }
             promptResultsViewModel.loadPromptResults(transcriptionId: transcription.id)
-            let text = currentAIContextText
-            chatViewModel.loadTranscript(text, transcriptionId: viewModel.currentTranscription?.id)
+                chatViewModel.loadTranscript(transcriptText, transcriptionId: viewModel.currentTranscription?.id)
+                scheduleRichAIContextLoad()
         }
         .onChange(of: activeTranscription.speakers) {
-            rebuildSegmentCache()
+                if transcriptDisplayMode == .timed {
+                    scheduleSegmentCacheRebuild()
+                }
             if findBarVisible { rebuildFindBlocks() }
         }
         .onChange(of: activeTranscription.wordTimestamps) {
-            rebuildSegmentCache()
+                if transcriptDisplayMode == .timed {
+                    scheduleSegmentCacheRebuild()
+                }
             if findBarVisible { rebuildFindBlocks() }
         }
         .onChange(of: activeTranscription.diarizationSegments) {
-            rebuildSegmentCache()
+                if transcriptDisplayMode == .timed {
+                    scheduleSegmentCacheRebuild()
+                }
             if findBarVisible { rebuildFindBlocks() }
         }
         .onChange(of: transcriptText) {
             if findBarVisible { rebuildFindBlocks() }
         }
+        .onChange(of: viewModel.currentTranscriptionRevision) {
+                guard viewModel.currentTranscription?.id == transcription.id else {
+                    richContextLoader.invalidate()
+                    return
+                }
+                chatViewModel.updateTranscriptText(transcriptText)
+                scheduleRichAIContextLoad()
+        }
         .onChange(of: transcriptAIContextModeRaw) {
-            chatViewModel.loadTranscript(currentAIContextText, transcriptionId: viewModel.currentTranscription?.id)
+                scheduleRichAIContextLoad()
         }
         .onChange(of: viewModel.selectedTab) {
             if case .result(let id) = viewModel.selectedTab {
@@ -363,6 +448,7 @@ struct TranscriptResultView: View {
             }
         }
         .onDisappear {
+                richContextLoader.invalidate()
             playerViewModel.cleanup()
             if let monitor = scrollMonitor {
                 NSEvent.removeMonitor(monitor)
@@ -898,7 +984,7 @@ struct TranscriptResultView: View {
     }
 
     private var transcriptWordCount: Int {
-        if transcriptDisplayMode == .timed,
+        if !hasEditedTranscript,
            let wordTimestamps = activeTranscription.wordTimestamps, !wordTimestamps.isEmpty {
             return wordTimestamps.count
         }
@@ -1370,6 +1456,9 @@ struct TranscriptResultView: View {
         )
         .background { transcriptFindShortcuts }
         .onChange(of: transcriptDisplayMode) {
+            if transcriptDisplayMode == .timed {
+                scheduleSegmentCacheRebuild()
+            }
             if findBarVisible { rebuildFindBlocks() }
         }
         .onChange(of: editingTranscript) {
@@ -3118,11 +3207,7 @@ struct TranscriptResultView: View {
 
     @ViewBuilder
     private func speakerSummaryPanel(speakers: [SpeakerInfo]) -> some View {
-        let colorMap = buildSpeakerColorMap()
-        let speakerStats = TranscriptSegmenter.computeSpeakerStats(
-            diarizationSegments: activeTranscription.diarizationSegments,
-            wordTimestamps: activeTranscription.wordTimestamps
-        )
+        let colorMap = cachedSpeakerColorMap.isEmpty ? buildSpeakerColorMap() : cachedSpeakerColorMap
 
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
             Button {
@@ -3163,7 +3248,7 @@ struct TranscriptResultView: View {
 
             if speakerOverviewExpanded {
                 ForEach(speakers, id: \.id) { speaker in
-                    let stats = speakerStats[speaker.id]
+                    let stats = cachedSpeakerStats[speaker.id]
                     HStack(spacing: DesignSystem.Spacing.md) {
                         Circle()
                             .fill(colorMap[speaker.id] ?? DesignSystem.Colors.textTertiary)
@@ -3278,7 +3363,9 @@ struct TranscriptResultView: View {
         let trimmed = editingSpeakerLabel.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
             viewModel.renameSpeaker(id: speakerId, to: trimmed)
-            rebuildSegmentCache()
+            if transcriptDisplayMode == .timed {
+                scheduleSegmentCacheRebuild()
+            }
         }
         cancelSpeakerRename()
     }
@@ -3303,42 +3390,78 @@ struct TranscriptResultView: View {
 
     // MARK: - Segment Cache
 
-    /// Rebuild cached segment data. Called once on appear and when transcription.id changes.
-    private func rebuildSegmentCache() {
-        guard let words = activeTranscription.wordTimestamps, !words.isEmpty else {
-            cachedSegments = []
-            cachedTranscriptRowCount = 0
-            cachedIdentifiedTurnCards = []
-            cachedHasSpeakers = false
-            cachedSpeakerColorMap = [:]
-            cachedSpeakerLabelMap = [:]
-            cachedSegmentStartMs = []
+    private func scheduleRichAIContextLoad() {
+        let transcription = activeTranscription
+        let mode = currentAIContextMode
+        let revision = viewModel.currentTranscriptionRevision
+        let viewModel = viewModel
+        let chatViewModel = chatViewModel
+        richContextLoader.schedule(
+            transcription: transcription,
+            mode: mode,
+            contentRevision: revision
+        ) { request, text in
+            guard viewModel.currentTranscriptionRevision == request.contentRevision else { return }
+            guard viewModel.currentTranscription?.id == request.transcriptionID else { return }
+            chatViewModel.updateTranscriptText(text)
+        }
+    }
+
+    private func scheduleSegmentCacheRebuild() {
+        let words = activeTranscription.wordTimestamps
+        let speakers = activeTranscription.speakers
+        let diarizationSegments = activeTranscription.diarizationSegments
+        let transcriptionID = activeTranscription.id
+        let requestID = UUID()
+        segmentCacheRequestID = requestID
+
+        guard let words, !words.isEmpty else {
+            applyEmptySegmentCache()
             return
         }
 
-        let segments = TranscriptSegmenter.groupIntoSegments(words: words)
-        let hasSpeakers = words.contains { $0.speakerId != nil }
+        cachedTranscriptRowCount = nil
 
-        cachedSegments = segments
-        cachedHasSpeakers = hasSpeakers
-        cachedSpeakerColorMap = buildSpeakerColorMap()
-        cachedSpeakerLabelMap = buildSpeakerLabelMap()
-        cachedSegmentStartMs = segments.map(\.startMs)
-
-        if hasSpeakers {
-            let turns = TranscriptSegmenter.groupIntoSpeakerTurns(
-                segments: segments,
-                speakerLabelProvider: { speakerID in
-                    guard let speakerID else { return "Unknown" }
-                    return cachedSpeakerLabelMap[speakerID] ?? "Unknown"
-                }
-            )
-            cachedIdentifiedTurnCards = identifiedSpeakerTurnCards(turns)
-            cachedTranscriptRowCount = cachedIdentifiedTurnCards.reduce(0) { $0 + $1.turn.segments.count }
-        } else {
-            cachedIdentifiedTurnCards = []
-            cachedTranscriptRowCount = segments.count
+        Task {
+            let payload = await Task.detached(priority: .userInitiated) {
+                TranscriptSegmentCachePayload.make(
+                    words: words,
+                    speakers: speakers,
+                    diarizationSegments: diarizationSegments
+                )
+            }.value
+            guard segmentCacheRequestID == requestID else { return }
+            guard activeTranscription.id == transcriptionID else { return }
+            applySegmentCache(payload)
         }
+    }
+
+    private func applySegmentCache(_ payload: TranscriptSegmentCachePayload) {
+        cachedSegments = payload.segments
+        cachedHasSpeakers = payload.hasSpeakers
+        cachedSpeakerLabelMap = payload.speakerLabelMap
+        cachedSpeakerStats = payload.speakerStats
+        cachedTranscriptRowCount = payload.rowCount
+        cachedSegmentStartMs = payload.segments.map(\.startMs)
+        cachedSpeakerColorMap = buildSpeakerColorMap()
+        cachedIdentifiedTurnCards =
+            payload.hasSpeakers
+            ? identifiedSpeakerTurnCards(payload.speakerTurns)
+            : []
+        if findBarVisible { rebuildFindBlocks() }
+    }
+
+    private func applyEmptySegmentCache() {
+        segmentCacheRequestID = UUID()
+        cachedSegments = []
+        cachedTranscriptRowCount = 0
+        cachedIdentifiedTurnCards = []
+        cachedHasSpeakers = false
+        cachedSpeakerColorMap = [:]
+        cachedSpeakerLabelMap = [:]
+        cachedSpeakerStats = [:]
+        cachedSegmentStartMs = []
+        if findBarVisible { rebuildFindBlocks() }
     }
 
     // MARK: - Binary Search Helpers
@@ -3451,7 +3574,8 @@ struct TranscriptResultView: View {
             return
         }
 
-        chatViewModel.loadTranscript(currentAIContextText, transcriptionId: viewModel.currentTranscription?.id)
+        chatViewModel.loadTranscript(transcriptText, transcriptionId: viewModel.currentTranscription?.id)
+        scheduleRichAIContextLoad()
         transcriptDraft = ""
         transcriptEditError = nil
         editingTranscript = false
@@ -3462,7 +3586,8 @@ struct TranscriptResultView: View {
 
     private func revertTranscriptEdit() {
         guard viewModel.revertCurrentTranscriptToOriginal() else { return }
-        chatViewModel.loadTranscript(currentAIContextText, transcriptionId: viewModel.currentTranscription?.id)
+        chatViewModel.loadTranscript(transcriptText, transcriptionId: viewModel.currentTranscription?.id)
+        scheduleRichAIContextLoad()
         transcriptDraft = ""
         transcriptEditError = nil
         editingTranscript = false
@@ -4049,6 +4174,53 @@ private struct EngineBadge: View {
                 Capsule(style: .continuous)
                     .stroke(tint.opacity(0.28), lineWidth: 0.5)
             )
+    }
+}
+
+private struct TranscriptSegmentCachePayload: Sendable {
+    let segments: [TranscriptSegment]
+    let speakerTurns: [SpeakerTurn]
+    let speakerStats: [String: SpeakerStatistics]
+    let rowCount: Int
+    let hasSpeakers: Bool
+    let speakerLabelMap: [String: String]
+
+    static func make(
+        words: [WordTimestamp],
+        speakers: [SpeakerInfo]?,
+        diarizationSegments: [DiarizationSegmentRecord]?
+    ) -> TranscriptSegmentCachePayload {
+        let segments = TranscriptSegmenter.groupIntoSegments(words: words)
+        let hasSpeakers = words.contains { $0.speakerId != nil }
+        var speakerLabelMap: [String: String] = [:]
+        if let speakers {
+            for speaker in speakers {
+                speakerLabelMap[speaker.id] = speaker.label
+            }
+        }
+        let speakerTurns =
+            hasSpeakers
+            ? TranscriptSegmenter.groupIntoSpeakerTurns(
+                segments: segments,
+                speakerLabelProvider: { speakerID in
+                    guard let speakerID else { return "Unknown" }
+                    return speakerLabelMap[speakerID] ?? "Unknown"
+                }
+            )
+            : []
+        return TranscriptSegmentCachePayload(
+            segments: segments,
+            speakerTurns: speakerTurns,
+            speakerStats: TranscriptSegmenter.computeSpeakerStats(
+                diarizationSegments: diarizationSegments,
+                wordTimestamps: words
+            ),
+            rowCount: hasSpeakers
+                ? speakerTurns.reduce(0) { $0 + $1.segments.count }
+                : segments.count,
+            hasSpeakers: hasSpeakers,
+            speakerLabelMap: speakerLabelMap
+        )
     }
 }
 

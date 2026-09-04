@@ -399,13 +399,12 @@ private struct TranscriptSegmentRow: View {
         guard !highlightRanges.isEmpty else {
             return Text(text).font(bodyFont)
         }
-        return Text(
-            TranscriptFindHighlight.attributed(
-                text,
-                ranges: highlightRanges,
-                current: currentRange,
-                baseFont: bodyFont
-            ))
+        return Text(TranscriptFindHighlight.attributed(
+            text,
+            ranges: highlightRanges,
+            current: currentRange,
+            baseFont: bodyFont
+        ))
     }
 
     private var hoverActions: some View {

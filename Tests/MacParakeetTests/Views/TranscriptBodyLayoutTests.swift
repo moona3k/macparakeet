@@ -21,6 +21,10 @@ final class TranscriptBodyLayoutTests: XCTestCase {
         XCTAssertTrue(TranscriptBodyLayout.usesLazyStack(rowCount: 964, environment: [:]))
     }
 
+    func testPendingRowCountStaysLazyUntilDetachedCacheFinishes() {
+        XCTAssertTrue(TranscriptBodyLayout.usesLazyStack(rowCount: nil, environment: [:]))
+    }
+
     func testRowTextSelectionIsOnByDefault() {
         XCTAssertTrue(TranscriptBodyLayout.rowTextSelectionEnabled(environment: [:]))
     }

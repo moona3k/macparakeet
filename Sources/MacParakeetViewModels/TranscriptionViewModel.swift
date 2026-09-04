@@ -95,8 +95,13 @@ public final class TranscriptionViewModel {
     }
 
     public var transcriptions: [Transcription] = []
+    /// Monotonic identity for the selected transcript snapshot. Views use this
+    /// to reject asynchronous derivations that finished after a same-row edit,
+    /// retranscription, refresh, or metadata update.
+    public private(set) var currentTranscriptionRevision: UInt64 = 0
     public var currentTranscription: Transcription? {
         didSet {
+            currentTranscriptionRevision &+= 1
             let transcriptionChanged = oldValue?.id != currentTranscription?.id
             if transcriptionChanged {
                 selectedTab = .transcript
@@ -1458,11 +1463,12 @@ public final class TranscriptionViewModel {
         }
     }
 
+    /// Refreshes prompt-result tab chrome for the already-selected row.
+    ///
+    /// Library and Meetings already hand a fully decoded `Transcription`.
+    /// Re-fetching the row here would JSON-decode word timestamps on the
+    /// main actor before the detail view's first frame.
     public func loadPersistedContent() {
-        if let id = currentTranscription?.id,
-           let fresh = try? transcriptionRepo?.fetch(id: id) {
-            currentTranscription = fresh
-        }
         refreshPromptResultStatus()
     }
 

@@ -1,4 +1,5 @@
 import XCTest
+@testable import MacParakeet
 @testable import MacParakeetCore
 @testable import MacParakeetViewModels
 
@@ -169,6 +170,115 @@ final class TranscriptChatViewModelTests: XCTestCase {
 
         XCTAssertTrue(viewModel.messages.isEmpty)
         XCTAssertEqual(viewModel.inputText, "")
+    }
+
+    func testUpdateTranscriptTextPreservesHistoryAndIsUsedOnNextSend() async throws {
+        let transcriptionId = UUID()
+        let conv = ChatConversation(
+            transcriptionId: transcriptionId,
+            title: "Restored",
+            messages: [
+                ChatMessage(role: .user, content: "Question"),
+                ChatMessage(role: .assistant, content: "Answer"),
+            ]
+        )
+        mockConversationRepo.conversations = [conv]
+        viewModel.loadTranscript("Plain transcript", transcriptionId: transcriptionId)
+
+        XCTAssertEqual(viewModel.messages.count, 2)
+        XCTAssertEqual(viewModel.conversations.count, 1)
+
+        viewModel.updateTranscriptText("Rich upgraded context")
+
+        XCTAssertEqual(viewModel.messages.count, 2)
+        XCTAssertEqual(viewModel.messages[0].content, "Question")
+        XCTAssertEqual(viewModel.conversations.count, 1)
+        XCTAssertEqual(viewModel.currentConversation?.id, conv.id)
+        XCTAssertEqual(viewModel.inputText, "")
+
+        mockService.streamTokens = ["ok"]
+        viewModel.inputText = "Follow up"
+        viewModel.sendMessage()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertEqual(mockService.lastChatTranscript, "Rich upgraded context")
+        XCTAssertEqual(viewModel.messages.count, 4)
+    }
+
+    func testEditRichContextUpgradeReturnsBeforeBuildCompletes() async {
+        let builder = ControlledRichContextBuilder()
+        let loader = TranscriptRichContextLoader { transcription, mode in
+            await builder.build(transcription, mode)
+        }
+        let transcription = Transcription(
+            fileName: "edited.mp3",
+            rawTranscript: "original",
+            cleanTranscript: "edited",
+            status: .completed
+        )
+        var applied: [String] = []
+
+        let task = loader.schedule(
+            transcription: transcription,
+            mode: .richTranscript,
+            contentRevision: 1
+        ) { _, text in
+            applied.append(text)
+        }
+
+        await builder.waitUntilStarted("edited")
+        XCTAssertTrue(applied.isEmpty, "Scheduling must not synchronously build long rich context.")
+
+        await builder.finish("edited", with: "rich edited context")
+        await task.value
+        XCTAssertEqual(applied, ["rich edited context"])
+    }
+
+    func testRevertRichContextUpgradeRejectsOlderEditCompletion() async {
+        let builder = ControlledRichContextBuilder()
+        let loader = TranscriptRichContextLoader { transcription, mode in
+            await builder.build(transcription, mode)
+        }
+        let transcriptionID = UUID()
+        let edited = Transcription(
+            id: transcriptionID,
+            fileName: "edited.mp3",
+            rawTranscript: "original",
+            cleanTranscript: "edited",
+            status: .completed
+        )
+        let reverted = Transcription(
+            id: transcriptionID,
+            fileName: "edited.mp3",
+            rawTranscript: "original",
+            status: .completed
+        )
+        var applied: [String] = []
+
+        let editedTask = loader.schedule(
+            transcription: edited,
+            mode: .richTranscript,
+            contentRevision: 1
+        ) { _, text in
+            applied.append(text)
+        }
+        await builder.waitUntilStarted("edited")
+
+        let revertedTask = loader.schedule(
+            transcription: reverted,
+            mode: .richTranscript,
+            contentRevision: 2
+        ) { _, text in
+            applied.append(text)
+        }
+        await builder.waitUntilStarted("original")
+
+        await builder.finish("original", with: "reverted context")
+        await revertedTask.value
+        await builder.finish("edited", with: "stale edited context")
+        await editedTask.value
+
+        XCTAssertEqual(applied, ["reverted context"])
     }
 
     // MARK: - Cancel Streaming
@@ -1048,6 +1158,34 @@ final class TranscriptChatViewModelTests: XCTestCase {
         try await Task.sleep(nanoseconds: 200_000_000)
 
         XCTAssertEqual(mockService.lastChatSource, .meetingAsk)
+    }
+}
+
+private actor ControlledRichContextBuilder {
+    private var started: Set<String> = []
+    private var startWaiters: [String: [CheckedContinuation<Void, Never>]] = [:]
+    private var buildContinuations: [String: CheckedContinuation<String, Never>] = [:]
+
+    func build(_ transcription: Transcription, _ mode: TranscriptAIContextMode) async -> String {
+        let key = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
+        started.insert(key)
+        for waiter in startWaiters.removeValue(forKey: key) ?? [] {
+            waiter.resume()
+        }
+        return await withCheckedContinuation { continuation in
+            buildContinuations[key] = continuation
+        }
+    }
+
+    func waitUntilStarted(_ key: String) async {
+        guard !started.contains(key) else { return }
+        await withCheckedContinuation { continuation in
+            startWaiters[key, default: []].append(continuation)
+        }
+    }
+
+    func finish(_ key: String, with result: String) {
+        buildContinuations.removeValue(forKey: key)?.resume(returning: result)
     }
 }
 
