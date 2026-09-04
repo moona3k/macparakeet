@@ -1028,7 +1028,7 @@ struct OnboardingFlowView: View {
             return [
                 "Make the required speaker diarization models available, then retry setup.",
                 "If this Mac cannot download models, copy the complete local model cache from another Mac, then retry.",
-                "Setup remains blocked until the required local speaker models are present."
+                "Setup remains blocked until the required local speaker models are present.",
             ]
         }
 

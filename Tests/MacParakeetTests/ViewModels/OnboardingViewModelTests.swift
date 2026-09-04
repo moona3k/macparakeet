@@ -1070,9 +1070,10 @@ final class OnboardingViewModelTests: XCTestCase {
 
         XCTAssertEqual(
             vm.engineState,
-            .failed(message: STTError.engineStartFailed(
-                "Speaker diarization model preparation failed. Make the required speaker models available, then retry setup."
-            ).localizedDescription)
+            .failed(
+                message: STTError.engineStartFailed(
+                    "Speaker diarization model preparation failed. Make the required speaker models available, then retry setup."
+                ).localizedDescription)
         )
         XCTAssertFalse(vm.canContinueFromCurrentStep())
     }
@@ -1105,9 +1106,10 @@ final class OnboardingViewModelTests: XCTestCase {
 
         XCTAssertEqual(
             vm.engineState,
-            .failed(message: STTError.engineStartFailed(
-                "Speaker diarization model preparation failed. Make the required speaker models available, then retry setup."
-            ).localizedDescription)
+            .failed(
+                message: STTError.engineStartFailed(
+                    "Speaker diarization model preparation failed. Make the required speaker models available, then retry setup."
+                ).localizedDescription)
         )
         XCTAssertFalse(vm.engineBusy)
         XCTAssertFalse(vm.canContinueFromCurrentStep())
