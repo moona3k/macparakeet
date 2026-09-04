@@ -6,19 +6,23 @@ import XCTest
 final class TranscriptBodyLayoutTests: XCTestCase {
 
     func testSmallTranscriptsRenderNonLazily() {
-        XCTAssertFalse(TranscriptBodyLayout.usesLazyStack(rowCount: 0))
-        XCTAssertFalse(TranscriptBodyLayout.usesLazyStack(rowCount: 12))
-        XCTAssertFalse(TranscriptBodyLayout.usesLazyStack(rowCount: TranscriptBodyLayout.nonLazyRowLimit))
+        XCTAssertFalse(TranscriptBodyLayout.usesLazyStack(rowCount: 0, environment: [:]))
+        XCTAssertFalse(TranscriptBodyLayout.usesLazyStack(rowCount: 12, environment: [:]))
+        XCTAssertFalse(
+            TranscriptBodyLayout.usesLazyStack(rowCount: TranscriptBodyLayout.nonLazyRowLimit, environment: [:])
+        )
     }
 
     func testReporterScaleTranscriptsStayLazy() {
         // Issue #845: 11,563 words, about 964 segments.
-        XCTAssertTrue(TranscriptBodyLayout.usesLazyStack(rowCount: TranscriptBodyLayout.nonLazyRowLimit + 1))
-        XCTAssertTrue(TranscriptBodyLayout.usesLazyStack(rowCount: 964))
+        XCTAssertTrue(
+            TranscriptBodyLayout.usesLazyStack(rowCount: TranscriptBodyLayout.nonLazyRowLimit + 1, environment: [:])
+        )
+        XCTAssertTrue(TranscriptBodyLayout.usesLazyStack(rowCount: 964, environment: [:]))
     }
 
     func testRowTextSelectionIsOnByDefault() {
-        XCTAssertTrue(TranscriptBodyLayout.rowTextSelectionEnabled)
+        XCTAssertTrue(TranscriptBodyLayout.rowTextSelectionEnabled(environment: [:]))
     }
 
     func testDebugOverrideParsing() {

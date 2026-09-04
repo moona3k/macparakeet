@@ -16,8 +16,11 @@ enum TranscriptBodyLayout {
     /// The #845 reporter case was 964 rows; typical meetings are far smaller.
     static let nonLazyRowLimit = 400
 
-    static func usesLazyStack(rowCount: Int) -> Bool {
-        if let override = debugOverride(named: "MACPARAKEET_DEBUG_TRANSCRIPT_LAZY") {
+    static func usesLazyStack(
+        rowCount: Int,
+        environment: [String: String] = launchEnvironment
+    ) -> Bool {
+        if let override = debugOverride(named: "MACPARAKEET_DEBUG_TRANSCRIPT_LAZY", environment: environment) {
             return override
         }
         return rowCount > nonLazyRowLimit
@@ -26,8 +29,12 @@ enum TranscriptBodyLayout {
     /// Per-row `.textSelection(.enabled)` in the timed view. On by default; the
     /// DEBUG override exists so the platform-overlay contribution to the freeze
     /// can be bisected at launch without a rebuild.
+    static func rowTextSelectionEnabled(environment: [String: String] = launchEnvironment) -> Bool {
+        debugOverride(named: "MACPARAKEET_DEBUG_TRANSCRIPT_SELECTION", environment: environment) ?? true
+    }
+
     static var rowTextSelectionEnabled: Bool {
-        debugOverride(named: "MACPARAKEET_DEBUG_TRANSCRIPT_SELECTION") ?? true
+        rowTextSelectionEnabled(environment: launchEnvironment)
     }
 
     /// Read once: the launch environment never changes, and these lookups run
