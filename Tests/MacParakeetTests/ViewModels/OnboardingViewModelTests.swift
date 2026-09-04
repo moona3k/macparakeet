@@ -1084,7 +1084,9 @@ final class OnboardingViewModelTests: XCTestCase {
         await diarization.configureCachedModels(false)
         await diarization.configureReady(false)
         await diarization.configurePrepareModels(error: STTError.modelDownloadFailed)
-        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
