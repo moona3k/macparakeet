@@ -1,0 +1,28 @@
+Sources/MacParakeet/Views/Transcription/TranscriptBodyLayout.swift
+  h_2ab1f47fea2ced 19-21,23,29
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  h_2ab1f47fea2ced 67-126,293-295,301-303,351-354,357-358,404-408,410-411,414-416,420-422,426-428,434-441,443,451,987,1459-1461,3210,3251,3366-3368,3393-3419,3423,3425-3435,3439-3466,3577-3578,3589-3590,4180-4226
+Sources/MacParakeet/Views/Transcription/TranscriptTimestampedContentView.swift
+  h_2ab1f47fea2ced 402-407
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  h_2ab1f47fea2ced 98-101,104,1466-1470
+Tests/MacParakeetTests/ViewModels/TranscriptChatViewModelTests.swift
+  h_2ab1f47fea2ced 2,175-283,1164-1191
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  h_2ab1f47fea2ced 2403-2412,2419,2423,2433-2456
+Tests/MacParakeetTests/Views/MandalaDataTests.swift
+  h_2ab1f47fea2ced 1-38
+Tests/MacParakeetTests/Views/TranscriptBodyLayoutTests.swift
+  h_2ab1f47fea2ced 22-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "b78b7a5237997cd767e62637cdec168c3ca697e8",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
