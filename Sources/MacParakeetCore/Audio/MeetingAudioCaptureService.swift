@@ -55,6 +55,7 @@ extension SystemAudioStream: MeetingSystemAudioCapturing {}
 public actor MeetingAudioCaptureService {
     public typealias EventHandler = @Sendable (MeetingAudioCaptureEvent) -> Void
     typealias MeetingMicrophoneCaptureFactory = @Sendable () -> any MeetingMicrophoneCapturing
+    typealias DiagnosticSink = @Sendable (String) -> Void
 
     // Route changes can leave ScreenCaptureKit without buffers while Core Audio
     // settles for many seconds. Keep retries bounded, but cover that transition
@@ -76,6 +77,7 @@ public actor MeetingAudioCaptureService {
     private let micProcessingMode: MeetingMicProcessingMode
     private let sourceModeProvider: @Sendable () -> MeetingAudioSourceMode
     private let systemAudioRecoveryDelays: [Duration]
+    private let diagnosticSink: DiagnosticSink
     private let micHealthObserver: MeetingMicHealthTelemetryObserver
     private let systemAudioCallbackGate = SystemAudioCallbackGate()
 
@@ -120,6 +122,7 @@ public actor MeetingAudioCaptureService {
         self.micProcessingMode = micProcessingMode
         self.sourceModeProvider = sourceModeProvider
         self.systemAudioRecoveryDelays = Self.productionSystemAudioRecoveryDelays
+        self.diagnosticSink = { AudioCaptureDiagnostics.append($0) }
         self.micHealthObserver = MeetingMicHealthTelemetryObserver()
         self.systemAudioCaptureFactory = {
             guard #available(macOS 14.2, *) else {
@@ -137,7 +140,8 @@ public actor MeetingAudioCaptureService {
         micHealthConfig: MeetingMicHealthMonitor.Config = .default,
         micHealthNowProvider: @escaping @Sendable () -> Date = { Date() },
         micHealthFeatureEnabled: Bool = AppFeatures.meetingCaptureReliabilityEnabled,
-        systemAudioRecoveryDelays: [Duration]? = nil
+        systemAudioRecoveryDelays: [Duration]? = nil,
+        diagnosticSink: @escaping DiagnosticSink = { AudioCaptureDiagnostics.append($0) }
     ) {
         self.microphoneCapture = microphoneCaptureFactory()
         self.systemAudioCaptureFactory = systemAudioCaptureFactory
@@ -146,6 +150,7 @@ public actor MeetingAudioCaptureService {
         self.systemAudioRecoveryDelays =
             systemAudioRecoveryDelays
             ?? Self.productionSystemAudioRecoveryDelays
+        self.diagnosticSink = diagnosticSink
         self.micHealthObserver = MeetingMicHealthTelemetryObserver(
             config: micHealthConfig,
             nowProvider: micHealthNowProvider,
@@ -161,7 +166,8 @@ public actor MeetingAudioCaptureService {
         micHealthConfig: MeetingMicHealthMonitor.Config = .default,
         micHealthNowProvider: @escaping @Sendable () -> Date = { Date() },
         micHealthFeatureEnabled: Bool = AppFeatures.meetingCaptureReliabilityEnabled,
-        systemAudioRecoveryDelays: [Duration]? = nil
+        systemAudioRecoveryDelays: [Duration]? = nil,
+        diagnosticSink: @escaping DiagnosticSink = { AudioCaptureDiagnostics.append($0) }
     ) {
         self.microphoneCapture = microphoneCapture
         self.systemAudioCaptureFactory = systemAudioCaptureFactory
@@ -170,6 +176,7 @@ public actor MeetingAudioCaptureService {
         self.systemAudioRecoveryDelays =
             systemAudioRecoveryDelays
             ?? Self.productionSystemAudioRecoveryDelays
+        self.diagnosticSink = diagnosticSink
         self.micHealthObserver = MeetingMicHealthTelemetryObserver(
             config: micHealthConfig,
             nowProvider: micHealthNowProvider,
@@ -526,10 +533,19 @@ public actor MeetingAudioCaptureService {
         }
 
         logger.warning("system_audio_recovery_started recovery_id=\(recoveryID, privacy: .public)")
+        diagnosticSink(
+            "system_audio_recovery_started recovery_id=\(recoveryID) \(AudioCaptureDiagnostics.errorFields(originalError))"
+        )
         await stalledCapture.stop()
 
         for (attemptIndex, delay) in systemAudioRecoveryDelays.enumerated() {
+            let attempt = attemptIndex + 1
             guard isSystemAudioRecoveryCurrent(recoveryID: recoveryID, attemptID: attemptID) else {
+                logSystemAudioRecoveryCancellation(
+                    recoveryID: recoveryID,
+                    attempt: attempt,
+                    phase: "before_attempt"
+                )
                 return
             }
 
@@ -537,12 +553,26 @@ public actor MeetingAudioCaptureService {
                 try await Task.sleep(for: delay)
                 try Task.checkCancellation()
             } catch {
+                logSystemAudioRecoveryCancellation(
+                    recoveryID: recoveryID,
+                    attempt: attempt,
+                    phase: "retry_delay"
+                )
                 return
             }
 
             guard isSystemAudioRecoveryCurrent(recoveryID: recoveryID, attemptID: attemptID) else {
+                logSystemAudioRecoveryCancellation(
+                    recoveryID: recoveryID,
+                    attempt: attempt,
+                    phase: "before_factory"
+                )
                 return
             }
+
+            diagnosticSink(
+                "system_audio_recovery_attempt_started recovery_id=\(recoveryID) attempt=\(attempt)"
+            )
 
             let replacement: any MeetingSystemAudioCapturing
             do {
@@ -550,6 +580,9 @@ public actor MeetingAudioCaptureService {
             } catch {
                 logger.warning(
                     "system_audio_recovery_factory_failed recovery_id=\(recoveryID, privacy: .public) attempt=\(attemptIndex + 1, privacy: .public) error=\(error.localizedDescription, privacy: .private)"
+                )
+                diagnosticSink(
+                    "system_audio_recovery_factory_failed recovery_id=\(recoveryID) attempt=\(attempt) \(AudioCaptureDiagnostics.errorFields(error))"
                 )
                 continue
             }
@@ -573,6 +606,9 @@ public actor MeetingAudioCaptureService {
                 logger.warning(
                     "system_audio_recovery_start_failed recovery_id=\(recoveryID, privacy: .public) attempt=\(attemptIndex + 1, privacy: .public) error=\(error.localizedDescription, privacy: .private)"
                 )
+                diagnosticSink(
+                    "system_audio_recovery_start_failed recovery_id=\(recoveryID) attempt=\(attempt) \(AudioCaptureDiagnostics.errorFields(error))"
+                )
                 if let ownedCapture = takeSystemAudioCapture(generation: replacementGeneration) {
                     await ownedCapture.stop()
                 }
@@ -583,6 +619,11 @@ public actor MeetingAudioCaptureService {
                 if let ownedCapture = takeSystemAudioCapture(generation: replacementGeneration) {
                     await ownedCapture.stop()
                 }
+                logSystemAudioRecoveryCancellation(
+                    recoveryID: recoveryID,
+                    attempt: attempt,
+                    phase: "after_start"
+                )
                 return
             }
 
@@ -601,12 +642,20 @@ public actor MeetingAudioCaptureService {
                     if let ownedCapture = takeSystemAudioCapture(generation: replacementGeneration) {
                         await ownedCapture.stop()
                     }
+                    logSystemAudioRecoveryCancellation(
+                        recoveryID: recoveryID,
+                        attempt: attempt,
+                        phase: "first_buffer_promotion"
+                    )
                     return
                 }
                 switch signal.promoteAfterFirstBuffer() {
                 case .failed(let error):
                     logger.warning(
                         "system_audio_recovery_attempt_failed_after_first_buffer recovery_id=\(recoveryID, privacy: .public) attempt=\(attemptIndex + 1, privacy: .public) error=\(error.localizedDescription, privacy: .private)"
+                    )
+                    diagnosticSink(
+                        "system_audio_recovery_attempt_failed_after_first_buffer recovery_id=\(recoveryID) attempt=\(attempt) \(AudioCaptureDiagnostics.errorFields(error))"
                     )
                     if let ownedCapture = takeSystemAudioCapture(generation: replacementGeneration) {
                         await ownedCapture.stop()
@@ -632,15 +681,26 @@ public actor MeetingAudioCaptureService {
                     if let ownedCapture = takeSystemAudioCapture(generation: replacementGeneration) {
                         await ownedCapture.stop()
                     }
+                    logSystemAudioRecoveryCancellation(
+                        recoveryID: recoveryID,
+                        attempt: attempt,
+                        phase: "first_buffer_unavailable"
+                    )
                     return
                 case .ready:
                     break
                 }
+                diagnosticSink(
+                    "system_audio_recovery_first_buffer recovery_id=\(recoveryID) attempt=\(attempt)"
+                )
                 // Promotion is now atomic with callback classification: any
                 // subsequent failure is routed as a fresh running-source loss.
                 finishSystemAudioRecoveryIfOwned(recoveryID: recoveryID)
                 logger.info(
                     "system_audio_recovery_succeeded recovery_id=\(recoveryID, privacy: .public) attempt=\(attemptIndex + 1, privacy: .public)"
+                )
+                diagnosticSink(
+                    "system_audio_recovery_succeeded recovery_id=\(recoveryID) attempt=\(attempt)"
                 )
                 eventTarget.emit(.sourceRecovered(source: .system))
                 return
@@ -648,6 +708,9 @@ public actor MeetingAudioCaptureService {
             case .failure(let error):
                 logger.warning(
                     "system_audio_recovery_attempt_stalled recovery_id=\(recoveryID, privacy: .public) attempt=\(attemptIndex + 1, privacy: .public) error=\(error.localizedDescription, privacy: .private)"
+                )
+                diagnosticSink(
+                    "system_audio_recovery_attempt_stalled recovery_id=\(recoveryID) attempt=\(attempt) \(AudioCaptureDiagnostics.errorFields(error))"
                 )
                 if let ownedCapture = takeSystemAudioCapture(generation: replacementGeneration) {
                     await ownedCapture.stop()
@@ -673,6 +736,11 @@ public actor MeetingAudioCaptureService {
                 if let ownedCapture = takeSystemAudioCapture(generation: replacementGeneration) {
                     await ownedCapture.stop()
                 }
+                logSystemAudioRecoveryCancellation(
+                    recoveryID: recoveryID,
+                    attempt: attempt,
+                    phase: "waiting_for_first_buffer"
+                )
                 return
             }
         }
@@ -681,10 +749,24 @@ public actor MeetingAudioCaptureService {
             return
         }
         logger.error("system_audio_recovery_exhausted recovery_id=\(recoveryID, privacy: .public)")
+        diagnosticSink(
+            "system_audio_recovery_exhausted recovery_id=\(recoveryID) attempts=\(systemAudioRecoveryDelays.count) \(AudioCaptureDiagnostics.errorFields(originalError))"
+        )
         emitTerminalSystemAudioFailure(
             originalError,
             sourceMode: sourceMode,
             eventTarget: eventTarget
+        )
+    }
+
+    private func logSystemAudioRecoveryCancellation(
+        recoveryID: Int,
+        attempt: Int,
+        phase: String
+    ) {
+        guard Task.isCancelled else { return }
+        diagnosticSink(
+            "system_audio_recovery_cancelled recovery_id=\(recoveryID) attempt=\(attempt) phase=\(phase)"
         )
     }
 

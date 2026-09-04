@@ -77,6 +77,19 @@ private final class CompletionFlag: @unchecked Sendable {
     }
 }
 
+private final class MeetingAudioDiagnosticRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var events: [String] = []
+
+    func record(_ event: String) {
+        lock.withLock { events.append(event) }
+    }
+
+    func snapshot() -> [String] {
+        lock.withLock { events }
+    }
+}
+
 private final class MeetingAudioTelemetrySpy: TelemetryServiceProtocol, @unchecked Sendable {
     private let lock = NSLock()
     private var events: [TelemetryEventSpec] = []
@@ -1213,6 +1226,7 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         let readyReplacement = MockMeetingSystemAudioCapture(
             startExpectation: readyReplacementStarted
         )
+        let diagnostics = MeetingAudioDiagnosticRecorder()
         let captures = SystemAudioCaptureFactorySequence([
             stalledCapture,
             silentReplacement,
@@ -1221,7 +1235,8 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         let service = MeetingAudioCaptureService(
             microphoneCapture: MockMeetingMicrophoneCapture(),
             systemAudioCaptureFactory: { try captures.make() },
-            systemAudioRecoveryDelays: [.zero, .zero]
+            systemAudioRecoveryDelays: [.zero, .zero],
+            diagnosticSink: { event in diagnostics.record(event) }
         )
         addTeardownBlock {
             await service.stop()
@@ -1261,6 +1276,20 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         XCTAssertEqual(stalledCapture.stopCallCount, 1)
         XCTAssertEqual(silentReplacement.stopCallCount, 1)
         XCTAssertEqual(readyReplacement.stopCallCount, 0)
+        XCTAssertEqual(
+            diagnostics.snapshot().map { $0.split(separator: " ").first.map(String.init) },
+            [
+                "system_audio_recovery_started",
+                "system_audio_recovery_attempt_started",
+                "system_audio_recovery_attempt_stalled",
+                "system_audio_recovery_attempt_started",
+                "system_audio_recovery_first_buffer",
+                "system_audio_recovery_succeeded",
+            ]
+        )
+        XCTAssertTrue(diagnostics.snapshot().contains { $0.contains("attempt=1") })
+        XCTAssertTrue(diagnostics.snapshot().contains { $0.contains("attempt=2") })
+        XCTAssertTrue(diagnostics.snapshot().contains { $0.contains("error_type=") })
     }
 
     func testEmitsTerminalSystemInterruptionOnlyAfterRecoveryAttemptsAreExhausted() async throws {
@@ -1275,12 +1304,15 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         let stalledCapture = MockMeetingSystemAudioCapture()
         let firstFailedCapture = MockMeetingSystemAudioCapture(
             startExpectation: firstAttemptStarted,
-            startError: .systemAudioCaptureFailed("route is still changing")
+            startError: .systemAudioCaptureFailed(
+                "route is still changing at /Users/alex/private/meeting.wav via https://example.com/private"
+            )
         )
         let secondFailedCapture = MockMeetingSystemAudioCapture(
             startExpectation: secondAttemptStarted,
             startError: .systemAudioCaptureFailed("route is still changing")
         )
+        let diagnostics = MeetingAudioDiagnosticRecorder()
         let captures = SystemAudioCaptureFactorySequence([
             stalledCapture,
             firstFailedCapture,
@@ -1289,7 +1321,8 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         let service = MeetingAudioCaptureService(
             microphoneCapture: microphone,
             systemAudioCaptureFactory: { try captures.make() },
-            systemAudioRecoveryDelays: [.zero, .zero]
+            systemAudioRecoveryDelays: [.zero, .zero],
+            diagnosticSink: { event in diagnostics.record(event) }
         )
         addTeardownBlock {
             await service.stop()
@@ -1326,6 +1359,22 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         XCTAssertEqual(firstFailedCapture.stopCallCount, 1)
         XCTAssertEqual(secondFailedCapture.stopCallCount, 1)
         XCTAssertEqual(microphone.stopCallCount, 0)
+        XCTAssertEqual(
+            diagnostics.snapshot().map { $0.split(separator: " ").first.map(String.init) },
+            [
+                "system_audio_recovery_started",
+                "system_audio_recovery_attempt_started",
+                "system_audio_recovery_start_failed",
+                "system_audio_recovery_attempt_started",
+                "system_audio_recovery_start_failed",
+                "system_audio_recovery_exhausted",
+            ]
+        )
+        XCTAssertTrue(
+            diagnostics.snapshot().last?.contains("attempts=2 error_type=") == true
+        )
+        XCTAssertFalse(diagnostics.snapshot().joined().contains("/Users/alex"))
+        XCTAssertFalse(diagnostics.snapshot().joined().contains("https://example.com"))
     }
 
     func testCoalescesDuplicateSystemStallSignalsIntoOneRecovery() async throws {
@@ -1456,10 +1505,12 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         ])
         let retiredSessionEvents = FactoryInvocationBox()
         let nextSessionBuffers = FactoryInvocationBox()
+        let diagnostics = MeetingAudioDiagnosticRecorder()
         let service = MeetingAudioCaptureService(
             microphoneCapture: MockMeetingMicrophoneCapture(),
             systemAudioCaptureFactory: { try captures.make() },
-            systemAudioRecoveryDelays: [.zero]
+            systemAudioRecoveryDelays: [.zero],
+            diagnosticSink: { event in diagnostics.record(event) }
         )
 
         _ = try await service.start(sourceMode: .systemOnly) { event in
@@ -1503,6 +1554,11 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         nextSessionCapture.emit(buffer: buffer, time: AVAudioTime(hostTime: 46))
         XCTAssertEqual(nextSessionBuffers.get(), 1)
         XCTAssertEqual(captures.makeCallCount, 3)
+        XCTAssertTrue(
+            diagnostics.snapshot().contains(
+                "system_audio_recovery_cancelled recovery_id=1 attempt=1 phase=waiting_for_first_buffer"
+            )
+        )
         await service.stop()
     }
 
