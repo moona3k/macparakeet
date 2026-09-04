@@ -1,0 +1,27 @@
+Tests/MacParakeetTests/ViewModels/OnboardingViewModelTests.swift
+  s_69f42ef7ab7c7d::t_1dc5358f0f956e 1071-1073,1075-1076
+  s_69f42ef7ab7c7d::t_25132395d3e39f 1074,1107
+  s_69f42ef7ab7c7d::t_0465d6e1659e88 1080-1106,1108-1120
+Sources/MacParakeet/Views/Onboarding/OnboardingFlowView.swift
+  s_69f42ef7ab7c7d::t_73fef770a1bf5d 1027-1034
+Sources/MacParakeetViewModels/OnboardingViewModel.swift
+  s_69f42ef7ab7c7d::t_1dc5358f0f956e 744,746
+  s_69f42ef7ab7c7d::t_25132395d3e39f 745
+  s_69f42ef7ab7c7d::t_21ce68041e7f9a 735-736
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "2fbfccb43c3ac197327e29f0d4f67690ed2d2cd0",
+  "prompts": {},
+  "sessions": {
+    "s_69f42ef7ab7c7d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a06ac7-a359-7a31-bf2f-b0c479223188",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
