@@ -14,10 +14,11 @@ struct FeedbackView: View {
     @State private var isLogRowHovered = false
     @FocusState private var messageFocused: Bool
 
-    /// Single source of truth for the message editor's content inset, shared
-    /// by the `TextEditor` and its overlaid placeholder so the insertion
-    /// point and placeholder text always start from the same position.
+    /// Outer inset shared by the editor and the placeholder's vertical axis.
     private let messageContentInset = DesignSystem.Spacing.sm
+
+    /// NSTextView adds this horizontal line-fragment inset inside TextEditor.
+    private let textEditorLineFragmentPadding: CGFloat = 5
 
     var body: some View {
         ScrollView {
@@ -210,7 +211,8 @@ struct FeedbackView: View {
                         Text(placeholderText)
                             .font(DesignSystem.Typography.body)
                             .foregroundStyle(.tertiary)
-                            .padding(messageContentInset)
+                            .padding(.horizontal, messageContentInset + textEditorLineFragmentPadding)
+                            .padding(.vertical, messageContentInset)
                             .allowsHitTesting(false)
                     }
                 }
