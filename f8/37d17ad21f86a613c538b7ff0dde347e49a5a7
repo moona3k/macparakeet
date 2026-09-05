@@ -1,0 +1,30 @@
+Sources/MacParakeetCore/Audio/MeetingAudioStorageWriter.swift
+  h_2ab1f47fea2ced 1,55-62,78,84,87-88,95-96,115-118,137-138,199,211,259,271,275,311-312,319-320,332,381-393,476,479-489
+Sources/MacParakeetCore/Audio/README.md
+  h_2ab1f47fea2ced 79-86
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingRecoveryService.swift
+  h_2ab1f47fea2ced 522
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingService.swift
+  h_2ab1f47fea2ced 754,757,860,899-902,927-930,1305,1308-1313,1332,1337,1433-1436,1438,1863-1866,1871
+Tests/MacParakeetTests/Audio/MeetingAudioStorageWriterTests.swift
+  h_2ab1f47fea2ced 116-143,165,179,191,203,209,217,304-345
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift
+  h_2ab1f47fea2ced 72,96-97,184-185,221-259
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  h_2ab1f47fea2ced 730-863,971-1043,4317-4341
+spec/contracts/meeting-artifacts-v1.md
+  h_2ab1f47fea2ced 161-176,181-184
+spec/contracts/meeting-recovery-retention.md
+  h_2ab1f47fea2ced 147-177,217-221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "f837d17ad21f86a613c538b7ff0dde347e49a5a7",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

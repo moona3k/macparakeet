@@ -1,0 +1,36 @@
+Tests/MacParakeetTests/Services/LLM/LocalCLIExecutorTests.swift
+  s_1b99fa8dff509a::t_7e61fc8b165dd4 358-359
+  s_1b99fa8dff509a::t_ec7aa7cc49f351 301,308-357,360
+docs/audits/2026-09-04-release-readiness-issues.json
+  s_1b99fa8dff509a::t_1b31bf22484bc1 84,87-88,96,99-100,120,123-124,155-156,159-160,216,219-220,264,267-268,312,315-316,324,327-328,792,795-796,971-972,975-976,1008,1011-1012,1239-1240,1368,1371-1372,1380,1382-1384
+Sources/CLI/CHANGELOG.md
+  s_1b99fa8dff509a::t_a7e2f8fa2f8a64 92-99
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  s_1b99fa8dff509a::t_8067dd7ce0ba42 147
+  s_1b99fa8dff509a::t_7a5829ff8d6bca 226-228
+Sources/MacParakeetCore/Services/LLM/LocalCLIExecutor.swift
+  s_1b99fa8dff509a::t_96185dcb3c5838 373-381
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_1b99fa8dff509a::t_5d28526cf26157 2258-2281
+docs/audits/2026-09-04-release-readiness.md
+  s_1b99fa8dff509a::t_d5ac44b10be656 17-18
+  s_1b99fa8dff509a::t_74b69d7e4cb072 69,73-76,78-79,83-109
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_1b99fa8dff509a::t_06db966cdb80c2 1797,1803,1819
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "1c34f946cf282e1f8222fb6f105283529d13d9d1",
+  "prompts": {},
+  "sessions": {
+    "s_1b99fa8dff509a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ff77abba-3dc4-4cc1-8184-741e83bc845e",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  h_2ab1f47fea2ced 214-215,302-303,307,356-358,424-427,498-508,538-542,550-553,622-627,724-734,757-761,769-772,791-792,1046-1050,1064-1065,1082-1087,1095-1096,1119-1120,1152-1153,1201-1202,1263-1264,1268-1278,1294-1303,1309-1314,1381-1385,1419-1449,1502-1503,1564-1580
+Sources/MacParakeetCore/Services/LLM/LocalCLIExecutor.swift
+  h_2ab1f47fea2ced 84-85,124,127,242-251,259,338-339,346-449,488-489,627-630,642-643,648,685-694,708,845-846,938-941,972-978,1058-1060,1090,1101-1107,1116,1133-1134
+Sources/MacParakeetCore/Services/PodcastAudioDownloader.swift
+  h_2ab1f47fea2ced 58,70-77,102-116,179-180,252
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  h_2ab1f47fea2ced 77-78,86-87,120-125,135-136,156-161,176-181,222-226,249-254,261-266,273-285,311-315,318-323,353-354,367,434-453,474-479,483-498,514-523,538-551,575-590,604-608,622-629,659-666,782-787,817-822,1183-1188,1197-1198,1229-1233,1236-1241,1261-1265,1268-1273,1554-1555
+Tests/MacParakeetTests/Services/LLM/LocalCLIExecutorTests.swift
+  h_2ab1f47fea2ced 239-309,327-332,444-447,481-486,551-568,575-576,664-665,730-732
+Tests/MacParakeetTests/Services/PodcastAudioDownloaderTests.swift
+  h_2ab1f47fea2ced 75-124,152-219
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "f64229f1d5e910c42fa0c298a3025d7e34313e5c",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
