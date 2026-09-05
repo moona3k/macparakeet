@@ -1,0 +1,28 @@
+Sources/MacParakeetCore/Audio/AudioRecorder.swift
+  h_2ab1f47fea2ced 315-317,393-400,428-429,456-464,466-474,476-481,483-505,507-511,513-524,528-530,533-560,562,567,569-570,616-617,773-774,906-911,1010-1015,1037-1038,1103-1105,1153-1158,1160-1166,1181-1182,1331-1335,1403-1410,1413-1418,1461-1467,1472-1473,1483-1490,1492-1499,1501-1508,1526-1528,1533-1535,1549-1552,1557-1560,1574-1577,1582-1601,1603-1608,1610-1632,1640-1645,1659-1660
+Sources/MacParakeetCore/Audio/MeetingAudioStorageWriter.swift
+  h_2ab1f47fea2ced 65-72,74,76,78-79,81,84-94,98-109,246-251,254,263
+Sources/MacParakeetCore/Audio/MicrophoneEnginePlatform.swift
+  h_2ab1f47fea2ced 317-318,322,324-331,338-339,427-429,1899,1902-1907,1916-1920,1930-1934,1947,1957
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingService.swift
+  h_2ab1f47fea2ced 941-947
+Tests/MacParakeetTests/Audio/ExtractChannelZeroTests.swift
+  h_2ab1f47fea2ced 87-93,120-196,230-236,244-250
+Tests/MacParakeetTests/Audio/MeetingAudioStorageWriterTests.swift
+  h_2ab1f47fea2ced 130,138,141,158-159,164,169,172-175,179-180,189,193-194,203-205,209-210,221-226,230-231,240,243
+Tests/MacParakeetTests/Audio/MicrophoneEnginePlatformConfigChangeRecoveryTests.swift
+  h_2ab1f47fea2ced 26,28,30,33-53
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  h_2ab1f47fea2ced 971-1005,1010-1011
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "4a42bd01d31e21d1cd8aeb0bde50e15d6f4ec463",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
