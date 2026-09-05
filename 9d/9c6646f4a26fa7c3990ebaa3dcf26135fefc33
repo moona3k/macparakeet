@@ -1,0 +1,28 @@
+Sources/CLI/CHANGELOG.md
+  h_2ab1f47fea2ced 92-93,100-102
+Sources/CLI/MacParakeetCLI.swift
+  h_2ab1f47fea2ced 11
+docs/distribution.md
+  h_2ab1f47fea2ced 189-193,210-214
+scripts/dev/ci_local.sh
+  h_2ab1f47fea2ced 13,15
+scripts/dev/run_app.sh
+  h_2ab1f47fea2ced 158-162
+scripts/dist/build_app_bundle.sh
+  h_2ab1f47fea2ced 701-705
+scripts/dist/test_verify_app_privacy_surface.sh
+  h_2ab1f47fea2ced 1-111
+scripts/dist/verify_app_privacy_surface.sh
+  h_2ab1f47fea2ced 71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "9d9c6646f4a26fa7c3990ebaa3dcf26135fefc33",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
