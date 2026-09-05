@@ -1,0 +1,30 @@
+Sources/MacParakeetCore/Database/TranscriptionRepository.swift
+  h_2ab1f47fea2ced 18-19,114-115,135-149,483-484,495-496,498,509
+Sources/MacParakeetViewModels/TranscriptionLibraryViewModel.swift
+  h_2ab1f47fea2ced 146,494,496-499,502,506,565,571,631
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  h_2ab1f47fea2ced 1804,1806-1810
+Tests/MacParakeetTests/App/MeetingAudioRetentionSweepCoordinatorTests.swift
+  h_2ab1f47fea2ced 164-165
+Tests/MacParakeetTests/Database/TranscriptionRepositoryTests.swift
+  h_2ab1f47fea2ced 55,66,512-516,527-531,544-548,575-580,609-610,614-615,619-620,624-625,629-630,634-635,661-662,666-667,704-705,709-710,714-715,779-785,795-801,861-864,869-882,950,1017-1018,1119-1121,1140,1155,1182,1263
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift
+  h_2ab1f47fea2ced 1524-1525
+Tests/MacParakeetTests/ViewModels/TranscriptionLibraryViewModelTests.swift
+  h_2ab1f47fea2ced 483-610
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  h_2ab1f47fea2ced 199-204,277-282,300-305,336-337,339-340,404-409,644,1169-1174,1623,1640,1693,1722,1735,1776,1991,2137,2168,2194-2199,2202-2207,2214,2247-2248,2311-2335,2574-2576,2586-2588,2688-2689,2691-2692,2694-2695,3067-3069,3579-3580,3603-3605,3629-3634,3677-3679,3712,3716,3767,3771,3795-3800,3809-3811,3912-3913
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  h_2ab1f47fea2ced 144,166-167,226-227,232-236
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "5a32c14cc59f0388ae5dc2d43cbf4e63dbfc1305",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
