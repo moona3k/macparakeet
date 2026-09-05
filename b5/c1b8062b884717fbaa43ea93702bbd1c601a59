@@ -1,0 +1,32 @@
+Sources/CLI/CHANGELOG.md
+  h_2ab1f47fea2ced 120-122
+Sources/MacParakeetCore/Audio/README.md
+  h_2ab1f47fea2ced 31-32,86-92,110-111,408-413
+Sources/MacParakeetCore/Database/README.md
+  h_2ab1f47fea2ced 68-72
+docs/audits/2026-09-04-release-readiness-issues.json
+  h_2ab1f47fea2ced 7,1382,1400-1411
+docs/audits/2026-09-04-release-readiness.md
+  h_2ab1f47fea2ced 5,7-9,30,33,67-72,83,198-240,243
+plans/README.md
+  h_2ab1f47fea2ced 23-24
+spec/04-ui-patterns.md
+  h_2ab1f47fea2ced 156-161,784-788
+spec/07-text-processing.md
+  h_2ab1f47fea2ced 87
+spec/11-llm-integration.md
+  h_2ab1f47fea2ced 103
+spec/contracts/meeting-artifacts-v1.md
+  h_2ab1f47fea2ced 17-21,170-176,184-186
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "b5c1b8062b884717fbaa43ea93702bbd1c601a59",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
