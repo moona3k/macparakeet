@@ -20,7 +20,8 @@ set -euo pipefail
 #   BUILD_DATE_UTC      (default: current UTC ISO-8601 timestamp)
 #   BUILD_SOURCE        (default: dist-<build-system>-release)
 #   MIN_MACOS_VERSION   (default: 14.2)
-#   UNIVERSAL           (default: 0) build universal (arm64+x86_64) if 1
+#   UNIVERSAL           (default: 0) build universal (arm64+x86_64) if 1;
+#                       incompatible with the arm64-only transcribe.cpp package
 #   SKIP_BUILD          (default: 0) reuse existing Release binary if 1
 #   BUILD_SYSTEM        (default: xcodebuild) 'xcodebuild' or 'swiftpm'
 #   XCODE_DERIVED_DATA  (default: .build/xcode-dist) derived data path for xcodebuild
@@ -41,6 +42,8 @@ set -euo pipefail
 #   MACPARAKEET_MEETING_ECHO_MODEL source GGUF model for meeting echo suppression
 #   MACPARAKEET_MEETING_ECHO_MODEL_NAME optional bundled GGUF filename (default: source basename)
 #   MACPARAKEET_MEETING_ECHO_MODEL_SHA256 optional expected model SHA256
+#   MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH owned pinned Swift wrapper package
+#   MACPARAKEET_TRANSCRIBE_CPP_ARTIFACT_ZIP checksum-pinned arm64 XCFramework archive
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
@@ -60,6 +63,12 @@ BUILD_SYSTEM="${BUILD_SYSTEM:-xcodebuild}"
 BUILD_SOURCE="${BUILD_SOURCE:-dist-${BUILD_SYSTEM}-release}"
 XCODE_DERIVED_DATA="${XCODE_DERIVED_DATA:-$ROOT_DIR/.build/xcode-dist}"
 
+if [[ "$UNIVERSAL" == "1" && -n "${MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH:-}" ]]; then
+  echo "Error: UNIVERSAL=1 is incompatible with the arm64-only transcribe.cpp release artifact." >&2
+  echo "Build the supported Apple Silicon release with UNIVERSAL=0." >&2
+  exit 1
+fi
+
 APP_DIR="$DIST_DIR/${APP_NAME}.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
@@ -75,6 +84,8 @@ mkdir -p "$MACOS_DIR" "$RESOURCES_DIR" "$FRAMEWORKS_DIR" "$LEGAL_DIR"
 if [[ "$VERSION" == "0.0.0" ]]; then
   echo "Warning: VERSION not set; building a local/dev bundle with CFBundleShortVersionString=0.0.0." >&2
   echo "Set VERSION=X.Y.Z for release builds so Sparkle and release metadata are correct." >&2
+else
+  "$ROOT_DIR/scripts/dist/verify_transcribe_cpp_release.sh"
 fi
 
 build_swiftpm() {
@@ -253,6 +264,44 @@ else
 fi
 
 copy_cli_binary
+
+bundle_transcribe_cpp_framework() {
+  local package_path="${MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH:-}"
+  if [[ -z "$package_path" ]]; then
+    echo "Skipping CTranscribe.framework for a local stub build."
+    return 0
+  fi
+
+  local xcframework="$package_path/build-apple/TranscribeCpp.xcframework"
+  local framework
+  framework="$(find -L "$xcframework" -type d -path '*macos*/CTranscribe.framework' -print -quit 2>/dev/null || true)"
+  if [[ -z "$framework" || ! -d "$framework" ]]; then
+    echo "Error: no macOS CTranscribe.framework was found in $xcframework." >&2
+    exit 1
+  fi
+
+  rm -rf "$FRAMEWORKS_DIR/CTranscribe.framework"
+  ditto "$framework" "$FRAMEWORKS_DIR/CTranscribe.framework"
+
+  local binary
+  for binary in "$MACOS_DIR/$APP_NAME" "$MACOS_DIR/macparakeet-cli"; do
+    if ! otool -l "$binary" | grep -q '@executable_path/../Frameworks'; then
+      install_name_tool -add_rpath @executable_path/../Frameworks "$binary"
+    fi
+    if ! otool -L "$binary" | grep -q '@rpath/CTranscribe.framework/'; then
+      echo "Error: $(basename "$binary") is not linked to CTranscribe.framework." >&2
+      exit 1
+    fi
+  done
+
+  local notice
+  for notice in LICENSE LICENSE.ggml LICENSE.miniz; do
+    cp "$xcframework/$notice" "$LEGAL_DIR/transcribe.cpp-$notice"
+  done
+  echo "Embedded CTranscribe.framework from the pinned local package."
+}
+
+bundle_transcribe_cpp_framework
 
 # Bundle FFmpeg (required at runtime for media demux/conversion).
 #
@@ -632,6 +681,9 @@ if [[ -f "$ROOT_DIR/LICENSE" ]]; then
 fi
 if [[ -f "$ROOT_DIR/THIRD_PARTY_LICENSES.md" ]]; then
   cp "$ROOT_DIR/THIRD_PARTY_LICENSES.md" "$LEGAL_DIR/THIRD_PARTY_LICENSES.md"
+fi
+if [[ -f "$ROOT_DIR/LICENSES/Apache-2.0.txt" ]]; then
+  cp "$ROOT_DIR/LICENSES/Apache-2.0.txt" "$LEGAL_DIR/Apache-2.0.txt"
 fi
 echo "Bundled legal notices: $LEGAL_DIR"
 

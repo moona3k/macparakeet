@@ -722,8 +722,8 @@ final class TelemetryServiceTests: XCTestCase {
             (ParakeetModelVariant.unified.rawValue, "unified"),
             (NemotronModelVariant.multilingual1120.rawValue, "multilingual-1120ms"),
             (NemotronModelVariant.english1120.rawValue, "english-1120ms"),
-            (CohereTranscribeEngine.ComputePolicy.ane.rawValue, "ane"),
-            (CohereTranscribeEngine.ComputePolicy.gpu.rawValue, "gpu"),
+            (CohereTranscribeEngine.ComputePolicy.metal.rawValue, "metal"),
+            (CohereTranscribeEngine.ComputePolicy.cpu.rawValue, "cpu"),
             ("my-custom-model", "custom"),
         ]
 

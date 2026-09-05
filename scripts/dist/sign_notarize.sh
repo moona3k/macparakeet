@@ -119,6 +119,14 @@ if [[ -d "$SPARKLE_FW" ]]; then
   codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp "$SPARKLE_FW"
 fi
 
+while IFS= read -r -d '' framework; do
+  echo "Signing bundled framework: $framework"
+  codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp "$framework"
+done < <(
+  find "$APP_PATH/Contents/Frameworks" -maxdepth 1 -type d -name "*.framework" \
+    ! -name "Sparkle.framework" -print0 2>/dev/null || true
+)
+
 # Sign optional model-backed meeting echo-suppression dylibs.
 while IFS= read -r -d '' dylib; do
   echo "Signing bundled dylib: $dylib"

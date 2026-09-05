@@ -1,5 +1,4 @@
 import AVFoundation
-import CoreML
 import FluidAudio
 import Foundation
 import os
@@ -46,110 +45,110 @@ private final class CancellationResponsiveTaskAwaiter: @unchecked Sendable {
     }
 }
 
-/// Wraps FluidAudio's `CoherePipeline` (Cohere Transcribe 03-2026, a 2B
-/// Conformer encoder + lightweight Transformer decoder converted to Core ML by
-/// Fluid Inference). Cohere is a **batch, record-then-transcribe** engine: it
-/// has no streaming/partial path and emits no word timestamps, so it does not
-/// conform to ``NativeLiveDictating`` and `STTResult.words` is always empty.
-///
-/// ## Compute policy
-/// The big INT8 encoder behaves very differently per Core ML backend:
-/// - **`.gpu`** (`.all`): warm ~0.4–0.6 s. Core ML specializes the
-///   graph on the **first transcribe of every launch (~115 s, not cached)**, so
-///   we pay it in the background via a launch warm-up; for a resident app that
-///   is once per session, then every dictation is fast.
-/// - **`.ane`** (`cpuAndNeuralEngine`, default): warm ~1.3–1.6 s after Core
-///   ML preparation. Fresh app processes can still pay a cold preparation
-///   cost, but this avoids the GPU path's uncached per-launch specialization
-///   and leaves the GPU free for the LLM formatter.
-/// NOTE: most apparent slowness in development is the unoptimized **Debug**
-/// build — the per-step decoder + mel hot path runs ~9× slower than release.
-/// Always judge latency from a release build.
+/// Cohere Transcribe remains a batch, record-then-transcribe engine. The model
+/// executes through the pinned transcribe.cpp Swift wrapper and a GGUF model.
+/// It has no live preview or reliable word timestamps, so `STTResult.words`
+/// remains empty and the engine does not conform to `NativeLiveDictating`.
 public actor CohereTranscribeEngine: STTTranscribing {
 
-    /// Core ML compute-unit policy for the Cohere models. See the type doc for
-    /// the latency/cold-start tradeoff measured in the Phase-0 spike.
+    /// transcribe.cpp compute selection. Legacy Core ML values remain readable
+    /// so an existing preference migrates without losing the user's intent.
     public enum ComputePolicy: String, CaseIterable, Sendable {
-        /// `cpuAndNeuralEngine` — default. Warm ~1.3–1.6 s after Core ML
-        /// preparation; avoids the GPU path's recurring per-launch specialization.
-        case ane
-        /// `.all` — warm ~0.4–0.6 s; ~115 s graph specialization on the
-        /// first transcribe of every launch (not cached), hidden by launch warm-up.
-        case gpu
+        case metal
+        case cpu
 
         public static let defaultsKey = "cohereComputePolicy"
 
         public static func current(defaults: UserDefaults = .standard) -> ComputePolicy {
-            guard let raw = defaults.string(forKey: defaultsKey),
-                let policy = ComputePolicy(rawValue: raw)
-            else {
-                return .ane
+            switch defaults.string(forKey: defaultsKey) {
+            case ComputePolicy.metal.rawValue, "gpu":
+                return .metal
+            case ComputePolicy.cpu.rawValue, "ane":
+                return .cpu
+            default:
+                return .metal
             }
-            return policy
         }
 
-        /// Persist this policy as the user's Cohere compute preference. The
-        /// engine re-reads it via `current(defaults:)` the next time it is
-        /// constructed (`STTRuntime.ensureCohereEngine`), so a change takes
-        /// effect on the next Cohere load — it does not reconfigure a live
-        /// engine, whose `computePolicy` is captured once at construction.
         public func save(to defaults: UserDefaults = .standard) {
             defaults.set(rawValue, forKey: Self.defaultsKey)
-        }
-
-        var computeUnits: MLComputeUnits {
-            switch self {
-            case .ane: return .cpuAndNeuralEngine
-            case .gpu: return .all
-            }
         }
     }
 
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "CohereTranscribeEngine")
-
     private let computePolicy: ComputePolicy
-    /// Default transcription language. Cohere requires the language up front
-    /// (no auto-detect); English is the Phase-1 default. A per-call override is
-    /// threaded through ``transcribe(audioURL:job:language:onProgress:)``.
-    private let defaultLanguage: CohereAsrConfig.Language
-
-    /// `CoherePipeline` is itself an actor and holds no per-call mutable state
-    /// (it takes `LoadedModels` as an argument), so a single instance serves
-    /// every job kind (dictation, file, meeting) safely. Cohere is batch-only,
-    /// so transcriptions are serialized by ``transcriptionPermit`` rather than
-    /// racing multiple `CoherePipeline` calls through the same loaded models.
-    private let pipeline = CoherePipeline()
+    private let backend: any CohereTranscribeBackend
+    private let modelURLProvider: @Sendable () throws -> URL
     private let transcriptionPermit = AsyncPermit()
-    private var models: CoherePipeline.LoadedModels?
+    private var nativeCapabilities: CohereNativeCapabilities?
     private var initializationTask: Task<Void, Error>?
     private var activeLoadID: UUID?
+    private var loadedGeneration: UUID?
+    private var backendNeedsUnload = false
 
     public init(
-        computePolicy: ComputePolicy = .ane,
-        defaultLanguage: CohereAsrConfig.Language = .english
+        computePolicy: ComputePolicy = .metal
     ) {
         self.computePolicy = computePolicy
-        self.defaultLanguage = defaultLanguage
+        backend = CohereTranscribeBackendFactory.makeDefault()
+        modelURLProvider = {
+            try CohereTranscribeModelCatalog.requireVerifiedModel()
+        }
     }
 
-    /// Convenience initializer for callers that resolve a language as a string
-    /// code (e.g. the CLI, which must not import FluidAudio to name
-    /// `CohereAsrConfig.Language`). Unknown or empty codes fall back to English,
-    /// matching the no-auto-detect Phase-1 default. The code becomes the engine's
-    /// default language for the no-`language:` `transcribe(audioPath:job:)` path.
-    public init(computePolicy: ComputePolicy = .ane, defaultLanguageCode: String?) {
+    /// The CLI keeps accepting its existing language option for compatibility.
+    /// The transcribe.cpp backend now detects the language, so the value is not
+    /// passed to the model.
+    public init(
+        computePolicy: ComputePolicy = .metal,
+        defaultLanguageCode _: String?
+    ) {
         self.computePolicy = computePolicy
-        self.defaultLanguage = Self.cohereLanguage(defaultLanguageCode) ?? .english
+        backend = CohereTranscribeBackendFactory.makeDefault()
+        modelURLProvider = {
+            try CohereTranscribeModelCatalog.requireVerifiedModel()
+        }
+    }
+
+    init(
+        computePolicy: ComputePolicy = .metal,
+        backend: any CohereTranscribeBackend,
+        modelURLProvider: @escaping @Sendable () throws -> URL
+    ) {
+        self.computePolicy = computePolicy
+        self.backend = backend
+        self.modelURLProvider = modelURLProvider
     }
 
     // MARK: - Languages
 
-    /// The languages Cohere Transcribe supports, as `(code, displayName)` pairs
-    /// (e.g. `("en", "English")`). Source of truth is FluidAudio's
-    /// `CohereAsrConfig.Language`; exposed here so UI layers can offer a picker
-    /// without importing FluidAudio. Cohere has no auto-detect — one must be set.
-    public static var supportedLanguages: [(code: String, name: String)] {
-        CohereAsrConfig.Language.allCases.map { ($0.rawValue, $0.englishName) }
+    public static let supportedLanguages: [(code: String, name: String)] = [
+        ("ar", "Arabic"),
+        ("de", "German"),
+        ("el", "Greek"),
+        ("en", "English"),
+        ("es", "Spanish"),
+        ("fr", "French"),
+        ("it", "Italian"),
+        ("ja", "Japanese"),
+        ("ko", "Korean"),
+        ("nl", "Dutch"),
+        ("pl", "Polish"),
+        ("pt", "Portuguese"),
+        ("vi", "Vietnamese"),
+        ("zh", "Chinese"),
+    ]
+
+    /// Language values accepted by the pre-transcribe.cpp CLI/settings
+    /// contract. They are ignored by this backend, but existing Hindi and
+    /// Russian preferences must continue to parse and round-trip.
+    public static let legacyCompatibleLanguageCodes = [
+        "ar", "de", "el", "en", "es", "fr", "hi", "it",
+        "ja", "ko", "nl", "pl", "pt", "ru", "vi", "zh",
+    ]
+
+    public nonisolated static var isNativeFrameworkAvailable: Bool {
+        CohereTranscribeBackendFactory.isNativeFrameworkAvailable
     }
 
     // MARK: - Transcription
@@ -169,7 +168,7 @@ public actor CohereTranscribeEngine: STTTranscribing {
 
     public func transcribe(
         audioURL: URL,
-        job: STTJobKind,
+        job _: STTJobKind,
         language: String?,
         onProgress: (@Sendable (Int, Int) -> Void)? = nil
     ) async throws -> STTResult {
@@ -177,12 +176,12 @@ public actor CohereTranscribeEngine: STTTranscribing {
         defer { transcriptionPermit.signal() }
 
         do {
-            // Lazy path (CLI, or first dictation before background warm-up
-            // finished): log model-load progress to the console.
             try await prepare(onProgress: { [logger] message in
                 logger.notice("cohere_prepare \(message, privacy: .public)")
             })
-            guard let models else { throw STTError.modelNotLoaded }
+            guard nativeCapabilities != nil, let generation = loadedGeneration else {
+                throw STTError.modelNotLoaded
+            }
 
             onProgress?(0, 100)
             try Task.checkCancellation()
@@ -197,23 +196,54 @@ public actor CohereTranscribeEngine: STTTranscribing {
             onProgress?(40, 100)
             try Task.checkCancellation()
 
-            let resolvedLanguage = Self.cohereLanguage(language) ?? defaultLanguage
-            let text = try await transcribeGuardingTruncation(
-                samples: samples, models: models, language: resolvedLanguage)
+            let native = try await transcribeGuardingTruncation(
+                samples: samples,
+                generation: generation,
+                onProgress: onProgress
+            )
             onProgress?(100, 100)
 
-            // Cohere ASR exposes no word timestamps or per-word confidence, so
-            // `words` is intentionally empty. Meeting speaker-diarization,
-            // word-level timing, and the live preview are all word-driven, so a
-            // meeting transcribed by Cohere degrades to a plain-text transcript
-            // (same graceful path Nemotron already uses); Parakeet remains the
-            // choice when speaker-labeled, timestamped meetings are wanted.
+            if language != nil {
+                logger.debug("cohere_language_hint_ignored mode=automatic")
+            }
             return STTResult(
-                text: text,
+                text: native.text,
                 words: [],
-                language: resolvedLanguage.rawValue,
+                language: native.detectedLanguage,
                 engine: .cohere,
-                engineVariant: computePolicy.rawValue
+                engineVariant: nativeCapabilities?.computeBackend ?? computePolicy.rawValue
+            )
+        } catch {
+            throw try Self.mapTranscriptionError(error)
+        }
+    }
+
+    func transcribeSamplesForTesting(
+        _ samples: [Float],
+        language: String? = nil
+    ) async throws -> STTResult {
+        try await transcriptionPermit.wait()
+        defer { transcriptionPermit.signal() }
+
+        do {
+            try await prepare()
+            guard let generation = loadedGeneration else {
+                throw STTError.modelNotLoaded
+            }
+            let native = try await transcribeGuardingTruncation(
+                samples: samples,
+                generation: generation,
+                onProgress: nil
+            )
+            if language != nil {
+                logger.debug("cohere_language_hint_ignored mode=automatic")
+            }
+            return STTResult(
+                text: native.text,
+                words: [],
+                language: native.detectedLanguage,
+                engine: .cohere,
+                engineVariant: nativeCapabilities?.computeBackend ?? computePolicy.rawValue
             )
         } catch {
             throw try Self.mapTranscriptionError(error)
@@ -222,143 +252,132 @@ public actor CohereTranscribeEngine: STTTranscribing {
 
     // MARK: - Truncation guard (chunk + stitch)
 
-    /// Cohere's decoder KV cache is baked at `maxSeqLen` (108) positions, so a
-    /// single pass can only emit ~98 output tokens — a dense utterance is
-    /// silently cut mid-sentence, and the encoder itself can't see past 35 s.
-    /// Fast path: one pass; if it neither overran the 35 s window nor hit the
-    /// token cap (the overwhelmingly common case) it is returned untouched, with
-    /// no added latency. Only when the audio is long OR the pass actually
-    /// truncated do we fall back to safe-window chunk-and-stitch (Spokenly takes
-    /// the same chunking approach for long input).
     private func transcribeGuardingTruncation(
         samples: [Float],
-        models: CoherePipeline.LoadedModels,
-        language: CohereAsrConfig.Language
-    ) async throws -> String {
-        // ~98: the decode-loop ceiling minus the fixed language prompt prefix.
-        let outputCap = CohereAsrConfig.maxSeqLen - language.promptSequence.count
+        generation: UUID,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> CohereNativeTranscript {
+        guard let capabilities = nativeCapabilities else {
+            throw STTError.modelNotLoaded
+        }
+        let sampleRate = capabilities.nativeSampleRate
+        let reportedMaximum =
+            capabilities.maxAudioMilliseconds > 0
+            ? Int(capabilities.maxAudioMilliseconds) * sampleRate / 1000
+            : 300 * sampleRate
+        let safetyMargin = min(5 * sampleRate, max(1, reportedMaximum / 10))
+        let window = min(300 * sampleRate, max(1, reportedMaximum - safetyMargin))
 
-        if samples.count <= CohereAsrConfig.maxSamples {
-            let result = try await transcribeWithInferenceGate(
-                audio: samples, models: models, language: language)
-            // Stopped on EOS before the ceiling → complete; return as-is.
-            if result.tokenIds.count < outputCap - 1 {
-                return result.text
+        if samples.count <= window {
+            let result = try await transcribeOne(samples: samples, generation: generation)
+            if !result.wasTruncated {
+                return result
             }
-            logger.notice(
-                "cohere_truncation_guard tokens=\(result.tokenIds.count, privacy: .public) cap=\(outputCap, privacy: .public) action=chunk"
-            )
+            logger.notice("cohere_truncation_guard action=rechunk")
         }
 
-        return try await chunkAndStitch(samples: samples, models: models, language: language)
-    }
-
-    /// Splits audio into overlapping windows short enough to stay under the
-    /// ~98-token decode cap, transcribes each, and stitches on the duplicated
-    /// overlap. Windows are ≤20 s (well under the cap for normal/fast speech);
-    /// for a dense utterance that fit inside 35 s we shrink the window so it
-    /// still splits into ≥2 chunks.
-    private func chunkAndStitch(
-        samples: [Float],
-        models: CoherePipeline.LoadedModels,
-        language: CohereAsrConfig.Language
-    ) async throws -> String {
-        let outputCap = CohereAsrConfig.maxSeqLen - language.promptSequence.count
-        let sr = CohereAsrConfig.sampleRate
-        let overlap = 4 * sr
-        let maxWindow = 20 * sr
-        let minWindow = 4 * sr
-        // Audio that fit the encoder window but truncated is dense — shrink the
-        // window so it still produces at least two chunks.
-        let window =
-            samples.count <= CohereAsrConfig.maxSamples
-            ? min(maxWindow, max(8 * sr, samples.count * 3 / 5))
-            : maxWindow
+        let overlap = min(5 * sampleRate, max(sampleRate / 4, window / 20))
+        let minimumWindow = max(sampleRate / 4, min(10 * sampleRate, window / 4))
         return try await chunkAndStitch(
             samples: samples,
-            models: models,
-            language: language,
-            outputCap: outputCap,
+            generation: generation,
             window: window,
             overlap: overlap,
-            minWindow: minWindow
+            minimumWindow: minimumWindow,
+            onProgress: onProgress
         )
     }
 
     private func chunkAndStitch(
         samples: [Float],
-        models: CoherePipeline.LoadedModels,
-        language: CohereAsrConfig.Language,
-        outputCap: Int,
+        generation: UUID,
         window: Int,
         overlap: Int,
-        minWindow: Int
-    ) async throws -> String {
-        let sr = CohereAsrConfig.sampleRate
-        let hop = max(sr, window - overlap)
+        minimumWindow: Int,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> CohereNativeTranscript {
+        let hop = max(1, window - overlap)
+        let estimatedChunks =
+            samples.count <= window
+            ? 1
+            : 1 + Int(ceil(Double(samples.count - window) / Double(hop)))
 
         var merged = ""
+        var detectedLanguages = Set<String>()
         var start = 0
-        // `hop` is at least `sr` (>= 1 s) and `samples` is a finite in-memory
-        // buffer, so this loop always terminates — no chunk cap is needed. A
-        // hard 64-chunk bound here previously truncated audio past ~17 min
-        // (64 * 16 s hop), silently dropping the tail of long file transcripts.
+        var completedChunks = 0
         while start < samples.count {
             try Task.checkCancellation()
             let end = min(start + window, samples.count)
             let chunk = Array(samples[start..<end])
-            let result = try await transcribeWithInferenceGate(
-                audio: chunk, models: models, language: language)
-            let text: String
-            if result.tokenIds.count < outputCap - 1 {
-                text = result.text
-            } else if window > minWindow {
-                let nextWindow = max(minWindow, window * 3 / 5)
-                let nextOverlap = min(overlap, max(sr, nextWindow / 5))
+            let result = try await transcribeOne(samples: chunk, generation: generation)
+            let resolved: CohereNativeTranscript
+            if result.wasTruncated, window > minimumWindow {
+                let nextWindow = max(minimumWindow, window * 3 / 5)
+                let nextOverlap = min(overlap, max(1, nextWindow / 5))
                 logger.notice(
-                    "cohere_chunk_truncation_guard tokens=\(result.tokenIds.count, privacy: .public) cap=\(outputCap, privacy: .public) window=\(window, privacy: .public) action=rechunk next_window=\(nextWindow, privacy: .public)"
+                    "cohere_chunk_truncation_guard window=\(window, privacy: .public) action=rechunk next_window=\(nextWindow, privacy: .public)"
                 )
-                text = try await chunkAndStitch(
+                resolved = try await chunkAndStitch(
                     samples: chunk,
-                    models: models,
-                    language: language,
-                    outputCap: outputCap,
+                    generation: generation,
                     window: nextWindow,
                     overlap: nextOverlap,
-                    minWindow: minWindow
+                    minimumWindow: minimumWindow,
+                    onProgress: nil
                 )
             } else {
-                logger.warning(
-                    "cohere_chunk_truncation_guard tokens=\(result.tokenIds.count, privacy: .public) cap=\(outputCap, privacy: .public) window=\(window, privacy: .public) action=return_capped"
-                )
-                text = result.text
+                if result.wasTruncated {
+                    throw CohereNativeBackendError.outputTruncatedAtMinimum(
+                        chunk.count
+                    )
+                }
+                resolved = result
             }
-            merged = merged.isEmpty ? text : Self.mergeOnOverlap(merged, text)
+
+            merged =
+                merged.isEmpty
+                ? resolved.text
+                : Self.mergeOnOverlap(merged, resolved.text)
+            if let language = resolved.detectedLanguage {
+                detectedLanguages.insert(language)
+            }
+            completedChunks += 1
+            let progress =
+                40
+                + Int(
+                    (Double(completedChunks) / Double(max(estimatedChunks, 1))) * 55
+                )
+            onProgress?(min(progress, 95), 100)
             if end >= samples.count { break }
             start += hop
         }
-        return merged
+
+        return CohereNativeTranscript(
+            text: merged,
+            detectedLanguage: detectedLanguages.count == 1 ? detectedLanguages.first : nil,
+            wasTruncated: false
+        )
     }
 
-    private func transcribeWithInferenceGate(
-        audio: [Float],
-        models: CoherePipeline.LoadedModels,
-        language: CohereAsrConfig.Language
-    ) async throws -> CoherePipeline.TranscriptionResult {
-        // Cohere's default compute policy uses the Neural Engine, and the `.all`
-        // policy may still select ANE-backed Core ML kernels. Keep every
-        // Cohere inference on the same process-wide gate as Parakeet, Nemotron,
-        // Whisper, and diarization. The gate is a no-op on macOS 15+.
-        //
-        // Capture the pipeline actor in a local so the gate closure stays
-        // value-isolated rather than `self`-isolated: Swift 6 region isolation
-        // rejects sending a `self`-isolated closure across the gate. This
-        // mirrors the Parakeet/Nemotron engines, which hand the gate a local
-        // `manager` rather than touching `self` inside the closure.
-        let pipeline = self.pipeline
-        return try await ANEInferenceGate.shared.withExclusiveAccess {
-            try await pipeline.transcribe(audio: audio, models: models, language: language)
+    private func transcribeOne(
+        samples: [Float],
+        generation: UUID
+    ) async throws -> CohereNativeTranscript {
+        try Task.checkCancellation()
+        guard loadedGeneration == generation else {
+            throw CancellationError()
         }
+        let result = try await backend.transcribe(samples: samples, language: nil)
+        try Task.checkCancellation()
+        guard loadedGeneration == generation else {
+            throw CancellationError()
+        }
+        return CohereNativeTranscript(
+            text: result.text,
+            detectedLanguage: Self.cohereLanguage(result.detectedLanguage),
+            wasTruncated: result.wasTruncated
+        )
     }
 
     /// Joins two transcript fragments produced from overlapping audio windows by
@@ -644,7 +663,7 @@ public actor CohereTranscribeEngine: STTTranscribing {
     // MARK: - Lifecycle
 
     public func prepare(onProgress: (@Sendable (String) -> Void)? = nil) async throws {
-        if models != nil { return }
+        if nativeCapabilities != nil, loadedGeneration != nil { return }
 
         if let initializationTask {
             do {
@@ -689,20 +708,21 @@ public actor CohereTranscribeEngine: STTTranscribing {
         let task = initializationTask
         initializationTask = nil
         activeLoadID = nil
-        // Dropping `LoadedModels` releases the encoder/decoder `MLModel`s.
-        models = nil
+        loadedGeneration = nil
+        nativeCapabilities = nil
         task?.cancel()
         _ = try? await task?.value
+        if backendNeedsUnload {
+            backendNeedsUnload = false
+            await backend.unload()
+        }
     }
 
     public func isReady() -> Bool {
-        models != nil
+        nativeCapabilities != nil && loadedGeneration != nil
     }
 
     private func loadModels(loadID: UUID, onProgress: (@Sendable (String) -> Void)?) async throws {
-        // Clear the shared handle when this work finishes (success or failure),
-        // from inside the task — not from a possibly-cancelled awaiting caller —
-        // so concurrent prepare() calls coalesce onto this one task.
         defer {
             if activeLoadID == loadID {
                 initializationTask = nil
@@ -710,61 +730,48 @@ public actor CohereTranscribeEngine: STTTranscribing {
             }
         }
         try Task.checkCancellation()
-        let dir = Self.defaultCacheRoot()
-        try Self.requireModelCached(cacheRoot: dir)
+        let modelURL = try modelURLProvider()
         try Task.checkCancellation()
-        onProgress?("Loading Cohere model with Core ML...")
-        try Task.checkCancellation()
-        let loaded = try await CoherePipeline.loadModels(
-            encoderDir: dir,
-            decoderDir: dir,
-            vocabDir: dir,
-            decoderVariant: .v2,
-            computeUnits: computePolicy.computeUnits
-        )
-        try Task.checkCancellation()
-        // Warm-up inference: pay CoreML's one-time graph/weight specialization
-        // now (at load / launch warm-up) instead of on the user's first
-        // dictation. On the GPU path this is the heavy ~115s specialization; on
-        // ANE it's ~2s. Runs on 1s of silence; the transcript is discarded.
-        // After this returns successfully, every real utterance is warm (~0.4s
-        // short / ~1.3s long on GPU). Non-cancellation warm-up failures are
-        // logged and treated as non-fatal because the loaded models can still run
-        // the first real transcription; cancellation still prevents readiness
-        // from being published.
-        onProgress?("Optimizing Cohere for this Mac...")
-        try Task.checkCancellation()
-        let warmUpSamples = [Float](repeating: 0, count: CohereAsrConfig.sampleRate)
+        onProgress?("Loading Cohere Transcribe with transcribe.cpp...")
+
         do {
-            _ = try await transcribeWithInferenceGate(
-                audio: warmUpSamples, models: loaded, language: defaultLanguage)
+            let capabilities = try await backend.load(
+                modelURL: modelURL,
+                computePolicy: computePolicy
+            )
+            backendNeedsUnload = true
+            try Self.validateNativeCapabilities(capabilities)
+            try Task.checkCancellation()
+            guard activeLoadID == loadID else { throw CancellationError() }
+
+            nativeCapabilities = capabilities
+            loadedGeneration = loadID
+            logger.notice(
+                "cohere_model_prepare_complete runtime=\(capabilities.runtimeVersion, privacy: .public) backend=\(capabilities.computeBackend, privacy: .public)"
+            )
+            AudioCaptureDiagnostics.append(
+                "cohere_model_prepare_complete runtime=\(capabilities.runtimeVersion) backend=\(capabilities.computeBackend)"
+            )
+            onProgress?("Ready")
         } catch {
-            if error is CancellationError { throw error }
-            logger.error("cohere_warmup_failed error=\(error.localizedDescription, privacy: .public)")
+            nativeCapabilities = nil
+            loadedGeneration = nil
+            if backendNeedsUnload {
+                backendNeedsUnload = false
+                await backend.unload()
+            }
+            throw error
         }
-        try Task.checkCancellation()
-        guard activeLoadID == loadID else { throw CancellationError() }
-        self.models = loaded
-        logger.notice("cohere_model_prepare_complete compute=\(self.computePolicy.rawValue, privacy: .public)")
-        AudioCaptureDiagnostics.append("cohere_model_prepare_complete compute=\(self.computePolicy.rawValue)")
-        onProgress?("Ready")
     }
 
     // MARK: - Model files
 
-    /// `<Application Support>/FluidAudio/Models` — the base FluidAudio's
-    /// download/load resolves against, shared with the Parakeet/Nemotron engines.
     nonisolated static func modelsBaseDirectory() -> URL {
-        AppPaths.fluidAudioModelsDirURL
+        CohereTranscribeModelCatalog.cacheBaseDirectory()
     }
 
-    /// `…/Models/cohere-transcribe/q8` — `DownloadUtils.downloadRepo` strips the
-    /// repo's `q8` subPath prefix but `Repo.cohereTranscribeCoreml.folderName`
-    /// re-adds it, so the encoder, v2 decoder and `vocab.json` all land in this
-    /// single directory (which is what `CoherePipeline.loadModels` expects).
     public nonisolated static func defaultCacheRoot() -> URL {
-        modelsBaseDirectory()
-            .appendingPathComponent(Repo.cohereTranscribeCoreml.folderName, isDirectory: true)
+        CohereTranscribeModelCatalog.modelDirectory()
     }
 
     public nonisolated static func isModelCached() -> Bool {
@@ -775,38 +782,18 @@ public actor CohereTranscribeEngine: STTTranscribing {
         hasModelCacheDirectory(cacheRoot: defaultCacheRoot())
     }
 
-    /// Cached only when the encoder bundle, the v2 decoder bundle, and the vocab
-    /// are all present — the exact inputs `CoherePipeline.loadModels` reads.
     nonisolated static func isModelCached(cacheRoot: URL) -> Bool {
-        let fileManager = FileManager.default
-        let encoder = cacheRoot.appendingPathComponent(ModelNames.CohereTranscribe.encoderCompiledFile)
-        let decoder = cacheRoot.appendingPathComponent(ModelNames.CohereTranscribe.decoderCacheExternalV2CompiledFile)
-        let vocab = cacheRoot.appendingPathComponent(ModelNames.CohereTranscribe.vocab)
-        return fileManager.fileExists(atPath: encoder.path)
-            && fileManager.fileExists(atPath: decoder.path)
-            && fileManager.fileExists(atPath: vocab.path)
+        CohereTranscribeModelCatalog.isVerified(directory: cacheRoot)
     }
 
     nonisolated static func hasModelCacheDirectory(cacheRoot: URL) -> Bool {
-        var isDirectory: ObjCBool = false
-        return FileManager.default.fileExists(atPath: cacheRoot.path, isDirectory: &isDirectory)
-            && isDirectory.boolValue
+        CohereTranscribeModelCatalog.hasArtifacts(directory: cacheRoot)
     }
 
     nonisolated static func requireModelCached(cacheRoot: URL = defaultCacheRoot()) throws {
-        guard isModelCached(cacheRoot: cacheRoot) else {
-            throw missingModelError()
-        }
+        _ = try CohereTranscribeModelCatalog.requireVerifiedModel(directory: cacheRoot)
     }
 
-    private nonisolated static func missingModelError() -> STTError {
-        .engineStartFailed(
-            "Cohere Transcribe is not downloaded. Run `macparakeet-cli models download cohere-transcribe` first."
-        )
-    }
-
-    /// Pre-fetches the model to its cache without loading it. A cached model is
-    /// a cheap no-op, mirroring `NemotronEnglishEngine.downloadModel`.
     @discardableResult
     public nonisolated static func downloadModel(
         onProgress: (@Sendable (String) -> Void)? = nil
@@ -814,13 +801,14 @@ public actor CohereTranscribeEngine: STTTranscribing {
         let cacheRoot = defaultCacheRoot()
         guard !isModelCached(cacheRoot: cacheRoot) else { return cacheRoot }
         onProgress?("Preparing Cohere model download...")
-        let progressHandler = makeDownloadProgressHandler(onProgress)
-        try await DownloadUtils.downloadRepo(
-            .cohereTranscribeCoreml,
-            to: modelsBaseDirectory(),
-            progressHandler: progressHandler
-        )
-        return cacheRoot
+        let downloader = CohereTranscribeModelCatalog.makeDownloader()
+        return try await downloader.downloadDefaultModel { progress in
+            guard let onProgress else { return }
+            let percent = max(0, min(100, Int(progress.fractionCompleted * 100)))
+            onProgress(
+                "Downloading Cohere model... \(percent)% (\(progress.completedFiles)/\(progress.totalFiles))"
+            )
+        }
     }
 
     @discardableResult
@@ -837,7 +825,6 @@ public actor CohereTranscribeEngine: STTTranscribing {
         } catch {
             return false
         }
-        // Prune the now-empty `cohere-transcribe` parent if nothing else uses it.
         removeIfEmpty(cacheRoot.deletingLastPathComponent(), fileManager: fileManager)
         return !fileManager.fileExists(atPath: cacheRoot.path)
     }
@@ -854,65 +841,83 @@ public actor CohereTranscribeEngine: STTTranscribing {
 
     // MARK: - Helpers
 
-    /// Maps a BCP-47-ish language hint to a Cohere-supported language, falling
-    /// back to `nil` (caller substitutes its default) for unknown/empty input.
-    static func cohereLanguage(_ code: String?) -> CohereAsrConfig.Language? {
-        // Reuse the canonical normalizer (folds to a lowercased primary subtag,
-        // rejects "auto"/empty/non-letter) so language handling stays consistent.
-        guard let normalized = SpeechEnginePreference.normalizeCohereLanguage(code) else { return nil }
-        return CohereAsrConfig.Language(rawValue: normalized)
+    static func cohereLanguage(_ code: String?) -> String? {
+        SpeechEnginePreference.normalizeCohereLanguage(code)
     }
 
-    private nonisolated static func makeDownloadProgressHandler(
-        _ onProgress: (@Sendable (String) -> Void)?
-    ) -> DownloadUtils.ProgressHandler? {
-        guard let onProgress else { return nil }
-        let clock = ContinuousClock()
-        let lastProgressUpdate = OSAllocatedUnfairLock(initialState: clock.now - .seconds(1))
-        let lastProgressMessage = OSAllocatedUnfairLock(initialState: "")
-        return { progress in
-            guard let message = Self.progressMessage(from: progress) else { return }
-            let now = clock.now
-            let shouldEmit = lastProgressUpdate.withLock { lastUpdate in
-                guard lastUpdate.duration(to: now) >= .milliseconds(250) else { return false }
-                lastUpdate = now
-                return true
-            }
-            guard shouldEmit else { return }
-
-            let isNewMessage = lastProgressMessage.withLock { lastMessage in
-                guard lastMessage != message else { return false }
-                lastMessage = message
-                return true
-            }
-            guard isNewMessage else { return }
-
-            onProgress(message)
+    nonisolated static func validateNativeCapabilities(
+        _ capabilities: CohereNativeCapabilities
+    ) throws {
+        guard capabilities.runtimeVersion == CohereTranscribePins.swiftWrapperVersion else {
+            throw CohereNativeBackendError.incompatibleRuntime(
+                expectedVersion: CohereTranscribePins.swiftWrapperVersion,
+                actualVersion: capabilities.runtimeVersion
+            )
         }
-    }
-
-    private nonisolated static func progressMessage(from progress: DownloadUtils.DownloadProgress) -> String? {
-        switch progress.phase {
-        case .listing:
-            return "Preparing Cohere model download..."
-        case .downloading(let completedFiles, let totalFiles):
-            guard totalFiles > 0 else { return nil }
-            let percent = max(0, min(100, Int(progress.fractionCompleted * 100.0)))
-            return "Downloading Cohere model... \(percent)% (\(completedFiles)/\(totalFiles))"
-        case .compiling:
-            return "Compiling Cohere model..."
+        let expectedCommit = CohereTranscribePins.requiredRuntimeCommit.lowercased()
+        let actualCommit = capabilities.runtimeCommit.lowercased()
+        let minimumRuntimeCommitLength = 7
+        guard actualCommit.count >= minimumRuntimeCommitLength,
+            expectedCommit.hasPrefix(actualCommit)
+        else {
+            throw CohereNativeBackendError.incompatibleCommit(
+                expectedPrefix: String(expectedCommit.prefix(minimumRuntimeCommitLength)),
+                actualCommit: capabilities.runtimeCommit
+            )
+        }
+        guard capabilities.architecture == CohereTranscribePins.modelArchitecture,
+            capabilities.variant == CohereTranscribePins.modelVariant
+        else {
+            throw CohereNativeBackendError.incompatibleModel(
+                architecture: capabilities.architecture,
+                variant: capabilities.variant
+            )
+        }
+        guard capabilities.supportsLanguageDetection else {
+            throw CohereNativeBackendError.languageDetectionUnavailable
+        }
+        let expectedLanguages = supportedLanguages.map(\.code).sorted()
+        let actualLanguages = Set(
+            capabilities.supportedLanguages.map {
+                $0.lowercased().split(separator: "-").first.map(String.init) ?? ""
+            }
+        ).filter { !$0.isEmpty }.sorted()
+        guard actualLanguages == expectedLanguages else {
+            throw CohereNativeBackendError.unsupportedLanguages(
+                expected: expectedLanguages,
+                actual: actualLanguages
+            )
+        }
+        guard capabilities.nativeSampleRate == 16_000 else {
+            throw CohereNativeBackendError.unsupportedSampleRate(
+                capabilities.nativeSampleRate
+            )
+        }
+        guard capabilities.maxAudioMilliseconds > 0 else {
+            throw CohereNativeBackendError.invalidMaximumAudioMilliseconds(
+                capabilities.maxAudioMilliseconds
+            )
+        }
+        guard !capabilities.providesTimestamps else {
+            throw CohereNativeBackendError.unexpectedTimestampSupport
         }
     }
 
     private nonisolated static func mapWarmUpError(_ error: Error) throws -> STTError {
         if error is CancellationError { throw error }
         if let mapped = mapCommonError(error) { return mapped }
+        if let backendError = error as? CohereNativeBackendError {
+            return .engineStartFailed(backendError.localizedDescription)
+        }
         return .engineStartFailed(error.localizedDescription)
     }
 
     private nonisolated static func mapTranscriptionError(_ error: Error) throws -> STTError {
         if error is CancellationError { throw error }
         if let mapped = mapCommonError(error) { return mapped }
+        if let backendError = error as? CohereNativeBackendError {
+            return .transcriptionFailed(backendError.localizedDescription)
+        }
         return .transcriptionFailed(error.localizedDescription)
     }
 
@@ -920,15 +925,8 @@ public actor CohereTranscribeEngine: STTTranscribing {
         if let sttError = error as? STTError {
             return sttError
         }
-        if let cohereError = error as? CohereAsrError {
-            switch cohereError {
-            case .modelNotFound:
-                return .modelNotLoaded
-            case .invalidInput(let message):
-                return .transcriptionFailed(message)
-            case .encodingFailed(let message), .decodingFailed(let message), .generationFailed(let message):
-                return .transcriptionFailed(message)
-            }
+        if error is InProcessModelDownloaderError {
+            return .modelDownloadFailed
         }
         if let urlError = error as? URLError {
             switch urlError.code {

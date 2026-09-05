@@ -7,7 +7,7 @@ import Foundation
 ///   bypassing the process-wide singleton that ADR-016 requires.
 ///   **App code must never instantiate this type directly.**
 ///   Use the shared ``STTScheduler`` from `AppEnvironment` instead.
-public actor STTClient: STTManaging, STTDictationPreviewTranscribing, SpeechEngineRoutedTranscribing, SpeechEngineSwitching, SpeechEngineSwitchAvailabilityProviding, SpeechEngineSessionManaging, SpeechEngineRoutedWarmUpManaging {
+public actor STTClient: STTManaging, STTDictationPreviewTranscribing, SpeechEngineRoutedTranscribing, SpeechEngineSwitching, SpeechEngineSwitchAvailabilityProviding, CohereModelDeleting, SpeechEngineSessionManaging, SpeechEngineRoutedWarmUpManaging {
     private let scheduler: STTScheduler
 
     public init(
@@ -106,6 +106,10 @@ public actor STTClient: STTManaging, STTDictationPreviewTranscribing, SpeechEngi
 
     public func clearModelCache() async {
         await scheduler.clearModelCache()
+    }
+
+    public func deleteCohereModel() async throws {
+        try await scheduler.deleteCohereModel()
     }
 
     public func shutdown() async {

@@ -52,10 +52,37 @@ release and the CLI version/docs are already updated:
 In the macparakeet repo, from the commit you intend to tag:
 
 ```bash
-swift build -c release --product macparakeet-cli
+export MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH=/absolute/path/to/owned/transcribe.cpp/bindings/swift
+export MACPARAKEET_TRANSCRIBE_CPP_ARTIFACT_ZIP=/absolute/path/to/TranscribeCpp-macos-arm64.xcframework.zip
+scripts/dist/verify_transcribe_cpp_release.sh
+MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH="$MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH" \
+  swift build -c release --product macparakeet-cli
 mkdir -p "dist/macparakeet-cli-${VERSION}-darwin-arm64"
+mkdir -p "dist/macparakeet-cli-${VERSION}-darwin-arm64/Frameworks"
+mkdir -p "dist/macparakeet-cli-${VERSION}-darwin-arm64/Legal"
 cp .build/release/macparakeet-cli "dist/macparakeet-cli-${VERSION}-darwin-arm64/"
+ditto \
+  "$MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH/build-apple/TranscribeCpp.xcframework/macos-arm64/CTranscribe.framework" \
+  "dist/macparakeet-cli-${VERSION}-darwin-arm64/Frameworks/CTranscribe.framework"
+install_name_tool -add_rpath @executable_path/Frameworks \
+  "dist/macparakeet-cli-${VERSION}-darwin-arm64/macparakeet-cli"
+otool -L "dist/macparakeet-cli-${VERSION}-darwin-arm64/macparakeet-cli" \
+  | grep '@rpath/CTranscribe.framework/'
+cp LICENSE THIRD_PARTY_LICENSES.md LICENSES/Apache-2.0.txt \
+  "dist/macparakeet-cli-${VERSION}-darwin-arm64/Legal/"
+cp "$MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH/build-apple/TranscribeCpp.xcframework/LICENSE" \
+  "dist/macparakeet-cli-${VERSION}-darwin-arm64/Legal/transcribe.cpp-LICENSE"
+cp "$MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH/build-apple/TranscribeCpp.xcframework/LICENSE.ggml" \
+  "dist/macparakeet-cli-${VERSION}-darwin-arm64/Legal/transcribe.cpp-LICENSE.ggml"
+cp "$MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH/build-apple/TranscribeCpp.xcframework/LICENSE.miniz" \
+  "dist/macparakeet-cli-${VERSION}-darwin-arm64/Legal/transcribe.cpp-LICENSE.miniz"
 ```
+
+The XCFramework slice directory may differ if the owned build uses a different
+identifier. Resolve it from `Info.plist`; do not guess or substitute the
+upstream reference artifact. The release archive must keep the framework next
+to the CLI under `Frameworks/` so the Homebrew formula can install both under
+`libexec`.
 
 ### 3. Sign + notarize the binary
 
@@ -63,6 +90,10 @@ Use the same Developer ID identity already set up for the `.app`. The
 exact identity is in `scripts/dist/sign_notarize.sh`.
 
 ```bash
+codesign --sign "Developer ID Application: <YOUR NAME> (<TEAMID>)" \
+         --options runtime \
+         --timestamp \
+         "dist/macparakeet-cli-${VERSION}-darwin-arm64/Frameworks/CTranscribe.framework"
 codesign --sign "Developer ID Application: <YOUR NAME> (<TEAMID>)" \
          --options runtime \
          --timestamp \

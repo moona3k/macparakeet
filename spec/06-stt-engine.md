@@ -72,32 +72,40 @@ Parakeet remains the default because it is faster, lower-latency, and lower-memo
 
 ### Cohere Transcribe Optional Engine
 
-Cohere Transcribe (`cohere-transcribe-03-2026`, 2B, Apache-2.0) was evaluated by the gold-standard benchmark (`benchmarks/asr/`, PR #568) and is shipped as an opt-in local engine for accuracy-critical record-then-transcribe work. It runs on-device through the same FluidAudio CoreML SDK as Parakeet/Nemotron — FluidAudio >= 0.15.4 exposes a public `CoherePipeline`; q8 model repo `FluidInference/cohere-transcribe-03-2026-coreml` — so no MLX or new runtime is required, unlike the deferred MLX-only candidates (Qwen3-ASR, Moonshine).
+Cohere Transcribe (`cohere-transcribe-03-2026`, 2B, Apache-2.0) was evaluated by the gold-standard benchmark (`benchmarks/asr/`, PR #568) and remains an opt-in local engine for accuracy-critical record-then-transcribe work. ADR-029 replaces only its former FluidAudio/CoreML execution backend with a narrow transcribe.cpp adapter. Its product identity, persistence, CLI routes, scheduler admission, and batch-only behavior remain unchanged.
 
 | Property | Value |
 |----------|-------|
-| Status | Shipped opt-in local engine; not the default |
-| Runtime | FluidAudio `CoherePipeline` through `CohereTranscribeEngine` |
-| Model cache | `~/Library/Application Support/FluidAudio/Models/cohere-transcribe/q8` |
-| Accuracy | Most accurate on-device: English macro WER 2.07% (full LibriSpeech); best Japanese (FLEURS CER 5.56). Significant lead only on noisy English + Japanese; clean EN/KO/ZH are statistical ties (paired-bootstrap CIs) |
+| Status | Integrated opt-in local engine with immutable owned arm64 XCFramework release |
+| Runtime | `CohereTranscribeEngine` plus actor-owned transcribe.cpp Swift adapter |
+| Runtime pin | Upstream baseline `v0.1.3`, commit `a94e021ef658dc7c788837341a13f6acea3baf3c`, Swift wrapper `0.1.3`; owned fork commit `51aa23592167cc32f8f3c5d2155d9f9937324c8d`; immutable release `macparakeet-v0.1.3-arm64.1`; artifact SHA-256 `caad2e1ce80801e5d0adb7e2bb9bcf8e7d1fd295657af281d8260d5dcc629350` |
+| Model | `cohere-transcribe-03-2026-Q5_K_M.gguf`, revision `dfa4adebb64f3076b7b6b90b721275cc069cb421`, 1,770,270,208 bytes, SHA-256 `14d02f1ad6dd77b3a60f82639879012c3adb4fe25c50a5a47a2c4c661daf1558` |
+| Model cache | `~/Library/Application Support/MacParakeet/models/stt/cohere/` with a revision-scoped leaf directory |
+| Accuracy | Historical CoreML evidence: English macro WER 2.07% (full LibriSpeech) and Japanese FLEURS CER 5.56. These figures are not transcribe.cpp results. The pinned transcribe.cpp path has representative multilingual correctness and performance evidence, but not a replacement full-corpus accuracy run |
 | Output | Plain transcript text; no word timestamps, no speaker labels, no live partials |
-| Selection | Explicit in Settings or CLI (`--engine cohere --language <code>`); `models select cohere-transcribe`; no automatic fallback |
-| Download | ~2.1 GB, explicit Settings/CLI download (`models download cohere-transcribe`) before selection or transcription; normal transcription paths fail fast if the model is missing |
-| Compute | Defaults to Core ML CPU+Neural Engine (`ane`) to avoid the recurring per-launch GPU specialization cost. A Settings control (shown when Cohere is active) and the `cohereComputePolicy` default let users opt into GPU for faster warm latency; the change applies on the next Cohere load (relaunch) |
+| Languages | Automatic detection across the runtime-reported Cohere language set. There is no language-selection UI. Saved values and `--language` remain legacy-compatible but are ignored by this backend |
+| Selection | Explicit in Settings or CLI (`--engine cohere`); `models select cohere-transcribe`; no automatic fallback |
+| Download | ~1.65 GiB, explicit Settings/CLI download (`models download cohere-transcribe`) before selection or transcription. Downloads resume through a partial file and must pass exact size and SHA-256 verification before use |
+| Compute | Metal by default, with a CPU option that applies on the next model load |
 
-Cohere is batch-only and single-flight inside the shared runtime. Dictation records first and transcribes after the user stops; it does not show live dictation preview. File transcription and meeting finalization can use Cohere, but meeting live preview chunks are disabled and meeting transcripts degrade to plain text because Cohere does not emit word timestamps. `STTScheduler` treats Cohere as a global serialized resource so an interactive Cohere dictation finalization is not hidden behind an engine-internal wait while another Cohere batch job is running; Parakeet and Nemotron keep the normal interactive/background split for low-latency dictation. Parakeet v3 stays the default and WhisperKit remains the lighter broad-coverage option; Cohere is for users who explicitly accept the larger model and memory footprint for accuracy. Full benchmark methodology, CIs, and speed/memory tables: `benchmarks/asr/README.md`.
+Cohere is batch-only and single-flight inside the shared runtime. Dictation records first and transcribes after the user stops; it does not show live dictation preview. File transcription and meeting finalization can use Cohere, but meeting live preview chunks are disabled and meeting transcripts degrade to plain text because Cohere does not emit word timestamps. `STTScheduler` treats Cohere as a global serialized resource so an interactive Cohere dictation finalization is not hidden behind an engine-internal wait while another Cohere batch job is running.
+
+Audio is converted to 16 kHz mono Float32 outside `MainActor`. The engine keeps every native call below both the runtime-reported maximum and a conservative 300-second practical bound, adds bounded overlap, and stitches duplicate boundary text. Native truncation triggers recursive splitting rather than silent loss. The actor waits for cancellation to drain before destroying the session, destroys the session before its model, and completes teardown before model deletion.
+
+The backend always invokes Cohere without a caller language hint. The pinned model transcribes the official 14-language set this way, while the native runtime has no language-identification head and correctly advertises no native detection. The adapter classifies the returned transcript locally with Apple's Natural Language framework and publishes metadata only when the classification maps to the official set. The unmodified upstream v0.1.3 artifact is not a release fallback because MacParakeet requires the self-built, arm64-only owned artifact with immutable source and checksum pins. The exact release and model pins are specified in ADR-029 and `scripts/dist/transcribe_cpp_release_pins.sh`.
 
 ### Three-Chip Architecture
 
 Each ML workload runs on the chip it was designed for:
 
-```
+```text
 CPU:  MacParakeet app (UI, shortcuts, clipboard, history)
-ANE/CoreML: Parakeet STT, Nemotron Beta, and Cohere Transcribe (via FluidAudio/CoreML)
+ANE/CoreML: Parakeet STT and Nemotron Beta via FluidAudio/CoreML
+GPU or CPU: Cohere Transcribe via transcribe.cpp
 CPU/GPU/CoreML as selected by WhisperKit: optional multilingual STT
 ```
 
-The default Parakeet path runs on dedicated silicon, leaving CPU and GPU free for the app and macOS. Nemotron uses FluidAudio's CoreML path with separate interactive/background managers backed by shared model weights. Cohere uses FluidAudio's CoreML batch path and is admitted as a scheduler-level single-flight resource around its loaded pipeline. WhisperKit uses the compute path selected by WhisperKit/CoreML for the downloaded model variant.
+The default Parakeet path runs on dedicated silicon, leaving CPU and GPU free for the app and macOS. Nemotron uses FluidAudio's CoreML path with separate interactive/background managers backed by shared model weights. Cohere uses a pinned native Metal or CPU batch path and is admitted as a scheduler-level single-flight resource around its actor-owned context. WhisperKit uses the compute path selected by WhisperKit/CoreML for the downloaded model variant.
 
 ---
 

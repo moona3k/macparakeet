@@ -92,7 +92,7 @@ final class EngineSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.whisperDefaultLanguage, SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults) ?? "auto")
         XCTAssertEqual(vm.whisperDefaultLanguage, "auto")
         XCTAssertEqual(vm.cohereComputePolicy, CohereTranscribeEngine.ComputePolicy.current(defaults: defaults))
-        XCTAssertEqual(vm.cohereComputePolicy, .ane)
+        XCTAssertEqual(vm.cohereComputePolicy, .metal)
     }
 
     func testTranscriptionEngineSelectionPersistsWithoutChangingDictationEngine() {
@@ -363,25 +363,25 @@ final class EngineSettingsViewModelTests: XCTestCase {
 
     func testSetCohereComputePolicyPersists() {
         let vm = makeViewModel()
-        XCTAssertEqual(vm.cohereComputePolicy, .ane)
+        XCTAssertEqual(vm.cohereComputePolicy, .metal)
 
-        vm.cohereComputePolicy = .gpu
+        vm.cohereComputePolicy = .cpu
 
         let reloaded = makeViewModel()
-        XCTAssertEqual(reloaded.cohereComputePolicy, .gpu)
-        XCTAssertEqual(CohereTranscribeEngine.ComputePolicy.current(defaults: defaults), .gpu)
+        XCTAssertEqual(reloaded.cohereComputePolicy, .cpu)
+        XCTAssertEqual(CohereTranscribeEngine.ComputePolicy.current(defaults: defaults), .cpu)
     }
 
     func testCohereComputePolicyNeedsRelaunchTracksDivergenceFromLaunchValue() {
         let vm = makeViewModel()
         XCTAssertFalse(vm.cohereComputePolicyNeedsRelaunch)
 
-        vm.cohereComputePolicy = .gpu
+        vm.cohereComputePolicy = .cpu
         XCTAssertTrue(vm.cohereComputePolicyNeedsRelaunch)
 
         // Flipping back to the launch value clears the pending state — the
         // running engine already matches, so no relaunch is needed.
-        vm.cohereComputePolicy = .ane
+        vm.cohereComputePolicy = .metal
         XCTAssertFalse(vm.cohereComputePolicyNeedsRelaunch)
     }
 
@@ -788,6 +788,29 @@ final class EngineSettingsViewModelTests: XCTestCase {
         try await waitUntil { recorder.deleteCount == 1 && vm.cohereModelStatus == .notDownloaded }
         XCTAssertFalse(vm.isCohereModelDownloaded)
         XCTAssertEqual(vm.cohereModelStatusDetail, "Cohere Transcribe · Needs download before use.")
+    }
+
+    func testDeleteCohereModelPrefersConfiguredLifecycleGate() async throws {
+        let diskRecorder = CohereDeleteRecorder()
+        let lifecycleDeleter = MockSTTClient()
+        let vm = makeViewModel(
+            cohereCached: { true },
+            deleteCohere: {
+                diskRecorder.delete()
+                return true
+            }
+        )
+        vm.configure(speechEngineSwitcher: lifecycleDeleter)
+        vm.cohereModelStatus = .notLoaded
+
+        vm.deleteCohereModel()
+
+        try await waitUntil {
+            vm.cohereDeleting == false
+        }
+        let lifecycleCount = await lifecycleDeleter.cohereModelDeleteCallCount
+        XCTAssertEqual(lifecycleCount, 1)
+        XCTAssertEqual(diskRecorder.deleteCount, 0)
     }
 
     func testDeleteCohereModelAllowsFailedPartialDownloadCleanup() async throws {

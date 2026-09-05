@@ -66,16 +66,27 @@ current renderer supports it, while final is the captured authoritative route.
   through the streaming manager in bounded slices; live dictation drives
   the same manager incrementally and emits partials (see below). Preserves
   FluidAudio token timings as MacParakeet word timestamps when available.
-- `CohereTranscribeEngine.swift` — FluidAudio Cohere Transcribe wrapper.
-  Batch-only: dictation records first and transcribes after stop, file and
-  meeting-finalize jobs run offline, live dictation preview stays off, and
-  meeting live preview chunks are not routed to Cohere. No word timings;
-  meetings degrade to plain text. Loads only an explicitly downloaded model
-  cache; it does not download from normal transcription/warm-up paths. Its
-  CoreML model has a large runtime footprint, so Settings gates both selecting
-  Cohere and downloading its model through the shared capability-registry
-  memory floor (`SpeechEngineCapabilityRegistry`, 16 GB); Core runtime and CLI
-  entry points enforce the same gate before constructing or selecting Cohere.
+- `CohereTranscribeEngine.swift` owns MacParakeet's existing Cohere product
+  contract around a small transcribe.cpp backend. It resolves and verifies the
+  pinned Q5_K_M GGUF, converts audio, bounds native chunks to 300 seconds,
+  stitches overlap text, maps errors, and returns the shared `STTResult`.
+- `CohereTranscribeBackend.swift` is the narrow native protocol plus an
+  unavailable-framework stub for normal source builds and failure tests.
+- `CohereTranscribeCppBackend.swift` conditionally compiles the transcribe.cpp
+  Swift wrapper. Its actor owns the model, session, active run, cancellation,
+  and deterministic session-before-model teardown. It sends no language hint
+  to the model and classifies returned transcript text locally with Apple's
+  Natural Language framework because Cohere has no native language-ID head.
+- `CohereTranscribeModel.swift` holds the exact upstream, wrapper, artifact
+  reference, model revision, size, and SHA-256 pins.
+
+  Cohere remains batch-only: dictation records first and transcribes after
+  stop, file and meeting-finalize jobs run offline, live dictation preview
+  stays off, and meeting live preview chunks are not routed to Cohere. It has
+  automatic multilingual transcription but no language picker, word timings,
+  or speaker labels. Downloads are explicit, resumable, and checksum-verified.
+  The shared capability-registry memory floor remains 16 GB until new native
+  benchmark evidence supports changing it.
 - `NativeLiveDictating.swift` — internal protocol the native streaming engines
   conform to so `STTRuntime` can route a live dictation session to the active
   Nemotron or Parakeet Unified build without knowing the concrete engine type.
@@ -109,8 +120,8 @@ minor historical wart, not a design statement.
   is the implementation.
 - ADR-021 — WhisperKit as optional multilingual engine; engine
   routing and meeting engine leases live in `STTScheduler`.
-- ADR-001 amendment / benchmark notes — Cohere Transcribe as an opt-in local
-  accuracy engine.
+- ADR-029 defines the Cohere transcribe.cpp backend boundary, exact pins,
+  lifecycle, supply-chain gate, and immutable owned-artifact release.
 - ADR-009 — custom hotkey support (relevant to the hotkey files
   above).
 - `spec/06-stt-engine.md` — narrative spec.

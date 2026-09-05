@@ -1019,10 +1019,10 @@ The Transforms sidebar item is visible when `AppFeatures.transformsEnabled` is t
 - When meeting preview and final routes differ, the recording panel attributes both. If the live engine cannot preview, it says preview is off while confirming audio is still recording for final transcription.
 - Engine picker options: Parakeet (default), Nemotron Beta, Whisper, and Cohere.
 - Whisper language picker is shown for the Whisper path. `Auto-detect` stores no explicit language; specific languages are normalized before saving.
-- Cohere language picker is shown for the Cohere path. Cohere has no auto-detect; `nil` falls back to English and explicit choices store supported primary subtags such as `en`, `ja`, or `zh`.
+- Cohere has no language picker. The transcribe.cpp backend detects multilingual speech automatically. Existing saved Cohere language values remain compatibility state but do not affect native decoding.
 - Status pill states: `Unknown`, `Checking`, `Ready`, `Not Loaded`, `Not Downloaded`, `Downloading`, `Repairing`, `Failed`.
 - `Repair` retries Parakeet model download/initialization with bounded backoff.
-- `Download` explicitly downloads the configured Whisper model into `~/Library/Application Support/MacParakeet/models/stt/whisper/` or Cohere Transcribe into `~/Library/Application Support/MacParakeet/models/stt/cohere-transcribe/`.
+- `Download` explicitly downloads the configured Whisper model into `~/Library/Application Support/MacParakeet/models/stt/whisper/` or the checksum-pinned Cohere GGUF into `~/Library/Application Support/MacParakeet/models/stt/cohere/`.
 - Switching engines is disabled while STT work is queued/running or an active meeting recording holds a speech-engine lease.
 
 ### Permissions (v0.1)

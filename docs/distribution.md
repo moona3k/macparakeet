@@ -16,8 +16,80 @@ This creates `dist/MacParakeet.app` and bundles:
 - `Assets/AppIcon.icns` into `Contents/Resources/AppIcon.icns` (app icon for Dock, Finder, DMG)
 - `macparakeet-cli` into `Contents/MacOS/macparakeet-cli`
 - SwiftPM resource bundles into `Contents/Resources/`
+- the checksum-pinned arm64 `CTranscribe.framework` into `Contents/Frameworks/`
 - Standalone helper binaries (FFmpeg, yt-dlp helper seed, and optional Node runtime) into `Contents/Resources/` when configured by the build scripts
-- No Python runtime or `uv` bootstrap is bundled (FluidAudio/CoreML STT is native Swift)
+- No Python runtime or `uv` bootstrap is bundled
+
+### Cohere transcribe.cpp release artifact
+
+Cohere's native backend is an optional local package in source builds and a
+required owned artifact in production builds. A release build with
+`VERSION=X.Y.Z` first runs
+`scripts/dist/verify_transcribe_cpp_release.sh`. The verifier checks:
+
+- the local Swift package is at the exact owned-fork commit;
+- the wrapper reports version 0.1.3;
+- the supplied XCFramework archive matches the committed SHA-256 pin;
+- the installed package XCFramework exactly matches that verified archive;
+- its macOS CTranscribe binary is arm64-only; and
+- the transcribe.cpp, ggml, and miniz MIT notices exactly match the retained
+  source notices.
+
+Set both paths for a release:
+
+```bash
+export MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH=/absolute/path/to/owned/transcribe.cpp/bindings/swift
+export MACPARAKEET_TRANSCRIBE_CPP_ARTIFACT_ZIP=/absolute/path/to/TranscribeCpp-macOS-arm64-v0.1.3-macparakeet.1.xcframework.zip
+VERSION=X.Y.Z scripts/dist/build_app_bundle.sh
+```
+
+The owned native artifact is arm64-only, so release builds must keep
+`UNIVERSAL=0` (the default). The bundle builder and release verifier fail
+before compilation if `UNIVERSAL=1` is combined with the transcribe.cpp
+package. Universal local stub builds remain available only when that native
+package is not linked.
+
+The exact owned commit, immutable release tag, artifact filename, download URL,
+and archive checksum live in `scripts/dist/transcribe_cpp_release_pins.sh`.
+The published release is
+`DudeMeister23/transcribe.cpp` tag `macparakeet-v0.1.3-arm64.1`; the artifact
+SHA-256 is
+`caad2e1ce80801e5d0adb7e2bb9bcf8e7d1fd295657af281d8260d5dcc629350`.
+GitHub immutable releases are enabled for the fork, and the release's Sigstore
+attestation has been verified. Production bundling fails if any supplied
+package or artifact differs from the pins. Do not substitute the upstream
+v0.1.3 release artifact: the project ships its self-built,
+architecture-checked archive from the exact owned commit.
+
+The owned fork must also add an arm64-only option to upstream's framework
+builder. The expected build command is:
+
+```bash
+TRANSCRIBE_XCFRAMEWORK_SLICES=macos \
+TRANSCRIBE_MACOS_ARCHS=arm64 \
+scripts/ci/build_xcframework.sh
+scripts/ci/package_xcframework.sh
+```
+
+`TRANSCRIBE_MACOS_ARCHS` is an owned-fork addition, not an upstream v0.1.3
+option. The fork also runs English, German, Japanese, and Chinese fixtures
+without caller language hints. Language metadata is classified locally in the
+MacParakeet adapter because Cohere has no native language-identification head.
+The release verifier rejects a universal or x86_64 macOS binary and also
+checks the vendored ggml and miniz upstream commit markers.
+
+The bundle builder embeds `CTranscribe.framework`, adds the Frameworks rpath to
+the app and bundled CLI, verifies both executables link the framework, and
+copies all three native MIT notices, the Apache-2.0 license text, and the
+third-party attribution manifest into `Contents/Resources/Legal/`. Signing then
+signs CTranscribe before the app.
+
+The compatible model is downloaded separately at runtime:
+`cohere-transcribe-03-2026-Q5_K_M.gguf`, revision
+`dfa4adebb64f3076b7b6b90b721275cc069cb421`, size 1,770,270,208 bytes,
+SHA-256
+`14d02f1ad6dd77b3a60f82639879012c3adb4fe25c50a5a47a2c4c661daf1558`.
+It is Apache-2.0 and is not bundled in the DMG.
 
 `build_app_bundle.sh` automatically downloads a **statically-linked FFmpeg** from [ffmpeg.martin-riedl.de](https://ffmpeg.martin-riedl.de/) (macOS arm64, SHA256-verified). No Homebrew dependency. To use a custom binary instead, set `FFMPEG_PATH`:
 
@@ -620,7 +692,9 @@ Users can control auto-update behavior in Settings > Updates:
 ## Notes
 
 - **Sparkle.framework must be embedded in the .app bundle.** The `build_app_bundle.sh` script copies it to `Contents/Frameworks/`. If the framework is missing, the app will crash immediately at launch with a dyld `Library not loaded: @rpath/Sparkle.framework` error. The script now fails the build if Sparkle.framework cannot be found — do not bypass this check.
-- The scripts default to a single-arch Release build. For a universal binary:
+- The scripts default to a single-arch Release build. A universal local stub
+  build remains available only when the arm64-only transcribe.cpp package is
+  not linked:
 
 ```bash
 UNIVERSAL=1 scripts/dist/build_app_bundle.sh

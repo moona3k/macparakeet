@@ -29,8 +29,9 @@ requires `macparakeet-cli >= 2.4.0`.
 
 If MacParakeet.app is already installed, the bundled CLI is also available at
 `/Applications/MacParakeet.app/Contents/MacOS/macparakeet-cli`.
-Parakeet, Nemotron, and Cohere CoreML caches are managed by FluidAudio.
-WhisperKit model downloads live under
+Parakeet and Nemotron CoreML caches are managed by FluidAudio. Cohere's pinned
+GGUF and WhisperKit model downloads live under
+`~/Library/Application Support/MacParakeet/models/stt/cohere/` and
 `~/Library/Application Support/MacParakeet/models/stt/whisper/`.
 
 The reusable agent skill lives in

@@ -1813,8 +1813,11 @@ extension TelemetryEventSpec {
                 ParakeetModelVariant.unified.rawValue,
                 NemotronModelVariant.multilingual1120.rawValue,
                 NemotronModelVariant.english1120.rawValue,
-                CohereTranscribeEngine.ComputePolicy.ane.rawValue,
-                CohereTranscribeEngine.ComputePolicy.gpu.rawValue,
+                CohereTranscribeEngine.ComputePolicy.metal.rawValue,
+                CohereTranscribeEngine.ComputePolicy.cpu.rawValue,
+                // Accepted only for events created before the backend migration.
+                "ane",
+                "gpu",
             ]
         )
 

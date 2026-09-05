@@ -811,9 +811,8 @@ public final class TranscriptionViewModel {
         case .whisper:
             return SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults)
         case .cohere:
-            // Cohere has no auto-detect and its engine defaults to English, so a
-            // retranscription must carry the user's chosen language explicitly,
-            // exactly as Nemotron/Whisper do above.
+            // Preserve the saved language as compatibility metadata. The
+            // transcribe.cpp backend ignores it and detects language.
             return SpeechEnginePreference.cohereDefaultLanguage(defaults: defaults)
         }
     }
@@ -1454,7 +1453,7 @@ public final class TranscriptionViewModel {
                 let friendly = SpeechEnginePreference.friendlyVariantName(whisperVariant)
                 return "Whisper \(friendly) \u{00B7} Local Core ML"
             case .cohere:
-                return "Cohere Transcribe \u{00B7} Local Core ML"
+                return "Cohere Transcribe \u{00B7} Local transcribe.cpp"
             }
         case .identifyingSpeakers:
             return "May take several minutes per hour of audio. Speaker labels are approximate \u{2014} click to rename."
