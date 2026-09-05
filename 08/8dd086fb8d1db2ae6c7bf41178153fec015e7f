@@ -1,0 +1,32 @@
+Sources/CLI/CHANGELOG.md
+  h_2ab1f47fea2ced 109-120
+Sources/CLI/Commands/HealthCommand.swift
+  h_2ab1f47fea2ced 66-67,71,242-254,271,273,277
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  h_2ab1f47fea2ced 28-34,1168-1218,1225-1333
+Sources/MacParakeetCore/Database/README.md
+  h_2ab1f47fea2ced 8-12,57-58,143-145
+Sources/MacParakeetCore/Services/AppPaths.swift
+  h_2ab1f47fea2ced 233-240,244
+Sources/MacParakeetCore/Services/LLM/LocalCLIExecutor.swift
+  h_2ab1f47fea2ced 248-249,368-372,384-386,389-390,431,433-435,438,443,445-447,452,629-631
+Tests/CLITests/ModelLifecycleCommandTests.swift
+  h_2ab1f47fea2ced 50-92
+Tests/MacParakeetTests/Services/LLM/LocalCLIExecutorTests.swift
+  h_2ab1f47fea2ced 242-243,299,366-401
+docs/cli-testing.md
+  h_2ab1f47fea2ced 23,25-30,33-37,39,432-434,439-453
+spec/contracts/cli-json-v1.md
+  h_2ab1f47fea2ced 40-46,75-77,118,125-128,160-169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "088dd086fb8d1db2ae6c7bf41178153fec015e7f",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

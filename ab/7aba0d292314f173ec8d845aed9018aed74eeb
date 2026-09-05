@@ -1,0 +1,90 @@
+README.md
+  h_2ab1f47fea2ced 67-69,81,176,211-213,242-243,253,257,284,286
+docs/audits/2026-09-04-release-readiness-issues.json
+  h_2ab1f47fea2ced 1-1402
+docs/audits/2026-09-04-release-readiness.md
+  h_2ab1f47fea2ced 1-180
+integrations/README.md
+  h_2ab1f47fea2ced 8-12,31-38,76-78,132-136,145-150,162-168,175-207,405-406,444-448,540-547,608-614,669-678,698-702
+integrations/hermes/README.md
+  h_2ab1f47fea2ced 3-6,8,12-13,17-45,49-52
+integrations/openclaw/README.md
+  h_2ab1f47fea2ced 3-5,7,11-12,16-45,49-52
+integrations/skill/macparakeet-stt/SKILL.md
+  h_2ab1f47fea2ced 3,8-13,15,18,20,23-28,30,32-45,47,49-64
+plans/README.md
+  h_2ab1f47fea2ced 3-7,9-10,33,35,38,44,46,48,51,68
+plans/active/2026-06-14-meeting-mic-reliability.md
+  h_2ab1f47fea2ced 3,9-16
+plans/active/2026-06-28-transcript-detail-refresh.md
+  h_2ab1f47fea2ced 39-46
+plans/active/2026-07-03-parakeet-custom-vocabulary.md
+  h_2ab1f47fea2ced 3,19,45
+plans/active/2026-07-04-issue-647-local-transcription-title-rename.md
+  h_2ab1f47fea2ced 14,19-25
+plans/active/2026-07-04-meeting-health-artifacts-speaker-rename.md
+  h_2ab1f47fea2ced 5-8,69
+plans/active/2026-07-10-meeting-knowledge-layer.md
+  h_2ab1f47fea2ced 26-29,342-346
+plans/active/2026-07-20-dapt-export.md
+  h_2ab1f47fea2ced 7-8,13-18
+spec/00-vision.md
+  h_2ab1f47fea2ced 4,56-58,96-98,103-106,108-111,134-137,337
+spec/02-features.md
+  h_2ab1f47fea2ced 651,919,1157,1768,1789-1791,1838,1842,1860-1881,1934-1935,1937,1939-1944
+spec/03-architecture.md
+  h_2ab1f47fea2ced 1044-1050,1159,1163
+spec/04-ui-patterns.md
+  h_2ab1f47fea2ced 750-755,764-778,1086-1091
+spec/05-audio-pipeline.md
+  h_2ab1f47fea2ced 235-261,437-441,459,462
+spec/06-stt-engine.md
+  h_2ab1f47fea2ced 150-155
+spec/07-text-processing.md
+  h_2ab1f47fea2ced 11-15,19-23,40-60,70-79,87-88,92-94,96-99,127-129,142-143,146,157,160,163,166,173-183
+spec/08-error-handling.md
+  h_2ab1f47fea2ced 10,30-33,52-61,73-92,104,127-163,175-196
+spec/09-testing.md
+  h_2ab1f47fea2ced 174,185-187,191-194,196-201,213-215
+spec/10-ai-coding-method.md
+  h_2ab1f47fea2ced 29-33,35-37,95-99
+spec/12-processing-layer.md
+  h_2ab1f47fea2ced 75-80,347,349,386
+spec/13-agent-workflows.md
+  h_2ab1f47fea2ced 8-17,34-37
+spec/README.md
+  h_2ab1f47fea2ced 4,6,66,68,82-87,117,153,191,265,278
+spec/adr/002-local-only.md
+  h_2ab1f47fea2ced 6,30-31,35-38,43-59,82-85,112
+spec/adr/004-deterministic-pipeline.md
+  h_2ab1f47fea2ced 5,20,24,30-34,40-41,73,77,79-81,89,101,105,109
+spec/adr/012-telemetry-system.md
+  h_2ab1f47fea2ced 56
+spec/adr/013-prompt-library-multi-summary.md
+  h_2ab1f47fea2ced 121
+spec/adr/017-calendar-meeting-auto-start.md
+  h_2ab1f47fea2ced 5
+spec/adr/018-live-meeting-insights-and-ask.md
+  h_2ab1f47fea2ced 6
+spec/adr/019-crash-resilient-meeting-recording.md
+  h_2ab1f47fea2ced 157-163,201-210
+spec/adr/023-activity-based-meeting-auto-stop.md
+  h_2ab1f47fea2ced 6,133,139,141
+spec/adr/025-meeting-capture-reliability.md
+  h_2ab1f47fea2ced 130-149
+spec/adr/026-asr-engine-strategy.md
+  h_2ab1f47fea2ced 83,85-87,147-148
+spec/adr/027-product-north-star.md
+  h_2ab1f47fea2ced 70-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "ab7aba0d292314f173ec8d845aed9018aed74eeb",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

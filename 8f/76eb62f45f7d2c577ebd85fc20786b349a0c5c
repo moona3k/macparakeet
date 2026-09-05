@@ -1,0 +1,18 @@
+Sources/MacParakeet/Views/Meetings/MeetingsView.swift
+  h_2ab1f47fea2ced 27-30,50-55,57-65,67-69,71-72,74-101,103-104,106-127,130-137,140-149,151-172,174-183,185-186,188-195,422-423,516-517,617-618,645-648,656-659,667-673,1607-1610,1626-1629
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  h_2ab1f47fea2ced 389-392,394,396,416-419,439-443,471-562
+Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift
+  h_2ab1f47fea2ced 45-48,109-121,124-126,128-129,131-154,156-170,172-179,182-221,223-227,229-244,246-247,249-254,256-257,265-269,392-395,403-406,416-419,427-430,438-444,463-465,546-547,575,857-871,959-960
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "8f76eb62f45f7d2c577ebd85fc20786b349a0c5c",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
