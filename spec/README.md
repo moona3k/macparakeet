@@ -63,7 +63,15 @@ These decisions are final. Do not second-guess them.
 | Channel | Status | Notes |
 |---------|--------|-------|
 | Stable DMG `0.7.3` | User-facing release, recommended for normal use | Dictation, file/media URL transcription, System Default microphone routing, separate live/final speech-engine routes, meeting recording with cleaned-mic finalization and bounded capture lifecycle, calendar auto-start and activity-based auto-stop (both opt-in, default off), Transforms, VAD-guided meeting live-preview chunking, optional Nemotron Beta, Cohere, and WhisperKit, bundled CLI 3.0, exports, vocabulary, AI features |
-| `main` | Development | Current `0.7.3` source plus subsequent reviewed development; developer-gated in-process MLX local LLM groundwork remains compiled/tested but hidden from normal users |
+| `main` | Development | Current `0.7.3` source plus reviewed post-release work: embedded audio-track selection, DAPT export, readable meeting copy/export, long-transcript rendering bounds, retention safety, source-owned meeting recovery with actionable warnings and capture reports, and the bundled CLI 3.2 candidate. Developer-gated in-process MLX local LLM groundwork remains compiled/tested but hidden from normal users |
+
+The post-`0.7.3` release-candidate scope is additive except for internal
+reliability fixes: local multi-track files gain explicit track selection; DAPT
+joins the export set; meeting copy/export becomes document-shaped; and capture
+recovery now owns callback/stream lifecycle failures with durable partial-capture
+reporting. The public CLI changes are additive and therefore promoted to the
+3.2 release candidate. These changes are on `main`, not in the stable DMG or
+standalone Homebrew CLI until their next signed releases are published.
 
 Current `main` feature gates in `Sources/MacParakeetCore/AppFeatures.swift`:
 
