@@ -1,0 +1,21 @@
+Sources/MacParakeet/Views/MeetingRecording/MeetingRowCard.swift
+  s_4df83e5e17a0d7::t_7b9fa76b7856bc 191-197
+spec/04-ui-patterns.md
+  s_4df83e5e17a0d7::t_89b1cc05ae606b 146,150,153-154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "d4134ffa014cca1e64d323a1e8f336331e293e13",
+  "prompts": {},
+  "sessions": {
+    "s_4df83e5e17a0d7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a077d2-5c39-70b3-af1d-fb8093d488b7",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
