@@ -1,0 +1,20 @@
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  s_74f663c100202a::t_2e42c1cc2f0342 929
+  s_74f663c100202a::t_48036647cba6a7 4391-4419
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "ed0697523e35fb812896108e50c29f9e67a4b9f8",
+  "prompts": {},
+  "sessions": {
+    "s_74f663c100202a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2b04bd8d-2210-4d3c-8725-2dd718138850",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
