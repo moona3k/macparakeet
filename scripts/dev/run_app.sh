@@ -6,7 +6,11 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # optimized build (e.g. to feel-test true STT latency — Debug Swift is ~10x
 # slower for the Cohere decoder's per-step work).
 CONFIG="${MACPARAKEET_CONFIG:-Debug}"
-DERIVED_DATA_DIR="$ROOT_DIR/.build/xcode-dev"
+DISCOVER_BUILD_SUFFIX=""
+if [[ "${MACPARAKEET_DISABLE_DISCOVER:-0}" == "1" ]]; then
+  DISCOVER_BUILD_SUFFIX="-no-discover"
+fi
+DERIVED_DATA_DIR="$ROOT_DIR/.build/xcode-dev${DISCOVER_BUILD_SUFFIX}"
 PRODUCT_DIR="$DERIVED_DATA_DIR/Build/Products/$CONFIG"
 APP_BIN="$PRODUCT_DIR/MacParakeet"
 APP_BUNDLE="$PRODUCT_DIR/MacParakeet-Dev.app"

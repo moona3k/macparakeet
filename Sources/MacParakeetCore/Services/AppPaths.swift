@@ -216,9 +216,11 @@ public enum AppPaths {
     }
 
     /// Cached discover feed
+    #if !MACPARAKEET_DISABLE_DISCOVER
     public static var discoverCachePath: String {
         "\(appSupportDir)/discover-cache.json"
     }
+    #endif
 
     /// Thumbnail cache directory
     public static var thumbnailsDir: String {

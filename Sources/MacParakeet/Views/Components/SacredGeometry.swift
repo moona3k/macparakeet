@@ -22,6 +22,63 @@ struct TriangleShape: Shape {
     }
 }
 
+// MARK: - Static Merkaba Shape
+
+/// Static Merkaba ornament used by non-Discover surfaces such as the prompt library.
+///
+/// Keep this shared shape separate from the animated Merkaba views below: callers
+/// use it as a lightweight stroked background and own its color, line width, and
+/// transforms.
+struct MerkabaShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let radius = min(rect.width, rect.height) * 0.42
+
+        addTriangle(to: &path, center: center, radius: radius, angleOffset: -.pi / 2)
+        addTriangle(to: &path, center: center, radius: radius, angleOffset: .pi / 2)
+
+        let innerRadius = radius * 0.5
+        for index in 0..<6 {
+            let angle = CGFloat(index) * .pi / 3
+            let point = CGPoint(
+                x: center.x + innerRadius * Foundation.cos(angle),
+                y: center.y + innerRadius * Foundation.sin(angle)
+            )
+            if index == 0 { path.move(to: point) } else { path.addLine(to: point) }
+        }
+        path.closeSubpath()
+
+        path.addEllipse(
+            in: CGRect(
+                x: center.x - radius,
+                y: center.y - radius,
+                width: radius * 2,
+                height: radius * 2
+            )
+        )
+
+        return path
+    }
+
+    private func addTriangle(
+        to path: inout Path,
+        center: CGPoint,
+        radius: CGFloat,
+        angleOffset: CGFloat
+    ) {
+        for index in 0..<3 {
+            let angle = CGFloat(index) * 2 * .pi / 3 + angleOffset
+            let point = CGPoint(
+                x: center.x + radius * Foundation.cos(angle),
+                y: center.y + radius * Foundation.sin(angle)
+            )
+            if index == 0 { path.move(to: point) } else { path.addLine(to: point) }
+        }
+        path.closeSubpath()
+    }
+}
+
 // MARK: - Spinner Ring (Compact Merkaba)
 
 /// Merkaba-inspired spinner — two counter-rotating triangles with glowing vertices

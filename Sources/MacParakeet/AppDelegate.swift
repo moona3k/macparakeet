@@ -66,7 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let textSnippetsViewModel = TextSnippetsViewModel()
     private let vocabularyBackupViewModel = VocabularyBackupViewModel()
     private let feedbackViewModel = FeedbackViewModel()
-    private let discoverViewModel = DiscoverViewModel()
+    private let featureDependencies = AppFeatureDependencies()
     private let libraryViewModel = TranscriptionLibraryViewModel()
     private let meetingsLibraryViewModel = TranscriptionLibraryViewModel(scope: .meetings)
     private let llmSettingsViewModel = LLMSettingsViewModel()
@@ -200,7 +200,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         textSnippetsViewModel: textSnippetsViewModel,
         vocabularyBackupViewModel: vocabularyBackupViewModel,
         feedbackViewModel: feedbackViewModel,
-        discoverViewModel: discoverViewModel,
+        featureDependencies: featureDependencies,
         libraryViewModel: libraryViewModel,
         meetingsWorkspaceViewModel: meetingsWorkspaceViewModel,
         meetingPillViewModel: meetingPillViewModel,
@@ -367,7 +367,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBarCoordinator.setupMenuBar()
         settingsObserverCoordinator.startObserving()
         windowCoordinator.applyActivationPolicyFromSettings()
+        #if !MACPARAKEET_DISABLE_DISCOVER
         setupDiscoverContent()
+        #endif
         #if DEBUG
         showDebugDictationPreviewQAIfRequested()
         #endif
@@ -630,15 +632,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.terminate(nil)
     }
 
+    #if !MACPARAKEET_DISABLE_DISCOVER
     private func setupDiscoverContent() {
         guard let fallbackURL = Bundle.module.url(forResource: "discover-fallback", withExtension: "json"),
               let data = try? Data(contentsOf: fallbackURL) else { return }
 
         let service = DiscoverService(fallbackData: data)
-        discoverViewModel.configure(service: service)
-        discoverViewModel.loadCached()
-        discoverViewModel.refreshInBackground()
+        featureDependencies.discoverViewModel.configure(service: service)
+        featureDependencies.discoverViewModel.loadCached()
+        featureDependencies.discoverViewModel.refreshInBackground()
     }
+    #endif
 
     // MARK: - Disk Image Guard
 

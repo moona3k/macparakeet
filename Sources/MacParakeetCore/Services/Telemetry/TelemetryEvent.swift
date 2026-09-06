@@ -250,7 +250,9 @@ public enum TelemetryCopySource: String, Sendable, Equatable {
     case transcription
     case history
     case meeting
+    #if !MACPARAKEET_DISABLE_DISCOVER
     case discover
+    #endif
 }
 
 public enum TelemetryFormatterSource: String, Sendable, Equatable {

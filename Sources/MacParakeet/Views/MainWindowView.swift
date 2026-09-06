@@ -12,7 +12,9 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     case vocabulary = "Vocabulary"
     case feedback = "Feedback"
     case settings = "Settings"
+    #if !MACPARAKEET_DISABLE_DISCOVER
     case discover = "Discover"
+    #endif
 
     var id: String { rawValue }
 
@@ -26,7 +28,9 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .vocabulary: return "book.fill"
         case .feedback: return "bubble.left.and.text.bubble.right"
         case .settings: return "gearshape"
+        #if !MACPARAKEET_DISABLE_DISCOVER
         case .discover: return "sparkles"
+        #endif
         }
     }
 
@@ -51,8 +55,10 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         return items
     }
 
-    /// Note: `.discover` is intentionally excluded from the arrays above.
-    /// It renders as a pinned card below the sidebar list via `safeAreaInset`.
+    #if !MACPARAKEET_DISABLE_DISCOVER
+    /// `.discover` is intentionally excluded from the arrays above. It renders
+    /// as a pinned card below the sidebar list via `safeAreaInset`.
+    #endif
 }
 
 struct MainWindowView: View {
@@ -71,7 +77,7 @@ struct MainWindowView: View {
     let textSnippetsViewModel: TextSnippetsViewModel
     let vocabularyBackupViewModel: VocabularyBackupViewModel
     let feedbackViewModel: FeedbackViewModel
-    let discoverViewModel: DiscoverViewModel
+    let featureDependencies: AppFeatureDependencies
     let libraryViewModel: TranscriptionLibraryViewModel
     let meetingsWorkspaceViewModel: MeetingsWorkspaceViewModel
     let meetingPillViewModel: MeetingRecordingPillViewModel
@@ -103,13 +109,15 @@ struct MainWindowView: View {
                 }
                 .listStyle(.sidebar)
                 .tint(DesignSystem.Colors.accent)
+                #if !MACPARAKEET_DISABLE_DISCOVER
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     DiscoverSidebarCard(
-                        viewModel: discoverViewModel,
+                        viewModel: featureDependencies.discoverViewModel,
                         isSelected: state.selectedItem == .discover,
                         onTap: { state.selectedItem = .discover }
                     )
                 }
+                #endif
                 .navigationSplitViewColumnWidth(min: 170, ideal: DesignSystem.Layout.sidebarMinWidth, max: 240)
             } detail: {
                 Group {
@@ -266,8 +274,13 @@ struct MainWindowView: View {
                             },
                             onHotkeyRecordingStateChanged: onHotkeyRecordingStateChanged
                         )
+                    #if !MACPARAKEET_DISABLE_DISCOVER
                     case .discover:
-                        DiscoverView(viewModel: discoverViewModel, thoughtsService: DiscoverThoughtsService())
+                        DiscoverView(
+                            viewModel: featureDependencies.discoverViewModel,
+                            thoughtsService: DiscoverThoughtsService()
+                        )
+                    #endif
                     }
                 }
             }

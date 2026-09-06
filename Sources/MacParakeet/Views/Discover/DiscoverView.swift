@@ -37,7 +37,7 @@ struct DiscoverView: View {
                 Text("Discover")
                     .font(DesignSystem.Typography.heroTitle)
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
-                
+
                 RoundedRectangle(cornerRadius: 1)
                     .fill(DesignSystem.Colors.accent)
                     .frame(width: 32, height: 3)
@@ -65,7 +65,7 @@ struct DiscoverView: View {
     private func discoverCard(_ item: DiscoverItem) -> some View {
         let isHovered = hoveredItemId == item.id
         let isCopied = copiedItemId == item.id
-        
+
         return ZStack(alignment: .bottomTrailing) {
             // Sacred geometry watermark
             SacredGeometryView(
@@ -115,7 +115,7 @@ struct DiscoverView: View {
                         Rectangle()
                             .fill(DesignSystem.Colors.accent.opacity(0.4))
                             .frame(width: 12, height: 1)
-                        
+
                         Text(attribution)
                             .font(DesignSystem.Typography.caption)
                             .foregroundStyle(DesignSystem.Colors.textTertiary)
@@ -188,7 +188,7 @@ struct DiscoverView: View {
                     Image(systemName: "hand.thumbsup.fill")
                         .font(.system(size: 18))
                         .foregroundStyle(DesignSystem.Colors.successGreen)
-                    
+
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Sent successfully")
                             .font(DesignSystem.Typography.bodySmall)
@@ -237,9 +237,9 @@ struct DiscoverView: View {
                                 .font(DesignSystem.Typography.caption)
                                 .foregroundStyle(DesignSystem.Colors.errorRed)
                         }
-                        
+
                         Spacer()
-                        
+
                         Button {
                             submitThought()
                         } label: {

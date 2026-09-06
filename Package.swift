@@ -5,6 +5,7 @@ import Foundation
 
 let skipWhisperKit = ProcessInfo.processInfo.environment["MACPARAKEET_SKIP_WHISPERKIT"] == "1"
 let enableMLXLocalLLM = ProcessInfo.processInfo.environment["MACPARAKEET_ENABLE_MLX_LOCAL_LLM"] == "1"
+let disableDiscover = ProcessInfo.processInfo.environment["MACPARAKEET_DISABLE_DISCOVER"] == "1"
 
 let packageDependencies: [Package.Dependency] = [
     // GRDB for SQLite (dictation history + transcription records)
@@ -53,6 +54,43 @@ let whisperKitSwiftSettings: [SwiftSetting] = skipWhisperKit ? [] : [
 let mlxLocalLLMSwiftSettings: [SwiftSetting] = enableMLXLocalLLM ? [
     .define("MACPARAKEET_HAS_MLX_LOCAL_LLM")
 ] : []
+
+let discoverSwiftSettings: [SwiftSetting] = disableDiscover ? [
+    .define("MACPARAKEET_DISABLE_DISCOVER")
+] : []
+
+let discoverAppExcludes = disableDiscover ? [
+    "Resources/discover-fallback.json",
+    "Views/Discover",
+] : []
+
+let discoverCoreExcludes = disableDiscover ? [
+    "Models/DiscoverContent.swift",
+    "Services/Discover",
+] : []
+
+let discoverViewModelExcludes = disableDiscover ? [
+    "DiscoverViewModel.swift"
+] : []
+
+let discoverTestExcludes = disableDiscover ? [
+    "Models/DiscoverContentTests.swift",
+    "Services/Discover",
+] : []
+
+let appTargetSwiftSettings: [SwiftSetting] = mlxLocalLLMSwiftSettings + discoverSwiftSettings
+let coreTargetExcludes: [String] = [
+    "Audio/README.md",
+    "Database/README.md",
+    "Licensing/README.md",
+    "Resources",
+    "Services/System/README.md",
+    "STT/README.md",
+    "TextProcessing/README.md",
+] + discoverCoreExcludes
+let coreTargetSwiftSettings: [SwiftSetting] = whisperKitSwiftSettings + discoverSwiftSettings
+let testTargetSwiftSettings: [SwiftSetting] =
+    whisperKitSwiftSettings + mlxLocalLLMSwiftSettings + discoverSwiftSettings
 
 let appDependencies: [Target.Dependency] = [
     "MacParakeetCore",
@@ -106,8 +144,9 @@ let package = Package(
             name: "MacParakeet",
             dependencies: appDependencies,
             path: "Sources/MacParakeet",
+            exclude: discoverAppExcludes,
             resources: [.process("Resources")],
-            swiftSettings: mlxLocalLLMSwiftSettings
+            swiftSettings: appTargetSwiftSettings
         ),
         // macparakeet-cli — versioned public surface (semver, Sources/CLI/CHANGELOG.md).
         // Consumed by the macOS app, scripted callers, and downstream agent skills
@@ -135,29 +174,24 @@ let package = Package(
             name: "MacParakeetCore",
             dependencies: coreDependencies,
             path: "Sources/MacParakeetCore",
-            exclude: [
-                "Audio/README.md",
-                "Database/README.md",
-                "Licensing/README.md",
-                "Resources",
-                "Services/System/README.md",
-                "STT/README.md",
-                "TextProcessing/README.md",
-            ],
-            swiftSettings: whisperKitSwiftSettings
+            exclude: coreTargetExcludes,
+            swiftSettings: coreTargetSwiftSettings
         ),
         // ViewModels library (testable, depends on Core + AppKit/SwiftUI)
         .target(
             name: "MacParakeetViewModels",
             dependencies: ["MacParakeetCore"],
-            path: "Sources/MacParakeetViewModels"
+            path: "Sources/MacParakeetViewModels",
+            exclude: discoverViewModelExcludes,
+            swiftSettings: discoverSwiftSettings
         ),
         // Tests
         .testTarget(
             name: "MacParakeetTests",
             dependencies: appTestDependencies,
             path: "Tests/MacParakeetTests",
-            swiftSettings: whisperKitSwiftSettings + mlxLocalLLMSwiftSettings
+            exclude: discoverTestExcludes,
+            swiftSettings: testTargetSwiftSettings
         ),
         .testTarget(
             name: "CLITests",

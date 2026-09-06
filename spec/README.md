@@ -86,6 +86,10 @@ Implementation status is not release verification. Candidate hardware capture,
 long-transcript interaction, signed upgrade, and full-suite evidence must be
 reported separately; a source/doc review does not establish those gates.
 
+Discover is included in normal builds. `MACPARAKEET_DISABLE_DISCOVER=1` is a
+manifest-level local build option that excludes the Discover sources, fallback
+feed, UI wiring, cache path, and network endpoints; it is not a runtime setting.
+
 ## Architecture Decision Records (ADRs)
 
 All ADRs live in `spec/adr/`. These are locked -- they record decisions already made.
