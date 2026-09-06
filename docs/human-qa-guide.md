@@ -48,6 +48,26 @@ To QA a specific PR branch, run that script from inside **that branch's checkout
 worktree** — SwiftPM pins build paths per worktree, so build from where the branch
 actually lives.
 
+The script intentionally passes `-skipMacroValidation` to `xcodebuild` because
+the canonical `SwiftStreamingMarkdown` renderer includes the approved
+`EquatableMacros` plugin transitively. If a hand-written Xcode command fails
+with `Macro “EquatableMacros” ... must be enabled before it can be used`, do
+not install or substitute a renderer: rerun `scripts/dev/run_app.sh`, or keep
+that flag in the equivalent Xcode invocation.
+
+The script also stops every existing MacParakeet process **before** rebuilding
+or re-signing the Dev bundle. Never reorder that shutdown after bundle wrapping:
+modifying a signed executable while macOS is running it can terminate the app
+later with `SIGKILL (Code Signature Invalid)`, often when the next menu or sheet
+loads code from the changed page. Shutdown requests a normal macOS app quit,
+including the existing meeting confirmation and pending-note save flow, and
+waits up to ten seconds for exit. Cancelled quit, ongoing finalization, failed
+process inspection, or a raw executable without a normal app-quit interface
+abort the build before modifying the bundle. Quit the app normally and rerun
+the script when ready; it never sends a termination signal or force-kills it.
+Process matching uses actual executable paths, so checkout punctuation and
+unrelated command-line arguments cannot select the wrong process.
+
 **Or** QA the Sparkle release candidate DMG — closest to what users receive. Use this
 for release-gating checks (signing, notarization, first-run onboarding, auto-update).
 
@@ -59,6 +79,26 @@ for release-gating checks (signing, notarization, first-run onboarding, auto-upd
 - If permissions act stuck after a re-sign, reset them:
   `tccutil reset All com.macparakeet.dev`.
 - Its history and settings are independent — a clean slate is expected, not a bug.
+
+## Markdown regression checks
+
+- Select text directly inside table headers and cells. The pinned compatibility
+  fork uses the same native selectable text view as ordinary paragraphs on macOS.
+  Table Copy and Download actions are always visible; verify VoiceOver announces
+  “Copy table” and “Download table” and can activate both. The automated native
+  selection regression passes, but the XCTest host does not expose the SwiftUI
+  accessibility tree, so the VoiceOver check must run in the app.
+- While a result, saved chat response, or live Ask response is streaming, leave
+  its pane and return. Existing text must remain visible and later chunks must
+  continue to render. Repeat after
+  a completed result starts streaming again.
+- In a rendered table, select text in a header and a body cell, then copy it.
+  Selection must remain usable without a table-wide click action consuming it.
+- Navigate the table actions with VoiceOver. Both **Copy table** and **Download
+  table** must be named and reachable before clicking the table; downloading must
+  open the existing save dialog and export the original Markdown source. Cancel
+  the dialog to confirm no file is written. If the destination becomes
+  unwritable, the app must show **Export Failed** instead of silently closing.
 
 ## Writing a QA checklist (for PR authors / agents)
 

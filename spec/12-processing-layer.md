@@ -276,11 +276,28 @@ When a generation completes:
 
 #### Completed Summary Tabs
 
-- completed summaries render as markdown
+- completed summaries render through the shared rich Markdown surface
 - generate appends a new completed summary tab every time
 - regenerate replaces only the specific summary the user chose, and only after the new result is durably saved
 - copy is available from both the pane and tab context menu
 - delete requires confirmation
+
+#### Rich Markdown Result Rendering
+
+Prompt Results, saved assistant Chat messages, and live Ask responses share
+`MarkdownContentView`. The stored `PromptResult.content` and chat content remain
+the unchanged Markdown source; rendering is presentation-only and never rewrites
+saved results or export payloads.
+
+The supported result dialect covers headings, paragraphs, emphasis,
+strikethrough, links, inline and fenced code, block quotes, thematic breaks,
+ordered/unordered/nested lists, display-only task lists, and GFM pipe tables.
+Wide tables and code blocks manage their own horizontal overflow. Streaming
+surfaces re-render the latest complete text snapshot and may animate appended
+text; completed and partial results use the same parser and styling.
+
+The renderer is isolated to the GUI target. Core processing and the CLI remain
+independent of the UI dependency.
 
 ### Management Sheet
 

@@ -79,12 +79,22 @@ binary_has_rpath() {
   return 1
 }
 
-echo "[1/5] Building $CONFIG app bundle (xcodebuild, target signing disabled)…"
+echo "[1/5] Stopping existing MacParakeet processes before replacing the bundle…"
+source "$ROOT_DIR/scripts/dev/stop_app_processes.sh"
+stop_app_processes 10 \
+  "/Applications/MacParakeet.app/Contents/MacOS/MacParakeet" \
+  "$ROOT_DIR/dist/MacParakeet.app/Contents/MacOS/MacParakeet" \
+  "$PRODUCT_DIR/MacParakeet" \
+  "$ROOT_DIR/.build/debug/MacParakeet" \
+  "$ROOT_DIR/.build/arm64-apple-macosx/debug/MacParakeet"
+
+echo "[2/5] Building $CONFIG app bundle (xcodebuild, target signing disabled)…"
 if ! xcodebuild build \
   -scheme MacParakeet \
   -configuration "$CONFIG" \
   -destination "platform=OS X,arch=arm64" \
   -derivedDataPath "$DERIVED_DATA_DIR" \
+  -skipMacroValidation \
   CODE_SIGNING_ALLOWED=NO \
   CODE_SIGNING_REQUIRED=NO >"$BUILD_LOG_FILE" 2>&1; then
   echo "xcodebuild failed. Last 120 log lines from $BUILD_LOG_FILE:" >&2
@@ -106,7 +116,7 @@ if [[ -d "$PRODUCT_DIR/Sparkle.framework" && ! -e "$PKGFW_DIR/Sparkle.framework"
   ln -s "$PRODUCT_DIR/Sparkle.framework" "$PKGFW_DIR/Sparkle.framework"
 fi
 
-echo "[2/5] Wrapping in .app bundle for macOS permissions…"
+echo "[3/5] Wrapping in .app bundle for macOS permissions…"
 # Create a minimal .app bundle so macOS TCC (Accessibility, Microphone) can
 # identify and remember permissions for the dev build across rebuilds.
 MACOS_DIR="$APP_BUNDLE/Contents/MacOS"
@@ -120,6 +130,19 @@ if [[ -d "$RESOURCE_BUNDLE" ]]; then
   mkdir -p "$RESOURCES_DIR"
   rsync -a --delete "$RESOURCE_BUNDLE" "$RESOURCES_DIR/"
 fi
+
+# Dependency resource bundles must keep their bundle directory name because
+# Bundle.module resolves them under Contents/Resources at runtime. The
+# distribution builder already copies every SwiftPM bundle; mirror that here
+# for dependencies such as SwiftStreamingMarkdown and its syntax highlighter.
+RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"
+mkdir -p "$RESOURCES_DIR"
+while IFS= read -r -d '' bundle; do
+  if [[ "$bundle" != "$RESOURCE_BUNDLE" ]]; then
+    bundle_name="${bundle##*/}"
+    rsync -a --delete "$bundle/" "$RESOURCES_DIR/$bundle_name/"
+  fi
+done < <(find "$PRODUCT_DIR" -maxdepth 1 -type d -name '*.bundle' -print0)
 
 # Copy frameworks into the bundle so dyld loads only bundle-local paths.
 BUNDLE_FW_DIR="$APP_BUNDLE/Contents/Frameworks"
@@ -194,15 +217,6 @@ if [[ "$CODESIGN_IDENTITY" == "-" ]]; then
 fi
 codesign --force --sign "$CODESIGN_IDENTITY" --options runtime \
   --entitlements "$SIGN_ENTITLEMENTS" --deep "$APP_BUNDLE"
-
-echo "[3/5] Stopping existing MacParakeet processes…"
-pkill -f "/Applications/MacParakeet.app/Contents/MacOS/MacParakeet" || true
-pkill -f "$ROOT_DIR/dist/MacParakeet.app/Contents/MacOS/MacParakeet" || true
-pkill -f "MacParakeet-Dev.app/Contents/MacOS/MacParakeet" || true
-pkill -f "$PRODUCT_DIR/MacParakeet" || true
-pkill -f "$ROOT_DIR/.build/debug/MacParakeet" || true
-pkill -f "$ROOT_DIR/.build/arm64-apple-macosx/debug/MacParakeet" || true
-sleep 1
 
 GIT_COMMIT="$(git -C "$ROOT_DIR" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)"
 BUILD_DATE_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"

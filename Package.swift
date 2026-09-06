@@ -4,7 +4,23 @@ import PackageDescription
 import Foundation
 
 let skipWhisperKit = ProcessInfo.processInfo.environment["MACPARAKEET_SKIP_WHISPERKIT"] == "1"
+// The existing no-WhisperKit mode is the repository's first-party Swift 6
+// compatibility build. Omit the Swift 5-only Markdown dependency graph there
+// as well; normal release, concurrency, and test builds still compile it.
+let skipStreamingMarkdown = skipWhisperKit
 let enableMLXLocalLLM = ProcessInfo.processInfo.environment["MACPARAKEET_ENABLE_MLX_LOCAL_LLM"] == "1"
+
+let streamingMarkdownPackageDependencies: [Package.Dependency] = skipStreamingMarkdown ? [] : [
+    // Shared SwiftUI renderer for static and streaming LLM Markdown output.
+    // v0.7.0 transitively pins two dependencies by revision, so SwiftPM rejects
+    // the stable-version requirement. The fork removes one trailing argument
+    // comma that Swift 6.0 / Xcode 16.1 cannot parse and restores selectable
+    // macOS table cells with named actions. Keep these fixes immutably pinned.
+    .package(
+        url: "https://github.com/alfred-sa/SwiftStreamingMarkdown",
+        revision: "1f10d5286985349b63145e1193f4f6ad5f7fdfe1"
+    )
+]
 
 let packageDependencies: [Package.Dependency] = [
     // GRDB for SQLite (dictation history + transcription records)
@@ -24,7 +40,7 @@ let packageDependencies: [Package.Dependency] = [
     // as a target dependency for the first-party Swift 6 syntax/concurrency
     // compile check without removing its lockfile pins.
     .package(url: "https://github.com/argmaxinc/argmax-oss-swift", exact: "0.18.0")
-] + (enableMLXLocalLLM ? [
+] + streamingMarkdownPackageDependencies + (enableMLXLocalLLM ? [
     // Opt-in only. mlx-swift-lm currently needs Swift tools 6.1 and Xcode-built
     // Metal shaders, so plain `swift build` / `swift test` / CI must not resolve it.
     .package(url: "https://github.com/ml-explore/mlx-swift-lm", exact: "3.31.4"),
@@ -54,11 +70,14 @@ let mlxLocalLLMSwiftSettings: [SwiftSetting] = enableMLXLocalLLM ? [
     .define("MACPARAKEET_HAS_MLX_LOCAL_LLM")
 ] : []
 
+let streamingMarkdownTargetDependencies: [Target.Dependency] = skipStreamingMarkdown ? [] : [
+    .product(name: "SwiftStreamingMarkdown", package: "SwiftStreamingMarkdown")
+]
 let appDependencies: [Target.Dependency] = [
     "MacParakeetCore",
     "MacParakeetViewModels",
-    .product(name: "Sparkle", package: "Sparkle")
-] + (enableMLXLocalLLM ? [
+    .product(name: "Sparkle", package: "Sparkle"),
+] + streamingMarkdownTargetDependencies + (enableMLXLocalLLM ? [
     "MacParakeetLocalLLM"
 ] : [])
 
@@ -66,8 +85,8 @@ let appTestDependencies: [Target.Dependency] = [
     "MacParakeet",
     "MacParakeetCore",
     "MacParakeetViewModels",
-    "MacParakeetObjCShims"
-] + (enableMLXLocalLLM ? [
+    "MacParakeetObjCShims",
+] + streamingMarkdownTargetDependencies + (enableMLXLocalLLM ? [
     "MacParakeetLocalLLM"
 ] : [])
 

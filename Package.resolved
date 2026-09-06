@@ -10,6 +10,15 @@
       }
     },
     {
+      "identity" : "equatable",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/ordo-one/equatable",
+      "state" : {
+        "revision" : "597c2bb34af0c51331eb3b5e705f942d8ee20daa",
+        "version" : "1.4.1"
+      }
+    },
+    {
       "identity" : "fluidaudio",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/FluidInference/FluidAudio",
@@ -25,6 +34,22 @@
       "state" : {
         "revision" : "36e30a6f1ef10e4194f6af0cff90888526f0c115",
         "version" : "7.10.0"
+      }
+    },
+    {
+      "identity" : "highlightswift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/appstefan/highlightswift",
+      "state" : {
+        "revision" : "99c431b38a1444a5fd6a4978307fbbefe3a7af53"
+      }
+    },
+    {
+      "identity" : "iosmath",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/junyan72/iosMath",
+      "state" : {
+        "revision" : "ba9ab7729b151329c54fd895a7c1859981d9484c"
       }
     },
     {
@@ -55,6 +80,15 @@
       }
     },
     {
+      "identity" : "swift-cmark",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swiftlang/swift-cmark.git",
+      "state" : {
+        "revision" : "924936d0427cb25a61169739a7660230bffa6ea6",
+        "version" : "0.8.0"
+      }
+    },
+    {
       "identity" : "swift-collections",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-collections.git",
@@ -82,12 +116,47 @@
       }
     },
     {
+      "identity" : "swift-markdown",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swiftlang/swift-markdown.git",
+      "state" : {
+        "revision" : "7d9a5ce307528578dfa777d505496bd5f544ad94",
+        "version" : "0.7.3"
+      }
+    },
+    {
+      "identity" : "swift-syntax",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swiftlang/swift-syntax.git",
+      "state" : {
+        "revision" : "79e4b74a295b6eb74a8b585e3a39d29e70c1dbd1",
+        "version" : "603.0.2"
+      }
+    },
+    {
       "identity" : "swift-transformers",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/huggingface/swift-transformers.git",
       "state" : {
         "revision" : "150169bfba0889c229a2ce7494cf8949f18e6906",
         "version" : "1.1.9"
+      }
+    },
+    {
+      "identity" : "swiftstreamingmarkdown",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/alfred-sa/SwiftStreamingMarkdown",
+      "state" : {
+        "revision" : "1f10d5286985349b63145e1193f4f6ad5f7fdfe1"
+      }
+    },
+    {
+      "identity" : "swiftui-shimmer",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/markiv/SwiftUI-Shimmer",
+      "state" : {
+        "revision" : "0226e21f9bf355d40e07e5f5e1c33679d50e167f",
+        "version" : "1.5.1"
       }
     },
     {

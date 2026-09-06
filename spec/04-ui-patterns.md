@@ -1192,6 +1192,36 @@ App launch → DiscoverViewModel.loadCached() → DiscoverService reads disk cac
 
 ---
 
+## LLM Markdown Content
+
+`MarkdownContentView` is the single presentation boundary for generated
+assistant content in Prompt Results, saved Chat, and live Ask. It renders the
+same CommonMark/GFM subset on every surface, including nested lists, static
+checked/unchecked task items, fenced code, and horizontally scrollable tables.
+The surrounding pane owns vertical scrolling; wide Markdown blocks must not
+expand the transcript detail or live-meeting panel.
+
+Each streaming renderer subscribes to a fresh snapshot stream and immediately
+receives the latest content. Closing or hiding a pane cancels only that
+subscription; returning to it must continue rendering new snapshots.
+
+Generated Markdown remains read-only and selectable. Task boxes communicate
+their checked state but are not controls. Headings and table cells preserve the
+renderer accessibility structure. Fonts and colors map to `DesignSystem` and
+must remain appearance-aware.
+
+Treat rendered model output as untrusted presentation data:
+
+- image loading is disabled, including remote, local-file, bundled, and data URL
+  sources;
+- only `http` and `https` links may be handed to the system browser;
+- activation of `file:`, `javascript:`, custom schemes, and relative
+  destinations is discarded;
+- raw HTML does not create a web view or executable embedded content;
+- Copy Result and exports continue using the original Markdown source.
+
+---
+
 ## Design System
 
 All design tokens are centralized in `DesignSystem.swift` (`Views/Components/DesignSystem.swift`). A debug-only `DesignSystemGalleryView` (`#if DEBUG`) renders every token in one preview canvas — open it from Xcode when auditing for drift.
