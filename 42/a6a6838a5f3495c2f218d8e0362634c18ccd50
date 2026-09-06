@@ -1,0 +1,46 @@
+AGENTS.md
+  h_2ab1f47fea2ced 46-60
+Package.resolved
+  h_2ab1f47fea2ced 12-20,39-54,82-90,118-135,145-161
+Package.swift
+  h_2ab1f47fea2ced 7-10,13-24,43,73-75,79-80,88-89
+Sources/MacParakeet/Resources/Legal/MarkdownDependencies.txt
+  h_2ab1f47fea2ced 1-1564
+Sources/MacParakeet/Views/Components/MarkdownContentView.swift
+  h_2ab1f47fea2ced 2-5,7-13,16-23,25-29,32-55,57-65,68-72,74,76-87,90-98,103-107,112-114,118-121,124,126-129,131,133-204,207-221,223,225-230,234-235,237,239-243,246-267,270-287,290-294,297
+Sources/MacParakeet/Views/MeetingRecording/LiveAskPaneView.swift
+  h_2ab1f47fea2ced 688-690
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  h_2ab1f47fea2ced 2558-2562,3115
+THIRD_PARTY_LICENSES.md
+  h_2ab1f47fea2ced 5-14,130-186
+Tests/MacParakeetTests/Views/MarkdownContentViewTests.swift
+  h_2ab1f47fea2ced 1-98
+docs/human-qa-guide.md
+  h_2ab1f47fea2ced 51-69,82-108
+scripts/dev/run_app.sh
+  h_2ab1f47fea2ced 4,9-12,86-90,96,118,133-150,230,232,235-236,238-239
+scripts/dev/stop_app_processes.sh
+  h_2ab1f47fea2ced 1-10
+scripts/dev/stop_app_processes.swift
+  h_2ab1f47fea2ced 1-100
+scripts/dev/test_stop_app_processes.sh
+  h_2ab1f47fea2ced 1-150
+scripts/dist/build_app_bundle.sh
+  h_2ab1f47fea2ced 160,162,182,202-203,208,251,638-639
+spec/04-ui-patterns.md
+  h_2ab1f47fea2ced 1195-1229
+spec/12-processing-layer.md
+  h_2ab1f47fea2ced 279,285-302
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "42a6a6838a5f3495c2f218d8e0362634c18ccd50",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
