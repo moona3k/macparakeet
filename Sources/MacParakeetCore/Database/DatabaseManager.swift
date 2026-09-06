@@ -1352,6 +1352,94 @@ public final class DatabaseManager: Sendable {
             }
         }
 
+        // v0.31 — Per-prompt inference settings and the effective settings
+        // snapshot retained with each generated result. Both are optional JSON
+        // so existing rows preserve the historical provider-default behavior.
+        migrator.registerMigration("v0.31-prompt-inference-settings") { db in
+            let promptColumns = try db.columns(in: "prompts").map(\.name)
+            if !promptColumns.contains("inferenceSettings") {
+                try db.execute(sql: "ALTER TABLE prompts ADD COLUMN inferenceSettings TEXT")
+            }
+
+            let summaryColumns = try db.columns(in: "summaries").map(\.name)
+            if !summaryColumns.contains("inferenceSettingsSnapshot") {
+                try db.execute(sql: "ALTER TABLE summaries ADD COLUMN inferenceSettingsSnapshot TEXT")
+            }
+        }
+
+        // v0.32 — Append-only speaker-attribution corrections and their
+        // transcript-scoped persistent undo/redo cursor. Keep this state out
+        // of `transcriptions`: callers often save whole Transcription values,
+        // and an older value must not be able to overwrite correction history.
+        migrator.registerMigration("v0.32-speaker-corrections") { db in
+            try db.execute(sql: """
+                CREATE TABLE speaker_corrections (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    transcriptionId TEXT NOT NULL
+                        REFERENCES transcriptions(id) ON DELETE CASCADE,
+                    parentId TEXT,
+                    sequence INTEGER NOT NULL CHECK (sequence > 0),
+                    transcriptFingerprint TEXT NOT NULL,
+                    operation TEXT NOT NULL CHECK (
+                        operation IN (
+                            'rename', 'add', 'assign', 'split', 'unsplit',
+                            'merge', 'remove', 'reset'
+                        )
+                    ),
+                    payload TEXT NOT NULL,
+                    branchState TEXT NOT NULL CHECK (
+                        branchState IN ('current', 'redo', 'abandoned')
+                    ),
+                    createdAt TEXT NOT NULL,
+                    UNIQUE (transcriptionId, sequence),
+                    UNIQUE (id, transcriptionId),
+                    FOREIGN KEY (parentId, transcriptionId)
+                        REFERENCES speaker_corrections(id, transcriptionId)
+                        ON DELETE CASCADE
+                )
+                """)
+            try db.execute(sql: """
+                CREATE INDEX idx_speaker_corrections_replay
+                ON speaker_corrections (
+                    transcriptionId,
+                    transcriptFingerprint,
+                    branchState,
+                    sequence
+                )
+                """)
+            try db.execute(sql: """
+                CREATE TABLE speaker_correction_states (
+                    transcriptionId TEXT PRIMARY KEY NOT NULL
+                        REFERENCES transcriptions(id) ON DELETE CASCADE,
+                    transcriptFingerprint TEXT NOT NULL,
+                    headId TEXT,
+                    revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
+                    updatedAt TEXT NOT NULL,
+                    FOREIGN KEY (headId, transcriptionId)
+                        REFERENCES speaker_corrections(id, transcriptionId)
+                        ON DELETE CASCADE
+                )
+                """)
+        }
+
+        // v0.33 — Per-result-prompt opt-in for adding meeting notes to LLM
+        // context, plus the immutable preference receipt on saved results.
+        migrator.registerMigration("v0.33-prompt-meeting-notes-context") { db in
+            let promptColumns = try db.columns(in: "prompts").map(\.name)
+            if !promptColumns.contains("includeMeetingNotes") {
+                try db.alter(table: "prompts") { t in
+                    t.add(column: "includeMeetingNotes", .boolean).notNull().defaults(to: false)
+                }
+            }
+
+            let summaryColumns = try db.columns(in: "summaries").map(\.name)
+            if !summaryColumns.contains("includeMeetingNotesSnapshot") {
+                try db.alter(table: "summaries") { t in
+                    t.add(column: "includeMeetingNotesSnapshot", .boolean).notNull().defaults(to: false)
+                }
+            }
+        }
+
         return migrator
     }
 

@@ -30,6 +30,69 @@ public enum SpeakerDiarizationConstraint: Equatable, Sendable {
     case range(min: Int?, max: Int?)
 }
 
+/// Speaker-count behavior selected for one retranscription run.
+///
+/// This is deliberately separate from the saved speaker-detection preference:
+/// choosing either value explicitly requests diarization for this run. Meeting
+/// counts describe only the retained system-audio side; the microphone speaker
+/// (`Me`) is not included.
+public enum RetranscriptionSpeakerSelection: Equatable, Sendable {
+    public static let supportedExactCount = 1...100
+
+    case automatic
+    case exact(Int)
+
+    public var exactCount: Int? {
+        guard case .exact(let count) = self else { return nil }
+        return count
+    }
+
+    public func validated() throws -> Self {
+        if case .exact(let count) = self,
+           !Self.supportedExactCount.contains(count) {
+            throw RetranscriptionSpeakerSelectionError.unsupportedExactCount(count)
+        }
+        return self
+    }
+}
+
+public enum RetranscriptionSpeakerSelectionError: LocalizedError, Equatable, Sendable {
+    case unsupportedExactCount(Int)
+
+    public var errorDescription: String? {
+        switch self {
+        case .unsupportedExactCount(let count):
+            return "Exact speaker count \(count) is outside the supported range "
+                + "\(RetranscriptionSpeakerSelection.supportedExactCount.lowerBound)..."
+                + "\(RetranscriptionSpeakerSelection.supportedExactCount.upperBound)."
+        }
+    }
+}
+
+/// Creates a fresh diarizer for one explicitly configured run. A fresh service
+/// avoids mutating the shared actor used by normal app transcription and model
+/// readiness.
+public struct DiarizationServiceFactory: Sendable {
+    private let makeService: @Sendable (SpeakerDiarizationConstraint?) -> any DiarizationServiceProtocol
+
+    public init(
+        makeService: @escaping @Sendable (SpeakerDiarizationConstraint?) -> any DiarizationServiceProtocol
+    ) {
+        self.makeService = makeService
+    }
+
+    public func make(speakerConstraint: SpeakerDiarizationConstraint?) -> any DiarizationServiceProtocol {
+        makeService(speakerConstraint)
+    }
+
+    public static let live = Self { constraint in
+        if let constraint {
+            return DiarizationService(speakerConstraint: constraint)
+        }
+        return DiarizationService()
+    }
+}
+
 public protocol DiarizationServiceProtocol: Sendable {
     func diarize(audioURL: URL) async throws -> MacParakeetDiarizationResult
     func prepareModels(onProgress: (@Sendable (String) -> Void)?) async throws

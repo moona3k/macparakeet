@@ -261,7 +261,7 @@ public struct DiarizationSegmentRecord: Codable, Sendable, Equatable {
     }
 }
 
-public struct TranscriptSegmentWordRange: Codable, Sendable, Equatable {
+public struct TranscriptSegmentWordRange: Codable, Sendable, Equatable, Hashable {
     public var startIndex: Int
     public var endIndexExclusive: Int
 

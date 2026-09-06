@@ -131,6 +131,64 @@ final class TranscriptResultActionsTests: XCTestCase {
         XCTAssertTrue(content.contains("<p>Structured transcript.</p>"))
     }
 
+    func testBulkExportUsesEffectiveSpeakerProjectionForEveryTranscript() async throws {
+        let transcription = Transcription(
+            fileName: "corrected.m4a",
+            rawTranscript: "Hello world.",
+            wordTimestamps: [
+                WordTimestamp(word: "Hello", startMs: 0, endMs: 400, confidence: 1, speakerId: "S1"),
+                WordTimestamp(word: "world.", startMs: 450, endMs: 900, confidence: 1, speakerId: "S1"),
+            ],
+            speakerCount: 1,
+            speakers: [SpeakerInfo(id: "S1", label: "Speaker 1")],
+            transcriptSegments: [TranscriptSegmentRecord(
+                startMs: 0,
+                endMs: 900,
+                speakerId: "S1",
+                speakerLabel: "Speaker 1",
+                text: "Hello world.",
+                wordRange: .init(startIndex: 0, endIndexExclusive: 2)
+            )],
+            status: .completed
+        )
+        let fingerprint = SpeakerAttributionResolver.fingerprint(for: transcription)
+        let correction = SpeakerCorrection(
+            transcriptionId: transcription.id,
+            parentId: nil,
+            sequence: 1,
+            transcriptFingerprint: fingerprint,
+            payload: .rename(speakerID: "S1", label: "Dana")
+        )
+        let state = SpeakerCorrectionState(
+            transcriptionId: transcription.id,
+            transcriptFingerprint: fingerprint.rawValue,
+            headId: correction.id,
+            revision: 1
+        )
+        let attribution = SpeakerAttributionResolver.resolve(
+            transcription: transcription,
+            corrections: [correction],
+            state: state
+        )
+        let projection = SpeakerAttributionProjection(
+            automaticTranscription: transcription,
+            attribution: attribution,
+            correctionsApplied: true
+        )
+
+        let result = try await TranscriptResultActions.exportTranscriptsToDirectory(
+            transcriptions: [transcription],
+            format: .md,
+            options: .init(includeTimestamps: false, includeSpeakerLabels: true, includeMetadata: false),
+            directory: tempDir,
+            projectionProvider: { _ in projection }
+        )
+
+        let content = try String(contentsOf: result.exportedURLs[0], encoding: .utf8)
+        XCTAssertTrue(content.contains("**Dana**"))
+        XCTAssertFalse(content.contains("**Speaker 1**"))
+    }
+
     func testBulkExportCompleteSuccessRequiresEveryRequestedFile() {
         let result = BulkTranscriptExportResult(
             directory: tempDir,

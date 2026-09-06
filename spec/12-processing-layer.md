@@ -118,6 +118,8 @@ public struct Prompt: Codable, Identifiable, Sendable {
     public var updatedAt: Date
     public var keyboardShortcut: String?  // transform-only encoded shortcut
     public var runningLabel: String?       // transform-only progress label
+    public var inferenceSettings: PromptInferenceSettings?  // result-only typed settings; nil = MacParakeet defaults
+    public var includeMeetingNotes: Bool  // result-only automatic context opt-in; defaults false
 
     public enum Category: String, Codable, Sendable {
         case result = "summary"
@@ -139,7 +141,9 @@ CREATE TABLE prompts (
     createdAt TEXT NOT NULL,
     updatedAt TEXT NOT NULL,
     keyboardShortcut TEXT,
-    runningLabel TEXT
+    runningLabel TEXT,
+    inferenceSettings TEXT,
+    includeMeetingNotes INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE UNIQUE INDEX idx_prompts_name ON prompts(name COLLATE NOCASE);
@@ -155,7 +159,9 @@ public struct PromptResult: Codable, Identifiable, Sendable {
     public var promptContent: String      // snapshot: the full prompt used
     public var extraInstructions: String?  // user's extra instructions (if any)
     public var content: String            // the generated summary text
-    public var userNotesSnapshot: String?  // notes value used at generation time
+    public var userNotesSnapshot: String?  // exact bounded notes value supplied to assembly
+    public var includeMeetingNotesSnapshot: Bool  // captured automatic-context opt-in
+    public var inferenceSettingsSnapshot: PromptInferenceSettings?  // normalized effective settings sent
     public var createdAt: Date
     public var updatedAt: Date
 }
@@ -170,6 +176,8 @@ CREATE TABLE summaries (
     extraInstructions TEXT,
     content           TEXT NOT NULL,
     userNotesSnapshot TEXT,
+    includeMeetingNotesSnapshot INTEGER NOT NULL DEFAULT 0,
+    inferenceSettingsSnapshot TEXT,
     createdAt         TEXT NOT NULL,
     updatedAt         TEXT NOT NULL
 );
@@ -177,7 +185,16 @@ CREATE TABLE summaries (
 CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
 ```
 
-**Why snapshot instead of reference:** Prompts can be edited or deleted after a result is generated. The result should always know exactly what instructions produced it. `promptName` is for display; `promptContent` and `userNotesSnapshot` are for reproducibility.
+**Why snapshot instead of reference:** Prompts can be edited or deleted after a result is generated. The result should always know exactly what instructions produced it. `promptName` is for display; `promptContent`, `userNotesSnapshot`, `includeMeetingNotesSnapshot`, and `inferenceSettingsSnapshot` are for reproducibility. The settings snapshot records the effective provider/model-filtered receipt. The Boolean remains meaningful when the generation had no notes, because regenerate can apply that captured preference to notes added later.
+
+Custom result prompts may also carry typed generation settings. The prompt row
+stores the requested `PromptInferenceSettings`; a queued generation copies that
+value together with the prompt text and per-run instructions, so later edits do
+not mutate work already queued. A completed `PromptResult` stores the
+provider/model-filtered effective settings actually sent. Retry reuses its
+queue snapshot, while regenerate reuses the selected result's stored settings
+receipt. Blank settings inherit the current MacParakeet prompt-result and
+adapter defaults. See [spec/14-per-prompt-inference-settings.md](14-per-prompt-inference-settings.md).
 
 **Migration from existing data:** Existing `transcriptions.summary` values migrate into the `summaries` table with classic `Summary` prompt metadata. The legacy `transcriptions.summary` column is dropped by `v0.7.6-drop-legacy-transcription-summary`.
 
@@ -185,19 +202,49 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
 
 The current implementation seeds built-in/community prompts from `Prompt.builtInPrompts()` in Swift. `Sources/MacParakeetCore/Resources/community-prompts.json` exists as a contribution/reference file, but it is not yet the runtime source of truth for prompt seeding.
 
-`Summary` is the auto-run default and the classic built-in fallback. The shipped built-in list is defined in code and currently includes `Summary`, `Action Items & Decisions`, `Chapter Breakdown`, `Study Guide`, `Blog Post`, and `What Stood Out`. The `PromptTemplateRenderer` still exposes `{{userNotes}}` and `{{transcript}}` for custom prompts that want to thread meeting notes into their output, but no built-in references `{{userNotes}}` today (the "Memo-Steered Notes" built-in was reverted on 2026-05-02; see ADR-020).
+`Summary` is the auto-run default and the classic built-in fallback. The shipped built-in list is defined in code and currently includes `Summary`, `Action Items & Decisions`, `Chapter Breakdown`, `Study Guide`, `Blog Post`, and `What Stood Out`. The `PromptTemplateRenderer` still exposes `{{userNotes}}` and `{{transcript}}` for advanced custom prompts; no built-in references `{{userNotes}}` today (the "Memo-Steered Notes" built-in was reverted on 2026-05-02; see ADR-020). The in-progress replacement is a separate `includeMeetingNotes` checkbox on every result prompt, default false; it does not restore or rewrite a built-in prompt.
 
 ### System Prompt Assembly
 
-When generating a summary, the system prompt is assembled from the selected prompt + optional extra instructions. `PromptTemplateRenderer` substitutes `{{transcript}}` and `{{userNotes}}` in one pass before the LLM call:
+When generating a result, the system prompt is assembled from the selected prompt, optional meeting-notes context, and optional extra instructions. `PromptTemplateRenderer` substitutes `{{transcript}}` and `{{userNotes}}` in one pass before the LLM call:
 
 ```
 {prompt.content}
 
+{delimited_meeting_notes_context}  ← only for enabled result prompts with notes and no {{userNotes}} token
+
 {extraInstructions}       ← only if user provided extra instructions
 ```
 
-For meeting recordings, `Transcription.userNotes` is capped only for prompt input (8,000-word soft cap); the stored notes are not truncated. The `PromptResult` row snapshots the notes value used for generation.
+For meeting recordings, `Transcription.userNotes` is normalized and capped only
+for prompt input (8,000-word soft cap); the stored notes are not truncated. The
+same effective value is supplied to assembly and stored in
+`PromptResult.userNotesSnapshot`. The queued request also captures
+`Prompt.includeMeetingNotes`; the completed result persists it as
+`includeMeetingNotesSnapshot`.
+
+Automatic notes context is opt-in and result-prompt-only. Existing, built-in,
+and new prompts default false; Transforms cannot enable it. Assembly follows
+this decision table:
+
+| Notes | Checkbox | Template contains `{{userNotes}}` | Result |
+|-------|----------|------------------------------------|--------|
+| Empty | Off/On | No | Existing prompt, byte-identical |
+| Empty | Off/On | Yes | Existing empty substitution |
+| Present | Off | No | Existing prompt, no notes sent |
+| Present | Off | Yes | Substitute notes at token |
+| Present | On | No | Append one delimited context block |
+| Present | On | Yes | Substitute at token; do not append |
+
+The automatic block labels notes as user-authored source material rather than
+instructions and says that the transcript wins factual conflicts. Retry reuses
+the failed queue snapshot. Regenerate reuses the result's checkbox snapshot
+with the meeting's current committed notes. Chat/Ask has a separate existing
+assembly path and remains unchanged.
+
+The checkbox, new columns, and automatic block were implemented and locally
+verified on 2026-09-05. Release availability follows the normal channel
+process.
 
 Edge cases:
 
@@ -363,11 +410,11 @@ The future design space for actions, workflows, agents, and voice control is doc
 
 ### Unit Tests
 
-1. **PromptRepository:** CRUD operations, community prompt seeding verification, visibility toggle, name uniqueness constraint, `restoreDefaults`, `fetchVisible` filtering by category.
-2. **PromptResultRepository:** CRUD operations, `fetchAll` ordering (newest first), cascade delete when transcription deleted, `hasSummaries` check.
-3. **LLMService:** Custom system prompt flows through to message array; default prompt used when nil.
+1. **PromptRepository:** CRUD operations, community prompt seeding verification, visibility toggle, name uniqueness constraint, `restoreDefaults`, `fetchVisible` filtering by category, and optional inference-settings round trips without built-in reconciliation overwriting them.
+2. **PromptResultRepository:** CRUD operations, `fetchAll` ordering (newest first), cascade delete when transcription deleted, `hasSummaries` check, and effective-settings receipt round trips.
+3. **LLMService:** Custom system prompt flows through to the message array; default prompt used when nil; detailed prompt-result generation carries an adapter-owned effective-settings receipt.
 4. **PromptsViewModel:** CRUD operations, visibility toggle, validation (empty fields, duplicate names), restore defaults.
-5. **PromptResultsViewModel:** Generation flow (prompt assembly → stream → persist), multi-summary state, delete, auto-run with selected prompt cards, and zero-auto-run behavior.
+5. **PromptResultsViewModel:** Generation flow (prompt assembly → detailed stream → terminal receipt → persist), multi-summary state, settings snapshots for manual/auto-run/retry/regenerate, delete, auto-run with selected prompt cards, and zero-auto-run behavior.
 
 ### What We Skip
 

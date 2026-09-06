@@ -5,6 +5,69 @@ import XCTest
 
 final class PromptsCommandTests: XCTestCase {
 
+    func testStoredPromptRunResultUsesEffectiveSettingsReceipt() {
+        let transcript = Transcription(
+            fileName: "Meeting",
+            rawTranscript: "Transcript",
+            status: .completed,
+            userNotes: "Keep this detail"
+        )
+        let requested = PromptInferenceSettings(
+            temperature: 0.4,
+            topK: 40,
+            thinkingMode: .enabled
+        )
+        let effective = PromptInferenceSettings(temperature: 0.4)
+        let prompt = Prompt(
+            name: "Configured",
+            content: "Summarize.",
+            inferenceSettings: requested
+        )
+
+        let result = makeStoredPromptRunResult(
+            transcript: transcript,
+            prompt: prompt,
+            extraInstructions: "Brief.",
+            output: "Result",
+            userNotesSnapshot: nil,
+            effectiveSettings: effective
+        )
+
+        XCTAssertEqual(result.transcriptionId, transcript.id)
+        XCTAssertEqual(result.promptName, prompt.name)
+        XCTAssertNil(result.userNotesSnapshot)
+        XCTAssertFalse(result.includeMeetingNotesSnapshot)
+        XCTAssertEqual(result.inferenceSettingsSnapshot, effective)
+        XCTAssertNotEqual(result.inferenceSettingsSnapshot, requested)
+    }
+
+    func testStoredPromptRunResultUsesExactEffectiveNotesReceiptAndPreference() {
+        let transcript = Transcription(
+            fileName: "Meeting",
+            rawTranscript: "Transcript",
+            status: .completed,
+            userNotes: "Canonical notes are not copied implicitly"
+        )
+        let prompt = Prompt(
+            name: "Configured",
+            content: "Summarize.",
+            includeMeetingNotes: true
+        )
+        let effectiveNotes = "Exact capped notes receipt"
+
+        let result = makeStoredPromptRunResult(
+            transcript: transcript,
+            prompt: prompt,
+            extraInstructions: nil,
+            output: "Result",
+            userNotesSnapshot: effectiveNotes,
+            effectiveSettings: nil
+        )
+
+        XCTAssertEqual(result.userNotesSnapshot, effectiveNotes)
+        XCTAssertTrue(result.includeMeetingNotesSnapshot)
+    }
+
     // MARK: - findPrompt
 
     func testFindPromptByExactUUID() throws {
@@ -74,7 +137,8 @@ final class PromptsCommandTests: XCTestCase {
             guard let lookupError = error as? CLILookupError else {
                 return XCTFail("Expected CLILookupError, got \(error)")
             }
-            if case .notFound = lookupError {} else {
+            if case .notFound = lookupError {
+            } else {
                 XCTFail("Expected .notFound, got \(lookupError)")
             }
         }
@@ -82,7 +146,8 @@ final class PromptsCommandTests: XCTestCase {
             guard let lookupError = error as? CLILookupError else {
                 return XCTFail("Expected CLILookupError, got \(error)")
             }
-            if case .notFound = lookupError {} else {
+            if case .notFound = lookupError {
+            } else {
                 XCTFail("Expected .notFound, got \(lookupError)")
             }
         }
@@ -96,7 +161,8 @@ final class PromptsCommandTests: XCTestCase {
             guard let lookupError = error as? CLILookupError else {
                 return XCTFail("Expected CLILookupError, got \(error)")
             }
-            if case .notFound = lookupError {} else {
+            if case .notFound = lookupError {
+            } else {
                 XCTFail("Expected .notFound, got \(lookupError)")
             }
         }
@@ -110,7 +176,8 @@ final class PromptsCommandTests: XCTestCase {
             guard let lookupError = error as? CLILookupError else {
                 return XCTFail("Expected CLILookupError")
             }
-            if case .emptyID = lookupError {} else {
+            if case .emptyID = lookupError {
+            } else {
                 XCTFail("Expected .emptyID, got \(lookupError)")
             }
         }
@@ -129,7 +196,8 @@ final class PromptsCommandTests: XCTestCase {
             guard let lookupError = error as? CLILookupError else {
                 return XCTFail("Expected CLILookupError")
             }
-            if case .ambiguous = lookupError {} else {
+            if case .ambiguous = lookupError {
+            } else {
                 XCTFail("Expected .ambiguous, got \(lookupError)")
             }
         }
@@ -183,7 +251,8 @@ final class PromptsCommandTests: XCTestCase {
         XCTAssertThrowsError(
             try PromptsCommand.SetSubcommand.parse(["anything", "--hidden", "--auto-run"])
         ) { error in
-            XCTAssertTrue(String(describing: error).contains("auto-run requires visible"),
+            XCTAssertTrue(
+                String(describing: error).contains("auto-run requires visible"),
                           "Expected message about auto-run requiring visible, got: \(error)")
         }
     }
@@ -230,13 +299,139 @@ final class PromptsCommandTests: XCTestCase {
         }
     }
 
+    func testSetRejectsContradictoryMeetingNotesFlags() {
+        XCTAssertThrowsError(
+            try PromptsCommand.SetSubcommand.parse([
+                "anything", "--include-meeting-notes", "--no-include-meeting-notes",
+            ])
+        ) { error in
+            XCTAssertTrue(String(describing: error).contains("mutually exclusive"))
+        }
+    }
+
+    func testSetMeetingNotesFlagPersistsAndAppearsInJSON() throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("prompts-notes-cli-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let dbPath = tmp.appendingPathComponent("test.db").path
+        let db = try DatabaseManager(path: dbPath)
+        let prompt = try XCTUnwrap(try PromptRepository(dbQueue: db.dbQueue).fetchAll().first)
+
+        let command = try PromptsCommand.SetSubcommand.parse([
+            prompt.id.uuidString,
+            "--include-meeting-notes",
+            "--json",
+            "--database", dbPath,
+        ])
+        let output = try captureStandardOutput { try command.run() }
+        let payload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(payload["includeMeetingNotes"] as? Bool, true)
+    }
+
+    func testMeetingNotesLookupPrefersResultsWithoutLosingExactUUIDIdentity() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("notes-lookup-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let databasePath = directory.appendingPathComponent("test.db").path
+        let manager = try DatabaseManager(path: databasePath)
+        let repository = PromptRepository(dbQueue: manager.dbQueue)
+        let result = Prompt(
+            id: UUID(uuidString: "CCDDEEFF-1111-1111-1111-111111111111")!,
+            name: "Result prefix target", content: "Result"
+        )
+        let transform = Prompt(
+            id: UUID(uuidString: "CCDDEEFF-2222-2222-2222-222222222222")!,
+            name: "Transform prefix target", content: "Transform", category: .transform
+        )
+        try repository.save(result)
+        try repository.save(transform)
+        for flag in ["--include-meeting-notes", "--no-include-meeting-notes"] {
+            let command = try PromptsCommand.SetSubcommand.parse([
+                "CCDDEEFF", flag, "--database", databasePath,
+            ])
+            try command.run()
+            XCTAssertEqual(try repository.fetch(id: result.id)?.includeMeetingNotes, flag == "--include-meeting-notes")
+            XCTAssertEqual(try repository.fetch(id: transform.id)?.includeMeetingNotes, false)
+        }
+
+        // A result name that resembles only a transform's prefix still
+        // resolves as a name within the result-specific notes operation.
+        let namedResult = Prompt(name: "CCDDEEFF-2222", content: "Named result")
+        try repository.save(namedResult)
+        let namedCommand = try PromptsCommand.SetSubcommand.parse([
+            namedResult.name, "--include-meeting-notes", "--database", databasePath,
+        ])
+        try namedCommand.run()
+        XCTAssertEqual(try repository.fetch(id: namedResult.id)?.includeMeetingNotes, true)
+
+        // Exact UUID precedence must still reject a transform, rather than
+        // modifying a result with a display name equal to that UUID.
+        let uuidNamedResult = Prompt(name: transform.id.uuidString, content: "UUID display name")
+        try repository.save(uuidNamedResult)
+        let exactCommand = try PromptsCommand.SetSubcommand.parse([
+            transform.id.uuidString, "--include-meeting-notes", "--database", databasePath,
+        ])
+        XCTAssertThrowsError(try exactCommand.run()) { error in
+            XCTAssertTrue(String(describing: error).contains("only available for result prompts"))
+        }
+        XCTAssertEqual(try repository.fetch(id: uuidNamedResult.id)?.includeMeetingNotes, false)
+
+        // Ambiguity among results must not fall through to wider lookup.
+        try repository.save(Prompt(
+            id: UUID(uuidString: "CCDDEEFF-3333-3333-3333-333333333333")!,
+            name: "Second result", content: "Result"
+        ))
+        let ambiguous = try PromptsCommand.SetSubcommand.parse([
+            "CCDDEEFF", "--include-meeting-notes", "--database", databasePath,
+        ])
+        XCTAssertThrowsError(try ambiguous.run()) { error in
+            guard case CLILookupError.ambiguous = error else { return XCTFail("Unexpected error: \(error)") }
+        }
+    }
+
+    func testSetMeetingNotesFlagRejectsTransformPrompt() throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("prompts-notes-transform-cli-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let dbPath = tmp.appendingPathComponent("test.db").path
+        let db = try DatabaseManager(path: dbPath)
+        let transform = try XCTUnwrap(
+            try PromptRepository(dbQueue: db.dbQueue).fetchVisible(category: .transform).first
+        )
+        let command = try PromptsCommand.SetSubcommand.parse([
+            transform.id.uuidString,
+            "--include-meeting-notes",
+            "--database", dbPath,
+        ])
+
+        XCTAssertThrowsError(try command.run()) { error in
+            XCTAssertEqual(
+                CLI.normalizedExitCode(for: error),
+                cliValidationMisuseExitCode,
+                "Unexpected error: \(type(of: error)): \(error)"
+            )
+        }
+        XCTAssertFalse(try XCTUnwrap(PromptRepository(dbQueue: db.dbQueue).fetch(id: transform.id)).includeMeetingNotes)
+    }
+
     // MARK: - Set flag semantics (applyFlags)
 
     func testSetAutoRunClearsPerSourceScope() {
         // A prompt narrowed to meetings-only in the GUI must not stay scoped when
         // the CLI enables global auto-run — otherwise it claims global-on while
         // silently firing on meetings only.
-        var prompt = Prompt(name: "Summary", content: "x", category: .result)
+        let inferenceSettings = PromptInferenceSettings(temperature: 0.3, maxTokens: 450)
+        var prompt = Prompt(
+            name: "Summary",
+            content: "x",
+            category: .result,
+            inferenceSettings: inferenceSettings
+        )
         prompt.isAutoRun = true
         prompt.appliesToSources = [.meeting]
 
@@ -247,6 +442,7 @@ final class PromptsCommandTests: XCTestCase {
         XCTAssertTrue(prompt.isAutoRun)
         XCTAssertTrue(prompt.isVisible)
         XCTAssertNil(prompt.appliesToSources, "global --auto-run resets scope to all sources")
+        XCTAssertEqual(prompt.inferenceSettings, inferenceSettings)
     }
 
     func testSetNoAutoRunClearsPerSourceScope() {
@@ -284,7 +480,13 @@ final class PromptsCommandTests: XCTestCase {
         let dbPath = tmp.appendingPathComponent("test.db").path
         let db = try DatabaseManager(path: dbPath)
         let repo = PromptRepository(dbQueue: db.dbQueue)
-        let prompt = Prompt(name: "Meeting Follow-up", content: "x", category: .result)
+        let inferenceSettings = PromptInferenceSettings(topP: 0.8, maxTokens: 700)
+        let prompt = Prompt(
+            name: "Meeting Follow-up",
+            content: "x",
+            category: .result,
+            inferenceSettings: inferenceSettings
+        )
         try repo.save(prompt)
 
         let command = try PromptsCommand.SetSubcommand.parse([
@@ -301,6 +503,7 @@ final class PromptsCommandTests: XCTestCase {
         XCTAssertTrue(updated.isAutoRun)
         XCTAssertTrue(updated.isVisible)
         XCTAssertEqual(updated.appliesToSources, [.meeting])
+        XCTAssertEqual(updated.inferenceSettings, inferenceSettings)
         XCTAssertTrue(updated.autoRuns(for: .meeting))
         XCTAssertFalse(updated.autoRuns(for: .file))
     }
@@ -433,7 +636,7 @@ final class PromptsCommandTests: XCTestCase {
     func testAddRejectsContentAndFromFileTogether() {
         XCTAssertThrowsError(
             try PromptsCommand.AddSubcommand.parse([
-                "--name", "X", "--content", "body", "--from-file", "/tmp/file.txt"
+                "--name", "X", "--content", "body", "--from-file", "/tmp/file.txt",
             ])
         )
     }

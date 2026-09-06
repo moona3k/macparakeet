@@ -149,7 +149,21 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
     var updateFilePathError: Error?
     var updateSpeakersError: Error?
     var updateSpeakersHandler: (@Sendable (UUID, [SpeakerInfo]?) throws -> Void)?
+    var userNotesReadBackError: Error?
+    var userNotesUpdateHandler: (@Sendable () throws -> Void)?
+    private var failNextUserNotesReadBack = false
     var saveError: Error?
+
+    func savePreservingUserMetadata(
+        _ transcription: Transcription, originalFileName: String
+    ) throws -> Transcription {
+        // This fixture's callers serialize access, as they do for save/update.
+        let merged = try mergingCompletionForTest(
+            transcription, current: fetch(id: transcription.id), originalFileName: originalFileName
+        )
+        try save(merged)
+        return merged
+    }
 
     func save(_ transcription: Transcription) throws {
         if let saveError {
@@ -164,6 +178,10 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
 
     func fetch(id: UUID) throws -> Transcription? {
         if let fetchError { throw fetchError }
+        if failNextUserNotesReadBack, let userNotesReadBackError {
+            failNextUserNotesReadBack = false
+            throw userNotesReadBackError
+        }
         return transcriptions.first(where: { $0.id == id })
     }
 
@@ -273,6 +291,19 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
             )
             transcriptions[idx].updatedAt = Date()
         }
+    }
+
+    @discardableResult
+    func updateUserNotes(id: UUID, userNotes: String?) throws -> Bool {
+        try userNotesUpdateHandler?()
+        guard var transcription = transcriptions.first(where: { $0.id == id }) else {
+            return false
+        }
+        transcription.userNotes = userNotes
+        transcription.updatedAt = Date()
+        try save(transcription)
+        failNextUserNotesReadBack = userNotesReadBackError != nil
+        return true
     }
 
     func updateFilePath(id: UUID, filePath: String?) throws {
@@ -419,7 +450,13 @@ final class MockLaunchAtLoginService: LaunchAtLoginControlling {
 
 // MARK: - MockTranscriptionService
 
-actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
+actor MockTranscriptionService: SpeakerConfiguredRetranscriptionService {
+    private var transcribeHook: (@Sendable () async -> Void)?
+
+    func setTranscribeHook(_ hook: @escaping @Sendable () async -> Void) {
+        transcribeHook = hook
+    }
+
     var transcribeResult: Transcription?
     var transcribeError: Error?
     var meetingFinalizationError: Error?
@@ -428,6 +465,7 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
     var lastSource: TelemetryTranscriptionSource?
     var lastMeetingRecording: MeetingRecordingOutput?
     var lastSpeechEngineOverride: SpeechEngineSelection?
+    var lastRetranscriptionSpeakerSelection: RetranscriptionSpeakerSelection?
     var transcribeProgressPhases: [TranscriptionProgress] = []
     var transcribeDelayMs: UInt64 = 0
     var transcribeURLCallCount = 0
@@ -513,6 +551,7 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
         transcribeCallCount += 1
+        await transcribeHook?()
         lastFileURL = fileURL
         lastSource = source
         let fileName = fileURL.lastPathComponent
@@ -557,6 +596,7 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
         transcribeCallCount += 1
+        await transcribeHook?()
         lastMeetingRecording = recording
         lastSource = .meeting
 
@@ -671,6 +711,31 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> Transcription {
         lastSpeechEngineOverride = speechEngineOverride
+        return try await transcribeMeeting(recording: recording, onProgress: onProgress)
+    }
+
+    func retranscribe(
+        existing transcription: Transcription,
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        speechEngineOverride: SpeechEngineSelection?,
+        speakerSelection: RetranscriptionSpeakerSelection,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription {
+        lastSpeechEngineOverride = speechEngineOverride
+        lastRetranscriptionSpeakerSelection = speakerSelection
+        return try await transcribe(fileURL: fileURL, source: source, onProgress: onProgress)
+    }
+
+    func retranscribeMeeting(
+        existing transcription: Transcription,
+        recording: MeetingRecordingOutput,
+        speechEngineOverride: SpeechEngineSelection?,
+        speakerSelection: RetranscriptionSpeakerSelection,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription {
+        lastSpeechEngineOverride = speechEngineOverride
+        lastRetranscriptionSpeakerSelection = speakerSelection
         return try await transcribeMeeting(recording: recording, onProgress: onProgress)
     }
 
@@ -807,6 +872,8 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var streamTokens: [String] = ["Hello", " world"]
     var streamTokenBatches: [[String]] = []
     var streamDelayNs: UInt64 = 0
+    var streamEffectiveSettings: PromptInferenceSettings?
+    var streamEmitsTerminal = true
     var errorToThrow: Error?
     var summarizeCallCount = 0
     var chatCallCount = 0
@@ -818,6 +885,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var lastChatUserNotes: String?
     var lastChatSource: TelemetryChatSource?
     var lastSummarySystemPrompt: String?
+    var lastSummaryInferenceSettings: PromptInferenceSettings?
     var lastFormattedTranscript: String?
     var lastFormatterPromptTemplate: String?
     var lastFormatterSource: TelemetryFormatterSource?
@@ -853,6 +921,22 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     func generatePromptResultDetailed(transcript: String, systemPrompt: String?) async throws -> LLMResult {
         let output = try await generatePromptResult(transcript: transcript, systemPrompt: systemPrompt)
         return LLMResult(output: output, provider: "mock", model: "mock-model", latencyMs: 0)
+    }
+
+    func generatePromptResultDetailed(
+        transcript: String,
+        systemPrompt: String?,
+        inferenceSettings: PromptInferenceSettings?
+    ) async throws -> LLMResult {
+        lastSummaryInferenceSettings = inferenceSettings
+        let output = try await generatePromptResult(transcript: transcript, systemPrompt: systemPrompt)
+        return LLMResult(
+            output: output,
+            provider: "mock",
+            model: "mock-model",
+            latencyMs: 0,
+            effectiveSettings: streamEffectiveSettings
+        )
     }
 
     func chatDetailed(
@@ -938,6 +1022,51 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
                     }
                     guard !Task.isCancelled else { return }
                     continuation.yield(token)
+                }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    func generatePromptResultDetailedStream(
+        transcript: String,
+        systemPrompt: String?,
+        inferenceSettings: PromptInferenceSettings?
+    ) -> AsyncThrowingStream<LLMStreamEvent, Error> {
+        summarizeCallCount += 1
+        lastSummaryTranscript = transcript
+        lastSummarySystemPrompt = systemPrompt
+        lastSummaryInferenceSettings = inferenceSettings
+        let tokens: [String]
+        if streamTokenBatches.isEmpty {
+            tokens = streamTokens
+        } else {
+            tokens = streamTokenBatches.removeFirst()
+        }
+        let error = errorToThrow
+        let delay = streamDelayNs
+        let effectiveSettings = streamEffectiveSettings
+        let emitsTerminal = streamEmitsTerminal
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                if let error {
+                    continuation.finish(throwing: error)
+                    return
+                }
+                for token in tokens {
+                    if delay > 0 {
+                        try? await Task.sleep(nanoseconds: delay)
+                    }
+                    guard !Task.isCancelled else { return }
+                    continuation.yield(.text(token))
+                }
+                if emitsTerminal {
+                    continuation.yield(.completed(LLMStreamTerminal(
+                        provider: "mock",
+                        model: "mock-model",
+                        effectiveSettings: effectiveSettings
+                    )))
                 }
                 continuation.finish()
             }
@@ -1064,6 +1193,13 @@ final class MockPromptRepository: PromptRepositoryProtocol, @unchecked Sendable 
             prompts[index].isVisible = true
             prompts[index].appliesToSources = nil
         }
+        prompts[index].updatedAt = Date()
+    }
+
+    func setIncludeMeetingNotes(id: UUID, enabled: Bool) throws {
+        guard let index = prompts.firstIndex(where: { $0.id == id }) else { return }
+        guard prompts[index].category == .result else { return }
+        prompts[index].includeMeetingNotes = enabled
         prompts[index].updatedAt = Date()
     }
 

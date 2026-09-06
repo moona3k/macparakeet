@@ -8,25 +8,39 @@ public struct PromptResult: Codable, Identifiable, Sendable {
     public var promptContent: String
     public var extraInstructions: String?
     public var content: String
-    /// Snapshot of `Transcription.userNotes` at the moment this prompt was
-    /// generated. Editing notes after generation does not retroactively
-    /// change this value — same self-contained-summary principle as the
-    /// existing prompt snapshot (ADR-013, ADR-020 §6). When the prompt
-    /// template references `{{userNotes}}`, this is the receipt of which
-    /// notes version was substituted into the LLM input, so the result
-    /// stays reproducible even if the user later edits their notes.
-    ///
-    /// Captured unconditionally on every prompt run, even when the
-    /// template doesn't reference `{{userNotes}}`. Harmless but not
-    /// strictly load-bearing for those prompts; could be tightened to
-    /// only capture when the renderer actually substituted notes —
-    /// `PromptTemplateRenderer` already knows whether the variable was
-    /// referenced, so the signal could be threaded through to the
-    /// generation enqueue site. Defer until there's a reason to touch
-    /// this code path (e.g. re-introducing a notes-using built-in).
+    /// Exact effective notes supplied to the LLM for this result, after blank
+    /// normalization and the prompt-context word cap. Nil means no notes were
+    /// sent. Editing canonical meeting notes never changes this receipt.
     public var userNotesSnapshot: String?
+    /// Snapshot of the per-prompt automatic meeting-notes preference used for
+    /// this generation. This remains meaningful when no notes existed, so a
+    /// later regeneration can apply the same preference to newly added notes.
+    public var includeMeetingNotesSnapshot: Bool
+    /// Effective generation settings actually sent to the provider for this
+    /// result. Nil means the historical provider-default behavior.
+    public var inferenceSettingsSnapshot: PromptInferenceSettings?
     public var createdAt: Date
     public var updatedAt: Date
+
+    /// Legacy JSON predates the meeting-notes preference. Only an absent key
+    /// defaults to false; malformed or null values remain decoding errors.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        transcriptionId = try container.decode(UUID.self, forKey: .transcriptionId)
+        promptName = try container.decode(String.self, forKey: .promptName)
+        promptContent = try container.decode(String.self, forKey: .promptContent)
+        extraInstructions = try container.decodeIfPresent(String.self, forKey: .extraInstructions)
+        content = try container.decode(String.self, forKey: .content)
+        userNotesSnapshot = try container.decodeIfPresent(String.self, forKey: .userNotesSnapshot)
+        includeMeetingNotesSnapshot =
+            container.contains(.includeMeetingNotesSnapshot)
+            ? try container.decode(Bool.self, forKey: .includeMeetingNotesSnapshot) : false
+        inferenceSettingsSnapshot = try container.decodeIfPresent(
+            PromptInferenceSettings.self, forKey: .inferenceSettingsSnapshot)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+    }
 
     public init(
         id: UUID = UUID(),
@@ -36,6 +50,8 @@ public struct PromptResult: Codable, Identifiable, Sendable {
         extraInstructions: String? = nil,
         content: String,
         userNotesSnapshot: String? = nil,
+        includeMeetingNotesSnapshot: Bool = false,
+        inferenceSettingsSnapshot: PromptInferenceSettings? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -46,6 +62,8 @@ public struct PromptResult: Codable, Identifiable, Sendable {
         self.extraInstructions = extraInstructions
         self.content = content
         self.userNotesSnapshot = userNotesSnapshot
+        self.includeMeetingNotesSnapshot = includeMeetingNotesSnapshot
+        self.inferenceSettingsSnapshot = inferenceSettingsSnapshot?.normalized
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -55,6 +73,7 @@ extension PromptResult: FetchableRecord, PersistableRecord {
     public static let databaseTableName = "summaries"
 
     public enum Columns: String, ColumnExpression {
-        case id, transcriptionId, promptName, promptContent, extraInstructions, content, userNotesSnapshot, createdAt, updatedAt
+        case id, transcriptionId, promptName, promptContent, extraInstructions, content
+        case userNotesSnapshot, includeMeetingNotesSnapshot, inferenceSettingsSnapshot, createdAt, updatedAt
     }
 }

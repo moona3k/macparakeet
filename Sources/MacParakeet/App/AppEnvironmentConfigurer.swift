@@ -113,10 +113,15 @@ final class AppEnvironmentConfigurer {
             transcriptionRepo: env.transcriptionRepo,
             llmService: hasLLMConfig ? env.llmService : nil,
             promptResultRepo: env.promptResultRepo,
-            promptResultsViewModel: promptResultsViewModel
+            promptResultsViewModel: promptResultsViewModel,
+            speakerAttributionReader: env.speakerAttributionReader,
+            speakerCorrectionService: env.speakerCorrectionService
         )
         historyViewModel.configure(dictationRepo: env.dictationRepo)
-        libraryViewModel.configure(transcriptionRepo: env.transcriptionRepo)
+        libraryViewModel.configure(
+            transcriptionRepo: env.transcriptionRepo,
+            speakerAttributionReader: env.speakerAttributionReader
+        )
         meetingsWorkspaceViewModel.configure(
             transcriptionRepo: env.transcriptionRepo,
             quickPromptRepo: env.quickPromptRepo,
@@ -215,6 +220,7 @@ final class AppEnvironmentConfigurer {
             // into the chat path that ADR-020's 2026-05-02 amendment relies on.
             transcriptionRepo: env.transcriptionRepo,
             meetingArtifactStore: MeetingArtifactStore(),
+            speakerAttributionReader: env.speakerAttributionReader,
             configStore: env.llmConfigStore,
             llmClient: env.llmClient,
             cardGenerator: hasLLMConfig ? env.cardGenerationService : nil

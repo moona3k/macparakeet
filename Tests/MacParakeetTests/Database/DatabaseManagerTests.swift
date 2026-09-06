@@ -62,6 +62,101 @@ final class DatabaseManagerTests: XCTestCase {
         }
     }
 
+    func testSpeakerCorrectionsMigrationCreatesLogStateAndReplayIndex() throws {
+        let manager = try DatabaseManager()
+
+        try manager.dbQueue.read { db in
+            XCTAssertTrue(try db.tableExists("speaker_corrections"))
+            XCTAssertTrue(try db.tableExists("speaker_correction_states"))
+            XCTAssertEqual(
+                Set(try db.columns(in: "speaker_corrections").map(\.name)),
+                [
+                    "id", "transcriptionId", "parentId", "sequence",
+                    "transcriptFingerprint", "operation", "payload",
+                    "branchState", "createdAt",
+                ]
+            )
+            XCTAssertEqual(
+                Set(try db.columns(in: "speaker_correction_states").map(\.name)),
+                [
+                    "transcriptionId", "transcriptFingerprint", "headId",
+                    "revision", "updatedAt",
+                ]
+            )
+            XCTAssertTrue(try db.indexes(on: "speaker_corrections").contains {
+                $0.name == "idx_speaker_corrections_replay"
+            })
+        }
+    }
+
+    func testDeletingTranscriptionCascadesSpeakerCorrectionHistoryAndState() throws {
+        let manager = try DatabaseManager()
+        let transcription = Transcription(
+            fileName: "Corrected",
+            status: .completed,
+            sourceType: .file
+        )
+        try TranscriptionRepository(dbQueue: manager.dbQueue).save(transcription)
+        let correction = SpeakerCorrection(
+            transcriptionId: transcription.id,
+            parentId: nil,
+            sequence: 1,
+            transcriptFingerprint: TranscriptFingerprint(rawValue: "version-1"),
+            payload: .rename(speakerID: "S1", label: "Alice")
+        )
+        let state = SpeakerCorrectionState(
+            transcriptionId: transcription.id,
+            transcriptFingerprint: "version-1",
+            headId: correction.id,
+            revision: 1
+        )
+        try manager.dbQueue.write { db in
+            try correction.insert(db)
+            try state.insert(db)
+        }
+
+        _ = try TranscriptionRepository(dbQueue: manager.dbQueue).delete(id: transcription.id)
+
+        try manager.dbQueue.read { db in
+            XCTAssertEqual(try SpeakerCorrection.fetchCount(db), 0)
+            XCTAssertEqual(try SpeakerCorrectionState.fetchCount(db), 0)
+        }
+    }
+
+    func testSpeakerCorrectionsMigrationPreservesPreviousSchemaTranscriptions() throws {
+        let dbPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("speaker_corrections_migration_\(UUID().uuidString).db")
+            .path
+        defer { cleanupDatabaseFiles(atPath: dbPath) }
+        let transcription = Transcription(
+            fileName: "Existing interview",
+            rawTranscript: "Keep this transcript.",
+            status: .completed,
+            sourceType: .file
+        )
+        let original = try DatabaseManager(path: dbPath)
+        try TranscriptionRepository(dbQueue: original.dbQueue).save(transcription)
+        try original.dbQueue.write { db in
+            try db.execute(sql: "DROP TABLE speaker_correction_states")
+            try db.execute(sql: "DROP TABLE speaker_corrections")
+            try db.execute(
+                sql: "DELETE FROM grdb_migrations WHERE identifier = ?",
+                arguments: ["v0.32-speaker-corrections"]
+            )
+        }
+
+        let migrated = try DatabaseManager(path: dbPath)
+
+        XCTAssertEqual(
+            try TranscriptionRepository(dbQueue: migrated.dbQueue).fetch(id: transcription.id)?.rawTranscript,
+            "Keep this transcript."
+        )
+        try migrated.dbQueue.read { db in
+            XCTAssertTrue(try db.tableExists("speaker_corrections"))
+            XCTAssertTrue(try db.tableExists("speaker_correction_states"))
+        }
+    }
+
     func testSegmentsFTSMigrationCreatesExternalContentIndexAndTriggers() throws {
         let manager = try DatabaseManager()
         let transcription = Transcription(
@@ -453,6 +548,87 @@ final class DatabaseManagerTests: XCTestCase {
         XCTAssertNil(upgraded.meetingCaptureReport)
     }
 
+    func testPromptInferenceSettingsColumnsExist() throws {
+        let manager = try DatabaseManager()
+        try manager.dbQueue.read { db in
+            XCTAssertTrue(try db.columns(in: "prompts").map(\.name).contains("inferenceSettings"))
+            XCTAssertTrue(
+                try db.columns(in: "summaries").map(\.name)
+                    .contains("inferenceSettingsSnapshot")
+            )
+        }
+    }
+
+    func testPromptInferenceSettingsMigrationPreservesExistingRows() throws {
+        let dbPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("prompt_inference_settings_upgrade_\(UUID().uuidString).db")
+            .path
+        defer { cleanupDatabaseFiles(atPath: dbPath) }
+
+        let previousVersionManager = try DatabaseManager(path: dbPath)
+        let prompt = Prompt(name: "Legacy Prompt", content: "Keep this prompt.")
+        try PromptRepository(dbQueue: previousVersionManager.dbQueue).save(prompt)
+        let transcription = Transcription(fileName: "legacy.m4a", status: .completed)
+        try TranscriptionRepository(dbQueue: previousVersionManager.dbQueue).save(transcription)
+        let result = PromptResult(
+            transcriptionId: transcription.id,
+            promptName: prompt.name,
+            promptContent: prompt.content,
+            content: "Keep this result."
+        )
+        try PromptResultRepository(dbQueue: previousVersionManager.dbQueue).save(result)
+
+        try previousVersionManager.dbQueue.write { db in
+            try db.execute(sql: "ALTER TABLE prompts DROP COLUMN inferenceSettings")
+            try db.execute(sql: "ALTER TABLE summaries DROP COLUMN inferenceSettingsSnapshot")
+            try db.execute(
+                sql: "DELETE FROM grdb_migrations WHERE identifier = ?",
+                arguments: ["v0.31-prompt-inference-settings"]
+            )
+        }
+
+        let upgradedManager = try DatabaseManager(path: dbPath)
+        let upgradedPrompt = try PromptRepository(dbQueue: upgradedManager.dbQueue)
+            .fetch(id: prompt.id)
+        let upgradedResult = try PromptResultRepository(dbQueue: upgradedManager.dbQueue)
+            .fetchAll(transcriptionId: transcription.id).first
+
+        XCTAssertEqual(upgradedPrompt?.content, prompt.content)
+        XCTAssertNil(upgradedPrompt?.inferenceSettings)
+        XCTAssertEqual(upgradedResult?.content, result.content)
+        XCTAssertNil(upgradedResult?.inferenceSettingsSnapshot)
+    }
+
+    func testPromptInferenceSettingsMigrationToleratesExistingColumnsWhenMarkerIsMissing() throws {
+        let dbPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("prompt_inference_settings_rerun_\(UUID().uuidString).db")
+            .path
+        defer { cleanupDatabaseFiles(atPath: dbPath) }
+
+        let first = try DatabaseManager(path: dbPath)
+        try first.dbQueue.write { db in
+            try db.execute(
+                sql: "DELETE FROM grdb_migrations WHERE identifier = ?",
+                arguments: ["v0.31-prompt-inference-settings"]
+            )
+        }
+
+        let second = try DatabaseManager(path: dbPath)
+        try second.dbQueue.read { db in
+            XCTAssertTrue(try db.columns(in: "prompts").map(\.name).contains("inferenceSettings"))
+            XCTAssertTrue(
+                try db.columns(in: "summaries").map(\.name)
+                    .contains("inferenceSettingsSnapshot")
+            )
+            let recorded = try Bool.fetchOne(
+                db,
+                sql: "SELECT EXISTS(SELECT 1 FROM grdb_migrations WHERE identifier = ?)",
+                arguments: ["v0.31-prompt-inference-settings"]
+            ) ?? false
+            XCTAssertTrue(recorded)
+        }
+    }
+
     // MARK: - ADR-020 v0.8 schema additions
 
     func testUserNotesColumnExistsOnTranscriptions() throws {
@@ -560,6 +736,22 @@ final class DatabaseManagerTests: XCTestCase {
         }
     }
 
+    func testPromptMeetingNotesContextColumnsExistAndDefaultFalse() throws {
+        let manager = try DatabaseManager()
+        try manager.dbQueue.read { db in
+            let promptColumns = try db.columns(in: "prompts").map(\.name)
+            let summaryColumns = try db.columns(in: "summaries").map(\.name)
+            XCTAssertTrue(promptColumns.contains("includeMeetingNotes"))
+            XCTAssertTrue(summaryColumns.contains("includeMeetingNotesSnapshot"))
+
+            let promptDefault = try Bool.fetchOne(
+                db,
+                sql: "SELECT includeMeetingNotes FROM prompts LIMIT 1"
+            )
+            XCTAssertEqual(promptDefault, false)
+        }
+    }
+
     func testTranscriptionUserNotesRoundTrips() throws {
         let manager = try DatabaseManager()
         let transcriptionID = UUID()
@@ -608,7 +800,8 @@ final class DatabaseManagerTests: XCTestCase {
                 promptName: "Summary",
                 promptContent: "...",
                 content: "Generated summary",
-                userNotesSnapshot: "snapshot of notes at gen time"
+                userNotesSnapshot: "snapshot of notes at gen time",
+                includeMeetingNotesSnapshot: true
             ).insert(db)
         }
 
@@ -616,6 +809,7 @@ final class DatabaseManagerTests: XCTestCase {
             try PromptResult.fetchOne(db, key: promptResultID)
         }
         XCTAssertEqual(loaded?.userNotesSnapshot, "snapshot of notes at gen time")
+        XCTAssertEqual(loaded?.includeMeetingNotesSnapshot, true)
     }
 
     func testReconcileBuiltInPromptsHonorsAutoRunGuardWhenZeroAutoRun() throws {

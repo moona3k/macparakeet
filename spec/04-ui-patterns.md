@@ -147,6 +147,49 @@ window, or replace an unrelated open detail page. Recorder-idle queued
 completion may still present the finished meeting, matching the existing
 queued-completion behavior.
 
+### Saved Meeting Notes
+
+Every saved meeting detail exposes a dedicated `Notes` tab immediately after
+`Transcript`, including meetings with no notes and meetings whose transcription
+is still processing. Notes are an editorial layer and never appear inside the
+factual transcript pane. The tab always shows an editable plaintext
+`TextEditor`, including when notes are empty, with Copy, word count, and the
+existing 7,500-word soft-cap warning. The separate 8,000-word cap bounds notes
+sent to prompt assembly; it does not truncate stored notes.
+
+Changes auto-save after a 500 ms idle debounce. A quiet status reports Saving,
+Saved, or a retryable failure; the editor stays writable during persistence.
+Leaving the tab, leaving the detail page, or starting an LLM action flushes the
+latest draft. Chat and result prompts never start after a failed flush, so they
+cannot receive stale notes. Saving blank or whitespace-only text clears the
+canonical value. Database success remains authoritative even if the
+derived-artifact refresh reports a separate retryable warning. Successive
+saves use database last-writer-wins semantics, while artifact refresh remains
+ordered/latest-wins so stale completion cannot overwrite newer files.
+
+A notes-save error banner belongs to the selected meeting. Selecting another
+recording dismisses that banner while retaining the failed draft and its retry
+state in the notes coordinator. Same-meeting metadata refreshes and background
+saves for other meetings preserve the banner; unrelated diagnostics remain intact.
+
+### Result Prompt Meeting-Notes Context
+
+The expanded configuration area of every result-prompt card includes an
+**Include meeting notes as context** checkbox and this help text:
+
+> When this prompt runs on a meeting with notes, use those notes as additional
+> context. The transcript remains the source of truth.
+
+The checkbox is present for built-in and custom result prompts, absent for
+Transforms, and off by default. Custom-prompt Create/Edit sheets expose the
+same choice; an enabled card may show a quiet `Meeting notes` context badge.
+The primary UI does not mention `{{userNotes}}`: that variable remains an
+advanced custom-template compatibility mechanism. Chat/Ask does not gain this
+checkbox and retains its existing automatic use of committed meeting notes.
+
+This UI was implemented and locally verified on 2026-09-05. Release
+availability follows the normal channel process.
+
 ### Local Transcription Rename
 
 Local transcription rows expose `Rename...` with a `pencil` symbol in the same Library card/context menu as `Open`, placed before selection and destructive actions. The dialog is compact, prefilled with the effective display title, and rejects blank titles. Until the user explicitly renames it, a Local row's effective title is its original media filename rather than transcript-derived opening words. Rename is a display-metadata operation only: the original source filename/path remain unchanged, and copy-on-import/media-retention behavior is not implied.
@@ -578,7 +621,7 @@ Floating panel opened from the meeting recording pill. Shows live notes, live tr
 - **Elapsed timer** — updates every second
 - **Dual audio level meters** — mic and system audio levels (visual feedback that both streams are capturing)
 - **Tabs** — Notes / Transcript / Ask, with ⌘1 / ⌘2 / ⌘3 shortcuts; Notes and Transcript are plain labels, Ask adds a streaming dot while `chatViewModel.isStreaming` and collapses that dot into the tooltip at narrow width
-- **Notes pane** — plaintext editor with slash commands, debounced auto-save through `MeetingRecordingService.updateNotes(_:)`, soft-cap warning near 8,000 words, and lock-file crash recovery
+- **Notes pane** — plaintext editor with slash commands, debounced auto-save through `MeetingRecordingService.updateNotes(_:)`, soft-cap warning at 7,500 words, and lock-file crash recovery
 - **Transcript pane** — scrolling live preview grouped into reading paragraphs, with one source label and timestamp per paragraph ([Me] = mic, [Them] = system audio); lag notice appears when preview chunks fall behind or are dropped
 - **Ask pane** — live chat against the rolling transcript using the configured LLM provider; follow-up state is handed off after finalization
 - **Stop button** — stops recording, triggers batch transcription, navigates to result

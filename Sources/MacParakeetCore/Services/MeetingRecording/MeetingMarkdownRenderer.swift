@@ -147,7 +147,9 @@ public struct MeetingMarkdownRenderer: Sendable {
     public func render(
         transcription: Transcription,
         promptResults: [PromptResult],
-        artifactPaths: MeetingMarkdownArtifactPaths = .init()
+        artifactPaths: MeetingMarkdownArtifactPaths = .init(),
+        speakerCorrectionsApplied: Bool = false,
+        speakerCorrectionRevision: Int = 0
     ) -> String {
         let transcript = renderedTranscript(transcription)
         var sections = [
@@ -155,7 +157,9 @@ public struct MeetingMarkdownRenderer: Sendable {
                 transcription: transcription,
                 artifactPaths: artifactPaths,
                 speakerLabelsIncluded: transcript.speakerLabelsIncluded,
-                promptResultCount: promptResults.count
+                promptResultCount: promptResults.count,
+                speakerCorrectionsApplied: speakerCorrectionsApplied,
+                speakerCorrectionRevision: speakerCorrectionRevision
             )
         ]
         sections.append(contentsOf: meetingContentSections(
@@ -192,7 +196,9 @@ public struct MeetingMarkdownRenderer: Sendable {
         transcription: Transcription,
         artifactPaths: MeetingMarkdownArtifactPaths,
         speakerLabelsIncluded: Bool,
-        promptResultCount: Int
+        promptResultCount: Int,
+        speakerCorrectionsApplied: Bool,
+        speakerCorrectionRevision: Int
     ) -> String {
         var lines: [String] = ["---"]
         lines.append("schema: \(Self.schema)")
@@ -219,6 +225,8 @@ public struct MeetingMarkdownRenderer: Sendable {
         appendOptional("cleanedMicrophoneAudioPath", artifactPaths.cleanedMicrophoneAudioPath, to: &lines)
         appendOptional("metadataPath", artifactPaths.metadataPath, to: &lines)
         lines.append("speakerLabelsIncluded: \(speakerLabelsIncluded ? "true" : "false")")
+        lines.append("speakerCorrectionsApplied: \(speakerCorrectionsApplied ? "true" : "false")")
+        lines.append("speakerCorrectionRevision: \(speakerCorrectionRevision)")
         lines.append("promptResultCount: \(promptResultCount)")
         lines.append("---")
         return lines.joined(separator: "\n")

@@ -78,11 +78,44 @@ final class CardRepositoryTests: XCTestCase {
         let originalSegments = try segments.fetch(transcriptionId: transcription.id)
         let expected = CardGenerationSnapshot(
             transcriptHash: CardContentFingerprint.transcriptHash(for: transcription),
-            segmentsHash: CardContentFingerprint.segmentsHash(originalSegments)
+            segmentsHash: CardContentFingerprint.segmentsHash(originalSegments),
+            attributionFingerprint: SpeakerAttributionResolver.fingerprint(for: transcription),
+            correctionRevision: 0
         )
         var changed = try XCTUnwrap(originalSegments.first)
         changed.text = "Mutated citation target."
         try manager.dbQueue.write { db in try changed.update(db) }
+
+        let saved = try cards.saveIfCurrent(
+            try makeCard(transcriptionId: transcription.id),
+            expected: expected
+        )
+
+        XCTAssertNil(saved)
+        XCTAssertNil(try cards.fetch(transcriptionId: transcription.id))
+    }
+
+    func testConditionalSaveRejectsChangedSpeakerCorrectionRevision() throws {
+        let transcription = makeTranscription(source: .meeting)
+        try transcriptions.save(transcription)
+        let segments = SegmentRepository(dbQueue: manager.dbQueue)
+        try segments.replaceSegments(for: transcription)
+        let originalSegments = try segments.fetch(transcriptionId: transcription.id)
+        let fingerprint = SpeakerAttributionResolver.fingerprint(for: transcription)
+        let expected = CardGenerationSnapshot(
+            transcriptHash: CardContentFingerprint.transcriptHash(for: transcription),
+            segmentsHash: CardContentFingerprint.segmentsHash(originalSegments),
+            attributionFingerprint: fingerprint,
+            correctionRevision: 0
+        )
+        try manager.dbQueue.write { db in
+            try SpeakerCorrectionState(
+                transcriptionId: transcription.id,
+                transcriptFingerprint: fingerprint.rawValue,
+                headId: nil,
+                revision: 1
+            ).insert(db)
+        }
 
         let saved = try cards.saveIfCurrent(
             try makeCard(transcriptionId: transcription.id),
@@ -391,7 +424,7 @@ final class CardRepositoryTests: XCTestCase {
             transcriptionId: transcriptionId,
             cardSchemaVersion: 1,
             transcriptHash: CardContentFingerprint.transcriptHash(for: transcription),
-            segmenterVersion: 2,
+            segmenterVersion: KnowledgeSegmenter.currentVersion,
             promptVersion: "knowledge-card-v1",
             model: "stub-model",
             generatedAt: Date(timeIntervalSince1970: 1_800_000_100),

@@ -16,6 +16,8 @@ final class AppEnvironment {
     let segmentRepo: SegmentRepository
     let cardRepo: CardRepository
     let knowledgeLayerMutator: KnowledgeLayerMutationService
+    let speakerAttributionReader: SpeakerAttributionReadService
+    let speakerCorrectionService: SpeakerCorrectionService
     let customWordRepo: CustomWordRepository
     let snippetRepo: TextSnippetRepository
     let chatConversationRepo: ChatConversationRepository
@@ -70,6 +72,8 @@ final class AppEnvironment {
         segmentRepo = SegmentRepository(dbQueue: databaseManager.dbQueue)
         cardRepo = CardRepository(dbQueue: databaseManager.dbQueue)
         knowledgeLayerMutator = KnowledgeLayerMutationService(dbQueue: databaseManager.dbQueue)
+        speakerAttributionReader = SpeakerAttributionReadService(dbQueue: databaseManager.dbQueue)
+        speakerCorrectionService = SpeakerCorrectionService(dbQueue: databaseManager.dbQueue)
         customWordRepo = CustomWordRepository(dbQueue: databaseManager.dbQueue)
         snippetRepo = TextSnippetRepository(dbQueue: databaseManager.dbQueue)
         chatConversationRepo = ChatConversationRepository(dbQueue: databaseManager.dbQueue)
@@ -302,6 +306,7 @@ final class AppEnvironment {
             transcriptionRepository: transcriptionRepo,
             segmentRepository: segmentRepo,
             cardRepository: cardRepo,
+            speakerAttributionReader: speakerAttributionReader,
             completionProvider: llmService
         )
 

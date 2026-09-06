@@ -35,11 +35,20 @@ public final class CardRepository: CardRepositoryProtocol, @unchecked Sendable {
         let validated = CardTextBudget.enforce(card)
         return try dbQueue.write { db in
             guard let transcription = try Transcription.fetchOne(db, key: card.transcriptionId),
-                transcription.status == .completed,
-                CardContentFingerprint.transcriptHash(for: transcription) == expected.transcriptHash
+                transcription.status == .completed
             else {
                 return nil
             }
+            let projection = try SpeakerAttributionReadService.resolve(
+                transcription: transcription,
+                in: db
+            )
+            guard
+                projection.attribution.fingerprint == expected.attributionFingerprint,
+                projection.correctionRevision == expected.correctionRevision,
+                CardContentFingerprint.transcriptHash(for: projection.effectiveTranscription)
+                    == expected.transcriptHash
+            else { return nil }
             let segments =
                 try Segment
                 .filter(Segment.Columns.transcriptionId == card.transcriptionId)
@@ -105,7 +114,12 @@ public final class CardRepository: CardRepositoryProtocol, @unchecked Sendable {
             return try rows.compactMap { row in
                 let transcription = try Transcription(row: row)
                 let currentCardTranscriptHash: String? = row["currentCardTranscriptHash"]
-                return currentCardTranscriptHash == CardContentFingerprint.transcriptHash(for: transcription)
+                let projection = try SpeakerAttributionReadService.resolve(
+                    transcription: transcription,
+                    in: db
+                )
+                return currentCardTranscriptHash
+                    == CardContentFingerprint.transcriptHash(for: projection.effectiveTranscription)
                     ? nil
                     : transcription.id
             }
@@ -161,7 +175,7 @@ public final class CardRepository: CardRepositoryProtocol, @unchecked Sendable {
                 for row in rows {
                     let card = try Card(row: row)
                     let transcription = try Transcription(row: row)
-                    guard Self.isCurrent(card: card, transcription: transcription) else {
+                    guard try Self.isCurrent(card: card, transcription: transcription, in: db) else {
                         continue
                     }
                     currentItems.append(Self.listItem(card: card, transcription: transcription))
@@ -174,10 +188,20 @@ public final class CardRepository: CardRepositoryProtocol, @unchecked Sendable {
         }
     }
 
-    private static func isCurrent(card: Card, transcription: Transcription) -> Bool {
-        card.provenance
+    private static func isCurrent(
+        card: Card,
+        transcription: Transcription,
+        in db: Database
+    ) throws -> Bool {
+        let projection = try SpeakerAttributionReadService.resolve(
+            transcription: transcription,
+            in: db
+        )
+        return card.provenance
             == CardProvenance(
-                transcriptHash: CardContentFingerprint.transcriptHash(for: transcription),
+                transcriptHash: CardContentFingerprint.transcriptHash(
+                    for: projection.effectiveTranscription
+                ),
                 segmenterVersion: KnowledgeSegmenter.currentVersion,
                 promptVersion: Card.currentPromptVersion,
                 cardSchemaVersion: Card.currentSchemaVersion

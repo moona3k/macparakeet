@@ -81,6 +81,10 @@ enum DAPTDocumentRenderer {
         return lines.joined(separator: "\n")
     }
 
+    static func render(projection: SpeakerAttributionProjection) -> String {
+        render(transcription: projection.effectiveTranscription)
+    }
+
     private static func alignedCues(for transcription: Transcription) -> [TranscriptCue] {
         guard !transcription.isTranscriptEdited,
             let words = transcription.wordTimestamps,

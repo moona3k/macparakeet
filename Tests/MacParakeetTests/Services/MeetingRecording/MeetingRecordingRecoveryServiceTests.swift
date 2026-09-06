@@ -1540,6 +1540,19 @@ private final class RecordingTranscriptionRepository: TranscriptionRepositoryPro
     private(set) var saved: [Transcription] = []
     var fetchAllError: Error?
 
+    func savePreservingUserMetadata(
+        _ transcription: Transcription, originalFileName: String
+    ) throws -> Transcription {
+        try lock.withLock {
+            let merged = try mergingCompletionForTest(
+                transcription, current: saved.first { $0.id == transcription.id }, originalFileName: originalFileName
+            )
+            saved.removeAll { $0.id == transcription.id }
+            saved.append(merged)
+            return merged
+        }
+    }
+
     func save(_ transcription: Transcription) throws {
         lock.withLock {
             saved.removeAll { $0.id == transcription.id }

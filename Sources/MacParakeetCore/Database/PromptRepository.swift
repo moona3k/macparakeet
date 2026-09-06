@@ -17,7 +17,19 @@ public protocol PromptRepositoryProtocol: Sendable {
     /// Enable/disable auto-run of a `.result` prompt for a single source,
     /// adjusting `appliesToSources` so other sources are unaffected.
     func setAutoRun(id: UUID, source: Transcription.SourceType, enabled: Bool) throws
+    /// Enable/disable automatic meeting-note context for a `.result` prompt.
+    /// Transform prompts ignore this setting.
+    func setIncludeMeetingNotes(id: UUID, enabled: Bool) throws
     func restoreDefaults() throws
+}
+
+public extension PromptRepositoryProtocol {
+    func setIncludeMeetingNotes(id: UUID, enabled: Bool) throws {
+        guard var prompt = try fetch(id: id), prompt.category == .result else { return }
+        prompt.includeMeetingNotes = enabled
+        prompt.updatedAt = Date()
+        try save(prompt)
+    }
 }
 
 public final class PromptRepository: PromptRepositoryProtocol {
@@ -29,7 +41,12 @@ public final class PromptRepository: PromptRepositoryProtocol {
 
     public func save(_ prompt: Prompt) throws {
         try dbQueue.write { db in
-            try prompt.save(db)
+            var normalizedPrompt = prompt
+            normalizedPrompt.inferenceSettings = prompt.inferenceSettings?.normalized
+            if normalizedPrompt.category == .transform {
+                normalizedPrompt.includeMeetingNotes = false
+            }
+            try normalizedPrompt.save(db)
         }
     }
 
@@ -49,7 +66,8 @@ public final class PromptRepository: PromptRepositoryProtocol {
 
     public func fetchVisible(category: Prompt.Category? = nil) throws -> [Prompt] {
         try dbQueue.read { db in
-            var request = Prompt
+            var request =
+                Prompt
                 .filter(Prompt.Columns.isVisible == true)
                 .order(Prompt.Columns.sortOrder.asc, Prompt.Columns.name.asc)
             if let category {
@@ -93,6 +111,7 @@ public final class PromptRepository: PromptRepositoryProtocol {
                 prompt.isAutoRun = false
             }
             prompt.updatedAt = Date()
+            prompt.inferenceSettings = prompt.inferenceSettings?.normalized
             try prompt.update(db)
         }
     }
@@ -116,6 +135,7 @@ public final class PromptRepository: PromptRepositoryProtocol {
                 prompt.appliesToSources = nil
             }
             prompt.updatedAt = Date()
+            prompt.inferenceSettings = prompt.inferenceSettings?.normalized
             try prompt.update(db)
         }
     }
@@ -159,6 +179,17 @@ public final class PromptRepository: PromptRepositoryProtocol {
                 }
             }
             prompt.updatedAt = Date()
+            prompt.inferenceSettings = prompt.inferenceSettings?.normalized
+            try prompt.update(db)
+        }
+    }
+
+    public func setIncludeMeetingNotes(id: UUID, enabled: Bool) throws {
+        try dbQueue.write { db in
+            guard var prompt = try Prompt.fetchOne(db, key: id), prompt.category == .result else { return }
+            prompt.includeMeetingNotes = enabled
+            prompt.updatedAt = Date()
+            prompt.inferenceSettings = prompt.inferenceSettings?.normalized
             try prompt.update(db)
         }
     }

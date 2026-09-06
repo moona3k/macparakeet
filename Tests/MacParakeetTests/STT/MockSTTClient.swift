@@ -70,6 +70,12 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
     private var previewHoldContinuations: [CheckedContinuation<Void, Never>] = []
     private var previewCallWaiters: [PreviewCallWaiter] = []
 
+    private var transcribeHook: (@Sendable () async -> Void)?
+
+    public func setTranscribeHook(_ hook: @escaping @Sendable () async -> Void) {
+        transcribeHook = hook
+    }
+
     public init() {}
 
     public func configureTelemetryAttribution(_ attribution: SpeechEngineTelemetryAttribution?) {
@@ -133,6 +139,7 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
         onProgress: (@Sendable (Int, Int) -> Void)? = nil
     ) async throws -> STTResult {
         transcribeCallCount += 1
+        await transcribeHook?()
         lastAudioPath = audioPath
         lastJob = job
         audioPaths.append(audioPath)

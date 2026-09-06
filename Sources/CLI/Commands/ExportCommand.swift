@@ -49,12 +49,14 @@ struct ExportCommand: AsyncParsableCommand {
             try AppPaths.ensureDirectories()
             let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
             let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
+            let attributionReader = SpeakerAttributionReadService(dbQueue: dbManager.dbQueue)
 
             let transcription = try findTranscription(id: id, repo: repo)
+            let projection = try attributionReader.resolve(transcription: transcription)
             let exportService = ExportService()
 
             if stdout {
-                let content = try formatContent(transcription: transcription, exportService: exportService)
+                let content = try formatContent(projection: projection, exportService: exportService)
                 print(content)
             } else {
                 let outputURL = resolveOutputURL(transcription: transcription)
@@ -62,7 +64,7 @@ struct ExportCommand: AsyncParsableCommand {
                     at: outputURL.deletingLastPathComponent(),
                     withIntermediateDirectories: true
                 )
-                try writeExport(transcription: transcription, exportService: exportService, url: outputURL)
+                try writeExport(projection: projection, exportService: exportService, url: outputURL)
                 print("Exported to \(outputURL.path)")
             }
         }
@@ -77,44 +79,60 @@ struct ExportCommand: AsyncParsableCommand {
         return URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(fileName)
     }
 
-    private func formatContent(transcription: Transcription, exportService: ExportService) throws -> String {
+    private func formatContent(
+        projection: SpeakerAttributionProjection,
+        exportService: ExportService
+    ) throws -> String {
         switch format {
         case .txt:
-            return exportService.formatForClipboard(transcription: transcription)
+            return exportService.formatPlainText(projection: projection)
         case .markdown:
-            return exportService.formatMarkdown(transcription: transcription)
+            return exportService.formatMarkdown(projection: projection)
         case .srt:
-            return exportService.formatSRT(transcription: transcription)
+            return exportService.formatSRT(projection: projection)
         case .vtt:
-            return exportService.formatVTT(transcription: transcription)
+            return exportService.formatVTT(projection: projection)
         case .dapt:
-            return exportService.formatDAPT(transcription: transcription)
+            return exportService.formatDAPT(projection: projection)
         case .json:
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            encoder.dateEncodingStrategy = .iso8601
-            let data = try encoder.encode(transcription)
-            guard let string = String(data: data, encoding: .utf8) else {
-                throw CocoaError(.fileReadInapplicableStringEncoding)
-            }
-            return string
+            return try projectedJSON(projection)
         }
     }
 
-    private func writeExport(transcription: Transcription, exportService: ExportService, url: URL) throws {
+    private func writeExport(
+        projection: SpeakerAttributionProjection,
+        exportService: ExportService,
+        url: URL
+    ) throws {
         switch format {
         case .txt:
-            try exportService.exportToTxt(transcription: transcription, url: url)
+            try exportService.exportToTxt(transcription: projection.effectiveTranscription, url: url)
         case .markdown:
-            try exportService.exportToMarkdown(transcription: transcription, url: url)
+            try exportService.exportToMarkdown(transcription: projection.effectiveTranscription, url: url)
         case .srt:
-            try exportService.exportToSRT(transcription: transcription, url: url)
+            try exportService.exportToSRT(transcription: projection.effectiveTranscription, url: url)
         case .vtt:
-            try exportService.exportToVTT(transcription: transcription, url: url)
+            try exportService.exportToVTT(transcription: projection.effectiveTranscription, url: url)
         case .dapt:
-            try exportService.exportToDAPT(transcription: transcription, url: url)
+            try exportService.exportToDAPT(transcription: projection.effectiveTranscription, url: url)
         case .json:
-            try exportService.exportToJSON(transcription: transcription, url: url)
+            try Data(projectedJSON(projection).utf8).write(to: url, options: .atomic)
         }
+    }
+
+    private func projectedJSON(_ projection: SpeakerAttributionProjection) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let encoded = try encoder.encode(projection.effectiveTranscription)
+        guard var object = try JSONSerialization.jsonObject(with: encoded) as? [String: Any] else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        object["speakerCorrectionsApplied"] = projection.correctionsApplied
+        object["speakerCorrectionRevision"] = projection.correctionRevision
+        let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
+        guard let string = String(data: data, encoding: .utf8) else {
+            throw CocoaError(.fileReadInapplicableStringEncoding)
+        }
+        return string
     }
 }

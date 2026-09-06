@@ -39,7 +39,8 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
             reasoningContent: responseReasoningContent,
             finishReason: responseFinishReason,
             model: responseModel,
-            usage: responseUsage
+            usage: responseUsage,
+            effectiveInferenceSettings: options.effectiveInferenceSettings
         )
     }
 
@@ -61,6 +62,35 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
             for token in tokens {
                 continuation.yield(token)
             }
+            continuation.finish()
+        }
+    }
+
+    func chatCompletionDetailedStream(
+        messages: [ChatMessage],
+        context: LLMExecutionContext,
+        options: ChatCompletionOptions
+    ) -> AsyncThrowingStream<LLMStreamEvent, Error> {
+        capturedMessages = messages
+        capturedContext = context
+        capturedOptions = options
+        if let chatCompletionError {
+            return AsyncThrowingStream { continuation in
+                continuation.finish(throwing: chatCompletionError)
+            }
+        }
+        let tokens = streamTokens ?? [responseContent]
+        return AsyncThrowingStream { continuation in
+            for token in tokens {
+                continuation.yield(.text(token))
+            }
+            continuation.yield(.completed(LLMStreamTerminal(
+                provider: context.providerConfig.id.rawValue,
+                model: responseModel,
+                usage: responseUsage.map(LLMUsage.init),
+                stopReason: responseFinishReason,
+                effectiveSettings: options.effectiveInferenceSettings
+            )))
             continuation.finish()
         }
     }
@@ -465,6 +495,76 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertEqual(mockClient.capturedMessages[1].content, "input text")
     }
 
+    func testPromptResultDetailedAppliesAndReturnsEffectiveInferenceSettings() async throws {
+        mockConfigStore.config = .openai(apiKey: "sk-test", model: "gpt-4.1")
+        let requested = PromptInferenceSettings(
+            temperature: 0.2,
+            topP: 0.8,
+            maxTokens: 512
+        )
+
+        let result = try await service.generatePromptResultDetailed(
+            transcript: "input text",
+            systemPrompt: nil,
+            inferenceSettings: requested
+        )
+
+        XCTAssertEqual(result.effectiveSettings?.temperature, 0.2)
+        XCTAssertEqual(result.effectiveSettings?.topP, 0.8)
+        XCTAssertEqual(result.effectiveSettings?.maxTokens, 512)
+        XCTAssertTrue(try XCTUnwrap(mockClient.capturedOptions).usesPromptInferenceSettings)
+        XCTAssertEqual(mockClient.capturedOptions?.effectiveInferenceSettings, result.effectiveSettings)
+    }
+
+    func testPromptResultDetailedStreamEmitsOneTerminalReceipt() async throws {
+        mockConfigStore.config = .openai(apiKey: "sk-test", model: "gpt-4.1")
+        mockClient.streamTokens = ["one", " two"]
+        mockClient.responseModel = "gpt-4.1"
+        mockClient.responseFinishReason = "stop"
+        mockClient.responseUsage = TokenUsage(promptTokens: 4, completionTokens: 2)
+        let requested = PromptInferenceSettings(temperature: 0.3, maxTokens: 64)
+
+        let stream = service.generatePromptResultDetailedStream(
+            transcript: "input",
+            systemPrompt: nil,
+            inferenceSettings: requested
+        )
+        var text: [String] = []
+        var terminals: [LLMStreamTerminal] = []
+        for try await event in stream {
+            switch event {
+            case .text(let chunk): text.append(chunk)
+            case .completed(let terminal): terminals.append(terminal)
+            }
+        }
+
+        XCTAssertEqual(text, ["one", " two"])
+        XCTAssertEqual(terminals.count, 1)
+        XCTAssertEqual(terminals[0].provider, "openai")
+        XCTAssertEqual(terminals[0].model, "gpt-4.1")
+        XCTAssertEqual(terminals[0].usage?.totalTokens, 6)
+        XCTAssertEqual(terminals[0].stopReason, "stop")
+        XCTAssertEqual(
+            terminals[0].effectiveSettings,
+            PromptInferenceSettings(temperature: 0.3, maxTokens: 64)
+        )
+    }
+
+    func testLegacyPromptResultStreamProjectsOnlyTextFromDetailedStream() async throws {
+        mockClient.streamTokens = ["legacy", " output"]
+
+        var chunks: [String] = []
+        for try await chunk in service.generatePromptResultStream(
+            transcript: "input",
+            systemPrompt: nil,
+            inferenceSettings: PromptInferenceSettings(maxTokens: 32)
+        ) {
+            chunks.append(chunk)
+        }
+
+        XCTAssertEqual(chunks, ["legacy", " output"])
+    }
+
     func testChatDetailedReturnsEnvelope() async throws {
         mockClient.responseContent = "answer"
         mockClient.responseModel = "claude-sonnet-4-6"
@@ -796,6 +896,116 @@ final class LLMServiceTests: XCTestCase {
         )
     }
 
+    func testOllamaPromptResultsUseConfiguredContextWindowInBothPaths() async throws {
+        mockConfigStore.config = .ollama(model: "qwen3")
+        let transcript = String(repeating: "x", count: 80_000)
+        for maxTokens: Int? in [nil, 2048] {
+            let settings = maxTokens.map { PromptInferenceSettings(maxTokens: $0) }
+            let expectedInputCharacters = (OllamaLLMHTTPAdapter.contextWindowTokens - (maxTokens ?? 0)) * 7 / 2
+            _ = try await service.generatePromptResultDetailed(
+                transcript: transcript, systemPrompt: "S", inferenceSettings: settings
+            )
+            XCTAssertEqual(mockClient.capturedMessages.reduce(0) { $0 + $1.content.count }, expectedInputCharacters)
+            XCTAssertEqual(mockClient.capturedOptions?.maxTokens, maxTokens)
+            for try await _ in service.generatePromptResultDetailedStream(
+                transcript: transcript, systemPrompt: "S", inferenceSettings: settings
+            ) {}
+            XCTAssertEqual(mockClient.capturedMessages.reduce(0) { $0 + $1.content.count }, expectedInputCharacters)
+            XCTAssertEqual(mockClient.capturedOptions?.maxTokens, maxTokens)
+        }
+    }
+
+    func testOllamaPromptResultsRejectOutputThatFillsContextBeforeDispatchInBothPaths() async {
+        mockConfigStore.config = .ollama(model: "qwen3")
+        let settings = PromptInferenceSettings(maxTokens: OllamaLLMHTTPAdapter.contextWindowTokens)
+        do {
+            _ = try await service.generatePromptResultDetailed(
+                transcript: "input", systemPrompt: "S", inferenceSettings: settings
+            )
+            XCTFail("Expected output occupying the full context to fail")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("leave no room for prompt input"))
+        }
+        do {
+            for try await _ in service.generatePromptResultDetailedStream(
+                transcript: "input", systemPrompt: "S", inferenceSettings: settings
+            ) {}
+            XCTFail("Expected output occupying the full context to fail")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("leave no room for prompt input"))
+        }
+        XCTAssertEqual(mockClient.chatCompletionCallCount, 0)
+        XCTAssertTrue(mockClient.capturedMessages.isEmpty)
+        XCTAssertNil(mockClient.capturedOptions)
+    }
+
+    func testAnthropicPromptResultsReserveInheritedOutputLimitInBothPaths() async throws {
+        mockConfigStore.config = .anthropic(apiKey: "test-key", model: "claude-sonnet-4-5")
+        let transcript = String(repeating: "x", count: LLMService.cloudContextBudget)
+        let result = try await service.generatePromptResultDetailed(
+            transcript: transcript,
+            systemPrompt: "S"
+        )
+        let expectedInputCharacters = LLMService.cloudContextBudget - 4096 * 7 / 2
+        XCTAssertEqual(mockClient.capturedMessages.reduce(0) { $0 + $1.content.count }, expectedInputCharacters)
+        XCTAssertNil(mockClient.capturedOptions?.maxTokens, "Preserve the adapter's inherited wire default")
+        XCTAssertEqual(result.effectiveSettings?.maxTokens, 4096)
+
+        for try await _ in service.generatePromptResultDetailedStream(
+            transcript: transcript,
+            systemPrompt: "S",
+            inferenceSettings: nil
+        ) {}
+        XCTAssertEqual(mockClient.capturedMessages.reduce(0) { $0 + $1.content.count }, expectedInputCharacters)
+        XCTAssertNil(mockClient.capturedOptions?.maxTokens)
+    }
+
+    func testLMStudioPromptResultReservesCeilingThreePointFiveCharactersPerOutputToken() async throws {
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+
+        _ = try await service.generatePromptResultDetailed(
+            transcript: String(repeating: "x", count: 20_000),
+            systemPrompt: "S",
+            inferenceSettings: PromptInferenceSettings(maxTokens: 3)
+        )
+
+        let totalInputCharacters = mockClient.capturedMessages.reduce(0) { $0 + $1.content.count }
+        // ceil(3.5 * 3) = 11, leaving 7,989 input characters.
+        XCTAssertEqual(totalInputCharacters, LLMService.lmStudioContextBudget - 11)
+        XCTAssertEqual(mockClient.capturedOptions?.maxTokens, 3)
+    }
+
+    func testLMStudioPromptResultRejectsOutputBudgetThatLeavesNoInputBeforeCallingClient() async {
+        let telemetry = LLMTelemetrySpy()
+        Telemetry.configure(telemetry)
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+
+        do {
+            _ = try await service.generatePromptResultDetailed(
+                transcript: "input",
+                systemPrompt: "S",
+                inferenceSettings: PromptInferenceSettings(maxTokens: 4096)
+            )
+            XCTFail("Expected an oversized output reservation to fail")
+        } catch {
+            XCTAssertEqual(
+                error.localizedDescription,
+                "Maximum output tokens (4096) leave no room for prompt input. Reduce Max tokens."
+            )
+        }
+
+        XCTAssertEqual(mockClient.chatCompletionCallCount, 0)
+        XCTAssertTrue(mockClient.capturedMessages.isEmpty)
+        let operations = llmOperationProps(in: telemetry.snapshot())
+        XCTAssertEqual(operations.count, 1)
+        XCTAssertEqual(operations.first?["feature"], "prompt_result")
+        XCTAssertEqual(operations.first?["provider"], "lmstudio")
+        XCTAssertEqual(operations.first?["streaming"], "false")
+        XCTAssertEqual(operations.first?["outcome"], "failure")
+        XCTAssertNotNil(operations.first?["error_type"])
+        XCTAssertNil(operations.first?["input_truncated"])
+    }
+
     func testLMStudioPromptResultBoundsRenderedSystemPromptContainingTranscript() async throws {
         mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
 
@@ -833,6 +1043,42 @@ final class LLMServiceTests: XCTestCase {
             userMessage.content.count,
             LLMService.lmStudioContextBudget - systemMessage.content.count
         )
+    }
+
+    func testLMStudioStreamingPromptResultReservesSameOutputBudgetAsNonStreaming() async throws {
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+        mockClient.streamTokens = ["done"]
+
+        for try await _ in service.generatePromptResultDetailedStream(
+            transcript: String(repeating: "x", count: 20_000),
+            systemPrompt: "S",
+            inferenceSettings: PromptInferenceSettings(maxTokens: 3)
+        ) {}
+
+        let totalInputCharacters = mockClient.capturedMessages.reduce(0) { $0 + $1.content.count }
+        XCTAssertEqual(totalInputCharacters, LLMService.lmStudioContextBudget - 11)
+        XCTAssertEqual(mockClient.capturedOptions?.maxTokens, 3)
+    }
+
+    func testLMStudioStreamingPromptResultRejectsOutputBudgetThatLeavesNoInputBeforeCallingClient() async {
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+
+        do {
+            for try await _ in service.generatePromptResultDetailedStream(
+                transcript: "input",
+                systemPrompt: "S",
+                inferenceSettings: PromptInferenceSettings(maxTokens: 4096)
+            ) {}
+            XCTFail("Expected an oversized output reservation to fail")
+        } catch {
+            XCTAssertEqual(
+                error.localizedDescription,
+                "Maximum output tokens (4096) leave no room for prompt input. Reduce Max tokens."
+            )
+        }
+
+        XCTAssertTrue(mockClient.capturedMessages.isEmpty)
+        XCTAssertNil(mockClient.capturedOptions)
     }
 
     func testLMStudioTransformSubtractsPromptOverheadFromTextBudget() async throws {

@@ -211,7 +211,7 @@ extension PromptsCommand {
     struct SetSubcommand: ParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "set",
-            abstract: "Toggle a prompt's visibility or auto-run state."
+            abstract: "Configure a prompt's visibility, auto-run, or meeting-note context."
         )
 
         @Argument(help: "Prompt ID, ID prefix, or name.")
@@ -229,7 +229,17 @@ extension PromptsCommand {
         @Flag(name: .long, help: "Disable auto-run.")
         var noAutoRun: Bool = false
 
-        @Option(name: .long, help: "Scope --auto-run/--no-auto-run to one source: file, youtube, podcast, meeting. Omit for global all-source behavior.")
+        @Flag(name: .long, help: "Include meeting notes as additional context for this result prompt.")
+        var includeMeetingNotes: Bool = false
+
+        @Flag(name: .long, help: "Do not include meeting notes automatically for this result prompt.")
+        var noIncludeMeetingNotes: Bool = false
+
+        @Option(
+            name: .long,
+            help:
+                "Scope --auto-run/--no-auto-run to one source: file, youtube, podcast, meeting. Omit for global all-source behavior."
+        )
         var source: PromptAutoRunSource?
 
         @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
@@ -245,6 +255,9 @@ extension PromptsCommand {
             if autoRun && noAutoRun {
                 throw ValidationError("--auto-run and --no-auto-run are mutually exclusive")
             }
+            if includeMeetingNotes && noIncludeMeetingNotes {
+                throw ValidationError("--include-meeting-notes and --no-include-meeting-notes are mutually exclusive")
+            }
             // Auto-run requires visible (mirrors PromptRepository.toggleAutoRun).
             // Reject the contradictory combo explicitly so the user doesn't get a
             // silent precedence surprise where one flag overrides the other.
@@ -259,8 +272,8 @@ extension PromptsCommand {
                     throw ValidationError("--source requires --auto-run or --no-auto-run")
                 }
             }
-            if !(visible || hidden || autoRun || noAutoRun) {
-                throw ValidationError("specify at least one of --visible / --hidden / --auto-run / --no-auto-run")
+            if !(visible || hidden || autoRun || noAutoRun || includeMeetingNotes || noIncludeMeetingNotes) {
+                throw ValidationError("specify at least one setting flag")
             }
         }
 
@@ -291,12 +304,34 @@ extension PromptsCommand {
                 let db = try DatabaseManager(path: resolvedDatabasePath(database))
                 let repo = PromptRepository(dbQueue: db.dbQueue)
 
-                var prompt = try findPrompt(idOrName: idOrName, repo: repo)
+                let meetingNotesFlagSpecified = includeMeetingNotes || noIncludeMeetingNotes
+                var prompt: Prompt
+                if meetingNotesFlagSpecified {
+                    // A full UUID remains an explicit identity, even when a
+                    // result happens to use that UUID as its display name.
+                    if let id = UUID(uuidString: idOrName.trimmingCharacters(in: .whitespacesAndNewlines)),
+                        let exact = try repo.fetch(id: id) {
+                        prompt = exact
+                    } else {
+                        do {
+                            prompt = try findPrompt(idOrName: idOrName, repo: repo, category: .result)
+                        } catch CLILookupError.notFound(_) {
+                            // Widen only to explain a transform-only match.
+                            // Never replace an ambiguous result lookup.
+                            prompt = try findPrompt(idOrName: idOrName, repo: repo, category: nil)
+                        }
+                    }
+                } else {
+                    prompt = try findPrompt(idOrName: idOrName, repo: repo, category: .result)
+                }
+                if meetingNotesFlagSpecified, prompt.category != .result {
+                    throw ValidationError("meeting-note context is only available for result prompts")
+                }
 
                 if let source {
                     try repo.setAutoRun(id: prompt.id, source: source.sourceType, enabled: autoRun)
                     prompt = try repo.fetch(id: prompt.id) ?? prompt
-                } else {
+                } else if visible || hidden || autoRun || noAutoRun {
                     Self.applyFlags(
                         to: &prompt,
                         visible: visible,
@@ -307,6 +342,11 @@ extension PromptsCommand {
 
                     prompt.updatedAt = Date()
                     try repo.save(prompt)
+                }
+
+                if includeMeetingNotes || noIncludeMeetingNotes {
+                    try repo.setIncludeMeetingNotes(id: prompt.id, enabled: includeMeetingNotes)
+                    prompt = try repo.fetch(id: prompt.id) ?? prompt
                 }
 
                 if json {
@@ -397,7 +437,11 @@ extension PromptsCommand {
         @Flag(name: .long, help: "Stream the response token by token.")
         var stream: Bool = false
 
-        @Flag(name: .long, help: "Emit a structured JSON envelope (output, provider, model, usage, stopReason, latencyMs) instead of plain text.")
+        @Flag(
+            name: .long,
+            help:
+                "Emit a structured JSON envelope (output, provider, model, usage, stopReason, latencyMs, effectiveSettings) instead of plain text."
+        )
         var json: Bool = false
 
         @Option(name: .long, help: "Extra instructions appended to the prompt for this run.")
@@ -408,7 +452,9 @@ extension PromptsCommand {
 
         func validate() throws {
             if json && stream {
-                throw ValidationError("--json with --stream is not yet supported. Run without --stream for the envelope, or omit --json for token streaming.")
+                throw ValidationError(
+                    "--json with --stream is not yet supported. Run without --stream for the envelope, or omit --json for token streaming."
+                )
             }
         }
 
@@ -419,23 +465,28 @@ extension PromptsCommand {
                 let promptRepo = PromptRepository(dbQueue: db.dbQueue)
                 let transcriptionRepo = TranscriptionRepository(dbQueue: db.dbQueue)
                 let resultRepo = PromptResultRepository(dbQueue: db.dbQueue)
+                let speakerAttributionReader = SpeakerAttributionReadService(dbQueue: db.dbQueue)
 
                 let prompt = try findPrompt(idOrName: promptIdOrName, repo: promptRepo)
-                let transcript = try findTranscription(id: transcription, repo: transcriptionRepo)
+                let automaticTranscript = try findTranscription(id: transcription, repo: transcriptionRepo)
+                let projection = try speakerAttributionReader.resolve(transcription: automaticTranscript)
+                let transcript = projection.effectiveTranscription
 
-                let transcriptText = transcript.cleanTranscript ?? transcript.rawTranscript ?? ""
+                let transcriptText = TranscriptAIContextFormatter.format(projection: projection)
                 guard !transcriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                     throw PromptCLIError.emptyTranscript(transcript.fileName)
                 }
 
                 let trimmedExtra = extra?.trimmingCharacters(in: .whitespacesAndNewlines)
                 let normalizedExtra = (trimmedExtra?.isEmpty == false) ? trimmedExtra : nil
-                let systemPrompt = PromptSystemPromptAssembler.assemble(
+                let assembly = PromptSystemPromptAssembler.assembleDetailed(
                     promptContent: prompt.content,
                     extraInstructions: normalizedExtra,
+                    includeMeetingNotes: prompt.includeMeetingNotes,
                     userNotes: transcript.userNotes,
                     transcript: transcriptText
                 )
+                let systemPrompt = assembly.systemPrompt
 
                 let execution = try llm.buildExecutionContext()
                 let service = LLMService(
@@ -445,47 +496,65 @@ extension PromptsCommand {
 
                 var output = ""
                 var jsonResult: LLMResult?
+                var effectiveSettings: PromptInferenceSettings?
                 if json {
                     let result = try await service.generatePromptResultDetailed(
                         transcript: transcriptText,
-                        systemPrompt: systemPrompt
+                        systemPrompt: systemPrompt,
+                        inferenceSettings: prompt.inferenceSettings
                     )
                     output = result.output
                     jsonResult = result
+                    effectiveSettings = result.effectiveSettings
                 } else if stream {
-                    let tokenStream = service.generatePromptResultStream(
+                    let eventStream = service.generatePromptResultDetailedStream(
                         transcript: transcriptText,
-                        systemPrompt: systemPrompt
+                        systemPrompt: systemPrompt,
+                        inferenceSettings: prompt.inferenceSettings
                     )
-                    for try await token in tokenStream {
-                        print(token, terminator: "")
-                        output += token
+                    var terminal: LLMStreamTerminal?
+                    for try await event in eventStream {
+                        switch event {
+                        case .text(let token):
+                            print(token, terminator: "")
+                            output += token
+                        case .completed(let receipt):
+                            terminal = receipt
+                        }
                     }
                     print()
+                    guard let terminal else {
+                        throw LLMError.streamingError("prompt result stream ended without terminal metadata")
+                    }
+                    effectiveSettings = terminal.effectiveSettings
                 } else {
-                    output = try await service.generatePromptResult(
+                    let result = try await service.generatePromptResultDetailed(
                         transcript: transcriptText,
-                        systemPrompt: systemPrompt
+                        systemPrompt: systemPrompt,
+                        inferenceSettings: prompt.inferenceSettings
                     )
+                    output = result.output
+                    effectiveSettings = result.effectiveSettings
                     print(output)
                 }
 
                 if !noStore {
-                    let result = PromptResult(
-                        transcriptionId: transcript.id,
-                        promptName: prompt.name,
-                        promptContent: prompt.content,
+                    let result = makeStoredPromptRunResult(
+                        transcript: transcript,
+                        prompt: prompt,
                         extraInstructions: normalizedExtra,
-                        content: output,
-                        userNotesSnapshot: transcript.userNotes
+                        output: output,
+                        userNotesSnapshot: assembly.effectiveUserNotes,
+                        effectiveSettings: effectiveSettings
                     )
                     try resultRepo.save(result)
                     await refreshMeetingArtifacts(
-                        transcription: transcript,
+                        projection: projection,
                         resultRepo: resultRepo
                     )
                     // Status messages on stderr so stdout stays grep-able as the prompt output.
-                    FileHandle.standardError.write(Data("\nSaved PromptResult \(result.id.uuidString.prefix(8))\n".utf8))
+                    FileHandle.standardError.write(
+                        Data("\nSaved PromptResult \(result.id.uuidString.prefix(8))\n".utf8))
                 }
 
                 if let jsonResult {
@@ -496,17 +565,38 @@ extension PromptsCommand {
     }
 }
 
+func makeStoredPromptRunResult(
+    transcript: Transcription,
+    prompt: Prompt,
+    extraInstructions: String?,
+    output: String,
+    userNotesSnapshot: String?,
+    effectiveSettings: PromptInferenceSettings?
+) -> PromptResult {
+    PromptResult(
+        transcriptionId: transcript.id,
+        promptName: prompt.name,
+        promptContent: prompt.content,
+        extraInstructions: extraInstructions,
+        content: output,
+        userNotesSnapshot: userNotesSnapshot,
+        includeMeetingNotesSnapshot: prompt.includeMeetingNotes,
+        inferenceSettingsSnapshot: effectiveSettings
+    )
+}
+
 /// Refreshes meeting artifacts; failures are logged and never surfaced or thrown, and refresh never blocks or fails the triggering user action.
 private func refreshMeetingArtifacts(
-    transcription: Transcription,
+    projection: SpeakerAttributionProjection,
     resultRepo: PromptResultRepositoryProtocol
 ) async {
+    let transcription = projection.effectiveTranscription
     guard transcription.sourceType == .meeting else { return }
 
     do {
         let promptResults = try resultRepo.fetchAll(transcriptionId: transcription.id)
         _ = try await MeetingArtifactStore().materialize(
-            transcription: transcription,
+            projection: projection,
             promptResults: promptResults
         )
     } catch {
@@ -531,6 +621,7 @@ private func renderBadges(_ p: Prompt) -> String {
             badges.append("auto-run")
         }
     }
+    if p.includeMeetingNotes { badges.append("meeting notes") }
     return badges.isEmpty ? "" : "  [\(badges.joined(separator: ", "))]"
 }
 

@@ -101,11 +101,12 @@ public final class SegmentRepository: SegmentRepositoryProtocol, @unchecked Send
     }
 
     public func replaceSegments(for transcription: Transcription) throws {
-        let derived = KnowledgeSegmenter.deriveSegments(for: transcription)
         try dbQueue.write { db in
+            let current = try Transcription.fetchOne(db, key: transcription.id) ?? transcription
+            let derived = try Self.deriveResolvedSegments(for: current, in: db)
             try Self.replaceSegments(
                 derived,
-                transcriptionId: transcription.id,
+                transcriptionId: current.id,
                 in: db
             )
         }
@@ -147,23 +148,20 @@ public final class SegmentRepository: SegmentRepositoryProtocol, @unchecked Send
         var transcriptionCount = 0
         var segmentCount = 0
         for transcriptionID in transcriptionIDs {
-            guard
-                let transcription = try dbQueue.read({ db in
-                    try Transcription.fetchOne(db, key: transcriptionID)
-                })
-            else {
-                continue
-            }
-            let derived = KnowledgeSegmenter.deriveSegments(for: transcription)
-            try dbQueue.write { db in
+            let derivedCount: Int? = try dbQueue.write { db in
+                guard let transcription = try Transcription.fetchOne(db, key: transcriptionID)
+                else { return nil }
+                let derived = try Self.deriveResolvedSegments(for: transcription, in: db)
                 try Self.replaceSegments(
                     derived,
                     transcriptionId: transcriptionID,
                     in: db
                 )
+                return derived.count
             }
+            guard let derivedCount else { continue }
             transcriptionCount += 1
-            segmentCount += derived.count
+            segmentCount += derivedCount
         }
         return SegmentReindexResult(
             transcriptionsIndexed: transcriptionCount,
@@ -202,23 +200,20 @@ public final class SegmentRepository: SegmentRepositoryProtocol, @unchecked Send
         var transcriptionCount = 0
         var segmentCount = 0
         for transcriptionID in transcriptionIDs {
-            guard
-                let transcription = try dbQueue.read({ db in
-                    try Transcription.fetchOne(db, key: transcriptionID)
-                })
-            else {
-                continue
-            }
-            let derived = KnowledgeSegmenter.deriveSegments(for: transcription)
-            try dbQueue.write { db in
+            let derivedCount: Int? = try dbQueue.write { db in
+                guard let transcription = try Transcription.fetchOne(db, key: transcriptionID)
+                else { return nil }
+                let derived = try Self.deriveResolvedSegments(for: transcription, in: db)
                 try Self.replaceSegments(
                     derived,
                     transcriptionId: transcriptionID,
                     in: db
                 )
+                return derived.count
             }
+            guard let derivedCount else { continue }
             transcriptionCount += 1
-            segmentCount += derived.count
+            segmentCount += derivedCount
             try afterEachTranscription?(transcriptionCount)
         }
         return SegmentReindexResult(
@@ -301,6 +296,36 @@ public final class SegmentRepository: SegmentRepositoryProtocol, @unchecked Send
         for var segment in segments {
             try segment.insert(db)
         }
+    }
+
+    static func deriveResolvedSegments(
+        for transcription: Transcription,
+        in db: Database
+    ) throws -> [Segment] {
+        guard let state = try SpeakerCorrectionRepository.fetchState(
+            transcriptionId: transcription.id,
+            in: db
+        ) else {
+            return KnowledgeSegmenter.deriveSegments(for: transcription)
+        }
+        let fingerprint = SpeakerAttributionResolver.fingerprint(for: transcription)
+        guard state.transcriptFingerprint == fingerprint.rawValue else {
+            return KnowledgeSegmenter.deriveSegments(for: transcription)
+        }
+        let history = try SpeakerCorrectionRepository.fetchHistory(
+            transcriptionId: transcription.id,
+            fingerprint: state.transcriptFingerprint,
+            in: db
+        )
+        let effective = SpeakerAttributionResolver.resolve(
+            transcription: transcription,
+            corrections: history,
+            state: state
+        )
+        return KnowledgeSegmenter.deriveSegments(
+            for: transcription,
+            effectiveAttribution: effective
+        )
     }
 
     private static func ftsSearch(

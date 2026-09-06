@@ -163,8 +163,12 @@ struct MainWindowView: View {
                                     transcriptionViewModel.showInputPortal()
                                     state.selectedItem = .transcribe
                                 },
-                                onRetranscribe: { original, speechEngineOverride in
-                                    transcriptionViewModel.retranscribe(original, speechEngineOverride: speechEngineOverride)
+                                onRetranscribe: { original, speechEngineOverride, speakerSelection in
+                                    transcriptionViewModel.retranscribe(
+                                        original,
+                                        speechEngineOverride: speechEngineOverride,
+                                        speakerSelection: speakerSelection
+                                    )
                                 },
                                 onSetUpAI: {
                                     state.navigateToSettings(tab: .ai)

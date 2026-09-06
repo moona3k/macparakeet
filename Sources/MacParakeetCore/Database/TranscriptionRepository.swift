@@ -1,8 +1,18 @@
 import Foundation
 import GRDB
 
+public enum TranscriptionCompletionError: Error, Equatable, LocalizedError {
+    case recordingDeleted
+
+    public var errorDescription: String? {
+        "This recording was deleted before transcription completed."
+    }
+}
+
 public protocol TranscriptionRepositoryProtocol: Sendable {
     func save(_ transcription: Transcription) throws
+    /// Merge current user-owned metadata and return the row from the same write transaction.
+    func savePreservingUserMetadata(_ transcription: Transcription, originalFileName: String) throws -> Transcription
     func fetch(id: UUID) throws -> Transcription?
     func fetchAll(limit: Int?) throws -> [Transcription]
     func fetchLibraryPage(query: TranscriptionLibraryQuery) throws -> TranscriptionLibraryPage
@@ -20,6 +30,8 @@ public protocol TranscriptionRepositoryProtocol: Sendable {
     func updateTitleOverride(id: UUID, titleOverride: String?) throws
     func updateChatMessages(id: UUID, chatMessages: [ChatMessage]?) throws
     func updateSpeakers(id: UUID, speakers: [SpeakerInfo]?) throws
+    @discardableResult
+    func updateUserNotes(id: UUID, userNotes: String?) throws -> Bool
     func updateFilePath(id: UUID, filePath: String?) throws
     func updateMeetingArtifactFolderPath(id: UUID, folderPath: String?) throws
     func clearStoredAudioPathsForURLTranscriptions() throws
@@ -116,6 +128,14 @@ extension TranscriptionRepositoryProtocol {
     public func updateTitleOverride(id: UUID, titleOverride: String?) throws {}
     public func updateChatMessages(id: UUID, chatMessages: [ChatMessage]?) throws {}
     public func updateSpeakers(id: UUID, speakers: [SpeakerInfo]?) throws {}
+    @discardableResult
+    public func updateUserNotes(id: UUID, userNotes: String?) throws -> Bool {
+        guard var transcription = try fetch(id: id) else { return false }
+        transcription.userNotes = userNotes
+        transcription.updatedAt = Date()
+        try save(transcription)
+        return true
+    }
     public func updateFilePath(id: UUID, filePath: String?) throws {}
     public func updateMeetingArtifactFolderPath(id: UUID, folderPath: String?) throws {}
     public func updateFavorite(id: UUID, isFavorite: Bool) throws {}
@@ -156,6 +176,21 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
     public func save(_ transcription: Transcription) throws {
         try dbQueue.write { db in
             try transcription.save(db)
+        }
+    }
+
+    public func savePreservingUserMetadata(
+        _ transcription: Transcription, originalFileName: String
+    ) throws -> Transcription {
+        try dbQueue.write { db in
+            guard let current = try Transcription.fetchOne(db, key: transcription.id) else {
+                throw TranscriptionCompletionError.recordingDeleted
+            }
+            let merged = transcription.preservingUserMetadata(
+                from: current, originalFileName: originalFileName
+            )
+            try merged.save(db)
+            return merged
         }
     }
 
@@ -544,12 +579,14 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
         }
     }
 
-    public func updateUserNotes(id: UUID, userNotes: String?) throws {
+    @discardableResult
+    public func updateUserNotes(id: UUID, userNotes: String?) throws -> Bool {
         try dbQueue.write { db in
-            guard var transcription = try Transcription.fetchOne(db, key: id) else { return }
+            guard var transcription = try Transcription.fetchOne(db, key: id) else { return false }
             transcription.userNotes = userNotes
             transcription.updatedAt = Date()
             try transcription.update(db)
+            return true
         }
     }
 
@@ -687,4 +724,27 @@ private func transcriptionMatchesLibrarySearch(
         || (transcription.rawTranscript.map { UnicodeSearch.contains($0, normalizedQuery: normalizedQuery) } ?? false)
         || (transcription.cleanTranscript.map { UnicodeSearch.contains($0, normalizedQuery: normalizedQuery) } ?? false)
         || (transcription.channelName.map { UnicodeSearch.contains($0, normalizedQuery: normalizedQuery) } ?? false)
+}
+
+private extension Transcription {
+    /// STT owns transcript output, not metadata edited while processing is suspended.
+    func preservingUserMetadata(from current: Transcription, originalFileName: String) -> Transcription {
+        var merged = self
+        merged.updatedAt = max(updatedAt, current.updatedAt)
+        merged.userNotes = current.userNotes
+        merged.isFavorite = current.isFavorite
+        merged.titleOverride = current.titleOverride
+        merged.chatMessages = current.chatMessages
+        merged.meetingArtifactFolderPath = current.meetingArtifactFolderPath
+        merged.filePath = current.filePath
+        // Allow an automatically generated meeting title only if the user has
+        // not renamed the row since the processing snapshot was captured.
+        if current.fileName != originalFileName {
+            merged.fileName = current.fileName
+            if current.sourceType == .meeting {
+                merged.derivedTitle = current.derivedTitle
+            }
+        }
+        return merged
+    }
 }

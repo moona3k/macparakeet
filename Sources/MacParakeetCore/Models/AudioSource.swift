@@ -1,7 +1,7 @@
 import Foundation
 
 /// Audio source for speaker attribution from the dual-stream meeting capture pipeline.
-public enum AudioSource: String, Codable, Sendable {
+public enum AudioSource: String, Codable, Sendable, Hashable {
     case microphone
     case system
 

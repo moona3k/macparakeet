@@ -72,9 +72,11 @@ final class TranscriptTimestampedLayoutSmokeTests: XCTestCase {
         hasSpeakers: Bool,
         cards: [IdentifiedSpeakerTurn],
         segments: [TranscriptSegment],
-        onRenderedChildAppear: @escaping () -> Void = {}
+        onRenderedChildAppear: @escaping () -> Void = {},
+        attribution: EffectiveSpeakerAttribution? = nil
     ) -> CountingHostingView<AnyView> {
-        let rowCount = hasSpeakers ? cards.reduce(0) { $0 + $1.turn.segments.count } : segments.count
+        let rowCount = attribution?.editableSegments.count
+            ?? (hasSpeakers ? cards.reduce(0) { $0 + $1.turn.segments.count } : segments.count)
         let body = TranscriptTimestampedContentView(
             hasSpeakers: hasSpeakers,
             identifiedTurnCards: cards,
@@ -92,7 +94,12 @@ final class TranscriptTimestampedLayoutSmokeTests: XCTestCase {
                 rowCount: rowCount,
                 environment: [:]
             ),
-            onRenderedChildAppear: onRenderedChildAppear
+            onRenderedChildAppear: onRenderedChildAppear,
+            usesEffectiveAttribution: attribution != nil,
+            editableSegments: attribution?.editableSegments ?? [],
+            effectiveTurnCards: hasSpeakers
+                ? identifiedEffectiveSpeakerTurnCards(attribution?.turns ?? []) : [],
+            availableSpeakers: attribution?.speakers ?? []
         )
         let content = ScrollViewReader { _ in
             ScrollView {
@@ -166,13 +173,23 @@ final class TranscriptTimestampedLayoutSmokeTests: XCTestCase {
             }
         }
 
-        let settledCount = view.layoutCount
-        RunLoop.main.run(until: Date().addingTimeInterval(0.5))
-        XCTAssertLessThanOrEqual(
-            view.layoutCount - settledCount, 2,
-            "layout kept re-running while idle (\(view.layoutCount - settledCount) extra passes)",
-            file: file, line: line
-        )
+        // Lazy rows can finish queued layout after the last scroll, especially
+        // while other tests or builds compete for CPU. Require an actual quiet
+        // half-second within a bounded settling budget instead of assuming the
+        // first half-second already starts idle. An update loop still fails.
+        let settleDeadline = Date().addingTimeInterval(5)
+        var lastLayoutCount = view.layoutCount
+        var quietSince = Date()
+        while Date() < settleDeadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+            if view.layoutCount != lastLayoutCount {
+                lastLayoutCount = view.layoutCount
+                quietSince = Date()
+            } else if Date().timeIntervalSince(quietSince) >= 0.5 {
+                return
+            }
+        }
+        XCTFail("layout did not become idle within 5 seconds", file: file, line: line)
     }
 
     func testSpeakerCardsSettleAfterScrolling() {
@@ -188,6 +205,71 @@ final class TranscriptTimestampedLayoutSmokeTests: XCTestCase {
         let view = host(hasSpeakers: false, cards: [], segments: segments)
 
         assertLayoutSettles(view)
+    }
+
+    func testEffectiveSpeakerCardsSettleAfterScrolling() {
+        let segments = segments(count: 40, speakers: ["S1", "S2", nil])
+        let attribution = attribution(for: segments)
+        let view = host(hasSpeakers: true, cards: [], segments: [], attribution: attribution)
+
+        assertLayoutSettles(view)
+    }
+
+    func testChunkedCardsKeepFullLogicalTurnForEveryAction() {
+        let source = segments(count: 49, speakers: ["S1"])
+        let resolved = attribution(for: source)
+        let turn = resolved.turns[0]
+        XCTAssertEqual(turn.segments.count, 49)
+        let cards = identifiedEffectiveSpeakerTurnCards([turn])
+        XCTAssertEqual(cards.map { $0.segments.count }, [24, 24, 1])
+        for card in cards {
+            XCTAssertEqual(card.logicalTurnSegments.map(\.id), turn.segments.map(\.id))
+        }
+    }
+
+    func testEffectiveRowsWithoutSpeakersFollowIndividualSegmentsAndSettle() {
+        let segments = segments(count: 40, speakers: [nil])
+        let attribution = attribution(for: segments)
+        XCTAssertTrue(attribution.speakers.isEmpty)
+        XCTAssertEqual(
+            effectiveTranscriptScrollTarget(for: 25_000, attribution: attribution),
+            attribution.editableSegments.last { $0.startMs <= 25_000 }?.id
+        )
+        XCTAssertNotEqual(
+            effectiveTranscriptScrollTarget(for: 25_000, attribution: attribution),
+            attribution.editableSegments.first?.id
+        )
+        let view = host(hasSpeakers: false, cards: [], segments: [], attribution: attribution)
+
+        assertLayoutSettles(view)
+    }
+
+    func testEffectiveLongTranscriptUsesLazyBranchAndSettles() {
+        let segments = segments(count: 500, speakers: ["S1"])
+        let attribution = attribution(for: segments)
+        XCTAssertGreaterThan(attribution.editableSegments.count, TranscriptBodyLayout.nonLazyRowLimit)
+        let view = host(hasSpeakers: true, cards: [], segments: [], attribution: attribution)
+
+        assertLayoutSettles(view)
+    }
+
+    private func attribution(for segments: [TranscriptSegment]) -> EffectiveSpeakerAttribution {
+        let words = segments.map { segment in
+            WordTimestamp(
+                word: segment.text,
+                startMs: segment.startMs,
+                endMs: segment.startMs + 500,
+                confidence: 1,
+                speakerId: segment.speakerId
+            )
+        }
+        let transcription = Transcription(
+            fileName: "layout.wav",
+            wordTimestamps: words,
+            speakers: Set(segments.compactMap(\.speakerId)).sorted().map { SpeakerInfo(id: $0, label: $0) },
+            status: .completed
+        )
+        return SpeakerAttributionResolver.resolve(transcription: transcription)
     }
 
     /// The largest transcript still rendered without a lazy stack: every row

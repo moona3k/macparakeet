@@ -44,13 +44,13 @@ public enum TranscriptParagraphBuilder {
         }
 
         for (index, word) in words.enumerated() {
-            let speakerChanged = word.speakerId.map { $0 != paragraphSpeakerId } ?? false
+            let speakerChanged = word.speakerId != paragraphSpeakerId
             let pauseReached = word.startMs - paragraphEndMs >= paragraphPauseMs
             if !paragraphWords.isEmpty, speakerChanged || pauseReached {
                 appendParagraph()
                 paragraphWords.removeAll(keepingCapacity: true)
                 paragraphStartMs = word.startMs
-                paragraphSpeakerId = word.speakerId ?? paragraphSpeakerId
+                paragraphSpeakerId = word.speakerId
                 sentenceCount = 0
             }
 
@@ -73,7 +73,7 @@ public enum TranscriptParagraphBuilder {
                 let nextWord = words[index + 1]
                 paragraphStartMs = nextWord.startMs
                 paragraphEndMs = nextWord.endMs
-                paragraphSpeakerId = nextWord.speakerId ?? paragraphSpeakerId
+                paragraphSpeakerId = nextWord.speakerId
             }
         }
 
