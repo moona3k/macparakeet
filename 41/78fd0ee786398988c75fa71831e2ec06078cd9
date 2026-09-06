@@ -1,0 +1,61 @@
+workers/telemetry-rollup-core.mjs
+  s_4af6b9f11fbe3c::t_e0aeb340e77843 4-5,28-29,39-40,108-109,155-159,162-165,173-197,200-213,215-220,231
+  s_4af6b9f11fbe3c::t_966f02cd90d72b 221-230,232-254,259-265
+scripts/backfill-telemetry-rollups.mjs
+  s_4af6b9f11fbe3c::t_e0aeb340e77843 105,107-109,119-120,125,127-129,135-136,140,142
+  s_4af6b9f11fbe3c::t_be569003cabf47 12,37-38,54,57-58,67-68,145,159,171
+functions/lib/telemetry-rollups.mjs
+  s_4af6b9f11fbe3c::t_e0aeb340e77843 32-55
+  s_4af6b9f11fbe3c::t_a247ef46dd45b4 56-58
+tests/telemetry-rollup-worker.test.mjs
+  s_4af6b9f11fbe3c::t_d414ecc127f8c5 16,22,46-50,63,65,89-94,97-99,101,118,123,125,134-208,225,234,245,250,279,286
+  s_4af6b9f11fbe3c::t_f0fd86007d3bcc 3,209-224,226-233,235-244,246-249,251-278,280-285,287-417,421,429,438-441,443-445,450-451
+tests/stats-freshness.test.mjs
+  s_4af6b9f11fbe3c::t_0a4c21bafae96c 80-91
+tests/telemetry-rollups.test.mjs
+  s_4af6b9f11fbe3c::t_d414ecc127f8c5 8,22,29,32-47
+  s_4af6b9f11fbe3c::t_5c62b8764c39b2 48
+tests/helpers/telemetry-database.mjs
+  s_4af6b9f11fbe3c::t_3e16264d211b03 1-54
+  s_4af6b9f11fbe3c::t_ca05ab9b0d0757 55
+tests/telemetry-handlers.test.mjs
+  s_4af6b9f11fbe3c::t_3e16264d211b03 4,23-27,30
+  s_4af6b9f11fbe3c::t_0a4c21bafae96c 5,179-254,260,266,270,273-275,292
+  s_4af6b9f11fbe3c::t_61990bc6d2154d 255-259,261-265,267-269,271-272,276-291,293-299
+README.md
+  s_4af6b9f11fbe3c::t_7e1ce681a8e48d 60-61,69-77
+docs/telemetry-api.md
+  s_4af6b9f11fbe3c::t_17585e6f4d193d 44-75
+docs/telemetry-reviewer.md
+  s_4af6b9f11fbe3c::t_c26b4a4e6ddb74 126-128
+functions/api/stats.ts
+  s_4af6b9f11fbe3c::t_19e8980e1768eb 3,61-64,70-71,73-79,81-169,171-174,176-206,208-220,321-322,364,404-405,461-462,465-466,500-501,585-586,609-610,1199-1200,1239,1281-1282,1298,1318,1327,1520,1532-1535
+package.json
+  s_4af6b9f11fbe3c::t_81d080e9706933 20
+scripts/backfill-telemetry-rollups.sql
+  s_4af6b9f11fbe3c::t_497cf870fe5d0f 1-2,10-12
+scripts/d1-schema.sql
+  s_4af6b9f11fbe3c::t_2deb4c571f3871 74-77
+scripts/migrations/2026-09-06-telemetry-rollup-refresh.sql
+  s_4af6b9f11fbe3c::t_10846af573b398 1-6
+src/lib/stats-freshness.mjs
+  s_4af6b9f11fbe3c::t_4a049616866891 28-29,32-33
+src/pages/stats.astro
+  s_4af6b9f11fbe3c::t_332654896abfd6 2244,2249-2250,2253-2254,2263-2265,2271
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "4178fd0ee786398988c75fa71831e2ec06078cd9",
+  "prompts": {},
+  "sessions": {
+    "s_4af6b9f11fbe3c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07595-d861-7b30-be95-3479ddf4c4a7",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
