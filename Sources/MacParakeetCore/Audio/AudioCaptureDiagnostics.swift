@@ -20,6 +20,15 @@ public enum AudioCaptureDiagnostics {
     private static let retainedLogBytes = Int(maxLogBytes / 2)
     private static let maxMessageCharacters = 16_384
 
+    private enum MainThreadAppendResult {
+        case completed
+        case deferred(reason: String)
+    }
+
+    private enum LogWriteError: Error {
+        case rotationRequiresBackground
+    }
+
     public static var diagnosticLogFileURL: URL {
         diagnosticLogURL()
     }
@@ -98,21 +107,23 @@ public enum AudioCaptureDiagnostics {
 
     static func appendEncodedLogLine(_ data: Data, to logURL: URL) {
         if Thread.isMainThread {
-            let completed = lock.withLockIfAvailable {
+            let result = lock.withLockIfAvailable {
                 do {
-                    try writeLogLine(data, to: logURL, waitForLock: false)
-                    return true
+                    try writeLogLine(data, to: logURL, waitForLock: false, allowRotation: false)
+                    return MainThreadAppendResult.completed
+                } catch LogWriteError.rotationRequiresBackground {
+                    return .deferred(reason: "rotation")
                 } catch {
                     let code = (error as NSError).code
                     if (error as NSError).domain == NSPOSIXErrorDomain, code == Int(EWOULDBLOCK) {
-                        return false
+                        return .deferred(reason: "lock_contended")
                     }
                     logger.error("audio_diagnostic_write_failed error_type=\(errorType(error), privacy: .public)")
-                    return true
+                    return .completed
                 }
-            } ?? false
-            if !completed {
-                logger.info("audio_diagnostic_write_deferred reason=lock_contended")
+            } ?? .deferred(reason: "lock_contended")
+            if case .deferred(let reason) = result {
+                logger.info("audio_diagnostic_write_deferred reason=\(reason, privacy: .public)")
                 // Keep the exact record and its occurrence clocks. Only its
                 // visibility is deferred; a busy writer must not block the UI.
                 appendQueue.async { appendEncodedLogLine(data, to: logURL) }
@@ -162,7 +173,9 @@ public enum AudioCaptureDiagnostics {
     /// Serialize the complete create/append/rotate operation across cooperating
     /// app and CLI processes. Keeping the boundary throwable also lets tests
     /// exercise failures against isolated files instead of user logs.
-    static func writeLogLine(_ data: Data, to logURL: URL, waitForLock: Bool = true) throws {
+    static func writeLogLine(
+        _ data: Data, to logURL: URL, waitForLock: Bool = true, allowRotation: Bool = true
+    ) throws {
         let fm = FileManager.default
         try fm.createDirectory(
             at: logURL.deletingLastPathComponent(),
@@ -177,6 +190,7 @@ public enum AudioCaptureDiagnostics {
                 defer { try? handle.close() }
                 let size = try handle.seekToEnd()
                 if size + UInt64(data.count) > maxLogBytes {
+                    guard allowRotation else { throw LogWriteError.rotationRequiresBackground }
                     let existingData = try Data(contentsOf: logURL)
                     var rotatedData = retainedLogSuffix(existingData, maxBytes: retainedLogBytes)
                     rotatedData.append(data)

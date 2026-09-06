@@ -259,6 +259,31 @@ final class AudioCaptureDiagnosticsTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: logURL), original)
     }
 
+    func testMainThreadRotationDefersTheOriginalRecordWithoutRewritingHistoryInline() async throws {
+        let logURL = try temporaryLogURL()
+        let history = Data(String(repeating: "older event\n", count: 450_000).utf8)
+        try history.write(to: logURL)
+        let original = AudioCaptureDiagnostics.encodedLogLine(
+            "capture_stop frames=480", timestamp: Date(timeIntervalSince1970: 1_780_000_000),
+            uptimeNanoseconds: 123_456_789
+        )
+
+        XCTAssertThrowsError(try AudioCaptureDiagnostics.writeLogLine(
+            original, to: logURL, waitForLock: false, allowRotation: false
+        ))
+        XCTAssertEqual(try Data(contentsOf: logURL), history)
+
+        await MainActor.run {
+            AudioCaptureDiagnostics.appendEncodedLogLine(original, to: logURL)
+        }
+        await AudioCaptureDiagnostics.flushPendingAppends()
+
+        let persisted = try Data(contentsOf: logURL)
+        XCTAssertLessThanOrEqual(persisted.count, Int(AudioCaptureDiagnostics.diagnosticLogMaxBytes))
+        XCTAssertTrue(persisted.starts(with: Data("older event\n".utf8)))
+        XCTAssertTrue(persisted.suffix(original.count).elementsEqual(original))
+    }
+
     private func temporaryLogURL() throws -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("AudioCaptureDiagnosticsTests-\(UUID().uuidString)", isDirectory: true)

@@ -75,8 +75,8 @@ App and CLI writers coordinate file creation, append and rotation through the
 stable sibling `dictation-audio.log.lock`; preserve this file. The advisory lock
 coordinates participating writers, including separate processes. It does not
 lock readers or coordinate with older app versions that do not acquire it.
-Contended main-thread writes are deferred to the existing utility queue with
-their original timestamps and fields; OSLog reports
+Main-thread writes that encounter contention or require log rotation are
+deferred to the existing utility queue with their original timestamps and fields; OSLog reports
 `audio_diagnostic_write_deferred`. A query before that queue drains can miss
 those pending records, and process exit can prevent their best-effort write.
 

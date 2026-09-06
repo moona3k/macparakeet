@@ -116,10 +116,12 @@ owned by `AppEnvironment`.
   raw details belong only to separately privacy-marked OSLog fields. File sink
   failures surface through OSLog without failing capture or replacing history
   when an existing log cannot be opened for append.
-  Main-thread writes try both writer locks without waiting. On contention, the
+  Main-thread writes try both writer locks without waiting and defer rotation
+  before reading or rewriting the log history. On contention or rotation, the
   existing utility queue retains and writes the same encoded record, preserving
-  its occurrence clocks; OSLog reports `audio_diagnostic_write_deferred`.
-  Such records become visible after the contending writer finishes, and remain
+  its occurrence clocks; OSLog reports `audio_diagnostic_write_deferred` with
+  `reason=lock_contended` or `reason=rotation`.
+  Such records become visible after the queued write finishes, and remain
   best effort if the process exits before the queue drains.
 - `DiagnosticLogScope.swift` — `AudioCaptureDiagnostics.scopedLogForUpload`
   trims the log to a recent window (`.recent`, the feedback default:
