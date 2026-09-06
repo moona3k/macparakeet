@@ -1,0 +1,40 @@
+Sources/MacParakeet/Views/MeetingRecording/MeetingPartialCapturePresentation.swift
+  h_2ab1f47fea2ced 40,48-49,51,53-54
+Sources/MacParakeet/Views/MeetingRecording/MeetingRecordingPillController.swift
+  h_2ab1f47fea2ced 654,661
+Sources/MacParakeet/Views/MeetingRecording/MeetingRecordingPillView.swift
+  h_2ab1f47fea2ced 76-79,119
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingCaptureReport.swift
+  h_2ab1f47fea2ced 8,121-122,142,156-200
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingService.swift
+  h_2ab1f47fea2ced 2008-2009
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingArtifactStoreTests.swift
+  h_2ab1f47fea2ced 295,323-324,326-335,346,355,364,510,512-513,534
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingCaptureReportTests.swift
+  h_2ab1f47fea2ced 87,92,100-101,126-127,219-220,240,245,265,277,282,312-440
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift
+  h_2ab1f47fea2ced 185,221-265,283,286-287
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  h_2ab1f47fea2ced 920,929,951,966
+Tests/MacParakeetTests/Views/MeetingPartialCapturePresentationTests.swift
+  h_2ab1f47fea2ced 54,73,76-81,84-85,87,89,93-107
+plans/2026-09-06-ui-review-953.html
+  h_2ab1f47fea2ced 1-144
+spec/adr/025-meeting-capture-reliability.md
+  h_2ab1f47fea2ced 141-149
+spec/contracts/meeting-artifacts-v1.md
+  h_2ab1f47fea2ced 166-167,171,180-196,202-204
+spec/contracts/meeting-recovery-retention.md
+  h_2ab1f47fea2ced 174-181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "8dd4183171c1c9ea55fc0c0d2e3b4acfa58ce7ff",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
