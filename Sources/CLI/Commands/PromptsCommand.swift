@@ -397,7 +397,7 @@ extension PromptsCommand {
         @Flag(name: .long, help: "Stream the response token by token.")
         var stream: Bool = false
 
-        @Flag(name: .long, help: "Emit a structured JSON envelope (output, provider, model, usage, stopReason, latencyMs) instead of plain text.")
+        @Flag(name: .long, help: "Emit a structured JSON envelope (output, provider, model, usage, stopReason, latencyMs, effectiveSettings) instead of plain text.")
         var json: Bool = false
 
         @Option(name: .long, help: "Extra instructions appended to the prompt for this run.")
@@ -445,39 +445,55 @@ extension PromptsCommand {
 
                 var output = ""
                 var jsonResult: LLMResult?
+                var effectiveSettings: PromptInferenceSettings?
                 if json {
                     let result = try await service.generatePromptResultDetailed(
                         transcript: transcriptText,
-                        systemPrompt: systemPrompt
+                        systemPrompt: systemPrompt,
+                        inferenceSettings: prompt.inferenceSettings
                     )
                     output = result.output
                     jsonResult = result
+                    effectiveSettings = result.effectiveSettings
                 } else if stream {
-                    let tokenStream = service.generatePromptResultStream(
+                    let eventStream = service.generatePromptResultDetailedStream(
                         transcript: transcriptText,
-                        systemPrompt: systemPrompt
+                        systemPrompt: systemPrompt,
+                        inferenceSettings: prompt.inferenceSettings
                     )
-                    for try await token in tokenStream {
-                        print(token, terminator: "")
-                        output += token
+                    var terminal: LLMStreamTerminal?
+                    for try await event in eventStream {
+                        switch event {
+                        case .text(let token):
+                            print(token, terminator: "")
+                            output += token
+                        case .completed(let receipt):
+                            terminal = receipt
+                        }
                     }
                     print()
+                    guard let terminal else {
+                        throw LLMError.streamingError("prompt result stream ended without terminal metadata")
+                    }
+                    effectiveSettings = terminal.effectiveSettings
                 } else {
-                    output = try await service.generatePromptResult(
+                    let result = try await service.generatePromptResultDetailed(
                         transcript: transcriptText,
-                        systemPrompt: systemPrompt
+                        systemPrompt: systemPrompt,
+                        inferenceSettings: prompt.inferenceSettings
                     )
+                    output = result.output
+                    effectiveSettings = result.effectiveSettings
                     print(output)
                 }
 
                 if !noStore {
-                    let result = PromptResult(
-                        transcriptionId: transcript.id,
-                        promptName: prompt.name,
-                        promptContent: prompt.content,
+                    let result = makeStoredPromptRunResult(
+                        transcript: transcript,
+                        prompt: prompt,
                         extraInstructions: normalizedExtra,
-                        content: output,
-                        userNotesSnapshot: transcript.userNotes
+                        output: output,
+                        effectiveSettings: effectiveSettings
                     )
                     try resultRepo.save(result)
                     await refreshMeetingArtifacts(
@@ -494,6 +510,24 @@ extension PromptsCommand {
             }
         }
     }
+}
+
+func makeStoredPromptRunResult(
+    transcript: Transcription,
+    prompt: Prompt,
+    extraInstructions: String?,
+    output: String,
+    effectiveSettings: PromptInferenceSettings?
+) -> PromptResult {
+    PromptResult(
+        transcriptionId: transcript.id,
+        promptName: prompt.name,
+        promptContent: prompt.content,
+        extraInstructions: extraInstructions,
+        content: output,
+        userNotesSnapshot: transcript.userNotes,
+        inferenceSettingsSnapshot: effectiveSettings
+    )
 }
 
 /// Refreshes meeting artifacts; failures are logged and never surfaced or thrown, and refresh never blocks or fails the triggering user action.

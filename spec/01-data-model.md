@@ -387,7 +387,8 @@ CREATE TABLE prompts (
     updatedAt TEXT NOT NULL,                              -- ISO 8601 timestamp
     keyboardShortcut TEXT,                                -- v0.13 Transform shortcut (encoded KeyboardShortcut)
     runningLabel TEXT,                                    -- v0.13 Transform progress label override
-    appliesToSources TEXT                                 -- v0.20 JSON Set<SourceType> for auto-run scoping; NULL = all sources
+    appliesToSources TEXT,                                -- v0.20 JSON Set<SourceType> for auto-run scoping; NULL = all sources
+    inferenceSettings TEXT                                -- v0.31 JSON PromptInferenceSettings; NULL = MacParakeet defaults
 );
 
 CREATE UNIQUE INDEX idx_prompts_name ON prompts(name COLLATE NOCASE);
@@ -401,6 +402,19 @@ CREATE UNIQUE INDEX idx_prompts_name ON prompts(name COLLATE NOCASE);
 - Built-ins currently come from `Prompt.builtInPrompts()` in Swift. "Summary" is the lone auto-run built-in for users who have not disabled every auto-run prompt. ("Memo-Steered Notes" was a second auto-run built-in introduced in ADR-020 and reverted on 2026-05-02 — see ADR-020 amendment.)
 - `category = "transform"` rows use `keyboardShortcut` for global Transform bindings and `runningLabel` for the floating progress label. Summary/result prompts leave both fields `NULL`.
 - `appliesToSources` (v0.20) scopes auto-run to specific transcription sources (JSON-encoded `Set<Transcription.SourceType>`). `NULL` means "all sources" — the canonical unscoped form. The Meetings "After each meeting" card sets `[.meeting]`; the global Prompt Library toggle, CLI `prompts set --auto-run`, and result-prompt default restore reset it to `NULL`. A set covering every source is normalized back to `NULL` so future `SourceType` cases are auto-included. Only consulted when `isAutoRun = true` (see `Prompt.autoRuns(for:)`).
+- `inferenceSettings` (v0.31) is nullable JSON for the transport-neutral
+  `PromptInferenceSettings` value (`temperature`, `topP`, `topK`, `maxTokens`,
+  `thinkingMode`, and optional `reasoningEffort`). The effort values are
+  `low`, `medium`, `high`, and `xhigh`; normalization clears the field unless
+  `thinkingMode` is `enabled`. It applies only to custom result prompts. `NULL`
+  and an all-default object are normalized to the same meaning: inherit the
+  prompt-result operation's current MacParakeet and adapter defaults. They do
+  not mean "force the upstream provider to omit every parameter." Built-in and
+  Transform prompts keep this column `NULL` in the initial contract.
+  JSON decoding and repository writes independently reject invalid numeric
+  values with the settings validation error. Repository writes also reject
+  nondefault settings on Transform prompts rather than persisting unused
+  configuration.
 
 ---
 
@@ -418,6 +432,7 @@ CREATE TABLE summaries (
     extraInstructions TEXT,                                -- User's per-run extra instructions (if any)
     content           TEXT NOT NULL,                       -- The generated summary text
     userNotesSnapshot TEXT,                                -- v0.8: notes used when generating this result
+    inferenceSettingsSnapshot TEXT,                       -- v0.31: JSON effective settings actually sent
     createdAt         TEXT NOT NULL,                       -- ISO 8601 timestamp
     updatedAt         TEXT NOT NULL                        -- ISO 8601 timestamp
 );
@@ -429,6 +444,15 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
 - `transcriptionId` has a cascading delete — deleting a transcription removes all its prompt results.
 - `promptName` and `promptContent` are snapshots, not references to the `prompts` table. Editing or deleting a prompt after generation doesn't change the result's metadata.
 - `userNotesSnapshot` captures `Transcription.userNotes` at generation time so later note edits do not rewrite historical prompt results.
+- `inferenceSettingsSnapshot` (v0.31) stores the normalized effective settings
+  actually sent after provider/model capability filtering, not merely the
+  settings requested on the prompt. `NULL` preserves historical rows and means
+  no effective receipt was recorded; it is not a request for upstream defaults.
+  Result repositories validate snapshots before saving or replacing a result,
+  preserving the previous result on failure. Requested settings and omitted
+  fields are not stored on each result. Regenerate reuses the effective receipt
+  rather than consulting an edited prompt; provider/model configuration is
+  resolved again when execution begins.
 - Migration from existing data: legacy `transcriptions.summary` values migrate into `summaries` with classic "Summary" prompt metadata, then the legacy column is dropped by `v0.7.6-drop-legacy-transcription-summary`.
 
 ---
@@ -874,6 +898,7 @@ struct Prompt: Codable, Identifiable, Sendable {
     var keyboardShortcut: String?
     var runningLabel: String?
     var appliesToSources: Set<Transcription.SourceType>?  // v0.20 auto-run scoping; nil = all sources
+    var inferenceSettings: PromptInferenceSettings?       // v0.31; nil = MacParakeet defaults
     var createdAt: Date
     var updatedAt: Date
 
@@ -902,6 +927,7 @@ struct PromptResult: Codable, Identifiable, Sendable {
     var extraInstructions: String?
     var content: String
     var userNotesSnapshot: String?
+    var inferenceSettingsSnapshot: PromptInferenceSettings?
     var createdAt: Date
     var updatedAt: Date
 }
@@ -1256,6 +1282,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 // v0.28 — derived cards + external-content cards_fts (raw SQL)
 // v0.29 — transcriptions.audioTrackOrdinal
 // v0.30 — transcriptions.meetingCaptureReport (optional JSON)
+// v0.31 — prompts.inferenceSettings and summaries.inferenceSettingsSnapshot
 ```
 
 ### Migration Rules
@@ -1300,6 +1327,8 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `text_snippets.action` | v0.7 | Keystroke action type for snippet |
 | `prompts` | v0.7 | Reusable prompt templates (built-in + custom) |
 | `summaries` | v0.7 | Prompt results per transcription (FK → transcriptions, cascade delete; Swift model `PromptResult`) |
+| `prompts.inferenceSettings` | v0.31 | Nullable JSON requested settings for custom result prompts; `NULL` inherits MacParakeet defaults |
+| `summaries.inferenceSettingsSnapshot` | v0.31 | Nullable JSON receipt of effective settings sent after provider/model filtering |
 | `lifetime_dictation_stats` | v0.7.4 | Singleton lifetime voice-stat counters |
 | `daily_dictation_stats` | v0.11 | Per-day rollup powering Stats-tab heatmap + daily streaks |
 | `transcriptions.recoveredFromCrash` | v0.7.5 | Interrupted meeting recovery marker |

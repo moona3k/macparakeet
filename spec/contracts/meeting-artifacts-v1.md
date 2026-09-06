@@ -95,7 +95,19 @@ The v1 folder can contain these stable filenames:
 - `prompt-results.json`: JSON array of prompt-result records.
 - `prompt-results/`: refreshed directory of per-result Markdown files.
 - `prompt-results/*.md`: filenames use a stable two-digit 1-based index prefix
-  plus sanitized prompt-result name.
+plus sanitized prompt-result name.
+
+Each `prompt-results.json` record preserves the prompt-result snapshots,
+including additive optional `inferenceSettingsSnapshot`. When present, this is
+the normalized effective provider/model-filtered inference receipt stored on
+the canonical database row. Its optional `reasoningEffort` is one of `low`,
+`medium`, `high`, or `xhigh` and appears only with enabled thinking; legacy and
+externally imported rows may omit it.
+This field contains effective settings only, not the mutable prompt's requested
+settings or unsupported-field metadata. Numeric snapshots are validated before
+database save/replacement. Failed or cancelled generation, including an Ollama
+error-only stream frame after partial output, must not materialize a new
+successful result or replace the previous valid result.
 
 New recordings write the role-explicit audio filenames above. For read
 compatibility with folders created before the in-place v1 audio filename

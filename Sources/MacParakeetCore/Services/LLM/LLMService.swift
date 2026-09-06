@@ -31,6 +31,16 @@ public protocol LLMServiceProtocol: Sendable {
     // `String`-returning callers (the GUI) are unaffected.
 
     func generatePromptResultDetailed(transcript: String, systemPrompt: String?) async throws -> LLMResult
+    func generatePromptResultDetailed(
+        transcript: String,
+        systemPrompt: String?,
+        inferenceSettings: PromptInferenceSettings?
+    ) async throws -> LLMResult
+    func generatePromptResultDetailedStream(
+        transcript: String,
+        systemPrompt: String?,
+        inferenceSettings: PromptInferenceSettings?
+    ) -> AsyncThrowingStream<LLMStreamEvent, Error>
     func chatDetailed(
         question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource,
         conversationID: UUID
@@ -73,6 +83,72 @@ public extension LLMServiceProtocol {
         try await generatePromptResultDetailed(transcript: transcript, systemPrompt: nil)
     }
 
+    func generatePromptResultDetailed(
+        transcript: String,
+        systemPrompt: String?,
+        inferenceSettings: PromptInferenceSettings?
+    ) async throws -> LLMResult {
+        guard try inferenceSettings?.validated() == nil else {
+            throw LLMError.providerError("This LLM service does not support per-prompt generation settings.")
+        }
+        return try await generatePromptResultDetailed(transcript: transcript, systemPrompt: systemPrompt)
+    }
+
+    func generatePromptResultDetailedStream(
+        transcript: String,
+        systemPrompt: String?,
+        inferenceSettings: PromptInferenceSettings?
+    ) -> AsyncThrowingStream<LLMStreamEvent, Error> {
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    guard try inferenceSettings?.validated() == nil else {
+                        throw LLMError.providerError("This LLM service does not support per-prompt generation settings.")
+                    }
+                    let source = generatePromptResultStream(transcript: transcript, systemPrompt: systemPrompt)
+                    for try await text in source {
+                        continuation.yield(.text(text))
+                    }
+                    continuation.yield(.completed(LLMStreamTerminal(
+                        provider: "unknown",
+                        model: "unknown"
+                    )))
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    func generatePromptResultStream(
+        transcript: String,
+        systemPrompt: String?,
+        inferenceSettings: PromptInferenceSettings?
+    ) -> AsyncThrowingStream<String, Error> {
+        let source = generatePromptResultDetailedStream(
+            transcript: transcript,
+            systemPrompt: systemPrompt,
+            inferenceSettings: inferenceSettings
+        )
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    for try await event in source {
+                        if case .text(let text) = event {
+                            continuation.yield(text)
+                        }
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
     func summarizeDetailed(transcript: String) async throws -> LLMResult {
         try await generatePromptResultDetailed(transcript: transcript, systemPrompt: nil)
     }
@@ -90,6 +166,14 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     private struct MessageAssembly {
         let messages: [ChatMessage]
         let inputTruncated: Bool
+    }
+
+    private struct PromptResultOutputBudgetError: LocalizedError, Sendable {
+        let maxOutputTokens: Int
+
+        var errorDescription: String? {
+            "Maximum output tokens (\(maxOutputTokens)) leave no room for prompt input. Reduce Max tokens."
+        }
     }
 
     private struct ChatSystemPromptBuild {
@@ -389,6 +473,18 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     // MARK: - Envelope (Detailed) Variants
 
     public func generatePromptResultDetailed(transcript: String, systemPrompt: String?) async throws -> LLMResult {
+        try await generatePromptResultDetailed(
+            transcript: transcript,
+            systemPrompt: systemPrompt,
+            inferenceSettings: nil
+        )
+    }
+
+    public func generatePromptResultDetailed(
+        transcript: String,
+        systemPrompt: String?,
+        inferenceSettings: PromptInferenceSettings?
+    ) async throws -> LLMResult {
         let operationID = Observability.operationID()
         let startedAt = Date()
         let promptDefaultUsed = systemPrompt?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
@@ -402,10 +498,29 @@ public final class LLMService: LLMServiceProtocol, Sendable {
             messageCount: 2
         )
         let config = context.providerConfig
-        let assembly = buildPromptResultMessages(transcript: transcript, systemPrompt: systemPrompt, config: config)
-        let messages = assembly.messages
+        var inputTruncated: Bool?
         do {
-            let response = try await client.chatCompletion(messages: messages, context: context, options: .default)
+            let resolution = try PromptInferenceCapabilityResolver.resolve(
+                config: config,
+                requested: inferenceSettings
+            )
+            let inputBudget = try promptResultInputBudget(
+                for: config,
+                maxOutputTokens: resolution.effectiveSettings?.maxTokens
+            )
+            let assembly = buildPromptResultMessages(
+                transcript: transcript,
+                systemPrompt: systemPrompt,
+                config: config,
+                inputBudget: inputBudget
+            )
+            inputTruncated = assembly.inputTruncated
+            let messages = assembly.messages
+            let response = try await client.chatCompletion(
+                messages: messages,
+                context: context,
+                options: resolution.options
+            )
             let latencyMs = Self.latencyMs(since: startedAt)
             Telemetry.send(.llmPromptResultUsed(provider: config.id.rawValue))
             sendLLMOperation(
@@ -421,7 +536,11 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                 promptDefaultUsed: promptDefaultUsed,
                 messageCount: messages.count
             )
-            return LLMResult(response: response, provider: config.id, latencyMs: latencyMs)
+            return LLMResult(
+                response: response,
+                provider: config.id,
+                latencyMs: latencyMs
+            )
         } catch {
             if error is CancellationError {
                 sendLLMOperation(
@@ -432,9 +551,9 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     outcome: .cancelled,
                     startedAt: startedAt,
                     inputChars: transcript.count,
-                    inputTruncated: assembly.inputTruncated,
+                    inputTruncated: inputTruncated,
                     promptDefaultUsed: promptDefaultUsed,
-                    messageCount: messages.count
+                    messageCount: 2
                 )
             } else {
                 let kind = Self.errorType(for: error)
@@ -457,9 +576,9 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     outcome: Self.outcomeForLLMError(error),
                     startedAt: startedAt,
                     inputChars: transcript.count,
-                    inputTruncated: assembly.inputTruncated,
+                    inputTruncated: inputTruncated,
                     promptDefaultUsed: promptDefaultUsed,
-                    messageCount: messages.count,
+                    messageCount: 2,
                     errorType: kind
                 )
             }
@@ -803,6 +922,45 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     public func generatePromptResultStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<
         String, Error
     > {
+        generatePromptResultStream(
+            transcript: transcript,
+            systemPrompt: systemPrompt,
+            inferenceSettings: nil
+        )
+    }
+
+    public func generatePromptResultStream(
+        transcript: String,
+        systemPrompt: String?,
+        inferenceSettings: PromptInferenceSettings?
+    ) -> AsyncThrowingStream<String, Error> {
+        let source = generatePromptResultDetailedStream(
+            transcript: transcript,
+            systemPrompt: systemPrompt,
+            inferenceSettings: inferenceSettings
+        )
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    for try await event in source {
+                        if case .text(let text) = event {
+                            continuation.yield(text)
+                        }
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    public func generatePromptResultDetailedStream(
+        transcript: String,
+        systemPrompt: String?,
+        inferenceSettings: PromptInferenceSettings?
+    ) -> AsyncThrowingStream<LLMStreamEvent, Error> {
         AsyncThrowingStream { continuation in
             let operationID = Observability.operationID()
             let startedAt = Date()
@@ -832,19 +990,45 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     }
                     let config = context.providerConfig
                     provider = config.id.rawValue
+                    let resolution = try PromptInferenceCapabilityResolver.resolve(
+                        config: config,
+                        requested: inferenceSettings
+                    )
+                    let inputBudget = try self.promptResultInputBudget(
+                        for: config,
+                        maxOutputTokens: resolution.effectiveSettings?.maxTokens
+                    )
                     let assembly = self.buildPromptResultMessages(
                         transcript: transcript,
                         systemPrompt: systemPrompt,
-                        config: config
+                        config: config,
+                        inputBudget: inputBudget
                     )
                     inputTruncated = assembly.inputTruncated
                     let messages = assembly.messages
-                    let stream = self.client.chatCompletionStream(
-                        messages: messages, context: context, options: .default)
-                    for try await token in stream {
-                        outputChars += token.count
-                        continuation.yield(token)
+                    let stream = self.client.chatCompletionDetailedStream(
+                        messages: messages,
+                        context: context,
+                        options: resolution.options
+                    )
+                    var terminalReceipt: LLMStreamTerminal?
+                    for try await event in stream {
+                        guard terminalReceipt == nil else {
+                            throw LLMError.streamingError("Received data after the terminal stream event.")
+                        }
+                        switch event {
+                        case .text(let token):
+                            outputChars += token.count
+                            continuation.yield(.text(token))
+                        case .completed(let terminal):
+                            terminalReceipt = terminal
+                        }
                     }
+                    guard let terminalReceipt else {
+                        throw LLMError.streamingError("The provider stream ended without terminal metadata.")
+                    }
+                    try Task.checkCancellation()
+                    continuation.yield(.completed(terminalReceipt))
                     Telemetry.send(.llmPromptResultUsed(provider: config.id.rawValue))
                     self.sendLLMOperation(
                         operationID: operationID,
@@ -1148,12 +1332,39 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         max(0, totalBudget - systemPrompt.count)
     }
 
+    /// Converts the requested output-token allowance to the character unit used
+    /// by this service's conservative context budgets. The integer formulation
+    /// computes ceil(3.5 * tokens) without floating-point rounding or overflow.
+    private func promptResultInputBudget(
+        for config: LLMProviderConfig,
+        maxOutputTokens: Int?
+    ) throws -> Int {
+        // Native Ollama requests explicitly set num_ctx, not the generic local window.
+        let totalBudget = config.id == .ollama
+            ? OllamaLLMHTTPAdapter.contextWindowTokens * 7 / 2
+            : contextBudget(for: config)
+        guard let maxOutputTokens, maxOutputTokens > 0 else {
+            return totalBudget
+        }
+
+        let product = maxOutputTokens.multipliedReportingOverflow(by: 7)
+        guard !product.overflow else {
+            throw PromptResultOutputBudgetError(maxOutputTokens: maxOutputTokens)
+        }
+        let outputReservation = product.partialValue / 2 + product.partialValue % 2
+        guard outputReservation < totalBudget else {
+            throw PromptResultOutputBudgetError(maxOutputTokens: maxOutputTokens)
+        }
+        return totalBudget - outputReservation
+    }
+
     private func buildPromptResultMessages(
         transcript: String,
         systemPrompt: String?,
-        config: LLMProviderConfig
+        config: LLMProviderConfig,
+        inputBudget: Int? = nil
     ) -> MessageAssembly {
-        let budget = contextBudget(for: config)
+        let budget = inputBudget ?? contextBudget(for: config)
         let resolvedPrompt = resolveSummaryPrompt(systemPrompt)
         let promptWasTruncated = resolvedPrompt.count > budget
         let boundedPrompt =

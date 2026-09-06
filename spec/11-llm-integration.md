@@ -192,9 +192,13 @@ public struct ChatMessage: Codable, Sendable {
 
 public struct ChatCompletionOptions: Sendable {
     public let temperature: Double?
+    public let topP: Double?
+    public let topK: Int?
     public let maxTokens: Int?
     public let responseFormat: ChatResponseFormat?
     public let conversationID: UUID? // nil for a one-shot; header-only, not JSON
+    public let thinkingMode: PromptInferenceSettings.ThinkingMode
+    public let reasoningEffort: PromptInferenceSettings.ReasoningEffort?
 }
 
 public struct ChatCompletionResponse: Sendable {
@@ -217,6 +221,7 @@ public struct LLMResult: Sendable, Codable {
     public let usage: LLMUsage?
     public let stopReason: String?
     public let latencyMs: Int
+    public let effectiveSettings: PromptInferenceSettings?
 }
 
 public struct LLMUsage: Sendable, Codable {
@@ -237,6 +242,91 @@ public struct LLMFormatterResult: Sendable {
     public var output: String { result.output }
 }
 ```
+
+For Prompt Library result generation, `ChatCompletionOptions.default` remains
+the operation baseline (`temperature = 0.7`). Optional per-prompt settings are
+overlaid on that baseline; an unset value therefore inherits MacParakeet's
+current behavior instead of requesting a raw provider default. The native
+Ollama baseline likewise retains explicit thinking-off behavior. Other LLM
+operations continue to use their existing option construction.
+
+Provider/model adaptation is allow-listed and returns both filtered transport
+options and a normalized effective-settings receipt. The intended initial
+capability contract is:
+
+| Provider path | Prompt-result settings accepted |
+| --- | --- |
+| Native OpenAI | `temperature` and `topP` when model policy permits them; `maxTokens` through the existing token-key policy |
+| Native Anthropic | `temperature` in `0...1` or `topP` in `0...1` when model-compatible (Top P wins); `maxTokens` |
+| Native Ollama | Temperature, top-p, top-k, output tokens, and thinking; numeric values use Ollama `options`, thinking uses top-level `think`; reasoning effort is unsupported |
+| Custom OpenAI-compatible | All six settings; thinking uses `chat_template_kwargs.enable_thinking`, and optional effort uses `chat_template_kwargs.reasoning_effort` only while thinking is enabled |
+| Gemini, OpenRouter, LM Studio | `temperature` and `maxTokens` initially |
+| In-process local | `temperature` and `maxTokens` |
+| Local CLI | None in the initial contract |
+
+Unsupported explicitly configured fields are omitted and reported in GUI
+compatibility information, not persisted as per-result omission metadata.
+Invalid neutral numeric values are rejected before filtering; effective
+provider-specific ranges are validated before dispatch. Existing OpenAI
+reasoning-model and Anthropic sampling policies remain authoritative.
+Native Anthropic's inherited 4096 output-token limit is reserved in input
+budgeting for both initial generation and regeneration.
+Native Ollama prompt results share the adapter's 8,192-token `num_ctx` window,
+reserving requested output tokens before assembling input in both stream paths.
+Impossible output allowances fail before dispatch through the ordinary operation
+failure path. The input character estimate remains heuristic.
+
+`ChatCompletionOptions` accepts request controls through its public initializer,
+not caller-supplied effective-settings receipts. Receipt metadata is immutable
+and attached by Core's capability resolver after filtering. Callers dispatch
+resolved options with the same provider/model configuration used for resolution.
+
+Detailed streaming adds terminal metadata alongside text events:
+
+```swift
+public struct LLMStreamTerminal: Sendable, Equatable {
+    public let provider: String
+    public let model: String
+    public let usage: LLMUsage?
+    public let stopReason: String?
+    public let effectiveSettings: PromptInferenceSettings?
+
+    public init(
+        provider: String,
+        model: String,
+        usage: LLMUsage? = nil,
+        stopReason: String? = nil,
+        effectiveSettings: PromptInferenceSettings? = nil
+    ) {
+        self.provider = provider
+        self.model = model
+        self.usage = usage
+        self.stopReason = stopReason
+        self.effectiveSettings = effectiveSettings
+    }
+}
+
+public enum LLMStreamEvent: Sendable, Equatable {
+    case text(String)
+    case completed(LLMStreamTerminal)
+}
+```
+
+A successful detailed stream emits exactly one terminal event carrying the
+provider, model, optional usage/stop reason, and effective settings. An error
+or cancellation produces no successful terminal receipt. Native Ollama allows
+clean EOF after content without `done:true`, using observed metadata only;
+error-only envelopes fail both its text and detailed stream paths even after
+partial output. Strict providers still require their completion sentinel.
+In-process MLX does not invent a stop reason; local CLI cannot apply inference
+settings and therefore emits no effective-settings receipt. Existing
+string-streaming methods remain projections for callers that do not need the
+receipt. Default service conformers reject nondefault settings unless they
+implement the settings-aware methods.
+Native OpenAI streaming requests `stream_options.include_usage`; compatible
+third-party servers receive no new stream option. A missing usage total is
+derived only when both component counts exist and their checked sum fits in
+`Int`. Overflow preserves component counts and leaves the total unknown.
 
 ### Service Protocol
 
@@ -274,6 +364,16 @@ public protocol LLMServiceProtocol: Sendable {
         transcript: String,
         systemPrompt: String?
     ) async throws -> LLMResult
+    func generatePromptResultDetailed(
+        transcript: String,
+        systemPrompt: String?,
+        inferenceSettings: PromptInferenceSettings?
+    ) async throws -> LLMResult
+    func generatePromptResultDetailedStream(
+        transcript: String,
+        systemPrompt: String?,
+        inferenceSettings: PromptInferenceSettings?
+    ) -> AsyncThrowingStream<LLMStreamEvent, Error>
     func chatDetailed(
         question: String,
         transcript: String,
@@ -579,7 +679,7 @@ macparakeet-cli llm test-connection --provider cli --command "claude -p --model 
 macparakeet-cli llm summarize transcript.txt --provider cli --command "claude -p --model haiku"
 ```
 
-Additional options: `--model`, `--base-url`, `--stream`, `--json`, `--command` (Local CLI only). Use `-` as input to read from stdin. `--json` emits a structured envelope with `output`, `provider`, `model`, optional `usage`, optional `stopReason`, and `latencyMs`. `llm test-connection --json` emits `{ok, provider, model, latencyMs}` on success. `--json --stream` is rejected until NDJSON streaming lands.
+Additional options: `--model`, `--base-url`, `--stream`, `--json`, `--command` (Local CLI only). Use `-` as input to read from stdin. `--json` emits a structured envelope with `output`, `provider`, `model`, optional `usage`, optional `stopReason`, `latencyMs`, and optional `effectiveSettings`. The latter is populated for a prompt-result request only when the adapter can return an honest normalized receipt; unrelated LLM operations omit it. `llm test-connection --json` emits `{ok, provider, model, latencyMs}` on success. `--json --stream` is rejected until NDJSON streaming lands.
 
 CLI LLM commands use ephemeral inline config (not shared with GUI UserDefaults/Keychain).
 

@@ -86,6 +86,30 @@ final class LocalCLILLMClientTests: XCTestCase {
         XCTAssertEqual(chunks.first, "streamed")
     }
 
+    func testDetailedStreamEmitsTextThenOneTerminal() async throws {
+        let config = LocalCLIConfig(commandTemplate: "printf 'streamed'", timeoutSeconds: 10)
+        let client = LocalCLILLMClient(executor: LocalCLIExecutor())
+        let context = LLMExecutionContext(providerConfig: .localCLI(), localCLIConfig: config)
+
+        var events: [LLMStreamEvent] = []
+        for try await event in client.chatCompletionDetailedStream(
+            messages: [ChatMessage(role: .user, content: "test")],
+            context: context,
+            options: ChatCompletionOptions(temperature: 0.2)
+        ) {
+            events.append(event)
+        }
+
+        XCTAssertEqual(events.first, .text("streamed"))
+        XCTAssertEqual(events.count, 2)
+        guard case .completed(let terminal) = events.last else {
+            return XCTFail("Expected terminal event")
+        }
+        XCTAssertEqual(terminal.provider, "localCLI")
+        XCTAssertEqual(terminal.model, "cli")
+        XCTAssertNil(terminal.effectiveSettings, "The executor cannot apply caller-supplied settings.")
+    }
+
     // MARK: - List Models
 
     func testListModelsReturnsEmpty() async throws {

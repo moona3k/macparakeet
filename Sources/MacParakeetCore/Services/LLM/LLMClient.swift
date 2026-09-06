@@ -21,6 +21,12 @@ public protocol LLMClientProtocol: Sendable {
         options: ChatCompletionOptions
     ) -> AsyncThrowingStream<String, Error>
 
+    func chatCompletionDetailedStream(
+        messages: [ChatMessage],
+        context: LLMExecutionContext,
+        options: ChatCompletionOptions
+    ) -> AsyncThrowingStream<LLMStreamEvent, Error>
+
     func testConnection(context: LLMExecutionContext) async throws
 
     /// Fetches available model IDs from the provider's /models endpoint.
@@ -64,6 +70,47 @@ public extension LLMClientProtocol {
         options: ChatCompletionOptions
     ) -> AsyncThrowingStream<String, Error> {
         chatCompletionStream(
+            messages: messages,
+            context: LLMExecutionContext(providerConfig: config),
+            options: options
+        )
+    }
+
+    /// Compatibility bridge for existing clients. Production clients should
+    /// override this method when their transport exposes richer terminal
+    /// metadata.
+    func chatCompletionDetailedStream(
+        messages: [ChatMessage],
+        context: LLMExecutionContext,
+        options: ChatCompletionOptions
+    ) -> AsyncThrowingStream<LLMStreamEvent, Error> {
+        let source = chatCompletionStream(messages: messages, context: context, options: options)
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    for try await text in source {
+                        continuation.yield(.text(text))
+                    }
+                    continuation.yield(.completed(LLMStreamTerminal(
+                        provider: context.providerConfig.id.rawValue,
+                        model: context.providerConfig.modelName,
+                        effectiveSettings: options.effectiveInferenceSettings
+                    )))
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    func chatCompletionDetailedStream(
+        messages: [ChatMessage],
+        config: LLMProviderConfig,
+        options: ChatCompletionOptions
+    ) -> AsyncThrowingStream<LLMStreamEvent, Error> {
+        chatCompletionDetailedStream(
             messages: messages,
             context: LLMExecutionContext(providerConfig: config),
             options: options
@@ -123,6 +170,22 @@ public final class LLMClient: LLMClientProtocol, Sendable {
             let config = context.providerConfig
             return try adapter(for: config.id)
                 .chatCompletionStream(messages: messages, config: config, options: options)
+        } catch {
+            return AsyncThrowingStream { continuation in
+                continuation.finish(throwing: error)
+            }
+        }
+    }
+
+    public func chatCompletionDetailedStream(
+        messages: [ChatMessage],
+        context: LLMExecutionContext,
+        options: ChatCompletionOptions
+    ) -> AsyncThrowingStream<LLMStreamEvent, Error> {
+        do {
+            let config = context.providerConfig
+            return try adapter(for: config.id)
+                .chatCompletionDetailedStream(messages: messages, config: config, options: options)
         } catch {
             return AsyncThrowingStream { continuation in
                 continuation.finish(throwing: error)

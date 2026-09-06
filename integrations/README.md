@@ -475,6 +475,21 @@ macparakeet-cli prompts run "Action items" \
   --json
 ```
 
+Prompt objects returned by `prompts list/show --json` include additive optional
+`inferenceSettings` (`temperature`, `topP`, `topK`, `maxTokens`, and
+`thinkingMode`, plus optional `reasoningEffort`: `low`, `medium`, `high`, or
+`xhigh`). Reasoning effort applies only when thinking is enabled. A blank value
+means the prompt inherits MacParakeet's current
+prompt-result defaults. `prompts run --json` includes additive optional
+`effectiveSettings` in its LLM result envelope. When present, it is the
+provider/model-filtered receipt of settings actually sent, not a copy of the
+unfiltered prompt request. Automations should treat either field as optional
+and must not infer provider support from `inferenceSettings` alone.
+The result-prompt GUI configures these settings; `prompts add/set` expose no
+inference-setting flags. The CLI preserves untouched settings and runs them,
+but does not emit per-result requested-settings or unsupported-field metadata.
+Transforms do not use this feature.
+
 `<id-or-prefix>` accepts a full UUID, a UUID prefix (>= 4 chars), or the
 case-insensitive name. Ambiguous prefixes return a `.ambiguous` error so the
 agent can re-prompt the user.
@@ -525,7 +540,9 @@ macparakeet-cli meetings export <id> --format md --stdout
 Use `meetings notes` for user-authored notes. Use `meetings results add` for
 externally generated summaries, decisions, action items, or other agent output;
 those rows are stored as `PromptResult` records rather than overwriting
-`userNotes`.
+`userNotes`. Meeting result JSON and `prompt-results.json` include additive
+optional `inferenceSettingsSnapshot` when MacParakeet recorded an effective
+provider/model-filtered inference receipt for that result.
 
 `meetings artifact` is the stable folder contract for local meeting sessions.
 It refreshes the session folder from SQLite and returns paths to:

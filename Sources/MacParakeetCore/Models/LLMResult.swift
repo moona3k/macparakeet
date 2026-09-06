@@ -25,6 +25,7 @@ public struct LLMResult: Sendable, Codable, Equatable {
     public let usage: LLMUsage?
     public let stopReason: String?
     public let latencyMs: Int
+    public let effectiveSettings: PromptInferenceSettings?
 
     public init(
         output: String,
@@ -32,7 +33,8 @@ public struct LLMResult: Sendable, Codable, Equatable {
         model: String,
         usage: LLMUsage? = nil,
         stopReason: String? = nil,
-        latencyMs: Int
+        latencyMs: Int,
+        effectiveSettings: PromptInferenceSettings? = nil
     ) {
         self.output = output
         self.provider = provider
@@ -40,6 +42,7 @@ public struct LLMResult: Sendable, Codable, Equatable {
         self.usage = usage
         self.stopReason = stopReason
         self.latencyMs = latencyMs
+        self.effectiveSettings = effectiveSettings
     }
 }
 
@@ -67,13 +70,22 @@ public struct LLMUsage: Sendable, Codable, Equatable {
 // MARK: - Internal Conversion
 
 extension LLMUsage {
+    /// Provider counters are untrusted; an unrepresentable total stays unknown.
+    static func derivedTotal(promptTokens: Int?, completionTokens: Int?) -> Int? {
+        guard let promptTokens, let completionTokens else { return nil }
+        let sum = promptTokens.addingReportingOverflow(completionTokens)
+        return sum.overflow ? nil : sum.partialValue
+    }
+
     /// Build an `LLMUsage` from the internal wire-shaped `TokenUsage`.
-    /// Computes `totalTokens` when both halves are present.
+    /// Computes `totalTokens` only when the sum is representable.
     init(_ tokenUsage: TokenUsage) {
         self.init(
             promptTokens: tokenUsage.promptTokens,
             completionTokens: tokenUsage.completionTokens,
-            totalTokens: tokenUsage.promptTokens + tokenUsage.completionTokens
+            totalTokens: Self.derivedTotal(
+                promptTokens: tokenUsage.promptTokens, completionTokens: tokenUsage.completionTokens
+            )
         )
     }
 }
@@ -92,7 +104,8 @@ extension LLMResult {
             model: response.model,
             usage: response.usage.map(LLMUsage.init),
             stopReason: response.finishReason,
-            latencyMs: latencyMs
+            latencyMs: latencyMs,
+            effectiveSettings: response.effectiveInferenceSettings
         )
     }
 }

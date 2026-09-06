@@ -5,6 +5,40 @@ import XCTest
 
 final class PromptsCommandTests: XCTestCase {
 
+    func testStoredPromptRunResultUsesEffectiveSettingsReceipt() {
+        let transcript = Transcription(
+            fileName: "Meeting",
+            rawTranscript: "Transcript",
+            status: .completed,
+            userNotes: "Keep this detail"
+        )
+        let requested = PromptInferenceSettings(
+            temperature: 0.4,
+            topK: 40,
+            thinkingMode: .enabled
+        )
+        let effective = PromptInferenceSettings(temperature: 0.4)
+        let prompt = Prompt(
+            name: "Configured",
+            content: "Summarize.",
+            inferenceSettings: requested
+        )
+
+        let result = makeStoredPromptRunResult(
+            transcript: transcript,
+            prompt: prompt,
+            extraInstructions: "Brief.",
+            output: "Result",
+            effectiveSettings: effective
+        )
+
+        XCTAssertEqual(result.transcriptionId, transcript.id)
+        XCTAssertEqual(result.promptName, prompt.name)
+        XCTAssertEqual(result.userNotesSnapshot, transcript.userNotes)
+        XCTAssertEqual(result.inferenceSettingsSnapshot, effective)
+        XCTAssertNotEqual(result.inferenceSettingsSnapshot, requested)
+    }
+
     // MARK: - findPrompt
 
     func testFindPromptByExactUUID() throws {
@@ -236,7 +270,13 @@ final class PromptsCommandTests: XCTestCase {
         // A prompt narrowed to meetings-only in the GUI must not stay scoped when
         // the CLI enables global auto-run — otherwise it claims global-on while
         // silently firing on meetings only.
-        var prompt = Prompt(name: "Summary", content: "x", category: .result)
+        let inferenceSettings = PromptInferenceSettings(temperature: 0.3, maxTokens: 450)
+        var prompt = Prompt(
+            name: "Summary",
+            content: "x",
+            category: .result,
+            inferenceSettings: inferenceSettings
+        )
         prompt.isAutoRun = true
         prompt.appliesToSources = [.meeting]
 
@@ -247,6 +287,7 @@ final class PromptsCommandTests: XCTestCase {
         XCTAssertTrue(prompt.isAutoRun)
         XCTAssertTrue(prompt.isVisible)
         XCTAssertNil(prompt.appliesToSources, "global --auto-run resets scope to all sources")
+        XCTAssertEqual(prompt.inferenceSettings, inferenceSettings)
     }
 
     func testSetNoAutoRunClearsPerSourceScope() {
@@ -284,7 +325,13 @@ final class PromptsCommandTests: XCTestCase {
         let dbPath = tmp.appendingPathComponent("test.db").path
         let db = try DatabaseManager(path: dbPath)
         let repo = PromptRepository(dbQueue: db.dbQueue)
-        let prompt = Prompt(name: "Meeting Follow-up", content: "x", category: .result)
+        let inferenceSettings = PromptInferenceSettings(topP: 0.8, maxTokens: 700)
+        let prompt = Prompt(
+            name: "Meeting Follow-up",
+            content: "x",
+            category: .result,
+            inferenceSettings: inferenceSettings
+        )
         try repo.save(prompt)
 
         let command = try PromptsCommand.SetSubcommand.parse([
@@ -301,6 +348,7 @@ final class PromptsCommandTests: XCTestCase {
         XCTAssertTrue(updated.isAutoRun)
         XCTAssertTrue(updated.isVisible)
         XCTAssertEqual(updated.appliesToSources, [.meeting])
+        XCTAssertEqual(updated.inferenceSettings, inferenceSettings)
         XCTAssertTrue(updated.autoRuns(for: .meeting))
         XCTAssertFalse(updated.autoRuns(for: .file))
     }

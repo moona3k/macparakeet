@@ -29,7 +29,9 @@ public final class PromptRepository: PromptRepositoryProtocol {
 
     public func save(_ prompt: Prompt) throws {
         try dbQueue.write { db in
-            try prompt.save(db)
+            var normalizedPrompt = prompt
+            normalizedPrompt.inferenceSettings = try Self.validatedInferenceSettings(for: prompt)
+            try normalizedPrompt.save(db)
         }
     }
 
@@ -93,6 +95,7 @@ public final class PromptRepository: PromptRepositoryProtocol {
                 prompt.isAutoRun = false
             }
             prompt.updatedAt = Date()
+            prompt.inferenceSettings = try Self.validatedInferenceSettings(for: prompt)
             try prompt.update(db)
         }
     }
@@ -116,6 +119,7 @@ public final class PromptRepository: PromptRepositoryProtocol {
                 prompt.appliesToSources = nil
             }
             prompt.updatedAt = Date()
+            prompt.inferenceSettings = try Self.validatedInferenceSettings(for: prompt)
             try prompt.update(db)
         }
     }
@@ -159,8 +163,17 @@ public final class PromptRepository: PromptRepositoryProtocol {
                 }
             }
             prompt.updatedAt = Date()
+            prompt.inferenceSettings = try Self.validatedInferenceSettings(for: prompt)
             try prompt.update(db)
         }
+    }
+
+    private static func validatedInferenceSettings(for prompt: Prompt) throws -> PromptInferenceSettings? {
+        let settings = try prompt.inferenceSettings?.validated()
+        guard settings == nil || prompt.category == .result else {
+            throw PromptInferenceSettings.ValidationError.unsupportedPromptCategory
+        }
+        return settings
     }
 
     public func restoreDefaults() throws {

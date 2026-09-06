@@ -6,6 +6,7 @@
 > Implementation Note (2026-04-04): The current implementation seeds built-in/community prompts from `Prompt.builtInPrompts()` in Swift. `community-prompts.json` exists as a contribution/reference artifact, but runtime JSON loading has not shipped.
 > Naming Note (2026-04-28): The database table remains `summaries`, but the Swift model/repository/view-model names are now `PromptResult`, `PromptResultRepository`, and `PromptResultsViewModel`.
 > Transform Note (2026-05-13): ADR-022 now uses `Prompt.Category.transform` for productized Transforms. The Prompt Library serves summaries and Transforms today; workflow steps remain future work.
+> Inference Settings Amendment (2026-09-03): Custom result prompts may carry typed, optional inference settings. They are snapshotted when work is queued, filtered by the selected provider/model, and the effective settings actually sent are stored with the resulting `PromptResult`. See spec/14.
 
 ## Context
 
@@ -52,6 +53,35 @@ This preserves the responsive UX of “let me ask for several summaries now” w
 Auto-run after transcription uses every prompt card marked `isAutoRun = true`. This is user-configurable in the prompt library rather than fixed to the first built-in prompt.
 
 Zero auto-run prompt cards is a valid state. In that configuration, transcription still completes normally, chat remains available, and users add prompt tabs manually from the summary UI.
+
+### 7. Per-prompt inference settings use typed snapshots
+
+A custom result prompt may store optional `temperature`, `topP`, `topK`,
+`maxTokens`, thinking mode, and reasoning effort values. Reasoning
+effort is retained only while thinking is explicitly enabled. This is a typed domain model,
+not an arbitrary request-body editor. Built-in prompts and Transform prompts
+keep these settings unset in the initial contract.
+
+The blank state means inherit MacParakeet's current prompt-result and adapter
+defaults, including the existing `temperature = 0.7` operation baseline and
+native Ollama thinking-off behavior. It does not force raw upstream-provider
+defaults. When generation is queued, prompt text, per-run context, and requested
+settings become one immutable work receipt. The adapter then allow-lists fields
+for its provider/model and returns the effective settings actually serialized;
+that normalized receipt is stored on the `PromptResult`. Unsupported fields
+are omitted and surfaced in GUI compatibility information, not persisted as
+per-result omission metadata. Invalid numeric values are rejected rather than
+omitted, with neutral validation at decoding/repository/execution boundaries
+and provider-compatible range checks before dispatch. Anthropic Top P takes
+precedence over temperature; effective temperature must be in `0...1`.
+Its inherited 4096 output-token limit is reserved equally on initial runs and
+regeneration. Provider/model configuration is resolved at execution, not stored
+in the queue receipt.
+
+This preserves the original snapshot rationale while making it honest across
+provider-specific request contracts. It also keeps inference settings scoped
+to Prompt Library results: chat, Transforms, the AI formatter, knowledge cards,
+and speech recognition retain their existing behavior.
 
 ## Rationale
 

@@ -89,8 +89,37 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- Prompt JSON gains additive optional inference metadata. `prompts list/show`
+  (and prompt objects returned by `prompts set`) expose `inferenceSettings`
+  with optional `temperature`, `topP`, `topK`, `maxTokens`, and a
+  `thinkingMode` value, plus optional `reasoningEffort` (`low`, `medium`,
+  `high`, or `xhigh`) when thinking is enabled. LLM result envelopes,
+  including `prompts run --json`,
+  gain optional `effectiveSettings`; when present it reports the normalized
+  settings actually sent after provider/model filtering. Existing callers may
+  ignore both fields, and unset/legacy values omit them. Meeting result
+  JSON and materialized `prompt-results.json` also preserve that receipt as
+  additive optional `inferenceSettingsSnapshot`.
+  Settings are configured in the result-prompt GUI; the CLI preserves and runs
+  them, but adds no inference-setting flags or Transform support. Receipts
+  contain effective settings only, not requested settings or omission metadata.
+
 ### Fixed
 
+- Invalid inference numbers now fail at persistence and execution boundaries,
+  including native Anthropic's effective temperature limit of 1. Ollama
+  streaming error envelopes fail the run rather than becoming a successful
+  receipt after partial output; clean content-bearing EOF remains supported.
+- Provider receipt and Cards batch token totals use checked arithmetic; overflow
+  remains unknown instead of crashing or becoming a misleading partial total.
+  Missing receipt totals are derived when both component counts are available,
+  while explicit provider totals retain precedence.
+- Native OpenAI streaming requests usage metadata without adding that option to
+  compatible third-party endpoints.
+- Ollama result-prompt input budgeting shares its 8,192-token request window
+  and reserves explicit output allowances.
 - Local CLI output normalizes line endings: CRLF collapses to a single LF and
   a bare CR is rewritten to LF instead of passing through unsanitized. This
   closes a terminal-overwrite gap in the existing sanitizer (a wrapped CLI

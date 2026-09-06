@@ -15,6 +15,12 @@ protocol LLMHTTPAdapter: Sendable {
         options: ChatCompletionOptions
     ) -> AsyncThrowingStream<String, Error>
 
+    func chatCompletionDetailedStream(
+        messages: [ChatMessage],
+        config: LLMProviderConfig,
+        options: ChatCompletionOptions
+    ) -> AsyncThrowingStream<LLMStreamEvent, Error>
+
     func testConnection(config: LLMProviderConfig) async throws
     func listModels(config: LLMProviderConfig) async throws -> [String]
 }
@@ -516,4 +522,22 @@ struct GeminiModelsListResponse: Decodable {
 /// Ollama-specific request options to override defaults (e.g., context window size).
 struct OllamaRequestOptions: Encodable {
     let num_ctx: Int
+    let temperature: Double?
+    let top_p: Double?
+    let top_k: Int?
+    let num_predict: Int?
+
+    init(
+        num_ctx: Int,
+        temperature: Double? = nil,
+        top_p: Double? = nil,
+        top_k: Int? = nil,
+        num_predict: Int? = nil
+    ) {
+        self.num_ctx = num_ctx
+        self.temperature = temperature
+        self.top_p = top_p
+        self.top_k = top_k
+        self.num_predict = num_predict
+    }
 }

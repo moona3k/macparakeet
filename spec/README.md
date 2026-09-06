@@ -23,6 +23,7 @@
 | 11 | [LLM Integration](11-llm-integration.md) | LLM providers, summary, chat, transforms | Implemented (§1 summary superseded by spec/12) |
 | 12 | [Processing Layer](12-processing-layer.md) | Prompt library, multi-summary, v0.5 implementation contract | Active |
 | 13 | [Agent Workflows](13-agent-workflows.md) | Future actions, workflows, agents, voice control, App Intents | Draft |
+| 14 | [Per-Prompt Inference Settings](14-per-prompt-inference-settings.md) | Typed generation settings and effective-setting snapshots for result prompts | PR #956 candidate |
 
 ## Boundary Contracts
 

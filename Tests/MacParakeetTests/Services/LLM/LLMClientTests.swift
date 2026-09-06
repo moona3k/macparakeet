@@ -889,8 +889,8 @@ final class LLMClientTests: XCTestCase {
             return (self.okResponse(for: request), self.validResponseData())
         }
 
-        let config = LLMProviderConfig.openai(apiKey: "sk-test", model: "gpt-5.2")
-        _ = try await llmClient.chatCompletion(
+        let config = LLMProviderConfig.openai(apiKey: "sk-test", model: "gpt-5.5")
+        let response = try await llmClient.chatCompletion(
             messages: [ChatMessage(role: .user, content: "Hi")],
             config: config,
             options: ChatCompletionOptions(temperature: 0.7, maxTokens: 500)
@@ -901,6 +901,43 @@ final class LLMClientTests: XCTestCase {
         XCTAssertEqual(capturedBody?["max_completion_tokens"] as? Int, 500)
         // MacParakeet omits temperature for the GPT-5.x reasoning tier
         XCTAssertNil(capturedBody?["temperature"])
+        XCTAssertNil(response.effectiveInferenceSettings, "Direct options cannot attest to settings the adapter omitted.")
+    }
+
+    func testResolvedGPT5ReceiptsOnlyIncludeSettingsActuallySentInBothCompletionModes() async throws {
+        MockURLProtocol.handler = { request in
+            let body = try XCTUnwrap(self.extractBody(from: request))
+            XCTAssertNil(body["temperature"])
+            XCTAssertNil(body["top_p"])
+            XCTAssertEqual(body["max_completion_tokens"] as? Int, 500)
+            if body["stream"] as? Bool == true {
+                let data = Data("""
+                    data: {"model":"gpt-5.5","choices":[{"delta":{"content":"Hi"},"finish_reason":null}]}
+
+                    data: {"model":"gpt-5.5","choices":[{"delta":{},"finish_reason":"stop"}]}
+
+                    data: [DONE]
+
+                    """.utf8)
+                return (self.okResponse(for: request), data)
+            }
+            return (self.okResponse(for: request), self.validResponseData())
+        }
+        let config = LLMProviderConfig.openai(apiKey: "sk-test", model: "gpt-5.5")
+        let options = try PromptInferenceCapabilityResolver.resolve(
+            config: config,
+            requested: PromptInferenceSettings(temperature: 0.7, topP: 0.9, maxTokens: 500)
+        ).options
+        let messages = [ChatMessage(role: .user, content: "Hi")]
+        let response = try await llmClient.chatCompletion(messages: messages, config: config, options: options)
+        XCTAssertEqual(response.effectiveInferenceSettings, PromptInferenceSettings(maxTokens: 500))
+        var terminal: LLMStreamTerminal?
+        for try await event in llmClient.chatCompletionDetailedStream(
+            messages: messages, config: config, options: options
+        ) {
+            if case .completed(let receipt) = event { terminal = receipt }
+        }
+        XCTAssertEqual(try XCTUnwrap(terminal).effectiveSettings, PromptInferenceSettings(maxTokens: 500))
     }
 
     func testGPT5ChatTierUsesMaxCompletionTokensAndKeepsTemperature() async throws {

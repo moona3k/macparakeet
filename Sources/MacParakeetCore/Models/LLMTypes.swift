@@ -131,7 +131,14 @@ public enum LLMStructuredOutputCapability: Sendable, Equatable {
 
 public struct ChatCompletionOptions: Sendable, Equatable {
     public let temperature: Double?
+    public let topP: Double?
+    public let topK: Int?
     public let maxTokens: Int?
+    public let thinkingMode: PromptInferenceSettings.ThinkingMode
+    public let reasoningEffort: PromptInferenceSettings.ReasoningEffort?
+    /// Resolver-owned provenance; directly initialized options have no receipt.
+    public let usesPromptInferenceSettings: Bool
+    public let effectiveInferenceSettings: PromptInferenceSettings?
     public let responseFormat: ChatResponseFormat?
     /// Opaque thread identity for provider request headers, never part of the JSON body.
     /// Nil identifies a one-shot operation; the HTTP adapter generates its request ID.
@@ -139,17 +146,79 @@ public struct ChatCompletionOptions: Sendable, Equatable {
 
     public init(
         temperature: Double? = nil,
+        topP: Double? = nil,
+        topK: Int? = nil,
         maxTokens: Int? = nil,
+        thinkingMode: PromptInferenceSettings.ThinkingMode = .providerDefault,
+        reasoningEffort: PromptInferenceSettings.ReasoningEffort? = nil,
         responseFormat: ChatResponseFormat? = nil,
         conversationID: UUID? = nil
     ) {
         self.temperature = temperature
+        self.topP = topP
+        self.topK = topK
         self.maxTokens = maxTokens
+        self.thinkingMode = thinkingMode
+        self.reasoningEffort = reasoningEffort
+        self.usesPromptInferenceSettings = false
+        self.effectiveInferenceSettings = nil
         self.responseFormat = responseFormat
         self.conversationID = conversationID
     }
 
+    private init(
+        _ options: ChatCompletionOptions,
+        usesPromptInferenceSettings: Bool,
+        effectiveInferenceSettings: PromptInferenceSettings?
+    ) {
+        self.temperature = options.temperature
+        self.topP = options.topP
+        self.topK = options.topK
+        self.maxTokens = options.maxTokens
+        self.thinkingMode = options.thinkingMode
+        self.reasoningEffort = options.reasoningEffort
+        self.usesPromptInferenceSettings = usesPromptInferenceSettings
+        self.effectiveInferenceSettings = effectiveInferenceSettings
+        self.responseFormat = options.responseFormat
+        self.conversationID = options.conversationID
+    }
+
     public static let `default` = ChatCompletionOptions(temperature: 0.7, maxTokens: nil)
+
+
+    /// Attach provenance only after provider filtering has resolved the request.
+    func withInferenceReceipt(
+        usesPromptInferenceSettings: Bool,
+        effectiveSettings: PromptInferenceSettings?
+    ) -> ChatCompletionOptions {
+        ChatCompletionOptions(
+            self,
+            usesPromptInferenceSettings: usesPromptInferenceSettings,
+            effectiveInferenceSettings: effectiveSettings
+        )
+    }
+
+    /// Validate numeric input before dispatch, including direct client calls.
+    /// Anthropic's narrower range applies only when temperature will be sent:
+    /// Top P precedence and the model allow-list remain authoritative.
+    func validateInferenceSettings(for config: LLMProviderConfig) throws {
+        _ = try PromptInferenceSettings(
+            temperature: temperature,
+            topP: topP,
+            topK: topK,
+            maxTokens: maxTokens
+        ).validated()
+        if config.id == .anthropic,
+            AnthropicModelPolicy.acceptsSampling(model: config.modelName),
+            topP == nil,
+            let temperature,
+            temperature > 1
+        {
+            throw PromptInferenceSettings.ValidationError.outOfRange(
+                field: .temperature, minimum: 0, maximum: 1
+            )
+        }
+    }
 }
 
 // MARK: - Chat Completion Response
@@ -191,6 +260,7 @@ public struct ChatCompletionResponse: Sendable {
     public let model: String
     public let usage: TokenUsage?
     public let generationMetrics: LLMGenerationMetrics?
+    public let effectiveInferenceSettings: PromptInferenceSettings?
 
     public init(
         content: String,
@@ -198,7 +268,8 @@ public struct ChatCompletionResponse: Sendable {
         finishReason: String? = nil,
         model: String,
         usage: TokenUsage? = nil,
-        generationMetrics: LLMGenerationMetrics? = nil
+        generationMetrics: LLMGenerationMetrics? = nil,
+        effectiveInferenceSettings: PromptInferenceSettings? = nil
     ) {
         self.content = content
         self.reasoningContent = reasoningContent
@@ -206,7 +277,43 @@ public struct ChatCompletionResponse: Sendable {
         self.model = model
         self.usage = usage
         self.generationMetrics = generationMetrics
+        self.effectiveInferenceSettings = effectiveInferenceSettings
     }
+}
+
+// MARK: - Detailed Streaming
+
+/// Provider-owned metadata emitted only after a streaming response has
+/// completed successfully.
+public struct LLMStreamTerminal: Sendable, Equatable {
+    public let provider: String
+    public let model: String
+    public let usage: LLMUsage?
+    public let stopReason: String?
+    public let effectiveSettings: PromptInferenceSettings?
+
+    public init(
+        provider: String,
+        model: String,
+        usage: LLMUsage? = nil,
+        stopReason: String? = nil,
+        effectiveSettings: PromptInferenceSettings? = nil
+    ) {
+        self.provider = provider
+        self.model = model
+        self.usage = usage
+        self.stopReason = stopReason
+        self.effectiveSettings = effectiveSettings
+    }
+
+}
+
+/// A detailed completion stream contains zero or more text events followed by
+/// exactly one successful terminal event. Failed and cancelled streams do not
+/// emit a terminal event.
+public enum LLMStreamEvent: Sendable, Equatable {
+    case text(String)
+    case completed(LLMStreamTerminal)
 }
 
 // MARK: - Token Usage

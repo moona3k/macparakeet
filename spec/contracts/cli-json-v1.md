@@ -81,6 +81,10 @@ with human progress/status kept off stdout.
   makes the command exit `1` after emitting the aggregate report.
   For `--stale`, `selected` is the prefiltered missing/stale subset, not every
   completed transcription. Successful backfills also rebuild `cards_fts`.
+  Token sums use checked arithmetic. A missing receipt total contributes the
+  checked sum of its two component counts when both exist; an explicit provider
+  total takes precedence. Overflow makes that aggregate `null` for the rest of
+  the batch rather than reporting a partial total from later receipts.
 - `--envelope` success output uses `{ ok, command, data, meta }` and does not
   change an existing command's plain `--json` success shape.
 - Commands that expose both `--json` and `--envelope` reject the combination.
@@ -88,6 +92,31 @@ with human progress/status kept off stdout.
   (`is_built_in`, `created_at`), which predates this convention; its keys are
   frozen for v1 and would only change at a major boundary. New commands use
   camelCase.
+- `prompts list/show --json` prompt objects, and prompt objects returned by
+  `prompts set --json`, include additive optional `inferenceSettings`. When
+  present it is an object with optional `temperature`, `topP`, `topK`, and
+  `maxTokens`, plus `thinkingMode` (`providerDefault`, `enabled`,
+  or `disabled`) and optional `reasoningEffort` (`low`, `medium`, `high`, or
+  `xhigh`). Reasoning effort is normalized away unless thinking is enabled.
+  This value records the prompt's request; it does not prove
+  that every field is supported by the provider selected for a later run.
+- LLM result JSON envelopes include additive optional `effectiveSettings` with
+  the same object shape. For `prompts run --json`, a present value is the
+  normalized adapter receipt after provider/model filtering. Absence means no
+  effective receipt is available; callers must not reinterpret it as raw
+  upstream-provider defaults. Other LLM commands omit it because per-prompt
+  settings do not apply to them.
+  The CLI runs settings saved through the result-prompt GUI; `prompts add/set`
+  expose no inference-setting flags. Results do not include requested-settings
+  snapshots or unsupported-field metadata. Transform commands are outside this
+  feature. Invalid numeric settings fail before persistence or generation.
+  Optional usage totals are derived from two reported component counts only
+  when the sum is representable; otherwise the total remains unknown while
+  reported components are preserved.
+- `meetings results list|add --json` prompt-result objects include additive
+  optional `inferenceSettingsSnapshot` with the same settings shape. When
+  present it is the effective receipt stored with the result; imported results
+  created by `meetings results add` omit it.
 - `meetings show --json` and `meetings transcript --format json` expose
   `transcriptSegments` when the meeting row has durable segments. Each segment
   contains `id`, `startMs`, `endMs`, `speakerId`, `speakerLabel`, `text`, and

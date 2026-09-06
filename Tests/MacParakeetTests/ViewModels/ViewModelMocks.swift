@@ -807,6 +807,8 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var streamTokens: [String] = ["Hello", " world"]
     var streamTokenBatches: [[String]] = []
     var streamDelayNs: UInt64 = 0
+    var streamEffectiveSettings: PromptInferenceSettings?
+    var streamEmitsTerminal = true
     var errorToThrow: Error?
     var summarizeCallCount = 0
     var chatCallCount = 0
@@ -818,6 +820,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var lastChatUserNotes: String?
     var lastChatSource: TelemetryChatSource?
     var lastSummarySystemPrompt: String?
+    var lastSummaryInferenceSettings: PromptInferenceSettings?
     var lastFormattedTranscript: String?
     var lastFormatterPromptTemplate: String?
     var lastFormatterSource: TelemetryFormatterSource?
@@ -853,6 +856,22 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     func generatePromptResultDetailed(transcript: String, systemPrompt: String?) async throws -> LLMResult {
         let output = try await generatePromptResult(transcript: transcript, systemPrompt: systemPrompt)
         return LLMResult(output: output, provider: "mock", model: "mock-model", latencyMs: 0)
+    }
+
+    func generatePromptResultDetailed(
+        transcript: String,
+        systemPrompt: String?,
+        inferenceSettings: PromptInferenceSettings?
+    ) async throws -> LLMResult {
+        lastSummaryInferenceSettings = inferenceSettings
+        let output = try await generatePromptResult(transcript: transcript, systemPrompt: systemPrompt)
+        return LLMResult(
+            output: output,
+            provider: "mock",
+            model: "mock-model",
+            latencyMs: 0,
+            effectiveSettings: streamEffectiveSettings
+        )
     }
 
     func chatDetailed(
@@ -938,6 +957,51 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
                     }
                     guard !Task.isCancelled else { return }
                     continuation.yield(token)
+                }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    func generatePromptResultDetailedStream(
+        transcript: String,
+        systemPrompt: String?,
+        inferenceSettings: PromptInferenceSettings?
+    ) -> AsyncThrowingStream<LLMStreamEvent, Error> {
+        summarizeCallCount += 1
+        lastSummaryTranscript = transcript
+        lastSummarySystemPrompt = systemPrompt
+        lastSummaryInferenceSettings = inferenceSettings
+        let tokens: [String]
+        if streamTokenBatches.isEmpty {
+            tokens = streamTokens
+        } else {
+            tokens = streamTokenBatches.removeFirst()
+        }
+        let error = errorToThrow
+        let delay = streamDelayNs
+        let effectiveSettings = streamEffectiveSettings
+        let emitsTerminal = streamEmitsTerminal
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                if let error {
+                    continuation.finish(throwing: error)
+                    return
+                }
+                for token in tokens {
+                    if delay > 0 {
+                        try? await Task.sleep(nanoseconds: delay)
+                    }
+                    guard !Task.isCancelled else { return }
+                    continuation.yield(.text(token))
+                }
+                if emitsTerminal {
+                    continuation.yield(.completed(LLMStreamTerminal(
+                        provider: "mock",
+                        model: "mock-model",
+                        effectiveSettings: effectiveSettings
+                    )))
                 }
                 continuation.finish()
             }

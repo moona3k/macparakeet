@@ -441,6 +441,7 @@ private struct MeetingArtifactPromptResult: Codable {
     let extraInstructions: String?
     let content: String
     let userNotesSnapshot: String?
+    let inferenceSettingsSnapshot: PromptInferenceSettings?
     let createdAt: Date
     let updatedAt: Date
 
@@ -452,6 +453,7 @@ private struct MeetingArtifactPromptResult: Codable {
         extraInstructions = result.extraInstructions
         content = result.content
         userNotesSnapshot = result.userNotesSnapshot
+        inferenceSettingsSnapshot = result.inferenceSettingsSnapshot
         createdAt = result.createdAt
         updatedAt = result.updatedAt
     }

@@ -118,6 +118,7 @@ public struct Prompt: Codable, Identifiable, Sendable {
     public var updatedAt: Date
     public var keyboardShortcut: String?  // transform-only encoded shortcut
     public var runningLabel: String?       // transform-only progress label
+    public var inferenceSettings: PromptInferenceSettings?  // result-only typed settings; nil = MacParakeet defaults
 
     public enum Category: String, Codable, Sendable {
         case result = "summary"
@@ -139,7 +140,8 @@ CREATE TABLE prompts (
     createdAt TEXT NOT NULL,
     updatedAt TEXT NOT NULL,
     keyboardShortcut TEXT,
-    runningLabel TEXT
+    runningLabel TEXT,
+    inferenceSettings TEXT
 );
 
 CREATE UNIQUE INDEX idx_prompts_name ON prompts(name COLLATE NOCASE);
@@ -156,6 +158,7 @@ public struct PromptResult: Codable, Identifiable, Sendable {
     public var extraInstructions: String?  // user's extra instructions (if any)
     public var content: String            // the generated summary text
     public var userNotesSnapshot: String?  // notes value used at generation time
+    public var inferenceSettingsSnapshot: PromptInferenceSettings?  // normalized effective settings sent
     public var createdAt: Date
     public var updatedAt: Date
 }
@@ -170,6 +173,7 @@ CREATE TABLE summaries (
     extraInstructions TEXT,
     content           TEXT NOT NULL,
     userNotesSnapshot TEXT,
+    inferenceSettingsSnapshot TEXT,
     createdAt         TEXT NOT NULL,
     updatedAt         TEXT NOT NULL
 );
@@ -178,6 +182,21 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
 ```
 
 **Why snapshot instead of reference:** Prompts can be edited or deleted after a result is generated. The result should always know exactly what instructions produced it. `promptName` is for display; `promptContent` and `userNotesSnapshot` are for reproducibility.
+
+Custom result prompts may also carry typed generation settings. The prompt row
+stores the requested `PromptInferenceSettings`; a queued generation copies that
+value together with the prompt text and per-run instructions, so later edits do
+not mutate work already queued. A completed `PromptResult` stores the
+provider/model-filtered effective settings actually sent. Retry reuses its
+queue snapshot, while regenerate reuses the selected result's stored settings
+receipt. Provider/model configuration is resolved at execution rather than
+snapshotted with the queue. Requested settings and unsupported-field metadata
+are not persisted on results. The CLI reads, preserves, and runs saved settings
+but adds no configuration flags; Transforms do not use these settings, and
+repository writes reject nondefault settings for them. Repository writes and
+execution independently reject invalid numeric values. Blank settings inherit
+the current MacParakeet prompt-result and adapter defaults. See
+[spec/14-per-prompt-inference-settings.md](14-per-prompt-inference-settings.md).
 
 **Migration from existing data:** Existing `transcriptions.summary` values migrate into the `summaries` table with classic `Summary` prompt metadata. The legacy `transcriptions.summary` column is dropped by `v0.7.6-drop-legacy-transcription-summary`.
 
@@ -363,11 +382,11 @@ The future design space for actions, workflows, agents, and voice control is doc
 
 ### Unit Tests
 
-1. **PromptRepository:** CRUD operations, community prompt seeding verification, visibility toggle, name uniqueness constraint, `restoreDefaults`, `fetchVisible` filtering by category.
-2. **PromptResultRepository:** CRUD operations, `fetchAll` ordering (newest first), cascade delete when transcription deleted, `hasSummaries` check.
-3. **LLMService:** Custom system prompt flows through to message array; default prompt used when nil.
+1. **PromptRepository:** CRUD operations, community prompt seeding verification, visibility toggle, name uniqueness constraint, `restoreDefaults`, `fetchVisible` filtering by category, and optional inference-settings round trips without built-in reconciliation overwriting them.
+2. **PromptResultRepository:** CRUD operations, `fetchAll` ordering (newest first), cascade delete when transcription deleted, `hasSummaries` check, and effective-settings receipt round trips.
+3. **LLMService:** Custom system prompt flows through to the message array; default prompt used when nil; detailed prompt-result generation carries an adapter-owned effective-settings receipt.
 4. **PromptsViewModel:** CRUD operations, visibility toggle, validation (empty fields, duplicate names), restore defaults.
-5. **PromptResultsViewModel:** Generation flow (prompt assembly → stream → persist), multi-summary state, delete, auto-run with selected prompt cards, and zero-auto-run behavior.
+5. **PromptResultsViewModel:** Generation flow (prompt assembly → detailed stream → terminal receipt → persist), multi-summary state, settings snapshots for manual/auto-run/retry/regenerate, delete, auto-run with selected prompt cards, and zero-auto-run behavior.
 
 ### What We Skip
 

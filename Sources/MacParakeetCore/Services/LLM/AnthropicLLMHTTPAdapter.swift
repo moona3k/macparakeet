@@ -6,22 +6,6 @@ struct AnthropicLLMHTTPAdapter: LLMHTTPAdapter {
     /// and listModels stay in lockstep.
     static let apiVersion = "2023-06-01"
 
-    private static let temperatureCompatibleModelIDs: Set<String> = [
-        "claude-2", "claude-2.0", "claude-2.1",
-        "claude-instant", "claude-instant-1", "claude-instant-1.0",
-        "claude-instant-1.1", "claude-instant-1.2",
-        "claude-3-opus-20240229", "claude-3-sonnet-20240229",
-        "claude-3-haiku-20240307", "claude-3-5-sonnet-20240620",
-        "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022",
-        "claude-3-7-sonnet-20250219",
-        "claude-opus-4-0", "claude-opus-4-20250514",
-        "claude-opus-4-1", "claude-opus-4-1-20250805",
-        "claude-opus-4-5", "claude-opus-4-5-20251101", "claude-opus-4-6",
-        "claude-sonnet-4-0", "claude-sonnet-4-20250514",
-        "claude-sonnet-4-5", "claude-sonnet-4-5-20250929", "claude-sonnet-4-6",
-        "claude-haiku-4-5", "claude-haiku-4-5-20251001",
-    ]
-
     private let transport: LLMHTTPTransport
 
     init(transport: LLMHTTPTransport) {
@@ -65,7 +49,8 @@ struct AnthropicLLMHTTPAdapter: LLMHTTPAdapter {
             content: content,
             finishReason: anthropicResponse.stop_reason,
             model: anthropicResponse.model,
-            usage: usage
+            usage: usage,
+            effectiveInferenceSettings: options.effectiveInferenceSettings
         )
     }
 
@@ -157,6 +142,112 @@ struct AnthropicLLMHTTPAdapter: LLMHTTPAdapter {
         }
     }
 
+    func chatCompletionDetailedStream(
+        messages: [ChatMessage],
+        config: LLMProviderConfig,
+        options: ChatCompletionOptions
+    ) -> AsyncThrowingStream<LLMStreamEvent, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let request = try buildRequest(messages: messages, config: config, options: options, stream: true)
+                    let (bytes, response) = try await transport.bytes(for: request)
+                    guard let http = response as? HTTPURLResponse else {
+                        throw LLMError.connectionFailed("Invalid response.")
+                    }
+                    guard (200...299).contains(http.statusCode) else {
+                        var errorData = Data()
+                        for try await byte in bytes { errorData.append(byte) }
+                        throw LLMHTTPErrorMapper.mapError(statusCode: http.statusCode, data: errorData)
+                    }
+
+                    var yieldedAnyContent = false
+                    var model = config.modelName
+                    var stopReason: String?
+                    var promptTokens: Int?
+                    var completionTokens: Int?
+                    for try await line in bytes.lines {
+                        try Task.checkCancellation()
+                        let trimmed = line.trimmingCharacters(in: .whitespaces)
+                        guard trimmed.hasPrefix("data: ") || trimmed.hasPrefix("data:") else { continue }
+                        let payload = trimmed.hasPrefix("data: ")
+                            ? String(trimmed.dropFirst(6))
+                            : String(trimmed.dropFirst(5))
+                        guard let data = payload.data(using: .utf8),
+                            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+                        else { continue }
+
+                        switch json["type"] as? String {
+                        case "message_start":
+                            if let message = json["message"] as? [String: Any] {
+                                model = message["model"] as? String ?? model
+                                if let usage = message["usage"] as? [String: Any] {
+                                    promptTokens = usage["input_tokens"] as? Int ?? promptTokens
+                                    completionTokens = usage["output_tokens"] as? Int ?? completionTokens
+                                }
+                            }
+                        case "content_block_delta":
+                            if let delta = json["delta"] as? [String: Any],
+                                let text = delta["text"] as? String
+                            {
+                                yieldedAnyContent = true
+                                continuation.yield(.text(text))
+                            }
+                        case "message_delta":
+                            if let delta = json["delta"] as? [String: Any] {
+                                stopReason = delta["stop_reason"] as? String ?? stopReason
+                            }
+                            if let usage = json["usage"] as? [String: Any] {
+                                completionTokens = usage["output_tokens"] as? Int ?? completionTokens
+                            }
+                        case "message_stop":
+                            try validateStreamCompletion(
+                                providerID: config.id,
+                                sawSentinel: true,
+                                yieldedAnyContent: yieldedAnyContent
+                            )
+                            let usage = (promptTokens != nil || completionTokens != nil)
+                                ? LLMUsage(
+                                    promptTokens: promptTokens,
+                                    completionTokens: completionTokens,
+                                    totalTokens: LLMUsage.derivedTotal(
+                                        promptTokens: promptTokens, completionTokens: completionTokens
+                                    )
+                                )
+                                : nil
+                            continuation.yield(.completed(LLMStreamTerminal(
+                                provider: config.id.rawValue,
+                                model: model,
+                                usage: usage,
+                                stopReason: stopReason,
+                                effectiveSettings: options.effectiveInferenceSettings
+                            )))
+                            continuation.finish()
+                            return
+                        case "error":
+                            if let error = json["error"] as? [String: Any],
+                                let message = error["message"] as? String
+                            {
+                                throw LLMHTTPErrorMapper.mapStreamingError(message: message)
+                            }
+                        default:
+                            break
+                        }
+                    }
+                    try validateStreamCompletion(
+                        providerID: config.id,
+                        sawSentinel: false,
+                        yieldedAnyContent: yieldedAnyContent
+                    )
+                    throw LLMError.streamingError("The Anthropic stream ended without message_stop.")
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
     func listModels(config: LLMProviderConfig) async throws -> [String] {
         let url = LLMHTTPModelCatalog.modelsURL(for: config)
         var request = URLRequest(url: url, timeoutInterval: 15)
@@ -192,6 +283,7 @@ struct AnthropicLLMHTTPAdapter: LLMHTTPAdapter {
         options: ChatCompletionOptions,
         stream: Bool
     ) throws -> URLRequest {
+        try options.validateInferenceSettings(for: config)
         let url = config.baseURL.appendingPathComponent("messages")
 
         var request = URLRequest(url: url, timeoutInterval: stream ? 120 : 30)
@@ -226,8 +318,14 @@ struct AnthropicLLMHTTPAdapter: LLMHTTPAdapter {
         // follow suit. Send it only to the frozen set of legacy models that
         // still accept it, so callers that want low-variance output (e.g.
         // knowledge-card JSON at 0.1) keep it where it works.
-        if let temp = options.temperature, Self.modelAcceptsTemperature(config.modelName) {
+        // Match the capability resolver even for direct adapter callers:
+        // Top P takes precedence because newer sampling-capable Claude models
+        // reject requests containing both temperature and top_p.
+        if options.topP == nil, let temp = options.temperature, Self.modelAcceptsTemperature(config.modelName) {
             body["temperature"] = temp
+        }
+        if let topP = options.topP, AnthropicModelPolicy.acceptsSampling(model: config.modelName) {
+            body["top_p"] = topP
         }
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -252,7 +350,7 @@ struct AnthropicLLMHTTPAdapter: LLMHTTPAdapter {
     /// everything after), so unknown/new model IDs correctly default to
     /// "don't send" and never regress with a new release.
     static func modelAcceptsTemperature(_ modelName: String) -> Bool {
-        temperatureCompatibleModelIDs.contains(modelName.lowercased())
+        AnthropicModelPolicy.acceptsSampling(model: modelName)
     }
 }
 
