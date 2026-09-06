@@ -2,11 +2,12 @@ import XCTest
 @testable import MacParakeetCore
 
 final class PromptResultRepositoryTests: XCTestCase {
+    var manager: DatabaseManager!
     var repo: PromptResultRepository!
     var transcriptionRepo: TranscriptionRepository!
 
     override func setUp() async throws {
-        let manager = try DatabaseManager()
+        manager = try DatabaseManager()
         repo = PromptResultRepository(dbQueue: manager.dbQueue)
         transcriptionRepo = TranscriptionRepository(dbQueue: manager.dbQueue)
     }
@@ -40,6 +41,63 @@ final class PromptResultRepositoryTests: XCTestCase {
 
         let fetched = try repo.fetchAll(transcriptionId: transcription.id)
         XCTAssertEqual(fetched.map(\.content), ["Newer", "Older"])
+    }
+
+    func testInferenceSettingsSnapshotRoundTripAndDefaultNormalization() throws {
+        let transcription = try makeTranscription()
+        var result = PromptResult(
+            transcriptionId: transcription.id,
+            promptName: "Configured Summary",
+            promptContent: "Summarize this.",
+            content: "Summary",
+            inferenceSettingsSnapshot: PromptInferenceSettings(
+                temperature: 0.2,
+                topP: 0.9,
+                topK: 20,
+                maxTokens: 4096,
+                thinkingMode: .enabled,
+                reasoningEffort: .medium
+            )
+        )
+        try repo.save(result)
+        XCTAssertEqual(
+            try repo.fetchAll(transcriptionId: transcription.id).first?.inferenceSettingsSnapshot,
+            result.inferenceSettingsSnapshot
+        )
+
+        result.inferenceSettingsSnapshot = PromptInferenceSettings()
+        try repo.save(result)
+        XCTAssertNil(
+            try repo.fetchAll(transcriptionId: transcription.id).first?.inferenceSettingsSnapshot
+        )
+        let storedJSON = try manager.dbQueue.read { db in
+            try String.fetchOne(
+                db,
+                sql: "SELECT inferenceSettingsSnapshot FROM summaries WHERE id = ?",
+                arguments: [result.id]
+            )
+        }
+        XCTAssertNil(storedJSON)
+    }
+
+    func testMalformedInferenceSettingsSnapshotIsAVisibleFetchError() throws {
+        let transcription = try makeTranscription()
+        let result = PromptResult(
+            transcriptionId: transcription.id,
+            promptName: "Malformed Settings",
+            promptContent: "Summarize this.",
+            content: "Summary"
+        )
+        try repo.save(result)
+
+        try manager.dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE summaries SET inferenceSettingsSnapshot = ? WHERE id = ?",
+                arguments: ["{not-json", result.id]
+            )
+        }
+
+        XCTAssertThrowsError(try repo.fetchAll(transcriptionId: transcription.id))
     }
 
     func testMultiplePromptResultsPerTranscription() throws {

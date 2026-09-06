@@ -29,6 +29,10 @@ public final class PromptResultsViewModel {
         public var promptContent: String
         public var extraInstructions: String?
         public var transcript: String
+        /// Requested inference settings captured with the prompt at enqueue
+        /// time. Queueing, retry, and provider/model changes must not mutate
+        /// the request that this generation represents.
+        public var inferenceSettings: PromptInferenceSettings?
         /// Snapshot of `Transcription.userNotes` captured at enqueue time. Used
         /// both to substitute `{{userNotes}}` in the prompt template and to
         /// snapshot onto the resulting `PromptResult` (ADR-020 §4, §6).
@@ -44,6 +48,7 @@ public final class PromptResultsViewModel {
             promptContent: String,
             extraInstructions: String?,
             transcript: String,
+            inferenceSettings: PromptInferenceSettings? = nil,
             userNotes: String? = nil,
             replacingPromptResultID: UUID? = nil,
             state: State = .queued,
@@ -55,6 +60,7 @@ public final class PromptResultsViewModel {
             self.promptContent = promptContent
             self.extraInstructions = extraInstructions
             self.transcript = transcript
+            self.inferenceSettings = inferenceSettings?.normalized
             self.userNotes = userNotes
             self.replacingPromptResultID = replacingPromptResultID
             self.state = state
@@ -151,6 +157,20 @@ public final class PromptResultsViewModel {
             return String(currentModelName[currentModelName.index(after: slashIndex)...])
         }
         return currentModelName
+    }
+
+    public var selectedPromptInferenceSummary: String? {
+        PromptsViewModel.compactInferenceSummary(selectedPrompt?.inferenceSettings)
+    }
+
+    public var selectedPromptInferenceCompatibilityMessage: String? {
+        guard let settings = selectedPrompt?.inferenceSettings,
+              let config = try? configStore?.loadConfig()
+        else { return nil }
+        return PromptsViewModel.inferenceCompatibilityMessage(
+            settings: settings,
+            config: config
+        )
     }
 
     private var activeStreamingGeneration: PendingGeneration? {
@@ -341,7 +361,8 @@ public final class PromptResultsViewModel {
             name: promptResult.promptName,
             content: promptResult.promptContent,
             isBuiltIn: false,
-            sortOrder: 0
+            sortOrder: 0,
+            inferenceSettings: promptResult.inferenceSettingsSnapshot
         )
         // Regeneration re-snapshots from the *current* notes on the row — if
         // the user edited notes between summary generations they expect the
@@ -449,6 +470,7 @@ public final class PromptResultsViewModel {
             promptContent: prompt.content,
             extraInstructions: extraInstructions,
             transcript: transcript,
+            inferenceSettings: prompt.inferenceSettings,
             userNotes: userNotes,
             replacingPromptResultID: replacingPromptResultID
         )
@@ -477,18 +499,31 @@ public final class PromptResultsViewModel {
         streamingTask = Task { @MainActor [weak self] in
             guard let self, let llmService = self.llmService else { return }
             do {
-                let stream = llmService.generatePromptResultStream(
+                let stream = llmService.generatePromptResultDetailedStream(
                     transcript: generation.transcript,
-                    systemPrompt: systemPrompt
+                    systemPrompt: systemPrompt,
+                    inferenceSettings: generation.inferenceSettings
                 )
-                for try await token in stream {
-                    appendStreamingToken(token, to: generationID)
+                var terminal: LLMStreamTerminal?
+                for try await event in stream {
+                    switch event {
+                    case .text(let token):
+                        appendStreamingToken(token, to: generationID)
+                    case .completed(let receipt):
+                        terminal = receipt
+                    }
                 }
                 guard !Task.isCancelled else {
                     finishCancelledGeneration(id: generationID)
                     return
                 }
-                try await finishGeneration(id: generationID)
+                guard let terminal else {
+                    throw LLMError.streamingError("prompt result stream ended without terminal metadata")
+                }
+                try await finishGeneration(
+                    id: generationID,
+                    effectiveSettings: terminal.effectiveSettings
+                )
             } catch is CancellationError {
                 finishCancelledGeneration(id: generationID)
             } catch {
@@ -502,7 +537,10 @@ public final class PromptResultsViewModel {
         pendingGenerations[index].content += token
     }
 
-    private func finishGeneration(id generationID: UUID) async throws {
+    private func finishGeneration(
+        id generationID: UUID,
+        effectiveSettings: PromptInferenceSettings?
+    ) async throws {
         guard let index = pendingGenerations.firstIndex(where: { $0.id == generationID }) else {
             streamingTask = nil
             processNextQueuedGeneration()
@@ -522,6 +560,7 @@ public final class PromptResultsViewModel {
             extraInstructions: generation.extraInstructions,
             content: generation.content,
             userNotesSnapshot: generation.userNotes,
+            inferenceSettingsSnapshot: effectiveSettings,
             createdAt: timestamp,
             updatedAt: timestamp
         )
@@ -595,7 +634,8 @@ public final class PromptResultsViewModel {
                 name: failed.promptName,
                 content: failed.promptContent,
                 isBuiltIn: false,
-                sortOrder: 0
+                sortOrder: 0,
+                inferenceSettings: failed.inferenceSettings
             ),
             extraInstructions: failed.extraInstructions,
             userNotes: failed.userNotes,

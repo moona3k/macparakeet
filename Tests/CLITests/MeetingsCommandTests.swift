@@ -186,8 +186,32 @@ final class MeetingsCommandTests: XCTestCase {
                 transcriptionId: meeting.id,
                 promptName: "Executive Summary",
                 promptContent: "Summarize the meeting.",
-                content: "Keep the CLI contract explicit."
+                content: "Keep the CLI contract explicit.",
+                inferenceSettingsSnapshot: PromptInferenceSettings(
+                    temperature: 0.15,
+                    maxTokens: 300,
+                    thinkingMode: .enabled,
+                    reasoningEffort: .low
+                )
             ))
+
+        let resultsCommand = try MeetingsCommand.ResultsSubcommand.ListSubcommand.parse([
+            meeting.id.uuidString,
+            "--json",
+            "--database", dbURL.path,
+        ])
+        let resultsOutput = try await captureStandardOutput {
+            try await resultsCommand.run()
+        }
+        let resultsPayload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(resultsOutput.utf8)) as? [[String: Any]]
+        )
+        let settings = try XCTUnwrap(
+            resultsPayload.first?["inferenceSettingsSnapshot"] as? [String: Any]
+        )
+        XCTAssertEqual(settings["temperature"] as? Double, 0.15)
+        XCTAssertEqual(settings["reasoningEffort"] as? String, "low")
+        XCTAssertEqual(settings["maxTokens"] as? Int, 300)
 
         let listCommand = try MeetingsCommand.ListSubcommand.parse([
             "--json",

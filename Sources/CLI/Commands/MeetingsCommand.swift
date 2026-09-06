@@ -768,6 +768,7 @@ private struct MeetingPromptResultRecord: Encodable {
     let extraInstructions: String?
     let content: String
     let userNotesSnapshot: String?
+    let inferenceSettingsSnapshot: PromptInferenceSettings?
     let createdAt: Date
     let updatedAt: Date
     let artifact: MeetingArtifactSnapshot?
@@ -786,6 +787,7 @@ private struct MeetingPromptResultRecord: Encodable {
         extraInstructions = result.extraInstructions
         content = result.content
         userNotesSnapshot = result.userNotesSnapshot
+        inferenceSettingsSnapshot = result.inferenceSettingsSnapshot
         createdAt = result.createdAt
         updatedAt = result.updatedAt
         self.artifact = artifact

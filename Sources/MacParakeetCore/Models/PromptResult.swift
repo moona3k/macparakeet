@@ -25,6 +25,9 @@ public struct PromptResult: Codable, Identifiable, Sendable {
     /// generation enqueue site. Defer until there's a reason to touch
     /// this code path (e.g. re-introducing a notes-using built-in).
     public var userNotesSnapshot: String?
+    /// Effective generation settings actually sent to the provider for this
+    /// result. Nil means the historical provider-default behavior.
+    public var inferenceSettingsSnapshot: PromptInferenceSettings?
     public var createdAt: Date
     public var updatedAt: Date
 
@@ -36,6 +39,7 @@ public struct PromptResult: Codable, Identifiable, Sendable {
         extraInstructions: String? = nil,
         content: String,
         userNotesSnapshot: String? = nil,
+        inferenceSettingsSnapshot: PromptInferenceSettings? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -46,6 +50,7 @@ public struct PromptResult: Codable, Identifiable, Sendable {
         self.extraInstructions = extraInstructions
         self.content = content
         self.userNotesSnapshot = userNotesSnapshot
+        self.inferenceSettingsSnapshot = inferenceSettingsSnapshot?.normalized
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -55,6 +60,7 @@ extension PromptResult: FetchableRecord, PersistableRecord {
     public static let databaseTableName = "summaries"
 
     public enum Columns: String, ColumnExpression {
-        case id, transcriptionId, promptName, promptContent, extraInstructions, content, userNotesSnapshot, createdAt, updatedAt
+        case id, transcriptionId, promptName, promptContent, extraInstructions, content
+        case userNotesSnapshot, inferenceSettingsSnapshot, createdAt, updatedAt
     }
 }

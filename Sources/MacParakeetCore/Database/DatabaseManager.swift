@@ -1352,6 +1352,21 @@ public final class DatabaseManager: Sendable {
             }
         }
 
+        // v0.31 — Per-prompt inference settings and the effective settings
+        // snapshot retained with each generated result. Both are optional JSON
+        // so existing rows preserve the historical provider-default behavior.
+        migrator.registerMigration("v0.31-prompt-inference-settings") { db in
+            let promptColumns = try db.columns(in: "prompts").map(\.name)
+            if !promptColumns.contains("inferenceSettings") {
+                try db.execute(sql: "ALTER TABLE prompts ADD COLUMN inferenceSettings TEXT")
+            }
+
+            let summaryColumns = try db.columns(in: "summaries").map(\.name)
+            if !summaryColumns.contains("inferenceSettingsSnapshot") {
+                try db.execute(sql: "ALTER TABLE summaries ADD COLUMN inferenceSettingsSnapshot TEXT")
+            }
+        }
+
         return migrator
     }
 

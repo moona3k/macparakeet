@@ -34,6 +34,11 @@ public struct Prompt: Codable, Identifiable, Sendable {
     /// ADR-020 (2026-05 amendment) and the Meetings "After each meeting" card.
     public var appliesToSources: Set<Transcription.SourceType>?
 
+    /// Optional transport-neutral generation settings for this result prompt.
+    /// GRDB stores the Codable value as JSON; nil preserves the historical
+    /// provider-default behavior. Transform prompts do not use this field.
+    public var inferenceSettings: PromptInferenceSettings?
+
     public enum Category: String, Codable, Sendable {
         // Keep the stored raw value as "summary" until the prompts table itself is migrated.
         case result = "summary"
@@ -53,7 +58,8 @@ public struct Prompt: Codable, Identifiable, Sendable {
         updatedAt: Date = Date(),
         keyboardShortcut: String? = nil,
         runningLabel: String? = nil,
-        appliesToSources: Set<Transcription.SourceType>? = nil
+        appliesToSources: Set<Transcription.SourceType>? = nil,
+        inferenceSettings: PromptInferenceSettings? = nil
     ) {
         self.id = id
         self.name = name
@@ -68,6 +74,7 @@ public struct Prompt: Codable, Identifiable, Sendable {
         self.keyboardShortcut = keyboardShortcut
         self.runningLabel = runningLabel
         self.appliesToSources = appliesToSources
+        self.inferenceSettings = inferenceSettings?.normalized
     }
 
     /// Whether this prompt should auto-run after a transcription of `source`
@@ -426,6 +433,6 @@ extension Prompt: FetchableRecord, PersistableRecord {
     public enum Columns: String, ColumnExpression {
         case id, name, content, category, isBuiltIn, isVisible, isAutoRun
         case sortOrder, createdAt, updatedAt
-        case keyboardShortcut, runningLabel, appliesToSources
+        case keyboardShortcut, runningLabel, appliesToSources, inferenceSettings
     }
 }

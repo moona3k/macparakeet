@@ -24,7 +24,11 @@ public final class LocalCLILLMClient: LLMClientProtocol, Sendable {
                 userPrompt: user,
                 config: config
             )
-            return ChatCompletionResponse(content: output, model: "cli")
+            return ChatCompletionResponse(
+                content: output,
+                model: "cli",
+                effectiveInferenceSettings: nil
+            )
         } catch let error as LLMError {
             throw error
         } catch is CancellationError {
@@ -46,6 +50,34 @@ public final class LocalCLILLMClient: LLMClientProtocol, Sendable {
                         messages: messages, context: context, options: options
                     )
                     continuation.yield(response.content)
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    public func chatCompletionDetailedStream(
+        messages: [ChatMessage],
+        context: LLMExecutionContext,
+        options: ChatCompletionOptions
+    ) -> AsyncThrowingStream<LLMStreamEvent, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let response = try await self.chatCompletion(
+                        messages: messages, context: context, options: options
+                    )
+                    continuation.yield(.text(response.content))
+                    continuation.yield(.completed(LLMStreamTerminal(
+                        provider: context.providerConfig.id.rawValue,
+                        model: response.model,
+                        usage: response.usage.map(LLMUsage.init),
+                        stopReason: response.finishReason,
+                        effectiveSettings: response.effectiveInferenceSettings
+                    )))
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)

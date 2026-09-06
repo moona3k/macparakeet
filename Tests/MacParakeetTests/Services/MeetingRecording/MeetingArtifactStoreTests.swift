@@ -46,7 +46,11 @@ final class MeetingArtifactStoreTests: XCTestCase {
             promptContent: "Summarize the meeting.",
             extraInstructions: "External agent",
             content: "Ship the artifact contract.",
-            userNotesSnapshot: transcription.userNotes
+            userNotesSnapshot: transcription.userNotes,
+            inferenceSettingsSnapshot: PromptInferenceSettings(
+                temperature: 0.2,
+                maxTokens: 500
+            )
         )
 
         let snapshot = try await MeetingArtifactStore().materialize(
@@ -172,6 +176,11 @@ final class MeetingArtifactStoreTests: XCTestCase {
         XCTAssertEqual(promptResults.count, 1)
         XCTAssertEqual(promptResult["index"] as? Int, 1)
         XCTAssertEqual(promptResult["name"] as? String, "Executive Summary")
+        let inferenceSettings = try XCTUnwrap(
+            promptResult["inferenceSettingsSnapshot"] as? [String: Any]
+        )
+        XCTAssertEqual(inferenceSettings["temperature"] as? Double, 0.2)
+        XCTAssertEqual(inferenceSettings["maxTokens"] as? Int, 500)
 
         let resultFiles = try XCTUnwrap(manifest["promptResults"] as? [[String: Any]])
         XCTAssertEqual(resultFiles.count, 1)

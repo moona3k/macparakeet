@@ -55,12 +55,16 @@ final class LocalCLILLMClientTests: XCTestCase {
         let response = try await client.chatCompletion(
             messages: messages,
             context: context,
-            options: .default
+            options: ChatCompletionOptions(temperature: 0.2, maxTokens: 8).withInferenceReceipt(
+                usesPromptInferenceSettings: true,
+                effectiveSettings: PromptInferenceSettings(temperature: 0.2, maxTokens: 8)
+            )
         )
 
         XCTAssertEqual(response.content, "summary result")
         XCTAssertEqual(response.model, "cli")
         XCTAssertNil(response.usage)
+        XCTAssertNil(response.effectiveInferenceSettings)
     }
 
     // MARK: - Streaming
@@ -84,6 +88,33 @@ final class LocalCLILLMClientTests: XCTestCase {
 
         XCTAssertEqual(chunks.count, 1)
         XCTAssertEqual(chunks.first, "streamed")
+    }
+
+    func testDetailedStreamEmitsTextThenOneTerminal() async throws {
+        let config = LocalCLIConfig(commandTemplate: "printf 'streamed'", timeoutSeconds: 10)
+        let client = LocalCLILLMClient(executor: LocalCLIExecutor())
+        let context = LLMExecutionContext(providerConfig: .localCLI(), localCLIConfig: config)
+
+        var events: [LLMStreamEvent] = []
+        for try await event in client.chatCompletionDetailedStream(
+            messages: [ChatMessage(role: .user, content: "test")],
+            context: context,
+            options: ChatCompletionOptions(temperature: 0.2, maxTokens: 8).withInferenceReceipt(
+                usesPromptInferenceSettings: true,
+                effectiveSettings: PromptInferenceSettings(temperature: 0.2, maxTokens: 8)
+            )
+        ) {
+            events.append(event)
+        }
+
+        XCTAssertEqual(events.first, .text("streamed"))
+        XCTAssertEqual(events.count, 2)
+        guard case .completed(let terminal) = events.last else {
+            return XCTFail("Expected terminal event")
+        }
+        XCTAssertEqual(terminal.provider, "localCLI")
+        XCTAssertEqual(terminal.model, "cli")
+        XCTAssertNil(terminal.effectiveSettings)
     }
 
     // MARK: - List Models

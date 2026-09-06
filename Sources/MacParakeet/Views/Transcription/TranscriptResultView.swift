@@ -2666,6 +2666,21 @@ struct TranscriptResultView: View {
             // Prompt chips
             promptChips
 
+            if let summary = promptResultsViewModel.selectedPromptInferenceSummary {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                    Label(summary, systemImage: "slider.horizontal.3")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+
+                    if let compatibility = promptResultsViewModel.selectedPromptInferenceCompatibilityMessage {
+                        Text(compatibility)
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(DesignSystem.Colors.warningAmber)
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
+            }
+
             // Model selector
             if !promptResultsViewModel.availableModels.isEmpty {
                 ModelSelectorView(

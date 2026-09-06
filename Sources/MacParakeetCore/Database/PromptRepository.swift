@@ -29,7 +29,9 @@ public final class PromptRepository: PromptRepositoryProtocol {
 
     public func save(_ prompt: Prompt) throws {
         try dbQueue.write { db in
-            try prompt.save(db)
+            var normalizedPrompt = prompt
+            normalizedPrompt.inferenceSettings = prompt.inferenceSettings?.normalized
+            try normalizedPrompt.save(db)
         }
     }
 
@@ -93,6 +95,7 @@ public final class PromptRepository: PromptRepositoryProtocol {
                 prompt.isAutoRun = false
             }
             prompt.updatedAt = Date()
+            prompt.inferenceSettings = prompt.inferenceSettings?.normalized
             try prompt.update(db)
         }
     }
@@ -116,6 +119,7 @@ public final class PromptRepository: PromptRepositoryProtocol {
                 prompt.appliesToSources = nil
             }
             prompt.updatedAt = Date()
+            prompt.inferenceSettings = prompt.inferenceSettings?.normalized
             try prompt.update(db)
         }
     }
@@ -159,6 +163,7 @@ public final class PromptRepository: PromptRepositoryProtocol {
                 }
             }
             prompt.updatedAt = Date()
+            prompt.inferenceSettings = prompt.inferenceSettings?.normalized
             try prompt.update(db)
         }
     }

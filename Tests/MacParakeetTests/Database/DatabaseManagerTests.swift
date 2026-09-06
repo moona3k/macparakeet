@@ -453,6 +453,87 @@ final class DatabaseManagerTests: XCTestCase {
         XCTAssertNil(upgraded.meetingCaptureReport)
     }
 
+    func testPromptInferenceSettingsColumnsExist() throws {
+        let manager = try DatabaseManager()
+        try manager.dbQueue.read { db in
+            XCTAssertTrue(try db.columns(in: "prompts").map(\.name).contains("inferenceSettings"))
+            XCTAssertTrue(
+                try db.columns(in: "summaries").map(\.name)
+                    .contains("inferenceSettingsSnapshot")
+            )
+        }
+    }
+
+    func testPromptInferenceSettingsMigrationPreservesExistingRows() throws {
+        let dbPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("prompt_inference_settings_upgrade_\(UUID().uuidString).db")
+            .path
+        defer { cleanupDatabaseFiles(atPath: dbPath) }
+
+        let previousVersionManager = try DatabaseManager(path: dbPath)
+        let prompt = Prompt(name: "Legacy Prompt", content: "Keep this prompt.")
+        try PromptRepository(dbQueue: previousVersionManager.dbQueue).save(prompt)
+        let transcription = Transcription(fileName: "legacy.m4a", status: .completed)
+        try TranscriptionRepository(dbQueue: previousVersionManager.dbQueue).save(transcription)
+        let result = PromptResult(
+            transcriptionId: transcription.id,
+            promptName: prompt.name,
+            promptContent: prompt.content,
+            content: "Keep this result."
+        )
+        try PromptResultRepository(dbQueue: previousVersionManager.dbQueue).save(result)
+
+        try previousVersionManager.dbQueue.write { db in
+            try db.execute(sql: "ALTER TABLE prompts DROP COLUMN inferenceSettings")
+            try db.execute(sql: "ALTER TABLE summaries DROP COLUMN inferenceSettingsSnapshot")
+            try db.execute(
+                sql: "DELETE FROM grdb_migrations WHERE identifier = ?",
+                arguments: ["v0.31-prompt-inference-settings"]
+            )
+        }
+
+        let upgradedManager = try DatabaseManager(path: dbPath)
+        let upgradedPrompt = try PromptRepository(dbQueue: upgradedManager.dbQueue)
+            .fetch(id: prompt.id)
+        let upgradedResult = try PromptResultRepository(dbQueue: upgradedManager.dbQueue)
+            .fetchAll(transcriptionId: transcription.id).first
+
+        XCTAssertEqual(upgradedPrompt?.content, prompt.content)
+        XCTAssertNil(upgradedPrompt?.inferenceSettings)
+        XCTAssertEqual(upgradedResult?.content, result.content)
+        XCTAssertNil(upgradedResult?.inferenceSettingsSnapshot)
+    }
+
+    func testPromptInferenceSettingsMigrationToleratesExistingColumnsWhenMarkerIsMissing() throws {
+        let dbPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("prompt_inference_settings_rerun_\(UUID().uuidString).db")
+            .path
+        defer { cleanupDatabaseFiles(atPath: dbPath) }
+
+        let first = try DatabaseManager(path: dbPath)
+        try first.dbQueue.write { db in
+            try db.execute(
+                sql: "DELETE FROM grdb_migrations WHERE identifier = ?",
+                arguments: ["v0.31-prompt-inference-settings"]
+            )
+        }
+
+        let second = try DatabaseManager(path: dbPath)
+        try second.dbQueue.read { db in
+            XCTAssertTrue(try db.columns(in: "prompts").map(\.name).contains("inferenceSettings"))
+            XCTAssertTrue(
+                try db.columns(in: "summaries").map(\.name)
+                    .contains("inferenceSettingsSnapshot")
+            )
+            let recorded = try Bool.fetchOne(
+                db,
+                sql: "SELECT EXISTS(SELECT 1 FROM grdb_migrations WHERE identifier = ?)",
+                arguments: ["v0.31-prompt-inference-settings"]
+            ) ?? false
+            XCTAssertTrue(recorded)
+        }
+    }
+
     // MARK: - ADR-020 v0.8 schema additions
 
     func testUserNotesColumnExistsOnTranscriptions() throws {
