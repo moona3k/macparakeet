@@ -1,0 +1,21 @@
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  s_4af6b9f11fbe3c::t_92f1dd685f10e4 929,4378,4380-4381,4393-4395,4397
+plans/2026-09-06-ui-review-953.html
+  s_4af6b9f11fbe3c::t_18398094a6954a 24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "9b3b3a2ab34dbdbcb78c0e921a2661d5dadc482f",
+  "prompts": {},
+  "sessions": {
+    "s_4af6b9f11fbe3c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07595-d861-7b30-be95-3479ddf4c4a7",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
