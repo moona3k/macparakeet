@@ -1,0 +1,45 @@
+tests/stats-freshness.test.mjs
+  s_4af6b9f11fbe3c::t_9db09d3ba31c26 28-38
+src/lib/stats-metrics.mjs
+  s_4af6b9f11fbe3c::t_2d3324b0661b63 17-21
+functions/lib/public-error-category.mjs
+  s_4af6b9f11fbe3c::t_2d3324b0661b63 30
+src/lib/stats-freshness.mjs
+  s_4af6b9f11fbe3c::t_2d3324b0661b63 33-34
+src/pages/stats.astro
+  s_4af6b9f11fbe3c::t_2d3324b0661b63 2101,2311
+tests/stats-response.test.mjs
+  s_4af6b9f11fbe3c::t_9db09d3ba31c26 71-93
+docs/telemetry-api.md
+  s_4af6b9f11fbe3c::t_2d3324b0661b63 80-84
+scripts/telemetry-review.mjs
+  s_4af6b9f11fbe3c::t_2d3324b0661b63 1036,1045,1240
+tests/telemetry-validation.test.mjs
+  s_4af6b9f11fbe3c::t_9db09d3ba31c26 40-54
+tests/stats-metrics.test.mjs
+  s_4af6b9f11fbe3c::t_9db09d3ba31c26 3,35-41
+  s_4af6b9f11fbe3c::t_ac9a37ccf68e36 42-43
+functions/lib/stats-response.mjs
+  s_4af6b9f11fbe3c::t_2d3324b0661b63 2,24-29
+  s_4af6b9f11fbe3c::t_5fe143071e2201 30
+tests/telemetry-review.test.mjs
+  s_4af6b9f11fbe3c::t_9db09d3ba31c26 121-124,176-177
+functions/lib/telemetry-validation.mjs
+  s_4af6b9f11fbe3c::t_2d3324b0661b63 6-10,37-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "846182c840cf6fda1735b4d08bac624c48624e5c",
+  "prompts": {},
+  "sessions": {
+    "s_4af6b9f11fbe3c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07595-d861-7b30-be95-3479ddf4c4a7",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
