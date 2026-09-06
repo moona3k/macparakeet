@@ -161,6 +161,18 @@ public final class SettingsViewModel {
             ))
         }
     }
+    public var autoSubmitCodexDictation: Bool {
+        didSet {
+            defaults.set(
+                autoSubmitCodexDictation,
+                forKey: UserDefaultsAppRuntimePreferences.autoSubmitCodexDictationKey
+            )
+            Telemetry.send(.settingChanged(
+                setting: .codexAutoSubmit,
+                value: Self.settingValue(autoSubmitCodexDictation)
+            ))
+        }
+    }
     public var selectedMicrophoneDeviceUID: String {
         didSet {
             let normalized = Self.normalizedMicrophoneSelection(selectedMicrophoneDeviceUID)
@@ -765,6 +777,9 @@ public final class SettingsViewModel {
         silenceDelay = delay == 0 ? 2.0 : delay
         keepDictationOnClipboard = defaults.bool(
             forKey: UserDefaultsAppRuntimePreferences.keepDictationOnClipboardKey
+        )
+        autoSubmitCodexDictation = defaults.bool(
+            forKey: UserDefaultsAppRuntimePreferences.autoSubmitCodexDictationKey
         )
         selectedMicrophoneDeviceUID = Self.normalizedMicrophoneSelection(
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)

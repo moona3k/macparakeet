@@ -226,6 +226,99 @@ final class ClipboardServiceTests: XCTestCase {
         try await waitForPasteboardString("original", on: pasteboard)
     }
 
+    func testPasteTextWithActionRejectsBeforePasteWhenRequiredApplicationIsNotFrontmost() async throws {
+        let pasteboard = makeScratchPasteboard()
+        defer { pasteboard.releaseGlobally() }
+        replacePasteboard(pasteboard, with: "original")
+
+        var pasteWasPosted = false
+        var keystrokes: [UInt16] = []
+        let service = ClipboardService(
+            pasteboard: pasteboard,
+            eventPosting: RecordingClipboardEventPosting(
+                onPaste: { pasteWasPosted = true },
+                onKeystroke: { keystrokes.append($0) }
+            ),
+            clipboardRestoreDelay: Self.shortRestoreDelay,
+            frontmostBundleIdentifierProvider: { "com.apple.Safari" }
+        )
+
+        do {
+            _ = try await service.pasteTextWithAction(
+                "dictation",
+                postPasteAction: .returnKey,
+                restoresClipboard: true,
+                requiredFrontmostBundleIdentifier: "com.openai.codex"
+            )
+            XCTFail("Expected a frontmost-application failure")
+        } catch ClipboardServiceError.requiredFrontmostApplicationUnavailable {
+            XCTAssertFalse(pasteWasPosted)
+            XCTAssertTrue(keystrokes.isEmpty)
+            XCTAssertEqual(pasteboard.string(forType: .string), "original")
+        }
+    }
+
+    func testPasteTextWithActionSuppressesKeystrokeWhenRequiredApplicationLosesFocusAfterPaste() async throws {
+        let pasteboard = makeScratchPasteboard()
+        defer { pasteboard.releaseGlobally() }
+        replacePasteboard(pasteboard, with: "original")
+
+        var frontmostBundleIdentifier = "com.openai.codex"
+        var pastedStrings: [String] = []
+        var keystrokes: [UInt16] = []
+        let service = ClipboardService(
+            pasteboard: pasteboard,
+            eventPosting: RecordingClipboardEventPosting(
+                onPaste: {
+                    pastedStrings.append(pasteboard.string(forType: .string) ?? "")
+                    frontmostBundleIdentifier = "com.apple.Safari"
+                },
+                onKeystroke: { keystrokes.append($0) }
+            ),
+            clipboardRestoreDelay: Self.shortRestoreDelay,
+            frontmostBundleIdentifierProvider: { frontmostBundleIdentifier }
+        )
+
+        let fired = try await service.pasteTextWithAction(
+            "dictation",
+            postPasteAction: .returnKey,
+            restoresClipboard: true,
+            requiredFrontmostBundleIdentifier: "com.openai.codex"
+        )
+
+        XCTAssertFalse(fired)
+        XCTAssertEqual(pastedStrings, ["dictation"])
+        XCTAssertTrue(keystrokes.isEmpty)
+        try await waitForPasteboardString("original", on: pasteboard)
+    }
+
+    func testPasteTextWithActionFiresKeystrokeWhenRequiredApplicationRemainsFrontmost() async throws {
+        let pasteboard = makeScratchPasteboard()
+        defer { pasteboard.releaseGlobally() }
+        replacePasteboard(pasteboard, with: "original")
+
+        var keystrokes: [UInt16] = []
+        let service = ClipboardService(
+            pasteboard: pasteboard,
+            eventPosting: RecordingClipboardEventPosting(
+                onKeystroke: { keystrokes.append($0) }
+            ),
+            clipboardRestoreDelay: Self.shortRestoreDelay,
+            frontmostBundleIdentifierProvider: { " COM.OPENAI.CODEX " }
+        )
+
+        let fired = try await service.pasteTextWithAction(
+            "dictation",
+            postPasteAction: .returnKey,
+            restoresClipboard: true,
+            requiredFrontmostBundleIdentifier: "com.openai.codex"
+        )
+
+        XCTAssertTrue(fired)
+        XCTAssertEqual(keystrokes, [KeyAction.returnKey.keyCode])
+        try await waitForPasteboardString("original", on: pasteboard)
+    }
+
     func testPasteTextWithActionCanLeavePastedTextOnClipboard() async throws {
         let pasteboard = makeScratchPasteboard()
         defer { pasteboard.releaseGlobally() }

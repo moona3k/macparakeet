@@ -149,7 +149,23 @@ Dictation defaults to a built-in shared `Fn` gesture preset: hold `Fn` for push-
 Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migrate to the shared `Fn` gesture preset. Legacy single-hotkey installs are migrated to the shared default gesture when the stored trigger is `Fn`. Otherwise the old trigger becomes push-to-talk, while hands-free moves to the default `Fn` preset or disables itself if that would conflict.
 
 **Implementation:**
-- `CGEvent` tap for system-wide key event interception
+- The built-in bare-`Fn` gesture uses a listen-only `CGEvent` tap: Fn and every
+  observed cancellation event pass through unchanged. Other configurable
+  hotkeys retain their established active-tap behavior.
+- Built-in Fn is admitted only when a combined-session snapshot shows no
+  pre-held non-Fn modifier or ordinary physical key. A latched Caps Lock state
+  alone is allowed because it does not prove the physical key remains held;
+  an observed Caps Lock transition still cancels. While Fn is held, every
+  non-Fn key-down/key-up (including Escape) or modifier transition cancels the
+  gesture. Those transitions also invalidate an outstanding second-tap window,
+  including a rejected contaminated Fn admission. Tap-disable recovery
+  detects non-Fn keys and modifiers that remain held, plus a Caps Lock latch
+  delta from the last delivered modifier snapshot. A stable pre-latched Caps
+  Lock state remains allowed. A non-latching ordinary key pressed and released
+  wholly while the event tap is disabled leaves no current state or latch delta
+  and is inherently unobservable; this remains a runtime proof limit. A
+  cancelled gesture's later Fn/key release cannot stop, transcribe, paste, or
+  submit.
 - `HotkeyTrigger` struct with `.modifier` / `.keyCode` / `.chord` / `.modifierChord` kind discriminator (see ADR-009)
 - Modifier triggers: `flagsChanged` events with `CGEventFlags` mask, bare-tap filtering
 - KeyCode triggers: `keyDown`/`keyUp` events with event swallowing, edge detection via `triggerKeyIsPressed` boolean
@@ -200,6 +216,7 @@ Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migra
 ├─────────────────────────────────────────────────────────────────┤
 │ 6. Result                                                        │
 │    - Auto-paste into target app (NSPasteboard + simulated Cmd+V) │
+│    - Optional Codex-only submit after guarded focus revalidation  │
 │    - Previous clipboard restored by default; opt-in retain mode  │
 │      leaves the exact pasted text available for manual Cmd+V      │
 │    - Save to dictation history (database)                        │
@@ -207,6 +224,13 @@ Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migra
 │    - Overlay shows success checkmark, auto-dismisses             │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+**Codex auto-submit (opt-in Beta):**
+- Disabled by default.
+- When enabled, a non-empty dictation whose paste-time frontmost bundle is exactly `com.openai.codex` is pasted without a trailing space and followed by Return.
+- The clipboard service validates the Codex bundle before paste and again after the existing 200 ms paste-settling delay. If Codex is not frontmost before paste, the normal paste-failure recovery copies the transcript for manual use. If Return cannot be confirmed after paste because focus changed, the task was cancelled, or event delivery failed, the UI reports only that the text was pasted and Return was not sent.
+- An explicit Voice Return action takes precedence and preserves its existing cross-app behavior.
+- The guard identifies the frontmost Codex application, not a particular task or editor. The user must keep the intended Codex composer focused until submission.
 
 **Text insertion:**
 

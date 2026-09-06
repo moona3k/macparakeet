@@ -572,6 +572,7 @@ public enum TelemetrySettingName: String, Sendable, Equatable {
     case launchAtLogin = "launch_at_login"
     case silenceAutoStop = "silence_auto_stop"
     case keepDictationOnClipboard = "keep_dictation_on_clipboard"
+    case codexAutoSubmit = "codex_auto_submit"
     case voiceReturn = "voice_return"
 
     // Calendar auto-start (ADR-017)
