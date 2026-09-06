@@ -88,7 +88,7 @@ public enum TelemetryErrorClassifier {
         // end of the line: guessing where the path ends leaked meeting names in
         // ffmpeg errors from iCloud Drive and external volumes.
         sanitized = sanitized.replacingOccurrences(
-            of: #"(?i)file:(?://)?[^\r\n]+"#,
+            of: #"(?i)\bfile:/[^\r\n]+"#,
             with: "<path>",
             options: .regularExpression
         )
@@ -114,7 +114,7 @@ public enum TelemetryErrorClassifier {
             options: .regularExpression
         )
         sanitized = sanitized.replacingOccurrences(
-            of: #"(?i)\b(?:api[_-]?key|access[_-]?token|token|authorization)\s*[:=]\s*[^\s\"',;<>]+"#,
+            of: #"(?i)\b(?:api[_-]?key|access[_-]?token|token|authorization)\s*[:=]\s*(?:\"(?:\\[^\r\n]|[^\"\\\r\n])*\\?(?:\"|(?=[\r\n]|$))|'(?:\\[^\r\n]|[^'\\\r\n])*\\?(?:'|(?=[\r\n]|$))|[^\s\"',;<>]+)"#,
             with: "credential=<redacted>",
             options: .regularExpression
         )

@@ -39,6 +39,29 @@ private actor TelemetryFlushGate {
     }
 }
 
+/// Bridges structured task cancellation to the synchronously admitted URL task.
+private final class TelemetryRequestCancellation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: URLSessionDataTask?
+    private var cancelled = false
+
+    func install(_ task: URLSessionDataTask) {
+        let shouldCancel = lock.withLock {
+            self.task = task
+            return cancelled
+        }
+        if shouldCancel { task.cancel() }
+    }
+
+    func cancel() {
+        let task = lock.withLock {
+            cancelled = true
+            return self.task
+        }
+        task?.cancel()
+    }
+}
+
 // MARK: - Implementation
 
 public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendable {
@@ -214,6 +237,9 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
         return queue.count
     }
 
+    // Set before starting a flush in tests to exercise the encoding/admission gap.
+    var beforeRequestAdmission: (@Sendable () -> Void)?
+
     // MARK: - Private
 
     private func queueGeneration(ifAllowed event: TelemetryEventName) -> UInt64? {
@@ -360,7 +386,8 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
             request.httpBody = body
             request.timeoutInterval = timeoutInterval
 
-            let sent = await sendAsync(request, using: session)
+            beforeRequestAdmission?()
+            let sent = await sendAsync(request, events: batchEvents, generation: generation, using: session)
             if !sent {
                 failedEvents.append(contentsOf: batchEvents)
             }
@@ -369,17 +396,38 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
         return failedEvents
     }
 
-    private func sendAsync(_ request: URLRequest, using session: URLSession) async -> Bool {
-        do {
-            let (_, response) = try await session.data(for: request)
-            if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-                logger.warning("Telemetry server returned \(http.statusCode)")
-                return false
+    private func sendAsync(
+        _ request: URLRequest, events: [TelemetryEvent], generation: UInt64, using session: URLSession
+    ) async -> Bool {
+        let cancellation = TelemetryRequestCancellation()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                // Encoding can race with opt-out. Admit and resume under the
+                // same lock as clearQueue, so no stale request starts afterward.
+                lock.withLock {
+                    guard generation == queueGeneration,
+                        isEnabled() || events.allSatisfy({ $0.event == TelemetryEventName.telemetryOptedOut.rawValue })
+                    else {
+                        continuation.resume(returning: true)
+                        return
+                    }
+                    let task = session.dataTask(with: request) { [logger] _, response, error in
+                        if let error {
+                            logger.debug("Telemetry flush failed: \(error.localizedDescription)")
+                            continuation.resume(returning: false)
+                        } else if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                            logger.warning("Telemetry server returned \(http.statusCode)")
+                            continuation.resume(returning: false)
+                        } else {
+                            continuation.resume(returning: true)
+                        }
+                    }
+                    cancellation.install(task)
+                    task.resume()
+                }
             }
-            return true
-        } catch {
-            logger.debug("Telemetry flush failed: \(error.localizedDescription)")
-            return false
+        } onCancel: {
+            cancellation.cancel()
         }
     }
 

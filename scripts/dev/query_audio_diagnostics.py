@@ -73,6 +73,7 @@ def query_log(path, *, since=None, events=(), process_session=None, limit=100,
         "max_bytes": max_scan_bytes,
         "file_size_bytes": None,
         "bytes_read": 0,
+        "boundary_probe_bytes": 0,
         "truncated": False,
         "changed_during_read": False,
         "discarded_partial_start_bytes": 0,
@@ -105,28 +106,40 @@ def query_log(path, *, since=None, events=(), process_session=None, limit=100,
             if not stat.S_ISREG(before.st_mode):
                 raise OSError(errno.EINVAL, "diagnostic input must be a regular file")
             scan["file_size_bytes"] = before.st_size
-            # Reserve one byte inside the budget to determine whether the tail
-            # starts exactly at a line boundary. No read exceeds max_scan_bytes.
+            # The retained tail has its own byte budget. A separate one-byte
+            # look-behind preserves a full record aligned with its first byte.
             start = max(0, before.st_size - max_scan_bytes)
+            previous = b"\n"
+            if start > 0:
+                handle.seek(start - 1)
+                previous = handle.read(1)
+                scan["boundary_probe_bytes"] = len(previous)
             handle.seek(start)
             data = handle.read(max_scan_bytes)
             scan["bytes_read"] = len(data)
             scan["truncated"] = start > 0
             if start > 0 and data:
-                previous, data = data[:1], data[1:]
                 if previous != b"\n":
                     first_newline = data.find(b"\n")
                     discarded = len(data) if first_newline < 0 else first_newline + 1
-                    scan["discarded_partial_start_bytes"] = discarded + 1
-                    scan["incomplete_lines"] += 1
+                    scan["discarded_partial_start_bytes"] = discarded
+                    scan["incomplete_lines"] += int(not data.startswith(b"\n"))
                     data = data[discarded:]
-                else:
-                    scan["discarded_partial_start_bytes"] = 1
             after = os.fstat(handle.fileno())
             scan["changed_during_read"] = (
                 before.st_size != after.st_size or before.st_mtime_ns != after.st_mtime_ns
                 or scan["bytes_read"] != min(before.st_size, max_scan_bytes)
             )
+            try:
+                current = os.stat(path)
+                scan["changed_during_read"] |= (
+                    (current.st_dev, current.st_ino, current.st_size, current.st_mtime_ns)
+                    != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+                )
+            except OSError:
+                # An opened tail remains useful when its path disappears or
+                # becomes inaccessible, but cannot be presented as stable.
+                scan["changed_during_read"] = True
     except FileNotFoundError:
         result["status"] = "missing"
         return result

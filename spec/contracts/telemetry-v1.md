@@ -16,7 +16,8 @@ records the September 2026 tightening of privacy and outcome semantics.
   information may be recovered from the recognized Foundation wrapper format;
   arbitrary numbers, domains and descriptions are not error categories.
 - Opt-out clears the queue and invalidates retries and batches waiting behind
-  another flush. In-flight network requests can complete. An explicit final
+  another flush, including batches encoded but not started. Request admission
+  and URL task resume share the queue-clear lock. In-flight requests can complete. An explicit final
   `telemetry_opted_out` event is the only disabled-preference exception.
 - A thrown cancellation is `cancelled`, not `failure`. Exactly one canonical
   outcome should describe an operation. Breadcrumb counts are separate evidence.

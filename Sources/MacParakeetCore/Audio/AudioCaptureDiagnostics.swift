@@ -93,15 +93,47 @@ public enum AudioCaptureDiagnostics {
 
     private static func append(_ message: String, timestamp: Date, uptimeNanoseconds: UInt64) {
         let data = encodedLogLine(message, timestamp: timestamp, uptimeNanoseconds: uptimeNanoseconds)
+        appendEncodedLogLine(data, to: diagnosticLogURL())
+    }
+
+    static func appendEncodedLogLine(_ data: Data, to logURL: URL) {
+        if Thread.isMainThread {
+            let completed = lock.withLockIfAvailable {
+                do {
+                    try writeLogLine(data, to: logURL, waitForLock: false)
+                    return true
+                } catch {
+                    let code = (error as NSError).code
+                    if (error as NSError).domain == NSPOSIXErrorDomain, code == Int(EWOULDBLOCK) {
+                        return false
+                    }
+                    logger.error("audio_diagnostic_write_failed error_type=\(errorType(error), privacy: .public)")
+                    return true
+                }
+            } ?? false
+            if !completed {
+                logger.info("audio_diagnostic_write_deferred reason=lock_contended")
+                // Keep the exact record and its occurrence clocks. Only its
+                // visibility is deferred; a busy writer must not block the UI.
+                appendQueue.async { appendEncodedLogLine(data, to: logURL) }
+            }
+            return
+        }
 
         lock.withLock {
             do {
-                try writeLogLine(data, to: diagnosticLogURL())
+                try writeLogLine(data, to: logURL)
             } catch {
                 // Keep capture independent of the file sink, but make a failed
                 // diagnostic write visible through the independent system log.
                 logger.error("audio_diagnostic_write_failed error_type=\(errorType(error), privacy: .public)")
             }
+        }
+    }
+
+    static func flushPendingAppends() async {
+        await withCheckedContinuation { continuation in
+            appendQueue.async { continuation.resume() }
         }
     }
 
@@ -130,14 +162,14 @@ public enum AudioCaptureDiagnostics {
     /// Serialize the complete create/append/rotate operation across cooperating
     /// app and CLI processes. Keeping the boundary throwable also lets tests
     /// exercise failures against isolated files instead of user logs.
-    static func writeLogLine(_ data: Data, to logURL: URL) throws {
+    static func writeLogLine(_ data: Data, to logURL: URL, waitForLock: Bool = true) throws {
         let fm = FileManager.default
         try fm.createDirectory(
             at: logURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
 
-        try withLogFileLock(at: logURL) {
+        try withLogFileLock(at: logURL, waitForLock: waitForLock) {
             if fm.fileExists(atPath: logURL.path) {
                 // An open failure is not an absent file: replacing it would erase
                 // the existing history (e.g. a read-only log in a writable folder).
@@ -162,14 +194,14 @@ public enum AudioCaptureDiagnostics {
     /// this file: another process may already hold or be waiting on its lock.
     /// This advisory lock only coordinates participating local writers; readers
     /// remain independent. Closing releases it on success, failure, or exit.
-    static func withLogFileLock(at logURL: URL, _ operation: () throws -> Void) throws {
+    static func withLogFileLock(at logURL: URL, waitForLock: Bool = true, _ operation: () throws -> Void) throws {
         let lockURL = logURL.appendingPathExtension("lock")
         let descriptor = Darwin.open(lockURL.path, O_WRONLY | O_CREAT | O_CLOEXEC, S_IRUSR | S_IWUSR)
         guard descriptor >= 0 else {
             throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
         }
         defer { _ = Darwin.close(descriptor) }
-        while flock(descriptor, LOCK_EX) != 0 {
+        while flock(descriptor, waitForLock ? LOCK_EX : LOCK_EX | LOCK_NB) != 0 {
             let code = errno
             guard code == EINTR else {
                 throw NSError(domain: NSPOSIXErrorDomain, code: Int(code))

@@ -160,6 +160,14 @@ public actor DictationService: DictationServiceProtocol {
         liveTranscriptText
     }
 
+    private var successDisplayWaiter: @Sendable () async -> Void = {
+        try? await Task.sleep(for: .milliseconds(500))
+    }
+
+    func setSuccessDisplayWaiterForTesting(_ waiter: @escaping @Sendable () async -> Void) {
+        successDisplayWaiter = waiter
+    }
+
     public init(
         audioProcessor: AudioProcessorProtocol,
         sttTranscriber: STTTranscribing,
@@ -426,7 +434,7 @@ public actor DictationService: DictationServiceProtocol {
             if !(error is CancellationError) {
                 Telemetry.send(
                     .dictationFailed(
-                        errorType: Self.errorType(for: error), errorDetail: TelemetryErrorClassifier.errorDetail(error),
+                        errorType: Self.errorType(for: error),
                         device: device))
             }
             logger.error(
@@ -513,7 +521,7 @@ public actor DictationService: DictationServiceProtocol {
             logger.debug(
                 "stopRecording success session=\(currentSession) rawChars=\(result.dictation.rawTranscript.count) cleanChars=\(result.dictation.cleanTranscript?.count ?? 0)"
             )
-            try? await Task.sleep(for: .milliseconds(500))
+            await successDisplayWaiter()
             guard activeSessionID == currentSession else { return result }
             _state = .idle
             recordingStartedAt = nil
@@ -560,7 +568,7 @@ public actor DictationService: DictationServiceProtocol {
                 )
                 Telemetry.send(
                     .dictationFailed(
-                        errorType: Self.errorType(for: error), errorDetail: TelemetryErrorClassifier.errorDetail(error),
+                        errorType: Self.errorType(for: error),
                         device: device))
             }
             recordingStartedAt = nil
@@ -743,7 +751,7 @@ public actor DictationService: DictationServiceProtocol {
                     appCategory: currentTelemetryContext.appCategory,
                     device: device
                 ))
-            try? await Task.sleep(for: .milliseconds(500))
+            await successDisplayWaiter()
             guard activeSessionID == currentSession else { return result }
             _state = .idle
             recordingStartedAt = nil
@@ -786,7 +794,7 @@ public actor DictationService: DictationServiceProtocol {
                 )
                 Telemetry.send(
                     .dictationFailed(
-                        errorType: Self.errorType(for: error), errorDetail: TelemetryErrorClassifier.errorDetail(error),
+                        errorType: Self.errorType(for: error),
                         device: device))
             }
             recordingStartedAt = nil

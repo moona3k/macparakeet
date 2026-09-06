@@ -1,6 +1,22 @@
 import XCTest
 @testable import MacParakeetCore
 
+private actor DictationSuccessDisplayGate {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var released = false
+
+    func wait() async {
+        guard !released else { return }
+        await withCheckedContinuation { continuation = $0 }
+    }
+
+    func release() {
+        released = true
+        continuation?.resume()
+        continuation = nil
+    }
+}
+
 private final class DictationTelemetrySpy: TelemetryServiceProtocol, @unchecked Sendable {
     private let lock = NSLock()
     private var events: [TelemetryEventSpec] = []
@@ -317,6 +333,9 @@ final class DictationServiceTests: XCTestCase {
     }
 
     func testConfirmCancelAfterSuccessDoesNotEmitAnotherTerminalOutcome() async throws {
+        let displayGate = DictationSuccessDisplayGate()
+        await service.setSuccessDisplayWaiterForTesting { await displayGate.wait() }
+        defer { Task { await displayGate.release() } }
         let success = expectation(description: "Success emitted before the service's existing display dwell")
         let telemetry = DictationTelemetrySpy { event in
             if event.name == .dictationOperation, event.props?["outcome"] == "success" {
@@ -333,10 +352,12 @@ final class DictationServiceTests: XCTestCase {
 
         await fulfillment(of: [success], timeout: 2)
         guard case .success = await service.state else {
+            await displayGate.release()
             _ = try await stopTask.value
             return XCTFail("The test must confirm cancellation while Stop is still displaying success")
         }
         await service.confirmCancel(sessionID: 1)
+        await displayGate.release()
         _ = try await stopTask.value
 
         let operations = dictationOperationProps(in: telemetry.snapshot())
@@ -345,6 +366,9 @@ final class DictationServiceTests: XCTestCase {
     }
 
     func testNewOperationAfterSuccessRetainsItsTerminalOutcomeAndIgnoresStaleCancel() async throws {
+        let displayGate = DictationSuccessDisplayGate()
+        await service.setSuccessDisplayWaiterForTesting { await displayGate.wait() }
+        defer { Task { await displayGate.release() } }
         let success = expectation(description: "First operation succeeded")
         let telemetry = DictationTelemetrySpy { event in
             if event.name == .dictationOperation, event.props?["outcome"] == "success" {
@@ -361,12 +385,14 @@ final class DictationServiceTests: XCTestCase {
 
         await fulfillment(of: [success], timeout: 2)
         guard case .success = await service.state else {
+            await displayGate.release()
             _ = try await stopTask.value
             return XCTFail("The new operation must replace the first operation during its success dwell")
         }
         try await service.startRecording(sessionID: 2)
         await service.confirmCancel(sessionID: 1)
         await service.confirmCancel(sessionID: 2)
+        await displayGate.release()
         _ = try await stopTask.value
 
         let operations = dictationOperationProps(in: telemetry.snapshot())

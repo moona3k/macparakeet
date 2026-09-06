@@ -236,6 +236,47 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertTrue(TelemetryMockURLProtocol.recordedPayloads().isEmpty)
     }
 
+    func testClearQueueAfterEncodingPreventsRequestAdmission() async {
+        let consent = TelemetryConsent()
+        let service = makeService(isEnabled: consent.isEnabled)
+        service.beforeRequestAdmission = { [weak service] in
+            consent.setEnabled(false)
+            service?.clearQueue()
+            consent.setEnabled(true)
+        }
+
+        let handled = await service.sendAndFlush(.appLaunched)
+
+        XCTAssertTrue(handled)
+        XCTAssertEqual(service.pendingEventCount, 0)
+        XCTAssertTrue(TelemetryMockURLProtocol.recordedPayloads().isEmpty)
+    }
+
+    func testDisabledConsentAfterEncodingPreventsRequestAdmission() async {
+        let consent = TelemetryConsent()
+        let service = makeService(isEnabled: consent.isEnabled)
+        service.beforeRequestAdmission = { consent.setEnabled(false) }
+
+        let handled = await service.sendAndFlush(.appLaunched)
+
+        XCTAssertTrue(handled)
+        XCTAssertTrue(TelemetryMockURLProtocol.recordedPayloads().isEmpty)
+    }
+
+    func testCancellationCompletesAnAdmittedRequest() async {
+        let service = makeService()
+        let started = expectation(description: "Request admitted before cancellation")
+        TelemetryMockURLProtocol.setRequestHandler { _ in started.fulfill() }
+        let flush = Task { await service.sendAndFlush(.appLaunched) }
+        await fulfillment(of: [started], timeout: 2)
+
+        flush.cancel()
+        let handled = await flush.value
+
+        XCTAssertFalse(handled)
+        XCTAssertEqual(service.pendingEventCount, 1)
+    }
+
     func testClearQueueDuringFailedRequestDoesNotResurrectEventsAfterReenable() async {
         let consent = TelemetryConsent()
         let service = makeService(isEnabled: consent.isEnabled)

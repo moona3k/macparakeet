@@ -259,4 +259,29 @@ struct TelemetryErrorClassifierTests {
         let message = "AUHAL -10868; input=48000Hz/2ch; conversionFailed; NSOSStatusErrorDomain.-10868"
         #expect(TelemetryErrorClassifier.sanitize(message) == message)
     }
+
+    @Test("file URI redaction preserves words ending in file")
+    func fileURIBoundaries() {
+        let diagnostic = "profile: microphone; file: unavailable; sample_rate=48000"
+        #expect(TelemetryErrorClassifier.sanitize(diagnostic) == diagnostic)
+        #expect(TelemetryErrorClassifier.sanitize("open file:/private/audio.wav") == "open <path>")
+    }
+
+    @Test("redacts quoted credential values without leaking their suffix")
+    func quotedCredentials() {
+        for message in [
+            "api_key: \"private-key-value\"",
+            "Authorization: 'Basic private credential value'",
+            "access_token=\"private-token-value\"; status=401",
+            #"token="abc\"private-suffix""#,
+            #"api_key='abc\'private-suffix'"#,
+            "token=\"unterminated private suffix\nstatus=401",
+            "token=\"private suffix\\",
+        ] {
+            let sanitized = TelemetryErrorClassifier.sanitize(message)
+            #expect(!sanitized.contains("private"))
+            #expect(!sanitized.contains("credential value"))
+            #expect(TelemetryErrorClassifier.sanitize(sanitized) == sanitized)
+        }
+    }
 }

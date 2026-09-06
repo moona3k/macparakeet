@@ -89,6 +89,55 @@ class QueryAudioDiagnosticsTests(unittest.TestCase):
         self.assertEqual(result["event_counts"], {"capture_stop": 1})
         self.assertEqual(result["scan"]["incomplete_lines"], 0)
 
+    def test_tail_starting_at_record_first_byte_keeps_that_record(self):
+        complete = "2026-09-06T00:00:01Z capture_stop\n"
+        self.write("old event\n" + complete)
+
+        result = diagnostics.query_log(self.path, max_scan_bytes=len(complete))
+
+        self.assertEqual(result["event_counts"], {"capture_stop": 1})
+        self.assertEqual(result["scan"]["incomplete_lines"], 0)
+        self.assertEqual(result["scan"]["discarded_partial_start_bytes"], 0)
+
+    def test_atomic_replacement_during_read_is_reported(self):
+        self.write("2026-09-06T00:00:01Z capture_stop\n")
+        replacement = self.path.with_suffix(".replacement")
+        replacement.write_text("2026-09-06T00:00:02Z capture_start\n")
+        original_fstat = os.fstat
+        checks = 0
+
+        def replace_before_final_check(descriptor):
+            nonlocal checks
+            checks += 1
+            if checks == 2:
+                replacement.replace(self.path)
+            return original_fstat(descriptor)
+
+        with patch.object(diagnostics.os, "fstat", side_effect=replace_before_final_check):
+            result = diagnostics.query_log(self.path)
+
+        self.assertTrue(result["scan"]["changed_during_read"])
+        self.assertEqual(result["event_counts"], {"capture_stop": 1})
+
+    def test_path_disappearance_during_read_preserves_evidence_and_reports_change(self):
+        self.write("2026-09-06T00:00:01Z capture_stop\n")
+        original_fstat = os.fstat
+        checks = 0
+
+        def remove_before_final_check(descriptor):
+            nonlocal checks
+            checks += 1
+            if checks == 2:
+                self.path.unlink()
+            return original_fstat(descriptor)
+
+        with patch.object(diagnostics.os, "fstat", side_effect=remove_before_final_check):
+            result = diagnostics.query_log(self.path)
+
+        self.assertEqual(result["status"], "available")
+        self.assertTrue(result["scan"]["changed_during_read"])
+        self.assertEqual(result["event_counts"], {"capture_stop": 1})
+
     def test_malformed_records_and_fields_are_counted_without_raw_output(self):
         self.write(
             b"unstructured private text\n"

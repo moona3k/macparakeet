@@ -4,11 +4,12 @@ import XCTest
 @testable import MacParakeetCore
 
 final class AudioCaptureDiagnosticsTests: XCTestCase {
-    func testAppendUsesTemporaryLogUnderXCTest() throws {
+    func testAppendUsesTemporaryLogUnderXCTest() async throws {
         let logURL = AudioCaptureDiagnostics.diagnosticLogURL()
         let marker = "unit_test_diagnostic_marker_\(UUID().uuidString)"
 
         AudioCaptureDiagnostics.append(marker)
+        await AudioCaptureDiagnostics.flushPendingAppends()
 
         let contents = try String(contentsOf: logURL, encoding: .utf8)
         XCTAssertTrue(logURL.path.contains("MacParakeetTests/Logs"))
@@ -232,6 +233,30 @@ final class AudioCaptureDiagnosticsTests: XCTestCase {
         XCTAssertEqual(actual.count, expected.count)
         XCTAssertEqual(Set(actual), Set(expected))
         XCTAssertLessThanOrEqual(result.utf8.count, Int(AudioCaptureDiagnostics.diagnosticLogMaxBytes))
+    }
+
+    func testMainThreadContentionDefersTheOriginalRecordUntilLockRelease() async throws {
+        let logURL = try temporaryLogURL()
+        let lockURL = logURL.appendingPathExtension("lock")
+        let descriptor = Darwin.open(lockURL.path, O_WRONLY | O_CREAT | O_CLOEXEC, S_IRUSR | S_IWUSR)
+        guard descriptor >= 0 else { return XCTFail("Cannot open test lock") }
+        defer { _ = Darwin.close(descriptor) }
+        XCTAssertEqual(flock(descriptor, LOCK_EX), 0)
+        defer { _ = flock(descriptor, LOCK_UN) }
+        let original = AudioCaptureDiagnostics.encodedLogLine(
+            "capture_stop frames=480", timestamp: Date(timeIntervalSince1970: 1_780_000_000),
+            uptimeNanoseconds: 123_456_789
+        )
+
+        // This call must return while the other descriptor still owns the lock.
+        await MainActor.run {
+            AudioCaptureDiagnostics.appendEncodedLogLine(original, to: logURL)
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: logURL.path))
+        XCTAssertEqual(flock(descriptor, LOCK_UN), 0)
+        await AudioCaptureDiagnostics.flushPendingAppends()
+
+        XCTAssertEqual(try Data(contentsOf: logURL), original)
     }
 
     private func temporaryLogURL() throws -> URL {

@@ -308,7 +308,7 @@ events remain useful for diarization-specific timing and failure analysis.
 |---|---|---|
 | `diarization_started` | — | How often is diarization used? |
 | `diarization_completed` | `duration_seconds`, `speaker_count` | How long does it take? How many speakers? |
-| `diarization_failed` | `error_type`, `error_detail` | What breaks in diarization? |
+| `diarization_failed` | `error_type` | What breaks in diarization? |
 
 ### 4. Feature Adoption — "What features matter?"
 
@@ -364,7 +364,7 @@ prompt-customization trend.
 | `meeting_recovery_started` | `count`, `source`, `phases` | How often users choose to recover, by interrupted lock phase |
 | `meeting_recovery_completed` | `count`, `duration_seconds`, `source`, `phases` | Recovery success rate and latency by interrupted lock phase |
 | `meeting_recovery_discarded` | `count`, `source`, `phases` | How often users intentionally discard interrupted recordings, by interrupted lock phase |
-| `meeting_recovery_failed` | `count`, `source`, `phases`, `error_type`, `error_detail` | What blocks recovery in the field, by interrupted lock phase |
+| `meeting_recovery_failed` | `count`, `source`, `phases`, `error_type` | What blocks recovery in the field, by interrupted lock phase |
 
 ### 4c. Meeting Recording — "Is meeting capture healthy?"
 
@@ -482,8 +482,8 @@ Accessibility note: macOS does not provide a direct denial callback for Accessib
 
 | Event | Props | Question It Answers |
 |---|---|---|
-| `error_occurred` | `domain`, `code`, `description` | What errors are users hitting? |
-| `crash_occurred` | `crash_type`, `signal`, `reason`, `stack_trace`, `crash_app_ver`, `crash_os_ver` | What crashes are happening? |
+| `error_occurred` | `domain`, `code` | What errors are users hitting? |
+| `crash_occurred` | `crash_type`, `signal`, `stack_trace`, `crash_app_ver`, `crash_os_ver` | What crashes are happening? |
 
 ### 10. CLI — "Are agents and scripts succeeding?"
 

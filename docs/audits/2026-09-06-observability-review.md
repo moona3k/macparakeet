@@ -82,8 +82,9 @@ evidence, not a new microphone/hardware exercise.
 
 ## Verification
 
-- Final combined Swift focused checks passed: 224 XCTest cases and 21 Swift
-  Testing cases. These cover telemetry consent/retry behavior, event privacy,
+- Final combined Swift focused checks passed: 224 XCTest cases and a focused
+  subset of 21 Swift Testing cases (the full suite below ran 25). These cover
+  telemetry consent/retry behavior, event privacy,
   error classification, CLI outcomes, dictation terminal outcomes, diagnostic
   writing/rotation and scope, plus all 35 `AudioRecorderFormatChangeTests`.
 - The single full `swift test --disable-automatic-resolution -j 1` run executed
@@ -96,6 +97,12 @@ evidence, not a new microphone/hardware exercise.
   bridged-code naming received their focused verification after that full run.
 - Offline diagnostic-query tests passed: 11 synthetic-file tests. The read-only
   historical log inspection is described above.
+- PR #962 feedback verification: 149 focused XCTest cases passed across
+  telemetry, dictation, and audio diagnostics; the final classifier-only run
+  passed all 25 Swift Testing cases. The query suite passed 14 synthetic-file
+  tests, including first-byte alignment, atomic replacement, and disappearance.
+  These follow-up runs cover atomic request admission, cancellation, deferred
+  writes with original clocks, deterministic success dwell, and quoted secrets.
 - Independent agent reviews covered client privacy/consent/outcomes, local
   writer concurrency/data preservation/query semantics, and website evidence
   calculations. Valid findings were addressed; production publication gates

@@ -21,8 +21,9 @@ Quoted values such as `reason="no usable buffers"` remain one field. Historical
 lines without process fields remain valid. Raw lines and unstructured text are
 omitted; this is a local inspection tool, not a privacy scrubber for attachments.
 
-The scan reads at most 5,000,000 bytes from the newest part of the file. When a
-file is larger, one byte in that budget establishes the first record's boundary.
+The scan reads at most 5,000,000 tail bytes, plus one look-behind byte when the
+file is larger. `scan.bytes_read` counts tail bytes and
+`scan.boundary_probe_bytes` counts the separate boundary probe (zero or one).
 Partial first/last lines and malformed UTF-8 or quoted fields are counted in
 `scan` and omitted. `scan.changed_during_read` reports a detected concurrent
 file change; retry the query if a stable copy is needed. Rotation can already
@@ -74,6 +75,10 @@ App and CLI writers coordinate file creation, append and rotation through the
 stable sibling `dictation-audio.log.lock`; preserve this file. The advisory lock
 coordinates participating writers, including separate processes. It does not
 lock readers or coordinate with older app versions that do not acquire it.
+Contended main-thread writes are deferred to the existing utility queue with
+their original timestamps and fields; OSLog reports
+`audio_diagnostic_write_deferred`. A query before that queue drains can miss
+those pending records, and process exit can prevent their best-effort write.
 
 Run the deterministic synthetic-file tests with:
 
