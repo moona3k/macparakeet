@@ -1,0 +1,83 @@
+src/pages/stats.astro
+  s_4af6b9f11fbe3c::t_b6a00778edb28e 19,31,35-37,40-44,62,67,72,77,82,90,95,100,105,125,157,162,167,172,177,425,435,439,633,681,686,691,696,722,732,737,766,770,774,778,851-852,863,897,905,909,1239,2100,2152-2155,2158,2167-2172,2178-2182,2223-2239,2241-2273,3731-3734,3752,3754,3778,5552-5553,5556-5558,5560-5562,5574-5575,5577-5579,5582-5583,5604
+  s_4af6b9f11fbe3c::t_ee3ec2a06b6af5 466,469,471-476,481,668-669,881,2101,2312,2331,3322,3441,3467,3486,3575,3582,3586,3590,3594,5128,5130-5133,5135-5138,5166-5167,5175-5178,5181,5183
+  s_4af6b9f11fbe3c::t_3ebadced49e9d8 3437,3442,3464-3465,3474-3475,3490-3492,3496-3497
+  s_4af6b9f11fbe3c::t_2931bbcb566603 3934
+tests/telemetry-review.test.mjs
+  s_4af6b9f11fbe3c::t_7fd0b6d71f55f9 13,187-197
+  s_4af6b9f11fbe3c::t_ec6f2806584887 175-186,198-212,240
+  s_4af6b9f11fbe3c::t_6efabbb57fec75 7-11,14-17,59-174,213-239
+  s_4af6b9f11fbe3c::t_6a955b40e4d738 241
+docs/telemetry-api.md
+  s_4af6b9f11fbe3c::t_1618839d233784 50-51
+  s_4af6b9f11fbe3c::t_24678ed60da2c1 54
+  s_4af6b9f11fbe3c::t_3ebadced49e9d8 59-72
+  s_4af6b9f11fbe3c::t_c8b3c80fcaaa92 1-49,52-53,55-58,73-90
+tests/stats-response.test.mjs
+  s_4af6b9f11fbe3c::t_5e3d2fb45763b4 1-82
+tests/telemetry-handlers.test.mjs
+  s_4af6b9f11fbe3c::t_790f69f4765f59 1-4,6-61,63-106,149-241
+  s_4af6b9f11fbe3c::t_2d4e85bf8b61f9 108-115,118,124,126-130,134-135,139,146-148
+  s_4af6b9f11fbe3c::t_b34e37e6b27fe7 5,107,116-117,119-123,125,131-133,136-138,140-145
+  s_4af6b9f11fbe3c::t_44b397777f5556 62
+src/lib/stats-metrics.mjs
+  s_4af6b9f11fbe3c::t_3ebadced49e9d8 25,29,32-34,36,38
+  s_4af6b9f11fbe3c::t_2931bbcb566603 1-14
+  s_4af6b9f11fbe3c::t_ee3ec2a06b6af5 15-24,26-28,30-31,35,37,39
+tests/stats-metrics.test.mjs
+  s_4af6b9f11fbe3c::t_2931bbcb566603 1-2,4-22,59
+  s_4af6b9f11fbe3c::t_b34e37e6b27fe7 36-45,51-55,57
+  s_4af6b9f11fbe3c::t_2d4e85bf8b61f9 3,23-35,46-50,56,58
+functions/lib/telemetry-validation.mjs
+  s_4af6b9f11fbe3c::t_916cbc8e3828f9 1-33
+functions/api/telemetry.ts
+  s_4af6b9f11fbe3c::t_916cbc8e3828f9 1-2,247,339,364-365
+tests/telemetry-validation.test.mjs
+  s_4af6b9f11fbe3c::t_916cbc8e3828f9 1-39
+package.json
+  s_4af6b9f11fbe3c::t_790f69f4765f59 16-17
+functions/api/stats.ts
+  s_4af6b9f11fbe3c::t_b359167e8f37c8 249-250,278-279
+  s_4af6b9f11fbe3c::t_5e3d2fb45763b4 46-48,576-578
+  s_4af6b9f11fbe3c::t_4c441342258a54 689-691,700-701
+  s_4af6b9f11fbe3c::t_7c0eda5abf088f 5,42-45,49,270,281-284,565,579,1843,1847-1849,1855-1857
+  s_4af6b9f11fbe3c::t_3ebadced49e9d8 882-883,892-893,904-905,1529,1534
+  s_4af6b9f11fbe3c::t_ee3ec2a06b6af5 900-903,1527,1533
+  s_4af6b9f11fbe3c::t_9046a32cdcb6f6 248,251-267,280,285,351,1314-1315,1846,1850,1854,1858,1860,1863
+functions/lib/stats-response.mjs
+  s_4af6b9f11fbe3c::t_5e3d2fb45763b4 1-2,9,42
+  s_4af6b9f11fbe3c::t_7c0eda5abf088f 3-8,10-41,43-67
+functions/lib/public-error-category.mjs
+  s_4af6b9f11fbe3c::t_5e3d2fb45763b4 1-48
+scripts/telemetry-review.mjs
+  s_4af6b9f11fbe3c::t_2513dca54fb2e5 47,319-348,402-403,421,463,490,501,512,515,527,535-536,644-645,649,659,698,702-708,717,734-735,740,749,762-768,770,772-775,796,897-910,912,922,949,951,964,983-990,1020
+  s_4af6b9f11fbe3c::t_6efabbb57fec75 723,1084,1148,1176-1188,1191-1194,1243-1262,1269-1274,1317
+  s_4af6b9f11fbe3c::t_ec6f2806584887 283-286,769,771,777-788,809,813-814,1007,1013,1131,1139
+  s_4af6b9f11fbe3c::t_7fd0b6d71f55f9 349-358,466
+  s_4af6b9f11fbe3c::t_4ac3d7a02b8f3b 776
+docs/telemetry-reviewer.md
+  s_4af6b9f11fbe3c::t_790f69f4765f59 113-122,124-138
+  s_4af6b9f11fbe3c::t_3ebadced49e9d8 123
+  s_4af6b9f11fbe3c::t_7fd0b6d71f55f9 40-41,50-74
+  s_4af6b9f11fbe3c::t_86088f30ae0da5 75
+src/lib/stats-freshness.mjs
+  s_4af6b9f11fbe3c::t_5fe3fb12408519 1-51
+tests/stats-freshness.test.mjs
+  s_4af6b9f11fbe3c::t_efe1b889b6e3b3 1-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "2d0054ac3a3e5d29bf68980d13306e6169355e4a",
+  "prompts": {},
+  "sessions": {
+    "s_4af6b9f11fbe3c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07595-d861-7b30-be95-3479ddf4c4a7",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
