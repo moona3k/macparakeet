@@ -1,0 +1,29 @@
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_4df83e5e17a0d7::t_6ee8945e2e5b94 505
+Sources/MacParakeet/App/MeetingTranscriptionQueue.swift
+  s_4df83e5e17a0d7::t_8327700aa33c1a 10-11,21,30,42,57
+Tests/MacParakeetTests/App/MeetingFinalizationReconcilerTests.swift
+  s_4df83e5e17a0d7::t_4da579ad97e5f1 224
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_4df83e5e17a0d7::t_c9722a6615d875 616-677,1460,1496-1499
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingTranscriptionQueueTests.swift
+  s_4df83e5e17a0d7::t_f3d82a905730c0 383
+spec/02-features.md
+  s_4df83e5e17a0d7::t_ec5bc944e05ea0 1899-1900
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "4066c0905b8c98341cb50f4d9d7ae20c47a0ddf6",
+  "prompts": {},
+  "sessions": {
+    "s_4df83e5e17a0d7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a077d2-5c39-70b3-af1d-fb8093d488b7",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
