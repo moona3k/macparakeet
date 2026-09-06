@@ -1,0 +1,109 @@
+Sources/MacParakeetCore/Audio/README.md
+  s_4af6b9f11fbe3c::t_ee6264638898a6 111-118,123-125
+  s_4af6b9f11fbe3c::t_ba23592e792496 126-129
+Tests/MacParakeetTests/Services/Telemetry/TelemetryErrorClassifierTests.swift
+  s_4af6b9f11fbe3c::t_cda9f7772a4aa3 52,54,56-75
+  s_4af6b9f11fbe3c::t_202ae1587129c6 130-137
+  s_4af6b9f11fbe3c::t_6bc5df704571bc 104-111,113-114
+  s_4af6b9f11fbe3c::t_f00d53c61179b3 76,78-96,228-261
+  s_4af6b9f11fbe3c::t_3960c9a331b6e2 97-103,112,115-129
+  s_4af6b9f11fbe3c::t_0afcd5f5cbedc7 77
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_4af6b9f11fbe3c::t_541828d840e8af 259-263,284-288,312-316
+  s_4af6b9f11fbe3c::t_8927c9d727ea10 240-258,264-283,289-290
+  s_4af6b9f11fbe3c::t_32ab1abac95346 7-11,17,317-375
+  s_4af6b9f11fbe3c::t_e210163cb4106a 291-311,376-377
+Sources/MacParakeetCore/Audio/SpeechBoundaryMeetingLiveAudioChunker.swift
+  s_4af6b9f11fbe3c::t_dba0ab02a3687f 211
+scripts/dev/tests/test_query_audio_diagnostics.py
+  s_4af6b9f11fbe3c::t_1a81ed7c32b6e5 1-150
+Tests/MacParakeetTests/TelemetryServiceTests.swift
+  s_4af6b9f11fbe3c::t_67e65c417e3721 15-60,65,106-107,110-114,122-136,141,175-179,227-340,535,540,556,559-560,598-600,614-615
+  s_4af6b9f11fbe3c::t_4815b3913de0fc 604-613,616-623
+Sources/MacParakeetCore/Audio/AudioRecorder.swift
+  s_4af6b9f11fbe3c::t_dba0ab02a3687f 521-523
+Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift
+  s_4af6b9f11fbe3c::t_cf3a17aff04ad8 10-21,67-68,70
+  s_4af6b9f11fbe3c::t_2740d8a8b3eb05 28,31-33
+  s_4af6b9f11fbe3c::t_1e415c228271c2 131,141-144
+  s_4af6b9f11fbe3c::t_8d866911f1b89c 7-8
+  s_4af6b9f11fbe3c::t_4ced18ef3286de 29-30,38-40,56-57,60-61,136-140
+  s_4af6b9f11fbe3c::t_62737b9ce8456b 82-84
+  s_4af6b9f11fbe3c::t_dc8f3ff7f16232 34-37,41-43,49,53-55,59,71,74-76,81,87-89,91,95,97-102,107-123,129-130,132-135,145-146
+  s_4af6b9f11fbe3c::t_25e81bf7a6345a 147-148
+docs/local-audio-diagnostics-query.md
+  s_4af6b9f11fbe3c::t_1a81ed7c32b6e5 8
+  s_4af6b9f11fbe3c::t_b581d172423f95 68,70-71
+  s_4af6b9f11fbe3c::t_ba23592e792496 1-7,9-67,69,72,78-82
+  s_4af6b9f11fbe3c::t_7b5838dbc6b2ab 73-77
+docs/telemetry.md
+  s_4af6b9f11fbe3c::t_1618839d233784 804,841-844
+  s_4af6b9f11fbe3c::t_822eab32e2e7a0 33-38,144-151,525-528
+spec/contracts/telemetry-v1.md
+  s_4af6b9f11fbe3c::t_7b5838dbc6b2ab 57-58
+  s_4af6b9f11fbe3c::t_b581d172423f95 59-62
+  s_4af6b9f11fbe3c::t_aa4c3a26198074 41-42
+  s_4af6b9f11fbe3c::t_822eab32e2e7a0 1-40,48-56,63-73
+  s_4af6b9f11fbe3c::t_618ee86f7b9dbc 43-47
+docs/audits/2026-09-06-observability-review.md
+  s_4af6b9f11fbe3c::t_974e70a9e8dad5 63-65,67-71,113-118
+  s_4af6b9f11fbe3c::t_7b5838dbc6b2ab 31
+  s_4af6b9f11fbe3c::t_62737b9ce8456b 27
+  s_4af6b9f11fbe3c::t_3095353eb958dc 85-102,119-123
+  s_4af6b9f11fbe3c::t_6ba70ef5aa5876 110-112
+  s_4af6b9f11fbe3c::t_618ee86f7b9dbc 29-30,103-109
+  s_4af6b9f11fbe3c::t_2b15a333e93bcb 1-26,28,32-62,66,72-84
+Tests/MacParakeetTests/Audio/AudioCaptureDiagnosticsTests.swift
+  s_4af6b9f11fbe3c::t_368121411f0304 47,57,61-71
+  s_4af6b9f11fbe3c::t_09787cc39eb60f 170-171,197-204
+  s_4af6b9f11fbe3c::t_4727df1543c3d0 2,27,168-169,183-196,205-234
+  s_4af6b9f11fbe3c::t_ee6264638898a6 48-56,58-60,72-73,91-167,172-182,235-243
+integrations/README.md
+  s_4af6b9f11fbe3c::t_822eab32e2e7a0 697-699
+Sources/MacParakeetCore/Audio/AudioCaptureDiagnostics.swift
+  s_4af6b9f11fbe3c::t_129d760721fc04 68-72
+  s_4af6b9f11fbe3c::t_4727df1543c3d0 2,130-132,140-147,149,154-156,161-169,171-178
+  s_4af6b9f11fbe3c::t_7a87cd2b1ef60b 8-9,91-92,94-95,99-122,127-129,133-139,181-182,189-191
+  s_4af6b9f11fbe3c::t_7ce161d70132c8 123-124
+  s_4af6b9f11fbe3c::t_ee6264638898a6 66-67
+  s_4af6b9f11fbe3c::t_7230163522ff41 125-126
+spec/adr/012-telemetry-system.md
+  s_4af6b9f11fbe3c::t_822eab32e2e7a0 49-50
+Sources/MacParakeetCore/Services/Telemetry/TelemetryService.swift
+  s_4af6b9f11fbe3c::t_2cffa5a67bb530 152-153,178,230-231
+  s_4af6b9f11fbe3c::t_102f2745066ff8 49,51,154-156,176-177,179,194,200,202-206,221,223-229,236,239,241,244,247-248,250-253,257-269,314,326-328,336,347-348
+  s_4af6b9f11fbe3c::t_182d83f47fcc53 50
+  s_4af6b9f11fbe3c::t_b746430dc596d6 145,151,171,219,222
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_4af6b9f11fbe3c::t_fb430015158a93 135,331,1554,1580-1587
+  s_4af6b9f11fbe3c::t_9beffb747aa011 283,421,426-431,535-542,761-768
+  s_4af6b9f11fbe3c::t_c22a33ce7cf734 383,406,433,569
+Sources/CLI/Commands/CLITelemetry.swift
+  s_4af6b9f11fbe3c::t_950b9c66eacf91 257-259
+Sources/MacParakeetCore/Audio/DiagnosticLogScope.swift
+  s_4af6b9f11fbe3c::t_090f9db1a05cf4 130-132,145-146
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_4af6b9f11fbe3c::t_5c0a60a8bfafab 584-586,1158-1159,1236-1237,1296-1297,1301-1302,1306-1307,1311-1312,1316-1317,1473-1474,1476,1478,1505-1506,1601-1602,1660-1661,1698-1701,1705,1932
+Tests/CLITests/CLITelemetryTests.swift
+  s_4af6b9f11fbe3c::t_9cc1890717d570 8-21
+Tests/MacParakeetTests/Audio/DiagnosticLogScopeTests.swift
+  s_4af6b9f11fbe3c::t_08846cab68b9a9 162,167,171-172,180-194
+scripts/dev/query_audio_diagnostics.py
+  s_4af6b9f11fbe3c::t_fb58787506dc7d 1-209
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "443c4efe40429a1a8d689b300484bddd7a98ce1d",
+  "prompts": {},
+  "sessions": {
+    "s_4af6b9f11fbe3c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07595-d861-7b30-be95-3479ddf4c4a7",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
