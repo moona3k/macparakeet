@@ -1,0 +1,118 @@
+Sources/CLI/CHANGELOG.md
+  h_2ab1f47fea2ced 92-108,111-121
+Sources/CLI/Commands/CardsCommand.swift
+  h_2ab1f47fea2ced 204-209,227-239,257-274
+Sources/CLI/Commands/MeetingsCommand.swift
+  h_2ab1f47fea2ced 771,790
+Sources/CLI/Commands/PromptsCommand.swift
+  h_2ab1f47fea2ced 400,448,452-453,457,459,461-462,464-472,475-478,480,482-483,485-486,491-493,495-496,515-532
+Sources/MacParakeet/Views/Transcription/PromptLibraryView.swift
+  h_2ab1f47fea2ced 60-61,143,150,152,165-168,171,235-241,255-257,283,296-298,305-311,317,432,438,456-461,464,466,482-484,507,509,511-549,557-561,564,566,568,590-592,602-755,759,814
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  h_2ab1f47fea2ced 2669-2683
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  h_2ab1f47fea2ced 1355-1369
+Sources/MacParakeetCore/Database/PromptRepository.swift
+  h_2ab1f47fea2ced 32-34,98,122,166,171-178
+Sources/MacParakeetCore/Database/PromptResultRepository.swift
+  h_2ab1f47fea2ced 41-43,49-51
+Sources/MacParakeetCore/Models/LLMResult.swift
+  h_2ab1f47fea2ced 28,36-37,45,73-79,81,86-88,107-108
+Sources/MacParakeetCore/Models/LLMTypes.swift
+  h_2ab1f47fea2ced 134-135,137-140,148-149,151-154,159-160,162-165,171-211,253,261-262,270-296,298-306
+Sources/MacParakeetCore/Models/Prompt.swift
+  h_2ab1f47fea2ced 37-42,62-63,78,437
+Sources/MacParakeetCore/Models/PromptInferenceSettings.swift
+  h_2ab1f47fea2ced 1-351
+Sources/MacParakeetCore/Models/PromptResult.swift
+  h_2ab1f47fea2ced 28-31,43,54,64-65
+Sources/MacParakeetCore/Services/LLM/AnthropicLLMHTTPAdapter.swift
+  h_2ab1f47fea2ced 52-53,145-250,286,321-324,327-329,353
+Sources/MacParakeetCore/Services/LLM/InProcessLLMClient.swift
+  h_2ab1f47fea2ced 48-52,67-68,98-126,226,591-592
+Sources/MacParakeetCore/Services/LLM/LLMClient.swift
+  h_2ab1f47fea2ced 24-29,79-119,180-195
+Sources/MacParakeetCore/Services/LLM/LLMHTTPTransport.swift
+  h_2ab1f47fea2ced 18-23,525-542
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  h_2ab1f47fea2ced 34-43,86-151,171-178,476-487,501,503-523,539-543,554,556,579,581,925-963,993-1000,1004-1005,1009-1028,1030-1031,1335-1360,1364-1365,1367
+Sources/MacParakeetCore/Services/LLM/LocalCLILLMClient.swift
+  h_2ab1f47fea2ced 18,28-31,62-88
+Sources/MacParakeetCore/Services/LLM/OllamaLLMHTTPAdapter.swift
+  h_2ab1f47fea2ced 4-5,19,31-36,59-60,72-77,98-101,104-106,143-242,257,260,277,282-289
+Sources/MacParakeetCore/Services/LLM/OpenAICompatibleLLMHTTPAdapter.swift
+  h_2ab1f47fea2ced 47-48,129-218,277,312,314-325,342,344-345,348-353,371,423-439,509-514,534,536-537,540,545-553,591,593,604-609
+Sources/MacParakeetCore/Services/LLM/RoutingLLMClient.swift
+  h_2ab1f47fea2ced 47-58
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingArtifactStore.swift
+  h_2ab1f47fea2ced 444,456
+Sources/MacParakeetViewModels/PromptResultsViewModel.swift
+  h_2ab1f47fea2ced 32-35,51,63,162-175,364-365,473,502,504-505,507-514,520-526,540-543,563,637-638
+Sources/MacParakeetViewModels/PromptsViewModel.swift
+  h_2ab1f47fea2ced 7-59,67-80,122-131,139-140,148-149,158,174-186,191,198-199,207-274,355-483
+Tests/CLITests/CardsCommandTests.swift
+  h_2ab1f47fea2ced 129-159
+Tests/CLITests/MeetingsCommandTests.swift
+  h_2ab1f47fea2ced 189-195,198-215
+Tests/CLITests/PromptsCommandTests.swift
+  h_2ab1f47fea2ced 8-41,273-279,290,328-334,351
+Tests/MacParakeetTests/Database/DatabaseManagerTests.swift
+  h_2ab1f47fea2ced 456-536
+Tests/MacParakeetTests/Database/PromptRepositoryTests.swift
+  h_2ab1f47fea2ced 106-231,269-270,272,286-288,330-331,341,343,347-349,374,380-381,395,401-431,476,495-500,610-618
+Tests/MacParakeetTests/Database/PromptResultRepositoryTests.swift
+  h_2ab1f47fea2ced 5,10,46-128
+Tests/MacParakeetTests/Models/LLMResultTests.swift
+  h_2ab1f47fea2ced 27-38,69-104
+Tests/MacParakeetTests/Models/PromptInferenceSettingsTests.swift
+  h_2ab1f47fea2ced 1-319
+Tests/MacParakeetTests/Services/LLM/InProcessLLMClientTests.swift
+  h_2ab1f47fea2ced 306,356,421,428,477-509,865-882
+Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift
+  h_2ab1f47fea2ced 356-362,374-505,580-661,703-780,792,809-1234,1420-1429,1455-1472,1502-1508
+Tests/MacParakeetTests/Services/LLM/LLMServiceTests.swift
+  h_2ab1f47fea2ced 42-43,69-97,498-631,963-1052,1092-1127
+Tests/MacParakeetTests/Services/LLM/LocalCLILLMClientTests.swift
+  h_2ab1f47fea2ced 89-115
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingArtifactStoreTests.swift
+  h_2ab1f47fea2ced 49-53,179-183
+Tests/MacParakeetTests/ViewModels/PromptResultsViewModelTests.swift
+  h_2ab1f47fea2ced 62,124-214,798-800,1006-1007,1029-1030,1037-1038
+Tests/MacParakeetTests/ViewModels/PromptsViewModelTests.swift
+  h_2ab1f47fea2ced 35-111,188-242
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  h_2ab1f47fea2ced 810-811,823,861-876,967-1011
+integrations/README.md
+  h_2ab1f47fea2ced 478-492,543-545
+plans/README.md
+  h_2ab1f47fea2ced 34
+plans/active/2026-09-03-per-prompt-inference-settings.md
+  h_2ab1f47fea2ced 1-480
+spec/01-data-model.md
+  h_2ab1f47fea2ced 390-391,405-417,435,447-455,901,930,1329-1330
+spec/11-llm-integration.md
+  h_2ab1f47fea2ced 195-196,200-201,224,246-303,340-349,655
+spec/12-processing-layer.md
+  h_2ab1f47fea2ced 121,143-144,161,176,186-200,385-387,389
+spec/14-per-prompt-inference-settings.md
+  h_2ab1f47fea2ced 1-360
+spec/README.md
+  h_2ab1f47fea2ced 26
+spec/adr/013-prompt-library-multi-summary.md
+  h_2ab1f47fea2ced 9,57-85
+spec/contracts/cli-json-v1.md
+  h_2ab1f47fea2ced 84-87,95-119
+spec/contracts/meeting-artifacts-v1.md
+  h_2ab1f47fea2ced 98-110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "fb5dee06c881d72284321e83d7c7f316499d2833",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
