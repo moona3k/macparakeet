@@ -136,6 +136,18 @@ public final class LocalCLIConfigStore: @unchecked Sendable {
         defaults.set(data, forKey: Self.configKey)
     }
 
+    /// Prepare the CLI payload before switching the active provider. After
+    /// provider persistence succeeds, only the nonthrowing defaults write remains.
+    public func save(
+        _ config: LocalCLIConfig,
+        providerConfig: LLMProviderConfig,
+        configStore: any LLMConfigStoreProtocol
+    ) throws {
+        let data = try JSONEncoder().encode(config)
+        try configStore.saveConfig(providerConfig)
+        defaults.set(data, forKey: Self.configKey)
+    }
+
     public func delete() {
         defaults.removeObject(forKey: Self.configKey)
     }

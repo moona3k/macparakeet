@@ -1734,19 +1734,17 @@ struct SettingsView: View {
         }
     }
 
-    /// AI tab is opt-in, so this never returns `.required`. We only show
-    /// signal when there is something actionable: yellow when the last
-    /// connection test failed, green when a saved setup exists and nothing is
-    /// currently broken. Silent in the not-yet-configured state because the
-    /// card body already explains the empty case.
+    /// Reflect the same saved-versus-draft status as the AI settings body.
+    /// AI remains opt-in, so a missing configuration is never required.
     private var aiProviderCardStatus: SettingsCardStatus? {
-        if case .error = llmSettingsViewModel.connectionTestState {
+        switch llmSettingsViewModel.setupStatus {
+        case .cannotConnect:
             return SettingsCardStatus(.recommended, label: "Last test failed")
-        }
-        if llmSettingsViewModel.isConfigured {
+        case .ready:
             return SettingsCardStatus(.ok, label: "Ready")
+        case .setUpNeeded:
+            return nil
         }
-        return nil
     }
 
     // MARK: - Storage

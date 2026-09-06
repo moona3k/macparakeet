@@ -247,7 +247,9 @@ public final class LLMSettingsViewModel {
     }
 
     public var setupStatus: AISetupStatus {
-        if case .error(let message) = connectionTestState {
+        if case .error(let message) = connectionTestState,
+            !isConfigured || !hasUnsavedChanges
+        {
             let displayName = draftAIOptionDisplayName ?? savedAIOptionDisplayName ?? "AI"
             return .cannotConnect(displayName: displayName, message: message)
         }
@@ -642,29 +644,27 @@ public final class LLMSettingsViewModel {
     public func saveConfiguration() {
         guard let configStore else { return }
         guard draft.providerID != nil else {
-            clearConfiguration()
-            saveState = .saved
+            clearConfiguration(finalSaveState: .saved)
             return
         }
         do {
             guard let config = try buildConfig(from: draft) else { return }
-            try configStore.saveConfig(config)
-
-            // Save CLI config separately when using Local CLI
-            if draft.providerID == .localCLI {
-                let cliConfig = LocalCLIConfig(
+            let cliConfig = draft.providerID == .localCLI
+                ? LocalCLIConfig(
                     commandTemplate: draft.trimmedCommandTemplate,
                     timeoutSeconds: draft.cliTimeoutSeconds
-                )
-                try cliConfigStore?.save(cliConfig)
+                ) : nil
+            if let cliConfig {
+                guard let cliConfigStore else { throw LocalCLIError.commandNotConfigured }
+                try cliConfigStore.save(cliConfig, providerConfig: config, configStore: configStore)
+            } else {
+                try configStore.saveConfig(config)
             }
 
-            let persistedPrompt = persistAIFormatterPreferences(from: draft)
-            if draft.aiFormatterPrompt != persistedPrompt {
-                var normalizedDraft = draft
-                normalizedDraft.aiFormatterPrompt = persistedPrompt
-                draft = normalizedDraft
-            }
+            _ = persistAIFormatterPreferences(from: draft)
+            // Rehydrate the exact committed payload, without a fallible credential
+            // reread or restarting discovery after the save has already succeeded.
+            loadCommittedDraft(config, cliConfig: cliConfig, suggestedModels: availableModels)
 
             saveState = .saved
             inProcessModelManager.refreshSelectionState()
@@ -708,19 +708,25 @@ public final class LLMSettingsViewModel {
     }
 
     public func clearConfiguration() {
+        clearConfiguration(finalSaveState: .idle)
+    }
+
+    private func clearConfiguration(finalSaveState: SaveState) {
         guard let configStore else { return }
-        // Use the persisted provider to decide what to delete. The draft may
-        // point at an unsaved provider switch in Settings.
+        // Provider lookup only controls optional CLI cleanup. The store's
+        // deletion boundary can also recover undecodable provider metadata.
         let storedProviderID = (try? configStore.loadConfig())?.id
-        let preservedCLIConfig =
-            draft.providerID == .localCLI && storedProviderID != .localCLI
-            ? cliConfigStore?.load()
-            : nil
         do {
             try configStore.deleteConfig()
         } catch {
             logger.error("Failed to delete LLM configuration error=\(error.localizedDescription, privacy: .public)")
+            saveState = .error(error.localizedDescription)
+            return
         }
+        let preservedCLIConfig =
+            draft.providerID == .localCLI && storedProviderID != .localCLI
+            ? cliConfigStore?.load()
+            : nil
         if storedProviderID == .localCLI {
             cliConfigStore?.delete()
         }
@@ -753,7 +759,7 @@ public final class LLMSettingsViewModel {
             resetDiscoveredModels()
         }
         connectionTestState = .idle
-        saveState = .idle
+        saveState = finalSaveState
         inProcessModelManager.refreshSelectionState()
         onConfigurationChanged?()
     }
@@ -1163,14 +1169,7 @@ public final class LLMSettingsViewModel {
             return
         }
         let cliConfig = config.id == .localCLI ? cliConfigStore?.load() : nil
-        draft = .fromStoredConfig(
-            config,
-            suggestedModels: Self.suggestedModels(for: config.id),
-            defaultModelName: Self.defaultModelName(for: config.id),
-            defaultBaseURL: Self.defaultBaseURL(for: config.id),
-            cliConfig: cliConfig,
-            aiFormatterPrompt: Self.loadStoredAIFormatterPrompt(from: defaults)
-        )
+        loadCommittedDraft(config, cliConfig: cliConfig, suggestedModels: Self.suggestedModels(for: config.id))
         if Self.usesDiscoveredModelList(config.id) {
             refreshAvailableModels()
         } else {
@@ -1178,6 +1177,21 @@ public final class LLMSettingsViewModel {
         }
         connectionTestState = .idle
         saveState = .idle
+    }
+
+    private func loadCommittedDraft(
+        _ config: LLMProviderConfig,
+        cliConfig: LocalCLIConfig?,
+        suggestedModels: [String]
+    ) {
+        draft = .fromStoredConfig(
+            config,
+            suggestedModels: suggestedModels,
+            defaultModelName: Self.defaultModelName(for: config.id),
+            defaultBaseURL: Self.defaultBaseURL(for: config.id),
+            cliConfig: cliConfig,
+            aiFormatterPrompt: Self.loadStoredAIFormatterPrompt(from: defaults)
+        )
     }
 
     private func buildConfig(from draft: LLMSettingsDraft) throws -> LLMProviderConfig? {

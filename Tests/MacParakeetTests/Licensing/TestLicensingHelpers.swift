@@ -3,16 +3,20 @@ import Foundation
 
 final class InMemoryKeyValueStore: KeyValueStore, @unchecked Sendable {
     private var values: [String: String] = [:]
+    var setError: Error?
+    var deleteError: Error?
 
     func getString(_ key: String) throws -> String? {
         values[key]
     }
 
     func setString(_ value: String, forKey key: String) throws {
+        if let setError { throw setError }
         values[key] = value
     }
 
     func delete(_ key: String) throws {
+        if let deleteError { throw deleteError }
         values.removeValue(forKey: key)
     }
 }
