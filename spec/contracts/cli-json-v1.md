@@ -79,6 +79,11 @@ with human progress/status kept off stdout.
   prompt/completion/total token totals, explicit `estimatedCostUSD: null`, and
   per-recording failures. Human progress remains on stderr. Any failed item
   makes the command exit `1` after emitting the aggregate report.
+  Token accumulators that overflow remain `null` for the rest of the batch;
+  later receipts cannot restart a misleading partial total. An individual
+  receipt whose component sum overflowed also makes the batch total unknown.
+  An explicit receipt total takes precedence; when it is absent and both
+  component counts exist, their checked sum contributes to the batch total.
   For `--stale`, `selected` is the prefiltered missing/stale subset, not every
   completed transcription. Successful backfills also rebuild `cards_fts`.
 - `--envelope` success output uses `{ ok, command, data, meta }` and does not
@@ -88,6 +93,44 @@ with human progress/status kept off stdout.
   (`is_built_in`, `created_at`), which predates this convention; its keys are
   frozen for v1 and would only change at a major boundary. New commands use
   camelCase.
+- `prompts list/show --json` prompt objects, and prompt objects returned by
+  `prompts set --json`, include additive optional `inferenceSettings`. When
+  present it is an object with optional `temperature`, `topP`, `topK`, and
+  `maxTokens`, plus `thinkingMode` (`providerDefault`, `enabled`,
+  or `disabled`) and optional `reasoningEffort` (`low`, `medium`, `high`, or
+  `xhigh`). Reasoning effort is normalized away unless thinking is enabled.
+  This value records the prompt's request; it does not prove
+  that every field is supported by the provider selected for a later run.
+- The same prompt JSON objects include additive Boolean
+  `includeMeetingNotes`, the result prompt's automatic meeting-notes context
+  preference. Its default is `false`. The `--include-meeting-notes` flag on
+  `prompts set <prompt>` enables it and `--no-include-meeting-notes` disables
+  it; the flags are mutually exclusive and rejected for Transform prompts.
+  Explicit `{{userNotes}}` custom-template substitution remains
+  independent of this preference.
+- LLM result JSON envelopes include additive optional `effectiveSettings` with
+  the same object shape. For `prompts run --json`, a present value is the
+  normalized adapter receipt after provider/model filtering. Absence means no
+  effective receipt is available; callers must not reinterpret it as raw
+  upstream-provider defaults. Other LLM commands omit it because per-prompt
+  settings do not apply to them.
+- LLM receipts never infer a normal `stopReason` when the runtime supplies no
+  finish reason. Local CLI omits `effectiveSettings`, because inference options
+  are not passed to its command. Token usage may derive `totalTokens` from both
+  component counts when the provider omits the total. A missing component or
+  arithmetic overflow leaves the derived total unknown; available components
+  remain unchanged. Explicit streaming
+  provider errors fail the operation even after partial text; they do not
+  produce a successful result receipt.
+- `meetings results list|add --json` prompt-result objects include additive
+  optional `inferenceSettingsSnapshot` with the same settings shape. When
+  present it is the effective receipt stored with the result; imported results
+  created by `meetings results add` omit it.
+- Saved prompt-result JSON objects include additive Boolean
+  `includeMeetingNotesSnapshot`, the automatic-context preference captured for
+  that generation. `false` covers migrated and externally imported results.
+  Nullable `userNotesSnapshot` contains the exact normalized, bounded notes
+  value supplied to prompt assembly, not necessarily the full canonical note.
 - `meetings show --json` and `meetings transcript --format json` expose
   `transcriptSegments` when the meeting row has durable segments. Each segment
   contains `id`, `startMs`, `endMs`, `speakerId`, `speakerLabel`, `text`, and

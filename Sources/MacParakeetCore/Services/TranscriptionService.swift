@@ -1886,6 +1886,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService, Aud
         diarizationApplied: Bool,
         persistResult: Bool = true
     ) async throws -> Transcription {
+        let originalFileName = transcription.fileName
         let mode = processingMode()
         var customWords: [CustomWord] = []
         var snippets: [TextSnippet] = []
@@ -1962,7 +1963,9 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService, Aud
                 logger.error("segment_invalidation_failed id=\(transcriptionID, privacy: .public) reindex_needed=true action=search-reindex error=\(error.localizedDescription, privacy: .public)")
                 throw error
             }
-            try transcriptionRepo.save(transcription)
+            transcription = try transcriptionRepo.savePreservingUserMetadata(
+                transcription, originalFileName: originalFileName
+            )
             do {
                 if let knowledgeLayerMutator {
                     try knowledgeLayerMutator.replaceSegmentsAndInvalidateCard(

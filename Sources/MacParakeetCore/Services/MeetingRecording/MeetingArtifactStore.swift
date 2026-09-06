@@ -441,6 +441,8 @@ private struct MeetingArtifactPromptResult: Codable {
     let extraInstructions: String?
     let content: String
     let userNotesSnapshot: String?
+    let includeMeetingNotesSnapshot: Bool
+    let inferenceSettingsSnapshot: PromptInferenceSettings?
     let createdAt: Date
     let updatedAt: Date
 
@@ -452,6 +454,8 @@ private struct MeetingArtifactPromptResult: Codable {
         extraInstructions = result.extraInstructions
         content = result.content
         userNotesSnapshot = result.userNotesSnapshot
+        includeMeetingNotesSnapshot = result.includeMeetingNotesSnapshot
+        inferenceSettingsSnapshot = result.inferenceSettingsSnapshot
         createdAt = result.createdAt
         updatedAt = result.updatedAt
     }
@@ -463,6 +467,7 @@ private struct MeetingArtifactPromptResult: Codable {
         - Meeting: \(meetingTitle)
         - Result ID: \(id.uuidString)
         - Created: \(Self.isoString(createdAt))
+        - Automatic meeting notes context: \(includeMeetingNotesSnapshot ? "enabled" : "disabled")
         """)
         sections.append("## Output\n\n\(content.trimmingCharacters(in: .whitespacesAndNewlines))")
         if let extra = extraInstructions?.trimmingCharacters(in: .whitespacesAndNewlines), !extra.isEmpty {

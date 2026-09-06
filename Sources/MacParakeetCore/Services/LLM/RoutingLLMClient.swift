@@ -44,6 +44,18 @@ public final class RoutingLLMClient: LLMClientProtocol, Sendable {
         client(for: context).chatCompletionStream(messages: messages, context: context, options: options)
     }
 
+    public func chatCompletionDetailedStream(
+        messages: [ChatMessage],
+        context: LLMExecutionContext,
+        options: ChatCompletionOptions
+    ) -> AsyncThrowingStream<LLMStreamEvent, Error> {
+        client(for: context).chatCompletionDetailedStream(
+            messages: messages,
+            context: context,
+            options: options
+        )
+    }
+
     public func testConnection(context: LLMExecutionContext) async throws {
         try await client(for: context).testConnection(context: context)
     }

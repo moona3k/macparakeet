@@ -460,6 +460,14 @@ equivalent one-based `transcribe --audio-track N` flag for local files/folders,
 where it applies explicitly to every expanded file; URL and podcast lanes
 reject the flag.
 
+**Metadata during retranscription:** Saving notes, renaming a meeting,
+changing its favorite/title override, and
+updating legacy chat while STT is running must survive completion. The final
+transaction preserves the latest user metadata and returns the committed row
+for GUI publication and derived artifacts; it does not restore the metadata
+snapshot taken when the job started. Retranscription still replaces the speech
+output, engine attribution, and derived search content.
+
 **Apple Podcasts URL transcription:** Pasting an Apple Podcasts link
 (`podcasts.apple.com/.../id<show>?i=<episode>`) resolves the episode through
 the public iTunes lookup API to its audio enclosure URL plus episode title,
@@ -1701,11 +1709,70 @@ final transcripts remain plain text without word timestamps or speaker labels.
 **What still ships:**
 - [x] `PromptTemplateRenderer` supports `{{userNotes}}` and `{{transcript}}` substitution; single-pass and simultaneous to prevent injection via user notes containing `{{transcript}}` literals
 - [x] Variable names are case-sensitive; canonical lowercase (typos fall through to empty-string fallback rather than silently producing empty output)
-- [x] `Summary` row (PromptResult) gains `userNotesSnapshot: String?` — the value of `userNotes` at the moment of summary generation, captured alongside the existing prompt snapshot per ADR-013
+- [x] `Summary` row (PromptResult) gains `userNotesSnapshot: String?`; the
+  original implementation captured the row value at generation time. The
+  in-progress replacement tightens it to the exact bounded notes value actually
+  supplied to assembly.
 
 **Reverted:**
 - [x] "Memo-Steered Notes" prompt removed from `Prompt.builtInPrompts()` and `community-prompts.json`; reconciler deletes the row on next launch for any DB that has it from a prior build
 - [x] Auto-run insertion guard from ADR-020 §5 is still tested via `Summary` (the remaining auto-run built-in) — the mechanism is intact and ready for the next prompt that needs it
+
+#### Replacement: saved notes + per-prompt opt-in context
+
+> Status: **IMPLEMENTED AND LOCALLY VERIFIED (2026-09-05)** — release
+> availability follows the normal channel process.
+
+The replacement does not restore a dedicated memo-steered built-in or enable
+notes automatically. Every saved meeting exposes a dedicated, always-editable
+`Notes` tab after `Transcript`. Changes auto-save after a 500 ms idle debounce,
+with Saving/Saved/Error feedback and Retry. This keeps the user-authored
+editorial layer separate from the factual transcript. Notes are backed by
+canonical `transcriptions.userNotes`; blank saves become `NULL` and refresh the
+derived meeting artifacts. Non-meeting transcriptions do not expose the tab.
+Each meeting keeps its own editor. Unsaved drafts remain available after a
+selection change or window close; an unsuccessful save cannot bind the next
+meeting to the previous meeting's notes. Normal app termination waits for all
+pending saved-meeting notes before proceeding with any live-recording quit
+confirmation. A save failure cancels quit and offers Retry or Keep Open.
+If a successful database read confirms the meeting was deleted, including
+through the CLI, its pending draft no longer blocks quit. Database read errors
+keep the draft and continue to block quit. A still-open deleted meeting keeps
+the draft readable for copying and labels it as unsaved to the deleted meeting.
+Every result prompt, including read-only built-ins, exposes an
+**Include meeting notes as context** checkbox. It defaults off for all existing
+and new prompts and is not available for Transforms.
+
+When enabled, non-empty notes are added once as a delimited context block and
+the transcript remains the factual source of truth. Advanced custom prompts
+may continue to place notes explicitly with case-sensitive `{{userNotes}}`,
+even when the checkbox is off; enabling the checkbox cannot duplicate that
+content. Empty notes preserve the previous assembled prompt byte-for-byte.
+Chat/Ask remains unchanged and keeps using the latest committed notes at send
+time without a checkbox.
+
+The additive schema stores
+`prompts.includeMeetingNotes` and
+`summaries.includeMeetingNotesSnapshot`, both non-null and default false.
+`userNotesSnapshot` stores the exact bounded notes value supplied to prompt
+assembly. The public CLI mirrors the setting on `prompts set` with
+`--include-meeting-notes` / `--no-include-meeting-notes` and additive JSON
+fields.
+
+**Acceptance criteria:**
+
+- [x] Saved meetings expose an always-editable Notes tab with debounced
+  autosave, flush-before-LLM behavior, Retry, and separate artifact warnings.
+- [x] Rapid saves leave derived artifacts at the newest committed DB value.
+- [x] Prompt checkbox works independently for built-in and custom result prompts; existing prompts stay opted out.
+- [x] The shared GUI/CLI assembler follows the empty/off/token/no-duplication decision table from ADR-020.
+- [x] Queue, retry, regenerate, and saved-result snapshots remain reproducible.
+- [x] Focused tests pass.
+- [ ] Manual end-to-end app verification is still required before release.
+- [ ] Current integrated full-suite validation is not green: the 2026-09-06
+  audit recorded one long-transcript layout-settling failure. Its isolated
+  eight-test rerun and the subsequent focused correction suites passed; the
+  full suite was not repeated under the once-per-task rule.
 
 ### F38: Slash Commands in Notes
 

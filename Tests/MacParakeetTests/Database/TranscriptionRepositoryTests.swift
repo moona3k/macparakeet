@@ -29,6 +29,81 @@ final class TranscriptionRepositoryTests: XCTestCase {
         XCTAssertEqual(fetched?.language, "en")
     }
 
+    func testCompletionDoesNotRecreateDeletedRecording() throws {
+        let original = Transcription(fileName: "Deleted meeting", sourceType: .meeting)
+        try repo.save(original)
+        XCTAssertTrue(try repo.delete(id: original.id))
+        XCTAssertThrowsError(try repo.savePreservingUserMetadata(original, originalFileName: original.fileName)) {
+            XCTAssertEqual($0 as? TranscriptionCompletionError, .recordingDeleted)
+        }
+        XCTAssertNil(try repo.fetch(id: original.id))
+    }
+
+    func testCompletionPreservesClearedAndReplacedAudioPaths() throws {
+        for currentPath in [nil, "/tmp/relocated/audio.m4a"] as [String?] {
+            let original = Transcription(
+                fileName: "Meeting", filePath: "/tmp/old/audio.m4a", sourceType: .meeting
+            )
+            try repo.save(original)
+            try repo.updateFilePath(id: original.id, filePath: currentPath)
+            let saved = try repo.savePreservingUserMetadata(original, originalFileName: original.fileName)
+            XCTAssertEqual(saved.filePath, currentPath)
+            XCTAssertEqual(try repo.fetch(id: original.id)?.filePath, currentPath)
+        }
+    }
+
+    func testCompletionMergePreservesClearedMetadataAndReturnsCommittedRow() throws {
+        var original = Transcription(
+            fileName: "Meeting", status: .completed, isFavorite: true,
+            sourceType: .meeting, userNotes: "Old notes"
+        )
+        try repo.save(original)
+        try repo.updateUserNotes(id: original.id, userNotes: nil)
+        try repo.updateFavorite(id: original.id, isFavorite: false)
+        original.rawTranscript = "Replacement transcript"
+        let saved = try repo.savePreservingUserMetadata(original, originalFileName: original.fileName)
+        let persisted = try XCTUnwrap(repo.fetch(id: original.id))
+        for snapshot in [saved, persisted] {
+            XCTAssertNil(snapshot.userNotes)
+            XCTAssertFalse(snapshot.isFavorite)
+            XCTAssertEqual(snapshot.rawTranscript, "Replacement transcript")
+        }
+    }
+
+    func testCompletionMergePreservesClearedFileTitle() throws {
+        let original = Transcription(fileName: "interview.wav", titleOverride: "Old title")
+        try repo.save(original)
+        try repo.updateTitleOverride(id: original.id, titleOverride: nil)
+        let saved = try repo.savePreservingUserMetadata(original, originalFileName: original.fileName)
+        XCTAssertNil(saved.titleOverride)
+        XCTAssertNil(try repo.fetch(id: original.id)?.titleOverride)
+    }
+
+    func testCompletionMergeDoesNotMoveUpdatedAtBehindConcurrentEdit() throws {
+        let completedAt = Date(timeIntervalSince1970: 100)
+        let editedAt = Date(timeIntervalSince1970: 200)
+        let stale = Transcription(fileName: "Meeting", sourceType: .meeting, updatedAt: completedAt)
+        var edited = stale
+        edited.updatedAt = editedAt
+        edited.userNotes = "Latest notes"
+        try repo.save(edited)
+        let saved = try repo.savePreservingUserMetadata(stale, originalFileName: stale.fileName)
+        XCTAssertEqual(saved.updatedAt, editedAt)
+        XCTAssertEqual(try repo.fetch(id: stale.id)?.updatedAt, editedAt)
+    }
+
+    func testCompletionAllowsGeneratedMeetingTitleWhenOriginalNameIsUnchanged() throws {
+        let original = Transcription(fileName: "Meeting recording", sourceType: .meeting)
+        try repo.save(original)
+        var completed = original
+        completed.fileName = "Generated topic"
+        completed.derivedTitle = completed.fileName
+        completed.status = .completed
+        let saved = try repo.savePreservingUserMetadata(completed, originalFileName: original.fileName)
+        XCTAssertEqual(saved.fileName, "Generated topic")
+        XCTAssertEqual(try repo.fetch(id: original.id)?.fileName, "Generated topic")
+    }
+
     func testFetchNonExistent() throws {
         let fetched = try repo.fetch(id: UUID())
         XCTAssertNil(fetched)
@@ -431,11 +506,13 @@ final class TranscriptionRepositoryTests: XCTestCase {
     }
 
     func testUpdateUserNotesPreservesOtherFields() throws {
+        let oldUpdatedAt = Date(timeIntervalSince1970: 1_000)
         let transcription = Transcription(
             fileName: "Meeting Apr 5",
             rawTranscript: "Transcript",
             status: .completed,
-            sourceType: .meeting
+            sourceType: .meeting,
+            updatedAt: oldUpdatedAt
         )
         try repo.save(transcription)
 
@@ -445,6 +522,25 @@ final class TranscriptionRepositoryTests: XCTestCase {
         XCTAssertEqual(fetched.userNotes, "Decision: ship it")
         XCTAssertEqual(fetched.rawTranscript, "Transcript")
         XCTAssertEqual(fetched.sourceType, .meeting)
+        XCTAssertGreaterThan(fetched.updatedAt, oldUpdatedAt)
+    }
+
+    func testUpdateUserNotesCanClearNotes() throws {
+        let transcription = Transcription(
+            fileName: "Meeting Apr 5",
+            status: .completed,
+            sourceType: .meeting,
+            userNotes: "Decision: ship it"
+        )
+        try repo.save(transcription)
+
+        try repo.updateUserNotes(id: transcription.id, userNotes: nil)
+
+        XCTAssertNil(try XCTUnwrap(repo.fetch(id: transcription.id)).userNotes)
+    }
+
+    func testUpdateUserNotesReturnsFalseWhenRowIsMissing() throws {
+        XCTAssertFalse(try repo.updateUserNotes(id: UUID(), userNotes: "Unsaved"))
     }
 
     func testDelete() throws {

@@ -43,11 +43,13 @@ struct MeetingsCommand: AsyncParsableCommand {
         func run() async throws {
             try emitJSONOrRethrow(json: json || envelope) {
                 let repositories = try makeMeetingResultRepositories(database: database)
-                let meetings = try repositories.transcriptions.fetchLibraryPage(query: TranscriptionLibraryQuery(
+                let meetings = try repositories.transcriptions.fetchLibraryPage(
+                    query: TranscriptionLibraryQuery(
                     sourceType: .meeting,
                     limit: limit,
                     includeProcessing: true
-                )).items
+                    )
+                ).items
                 let promptResultCounts = try repositories.promptResults.counts(
                     transcriptionIds: meetings.map(\.id)
                 )
@@ -76,7 +78,9 @@ struct MeetingsCommand: AsyncParsableCommand {
                     let duration = meeting.durationMs.map(formatDuration) ?? "--"
                     let notes = meeting.hasNotes ? "notes" : "no notes"
                     let results = meeting.promptResultCount == 1 ? "1 result" : "\(meeting.promptResultCount) results"
-                    print("[\(formatDate(meeting.createdAt))] \(meeting.title) (\(duration)) [\(meeting.status)] [\(notes)] [\(results)]  (\(meeting.shortID))")
+                    print(
+                        "[\(formatDate(meeting.createdAt))] \(meeting.title) (\(duration)) [\(meeting.status)] [\(notes)] [\(results)]  (\(meeting.shortID))"
+                    )
                 }
             }
         }
@@ -246,10 +250,14 @@ struct MeetingsCommand: AsyncParsableCommand {
                     let repositories = try makeMeetingResultRepositories(database: database)
                     let transcription = try findMeeting(idOrName: meeting, repo: repositories.transcriptions)
                     let notes = try notesInput(text: text, stdin: stdin)
-                    try repositories.transcriptions.updateUserNotes(id: transcription.id, userNotes: normalizedNotes(notes))
+                    try repositories.transcriptions.updateUserNotes(
+                        id: transcription.id, userNotes: normalizedNotes(notes))
                     let updated = try repositories.transcriptions.fetch(id: transcription.id) ?? transcription
-                    let snapshot = await refreshMeetingArtifactBestEffort(transcription: updated, repositories: repositories)
-                    try emitNotesUpdate(MeetingNotesRecord(updated, artifact: snapshot), json: json, envelope: envelope, command: "meetings notes set")
+                    let snapshot = await refreshMeetingArtifactBestEffort(
+                        transcription: updated, repositories: repositories)
+                    try emitNotesUpdate(
+                        MeetingNotesRecord(updated, artifact: snapshot), json: json, envelope: envelope,
+                        command: "meetings notes set")
                 }
             }
         }
@@ -291,10 +299,14 @@ struct MeetingsCommand: AsyncParsableCommand {
                     let transcription = try findMeeting(idOrName: meeting, repo: repositories.transcriptions)
                     let addition = try notesInput(text: text, stdin: stdin)
                     let combined = appendedNotes(existing: transcription.userNotes, addition: addition)
-                    try repositories.transcriptions.updateUserNotes(id: transcription.id, userNotes: normalizedNotes(combined))
+                    try repositories.transcriptions.updateUserNotes(
+                        id: transcription.id, userNotes: normalizedNotes(combined))
                     let updated = try repositories.transcriptions.fetch(id: transcription.id) ?? transcription
-                    let snapshot = await refreshMeetingArtifactBestEffort(transcription: updated, repositories: repositories)
-                    try emitNotesUpdate(MeetingNotesRecord(updated, artifact: snapshot), json: json, envelope: envelope, command: "meetings notes append")
+                    let snapshot = await refreshMeetingArtifactBestEffort(
+                        transcription: updated, repositories: repositories)
+                    try emitNotesUpdate(
+                        MeetingNotesRecord(updated, artifact: snapshot), json: json, envelope: envelope,
+                        command: "meetings notes append")
                 }
             }
         }
@@ -324,8 +336,11 @@ struct MeetingsCommand: AsyncParsableCommand {
                     let transcription = try findMeeting(idOrName: meeting, repo: repositories.transcriptions)
                     try repositories.transcriptions.updateUserNotes(id: transcription.id, userNotes: nil)
                     let updated = try repositories.transcriptions.fetch(id: transcription.id) ?? transcription
-                    let snapshot = await refreshMeetingArtifactBestEffort(transcription: updated, repositories: repositories)
-                    try emitNotesUpdate(MeetingNotesRecord(updated, artifact: snapshot), json: json, envelope: envelope, command: "meetings notes clear")
+                    let snapshot = await refreshMeetingArtifactBestEffort(
+                        transcription: updated, repositories: repositories)
+                    try emitNotesUpdate(
+                        MeetingNotesRecord(updated, artifact: snapshot), json: json, envelope: envelope,
+                        command: "meetings notes clear")
                 }
             }
         }
@@ -449,7 +464,8 @@ struct MeetingsCommand: AsyncParsableCommand {
                     guard let resultName = normalizedNonEmptyText(name) else {
                         throw ValidationError("--name must not be empty.")
                     }
-                    let promptSnapshot = normalizedNonEmptyText(promptContent)
+                    let promptSnapshot =
+                        normalizedNonEmptyText(promptContent)
                         ?? "External result imported with `macparakeet-cli meetings results add`."
                     let now = Date()
                     let promptResult = PromptResult(
@@ -458,7 +474,10 @@ struct MeetingsCommand: AsyncParsableCommand {
                         promptContent: promptSnapshot,
                         extraInstructions: normalizedNonEmptyText(extra),
                         content: resultContent,
-                        userNotesSnapshot: transcription.userNotes,
+                        // Imported output did not send meeting notes through
+                        // MacParakeet, so it has no effective-notes receipt.
+                        userNotesSnapshot: nil,
+                        includeMeetingNotesSnapshot: false,
                         createdAt: now,
                         updatedAt: now
                     )
@@ -572,7 +591,8 @@ struct MeetingsCommand: AsyncParsableCommand {
                     return
                 }
 
-                let outputURL = resolvedOutputURL(output, transcription: transcription, fileExtension: format.fileExtension)
+                let outputURL = resolvedOutputURL(
+                    output, transcription: transcription, fileExtension: format.fileExtension)
                 try FileManager.default.createDirectory(
                     at: outputURL.deletingLastPathComponent(),
                     withIntermediateDirectories: true
@@ -634,7 +654,8 @@ private struct MeetingListItem: Encodable {
         transcriptPreview = preview(transcript)
         let artifactFolder = MeetingArtifactStore.sessionFolderURL(for: transcription)
         artifactFolderPath = artifactFolder?.path
-        hasArtifactManifest = artifactFolder.map {
+        hasArtifactManifest =
+            artifactFolder.map {
             FileManager.default.fileExists(
                 atPath: $0.appendingPathComponent(MeetingArtifactStore.manifestFileName).path
             )
@@ -711,7 +732,8 @@ private struct MeetingRecord: Encodable {
         cleanedMicrophoneAudioPath = artifactPaths.cleanedMicrophoneAudioPath
         rawSystemAudioPath = artifactPaths.rawSystemAudioPath
         playbackAudioPath = artifactPaths.playbackAudioPath
-        hasArtifactManifest = artifactPaths.manifestPath.map {
+        hasArtifactManifest =
+            artifactPaths.manifestPath.map {
             FileManager.default.fileExists(atPath: $0)
         } ?? false
         startContext = transcription.meetingStartContext
@@ -768,6 +790,8 @@ private struct MeetingPromptResultRecord: Encodable {
     let extraInstructions: String?
     let content: String
     let userNotesSnapshot: String?
+    let includeMeetingNotesSnapshot: Bool
+    let inferenceSettingsSnapshot: PromptInferenceSettings?
     let createdAt: Date
     let updatedAt: Date
     let artifact: MeetingArtifactSnapshot?
@@ -786,6 +810,8 @@ private struct MeetingPromptResultRecord: Encodable {
         extraInstructions = result.extraInstructions
         content = result.content
         userNotesSnapshot = result.userNotesSnapshot
+        includeMeetingNotesSnapshot = result.includeMeetingNotesSnapshot
+        inferenceSettingsSnapshot = result.inferenceSettingsSnapshot
         createdAt = result.createdAt
         updatedAt = result.updatedAt
         self.artifact = artifact
@@ -871,7 +897,8 @@ private func normalizedNonEmptyText(_ value: String?) -> String? {
 
 private func preview(_ value: String?, maxLength: Int = 120) -> String? {
     guard let value = normalizedNotes(value) else { return nil }
-    let compact = value
+    let compact =
+        value
         .split(whereSeparator: \.isNewline)
         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         .filter { !$0.isEmpty }
@@ -951,7 +978,8 @@ private func exportContent(
             artifactPaths: artifactPaths
         )
     case .json:
-        let data = try cliJSONEncoder.encode(MeetingRecord(
+        let data = try cliJSONEncoder.encode(
+            MeetingRecord(
             transcription,
             promptResultCount: promptResults.count
         ))
@@ -986,14 +1014,16 @@ private func resolvedOutputURL(_ output: String?, transcription: Transcription, 
     if let output {
         return URL(fileURLWithPath: expandTilde(output))
     }
-    let baseName = sanitizedFileName(URL(fileURLWithPath: transcription.fileName).deletingPathExtension().lastPathComponent)
+    let baseName = sanitizedFileName(
+        URL(fileURLWithPath: transcription.fileName).deletingPathExtension().lastPathComponent)
     return URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         .appendingPathComponent("\(baseName).\(fileExtension)")
 }
 
 private func sanitizedFileName(_ value: String) -> String {
     let invalid = CharacterSet(charactersIn: "/:")
-    let cleaned = value
+    let cleaned =
+        value
         .components(separatedBy: invalid)
         .joined(separator: "-")
         .trimmingCharacters(in: .whitespacesAndNewlines)

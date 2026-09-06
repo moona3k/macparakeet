@@ -89,6 +89,27 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- `prompts set <prompt>` gains mutually exclusive `--include-meeting-notes`
+  and `--no-include-meeting-notes` flags for result prompts. Prompt JSON gains
+  additive Boolean `includeMeetingNotes`, and saved PromptResult JSON gains
+  additive Boolean `includeMeetingNotesSnapshot`. Both default to `false`;
+  Transform prompts reject the setting. Advanced custom prompts may still use
+  `{{userNotes}}` independently, and `prompts run` avoids duplicating notes
+  when both the token and checkbox are present.
+- Prompt JSON gains additive optional inference metadata. `prompts list/show`
+  (and prompt objects returned by `prompts set`) expose `inferenceSettings`
+  with optional `temperature`, `topP`, `topK`, `maxTokens`, and a
+  `thinkingMode` value, plus optional `reasoningEffort` (`low`, `medium`,
+  `high`, or `xhigh`) when thinking is enabled. LLM result envelopes,
+  including `prompts run --json`,
+  gain optional `effectiveSettings`; when present it reports the normalized
+  settings actually sent after provider/model filtering. Existing callers may
+  ignore both fields, and unset/legacy values omit them. Meeting result
+  JSON and materialized `prompt-results.json` also preserve that receipt as
+  additive optional `inferenceSettingsSnapshot`.
+
 ### Fixed
 
 - Local CLI output normalizes line endings: CRLF collapses to a single LF and

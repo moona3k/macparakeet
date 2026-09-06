@@ -155,6 +155,10 @@ private final class RecordingTranscriptionRepository: TranscriptionRepositoryPro
         return []
     }
 
+    func savePreservingUserMetadata(
+        _ transcription: Transcription, originalFileName: String
+    ) throws -> Transcription { throw TranscriptionCompletionError.recordingDeleted }
+
     func save(_ transcription: Transcription) throws {}
     func fetch(id: UUID) throws -> Transcription? { nil }
     func fetchAll(limit: Int?) throws -> [Transcription] { [] }

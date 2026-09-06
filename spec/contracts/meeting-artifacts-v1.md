@@ -13,6 +13,12 @@ related prompt results.
 For meeting rows, `transcriptions.meetingArtifactFolderPath` is the durable
 folder locator. `transcriptions.filePath` is only the mixed-audio
 playback/export path and may be cleared by user deletion or retention.
+Transcription completion preserves the current locator values, including clears,
+and aborts when the canonical recording was deleted during processing.
+
+If a notes write commits but its follow-up read fails, the app updates only notes
+in its loaded snapshots and keeps existing artifacts intact until a successful
+refresh can read current metadata. The saved draft is not reported as lost.
 
 Meeting rename refreshes artifacts from the row returned by the rename's
 database transaction, preserving its current transcript, notes, and folder
@@ -96,6 +102,17 @@ The v1 folder can contain these stable filenames:
 - `prompt-results/`: refreshed directory of per-result Markdown files.
 - `prompt-results/*.md`: filenames use a stable two-digit 1-based index prefix
   plus sanitized prompt-result name.
+
+Each `prompt-results.json` record preserves the prompt-result snapshots,
+including `userNotesSnapshot`, the additive Boolean
+`includeMeetingNotesSnapshot` (default `false` for legacy and imported rows),
+and optional `inferenceSettingsSnapshot`. The per-result Markdown view also
+states whether automatic meeting-notes context was enabled. When inference
+settings are present, they are the normalized effective
+provider/model-filtered receipt stored on the canonical database row. Their
+optional `reasoningEffort` is one of `low`, `medium`, `high`, or `xhigh` and
+appears only with enabled thinking; legacy and externally imported rows may
+omit it.
 
 New recordings write the role-explicit audio filenames above. For read
 compatibility with folders created before the in-place v1 audio filename

@@ -595,7 +595,7 @@ private extension CLISpecCommand {
         ),
         CLISpecCommand(
             ["prompts", "set"],
-            summary: "Toggle a result prompt's visibility or auto-run state.",
+            summary: "Configure a result prompt's visibility, auto-run, or meeting-note context.",
             readOnly: false,
             arguments: [.argument("prompt", summary: "Prompt ID, UUID prefix, or exact name.")],
             options: [
@@ -603,6 +603,12 @@ private extension CLISpecCommand {
                 CLISpecParameter.flag("--hidden", summary: "Hide the prompt and disable auto-run."),
                 CLISpecParameter.flag("--auto-run", summary: "Enable global auto-run."),
                 CLISpecParameter.flag("--no-auto-run", summary: "Disable auto-run."),
+                CLISpecParameter.flag(
+                    "--include-meeting-notes",
+                    summary: "Include meeting notes as additional context for this result prompt."),
+                CLISpecParameter.flag(
+                    "--no-include-meeting-notes",
+                    summary: "Disable automatic meeting-note context for this result prompt."),
                 CLISpecParameter.option(
                     "--source", valueName: "file|youtube|podcast|meeting",
                     summary: "Scope --auto-run/--no-auto-run to one source; omit for global all-source behavior."),

@@ -1,9 +1,56 @@
 # ADR-020: Live Meeting Notepad + Memo-Steered Summaries
 
-> Status: Partially Implemented (notepad + template plumbing shipped; "Memo-Steered Notes" built-in prompt reverted 2026-05-02)
-> Date: 2026-04-25 (proposed) · Amended 2026-04-25 (post-review) · Implemented 2026-04-25 (Phases 1–4) · Amended 2026-05-02 (Notes + Transcript tab badges dropped — all three tabs plain) · Amended 2026-05-02 ("Memo-Steered Notes" built-in prompt reverted)
+> Status: Implemented (live notepad, saved-note editing, template plumbing, and opt-in prompt context are locally verified; release availability follows the normal channel process)
+> Date: 2026-04-25 (proposed) · Amended 2026-04-25 (post-review) · Implemented 2026-04-25 (Phases 1–4) · Amended 2026-05-02 (Notes + Transcript tab badges dropped — all three tabs plain) · Amended 2026-05-02 ("Memo-Steered Notes" built-in prompt reverted) · Amended 2026-09-05 (saved-note editing + per-prompt opt-in context specified)
 > Related: ADR-013 (prompt library + multi-summary), ADR-014 (meeting recording), ADR-017 (calendar auto-start), ADR-018 (live meeting Ask tab), ADR-019 (crash-resilient meeting recording)
 > Naming Note (2026-04-28): The persisted table remains `summaries`, but the current Swift names are `PromptResult`, `PromptResultRepository`, and `PromptResultsViewModel`.
+
+## Amendment (2026-09-05, saved notes and opt-in prompt context)
+
+> Implementation status: implemented and locally verified on 2026-09-05;
+> release availability follows the normal channel process.
+
+Saved meeting details add explicit Add/Edit/Clear notes states with Save and
+Cancel. Whitespace-only saves normalize to `NULL`. SQLite
+`transcriptions.userNotes` remains canonical; `notes.md`, `meeting.md`,
+`transcript.json`, and the manifest remain derived artifacts refreshed after a
+successful write. A derived-artifact failure does not roll back the canonical
+database value. Successive saves use database last-writer-wins semantics, and
+artifact refresh is ordered/latest-wins so an older completion cannot restore
+stale files after a newer commit. Cross-process conflict UI is out of scope.
+
+Result prompts gain an `includeMeetingNotes` preference, exposed as an
+**Include meeting notes as context** checkbox for built-in and custom result
+prompts. It defaults to `false`, is unavailable for Transforms, and never opts
+existing prompts in implicitly. When enabled and non-empty meeting notes exist,
+the shared prompt assembler adds one delimited notes-context block while
+keeping the transcript as factual source of truth.
+
+`{{userNotes}}` remains a case-sensitive advanced custom-template variable.
+It substitutes notes even when the checkbox is off; when the checkbox is on,
+the assembler detects the variable and does not append a duplicate block.
+Empty notes leave the assembled prompt byte-identical regardless of checkbox
+state. Chat/Ask behavior is unchanged and continues to include the latest
+committed non-empty meeting notes at send time without a new toggle.
+
+Migration `v0.33-prompt-meeting-notes-context` adds two non-null Boolean
+columns, both defaulting to `false`, to record the current preference and its
+generation receipt:
+
+- `prompts.includeMeetingNotes`
+- `summaries.includeMeetingNotesSnapshot`
+
+The existing nullable `summaries.userNotesSnapshot` is tightened to store the
+exact normalized, 8,000-word-capped notes value actually supplied to prompt
+assembly. The Boolean snapshot separately preserves whether automatic context
+was enabled even when no notes existed. Queueing captures both values; retry
+reuses the failed queue snapshot, while regenerate reuses the result's Boolean
+snapshot with the meeting's current committed notes.
+
+CLI parity is additive: `prompts set <prompt> --include-meeting-notes` and
+`--no-include-meeting-notes` are mutually exclusive, apply only to result
+prompts, and expose `includeMeetingNotes` in prompt JSON plus
+`includeMeetingNotesSnapshot` in saved result JSON.
 
 ## Amendment (2026-05-02, "Memo-Steered Notes" built-in prompt reverted)
 
@@ -28,7 +75,7 @@ The "Memo-Steered Notes" built-in prompt described in §5 has been removed from 
 - Rich pre-meeting countdown toast (§10)
 - The notes invariant: "Notes are user-authored only" (§11)
 
-**What re-introduction looks like:** A future memo-steered prompt should not auto-run as a global default. Two paths are open: (a) add a `Prompt.appliesToSources: [TranscriptionSource]?` field so the prompt only appears on meeting-recording transcriptions; or (b) gate auto-run dispatch on the substitution: if a prompt references `{{userNotes}}` and the transcription's `userNotes` is `nil`/empty, skip auto-run. Path (a) is stronger (also hides from the picker on non-meeting sources); path (b) is smaller. The infrastructure for both is already in place.
+**Historical re-introduction options:** A future memo-steered prompt should not auto-run as a global default. Two paths were considered: (a) add a `Prompt.appliesToSources: [TranscriptionSource]?` field so the prompt only appears on meeting-recording transcriptions; or (b) gate auto-run dispatch on the substitution. Path (a) was later implemented. The 2026-09-05 amendment chooses a separate per-result-prompt opt-in checkbox instead of restoring a dedicated built-in.
 
 > **Amendment (2026-05-28) — path (a) is now implemented.** `Prompt.appliesToSources: Set<Transcription.SourceType>?` ships (`nil` = all sources = historical behavior; a non-nil set restricts auto-run to those sources). The post-transcription trigger is source-aware: `PromptRepository.fetchAutoRunPrompts(for:)` filters by source and `TranscriptionViewModel.presentCompletedTranscription` threads `transcription.sourceType` into `PromptResultsViewModel.autoGeneratePromptResults`. The Meetings tab's **"After each meeting"** card lets users toggle which result prompts auto-run for meetings specifically (it calls `PromptRepository.setAutoRun(id:source:enabled:)` with `.meeting`), so a meeting-only auto-note never fires on file/YouTube transcriptions. The global Prompt Library `Auto-Run` toggle still means "all sources" (it clears `appliesToSources` on enable). DB migration `v0.20-prompt-applies-to-sources` adds the nullable JSON column; the reconciler preserves it on built-ins. A memo-steered built-in could now return scoped to `[.meeting]` — though it still must read sensibly with empty notes. See migration v0.20, `PromptRepository`, and `MeetingsWorkspaceViewModel`.
 
@@ -37,7 +84,7 @@ The "Memo-Steered Notes" built-in prompt described in §5 has been removed from 
 1. **Meeting artifact folder.** Written into the meeting session folder alongside `meeting-playback.m4a` and `meeting-recording-metadata.json` at finalize, crash-recovery time, explicit `macparakeet-cli meetings artifact`, meeting-note writes, and prompt-result writes. Empty / whitespace-only / nil notes do not produce `notes.md`. The DB column `transcriptions.userNotes` is canonical; `MeetingArtifactStore` refreshes `manifest.json`, `transcript.json`, `notes.md`, `prompt-results.json`, and `prompt-results/*.md` from the DB so agents and users have a deterministic local file contract. Zero-UI consumption surface — user opens the meeting folder in Finder and reads what they typed in any editor.
 2. **Chat threading.** `LLMService.chat / chatStream / chatDetailed` accept a `userNotes: String?` parameter. When the user has typed notes, the chat system prompt gains a `User's notes from the meeting:\n…` block before the transcript block. Chat is user-initiated (not auto-run) and the empty-notes case is byte-identical to today's chat — so the failure modes that drove the prompt revert do not apply. `TranscriptChatViewModel.bindUserNotesProvider(_:)` lets callers thread either a static value (saved-transcription detail page reads `Transcription.userNotes`) or a live closure (live in-meeting Ask reads `MeetingNotesViewModel.notesText` at chat-send time so every keystroke up to Send is visible to the LLM).
 
-The first surface gives the user a file they can read; the second gives the AI context the user already typed. Together they cover the value the reverted built-in prompt was trying to deliver, without the auto-run footguns. A richer in-app surface on the transcription detail page (collapsed Notes section) is a future option, not a requirement.
+The first surface gives the user a file they can read; the second gives the AI context the user already typed. Together they cover the value the reverted built-in prompt was trying to deliver, without the auto-run footguns. The final sentence of the original amendment treated saved-detail editing as future work; the 2026-09-05 amendment above supersedes that point and makes it part of the in-progress scope.
 
 **Tests:** `testReconcileRemovesRevertedMemoSteeredNotesPrompt` in `DatabaseManagerTests` pins the prompt-deletion behavior. `MeetingNotesFileTests` covers the async `notes.md` writer (header, empty/nil/whitespace cases, stale-file removal, internal line-break preservation). `MeetingRecordingServiceTests` integration-tests the finalize call site (notes-with-content writes the file; empty-notes meetings do not), and `MeetingRecordingRecoveryServiceTests` verifies recovered notes also write the sidecar. `LLMServiceTests` cover the chat-threading path: notes block precedes the transcript block when present, is omitted entirely on nil/empty/whitespace, the byte-identical equivalence between nil and whitespace-only is asserted, and notes+transcript are budgeted together. `TranscriptChatViewModelTests` cover the provider-closure plumbing including re-evaluation on every send (so live-meeting Ask sees the freshest keystroke) and rich-prompt regeneration.
 
@@ -187,7 +234,12 @@ Output:
 
 ### 6. Snapshot user notes on the summary record
 
-Per the prompt-snapshot principle from ADR-013, each `PromptResult` record gains a `userNotesSnapshot: String?` column. The value of `userNotes` at the moment of summary generation is captured alongside the existing prompt snapshot. Editing notes after a summary has been generated does not retroactively change that summary's metadata.
+Per the prompt-snapshot principle from ADR-013, each `PromptResult` record gains
+a `userNotesSnapshot: String?` column. The original implementation captured the
+row value at generation time. The 2026-09-05 amendment tightens this receipt to
+the exact normalized/capped notes value actually supplied to assembly, or
+`NULL` when that prompt sends no notes. Editing notes after a result has been
+generated does not retroactively change its metadata.
 
 This makes summaries self-contained for the same reason ADR-013 made them self-contained: a summary should always accurately reflect what produced it.
 

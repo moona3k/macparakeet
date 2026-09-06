@@ -1615,6 +1615,595 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.currentTranscription?.isTranscriptEdited, true)
     }
 
+    // MARK: - Saved Meeting Notes
+
+    func testUpdateCurrentMeetingNotesPersistsAndSynchronizesDetailAndList() async throws {
+        let artifactStore = RecordingMeetingArtifactStore()
+        viewModel = TranscriptionViewModel(meetingArtifactStore: artifactStore)
+        let oldUpdatedAt = Date(timeIntervalSince1970: 1_000)
+        let meeting = Transcription(
+            fileName: "Design Review",
+            status: .completed,
+            sourceType: .meeting,
+            updatedAt: oldUpdatedAt
+        )
+        let result = PromptResult(
+            transcriptionId: meeting.id,
+            promptName: "Summary",
+            promptContent: "Summarize",
+            content: "Ship it."
+        )
+        mockRepo.transcriptions = [meeting]
+        mockPromptResultRepo.promptResults = [result]
+        viewModel.configure(
+            transcriptionService: mockService,
+            transcriptionRepo: mockRepo,
+            promptResultRepo: mockPromptResultRepo
+        )
+        viewModel.currentTranscription = meeting
+
+        let saved = await viewModel.updateCurrentMeetingNotes(to: "  Decision: ship it.  ")
+
+        XCTAssertTrue(saved)
+        XCTAssertEqual(viewModel.currentTranscription?.userNotes, "  Decision: ship it.  ")
+        XCTAssertEqual(viewModel.transcriptions.first?.userNotes, "  Decision: ship it.  ")
+        XCTAssertGreaterThan(try XCTUnwrap(viewModel.currentTranscription?.updatedAt), oldUpdatedAt)
+        XCTAssertEqual(try XCTUnwrap(mockRepo.fetch(id: meeting.id)).userNotes, "  Decision: ship it.  ")
+
+        try await waitUntilAsync { await artifactStore.materializeCallCount == 1 }
+        let calls = await artifactStore.materializeCalls
+        let call = try XCTUnwrap(calls.first)
+        XCTAssertEqual(call.transcription.userNotes, "  Decision: ship it.  ")
+        XCTAssertEqual(call.promptResults.map(\.id), [result.id])
+    }
+
+    func testUpdateCurrentMeetingNotesNormalizesWhitespaceOnlyToNil() async throws {
+        let meeting = Transcription(
+            fileName: "Design Review",
+            status: .completed,
+            sourceType: .meeting,
+            userNotes: "Old note"
+        )
+        mockRepo.transcriptions = [meeting]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = meeting
+
+        let saved = await viewModel.updateCurrentMeetingNotes(to: " \n\t ")
+        XCTAssertTrue(saved)
+        XCTAssertNil(viewModel.currentTranscription?.userNotes)
+        XCTAssertNil(viewModel.transcriptions.first?.userNotes)
+        XCTAssertNil(try XCTUnwrap(mockRepo.fetch(id: meeting.id)).userNotes)
+    }
+
+    func testUpdateCurrentMeetingNotesRejectsNonMeeting() async throws {
+        let transcription = Transcription(
+            fileName: "interview.m4a",
+            status: .completed,
+            sourceType: .file,
+            userNotes: "Keep me"
+        )
+        mockRepo.transcriptions = [transcription]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = transcription
+
+        let saved = await viewModel.updateCurrentMeetingNotes(to: "Not allowed")
+        XCTAssertFalse(saved)
+        XCTAssertEqual(try XCTUnwrap(mockRepo.fetch(id: transcription.id)).userNotes, "Keep me")
+    }
+
+    func testUpdateCurrentMeetingNotesKeepsCommittedStateWhenPersistenceFails() async {
+        let meeting = Transcription(
+            fileName: "Design Review",
+            status: .completed,
+            sourceType: .meeting,
+            userNotes: "Original"
+        )
+        mockRepo.transcriptions = [meeting]
+        mockRepo.saveError = NSError(domain: "repo", code: 1)
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = meeting
+
+        let saved = await viewModel.updateCurrentMeetingNotes(to: "Draft")
+        XCTAssertFalse(saved)
+        XCTAssertEqual(viewModel.currentTranscription?.userNotes, "Original")
+        XCTAssertEqual(viewModel.transcriptions.first?.userNotes, "Original")
+        XCTAssertNotNil(viewModel.errorMessage)
+    }
+
+    func testUpdateCurrentMeetingNotesDoesNotReportSuccessWhenRowIsMissing() async {
+        let meeting = Transcription(
+            fileName: "Deleted Meeting",
+            status: .completed,
+            sourceType: .meeting
+        )
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = meeting
+
+        let saved = await viewModel.updateCurrentMeetingNotes(to: "Cannot be saved")
+
+        XCTAssertFalse(saved)
+        XCTAssertNil(viewModel.currentTranscription?.userNotes)
+        XCTAssertNotNil(viewModel.errorMessage)
+    }
+
+    func testDeletedMeetingDraftDoesNotBlockQuit() async throws {
+        let meeting = Transcription(
+            fileName: "Deleted through another process",
+            status: .completed,
+            sourceType: .meeting,
+            userNotes: "Original"
+        )
+        mockRepo.transcriptions = [meeting]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        let notesViewModel = try XCTUnwrap(viewModel)
+        let coordinator = SavedMeetingNotesCoordinator()
+        let editor = coordinator.editor(
+            meetingID: meeting.id,
+            text: meeting.userNotes,
+            isMeetingDeleted: {
+                try await notesViewModel.isMeetingDeleted(id: meeting.id)
+            }
+        ) { text in
+            await notesViewModel.updateMeetingNotes(for: meeting, to: text)
+        }
+        editor.textBinding.wrappedValue = "Pending notes"
+        editor.cancelPendingSave()
+        // No coordinator notification: this models deletion through the CLI.
+        XCTAssertTrue(try mockRepo.delete(id: meeting.id))
+        let replied = expectation(description: "Quit allowed after confirmed deletion")
+
+        XCTAssertTrue(coordinator.prepareToQuit { saved in
+            XCTAssertTrue(saved)
+            replied.fulfill()
+        })
+        await fulfillment(of: [replied], timeout: 1)
+
+        XCTAssertFalse(coordinator.hasUnsavedChanges)
+        XCTAssertEqual(editor.saveState, .deleted)
+        XCTAssertNil(try mockRepo.fetch(id: meeting.id))
+    }
+
+    func testMeetingNotesReadFailureKeepsQuitBlockedUntilDeletionCanBeConfirmed() async throws {
+        let meeting = Transcription(
+            fileName: "Unreadable meeting",
+            status: .completed,
+            sourceType: .meeting,
+            userNotes: "Original"
+        )
+        mockRepo.transcriptions = [meeting]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        let notesViewModel = try XCTUnwrap(viewModel)
+        let coordinator = SavedMeetingNotesCoordinator()
+        let editor = coordinator.editor(
+            meetingID: meeting.id,
+            text: meeting.userNotes,
+            isMeetingDeleted: {
+                try await notesViewModel.isMeetingDeleted(id: meeting.id)
+            }
+        ) { text in
+            await notesViewModel.updateMeetingNotes(for: meeting, to: text)
+        }
+        editor.textBinding.wrappedValue = "Do not discard on an I/O error"
+        editor.cancelPendingSave()
+        XCTAssertTrue(try mockRepo.delete(id: meeting.id))
+        mockRepo.fetchError = NSError(domain: "database-read", code: 1)
+        let blocked = expectation(description: "Quit remains blocked after failed DB read")
+
+        XCTAssertTrue(coordinator.prepareToQuit { saved in
+            XCTAssertFalse(saved)
+            blocked.fulfill()
+        })
+        await fulfillment(of: [blocked], timeout: 1)
+        XCTAssertTrue(coordinator.hasUnsavedChanges)
+        XCTAssertEqual(editor.text, "Do not discard on an I/O error")
+        XCTAssertEqual(editor.saveState, .failed)
+
+        mockRepo.fetchError = nil
+        let retried = expectation(description: "Quit allowed when deletion can be confirmed")
+        XCTAssertTrue(coordinator.prepareToQuit { saved in
+            XCTAssertTrue(saved)
+            retried.fulfill()
+        })
+        await fulfillment(of: [retried], timeout: 1)
+        XCTAssertFalse(coordinator.hasUnsavedChanges)
+        XCTAssertEqual(editor.saveState, .deleted)
+    }
+
+    func testNotesAutosavePreservesUnrelatedErrorAndDiagnostic() async throws {
+        let meeting = Transcription(fileName: "Meeting", sourceType: .meeting)
+        mockRepo.transcriptions = [meeting]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = meeting
+        viewModel.setError(message: "Could not export audio", detail: "Folder permission was revoked")
+        let saved = expectation(description: "Debounced notes saved")
+        let notesViewModel = try XCTUnwrap(viewModel)
+        let editor = SavedMeetingNotesViewModel(waitForDebounce: { _ in })
+        editor.configure(meetingID: meeting.id, text: nil) { text in
+            let result = await notesViewModel.updateMeetingNotes(for: meeting, to: text)
+            saved.fulfill()
+            return result
+        }
+        editor.textBinding.wrappedValue = "Autosaved draft"
+        await fulfillment(of: [saved], timeout: 2)
+        XCTAssertEqual(try mockRepo.fetch(id: meeting.id)?.userNotes, "Autosaved draft")
+        XCTAssertEqual(viewModel.errorMessage, "Could not export audio")
+        XCTAssertEqual(viewModel.errorDetail, "Folder permission was revoked")
+    }
+
+    func testNotesRetryClearsOnlyItsOwnErrorBanner() async throws {
+        let meeting = Transcription(fileName: "Meeting", sourceType: .meeting)
+        mockRepo.transcriptions = [meeting]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = meeting
+        mockRepo.saveError = NSError(domain: "notes-write", code: 1)
+        let failed = await viewModel.updateCurrentMeetingNotes(to: "Draft")
+        XCTAssertFalse(failed)
+        XCTAssertNotNil(viewModel.errorMessage)
+        mockRepo.saveError = nil
+        let retried = await viewModel.updateCurrentMeetingNotes(to: "Draft")
+        XCTAssertTrue(retried)
+        XCTAssertNil(viewModel.errorMessage)
+
+        mockRepo.saveError = NSError(domain: "notes-write", code: 1)
+        _ = await viewModel.updateCurrentMeetingNotes(to: "Next draft")
+        let repeatedHeadline = try XCTUnwrap(viewModel.errorMessage)
+        // A later feature may publish even an identical headline. Ownership,
+        // not string equality, determines whether autosave may clear it.
+        viewModel.setError(message: repeatedHeadline, detail: "Another feature's diagnostic")
+        mockRepo.saveError = nil
+        _ = await viewModel.updateCurrentMeetingNotes(to: "Next draft")
+        XCTAssertEqual(viewModel.errorMessage, repeatedHeadline)
+        XCTAssertEqual(viewModel.errorDetail, "Another feature's diagnostic")
+    }
+
+    func testArtifactRetryDoesNotSuppressOverlappingNotesWriteFailure() async throws {
+        let meeting = Transcription(fileName: "Meeting", sourceType: .meeting, userNotes: "Original")
+        mockRepo.transcriptions = [meeting]
+        viewModel = TranscriptionViewModel(meetingArtifactStore: RecordingMeetingArtifactStore(shouldFail: true))
+        viewModel.configure(
+            transcriptionService: mockService, transcriptionRepo: mockRepo, promptResultRepo: mockPromptResultRepo
+        )
+        viewModel.currentTranscription = meeting
+        let firstSaved = await viewModel.updateCurrentMeetingNotes(to: "Original")
+        XCTAssertTrue(firstSaved)
+        XCTAssertNotNil(
+            viewModel.meetingNotesArtifactWarning, "Expose the actual artifact Retry button before editing again")
+        let writeStarted = expectation(description: "Database write held")
+        let releaseWrite = DispatchSemaphore(value: 0)
+        defer { releaseWrite.signal() }
+        mockRepo.userNotesUpdateHandler = {
+            writeStarted.fulfill()
+            guard releaseWrite.wait(timeout: .now() + 3) == .success else {
+                throw NSError(domain: "test-write-timeout", code: 1)
+            }
+            throw NSError(domain: "notes-write", code: 1)
+        }
+        let notesViewModel = try XCTUnwrap(viewModel)
+        let editor = SavedMeetingNotesViewModel()
+        editor.configure(meetingID: meeting.id, text: meeting.userNotes) { text in
+            await notesViewModel.updateMeetingNotes(for: meeting, to: text)
+        }
+        editor.textBinding.wrappedValue = "Unsaved draft"
+        editor.cancelPendingSave()
+        let saveTask = Task { @MainActor in await editor.flush() }
+        await fulfillment(of: [writeStarted], timeout: 2)
+        let retryEntered = expectation(description: "Artifact retry enqueued on main actor")
+        let retryTask = Task { @MainActor in
+            retryEntered.fulfill()
+            await notesViewModel.retryCurrentMeetingNotesArtifactRefresh()
+        }
+        await fulfillment(of: [retryEntered], timeout: 2)
+        releaseWrite.signal()
+        let saved = await saveTask.value
+        await retryTask.value
+        XCTAssertFalse(saved)
+        XCTAssertEqual(editor.saveState, .failed)
+        XCTAssertEqual(editor.text, "Unsaved draft")
+        XCTAssertTrue(editor.hasUnsavedChanges)
+        XCTAssertEqual(try mockRepo.fetch(id: meeting.id)?.userNotes, "Original")
+        XCTAssertTrue(viewModel.errorMessage?.hasPrefix("Failed to save meeting notes:") == true)
+    }
+
+    func testUpdateCurrentMeetingNotesSucceedsWhenReadBackFailsAfterCommit() async throws {
+        let meeting = Transcription(
+            fileName: "Design Review",
+            status: .completed,
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [meeting]
+        mockRepo.userNotesReadBackError = NSError(domain: "repo-read", code: 1)
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = meeting
+
+        let saved = await viewModel.updateCurrentMeetingNotes(to: "Committed note")
+
+        XCTAssertTrue(saved)
+        XCTAssertEqual(viewModel.currentTranscription?.userNotes, "Committed note")
+        XCTAssertEqual(viewModel.transcriptions.first?.userNotes, "Committed note")
+        XCTAssertEqual(try XCTUnwrap(mockRepo.fetch(id: meeting.id)).userNotes, "Committed note")
+        XCTAssertNil(viewModel.errorMessage)
+    }
+
+    func testRetranscribeDeletedDuringServiceDoesNotPublishCompletion() async throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".wav")
+        try Data().write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let original = Transcription(fileName: "Deleted meeting", filePath: file.path, sourceType: .meeting)
+        mockRepo.transcriptions = [original]
+        await mockService.configure(
+            result: Transcription(fileName: "Stale", rawTranscript: "New transcript", status: .completed))
+        let started = expectation(description: "Service suspended")
+        let (release, continuation) = AsyncStream<Void>.makeStream()
+        defer { continuation.finish() }
+        await mockService.setTranscribeHook {
+            started.fulfill()
+            for await _ in release { break }
+        }
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.retranscribe(original)
+        await fulfillment(of: [started], timeout: 2)
+        XCTAssertTrue(try mockRepo.delete(id: original.id))
+        continuation.yield(())
+        try await waitUntil { !self.viewModel.isTranscribing }
+        XCTAssertNil(try mockRepo.fetch(id: original.id))
+        XCTAssertNotEqual(viewModel.currentTranscription?.rawTranscript, "New transcript")
+        XCTAssertNotNil(viewModel.errorMessage)
+    }
+
+    func testCommittedNotesReadFailurePreservesCurrentMetadataAndExistingArtifacts() async throws {
+        let store = RecordingMeetingArtifactStore()
+        viewModel = TranscriptionViewModel(meetingArtifactStore: store)
+        let captured = Transcription(fileName: "Old name", status: .completed, sourceType: .meeting)
+        var current = captured
+        current.fileName = "Renamed after opening notes"
+        current.isFavorite = true
+        current.updatedAt = Date.distantFuture
+        mockRepo.transcriptions = [current]
+        mockRepo.userNotesReadBackError = NSError(domain: "repo-read", code: 1)
+        viewModel.configure(
+            transcriptionService: mockService, transcriptionRepo: mockRepo,
+            promptResultRepo: MockPromptResultRepository())
+        viewModel.currentTranscription = current
+        let saved = await viewModel.updateMeetingNotes(for: captured, to: "Committed notes")
+        XCTAssertTrue(saved)
+        for row in [try XCTUnwrap(viewModel.currentTranscription), try XCTUnwrap(viewModel.transcriptions.first)] {
+            XCTAssertEqual(row.fileName, current.fileName)
+            XCTAssertTrue(row.isFavorite)
+            XCTAssertEqual(row.updatedAt, .distantFuture)
+            XCTAssertEqual(row.userNotes, "Committed notes")
+        }
+        let snapshots = await store.materializeCalls
+        XCTAssertTrue(snapshots.isEmpty)
+        XCTAssertNotNil(viewModel.meetingNotesArtifactWarning)
+    }
+
+    func testQueuedBackgroundAutosaveDoesNotSuppressVisibleMeetingFailure() async throws {
+        let visible = Transcription(fileName: "Visible", sourceType: .meeting)
+        let background = Transcription(fileName: "Background", sourceType: .meeting)
+        mockRepo.transcriptions = [visible, background]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = visible
+        let writeStarted = expectation(description: "Visible write suspended")
+        let backgroundQueued = expectation(description: "Background save enqueued")
+        let releaseWrite = DispatchSemaphore(value: 0)
+        mockRepo.userNotesUpdateHandler = {
+            writeStarted.fulfill()
+            _ = releaseWrite.wait(timeout: .now() + 5)
+            throw NSError(domain: "visible-write", code: 1)
+        }
+        let subject = try XCTUnwrap(viewModel)
+        let visibleTask = Task { await subject.updateMeetingNotes(for: visible, to: "Unsaved") }
+        await fulfillment(of: [writeStarted], timeout: 2)
+        let backgroundTask = Task {
+            backgroundQueued.fulfill()
+            return await subject.updateMeetingNotes(for: background, to: "Saved background")
+        }
+        await fulfillment(of: [backgroundQueued], timeout: 2)
+        mockRepo.userNotesUpdateHandler = nil
+        releaseWrite.signal()
+        let visibleSaved = await visibleTask.value
+        let backgroundSaved = await backgroundTask.value
+        XCTAssertFalse(visibleSaved)
+        XCTAssertTrue(backgroundSaved)
+        XCTAssertTrue(viewModel.errorMessage?.hasPrefix("Failed to save meeting notes:") == true)
+        XCTAssertNil(try mockRepo.fetch(id: visible.id)?.userNotes)
+        XCTAssertEqual(try mockRepo.fetch(id: background.id)?.userNotes, "Saved background")
+    }
+
+    func testSwitchingMeetingsClearsOwnedNotesBannerAndPreservesFailedDraft() async throws {
+        let previous = Transcription(fileName: "Previous", sourceType: .meeting)
+        let next = Transcription(fileName: "Next", sourceType: .meeting)
+        mockRepo.transcriptions = [previous, next]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = previous
+        let subject = try XCTUnwrap(viewModel)
+        let coordinator = SavedMeetingNotesCoordinator()
+        let editor = coordinator.editor(meetingID: previous.id, text: nil) { text in
+            await subject.updateMeetingNotes(for: previous, to: text)
+        }
+        editor.textBinding.wrappedValue = "Unsaved previous draft"
+        editor.cancelPendingSave()
+        mockRepo.saveError = NSError(domain: "notes-write", code: 1)
+        let savedPrevious = await editor.flush()
+        XCTAssertFalse(savedPrevious)
+        XCTAssertNotNil(viewModel.errorMessage)
+
+        viewModel.currentTranscription = next
+
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertNil(viewModel.errorDetail)
+        XCTAssertEqual(editor.saveState, .failed)
+        XCTAssertEqual(editor.text, "Unsaved previous draft")
+        XCTAssertTrue(editor.hasUnsavedChanges)
+        XCTAssertTrue(coordinator.hasUnsavedChanges)
+        mockRepo.saveError = nil
+        let savedNext = await viewModel.updateMeetingNotes(for: next, to: "Saved next draft")
+        XCTAssertTrue(savedNext)
+        XCTAssertNil(viewModel.errorMessage)
+        viewModel.currentTranscription = previous
+        let reopened = coordinator.editor(meetingID: previous.id, text: nil) { _ in
+            XCTFail("The retained editor must keep its original persistence closure")
+            return false
+        }
+        XCTAssertTrue(reopened === editor)
+        XCTAssertEqual(reopened.saveState, .failed)
+        XCTAssertTrue(reopened.hasUnsavedChanges)
+    }
+
+    func testUpdatingSameMeetingMetadataKeepsOwnedNotesBanner() async throws {
+        var meeting = Transcription(fileName: "Meeting", sourceType: .meeting)
+        mockRepo.transcriptions = [meeting]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = meeting
+        mockRepo.saveError = NSError(domain: "notes-write", code: 1)
+        let saved = await viewModel.updateMeetingNotes(for: meeting, to: "Unsaved draft")
+        XCTAssertFalse(saved)
+        let failureMessage = try XCTUnwrap(viewModel.errorMessage)
+
+        meeting.fileName = "Updated metadata for same meeting"
+        meeting.userNotes = "Previously persisted notes"
+        viewModel.currentTranscription = meeting
+
+        XCTAssertEqual(viewModel.errorMessage, failureMessage)
+        XCTAssertEqual(viewModel.currentTranscription?.id, meeting.id)
+    }
+
+    func testSwitchingMeetingsPreservesUnrelatedDiagnosticAfterNotesFailure() async throws {
+        let previous = Transcription(fileName: "Previous", sourceType: .meeting)
+        let next = Transcription(fileName: "Next", sourceType: .meeting)
+        mockRepo.transcriptions = [previous, next]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = previous
+        mockRepo.saveError = NSError(domain: "notes-write", code: 1)
+        let saved = await viewModel.updateMeetingNotes(for: previous, to: "Unsaved draft")
+        XCTAssertFalse(saved)
+        let headline = try XCTUnwrap(viewModel.errorMessage)
+        viewModel.setError(message: headline, detail: "Another feature owns this identical headline")
+
+        viewModel.currentTranscription = next
+
+        XCTAssertEqual(viewModel.errorMessage, headline)
+        XCTAssertEqual(viewModel.errorDetail, "Another feature owns this identical headline")
+        mockRepo.saveError = nil
+        let nextSaved = await viewModel.updateMeetingNotes(for: next, to: "Saved next draft")
+        XCTAssertTrue(nextSaved)
+        XCTAssertEqual(viewModel.errorMessage, headline)
+        XCTAssertEqual(viewModel.errorDetail, "Another feature owns this identical headline")
+    }
+
+    func testAutosavingAnotherMeetingPreservesVisibleMeetingNotesError() async throws {
+        let visible = Transcription(fileName: "Visible", sourceType: .meeting)
+        let background = Transcription(fileName: "Background", sourceType: .meeting)
+        mockRepo.transcriptions = [visible, background]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = visible
+        mockRepo.saveError = NSError(domain: "write", code: 1)
+        let failed = await viewModel.updateMeetingNotes(for: visible, to: "Failed draft")
+        XCTAssertFalse(failed)
+        let failureMessage = try XCTUnwrap(viewModel.errorMessage)
+        mockRepo.saveError = nil
+        let saved = await viewModel.updateMeetingNotes(for: background, to: "Background draft")
+        XCTAssertTrue(saved)
+        XCTAssertEqual(viewModel.errorMessage, failureMessage)
+    }
+
+    func testUpdateCurrentMeetingNotesReportsArtifactFailureWithoutRollingBackDatabase() async throws {
+        let artifactStore = RecordingMeetingArtifactStore(shouldFail: true)
+        viewModel = TranscriptionViewModel(meetingArtifactStore: artifactStore)
+        let meeting = Transcription(
+            fileName: "Design Review",
+            status: .completed,
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [meeting]
+        viewModel.configure(
+            transcriptionService: mockService,
+            transcriptionRepo: mockRepo,
+            promptResultRepo: mockPromptResultRepo
+        )
+        viewModel.currentTranscription = meeting
+
+        let saved = await viewModel.updateCurrentMeetingNotes(to: "Saved despite artifact failure")
+        XCTAssertTrue(saved)
+
+        try await waitUntil { self.viewModel.meetingNotesArtifactWarning != nil }
+        viewModel.loadPersistedContent()
+        XCTAssertNotNil(viewModel.meetingNotesArtifactWarning)
+        let otherMeeting = Transcription(
+            fileName: "Other Meeting",
+            status: .completed,
+            sourceType: .meeting
+        )
+        viewModel.currentTranscription = otherMeeting
+        XCTAssertNil(viewModel.meetingNotesArtifactWarning)
+        viewModel.currentTranscription = try XCTUnwrap(mockRepo.fetch(id: meeting.id))
+        XCTAssertNotNil(viewModel.meetingNotesArtifactWarning)
+        XCTAssertEqual(
+            try XCTUnwrap(mockRepo.fetch(id: meeting.id)).userNotes,
+            "Saved despite artifact failure"
+        )
+        XCTAssertEqual(viewModel.currentTranscription?.userNotes, "Saved despite artifact failure")
+    }
+
+    func testOverlappingMeetingNoteSavesMaterializeLatestValueLast() async throws {
+        let artifactStore = RecordingMeetingArtifactStore(materializeDelay: .milliseconds(150))
+        viewModel = TranscriptionViewModel(meetingArtifactStore: artifactStore)
+        let meeting = Transcription(
+            fileName: "Design Review",
+            status: .completed,
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [meeting]
+        viewModel.configure(
+            transcriptionService: mockService,
+            transcriptionRepo: mockRepo,
+            promptResultRepo: mockPromptResultRepo
+        )
+        viewModel.currentTranscription = meeting
+
+        let firstSave = Task { await viewModel.updateCurrentMeetingNotes(to: "First draft") }
+        try await waitUntilAsync { await artifactStore.startedMaterializeCount == 1 }
+        let secondSave = Task { await viewModel.updateCurrentMeetingNotes(to: "Final notes") }
+
+        let firstSaved = await firstSave.value
+        let secondSaved = await secondSave.value
+        XCTAssertTrue(firstSaved)
+        XCTAssertTrue(secondSaved)
+        let calls = await artifactStore.materializeCalls
+        XCTAssertEqual(calls.map(\.transcription.userNotes), ["First draft", "Final notes"])
+        XCTAssertEqual(viewModel.currentTranscription?.userNotes, "Final notes")
+        XCTAssertEqual(try XCTUnwrap(mockRepo.fetch(id: meeting.id)).userNotes, "Final notes")
+    }
+
+    func testCapturedMeetingNotesSaveDoesNotOverwriteNewSelection() async throws {
+        let firstMeeting = Transcription(
+            fileName: "First Meeting",
+            status: .completed,
+            sourceType: .meeting
+        )
+        let secondMeeting = Transcription(
+            fileName: "Second Meeting",
+            status: .completed,
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [firstMeeting, secondMeeting]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = secondMeeting
+
+        let saved = await viewModel.updateMeetingNotes(
+            for: firstMeeting,
+            to: "Belongs to the first meeting"
+        )
+
+        XCTAssertTrue(saved)
+        XCTAssertEqual(
+            try XCTUnwrap(mockRepo.fetch(id: firstMeeting.id)).userNotes,
+            "Belongs to the first meeting"
+        )
+        XCTAssertNil(viewModel.currentTranscription?.userNotes)
+        XCTAssertEqual(viewModel.currentTranscription?.id, secondMeeting.id)
+    }
+
     // MARK: - Speaker Rename
 
     func testRenameSpeakerUpdatesInMemoryState() {
@@ -2459,6 +3048,20 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.showTabs)
     }
 
+    func testShowTabsTrueForSavedMeetingWithoutAIResultsOrChat() {
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = Transcription(
+            fileName: "meeting.m4a",
+            status: .completed,
+            sourceType: .meeting
+        )
+
+        XCTAssertFalse(viewModel.llmAvailable)
+        XCTAssertFalse(viewModel.hasPromptResultTabs)
+        XCTAssertFalse(viewModel.hasConversations)
+        XCTAssertTrue(viewModel.showTabs)
+    }
+
     func testUpdateConversationStatusUpdatesShowTabs() {
         viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
         let transcription = Transcription(
@@ -2593,6 +3196,47 @@ final class TranscriptionViewModelTests: XCTestCase {
 
         let lastSource = await mockService.lastSource
         XCTAssertEqual(lastSource, .youtube, "Retranscribe should preserve original telemetry source")
+    }
+
+    func testRetranscribePublishesMetadataEditedWhileServiceIsSuspended() async throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".wav")
+        try Data().write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let original = Transcription(
+            fileName: "Original meeting", filePath: file.path,
+            rawTranscript: "Old transcript", status: .completed,
+            sourceType: .meeting, userNotes: "Old notes"
+        )
+        mockRepo.transcriptions = [original]
+        await mockService.configure(
+            result: Transcription(
+                fileName: "Stale result", rawTranscript: "New transcript", status: .completed
+            ))
+        let started = expectation(description: "Service suspended")
+        let (release, continuation) = AsyncStream<Void>.makeStream()
+        defer { continuation.finish() }
+        await mockService.setTranscribeHook {
+            started.fulfill()
+            for await _ in release { break }
+        }
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.retranscribe(original)
+        await fulfillment(of: [started], timeout: 2)
+        var edited = original
+        edited.userNotes = "Notes saved during STT"
+        edited.fileName = "Renamed during STT"
+        edited.isFavorite = true
+        try mockRepo.save(edited)
+        continuation.yield(())
+        try await waitUntil { !self.viewModel.isTranscribing }
+        let persisted = try XCTUnwrap(mockRepo.fetch(id: original.id))
+        let published = try XCTUnwrap(viewModel.currentTranscription)
+        for snapshot in [persisted, published] {
+            XCTAssertEqual(snapshot.userNotes, edited.userNotes)
+            XCTAssertEqual(snapshot.fileName, edited.fileName)
+            XCTAssertTrue(snapshot.isFavorite)
+            XCTAssertEqual(snapshot.rawTranscript, "New transcript")
+        }
     }
 
     func testRetranscribePreservesMeetingSourceType() async throws {
@@ -3870,14 +4514,16 @@ private struct MaterializeCall: Sendable {
 
 private actor RecordingMeetingArtifactStore: MeetingArtifactStoring {
     private let materializeDelay: Duration?
+    private let shouldFail: Bool
     private let materializeCallCountSignal = StateSignal<Int>()
     private var calls: [MaterializeCall] = []
     private var activeMaterializeCount = 0
     private(set) var startedMaterializeCount = 0
     private(set) var maxConcurrentMaterializeCount = 0
 
-    init(materializeDelay: Duration? = nil) {
+    init(materializeDelay: Duration? = nil, shouldFail: Bool = false) {
         self.materializeDelay = materializeDelay
+        self.shouldFail = shouldFail
     }
 
     var materializeCalls: [MaterializeCall] {
@@ -3906,6 +4552,9 @@ private actor RecordingMeetingArtifactStore: MeetingArtifactStoring {
             try? await Task.sleep(for: materializeDelay)
         }
         activeMaterializeCount -= 1
+        if shouldFail {
+            throw RecordingMeetingArtifactStoreError.materializationFailed
+        }
         calls.append(MaterializeCall(transcription: transcription, promptResults: promptResults))
         await materializeCallCountSignal.emit(calls.count)
 
@@ -3928,4 +4577,8 @@ private actor RecordingMeetingArtifactStore: MeetingArtifactStoring {
             calendarEventSnapshot: transcription.calendarEventSnapshot
         )
     }
+}
+
+private enum RecordingMeetingArtifactStoreError: Error {
+    case materializationFailed
 }

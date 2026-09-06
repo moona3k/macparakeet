@@ -34,10 +34,44 @@ public struct Prompt: Codable, Identifiable, Sendable {
     /// ADR-020 (2026-05 amendment) and the Meetings "After each meeting" card.
     public var appliesToSources: Set<Transcription.SourceType>?
 
+    /// Optional transport-neutral generation settings for this result prompt.
+    /// GRDB stores the Codable value as JSON; nil preserves the historical
+    /// provider-default behavior. Transform prompts do not use this field.
+    public var inferenceSettings: PromptInferenceSettings?
+
+    /// Whether meeting notes should be appended as additional context when
+    /// this result prompt runs. Explicit `{{userNotes}}` template references
+    /// continue to work independently of this preference. Transform prompts
+    /// never use this field.
+    public var includeMeetingNotes: Bool
+
     public enum Category: String, Codable, Sendable {
         // Keep the stored raw value as "summary" until the prompts table itself is migrated.
         case result = "summary"
         case transform
+    }
+
+    /// Legacy JSON predates the meeting-notes preference. Only an absent key
+    /// defaults to false; malformed or null values remain decoding errors.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        content = try container.decode(String.self, forKey: .content)
+        category = try container.decode(Category.self, forKey: .category)
+        isBuiltIn = try container.decode(Bool.self, forKey: .isBuiltIn)
+        isVisible = try container.decode(Bool.self, forKey: .isVisible)
+        isAutoRun = try container.decode(Bool.self, forKey: .isAutoRun)
+        sortOrder = try container.decode(Int.self, forKey: .sortOrder)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        keyboardShortcut = try container.decodeIfPresent(String.self, forKey: .keyboardShortcut)
+        runningLabel = try container.decodeIfPresent(String.self, forKey: .runningLabel)
+        appliesToSources = try container.decodeIfPresent(Set<Transcription.SourceType>.self, forKey: .appliesToSources)
+        inferenceSettings = try container.decodeIfPresent(PromptInferenceSettings.self, forKey: .inferenceSettings)
+        includeMeetingNotes =
+            container.contains(.includeMeetingNotes)
+            ? try container.decode(Bool.self, forKey: .includeMeetingNotes) : false
     }
 
     public init(
@@ -53,7 +87,9 @@ public struct Prompt: Codable, Identifiable, Sendable {
         updatedAt: Date = Date(),
         keyboardShortcut: String? = nil,
         runningLabel: String? = nil,
-        appliesToSources: Set<Transcription.SourceType>? = nil
+        appliesToSources: Set<Transcription.SourceType>? = nil,
+        inferenceSettings: PromptInferenceSettings? = nil,
+        includeMeetingNotes: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -68,6 +104,8 @@ public struct Prompt: Codable, Identifiable, Sendable {
         self.keyboardShortcut = keyboardShortcut
         self.runningLabel = runningLabel
         self.appliesToSources = appliesToSources
+        self.inferenceSettings = inferenceSettings?.normalized
+        self.includeMeetingNotes = category == .result ? includeMeetingNotes : false
     }
 
     /// Whether this prompt should auto-run after a transcription of `source`
@@ -359,7 +397,7 @@ public struct Prompt: Codable, Identifiable, Sendable {
                 defaultShortcut: KeyboardShortcut(
                     modifiers: KeyboardShortcut.ModifierFlag.control.rawValue
                         | KeyboardShortcut.ModifierFlag.option.rawValue,
-                    keyCode: 0x12, // kVK_ANSI_1
+                    keyCode: 0x12,  // kVK_ANSI_1
                     keyLabel: "1"
                 ),
                 runningLabel: "Polishing…",
@@ -383,7 +421,7 @@ public struct Prompt: Codable, Identifiable, Sendable {
                 defaultShortcut: KeyboardShortcut(
                     modifiers: KeyboardShortcut.ModifierFlag.control.rawValue
                         | KeyboardShortcut.ModifierFlag.option.rawValue,
-                    keyCode: 0x13, // kVK_ANSI_2
+                    keyCode: 0x13,  // kVK_ANSI_2
                     keyLabel: "2"
                 ),
                 runningLabel: "Distilling…",
@@ -410,7 +448,7 @@ public struct Prompt: Codable, Identifiable, Sendable {
                 defaultShortcut: KeyboardShortcut(
                     modifiers: KeyboardShortcut.ModifierFlag.control.rawValue
                         | KeyboardShortcut.ModifierFlag.option.rawValue,
-                    keyCode: 0x14, // kVK_ANSI_3
+                    keyCode: 0x14,  // kVK_ANSI_3
                     keyLabel: "3"
                 ),
                 runningLabel: "Deciding…",
@@ -426,6 +464,6 @@ extension Prompt: FetchableRecord, PersistableRecord {
     public enum Columns: String, ColumnExpression {
         case id, name, content, category, isBuiltIn, isVisible, isAutoRun
         case sortOrder, createdAt, updatedAt
-        case keyboardShortcut, runningLabel, appliesToSources
+        case keyboardShortcut, runningLabel, appliesToSources, inferenceSettings, includeMeetingNotes
     }
 }

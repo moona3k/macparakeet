@@ -186,6 +186,10 @@ private final class SaveFailingTranscriptionRepository: TranscriptionRepositoryP
         self.error = error
     }
 
+    func savePreservingUserMetadata(
+        _ transcription: Transcription, originalFileName: String
+    ) throws -> Transcription { throw error }
+
     func save(_ transcription: Transcription) throws {
         throw error
     }
@@ -2223,6 +2227,8 @@ final class TranscriptionServiceTests: XCTestCase {
             sourceType: .meeting
         )
 
+        try transcriptionRepo.save(original)
+
         _ = try await service.retranscribeMeeting(
             existing: original,
             recording: recording,
@@ -2282,6 +2288,8 @@ final class TranscriptionServiceTests: XCTestCase {
             status: .completed,
             sourceType: .meeting
         )
+
+        try transcriptionRepo.save(original)
 
         _ = try await service.retranscribeMeeting(existing: original, recording: recording)
 
@@ -2955,6 +2963,43 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(lastJob, .fileTranscription)
     }
 
+    func testRetranscribePreservesMetadataEditedWhileSTTIsSuspended() async throws {
+        let original = Transcription(
+            fileName: "Original meeting", filePath: "/tmp/meeting.wav",
+            rawTranscript: "Old transcript", status: .completed,
+            sourceType: .meeting, userNotes: "Old notes"
+        )
+        try transcriptionRepo.save(original)
+        let started = expectation(description: "STT suspended")
+        let (release, continuation) = AsyncStream<Void>.makeStream()
+        defer { continuation.finish() }
+        await mockSTT.configure(result: STTResult(text: "New transcript"))
+        await mockSTT.setTranscribeHook {
+            started.fulfill()
+            for await _ in release { break }
+        }
+        let service = try XCTUnwrap(service)
+        let task = Task {
+            try await service.retranscribe(
+                existing: original, fileURL: URL(fileURLWithPath: "/tmp/meeting.wav"), source: .meeting
+            )
+        }
+        await fulfillment(of: [started], timeout: 2)
+        try transcriptionRepo.updateUserNotes(id: original.id, userNotes: "Notes saved during STT")
+        _ = try transcriptionRepo.updateFileName(id: original.id, fileName: "Renamed during STT")
+        try transcriptionRepo.updateFavorite(id: original.id, isFavorite: true)
+        continuation.yield(())
+        let result = try await task.value
+        let persisted = try XCTUnwrap(transcriptionRepo.fetch(id: original.id))
+        for snapshot in [result, persisted] {
+            XCTAssertEqual(snapshot.userNotes, "Notes saved during STT")
+            XCTAssertEqual(snapshot.fileName, "Renamed during STT")
+            XCTAssertEqual(snapshot.derivedTitle, "Renamed during STT")
+            XCTAssertTrue(snapshot.isFavorite)
+            XCTAssertEqual(snapshot.rawTranscript, "New transcript")
+        }
+    }
+
     func testRetranscribeExistingFileUpdatesOriginalRowWithoutDuplicate() async throws {
         let original = Transcription(
             id: UUID(),
@@ -3021,6 +3066,40 @@ final class TranscriptionServiceTests: XCTestCase {
         let indexedText: [String] = try segmentRepo.fetch(transcriptionId: original.id).map(\.text)
         XCTAssertEqual(indexedText, ["New transcript"])
     }
+
+    func testRetranscribeDeletedDuringSTTDoesNotReturnOrRecreateRecording() async throws {
+        let original = Transcription(
+            fileName: "Deleted meeting", filePath: "/tmp/meeting.wav",
+            rawTranscript: "Old transcript", status: .completed, sourceType: .meeting
+        )
+        try transcriptionRepo.save(original)
+        let started = expectation(description: "STT suspended")
+        let (release, continuation) = AsyncStream<Void>.makeStream()
+        defer { continuation.finish() }
+        await mockSTT.configure(result: STTResult(text: "New transcript"))
+        await mockSTT.setTranscribeHook {
+            started.fulfill()
+            for await _ in release { break }
+        }
+        let service = try XCTUnwrap(service)
+        let task = Task {
+            try await service.retranscribe(
+                existing: original, fileURL: URL(fileURLWithPath: "/tmp/meeting.wav"), source: .meeting
+            )
+        }
+        await fulfillment(of: [started], timeout: 2)
+        XCTAssertTrue(try transcriptionRepo.delete(id: original.id))
+        continuation.yield(())
+        do {
+            _ = try await task.value
+            XCTFail("Deleted recording must not be returned as a successful completion")
+        } catch {
+            XCTAssertEqual(error as? TranscriptionCompletionError, .recordingDeleted)
+        }
+        XCTAssertNil(try transcriptionRepo.fetch(id: original.id))
+        XCTAssertTrue(try segmentRepo.fetch(transcriptionId: original.id).isEmpty)
+    }
+
 
     func testRetranscribeAtomicallyInvalidatesOldCardBeforeListingNewTranscript() async throws {
         let original = Transcription(

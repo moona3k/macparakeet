@@ -192,7 +192,13 @@ public struct ChatMessage: Codable, Sendable {
 
 public struct ChatCompletionOptions: Sendable {
     public let temperature: Double?
+    public let topP: Double?
+    public let topK: Int?
     public let maxTokens: Int?
+    public let thinkingMode: PromptInferenceSettings.ThinkingMode
+    public let reasoningEffort: PromptInferenceSettings.ReasoningEffort?
+    public let usesPromptInferenceSettings: Bool
+    public let effectiveInferenceSettings: PromptInferenceSettings?
     public let responseFormat: ChatResponseFormat?
     public let conversationID: UUID? // nil for a one-shot; header-only, not JSON
 }
@@ -217,6 +223,7 @@ public struct LLMResult: Sendable, Codable {
     public let usage: LLMUsage?
     public let stopReason: String?
     public let latencyMs: Int
+    public let effectiveSettings: PromptInferenceSettings?
 }
 
 public struct LLMUsage: Sendable, Codable {
@@ -237,6 +244,50 @@ public struct LLMFormatterResult: Sendable {
     public var output: String { result.output }
 }
 ```
+
+For Prompt Library result generation, `ChatCompletionOptions.default` remains
+the operation baseline (`temperature = 0.7`). Optional per-prompt settings are
+overlaid on that baseline; an unset value therefore inherits MacParakeet's
+current behavior instead of requesting a raw provider default. The native
+Ollama baseline likewise retains explicit thinking-off behavior. Other LLM
+operations continue to use their existing option construction.
+
+Provider/model adaptation is allow-listed and returns both filtered transport
+options and a normalized effective-settings receipt. The intended initial
+capability contract is:
+
+| Provider path | Prompt-result settings accepted |
+| --- | --- |
+| Native OpenAI | `temperature` and `topP` when model policy permits them; `maxTokens` through the existing token-key policy |
+| Native Anthropic | `maxTokens` is always supported; `temperature` and `topP` depend on the model's sampling policy. When `topP` is set, it takes precedence and temperature is omitted, including inherited temperature |
+| Native Ollama | Temperature, top-p, top-k, output tokens, and thinking; numeric values use Ollama `options`, thinking uses top-level `think`; reasoning effort is unsupported |
+| Custom OpenAI-compatible | All six settings; thinking uses `chat_template_kwargs.enable_thinking`, and optional effort uses `chat_template_kwargs.reasoning_effort` only while thinking is enabled |
+| Gemini, OpenRouter, LM Studio | `temperature` and `maxTokens` initially |
+| In-process local | `temperature` and `maxTokens` |
+| Local CLI | None in the initial contract |
+
+Unsupported explicitly configured fields are omitted and reported as
+compatibility information; they are never translated into different
+parameters. Existing OpenAI reasoning-model and Anthropic sampling policies
+remain authoritative.
+
+Detailed streaming adds terminal metadata alongside text events:
+
+```swift
+public enum LLMStreamEvent: Sendable {
+    case text(String)
+    case completed(LLMStreamTerminal)
+}
+```
+
+A successful detailed stream emits exactly one terminal event carrying the
+provider, model, optional usage/stop reason, and effective settings. An error or
+cancellation produces no successful terminal receipt. EOF before valid provider
+completion also produces no receipt, except for native Ollama: a non-empty stream
+ending without `done: true` is accepted and emits a receipt from the last observed
+chunk. An Ollama error frame still fails, including after text was received.
+Existing string-streaming methods remain compatibility projections for callers
+that do not need the receipt.
 
 ### Service Protocol
 
@@ -274,6 +325,16 @@ public protocol LLMServiceProtocol: Sendable {
         transcript: String,
         systemPrompt: String?
     ) async throws -> LLMResult
+    func generatePromptResultDetailed(
+        transcript: String,
+        systemPrompt: String?,
+        inferenceSettings: PromptInferenceSettings?
+    ) async throws -> LLMResult
+    func generatePromptResultDetailedStream(
+        transcript: String,
+        systemPrompt: String?,
+        inferenceSettings: PromptInferenceSettings?
+    ) -> AsyncThrowingStream<LLMStreamEvent, Error>
     func chatDetailed(
         question: String,
         transcript: String,
@@ -340,6 +401,23 @@ Use bullet points for clarity. Keep the summary under 500 words.
 
 **Context assembly:** Full transcript text. If transcript exceeds the context budget, truncate from the middle with an ellipsis marker, preserving the head and tail within the limit. Truncation snaps to word boundaries to avoid slicing multi-byte Unicode. The transcript budget accounts for the rendered summary system prompt so the combined request stays inside the provider budget; if a custom prompt has already rendered transcript text into the system prompt, that rendered prompt is bounded too. **Budget:** 500,000 characters for cloud providers, 80,000 characters for most local providers (`isLocal == true`), and 8,000 characters for LM Studio because its effective context depends on the model loaded in the desktop server.
 
+**Meeting notes for result prompts:** Result
+prompts carry an `includeMeetingNotes` opt-in, false by default. At enqueue,
+the shared GUI/CLI assembly path captures that Boolean and the normalized notes
+value capped to 8,000 words. If notes are non-empty and the opt-in is enabled,
+the assembler appends one delimited, user-authored context block after the
+selected prompt and before per-run extra instructions. The block is source
+material, not instructions, and factual conflicts resolve in favor of the
+transcript.
+
+Advanced custom templates retain case-sensitive `{{userNotes}}` substitution
+regardless of the checkbox. If the token is present, no automatic block is
+appended; if notes are empty, enabling the checkbox changes no prompt bytes.
+`PromptResult.userNotesSnapshot` stores the exact effective notes value used,
+while `includeMeetingNotesSnapshot` records the captured preference. Retry
+reuses the queued values; regenerate reuses the Boolean receipt with current
+committed notes. This path was implemented and locally verified on 2026-09-05.
+
 ### 2. Chat with Transcript
 
 **Trigger:** "Chat" button/tab on transcript result view.
@@ -364,7 +442,7 @@ the transcript, say so. Be concise and specific, citing relevant parts when help
 
 **Context assembly:** System prompt with full transcript + conversation history. Same context budget as summary (500K cloud / 80K local, 8K LM Studio). Notes and transcript are budgeted together inside the system prompt with a small recent-history reserve; if the remaining context exceeds the budget, drop oldest conversation turns first (keep system prompt + recent turns).
 
-**User notes (meeting recordings, optional):** When the transcription has non-empty `userNotes`, the chat system prompt gains a `User's notes from the meeting:\n…` block before the transcript block. Empty / nil / whitespace-only notes are omitted entirely — chat behavior is byte-identical to a chat without notes. Threaded via `LLMService.chat / chatStream / chatDetailed`'s `userNotes: String?` parameter; the GUI calls `TranscriptChatViewModel.bindUserNotesProvider(_:)` with a closure that returns the latest notes at chat-send time (static for saved transcriptions, live for in-meeting Ask). See ADR-020's 2026-05-02 amendment for context on why this is safe even though the auto-run "Memo-Steered Notes" prompt was reverted.
+**User notes (meeting recordings, optional):** When the transcription has non-empty `userNotes`, the chat system prompt gains a `User's notes from the meeting:\n…` block before the transcript block. Empty / nil / whitespace-only notes are omitted entirely — chat behavior is byte-identical to a chat without notes. Threaded via `LLMService.chat / chatStream / chatDetailed`'s `userNotes: String?` parameter; the GUI calls `TranscriptChatViewModel.bindUserNotesProvider(_:)` with a closure that returns the latest notes at chat-send time (static for saved transcriptions, live for in-meeting Ask). Saved-note editing does not add a Chat checkbox or otherwise change this policy: the next send reads the latest committed value. See ADR-020's amendments for the distinction between Chat and opt-in result-prompt context.
 
 ### 3. Transforms
 
@@ -579,7 +657,7 @@ macparakeet-cli llm test-connection --provider cli --command "claude -p --model 
 macparakeet-cli llm summarize transcript.txt --provider cli --command "claude -p --model haiku"
 ```
 
-Additional options: `--model`, `--base-url`, `--stream`, `--json`, `--command` (Local CLI only). Use `-` as input to read from stdin. `--json` emits a structured envelope with `output`, `provider`, `model`, optional `usage`, optional `stopReason`, and `latencyMs`. `llm test-connection --json` emits `{ok, provider, model, latencyMs}` on success. `--json --stream` is rejected until NDJSON streaming lands.
+Additional options: `--model`, `--base-url`, `--stream`, `--json`, `--command` (Local CLI only). Use `-` as input to read from stdin. `--json` emits a structured envelope with `output`, `provider`, `model`, optional `usage`, optional `stopReason`, `latencyMs`, and optional `effectiveSettings`. The latter is populated for a prompt-result request only when the adapter can return an honest normalized receipt; unrelated LLM operations omit it. `llm test-connection --json` emits `{ok, provider, model, latencyMs}` on success. `--json --stream` is rejected until NDJSON streaming lands.
 
 CLI LLM commands use ephemeral inline config (not shared with GUI UserDefaults/Keychain).
 

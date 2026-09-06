@@ -219,17 +219,21 @@ func findDictation(id: String, repo: DictationRepository) throws -> Dictation {
 /// Resolves a prompt by exact UUID, UUID prefix, or case-insensitive name.
 /// Names are checked only when no UUID-prefix match was found, so an ambiguous
 /// prefix surfaces as such instead of silently falling through to a name match.
-func findPrompt(idOrName: String, repo: PromptRepository) throws -> Prompt {
+func findPrompt(
+    idOrName: String,
+    repo: PromptRepository,
+    category: Prompt.Category? = .result
+) throws -> Prompt {
     let trimmed = idOrName.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { throw CLILookupError.emptyID }
 
     if let uuid = UUID(uuidString: trimmed),
        let prompt = try repo.fetch(id: uuid),
-       prompt.category == .result {
+       category == nil || prompt.category == category {
         return prompt
     }
 
-    let all = try repo.fetchAll().filter { $0.category == .result }
+    let all = try repo.fetchAll().filter { category == nil || $0.category == category }
     let lowered = trimmed.lowercased()
 
     if let prefix = uuidPrefixSearchKey(trimmed) {
