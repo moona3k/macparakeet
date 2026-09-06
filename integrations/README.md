@@ -541,9 +541,13 @@ The snapshot, `manifest.meeting`, and `transcript.json` can carry
 `meetingCaptureReport`. `quality: "partial"` describes retained audio, not a
 failed transcription: partial audio can have `status: "completed"`. An absent
 legacy report means unknown, not healthy. The candidate's `silent` system
-status survives recovery and means exact-zero written system signal under the
-qualified conditions in the [artifact contract](../spec/contracts/meeting-artifacts-v1.md);
-it is not a quiet-audio threshold or evidence that no remote speaker spoke.
+status survives recovery when coverage stays sufficient and means exact-zero
+written system signal under the qualified conditions in the
+[artifact contract](../spec/contracts/meeting-artifacts-v1.md); it is not a
+quiet-audio threshold or evidence that no remote speaker spoke. A `silent`
+status alone does not make `quality` partial — a fully captured self-note or
+other one-sided recording reports `quality: "healthy"`; coverage shortfall,
+interruption, capture failure, or unavailable media still do.
 
 `meetings export <id> --format md --stdout` uses the same Markdown shape as
 `meeting.md` without refreshing unrelated files. For machine-readable paths,

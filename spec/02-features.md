@@ -1862,11 +1862,15 @@ only after at least 30 seconds of pause-adjusted capture with delivered system
 buffers, exact-zero successfully written system PCM, and nonzero microphone
 signal. The writer's converted/downmixed signal is authoritative, not a
 channel-0 UI meter. Short, wholly silent, or merely quiet recordings are not
-classified this way. The partial report survives recovery reconciliation;
-interruption, capture failure, and unavailable media retain precedence. This
-does not add live silence alerts, amplitude-triggered restarts, or transcript
-repair. Writer-finalization timeouts preserve recoverable files and ownership
-rather than cancelling AVAssetWriter or reporting success.
+classified this way. `silent` is diagnostic, not a partial-quality verdict:
+self-notes and other fully captured silent sources are healthy, with no
+silence warning or note surfaced anywhere, including saved reports. Coverage
+shortfall outranks silence in source-status precedence, so silence never
+hides missing coverage; interruption, capture failure, and unavailable media
+still retain precedence over both. This does not add live silence alerts,
+amplitude-triggered restarts, or transcript repair. Writer-finalization
+timeouts preserve recoverable files and ownership rather than cancelling
+AVAssetWriter or reporting success.
 
 ### Local knowledge retrieval and agent automation
 

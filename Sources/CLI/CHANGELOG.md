@@ -96,6 +96,13 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   closes a terminal-overwrite gap in the existing sanitizer (a wrapped CLI
   could no longer emit a bare CR to visually overwrite prior sanitized
   output); readable content, including intentional newlines, is preserved.
+- `meetingCaptureReport.quality` no longer reports `partial` solely because a
+  selected source is `silent`: a fully captured self-note or other one-sided
+  recording now reports `healthy`. Coverage shortfall, interruption, capture
+  failure, and unavailable media still make `quality` partial and now
+  outrank `silent` in source-status precedence. Reports stored before this
+  change normalize the same way on read. Field names, types, and JSON shape
+  are unchanged; see `spec/contracts/meeting-artifacts-v1.md`.
 
 ## [3.2.0] — 2026-09-04
 
