@@ -9,6 +9,22 @@ final class SpecCommandTests: XCTestCase {
         )
     }
 
+    func testPromptSetDocumentsActiveLabelPolicies() throws {
+        let payload = try specPayload()
+        let commands = try XCTUnwrap(payload["commands"] as? [[String: Any]])
+        let command = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["prompts", "set"] })
+        let options = try XCTUnwrap(command["options"] as? [[String: Any]])
+        XCTAssertTrue((command["output"] as? String)?.contains("PromptLabelPolicy") == true)
+        let names = options.compactMap { $0["name"] as? String }
+        XCTAssertTrue(names.contains("--label"))
+        XCTAssertTrue(names.contains("--all-labels"))
+        XCTAssertFalse(names.contains("--meeting-type"))
+        XCTAssertFalse(names.contains("--all-meeting-types"))
+        let help = PromptsCommand.SetSubcommand.helpMessage()
+        XCTAssertTrue(help.contains("--label"))
+        XCTAssertTrue(help.contains("--all-labels"))
+    }
+
     func testSpecJSONIncludesAgentFacingMeetingResultsCommand() throws {
         let payload = try specPayload()
         XCTAssertEqual(payload["schema"] as? String, "macparakeet.cli.spec")
@@ -19,6 +35,12 @@ final class SpecCommandTests: XCTestCase {
         let paths = commands.compactMap { $0["path"] as? [String] }
         XCTAssertTrue(paths.contains(["meetings", "results", "add"]))
         XCTAssertTrue(paths.contains(["meetings", "artifact"]))
+        XCTAssertTrue(paths.contains(["meetings", "classify"]))
+        XCTAssertTrue(paths.contains(["meetings", "types", "list"]))
+        XCTAssertTrue(paths.contains(["meetings", "labels", "list"]))
+        XCTAssertTrue(paths.contains(["prompts", "history"]))
+        XCTAssertTrue(paths.contains(["prompts", "diff"]))
+        XCTAssertTrue(paths.contains(["prompts", "restore-deleted"]))
         XCTAssertTrue(paths.contains(["config", "set"]))
         XCTAssertTrue(paths.contains(["models", "delete"]))
         XCTAssertTrue(paths.contains(["spec"]))

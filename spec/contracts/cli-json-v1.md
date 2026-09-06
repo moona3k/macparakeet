@@ -79,6 +79,11 @@ with human progress/status kept off stdout.
   prompt/completion/total token totals, explicit `estimatedCostUSD: null`, and
   per-recording failures. Human progress remains on stderr. Any failed item
   makes the command exit `1` after emitting the aggregate report.
+  Token accumulators that overflow remain `null` for the rest of the batch;
+  later receipts cannot restart a misleading partial total. An individual
+  receipt whose component sum overflowed also makes the batch total unknown.
+  An explicit receipt total takes precedence; when it is absent and both
+  component counts exist, their checked sum contributes to the batch total.
   For `--stale`, `selected` is the prefiltered missing/stale subset, not every
   completed transcription. Successful backfills also rebuild `cards_fts`.
 - `--envelope` success output uses `{ ok, command, data, meta }` and does not
@@ -88,15 +93,112 @@ with human progress/status kept off stdout.
   (`is_built_in`, `created_at`), which predates this convention; its keys are
   frozen for v1 and would only change at a major boundary. New commands use
   camelCase.
+- `prompts list/show --json` prompt objects, and prompt objects returned by
+  `prompts set --json`, include additive optional `inferenceSettings`. When
+  present it is an object with optional `temperature`, `topP`, `topK`, and
+  `maxTokens`, plus `thinkingMode` (`providerDefault`, `enabled`,
+  or `disabled`) and optional `reasoningEffort` (`low`, `medium`, `high`, or
+  `xhigh`). Reasoning effort is normalized away unless thinking is enabled.
+  This value records the prompt's request; it does not prove
+  that every field is supported by the provider selected for a later run.
+- The same prompt JSON objects include additive Boolean
+  `includeMeetingNotes`, the result prompt's automatic meeting-notes context
+  preference. Its default is `false`. The `--include-meeting-notes` flag on
+  `prompts set <prompt>` enables it and `--no-include-meeting-notes` disables
+  it; the flags are mutually exclusive and rejected for Transform prompts.
+  Explicit `{{userNotes}}` custom-template substitution remains
+  independent of this preference.
+- Version-aware prompt JSON adds `activeVersionId`, `activeVersionNumber`, optional `modelOverride`,
+  optional canonical provenance, and optional
+  deletion metadata without removing existing prompt fields. `prompts history
+  --json` returns an array of immutable version objects with `id`, `promptId`,
+  `versionNumber`, `content`, optional `inferenceSettings`, optional
+  `modelOverride`, `origin`, optional `changeNote`, and `createdAt`. `prompts
+  show --version N --json` returns the selected version rather than silently
+  substituting the active version. `prompts diff --json` returns prompt/from/to
+  identity, deterministic Markdown source hunks, and structured changed
+  settings/model values. Restore and soft-delete mutators return the resolved
+  affected prompt object; restore creates a new version and never rewrites an
+  old one. The new version's `createdAt` and the prompt's `updatedAt` record
+  the restoration time.
+- `prompts set --label LABEL --available|--unavailable` updates one active
+  label rule. `--all-labels` updates only the fallback for transcriptions with
+  no matching explicit label rule, across all sources; it preserves label
+  exceptions. Adding the first label rule preserves the previous implicit
+  available fallback; use `--all-labels --unavailable` to restrict unmatched
+  transcriptions. `--json` returns the saved label policy (`id`, `promptId`,
+  `scopeKind`, optional `labelId`, `isAvailable`, `createdAt`, `updatedAt`).
+  Availability is independent of auto-run: configure automatic execution
+  separately with `--source SOURCE --auto-run|--no-auto-run`. The obsolete
+  fork flags `--meeting-type` and `--all-meeting-types` fail with replacement
+  guidance because their former type-scoped semantics cannot be represented
+  faithfully by label availability. They never write inactive legacy policies.
+- `prompts run` checks label availability before provider execution for every
+  transcription source, using the same rules as the app. No label targets means
+  available everywhere; when targeted, at least one transcription label must
+  match. Legacy meeting-type policies do not control runtime availability.
+  Hidden and non-result prompts remain unavailable. Source-scoped auto-run
+  settings do not prevent a manually requested run of an available prompt.
+- A prompt model override is passed to the selected provider, which validates
+  its model identifiers and aliases during generation. Model discovery results
+  are not an exhaustive allow-list. For the Local CLI provider, an override
+  differing from the configured model is rejected before command execution:
+  changing a model string cannot reconfigure its command template.
+- LLM result JSON envelopes include additive optional `effectiveSettings` with
+  the same object shape. For `prompts run --json`, a present value is the
+  normalized adapter receipt after provider/model filtering. Absence means no
+  effective receipt is available; callers must not reinterpret it as raw
+  upstream-provider defaults. Other LLM commands omit it because per-prompt
+  settings do not apply to them.
+- LLM receipts never infer a normal `stopReason` when the runtime supplies no
+  finish reason. Local CLI omits `effectiveSettings`, because inference options
+  are not passed to its command. Token usage may derive `totalTokens` from both
+  component counts when the provider omits the total. A missing component or
+  arithmetic overflow leaves the derived total unknown; available components
+  remain unchanged. Explicit streaming
+  provider errors fail the operation even after partial text; they do not
+  produce a successful result receipt.
+- `meetings results list|add --json` prompt-result objects include additive
+  optional `inferenceSettingsSnapshot` with the same settings shape. When
+  present it is the effective receipt stored with the result; imported results
+  created by `meetings results add` omit it.
+- Saved prompt-result JSON objects include additive Boolean
+  `includeMeetingNotesSnapshot`, the automatic-context preference captured for
+  that generation. `false` covers migrated and externally imported results.
+  Nullable `userNotesSnapshot` contains the exact normalized, bounded notes
+  value supplied to prompt assembly, not necessarily the full canonical note.
+- Prompt-result objects may additionally include nullable `promptId`,
+  `promptVersionId`, `providerSnapshot`, and `modelSnapshot`. Library-driven
+  CLI/app generation populates those execution receipts. Historical and
+  externally imported results may omit them; omission never means the current
+  prompt/provider/model should be inferred.
 - `meetings show --json` and `meetings transcript --format json` expose
   `transcriptSegments` when the meeting row has durable segments. Each segment
   contains `id`, `startMs`, `endMs`, `speakerId`, `speakerLabel`, `text`, and
   `wordRange.startIndex` / `wordRange.endIndexExclusive` into the same payload's
   `wordTimestamps` array. Callers that need stable citations should prefer
   these persisted segments over re-segmenting words.
+- `export --format json`, `meetings show --json`, `meetings transcript
+  --format json`, and `meetings export --stdout --format json` expose the
+  effective speaker attribution. They include additive
+  `speakerCorrectionsApplied` and `speakerCorrectionRevision` fields; revision
+  `0` with `false` means the automatic baseline is active.
 - `meetings show --json` meeting objects can include optional `startContext`
   for meeting rows. When present it contains `triggerKind`, `sourceMode`, and
   optional `frontmostApplication` (`bundleIdentifier`, `localizedName`).
+- Meeting list/show/export/transcript JSON can include additive optional
+  `meetingType` and `meetingLabels`. A meeting type object has `id`, `name`,
+  optional `colorToken`, optional `iconName`, `sortOrder`, and `isArchived`;
+  a label object omits `iconName` and otherwise uses the same organization
+  fields. An absent/null type means unclassified; an empty labels array means
+  no labels. `meetings types list --json` and `meetings labels list --json`
+  return arrays of those objects. Classification mutation JSON returns the
+  meeting id plus its resolved optional type and complete label array.
+- `meetings list --type` and `--label` resolve a full UUID, an unambiguous UUID
+  prefix, or an exact case-insensitive name before applying the filter in SQL.
+  Multiple repeated filters use ANY semantics. `--unclassified` cannot be
+  combined with `--type`. Archived types/labels remain resolvable for meetings
+  that already use them but are excluded from default vocabulary lists.
 - `meetings show --json` and `meetings export --stdout --format json` may
   include `calendarEventSnapshot` for meeting recordings started from, or
   probably overlapping, a calendar event. The field is additive and local-only;
@@ -130,6 +232,12 @@ with human progress/status kept off stdout.
   object with `ok: true` plus affected IDs, counts, or model/cache names. Use
   `macparakeet-cli spec --json` for each command's documented JSON mode and
   output summary.
+- Prompt and meeting-classification command names and option shapes are
+  additive v1 surface: `prompts history`, version-aware `prompts show`,
+  `prompts diff`, `prompts restore`, `prompts delete`, `prompts
+  restore-deleted`, `meetings types`, `meetings labels`, `meetings classify`,
+  and meeting list classification filters. Classification names and prompt
+  content are local user data and never become telemetry dimensions.
 
 ## Failure Envelope
 

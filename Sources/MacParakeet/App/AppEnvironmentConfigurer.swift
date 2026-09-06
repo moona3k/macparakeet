@@ -113,14 +113,26 @@ final class AppEnvironmentConfigurer {
             transcriptionRepo: env.transcriptionRepo,
             llmService: hasLLMConfig ? env.llmService : nil,
             promptResultRepo: env.promptResultRepo,
-            promptResultsViewModel: promptResultsViewModel
+            promptResultsViewModel: promptResultsViewModel,
+            speakerAttributionReader: env.speakerAttributionReader,
+            speakerCorrectionService: env.speakerCorrectionService
         )
         historyViewModel.configure(dictationRepo: env.dictationRepo)
-        libraryViewModel.configure(transcriptionRepo: env.transcriptionRepo)
+        libraryViewModel.configure(
+            transcriptionRepo: env.transcriptionRepo,
+            meetingTypeRepository: env.meetingTypeRepo,
+            meetingLabelRepository: env.meetingLabelRepo,
+            meetingClassificationService: env.meetingClassificationService,
+            speakerAttributionReader: env.speakerAttributionReader
+        )
         meetingsWorkspaceViewModel.configure(
             transcriptionRepo: env.transcriptionRepo,
             quickPromptRepo: env.quickPromptRepo,
-            promptRepo: env.promptRepo
+            promptRepo: env.promptRepo,
+            meetingTypeRepository: env.meetingTypeRepo,
+            meetingLabelRepository: env.meetingLabelRepo,
+            meetingClassificationService: env.meetingClassificationService,
+            promptMeetingPolicyRepository: env.promptMeetingPolicyRepo
         )
         transcriptionViewModel.onMeetingRenamed = { [weak self] rename in
             self?.libraryViewModel.applyMeetingRename(rename)
@@ -170,7 +182,14 @@ final class AppEnvironmentConfigurer {
             self?.textSnippetsViewModel.loadSnippets()
             self?.settingsViewModel.refreshStats()
         }
-        promptsViewModel.configure(repo: env.promptRepo)
+        promptsViewModel.configure(
+            repo: env.promptRepo,
+            versionRepo: env.promptVersionRepo,
+            collectionRepo: env.promptCollectionRepo,
+            editingService: env.promptEditingService,
+            labelRepository: env.meetingLabelRepo,
+            labelPolicyRepository: env.promptLabelPolicyRepo
+        )
         transformsViewModel.configure(
             repo: env.promptRepo,
             historyRepo: env.transformHistoryRepo,
@@ -209,12 +228,16 @@ final class AppEnvironmentConfigurer {
             llmService: hasLLMConfig ? env.llmService : nil,
             promptRepo: env.promptRepo,
             promptResultRepo: env.promptResultRepo,
+            promptMeetingPolicyRepository: env.promptMeetingPolicyRepo,
+            promptLabelPolicyRepository: env.promptLabelPolicyRepo,
+            transcriptionLabelRepository: env.transcriptionMeetingLabelRepo,
             // Without this, `fetchUserNotes` short-circuits to `nil`, which
             // would silently render `{{userNotes}}` as an empty string in any
             // user-defined prompt that references it, and feed `nil` userNotes
             // into the chat path that ADR-020's 2026-05-02 amendment relies on.
             transcriptionRepo: env.transcriptionRepo,
-            meetingArtifactStore: MeetingArtifactStore(),
+            meetingArtifactStore: env.meetingArtifactStore,
+            speakerAttributionReader: env.speakerAttributionReader,
             configStore: env.llmConfigStore,
             llmClient: env.llmClient,
             cardGenerator: hasLLMConfig ? env.cardGenerationService : nil
@@ -323,6 +346,15 @@ final class AppEnvironmentConfigurer {
             sttManager: env.sttScheduler,
             speechEngineSelectionProvider: { SpeechEngineSelection.liveSpeech() },
             meetingAudioSourceModeProvider: { env.runtimePreferences.meetingAudioSourceMode },
+            meetingTypeIDProvider: { [weak meetingsWorkspaceViewModel] in
+                meetingsWorkspaceViewModel?.recordingMeetingTypeID
+            },
+            meetingTypesProvider: { [weak meetingsWorkspaceViewModel] in
+                meetingsWorkspaceViewModel?.meetingClassificationViewModel.meetingTypes ?? []
+            },
+            meetingTypeIDSetter: { [weak meetingsWorkspaceViewModel] meetingTypeID in
+                meetingsWorkspaceViewModel?.recordingMeetingTypeID = meetingTypeID
+            },
             shouldShowFloatingMeetingPill: { env.runtimePreferences.shouldShowMeetingRecordingPill },
             probableCalendarSnapshotProvider: {
                 calendarCoordinator?.probableSnapshotForManualStart()

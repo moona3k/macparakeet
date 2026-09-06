@@ -83,6 +83,9 @@ final class MeetingRecordingFlowCoordinator {
     private let sttManager: (any STTRuntimeManaging)?
     private let speechEngineSelectionProvider: (@Sendable () async -> SpeechEngineSelection?)?
     private let meetingAudioSourceModeProvider: @MainActor @Sendable () -> MeetingAudioSourceMode
+    private let meetingTypeIDProvider: @MainActor @Sendable () -> UUID?
+    private let meetingTypesProvider: @MainActor @Sendable () -> [MeetingType]
+    private let meetingTypeIDSetter: @MainActor @Sendable (UUID?) -> Void
     private let shouldShowFloatingMeetingPill: @MainActor @Sendable () -> Bool
     private let frontmostApplicationProvider: any FrontmostApplicationProviding
     private let probableCalendarSnapshotProvider: @MainActor @Sendable () -> MeetingCalendarSnapshot?
@@ -107,6 +110,7 @@ final class MeetingRecordingFlowCoordinator {
     private var actionTask: Task<Void, Never>?
     private var pauseToggleTask: Task<Void, Never>?
     private var microphoneMuteToggleTask: Task<Void, Never>?
+    private var meetingTypeUpdateTail: Task<Void, Never>?
     private var autoDismissTask: Task<Void, Never>?
     private var pillPollingTask: Task<Void, Never>?
     private var pillGlowPollingTask: Task<Void, Never>?
@@ -147,6 +151,9 @@ final class MeetingRecordingFlowCoordinator {
         meetingAudioSourceModeProvider: @escaping @MainActor @Sendable () -> MeetingAudioSourceMode = {
             .microphoneAndSystem
         },
+        meetingTypeIDProvider: @escaping @MainActor @Sendable () -> UUID? = { nil },
+        meetingTypesProvider: @escaping @MainActor @Sendable () -> [MeetingType] = { [] },
+        meetingTypeIDSetter: @escaping @MainActor @Sendable (UUID?) -> Void = { _ in },
         shouldShowFloatingMeetingPill: @escaping @MainActor @Sendable () -> Bool = { true },
         frontmostApplicationProvider: any FrontmostApplicationProviding = NSWorkspaceFrontmostApplicationProvider(),
         probableCalendarSnapshotProvider: @escaping @MainActor @Sendable () -> MeetingCalendarSnapshot? = {
@@ -177,6 +184,9 @@ final class MeetingRecordingFlowCoordinator {
         self.sttManager = sttManager
         self.speechEngineSelectionProvider = speechEngineSelectionProvider
         self.meetingAudioSourceModeProvider = meetingAudioSourceModeProvider
+        self.meetingTypeIDProvider = meetingTypeIDProvider
+        self.meetingTypesProvider = meetingTypesProvider
+        self.meetingTypeIDSetter = meetingTypeIDSetter
         self.shouldShowFloatingMeetingPill = shouldShowFloatingMeetingPill
         self.frontmostApplicationProvider = frontmostApplicationProvider
         self.probableCalendarSnapshotProvider = probableCalendarSnapshotProvider
@@ -276,6 +286,16 @@ final class MeetingRecordingFlowCoordinator {
             self.panelViewModel?.canToggleMicrophoneMute = microphoneMuteState.canMute
             self.panelViewModel?.captureHealth = captureHealth
             self.pillViewModel.captureHealth = captureHealth
+        }
+    }
+
+    private func updateActiveMeetingType(_ meetingTypeID: UUID?) {
+        meetingTypeIDSetter(meetingTypeID)
+        let previousUpdate = meetingTypeUpdateTail
+        meetingTypeUpdateTail = Task { @MainActor [meetingRecordingService] in
+            await previousUpdate?.value
+            guard !Task.isCancelled else { return }
+            await meetingRecordingService.updateMeetingType(meetingTypeID)
         }
     }
 
@@ -600,6 +620,13 @@ final class MeetingRecordingFlowCoordinator {
             panelVM.onPauseToggle = { [weak self] in self?.togglePause() }
             panelVM.onMicrophoneMuteToggle = { [weak self] in self?.toggleMicrophoneMute() }
             panelVM.onClose = { [weak self] in self?.hideMeetingPanel() }
+            panelVM.configureMeetingTypes(
+                meetingTypesProvider(),
+                selectedID: meetingTypeIDProvider(),
+                onChange: { [weak self] meetingTypeID in
+                    self?.updateActiveMeetingType(meetingTypeID)
+                }
+            )
             // Configure live Ask: in-memory mode (no transcriptionId/conversationRepo).
             // Promotion to a persisted ChatConversation happens after stop-time
             // stub creation, before the panel is torn down for queued finalize.
@@ -663,6 +690,7 @@ final class MeetingRecordingFlowCoordinator {
             let trigger = pendingTrigger
             let title = pendingTitle
             let calendarEventSnapshot = pendingCalendarEventSnapshot
+            let meetingTypeID = meetingTypeIDProvider()
             let sourceMode = pendingAudioSourceMode ?? meetingAudioSourceModeProvider()
             let startContext =
                 pendingStartContext
@@ -684,6 +712,7 @@ final class MeetingRecordingFlowCoordinator {
                         startContext: startContext,
                         calendarEventSnapshot: calendarEventSnapshot
                     )
+                    await meetingRecordingService.updateMeetingType(meetingTypeID)
                     guard self.ownsPendingStart(generation: gen) else {
                         self.recordIgnoredStartResult(generation: gen, outcome: "success")
                         return
@@ -909,11 +938,20 @@ final class MeetingRecordingFlowCoordinator {
                                 liveTranscriptLagged: liveTranscriptLagged
                             ))
                         let prepareRowStartedAt = Date()
-                        let prepared: Transcription
+                        var prepared: Transcription
                         do {
                             prepared = try await transcriptionService.prepareMeetingTranscription(
                                 recording: output
                             )
+                            // The user can refine the type while recording.
+                            // Snapshot it immediately before queueing so the
+                            // durable stub and auto-run routing agree.
+                            let meetingTypeID = output.meetingTypeId ?? self.meetingTypeIDProvider()
+                            try self.transcriptionRepo.updateMeetingType(
+                                id: prepared.id,
+                                meetingTypeId: meetingTypeID
+                            )
+                            prepared.meetingTypeId = meetingTypeID
                         } catch {
                             appendStopStage(
                                 "prepare_row",

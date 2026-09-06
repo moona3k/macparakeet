@@ -119,6 +119,8 @@ public actor TransformExecutor {
     /// needs main-thread delivery.
     public func run(
         prompt: String,
+        inferenceSettings: PromptInferenceSettings? = nil,
+        modelOverride: String? = nil,
         replacementMode: SelectionReplacementMode = .replaceSelection,
         onProgress: @escaping @Sendable (TransformProgress) -> Void
     ) async throws -> TransformExecutionResult {
@@ -157,7 +159,12 @@ public actor TransformExecutor {
         let llmStart = ContinuousClock.now
         var accumulated = ""
         do {
-            let stream = llmService.transformStream(text: inputText, prompt: prompt)
+            let stream = llmService.transformStream(
+                text: inputText,
+                prompt: prompt,
+                inferenceSettings: inferenceSettings,
+                modelOverride: modelOverride
+            )
             for try await chunk in stream {
                 try Task.checkCancellation()
                 accumulated += chunk

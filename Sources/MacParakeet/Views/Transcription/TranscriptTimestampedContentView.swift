@@ -114,6 +114,55 @@ func speakerTurnCardScrollTarget(
     return nil
 }
 
+struct IdentifiedEffectiveSpeakerTurn: Identifiable {
+    let id: SpeakerEditableSegmentID
+    let assignment: SpeakerAssignment
+    let speakerLabel: String
+    let segments: [SpeakerEditableSegment]
+    let logicalTurnSegments: [SpeakerEditableSegment]
+}
+
+func identifiedEffectiveSpeakerTurnCards(
+    _ turns: [EffectiveSpeakerTurn]
+) -> [IdentifiedEffectiveSpeakerTurn] {
+    turns.flatMap { turn -> [IdentifiedEffectiveSpeakerTurn] in
+        guard !turn.segments.isEmpty else { return [] }
+        return stride(from: 0, to: turn.segments.count, by: maximumSpeakerTurnSegmentsPerCard).map { start in
+            let end = min(start + maximumSpeakerTurnSegmentsPerCard, turn.segments.count)
+            let segments = Array(turn.segments[start..<end])
+            return IdentifiedEffectiveSpeakerTurn(
+                id: segments[0].id,
+                assignment: turn.assignment,
+                speakerLabel: turn.speakerLabel,
+                segments: segments,
+                logicalTurnSegments: turn.segments
+            )
+        }
+    }
+}
+
+func effectiveSpeakerTurnCardScrollTarget(
+    for currentMs: Int,
+    in cards: [IdentifiedEffectiveSpeakerTurn]
+) -> SpeakerEditableSegmentID? {
+    cards.reversed().first {
+        ($0.segments.first?.startMs ?? .max) <= currentMs
+    }?.id
+}
+
+func effectiveTranscriptScrollTarget(
+    for currentMs: Int,
+    attribution: EffectiveSpeakerAttribution
+) -> SpeakerEditableSegmentID? {
+    if attribution.speakers.isEmpty {
+        return attribution.editableSegments.last { $0.startMs <= currentMs }?.id
+    }
+    return effectiveSpeakerTurnCardScrollTarget(
+        for: currentMs,
+        in: identifiedEffectiveSpeakerTurnCards(attribution.turns)
+    )
+}
+
 private func identifySpeakerTurns(_ turns: [SpeakerTurn]) -> [IdentifiedSpeakerTurn] {
     var duplicateCounts: [SpeakerTurnIdentityBase: Int] = [:]
     return turns.map { turn in
@@ -163,12 +212,42 @@ struct TranscriptTimestampedContentView<SpeakerLabelContent: View>: View {
     /// Observes realized direct children in layout smoke tests. Production uses
     /// the no-op default, so it does not own a second loading or layout path.
     var onRenderedChildAppear: () -> Void = {}
+    /// Effective correction projection. `false` preserves the legacy rendering
+    /// path until the owning result view has loaded its database-backed snapshot.
+    var usesEffectiveAttribution = false
+    var editableSegments: [SpeakerEditableSegment] = []
+    var effectiveTurnCards: [IdentifiedEffectiveSpeakerTurn] = []
+    var availableSpeakers: [SpeakerInfo] = []
+    var isSpeakerEditing = false
+    var isSpeakerActionDisabled = false
+    var selectedSegmentIDs: Set<SpeakerEditableSegmentID> = []
+    var effectiveIsSegmentActive: (SpeakerEditableSegment) -> Bool = { _ in false }
+    var effectiveHighlightRanges: [SpeakerEditableSegmentID: [NSRange]] = [:]
+    var effectiveCurrentHighlight: (id: SpeakerEditableSegmentID, range: NSRange)? = nil
+    var onSelectSegment: (SpeakerEditableSegmentID) -> Void = { _ in }
+    var onToggleTurnSelection: ([SpeakerEditableSegmentID]) -> Void = { _ in }
+    var onBeginSpeakerEditing: () -> Void = {}
+    var onAssignSegment: (SpeakerEditableSegment, SpeakerAssignment) -> Void = { _, _ in }
+    var onCreateSpeakerForSegment: (SpeakerEditableSegment) -> Void = { _ in }
+    var onSplitSegment: (SpeakerEditableSegment) -> Void = { _ in }
+    var onAssignTurn: ([SpeakerEditableSegment], SpeakerAssignment) -> Void = { _, _ in }
+    var onCreateSpeakerForTurn: ([SpeakerEditableSegment]) -> Void = { _ in }
 
     @ViewBuilder
     var body: some View {
         if usesLazyStack {
             LazyVStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-                if hasSpeakers {
+                if usesEffectiveAttribution {
+                    if !effectiveTurnCards.isEmpty {
+                        ForEach(effectiveTurnCards) { identified in
+                            effectiveSpeakerTurnCard(identified)
+                        }
+                    } else {
+                        ForEach(editableSegments) { segment in
+                            effectiveSegmentRow(segment)
+                        }
+                    }
+                } else if hasSpeakers {
                     ForEach(identifiedTurnCards) { identified in
                         speakerTurnCard(identified)
                     }
@@ -180,7 +259,17 @@ struct TranscriptTimestampedContentView<SpeakerLabelContent: View>: View {
             }
         } else {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-                if hasSpeakers {
+                if usesEffectiveAttribution {
+                    if !effectiveTurnCards.isEmpty {
+                        ForEach(effectiveTurnCards) { identified in
+                            effectiveSpeakerTurnCard(identified)
+                        }
+                    } else {
+                        ForEach(editableSegments) { segment in
+                            effectiveSegmentRow(segment)
+                        }
+                    }
+                } else if hasSpeakers {
                     ForEach(identifiedTurnCards) { identified in
                         speakerTurnCard(identified)
                     }
@@ -244,6 +333,67 @@ struct TranscriptTimestampedContentView<SpeakerLabelContent: View>: View {
         }
         .onAppear(perform: onRenderedChildAppear)
     }
+
+    private func effectiveSpeakerTurnCard(_ identified: IdentifiedEffectiveSpeakerTurn) -> some View {
+        EditableTranscriptTurnCardView(
+            turn: identified,
+            availableSpeakers: availableSpeakers,
+            speakerColorMap: speakerColorMap,
+            speakerLabelContent: speakerLabelContent,
+            isSpeakerEditing: isSpeakerEditing,
+            isSpeakerActionDisabled: isSpeakerActionDisabled,
+            selectedSegmentIDs: selectedSegmentIDs,
+            timestampLabel: timestampLabel,
+            isTimestampSeekable: isTimestampSeekable,
+            bodyFont: bodyFont,
+            textSelectionEnabled: textSelectionEnabled,
+            highlightRanges: effectiveHighlightRanges,
+            currentHighlight: effectiveCurrentHighlight,
+            onTimestampTap: onTimestampTap,
+            onSelectSegment: onSelectSegment,
+            onToggleTurnSelection: onToggleTurnSelection,
+            onBeginSpeakerEditing: onBeginSpeakerEditing,
+            onAssignSegment: onAssignSegment,
+            onCreateSpeakerForSegment: onCreateSpeakerForSegment,
+            onSplitSegment: onSplitSegment,
+            onAssignTurn: onAssignTurn,
+            onCreateSpeakerForTurn: onCreateSpeakerForTurn
+        )
+        .id(identified.id)
+        .onAppear(perform: onRenderedChildAppear)
+    }
+
+    private func effectiveSegmentRow(_ segment: SpeakerEditableSegment) -> some View {
+        ZStack(alignment: .topLeading) {
+            effectiveTimestampScrollAnchor(id: segment.id)
+            TranscriptSegmentRow(
+                startMs: segment.startMs,
+                text: segment.text,
+                timestampText: timestampLabel(segment.startMs),
+                isActive: effectiveIsSegmentActive(segment),
+                isSeekable: isTimestampSeekable,
+                bodyFont: bodyFont,
+                showRowBackground: true,
+                highlightRanges: effectiveHighlightRanges[segment.id] ?? [],
+                currentRange: effectiveCurrentHighlight?.id == segment.id
+                    ? effectiveCurrentHighlight?.range : nil,
+                onPlayFromHere: { onTimestampTap(segment.startMs) },
+                textSelectionEnabled: textSelectionEnabled,
+                editableSegment: segment,
+                availableSpeakers: availableSpeakers,
+                isSpeakerEditing: isSpeakerEditing,
+                isSpeakerActionDisabled: isSpeakerActionDisabled,
+                isSelectedForSpeakerEditing: selectedSegmentIDs.contains(segment.id),
+                onSelectForSpeakerEditing: { onSelectSegment(segment.id) },
+                onBeginSpeakerEditing: onBeginSpeakerEditing,
+                onAssignSpeaker: { onAssignSegment(segment, $0) },
+                onCreateSpeaker: { onCreateSpeakerForSegment(segment) },
+                onSplit: { onSplitSegment(segment) }
+            )
+        }
+        .onAppear(perform: onRenderedChildAppear)
+    }
+
 }
 
 private func timestampScrollAnchor(startMs: Int) -> some View {
@@ -251,6 +401,209 @@ private func timestampScrollAnchor(startMs: Int) -> some View {
         .frame(width: 1, height: 1)
         .id(startMs)
         .accessibilityHidden(true)
+}
+
+private func effectiveTimestampScrollAnchor(id: SpeakerEditableSegmentID) -> some View {
+    Color.clear
+        .frame(width: 1, height: 1)
+        .id(id)
+        .accessibilityHidden(true)
+}
+
+private struct EditableTranscriptTurnCardView<SpeakerLabelContent: View>: View {
+    let turn: IdentifiedEffectiveSpeakerTurn
+    let availableSpeakers: [SpeakerInfo]
+    let speakerColorMap: [String: Color]
+    let speakerLabelContent: (String, String, Color, String, Bool) -> SpeakerLabelContent
+    let isSpeakerEditing: Bool
+    let isSpeakerActionDisabled: Bool
+    let selectedSegmentIDs: Set<SpeakerEditableSegmentID>
+    let timestampLabel: (Int) -> String
+    let isTimestampSeekable: Bool
+    var bodyFont: Font
+    var textSelectionEnabled: Bool
+    let highlightRanges: [SpeakerEditableSegmentID: [NSRange]]
+    let currentHighlight: (id: SpeakerEditableSegmentID, range: NSRange)?
+    let onTimestampTap: (Int) -> Void
+    let onSelectSegment: (SpeakerEditableSegmentID) -> Void
+    let onToggleTurnSelection: ([SpeakerEditableSegmentID]) -> Void
+    let onBeginSpeakerEditing: () -> Void
+    let onAssignSegment: (SpeakerEditableSegment, SpeakerAssignment) -> Void
+    let onCreateSpeakerForSegment: (SpeakerEditableSegment) -> Void
+    let onSplitSegment: (SpeakerEditableSegment) -> Void
+    let onAssignTurn: ([SpeakerEditableSegment], SpeakerAssignment) -> Void
+    let onCreateSpeakerForTurn: ([SpeakerEditableSegment]) -> Void
+
+    @State private var isHovering = false
+
+    private var speakerID: String? {
+        guard case .speaker(let id) = turn.assignment else { return nil }
+        return id
+    }
+
+    private var speakerColor: Color {
+        speakerID.flatMap { speakerColorMap[$0] } ?? DesignSystem.Colors.textTertiary
+    }
+
+    private var segmentIDs: [SpeakerEditableSegmentID] {
+        turn.logicalTurnSegments.map(\.id)
+    }
+
+    private var selectedSegmentCount: Int {
+        segmentIDs.lazy.filter(selectedSegmentIDs.contains).count
+    }
+
+    private var allSegmentsSelected: Bool {
+        !segmentIDs.isEmpty && selectedSegmentCount == segmentIDs.count
+    }
+
+    private var someSegmentsSelected: Bool {
+        selectedSegmentCount > 0 && !allSegmentsSelected
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                Circle()
+                    .fill(speakerColor)
+                    .frame(width: 10, height: 10)
+
+                if let speakerID {
+                    speakerLabelContent(
+                        speakerID,
+                        turn.speakerLabel,
+                        speakerColor,
+                        SpeakerRenameAccessibility.turnRenameContextIdentifier(
+                            speakerID: speakerID,
+                            firstStartMs: turn.segments.first?.startMs,
+                            duplicateOrdinal: 0
+                        ),
+                        isHovering
+                    )
+                    .contextMenu {
+                        turnSpeakerAssignmentMenu
+                            .disabled(isSpeakerActionDisabled)
+                    }
+                } else {
+                    Text("Unassigned")
+                        .font(DesignSystem.Typography.body.weight(.semibold))
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        .contextMenu {
+                            turnSpeakerAssignmentMenu
+                                .disabled(isSpeakerActionDisabled)
+                        }
+                }
+
+                if let firstStart = turn.segments.first?.startMs {
+                    transcriptMetadataChip(icon: "clock", text: timestampLabel(firstStart))
+                }
+                Spacer()
+            }
+
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                ForEach(turn.segments) { segment in
+                    ZStack(alignment: .topLeading) {
+                        // The card owns its first segment's scroll identity.
+                        if segment.id != turn.id {
+                            effectiveTimestampScrollAnchor(id: segment.id)
+                        }
+                        TranscriptSegmentRow(
+                            startMs: segment.startMs,
+                            text: segment.text,
+                            timestampText: timestampLabel(segment.startMs),
+                            isActive: false,
+                            isSeekable: isTimestampSeekable,
+                            bodyFont: bodyFont,
+                            showRowBackground: false,
+                            highlightRanges: highlightRanges[segment.id] ?? [],
+                            currentRange: currentHighlight?.id == segment.id
+                                ? currentHighlight?.range : nil,
+                            onPlayFromHere: { onTimestampTap(segment.startMs) },
+                            textSelectionEnabled: textSelectionEnabled,
+                            editableSegment: segment,
+                            availableSpeakers: availableSpeakers,
+                            isSpeakerEditing: isSpeakerEditing,
+                            isSpeakerActionDisabled: isSpeakerActionDisabled,
+                            isSelectedForSpeakerEditing: selectedSegmentIDs.contains(segment.id),
+                            onSelectForSpeakerEditing: { onSelectSegment(segment.id) },
+                            onBeginSpeakerEditing: onBeginSpeakerEditing,
+                            onAssignSpeaker: { onAssignSegment(segment, $0) },
+                            onCreateSpeaker: { onCreateSpeakerForSegment(segment) },
+                            onSplit: { onSplitSegment(segment) }
+                        )
+                    }
+                }
+            }
+        }
+        .padding(DesignSystem.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .fill(
+                    allSegmentsSelected
+                        ? DesignSystem.Colors.accent.opacity(0.13)
+                        : someSegmentsSelected
+                        ? DesignSystem.Colors.accent.opacity(0.09)
+                        : speakerColor.opacity(0.08)
+                )
+                .contentShape(RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius))
+                .onTapGesture(count: 2) {
+                    guard isSpeakerEditing, !isSpeakerActionDisabled else { return }
+                    onToggleTurnSelection(segmentIDs)
+                }
+                .allowsHitTesting(isSpeakerEditing && !isSpeakerActionDisabled)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .strokeBorder(
+                    allSegmentsSelected || someSegmentsSelected
+                        ? DesignSystem.Colors.accent.opacity(allSegmentsSelected ? 0.70 : 0.40)
+                        : speakerColor.opacity(0.18),
+                    lineWidth: allSegmentsSelected ? 1.25 : 0.75
+                )
+        )
+        .onHover { hovering in
+            withAnimation(DesignSystem.Animation.hoverTransition) {
+                isHovering = hovering
+            }
+        }
+        .accessibilityAction(
+            named: Text(allSegmentsSelected ? "Deselect all segments in this turn" : "Select all segments in this turn")
+        ) {
+            guard isSpeakerEditing, !isSpeakerActionDisabled else { return }
+            onToggleTurnSelection(segmentIDs)
+        }
+    }
+
+    @ViewBuilder
+    private var turnSpeakerAssignmentMenu: some View {
+        Menu("Assign this turn to…") {
+            ForEach(availableSpeakers.filter { $0.id != speakerID }, id: \.id) { speaker in
+                Button(speaker.label) {
+                    onAssignTurn(turn.logicalTurnSegments, .speaker(id: speaker.id))
+                }
+            }
+            if speakerID != nil {
+                Divider()
+                Button("Unassigned") {
+                    onAssignTurn(turn.logicalTurnSegments, .unassigned)
+                }
+            }
+        }
+        Button("New speaker…") {
+            onCreateSpeakerForTurn(turn.logicalTurnSegments)
+        }
+    }
+
+    private func transcriptMetadataChip(icon: String, text: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon).font(.system(size: 10, weight: .semibold))
+            Text(text).font(DesignSystem.Typography.timestamp)
+        }
+        .foregroundStyle(DesignSystem.Colors.textSecondary)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Capsule().fill(DesignSystem.Colors.surfaceElevated))
+    }
 }
 
 private struct TranscriptTurnCardView<SpeakerLabelContent: View>: View {
@@ -378,11 +731,39 @@ private struct TranscriptSegmentRow: View {
     var currentRange: NSRange?
     let onPlayFromHere: () -> Void
     var textSelectionEnabled: Bool = true
+    var editableSegment: SpeakerEditableSegment? = nil
+    var availableSpeakers: [SpeakerInfo] = []
+    var isSpeakerEditing = false
+    var isSpeakerActionDisabled = false
+    var isSelectedForSpeakerEditing = false
+    var onSelectForSpeakerEditing: () -> Void = {}
+    var onBeginSpeakerEditing: () -> Void = {}
+    var onAssignSpeaker: (SpeakerAssignment) -> Void = { _ in }
+    var onCreateSpeaker: () -> Void = {}
+    var onSplit: () -> Void = {}
 
     @State private var isHovering = false
 
     var body: some View {
         HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+            if isSpeakerEditing {
+                Button(action: onSelectForSpeakerEditing) {
+                    Image(systemName: isSelectedForSpeakerEditing ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(
+                            isSelectedForSpeakerEditing
+                                ? DesignSystem.Colors.accent
+                                : DesignSystem.Colors.textTertiary
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(isSpeakerActionDisabled)
+                .accessibilityLabel(
+                    isSelectedForSpeakerEditing ? "Deselect transcript segment" : "Select transcript segment"
+                )
+                .accessibilityValue(isSelectedForSpeakerEditing ? "Selected" : "Not selected")
+            }
+
             TranscriptTimestampChip(
                 startMs: startMs,
                 label: timestampText,
@@ -394,13 +775,18 @@ private struct TranscriptSegmentRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(showRowBackground ? DesignSystem.Spacing.md : 0)
+        // Keep the hover capsule inside the row's actual hit-test bounds even
+        // when the transcript text is only one short line.
+        .frame(minHeight: 30, alignment: .top)
+        .contentShape(Rectangle())
         .background {
             if showRowBackground {
                 RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                    .fill(
-                        isActive
-                            ? DesignSystem.Colors.accent.opacity(0.12)
-                            : DesignSystem.Colors.surfaceElevated.opacity(0.45))
+                    .fill(isActive
+                          ? DesignSystem.Colors.accent.opacity(0.12)
+                          : isSelectedForSpeakerEditing
+                          ? DesignSystem.Colors.accent.opacity(0.10)
+                          : DesignSystem.Colors.surfaceElevated.opacity(0.45))
             }
         }
         .overlay(alignment: .topTrailing) {
@@ -412,6 +798,12 @@ private struct TranscriptSegmentRow: View {
         .onHover { hovering in
             withAnimation(DesignSystem.Animation.hoverTransition) {
                 isHovering = hovering
+            }
+        }
+        .contextMenu {
+            if editableSegment != nil {
+                segmentSpeakerMenu
+                    .disabled(isSpeakerActionDisabled)
             }
         }
     }
@@ -446,6 +838,23 @@ private struct TranscriptSegmentRow: View {
 
     private var hoverActions: some View {
         HStack(spacing: 2) {
+            if editableSegment != nil {
+                Menu {
+                    segmentSpeakerMenu
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        .frame(width: 22, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Speaker actions")
+                .accessibilityLabel("Speaker actions")
+                .disabled(isSpeakerActionDisabled)
+            }
             // Play-from-here mirrors the timestamp chip's ready-state guard: when
             // playback isn't seekable the chip is inert, so don't expose a live
             // play action that would bypass it. Copy actions stay available.
@@ -470,6 +879,40 @@ private struct TranscriptSegmentRow: View {
             Capsule().strokeBorder(DesignSystem.Colors.textTertiary.opacity(0.20), lineWidth: 0.5)
         )
         .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
+    }
+
+    @ViewBuilder
+    private var segmentSpeakerMenu: some View {
+        if isSpeakerEditing {
+            speakerEditingMenu
+        } else {
+            Button("Edit speakers", action: onBeginSpeakerEditing)
+        }
+    }
+
+    @ViewBuilder
+    private var speakerEditingMenu: some View {
+        Menu("Assign to…") {
+            ForEach(availableSpeakers, id: \.id) { speaker in
+                Button(speaker.label) {
+                    onAssignSpeaker(.speaker(id: speaker.id))
+                }
+            }
+            if !availableSpeakers.isEmpty {
+                Divider()
+            }
+            Button("Unassigned") {
+                onAssignSpeaker(.unassigned)
+            }
+        }
+        Button("New speaker…", action: onCreateSpeaker)
+        Button("Split…", action: onSplit)
+            .disabled(!canSplitEditableSegment)
+    }
+
+    private var canSplitEditableSegment: Bool {
+        guard let range = editableSegment?.wordRange else { return false }
+        return range.endIndexExclusive - range.startIndex > 1
     }
 
     private func rowActionButton(

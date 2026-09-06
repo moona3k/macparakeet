@@ -18,14 +18,30 @@ public final class KnowledgeLayerMutationService: KnowledgeLayerMutating, @unche
     }
 
     public func replaceSegmentsAndInvalidateCard(for transcription: Transcription) throws {
-        let derived = KnowledgeSegmenter.deriveSegments(for: transcription)
         try dbQueue.write { db in
-            try SegmentRepository.replaceSegments(
-                derived,
-                transcriptionId: transcription.id,
+            let current = try Transcription.fetchOne(db, key: transcription.id) ?? transcription
+            let derived = try SegmentRepository.deriveResolvedSegments(
+                for: current,
                 in: db
             )
-            _ = try Card.deleteOne(db, key: transcription.id)
+            try Self.replaceSegmentsAndInvalidateCard(
+                derived,
+                transcriptionId: current.id,
+                in: db
+            )
         }
+    }
+
+    static func replaceSegmentsAndInvalidateCard(
+        _ segments: [Segment],
+        transcriptionId: UUID,
+        in db: Database
+    ) throws {
+        try SegmentRepository.replaceSegments(
+            segments,
+            transcriptionId: transcriptionId,
+            in: db
+        )
+        _ = try Card.deleteOne(db, key: transcriptionId)
     }
 }

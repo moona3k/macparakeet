@@ -169,6 +169,13 @@ scripts/dev/run_app.sh    # build, sign, launch
 
 The dev script creates a signed `.app` bundle so macOS grants mic and accessibility permissions. It disables target-level Xcode signing, then signs the finished bundle with the best available local identity. Override with `MACPARAKEET_CODESIGN_IDENTITY="Your Identity"` if needed.
 
+Discover is included by default. To compile a local app without any Discover
+code, fallback content, UI, cache setup, or network endpoints:
+
+```bash
+MACPARAKEET_DISABLE_DISCOVER=1 scripts/dev/run_app.sh
+```
+
 ## Command line and agent automation
 
 `macparakeet-cli` is the public automation surface for MacParakeet: the canonical Swift-native interface to Parakeet TDT on Apple Silicon, plus the scriptable entry point for MacParakeet's local library, model cache, prompts, meetings, and JSON contracts. Use [`integrations/README.md`](integrations/README.md) for the agent-facing automation guide and [`Sources/CLI/CHANGELOG.md`](Sources/CLI/CHANGELOG.md) for compatibility notes.
@@ -283,7 +290,7 @@ All speech recognition runs locally. Parakeet uses the Neural Engine; optional N
 - **Opt-out telemetry.** Non-identifying usage analytics and crash reporting go to a self-hosted endpoint only when telemetry is enabled. No persistent IDs, no IP storage, and no transcript/audio content is transmitted. [Source code is right here](Sources/MacParakeetCore/Services/Telemetry/TelemetryService.swift) — verify it yourself.
 - **User-controlled retention.** Temporary working audio is cleaned up by its owning flow. Saved dictation, file/media, and meeting audio follows the relevant storage setting; meeting audio is kept by default. Deleting audio does not imply deleting the transcript.
 
-**What does use the network:** Configured LLM features (including opted-in automatic prompts, formatter, titles, and knowledge cards) send text context to the chosen provider, or whatever service a configured CLI tool uses. Model setup downloads required assets; Sparkle checks for app updates. Media imports use yt-dlp, the public iTunes directory/RSS feeds, and episode downloads. Telemetry/crash reports go to our self-hosted endpoint unless you opt out. **Discover independently requests `https://macparakeet.com/api/discover.json` at app launch**, even when telemetry is disabled and the Discover page is unopened; it falls back to cached/bundled content offline. Explicit feedback and Discover thought submissions also use the network. Core capture and local transcription work offline after model setup, but there is no global no-network toggle.
+**What does use the network:** Configured LLM features (including opted-in automatic prompts, formatter, titles, and knowledge cards) send text context to the chosen provider, or whatever service a configured CLI tool uses. Model setup downloads required assets; Sparkle checks for app updates. Media imports use yt-dlp, the public iTunes directory/RSS feeds, and episode downloads. Telemetry/crash reports go to our self-hosted endpoint unless you opt out. **Discover independently requests `https://macparakeet.com/api/discover.json` at app launch**, even when telemetry is disabled and the Discover page is unopened; it falls back to cached/bundled content offline. Builds compiled with `MACPARAKEET_DISABLE_DISCOVER=1` contain neither Discover endpoint. Explicit feedback and Discover thought submissions also use the network. Core capture and local transcription work offline after model setup, but there is no global no-network toggle.
 
 **Note:** Builds from source also send telemetry by default. Opt out in Settings or set `MACPARAKEET_TELEMETRY_URL` to override.
 

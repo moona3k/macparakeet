@@ -47,6 +47,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hasPresentedHotkeyConflictAlert = false
     private var environmentSetupTask: Task<Void, Never>?
     private var meetingQuitTask: Task<Void, Never>?
+    private let savedMeetingNotesCoordinator = SavedMeetingNotesCoordinator.shared
+    private var isPresentingQuitAlert = false
     private var speechPreWarmTask: Task<Void, Never>?
     private var instantDictationPreferenceTask: Task<Void, Never>?
     #if DEBUG
@@ -66,7 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let textSnippetsViewModel = TextSnippetsViewModel()
     private let vocabularyBackupViewModel = VocabularyBackupViewModel()
     private let feedbackViewModel = FeedbackViewModel()
-    private let discoverViewModel = DiscoverViewModel()
+    private let featureDependencies = AppFeatureDependencies()
     private let libraryViewModel = TranscriptionLibraryViewModel()
     private let meetingsLibraryViewModel = TranscriptionLibraryViewModel(scope: .meetings)
     private let llmSettingsViewModel = LLMSettingsViewModel()
@@ -200,7 +202,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         textSnippetsViewModel: textSnippetsViewModel,
         vocabularyBackupViewModel: vocabularyBackupViewModel,
         feedbackViewModel: feedbackViewModel,
-        discoverViewModel: discoverViewModel,
+        featureDependencies: featureDependencies,
         libraryViewModel: libraryViewModel,
         meetingsWorkspaceViewModel: meetingsWorkspaceViewModel,
         meetingPillViewModel: meetingPillViewModel,
@@ -367,7 +369,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBarCoordinator.setupMenuBar()
         settingsObserverCoordinator.startObserving()
         windowCoordinator.applyActivationPolicyFromSettings()
+        #if !MACPARAKEET_DISABLE_DISCOVER
         setupDiscoverContent()
+        #endif
         #if DEBUG
         showDebugDictationPreviewQAIfRequested()
         #endif
@@ -418,6 +422,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // Repeated Quit commands share the original deferred decision. Do not
+        // replace its completion or cancel it while notes are being saved.
+        if savedMeetingNotesCoordinator.isPreparingToQuit { return .terminateLater }
+        guard !isPresentingQuitAlert else { return .terminateCancel }
+        if savedMeetingNotesCoordinator.prepareToQuit(completion: { [weak self, weak sender] saved in
+            guard let sender else { return }
+            guard let self else {
+                sender.reply(toApplicationShouldTerminate: false)
+                return
+            }
+            if !saved {
+                sender.reply(toApplicationShouldTerminate: false)
+                self.presentMeetingNotesQuitFailure(sender)
+            } else if self.meetingRecordingFlowCoordinator?.quitState != nil {
+                // Resume the existing recording-specific confirmation only
+                // after saved-meeting drafts are durable. Its completion calls
+                // terminate again after recording finalization.
+                sender.reply(toApplicationShouldTerminate: false)
+                _ = self.presentActiveMeetingQuitAlert()
+            } else {
+                sender.reply(toApplicationShouldTerminate: true)
+            }
+        }) {
+            return .terminateLater
+        }
+
         guard meetingRecordingFlowCoordinator?.quitState != nil else {
             return .terminateNow
         }
@@ -427,6 +457,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         return presentActiveMeetingQuitAlert()
+    }
+
+    private func presentMeetingNotesQuitFailure(_ sender: NSApplication) {
+        guard !isPresentingQuitAlert else { return }
+        isPresentingQuitAlert = true
+        sender.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Meeting Notes Could Not Be Saved"
+        alert.informativeText = "MacParakeet is staying open to preserve your notes. Retry saving before quitting, or keep the app open and return to the meeting."
+        alert.addButton(withTitle: "Retry & Quit")
+        alert.addButton(withTitle: "Keep Open")
+        let response = alert.runModal()
+        isPresentingQuitAlert = false
+        if response == .alertFirstButtonReturn {
+            sender.terminate(nil)
+        }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows _: Bool) -> Bool {
@@ -536,6 +583,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             llmServiceProvider: llmServiceProvider,
             promptRepository: env.promptRepo,
             historyRepository: env.transformHistoryRepo,
+            activeModelNameProvider: { [weak configStore] in
+                try? configStore?.loadConfig()?.modelName
+            },
             reservedHotkeysProvider: { [weak self] in
                 self?.transformReservedHotkeysForTransforms() ?? []
             },
@@ -630,15 +680,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.terminate(nil)
     }
 
+    #if !MACPARAKEET_DISABLE_DISCOVER
     private func setupDiscoverContent() {
         guard let fallbackURL = Bundle.module.url(forResource: "discover-fallback", withExtension: "json"),
               let data = try? Data(contentsOf: fallbackURL) else { return }
 
         let service = DiscoverService(fallbackData: data)
-        discoverViewModel.configure(service: service)
-        discoverViewModel.loadCached()
-        discoverViewModel.refreshInBackground()
+        featureDependencies.discoverViewModel.configure(service: service)
+        featureDependencies.discoverViewModel.loadCached()
+        featureDependencies.discoverViewModel.refreshInBackground()
     }
+    #endif
 
     // MARK: - Disk Image Guard
 
@@ -846,9 +898,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func presentActiveMeetingQuitAlert() -> NSApplication.TerminateReply {
+        guard meetingQuitTask == nil, !isPresentingQuitAlert else {
+            return .terminateCancel
+        }
         guard let quitState = meetingRecordingFlowCoordinator?.quitState else {
             return .terminateNow
         }
+        isPresentingQuitAlert = true
+        defer { isPresentingQuitAlert = false }
 
         NSApp.activate(ignoringOtherApps: true)
 

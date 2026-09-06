@@ -2,7 +2,7 @@ import Foundation
 
 /// Frozen versioned rules for deriving the rebuildable transcript search layer.
 public enum KnowledgeSegmenter {
-    public static let currentVersion = 2
+    public static let currentVersion = 4
 
     private static let targetMinimumScalars = 200
     private static let targetMaximumScalars = 500
@@ -158,6 +158,58 @@ public enum KnowledgeSegmenter {
         }
     }
 
+    /// Derives retrieval rows from the resolved speaker projection while
+    /// preserving the canonical durable segment records. A manual assignment
+    /// may split one durable citation segment into several rebuildable rows.
+    public static func deriveSegments(
+        for transcription: Transcription,
+        effectiveAttribution: EffectiveSpeakerAttribution
+    ) -> [Segment] {
+        guard transcription.status == .completed else { return [] }
+        guard !effectiveAttribution.durableSegments.isEmpty,
+              !effectiveAttribution.words.isEmpty
+        else {
+            return deriveSegments(for: transcription)
+        }
+
+        let labels = Dictionary(
+            effectiveAttribution.speakers.map { ($0.id, normalizedSpeaker($0.label)) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        var result: [Segment] = []
+        for durable in effectiveAttribution.durableSegments {
+            for run in durable.speakerRuns {
+                guard run.wordRange.startIndex >= 0,
+                      run.wordRange.startIndex < run.wordRange.endIndexExclusive,
+                      run.wordRange.endIndexExclusive <= effectiveAttribution.words.count
+                else { continue }
+                let words = Array(
+                    effectiveAttribution.words[
+                        run.wordRange.startIndex..<run.wordRange.endIndexExclusive
+                    ]
+                ).filter { !$0.word.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                guard let text = joinedWordText(words) else { continue }
+                let speaker: String?
+                switch run.assignment {
+                case .speaker(let id):
+                    speaker = labels[id] ?? AudioSource(rawValue: id)?.displayLabel ?? id
+                case .unassigned:
+                    speaker = nil
+                }
+                result.append(Segment(
+                    transcriptionId: transcription.id,
+                    seq: result.count,
+                    startMs: words.first?.startMs,
+                    endMs: words.last?.endMs,
+                    speaker: speaker,
+                    text: text,
+                    segmenterVersion: currentVersion
+                ))
+            }
+        }
+        return result.isEmpty ? deriveSegments(for: transcription) : result
+    }
+
     /// Pure, locale-independent version-2 pseudo-segmentation. Only explicit
     /// Unicode scalar values participate in whitespace and sentence rules.
     public static func pseudoSegment(_ text: String) -> [String] {
@@ -228,6 +280,15 @@ public enum KnowledgeSegmenter {
             return nil
         }
         return trimmed
+    }
+
+    private static func joinedWordText(_ words: [WordTimestamp]) -> String? {
+        var result = ""
+        for word in words {
+            guard let token = usableText(word.word) else { continue }
+            result += tokenSeparator(before: token, rawToken: word.word, currentText: result) + token
+        }
+        return usableText(result)
     }
 
     private static func tokenSeparator(

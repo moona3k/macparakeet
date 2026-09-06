@@ -29,6 +29,23 @@ final class SegmentRepositoryTests: XCTestCase {
         XCTAssertEqual(rows.map(\.speaker), ["Dana"])
     }
 
+    func testReplacementRefetchesCanonicalTranscriptionInsideWriteTransaction() throws {
+        let canonical = completedTranscription(
+            source: .file,
+            text: "New canonical transcript."
+        )
+        try transcriptions.save(canonical)
+        var staleSnapshot = canonical
+        staleSnapshot.rawTranscript = "Old stale transcript."
+
+        try segments.replaceSegments(for: staleSnapshot)
+
+        XCTAssertEqual(
+            try segments.fetch(transcriptionId: canonical.id).map(\.text),
+            ["New canonical transcript."]
+        )
+    }
+
     func testTimedFileAndURLRowsDeriveSentenceSizedSegmentsWithSpeakers() throws {
         let sources: [Transcription.SourceType] = [.file, .youtube, .podcast]
         let words: [WordTimestamp] = [
@@ -56,7 +73,7 @@ final class SegmentRepositoryTests: XCTestCase {
     }
 
     func testWordTimestampMaterializationHandlesBothWhitespaceTokenStyles() {
-        XCTAssertEqual(KnowledgeSegmenter.currentVersion, 2)
+        XCTAssertEqual(KnowledgeSegmenter.currentVersion, 4)
         let wordStyle = ["That's", "incredible.", "I", "will", "be", "honest"]
         let tokenizerStyle = ["That's", " incredible", ".", " I", " will", " be", "honest"]
 
@@ -234,7 +251,13 @@ final class SegmentRepositoryTests: XCTestCase {
             try transcriptionRepo.save(recording)
             var old = recording
             old.rawTranscript = "legacy searchable marker \(index)"
-            try repository.replaceSegments(for: old)
+            try rebuildManager.dbQueue.write { db in
+                try SegmentRepository.replaceSegments(
+                    KnowledgeSegmenter.deriveSegments(for: old),
+                    transcriptionId: old.id,
+                    in: db
+                )
+            }
         }
 
         let interleaved = Transcription(

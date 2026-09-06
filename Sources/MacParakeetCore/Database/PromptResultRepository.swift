@@ -38,13 +38,17 @@ public final class PromptResultRepository: PromptResultRepositoryProtocol {
 
     public func save(_ promptResult: PromptResult) throws {
         try dbQueue.write { db in
-            try promptResult.save(db)
+            var normalizedResult = promptResult
+            normalizedResult.inferenceSettingsSnapshot = promptResult.inferenceSettingsSnapshot?.normalized
+            try normalizedResult.save(db)
         }
     }
 
     public func replace(_ promptResult: PromptResult, deletingExistingID: UUID?) throws {
         try dbQueue.write { db in
-            try promptResult.save(db)
+            var normalizedResult = promptResult
+            normalizedResult.inferenceSettingsSnapshot = promptResult.inferenceSettingsSnapshot?.normalized
+            try normalizedResult.save(db)
             if let deletingExistingID, deletingExistingID != promptResult.id {
                 _ = try PromptResult.deleteOne(db, key: deletingExistingID)
             }

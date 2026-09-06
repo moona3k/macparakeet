@@ -41,6 +41,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
     /// the lock file (ADR-020 §9): a malformed `notes` value cannot block
     /// recovery of the audio metadata.
     public let notes: String?
+    public let meetingTypeId: UUID?
     public let folderURL: URL?
 
     private enum CodingKeys: String, CodingKey {
@@ -55,6 +56,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         case startContext
         case calendarEventSnapshot
         case notes
+        case meetingTypeId
     }
 
     public init(
@@ -70,6 +72,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         startContext: MeetingStartContext? = nil,
         calendarEventSnapshot: MeetingCalendarSnapshot? = nil,
         notes: String? = nil,
+        meetingTypeId: UUID? = nil,
         folderURL: URL? = nil
     ) {
         self.schemaVersion = schemaVersion
@@ -84,6 +87,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         self.startContext = startContext
         self.calendarEventSnapshot = calendarEventSnapshot
         self.notes = notes
+        self.meetingTypeId = meetingTypeId
         self.folderURL = folderURL
     }
 
@@ -114,6 +118,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         // bug or hand-edited file produces a malformed `notes` value, recovery
         // of the audio metadata still succeeds; only the typed notes are lost.
         notes = (try? container.decodeIfPresent(String.self, forKey: .notes)) ?? nil
+        meetingTypeId = (try? container.decodeIfPresent(UUID.self, forKey: .meetingTypeId)) ?? nil
         folderURL = nil
     }
 
@@ -132,6 +137,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         try container.encodeIfPresent(startContext, forKey: .startContext)
         try container.encodeIfPresent(calendarEventSnapshot, forKey: .calendarEventSnapshot)
         try container.encodeIfPresent(notes, forKey: .notes)
+        try container.encodeIfPresent(meetingTypeId, forKey: .meetingTypeId)
     }
 
     public func withFolderURL(_ folderURL: URL) -> MeetingRecordingLockFile {
@@ -148,6 +154,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
             startContext: startContext,
             calendarEventSnapshot: calendarEventSnapshot,
             notes: notes,
+            meetingTypeId: meetingTypeId,
             folderURL: folderURL
         )
     }
@@ -166,6 +173,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
             startContext: startContext,
             calendarEventSnapshot: calendarEventSnapshot,
             notes: notes,
+            meetingTypeId: meetingTypeId,
             folderURL: folderURL
         )
     }
@@ -184,6 +192,26 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
             startContext: startContext,
             calendarEventSnapshot: calendarEventSnapshot,
             notes: notes,
+            meetingTypeId: meetingTypeId,
+            folderURL: folderURL
+        )
+    }
+
+    public func withMeetingTypeId(_ meetingTypeId: UUID?) -> MeetingRecordingLockFile {
+        MeetingRecordingLockFile(
+            schemaVersion: schemaVersion,
+            sessionId: sessionId,
+            startedAt: startedAt,
+            pid: pid,
+            displayName: displayName,
+            state: state,
+            finalizationLeaseId: finalizationLeaseId,
+            speechEngine: speechEngine,
+            speechEngineWasCaptured: speechEngineWasCaptured,
+            startContext: startContext,
+            calendarEventSnapshot: calendarEventSnapshot,
+            notes: notes,
+            meetingTypeId: meetingTypeId,
             folderURL: folderURL
         )
     }
@@ -205,6 +233,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
             startContext: startContext,
             calendarEventSnapshot: calendarEventSnapshot,
             notes: notes,
+            meetingTypeId: meetingTypeId,
             folderURL: folderURL
         )
     }

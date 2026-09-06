@@ -34,6 +34,9 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
     public let userNotes: String?
     /// Local calendar context captured when the recording started.
     public let calendarEventSnapshot: MeetingCalendarSnapshot?
+    /// Primary meeting type captured durably with the recording. The database
+    /// row copies this value when it is first prepared for transcription.
+    public let meetingTypeId: UUID?
 
     /// Canonical duration persisted for playback and transcription rows.
     public var playableDurationMs: Int {
@@ -56,7 +59,8 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         previewSpeechEngine: SpeechEngineSelection? = nil,
         startContext: MeetingStartContext? = nil,
         userNotes: String? = nil,
-        calendarEventSnapshot: MeetingCalendarSnapshot? = nil
+        calendarEventSnapshot: MeetingCalendarSnapshot? = nil,
+        meetingTypeId: UUID? = nil
     ) {
         self.init(
             sessionID: sessionID,
@@ -75,7 +79,8 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
             previewSpeechEngine: previewSpeechEngine,
             startContext: startContext,
             userNotes: userNotes,
-            calendarEventSnapshot: calendarEventSnapshot
+            calendarEventSnapshot: calendarEventSnapshot,
+            meetingTypeId: meetingTypeId
         )
     }
 
@@ -96,7 +101,8 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         previewSpeechEngine: SpeechEngineSelection? = nil,
         startContext: MeetingStartContext? = nil,
         userNotes: String? = nil,
-        calendarEventSnapshot: MeetingCalendarSnapshot? = nil
+        calendarEventSnapshot: MeetingCalendarSnapshot? = nil,
+        meetingTypeId: UUID? = nil
     ) {
         self.sessionID = sessionID
         self.displayName = displayName
@@ -115,6 +121,7 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         self.startContext = startContext
         self.userNotes = userNotes
         self.calendarEventSnapshot = calendarEventSnapshot
+        self.meetingTypeId = meetingTypeId
     }
 
     /// The microphone audio to transcribe for the local ("Me") track: the
@@ -223,7 +230,8 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
             speechEngineWasCaptured: metadata.speechEngineWasCaptured,
             previewSpeechEngine: metadata.previewSpeechEngine,
             startContext: metadata.startContext,
-            calendarEventSnapshot: metadata.calendarEventSnapshot
+            calendarEventSnapshot: metadata.calendarEventSnapshot,
+            meetingTypeId: metadata.meetingTypeId
         )
     }
 

@@ -286,7 +286,8 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             startContext: existingMetadata?.startContext ?? lock.startContext,
             echoSuppression: existingMetadata?.echoSuppression,
             calendarEventSnapshot: existingMetadata?.calendarEventSnapshot
-                ?? lock.calendarEventSnapshot
+                ?? lock.calendarEventSnapshot,
+            meetingTypeId: existingMetadata?.meetingTypeId ?? lock.meetingTypeId
         )
         try MeetingRecordingMetadataStore.save(
             recoveredMetadata,
@@ -381,7 +382,8 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             previewSpeechEngine: recoveredMetadata.previewSpeechEngine,
             startContext: recoveredMetadata.startContext,
             userNotes: lock.notes,
-            calendarEventSnapshot: recoveredMetadata.calendarEventSnapshot
+            calendarEventSnapshot: recoveredMetadata.calendarEventSnapshot,
+            meetingTypeId: recoveredMetadata.meetingTypeId
         )
 
         do {

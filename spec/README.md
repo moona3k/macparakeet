@@ -23,6 +23,7 @@
 | 11 | [LLM Integration](11-llm-integration.md) | LLM providers, summary, chat, transforms | Implemented (§1 summary superseded by spec/12) |
 | 12 | [Processing Layer](12-processing-layer.md) | Prompt library, multi-summary, v0.5 implementation contract | Active |
 | 13 | [Agent Workflows](13-agent-workflows.md) | Future actions, workflows, agents, voice control, App Intents | Draft |
+| 14 | [Per-Prompt Inference Settings](14-per-prompt-inference-settings.md) | Typed generation settings and effective-setting snapshots for result and Transform prompts | Implemented / PR open |
 
 ## Boundary Contracts
 
@@ -85,6 +86,10 @@ Feature gates in the current source (`Sources/MacParakeetCore/AppFeatures.swift`
 Implementation status is not release verification. Candidate hardware capture,
 long-transcript interaction, signed upgrade, and full-suite evidence must be
 reported separately; a source/doc review does not establish those gates.
+
+Discover is included in normal builds. `MACPARAKEET_DISABLE_DISCOVER=1` is a
+manifest-level local build option that excludes the Discover sources, fallback
+feed, UI wiring, cache path, and network endpoints; it is not a runtime setting.
 
 ## Architecture Decision Records (ADRs)
 

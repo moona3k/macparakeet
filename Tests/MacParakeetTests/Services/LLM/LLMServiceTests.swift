@@ -11,6 +11,7 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
     var responseContent = "Mock response"
     var responseContents: [String] = []
     var chatCompletionCallCount = 0
+    var chatCompletionStreamCallCount = 0
     var responseReasoningContent: String?
     var responseFinishReason: String?
     var responseModel = "mock-model"
@@ -39,7 +40,8 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
             reasoningContent: responseReasoningContent,
             finishReason: responseFinishReason,
             model: responseModel,
-            usage: responseUsage
+            usage: responseUsage,
+            effectiveInferenceSettings: options.effectiveInferenceSettings
         )
     }
 
@@ -65,6 +67,36 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
         }
     }
 
+    func chatCompletionDetailedStream(
+        messages: [ChatMessage],
+        context: LLMExecutionContext,
+        options: ChatCompletionOptions
+    ) -> AsyncThrowingStream<LLMStreamEvent, Error> {
+        chatCompletionStreamCallCount += 1
+        capturedMessages = messages
+        capturedContext = context
+        capturedOptions = options
+        if let chatCompletionError {
+            return AsyncThrowingStream { continuation in
+                continuation.finish(throwing: chatCompletionError)
+            }
+        }
+        let tokens = streamTokens ?? [responseContent]
+        return AsyncThrowingStream { continuation in
+            for token in tokens {
+                continuation.yield(.text(token))
+            }
+            continuation.yield(.completed(LLMStreamTerminal(
+                provider: context.providerConfig.id.rawValue,
+                model: responseModel,
+                usage: responseUsage.map(LLMUsage.init),
+                stopReason: responseFinishReason,
+                effectiveSettings: options.effectiveInferenceSettings
+            )))
+            continuation.finish()
+        }
+    }
+
     func testConnection(context: LLMExecutionContext) async throws {
         capturedContext = context
         if testConnectionDelayNs > 0 {
@@ -73,10 +105,12 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
         if let error = testConnectionError { throw error }
     }
 
-    var modelsList: [String] = ["mock-model-1", "mock-model-2"]
+    var modelsList: [String] = []
     var listModelsError: Error?
+    var listModelsCallCount = 0
 
     func listModels(context: LLMExecutionContext) async throws -> [String] {
+        listModelsCallCount += 1
         capturedContext = context
         if let error = listModelsError { throw error }
         return modelsList
@@ -465,6 +499,302 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertEqual(mockClient.capturedMessages[1].content, "input text")
     }
 
+    func testPromptResultDetailedAppliesAndReturnsEffectiveInferenceSettings() async throws {
+        mockConfigStore.config = .openai(apiKey: "sk-test", model: "gpt-4.1")
+        let requested = PromptInferenceSettings(
+            temperature: 0.2,
+            topP: 0.8,
+            maxTokens: 512
+        )
+
+        let result = try await service.generatePromptResultDetailed(
+            transcript: "input text",
+            systemPrompt: nil,
+            inferenceSettings: requested
+        )
+
+        XCTAssertEqual(result.effectiveSettings?.temperature, 0.2)
+        XCTAssertEqual(result.effectiveSettings?.topP, 0.8)
+        XCTAssertEqual(result.effectiveSettings?.maxTokens, 512)
+        XCTAssertTrue(try XCTUnwrap(mockClient.capturedOptions).usesPromptInferenceSettings)
+        XCTAssertEqual(mockClient.capturedOptions?.effectiveInferenceSettings, result.effectiveSettings)
+    }
+
+    func testPromptResultDetailedUsesRequestScopedModelOverrideWithoutMutatingStore() async throws {
+        mockConfigStore.config = .openai(apiKey: "sk-test", model: "global-model")
+
+        _ = try await service.generatePromptResultDetailed(
+            transcript: "input text",
+            systemPrompt: nil,
+            inferenceSettings: nil,
+            modelOverride: "prompt-model"
+        )
+
+        XCTAssertEqual(mockClient.capturedContext?.providerConfig.modelName, "prompt-model")
+        XCTAssertEqual(mockConfigStore.config?.modelName, "global-model")
+    }
+
+    func testPromptResultRejectsEmptyModelOverrideBeforeClientRequest() async {
+        mockConfigStore.config = .openai(apiKey: "sk-test", model: "gpt-4.1")
+
+        do {
+            _ = try await service.generatePromptResultDetailed(
+                transcript: "input text",
+                systemPrompt: nil,
+                inferenceSettings: nil,
+                modelOverride: "   "
+            )
+            XCTFail("Expected an invalid model override error")
+        } catch let error as LLMError {
+            guard case .invalidModelOverride = error else {
+                return XCTFail("Unexpected LLM error: \(error)")
+            }
+            XCTAssertTrue(error.localizedDescription.contains("Choose a compatible model"))
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+        XCTAssertEqual(mockClient.chatCompletionCallCount, 0)
+    }
+
+    func testPromptResultRejectsLocallyIncompatibleProviderModelBeforeClientRequest() async {
+        mockConfigStore.config = .anthropic(apiKey: "sk-ant-test", model: "claude-sonnet-5")
+
+        do {
+            _ = try await service.generatePromptResultDetailed(
+                transcript: "input text",
+                systemPrompt: nil,
+                inferenceSettings: nil,
+                modelOverride: "gpt-5.5"
+            )
+            XCTFail("Expected an incompatible model override error")
+        } catch let error as LLMError {
+            guard case .invalidModelOverride(_, let provider, _) = error else {
+                return XCTFail("Unexpected LLM error: \(error)")
+            }
+            XCTAssertEqual(provider, .anthropic)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+        XCTAssertEqual(mockClient.chatCompletionCallCount, 0)
+    }
+
+    func testPromptResultAcceptsSelectedGemmaModelSnapshotForBothExecutionPaths() async throws {
+        let model = "gemma-3-27b-it"
+        mockConfigStore.config = .gemini(apiKey: "test-key", model: model)
+
+        _ = try await service.generatePromptResultDetailed(
+            transcript: "input", systemPrompt: nil,
+            inferenceSettings: nil, modelOverride: model
+        )
+        XCTAssertEqual(mockClient.chatCompletionCallCount, 1)
+        XCTAssertEqual(mockClient.capturedContext?.providerConfig.modelName, model)
+
+        for try await _ in service.generatePromptResultDetailedStream(
+            transcript: "input", systemPrompt: nil,
+            inferenceSettings: nil, modelOverride: model
+        ) {}
+        XCTAssertEqual(mockClient.chatCompletionStreamCallCount, 1)
+        XCTAssertEqual(mockClient.capturedContext?.providerConfig.modelName, model)
+        XCTAssertEqual(mockConfigStore.config?.modelName, model)
+        XCTAssertEqual(mockClient.listModelsCallCount, 0)
+    }
+
+    func testPromptResultAcceptsGemmaOverrideWithoutMutatingSelectedGeminiModel() async throws {
+        mockConfigStore.config = .gemini(apiKey: "test-key", model: "gemini-2.5-flash")
+
+        _ = try await service.generatePromptResultDetailed(
+            transcript: "input", systemPrompt: nil,
+            inferenceSettings: nil, modelOverride: "gemma-3-27b-it"
+        )
+
+        XCTAssertEqual(mockClient.chatCompletionCallCount, 1)
+        XCTAssertEqual(mockClient.capturedContext?.providerConfig.modelName, "gemma-3-27b-it")
+        XCTAssertEqual(mockClient.capturedContext?.providerConfig.id, .gemini)
+        XCTAssertEqual(mockConfigStore.config?.modelName, "gemini-2.5-flash")
+    }
+
+    func testPromptResultAcceptsOllamaAliasAbsentFromDiscovery() async throws {
+        mockConfigStore.config = .ollama(model: "mistral")
+        mockClient.modelsList = ["mistral:latest"]
+
+        _ = try await service.generatePromptResultDetailed(
+            transcript: "input text", systemPrompt: nil,
+            inferenceSettings: nil, modelOverride: "mistral"
+        )
+
+        XCTAssertEqual(mockClient.chatCompletionCallCount, 1)
+        XCTAssertEqual(mockClient.capturedContext?.providerConfig.modelName, "mistral")
+        XCTAssertEqual(mockClient.listModelsCallCount, 0)
+    }
+
+    func testPromptResultStreamAcceptsProviderAliasAbsentFromDiscovery() async throws {
+        mockConfigStore.config = .anthropic(apiKey: "sk-test", model: "claude-default")
+        mockClient.modelsList = ["claude-sonnet-versioned"]
+
+        for try await _ in service.generatePromptResultDetailedStream(
+            transcript: "input text", systemPrompt: nil,
+            inferenceSettings: nil, modelOverride: "claude-sonnet-latest"
+        ) {}
+
+        XCTAssertEqual(mockClient.chatCompletionStreamCallCount, 1)
+        XCTAssertEqual(mockClient.capturedContext?.providerConfig.modelName, "claude-sonnet-latest")
+        XCTAssertEqual(mockClient.listModelsCallCount, 0)
+    }
+
+    func testPromptResultPropagatesProviderModelRejectionWithoutFallback() async {
+        mockClient.modelsList = ["gpt-existing"]
+        mockClient.chatCompletionError = LLMError.modelNotFound("gpt-missing")
+
+        do {
+            _ = try await service.generatePromptResultDetailed(
+                transcript: "input", systemPrompt: nil,
+                inferenceSettings: nil, modelOverride: "gpt-missing"
+            )
+            XCTFail("Expected the provider model error")
+        } catch let error as LLMError {
+            guard case .modelNotFound(let model) = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+            XCTAssertEqual(model, "gpt-missing")
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+        XCTAssertEqual(mockClient.chatCompletionCallCount, 1)
+        XCTAssertEqual(mockClient.capturedContext?.providerConfig.modelName, "gpt-missing")
+    }
+
+    func testTransformAcceptsOllamaAliasForBothExecutionPaths() async throws {
+        mockConfigStore.config = .ollama(model: "mistral")
+        mockClient.modelsList = ["mistral:latest"]
+        _ = try await service.transformDetailed(
+            text: "input", prompt: "Rewrite", inferenceSettings: nil, modelOverride: "mistral"
+        )
+        XCTAssertEqual(mockClient.capturedContext?.providerConfig.modelName, "mistral")
+        for try await _ in service.transformStream(
+            text: "input", prompt: "Rewrite", inferenceSettings: nil, modelOverride: "mistral"
+        ) {}
+        XCTAssertEqual(mockClient.capturedContext?.providerConfig.modelName, "mistral")
+        XCTAssertEqual(mockClient.listModelsCallCount, 0)
+    }
+
+    func testLocalCLIRejectsDifferentModelAcrossPromptAndTransformPaths() async {
+        mockConfigStore.config = .localCLI()
+        for path in 0..<4 {
+            do {
+                switch path {
+                case 0:
+                    _ = try await service.generatePromptResultDetailed(
+                        transcript: "input", systemPrompt: nil,
+                        inferenceSettings: nil, modelOverride: "different-model"
+                    )
+                case 1:
+                    for try await _ in service.generatePromptResultDetailedStream(
+                        transcript: "input", systemPrompt: nil,
+                        inferenceSettings: nil, modelOverride: "different-model"
+                    ) {}
+                case 2:
+                    _ = try await service.transformDetailed(
+                        text: "input", prompt: "Rewrite",
+                        inferenceSettings: nil, modelOverride: "different-model"
+                    )
+                default:
+                    for try await _ in service.transformStream(
+                        text: "input", prompt: "Rewrite",
+                        inferenceSettings: nil, modelOverride: "different-model"
+                    ) {}
+                }
+                XCTFail("Expected Local CLI model rejection for path \(path)")
+            } catch let error as LLMError {
+                guard case .invalidModelOverride(let model, let provider, let reason) = error else {
+                    return XCTFail("Unexpected error: \(error)")
+                }
+                XCTAssertEqual(model, "different-model")
+                XCTAssertEqual(provider, .localCLI)
+                XCTAssertTrue(reason.contains("command controls its model"))
+            } catch {
+                XCTFail("Unexpected error: \(error)")
+            }
+        }
+        XCTAssertNil(mockClient.capturedContext, "No client execution path should be reached")
+    }
+
+    func testLocalCLIPreservesUnchangedModelSnapshotAndInheritedModel() async throws {
+        mockConfigStore.config = .localCLI()
+        for model in [nil, "cli"] as [String?] {
+            _ = try await service.generatePromptResultDetailed(
+                transcript: "input", systemPrompt: nil,
+                inferenceSettings: nil, modelOverride: model
+            )
+            XCTAssertEqual(mockClient.capturedContext?.providerConfig.modelName, "cli")
+        }
+        XCTAssertEqual(mockClient.chatCompletionCallCount, 2)
+        XCTAssertEqual(mockConfigStore.config?.modelName, "cli")
+    }
+
+    func testPromptResultDetailedStreamEmitsOneTerminalReceipt() async throws {
+        mockConfigStore.config = .openai(apiKey: "sk-test", model: "gpt-4.1")
+        mockClient.streamTokens = ["one", " two"]
+        mockClient.responseModel = "gpt-4.1"
+        mockClient.responseFinishReason = "stop"
+        mockClient.responseUsage = TokenUsage(promptTokens: 4, completionTokens: 2)
+        let requested = PromptInferenceSettings(temperature: 0.3, maxTokens: 64)
+
+        let stream = service.generatePromptResultDetailedStream(
+            transcript: "input",
+            systemPrompt: nil,
+            inferenceSettings: requested
+        )
+        var text: [String] = []
+        var terminals: [LLMStreamTerminal] = []
+        for try await event in stream {
+            switch event {
+            case .text(let chunk): text.append(chunk)
+            case .completed(let terminal): terminals.append(terminal)
+            }
+        }
+
+        XCTAssertEqual(text, ["one", " two"])
+        XCTAssertEqual(terminals.count, 1)
+        XCTAssertEqual(terminals[0].provider, "openai")
+        XCTAssertEqual(terminals[0].model, "gpt-4.1")
+        XCTAssertEqual(terminals[0].usage?.totalTokens, 6)
+        XCTAssertEqual(terminals[0].stopReason, "stop")
+        XCTAssertEqual(
+            terminals[0].effectiveSettings,
+            PromptInferenceSettings(temperature: 0.3, maxTokens: 64)
+        )
+    }
+
+    func testPromptResultDetailedStreamUsesRequestScopedModelOverride() async throws {
+        mockConfigStore.config = .openai(apiKey: "sk-test", model: "global-model")
+        mockClient.streamTokens = ["done"]
+
+        for try await _ in service.generatePromptResultDetailedStream(
+            transcript: "input",
+            systemPrompt: nil,
+            inferenceSettings: nil,
+            modelOverride: "queued-model"
+        ) {}
+
+        XCTAssertEqual(mockClient.capturedContext?.providerConfig.modelName, "queued-model")
+        XCTAssertEqual(mockConfigStore.config?.modelName, "global-model")
+    }
+
+    func testLegacyPromptResultStreamProjectsOnlyTextFromDetailedStream() async throws {
+        mockClient.streamTokens = ["legacy", " output"]
+
+        var chunks: [String] = []
+        for try await chunk in service.generatePromptResultStream(
+            transcript: "input",
+            systemPrompt: nil,
+            inferenceSettings: PromptInferenceSettings(maxTokens: 32)
+        ) {
+            chunks.append(chunk)
+        }
+
+        XCTAssertEqual(chunks, ["legacy", " output"])
+    }
+
     func testChatDetailedReturnsEnvelope() async throws {
         mockClient.responseContent = "answer"
         mockClient.responseModel = "claude-sonnet-4-6"
@@ -489,6 +819,22 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertEqual(result.output, "TRANSFORMED")
         XCTAssertEqual(result.model, "qwen-4b")
         XCTAssertNil(result.usage)
+    }
+
+    func testTransformDetailedUsesInferenceSettingsAndRequestScopedModelOverride() async throws {
+        mockConfigStore.config = .openai(apiKey: "sk-test", model: "global-model")
+        let settings = PromptInferenceSettings(temperature: 0.4, maxTokens: 321)
+
+        _ = try await service.transformDetailed(
+            text: "hello",
+            prompt: "uppercase",
+            inferenceSettings: settings,
+            modelOverride: "transform-model"
+        )
+
+        XCTAssertEqual(mockClient.capturedContext?.providerConfig.modelName, "transform-model")
+        XCTAssertEqual(mockClient.capturedOptions?.effectiveInferenceSettings, settings.normalized)
+        XCTAssertEqual(mockConfigStore.config?.modelName, "global-model")
     }
 
     func testFormatTranscriptDetailedReturnsEnvelopeAndFormatterMetadata() async throws {
@@ -796,6 +1142,116 @@ final class LLMServiceTests: XCTestCase {
         )
     }
 
+    func testOllamaPromptResultsUseConfiguredContextWindowInBothPaths() async throws {
+        mockConfigStore.config = .ollama(model: "qwen3")
+        let transcript = String(repeating: "x", count: 80_000)
+        for maxTokens: Int? in [nil, 2048] {
+            let settings = maxTokens.map { PromptInferenceSettings(maxTokens: $0) }
+            let expectedInputCharacters = (OllamaLLMHTTPAdapter.contextWindowTokens - (maxTokens ?? 0)) * 7 / 2
+            _ = try await service.generatePromptResultDetailed(
+                transcript: transcript, systemPrompt: "S", inferenceSettings: settings
+            )
+            XCTAssertEqual(mockClient.capturedMessages.reduce(0) { $0 + $1.content.count }, expectedInputCharacters)
+            XCTAssertEqual(mockClient.capturedOptions?.maxTokens, maxTokens)
+            for try await _ in service.generatePromptResultDetailedStream(
+                transcript: transcript, systemPrompt: "S", inferenceSettings: settings
+            ) {}
+            XCTAssertEqual(mockClient.capturedMessages.reduce(0) { $0 + $1.content.count }, expectedInputCharacters)
+            XCTAssertEqual(mockClient.capturedOptions?.maxTokens, maxTokens)
+        }
+    }
+
+    func testOllamaPromptResultsRejectOutputThatFillsContextBeforeDispatchInBothPaths() async {
+        mockConfigStore.config = .ollama(model: "qwen3")
+        let settings = PromptInferenceSettings(maxTokens: OllamaLLMHTTPAdapter.contextWindowTokens)
+        do {
+            _ = try await service.generatePromptResultDetailed(
+                transcript: "input", systemPrompt: "S", inferenceSettings: settings
+            )
+            XCTFail("Expected output occupying the full context to fail")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("leave no room for prompt input"))
+        }
+        do {
+            for try await _ in service.generatePromptResultDetailedStream(
+                transcript: "input", systemPrompt: "S", inferenceSettings: settings
+            ) {}
+            XCTFail("Expected output occupying the full context to fail")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("leave no room for prompt input"))
+        }
+        XCTAssertEqual(mockClient.chatCompletionCallCount, 0)
+        XCTAssertTrue(mockClient.capturedMessages.isEmpty)
+        XCTAssertNil(mockClient.capturedOptions)
+    }
+
+    func testAnthropicPromptResultsReserveInheritedOutputLimitInBothPaths() async throws {
+        mockConfigStore.config = .anthropic(apiKey: "test-key", model: "claude-sonnet-4-5")
+        let transcript = String(repeating: "x", count: LLMService.cloudContextBudget)
+        let result = try await service.generatePromptResultDetailed(
+            transcript: transcript,
+            systemPrompt: "S"
+        )
+        let expectedInputCharacters = LLMService.cloudContextBudget - 4096 * 7 / 2
+        XCTAssertEqual(mockClient.capturedMessages.reduce(0) { $0 + $1.content.count }, expectedInputCharacters)
+        XCTAssertNil(mockClient.capturedOptions?.maxTokens, "Preserve the adapter's inherited wire default")
+        XCTAssertEqual(result.effectiveSettings?.maxTokens, 4096)
+
+        for try await _ in service.generatePromptResultDetailedStream(
+            transcript: transcript,
+            systemPrompt: "S",
+            inferenceSettings: nil
+        ) {}
+        XCTAssertEqual(mockClient.capturedMessages.reduce(0) { $0 + $1.content.count }, expectedInputCharacters)
+        XCTAssertNil(mockClient.capturedOptions?.maxTokens)
+    }
+
+    func testLMStudioPromptResultReservesCeilingThreePointFiveCharactersPerOutputToken() async throws {
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+
+        _ = try await service.generatePromptResultDetailed(
+            transcript: String(repeating: "x", count: 20_000),
+            systemPrompt: "S",
+            inferenceSettings: PromptInferenceSettings(maxTokens: 3)
+        )
+
+        let totalInputCharacters = mockClient.capturedMessages.reduce(0) { $0 + $1.content.count }
+        // ceil(3.5 * 3) = 11, leaving 7,989 input characters.
+        XCTAssertEqual(totalInputCharacters, LLMService.lmStudioContextBudget - 11)
+        XCTAssertEqual(mockClient.capturedOptions?.maxTokens, 3)
+    }
+
+    func testLMStudioPromptResultRejectsOutputBudgetThatLeavesNoInputBeforeCallingClient() async {
+        let telemetry = LLMTelemetrySpy()
+        Telemetry.configure(telemetry)
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+
+        do {
+            _ = try await service.generatePromptResultDetailed(
+                transcript: "input",
+                systemPrompt: "S",
+                inferenceSettings: PromptInferenceSettings(maxTokens: 4096)
+            )
+            XCTFail("Expected an oversized output reservation to fail")
+        } catch {
+            XCTAssertEqual(
+                error.localizedDescription,
+                "Maximum output tokens (4096) leave no room for prompt input. Reduce Max tokens."
+            )
+        }
+
+        XCTAssertEqual(mockClient.chatCompletionCallCount, 0)
+        XCTAssertTrue(mockClient.capturedMessages.isEmpty)
+        let operations = llmOperationProps(in: telemetry.snapshot())
+        XCTAssertEqual(operations.count, 1)
+        XCTAssertEqual(operations.first?["feature"], "prompt_result")
+        XCTAssertEqual(operations.first?["provider"], "lmstudio")
+        XCTAssertEqual(operations.first?["streaming"], "false")
+        XCTAssertEqual(operations.first?["outcome"], "failure")
+        XCTAssertNotNil(operations.first?["error_type"])
+        XCTAssertNil(operations.first?["input_truncated"])
+    }
+
     func testLMStudioPromptResultBoundsRenderedSystemPromptContainingTranscript() async throws {
         mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
 
@@ -833,6 +1289,42 @@ final class LLMServiceTests: XCTestCase {
             userMessage.content.count,
             LLMService.lmStudioContextBudget - systemMessage.content.count
         )
+    }
+
+    func testLMStudioStreamingPromptResultReservesSameOutputBudgetAsNonStreaming() async throws {
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+        mockClient.streamTokens = ["done"]
+
+        for try await _ in service.generatePromptResultDetailedStream(
+            transcript: String(repeating: "x", count: 20_000),
+            systemPrompt: "S",
+            inferenceSettings: PromptInferenceSettings(maxTokens: 3)
+        ) {}
+
+        let totalInputCharacters = mockClient.capturedMessages.reduce(0) { $0 + $1.content.count }
+        XCTAssertEqual(totalInputCharacters, LLMService.lmStudioContextBudget - 11)
+        XCTAssertEqual(mockClient.capturedOptions?.maxTokens, 3)
+    }
+
+    func testLMStudioStreamingPromptResultRejectsOutputBudgetThatLeavesNoInputBeforeCallingClient() async {
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+
+        do {
+            for try await _ in service.generatePromptResultDetailedStream(
+                transcript: "input",
+                systemPrompt: "S",
+                inferenceSettings: PromptInferenceSettings(maxTokens: 4096)
+            ) {}
+            XCTFail("Expected an oversized output reservation to fail")
+        } catch {
+            XCTAssertEqual(
+                error.localizedDescription,
+                "Maximum output tokens (4096) leave no room for prompt input. Reduce Max tokens."
+            )
+        }
+
+        XCTAssertTrue(mockClient.capturedMessages.isEmpty)
+        XCTAssertNil(mockClient.capturedOptions)
     }
 
     func testLMStudioTransformSubtractsPromptOverheadFromTextBudget() async throws {

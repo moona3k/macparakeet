@@ -4,6 +4,16 @@ import XCTest
 
 @MainActor
 final class SpinnerRingViewTests: XCTestCase {
+    func testStaticMerkabaShapeRetainsExpectedBounds() {
+        let path = MerkabaShape().path(in: CGRect(x: 0, y: 0, width: 100, height: 100))
+
+        XCTAssertFalse(path.isEmpty)
+        XCTAssertEqual(path.boundingRect.minX, 8, accuracy: 0.001)
+        XCTAssertEqual(path.boundingRect.minY, 8, accuracy: 0.001)
+        XCTAssertEqual(path.boundingRect.maxX, 92, accuracy: 0.001)
+        XCTAssertEqual(path.boundingRect.maxY, 92, accuracy: 0.001)
+    }
+
     func testAnimatedSpinnerUsesCoreAnimationLayers() {
         let view = SpinnerRingNSView(frame: NSRect(x: 0, y: 0, width: 14, height: 14))
 

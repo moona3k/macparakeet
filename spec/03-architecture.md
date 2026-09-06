@@ -165,10 +165,10 @@ The UI layer. Thin shell over MacParakeetCore. No business logic lives here.
 
 #### Main Window
 
-**Responsibility:** Primary in-app navigation shell. Hosts the Transcribe capture hub, Library, Dictations, Vocabulary, Transforms, Feedback, Settings, and Discover surfaces. File/URL transcription, meeting recording, transcript browse, dictation history, prompt actions, Transforms, and settings all route through this window.
+**Responsibility:** Primary in-app navigation shell. Hosts the Transcribe capture hub, Library, Dictations, Vocabulary, Transforms, Feedback, Settings, and (unless excluded at compile time) Discover surfaces. File/URL transcription, meeting recording, transcript browse, dictation history, prompt actions, Transforms, and settings all route through this window.
 
 **Key Types:**
-- `MainWindowView` — `NavigationSplitView` sidebar (Transcribe / Library / Dictations / Vocabulary / Transforms / Feedback / Settings) plus pinned Discover card and a global transcription progress bar
+- `MainWindowView` — `NavigationSplitView` sidebar (Transcribe / Library / Dictations / Vocabulary / Transforms / Feedback / Settings), a global transcription progress bar, and a pinned Discover card unless `MACPARAKEET_DISABLE_DISCOVER=1` excludes that feature from the build
 - `TranscribeView` — YouTube card, file drop card, Meeting Recording tile, and transcript detail / progress surfaces
 - `TranscriptionLibraryView` — file, YouTube, meeting, and favorite transcript browse with search/sort/filter support
 - `TranscriptResultView` — Scrollable text with optional word-level timestamps

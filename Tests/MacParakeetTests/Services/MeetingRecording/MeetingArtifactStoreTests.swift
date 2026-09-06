@@ -27,6 +27,37 @@ final class MeetingArtifactStoreTests: XCTestCase {
         folderURL = nil
     }
 
+    func testSnapshotDecodesLegacyV1WithoutCorrectionKeys() throws {
+        let json = """
+        {"schema":"com.macparakeet.meeting-session","schemaVersion":1,"generatedAt":0,
+         "meetingID":"00000000-0000-0000-0000-000000000001","title":"Legacy",
+         "folderPath":"/tmp/meeting","manifestPath":"/tmp/meeting/manifest.json",
+         "transcriptPath":"/tmp/meeting/transcript.json","promptResultsPath":"/tmp/meeting/results.json",
+         "promptResultsDirectoryPath":"/tmp/meeting/results","promptResultCount":0}
+        """
+        let snapshot = try JSONDecoder().decode(MeetingArtifactSnapshot.self, from: Data(json.utf8))
+        XCTAssertFalse(snapshot.speakerCorrectionsApplied)
+        XCTAssertEqual(snapshot.speakerCorrectionRevision, 0)
+        XCTAssertEqual(snapshot.title, "Legacy")
+    }
+
+    func testMaterializeToleratesDuplicateLegacySpeakerAndSegmentIDs() async throws {
+        var row = makeMeeting(notes: nil)
+        row.speakers = [.init(id: "S1", label: "First"), .init(id: "S1", label: "Duplicate")]
+        let segment = TranscriptSegmentRecord(startMs: 0, endMs: 100,
+            speakerId: "S1", speakerLabel: "First", text: "Hello",
+            wordRange: .init(startIndex: 0, endIndexExclusive: 1))
+        row.wordTimestamps = [.init(word: "Hello", startMs: 0, endMs: 100, confidence: 1, speakerId: "S1")]
+        row.transcriptSegments = [segment, segment]
+        let projection = SpeakerAttributionProjection(automaticTranscription: row,
+            attribution: SpeakerAttributionResolver.resolve(transcription: row), correctionsApplied: false)
+        let snapshot = try await MeetingArtifactStore().materialize(projection: projection, promptResults: [])
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: snapshot.transcriptPath))) as? [String: Any])
+        let segments = try XCTUnwrap(payload["transcriptSegments"] as? [[String: Any]])
+        let spans = try XCTUnwrap(segments.first?["speakerSpans"] as? [[String: Any]])
+        XCTAssertEqual(spans.first?["speakerLabel"] as? String, "First")
+    }
+
     func testMaterializeWritesFirstClassMeetingArtifactFiles() async throws {
         let startContext = MeetingStartContext(
             triggerKind: .manual,
@@ -46,7 +77,12 @@ final class MeetingArtifactStoreTests: XCTestCase {
             promptContent: "Summarize the meeting.",
             extraInstructions: "External agent",
             content: "Ship the artifact contract.",
-            userNotesSnapshot: transcription.userNotes
+            userNotesSnapshot: transcription.userNotes,
+            includeMeetingNotesSnapshot: true,
+            inferenceSettingsSnapshot: PromptInferenceSettings(
+                temperature: 0.2,
+                maxTokens: 500
+            )
         )
 
         let snapshot = try await MeetingArtifactStore().materialize(
@@ -172,6 +208,12 @@ final class MeetingArtifactStoreTests: XCTestCase {
         XCTAssertEqual(promptResults.count, 1)
         XCTAssertEqual(promptResult["index"] as? Int, 1)
         XCTAssertEqual(promptResult["name"] as? String, "Executive Summary")
+        XCTAssertEqual(promptResult["includeMeetingNotesSnapshot"] as? Bool, true)
+        let inferenceSettings = try XCTUnwrap(
+            promptResult["inferenceSettingsSnapshot"] as? [String: Any]
+        )
+        XCTAssertEqual(inferenceSettings["temperature"] as? Double, 0.2)
+        XCTAssertEqual(inferenceSettings["maxTokens"] as? Int, 500)
 
         let resultFiles = try XCTUnwrap(manifest["promptResults"] as? [[String: Any]])
         XCTAssertEqual(resultFiles.count, 1)
@@ -180,6 +222,195 @@ final class MeetingArtifactStoreTests: XCTestCase {
         let resultMarkdown = try String(contentsOfFile: resultMarkdownPath, encoding: .utf8)
         XCTAssertTrue(resultMarkdown.contains("# Executive Summary"))
         XCTAssertTrue(resultMarkdown.contains("Ship the artifact contract."))
+        XCTAssertTrue(resultMarkdown.contains("Automatic meeting notes context: enabled"))
+    }
+
+    func testMaterializeProjectionPreservesCorrectedSplitSpeakerSpans() async throws {
+        let segmentID = UUID()
+        let transcription = Transcription(
+            fileName: "Split Review",
+            filePath: folderURL.appendingPathComponent("meeting-playback.m4a").path,
+            rawTranscript: "One two three four.",
+            wordTimestamps: [
+                WordTimestamp(word: "One", startMs: 0, endMs: 200, confidence: 1, speakerId: "S1"),
+                WordTimestamp(word: "two", startMs: 220, endMs: 400, confidence: 1, speakerId: "S1"),
+                WordTimestamp(word: "three", startMs: 420, endMs: 600, confidence: 1, speakerId: "S1"),
+                WordTimestamp(word: "four.", startMs: 620, endMs: 800, confidence: 1, speakerId: "S1"),
+            ],
+            speakerCount: 2,
+            speakers: [
+                SpeakerInfo(id: "S1", label: "Alice"),
+                SpeakerInfo(id: "S2", label: "Bob"),
+            ],
+            transcriptSegments: [TranscriptSegmentRecord(
+                id: segmentID,
+                startMs: 0,
+                endMs: 800,
+                speakerId: "S1",
+                speakerLabel: "Alice",
+                text: "One two three four.",
+                wordRange: .init(startIndex: 0, endIndexExclusive: 4)
+            )],
+            status: .completed,
+            sourceType: .meeting
+        )
+        let fingerprint = SpeakerAttributionResolver.fingerprint(for: transcription)
+        let fullTarget = SpeakerCorrectionTarget(
+            anchorTranscriptSegmentIDs: [segmentID],
+            wordRange: .init(startIndex: 0, endIndexExclusive: 4)
+        )
+        let split = SpeakerCorrection(
+            transcriptionId: transcription.id,
+            parentId: nil,
+            sequence: 1,
+            transcriptFingerprint: fingerprint,
+            payload: .split(target: fullTarget, atWordIndex: 2)
+        )
+        let assign = SpeakerCorrection(
+            transcriptionId: transcription.id,
+            parentId: split.id,
+            sequence: 2,
+            transcriptFingerprint: fingerprint,
+            payload: .assign(
+                targets: [SpeakerCorrectionTarget(
+                    anchorTranscriptSegmentIDs: [segmentID],
+                    wordRange: .init(startIndex: 2, endIndexExclusive: 4)
+                )],
+                to: .speaker(id: "S2")
+            )
+        )
+        let state = SpeakerCorrectionState(
+            transcriptionId: transcription.id,
+            transcriptFingerprint: fingerprint.rawValue,
+            headId: assign.id,
+            revision: 2
+        )
+        let projection = SpeakerAttributionProjection(
+            automaticTranscription: transcription,
+            attribution: SpeakerAttributionResolver.resolve(
+                transcription: transcription,
+                corrections: [split, assign],
+                state: state
+            ),
+            correctionsApplied: true
+        )
+        let labelID = UUID()
+        let classification = MeetingArtifactClassificationSnapshot(
+            meetingType: nil,
+            labels: [.init(
+                id: labelID,
+                name: "Reviewed",
+                colorToken: "green",
+                isArchived: false
+            )]
+        )
+
+        let store: any MeetingArtifactStoring = MeetingArtifactStore()
+        let snapshot = try await store.materialize(
+            projection: projection,
+            promptResults: [],
+            classification: classification
+        )
+
+        XCTAssertEqual(snapshot.meetingLabels?.map(\.id), [labelID])
+        let transcript = try jsonObject(at: URL(fileURLWithPath: snapshot.transcriptPath))
+        XCTAssertEqual(transcript["speakerCorrectionsApplied"] as? Bool, true)
+        XCTAssertEqual(transcript["speakerCorrectionRevision"] as? Int, 2)
+        XCTAssertEqual(
+            (transcript["meetingLabels"] as? [[String: Any]])?.first?["name"] as? String,
+            "Reviewed"
+        )
+        let segments = try XCTUnwrap(transcript["transcriptSegments"] as? [[String: Any]])
+        let spans = try XCTUnwrap(segments.first?["speakerSpans"] as? [[String: Any]])
+        XCTAssertEqual(spans.count, 2)
+        XCTAssertEqual(spans.map { $0["speakerLabel"] as? String }, ["Alice", "Bob"])
+        let markdown = try String(contentsOfFile: snapshot.markdownPath!, encoding: .utf8)
+        XCTAssertTrue(markdown.contains("speakerCorrectionsApplied: true"))
+        XCTAssertTrue(markdown.contains("speakerCorrectionRevision: 2"))
+    }
+
+    func testMaterializeExportsMeetingClassificationSnapshots() async throws {
+        let transcription = makeMeeting(notes: nil)
+        let typeID = UUID()
+        let labelID = UUID()
+        let classification = MeetingArtifactClassificationSnapshot(
+            meetingType: .init(
+                id: typeID,
+                name: "Customer",
+                colorToken: "blue",
+                iconName: "person.2",
+                isArchived: false
+            ),
+            labels: [
+                .init(
+                    id: labelID,
+                    name: "Important",
+                    colorToken: "coral",
+                    isArchived: false
+                )
+            ]
+        )
+
+        let snapshot = try await MeetingArtifactStore().materialize(
+            transcription: transcription,
+            promptResults: [],
+            classification: classification
+        )
+
+        let manifest = try jsonObject(at: URL(fileURLWithPath: snapshot.manifestPath))
+        let manifestMeeting = try XCTUnwrap(manifest["meeting"] as? [String: Any])
+        let manifestType = try XCTUnwrap(manifestMeeting["meetingType"] as? [String: Any])
+        XCTAssertEqual(manifestType["id"] as? String, typeID.uuidString)
+        XCTAssertEqual(manifestType["name"] as? String, "Customer")
+        let manifestLabels = try XCTUnwrap(manifestMeeting["meetingLabels"] as? [[String: Any]])
+        XCTAssertEqual(manifestLabels.first?["id"] as? String, labelID.uuidString)
+        XCTAssertEqual(manifestLabels.first?["name"] as? String, "Important")
+
+        let transcript = try jsonObject(at: URL(fileURLWithPath: snapshot.transcriptPath))
+        XCTAssertEqual(
+            (transcript["meetingType"] as? [String: Any])?["name"] as? String,
+            "Customer"
+        )
+        XCTAssertEqual((transcript["meetingLabels"] as? [[String: Any]])?.first?["name"] as? String, "Important")
+
+        let markdown = try String(contentsOfFile: try XCTUnwrap(snapshot.markdownPath), encoding: .utf8)
+        XCTAssertTrue(markdown.contains("meetingType:\n  id: \"\(typeID.uuidString)\"\n  name: \"Customer\""))
+        XCTAssertTrue(markdown.contains("meetingLabels:\n  - id: \"\(labelID.uuidString)\"\n    name: \"Important\""))
+    }
+
+    func testLegacyMaterializeCallPreservesClassificationFromProvider() async throws {
+        let transcription = makeMeeting(notes: nil)
+        let typeID = UUID()
+        let classification = MeetingArtifactClassificationSnapshot(
+            meetingType: .init(
+                id: typeID,
+                name: "Internal",
+                colorToken: nil,
+                isArchived: false
+            ),
+            labels: []
+        )
+        let store = MeetingArtifactStore(
+            classificationProvider: { transcriptionID in
+                XCTAssertEqual(transcriptionID, transcription.id)
+                return classification
+            }
+        )
+
+        // This is the signature used by finalization and regeneration paths
+        // that predate classification-aware artifacts.
+        let snapshot = try await store.materialize(
+            transcription: transcription,
+            promptResults: []
+        )
+
+        XCTAssertEqual(snapshot.meetingType?.id, typeID)
+        XCTAssertEqual(snapshot.meetingLabels, [])
+        let manifest = try jsonObject(at: URL(fileURLWithPath: snapshot.manifestPath))
+        let meeting = try XCTUnwrap(manifest["meeting"] as? [String: Any])
+        XCTAssertEqual((meeting["meetingType"] as? [String: Any])?["name"] as? String, "Internal")
+        let transcript = try jsonObject(at: URL(fileURLWithPath: snapshot.transcriptPath))
+        XCTAssertEqual((transcript["meetingType"] as? [String: Any])?["name"] as? String, "Internal")
     }
 
     func testMaterializeDoesNotPublishManifestWhenMarkdownWriteFails() async throws {

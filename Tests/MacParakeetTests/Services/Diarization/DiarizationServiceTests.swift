@@ -100,6 +100,30 @@ final class DiarizationServiceTests: XCTestCase {
         XCTAssertNil(config.clustering.maxSpeakers)
     }
 
+    func testRetranscriptionSpeakerSelectionAcceptsDocumentedBounds() throws {
+        XCTAssertEqual(
+            try RetranscriptionSpeakerSelection.exact(1).validated(),
+            .exact(1)
+        )
+        XCTAssertEqual(
+            try RetranscriptionSpeakerSelection.exact(100).validated(),
+            .exact(100)
+        )
+        XCTAssertEqual(
+            try RetranscriptionSpeakerSelection.automatic.validated(),
+            .automatic
+        )
+    }
+
+    func testRetranscriptionSpeakerSelectionRejectsValuesOutsideDocumentedBounds() {
+        XCTAssertThrowsError(try RetranscriptionSpeakerSelection.exact(0).validated()) { error in
+            XCTAssertEqual(error as? RetranscriptionSpeakerSelectionError, .unsupportedExactCount(0))
+        }
+        XCTAssertThrowsError(try RetranscriptionSpeakerSelection.exact(101).validated()) { error in
+            XCTAssertEqual(error as? RetranscriptionSpeakerSelectionError, .unsupportedExactCount(101))
+        }
+    }
+
     func testOfflineConfigAppliesSpeakerRangeConstraint() {
         let config = DiarizationService.offlineConfig(speakerConstraint: .range(min: 2, max: 4))
 

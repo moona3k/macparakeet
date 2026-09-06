@@ -117,6 +117,63 @@ This project bundles or downloads third-party software components. The following
 - License: MIT License
 - Source: <https://github.com/sparkle-project/Sparkle>
 
+### SwiftStreamingMarkdown
+
+- Version: 0.7.0 compatibility fork, pinned at `1f10d5286985349b63145e1193f4f6ad5f7fdfe1`
+- License: MIT License
+- Source: <https://github.com/microsoft/SwiftStreamingMarkdown>
+- Compatibility source: <https://github.com/alfred-sa/SwiftStreamingMarkdown>
+- Used for: Rich Markdown rendering in Prompt Results, Chat, and live Ask
+
+### swift-markdown
+
+- Version: 0.7.3
+- License: Apache License 2.0
+- Source: <https://github.com/swiftlang/swift-markdown>
+- Used for: Markdown parsing through SwiftStreamingMarkdown
+
+### HighlightSwift
+
+- Revision: `99c431b38a1444a5fd6a4978307fbbefe3a7af53`
+- License: MIT License
+- Source: <https://github.com/appstefan/highlightswift>
+- Used for: Fenced-code syntax highlighting through SwiftStreamingMarkdown
+
+### iosMath
+
+- Revision: `ba9ab7729b151329c54fd895a7c1859981d9484c`
+- License: MIT License
+- Source: <https://github.com/junyan72/iosMath>
+- Used for: Transitive math-rendering support in SwiftStreamingMarkdown
+
+### Equatable
+
+- Version: 1.4.1
+- License: Apache License 2.0
+- Source: <https://github.com/ordo-one/equatable>
+- Used for: Transitive SwiftStreamingMarkdown support
+
+### SwiftUI-Shimmer
+
+- Version: 1.5.1
+- License: MIT License
+- Source: <https://github.com/markiv/SwiftUI-Shimmer>
+- Used for: Transitive SwiftStreamingMarkdown support
+
+### swift-cmark
+
+- Version: 0.8.0
+- License: BSD 2-Clause License
+- Source: <https://github.com/swiftlang/swift-cmark>
+- Used for: Transitive CommonMark/GFM parsing through swift-markdown
+
+### swift-syntax
+
+- Version: 603.0.2
+- License: Apache License 2.0
+- Source: <https://github.com/swiftlang/swift-syntax>
+- Used for: Transitive swift-markdown build support
+
 ## Parakeet TDT Model
 
 - License: CC-BY-4.0

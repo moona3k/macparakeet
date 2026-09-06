@@ -13,14 +13,26 @@ final class AppEnvironment {
     let databaseManager: DatabaseManager
     let dictationRepo: DictationRepository
     let transcriptionRepo: TranscriptionRepository
+    let meetingTypeRepo: MeetingTypeRepository
+    let meetingLabelRepo: MeetingLabelRepository
+    let transcriptionMeetingLabelRepo: TranscriptionMeetingLabelRepository
+    let meetingClassificationService: MeetingClassificationService
     let segmentRepo: SegmentRepository
     let cardRepo: CardRepository
     let knowledgeLayerMutator: KnowledgeLayerMutationService
+    let speakerAttributionReader: SpeakerAttributionReadService
+    let speakerCorrectionService: SpeakerCorrectionService
     let customWordRepo: CustomWordRepository
     let snippetRepo: TextSnippetRepository
     let chatConversationRepo: ChatConversationRepository
     let promptRepo: PromptRepository
+    let promptMeetingPolicyRepo: PromptMeetingPolicyRepository
+    let promptLabelPolicyRepo: PromptLabelPolicyRepository
+    let promptVersionRepo: PromptVersionRepository
+    let promptCollectionRepo: PromptCollectionRepository
+    let promptEditingService: PromptEditingService
     let promptResultRepo: PromptResultRepository
+    let meetingArtifactStore: MeetingArtifactStore
     let llmRunRepo: LLMRunRepository
     let aiFormatterProfileRepo: AIFormatterProfileRepository
     let transformHistoryRepo: TransformHistoryRepository
@@ -67,14 +79,40 @@ final class AppEnvironment {
         // Repositories
         dictationRepo = DictationRepository(dbQueue: databaseManager.dbQueue)
         transcriptionRepo = TranscriptionRepository(dbQueue: databaseManager.dbQueue)
+        meetingTypeRepo = MeetingTypeRepository(dbQueue: databaseManager.dbQueue)
+        meetingLabelRepo = MeetingLabelRepository(dbQueue: databaseManager.dbQueue)
+        transcriptionMeetingLabelRepo = TranscriptionMeetingLabelRepository(dbQueue: databaseManager.dbQueue)
         segmentRepo = SegmentRepository(dbQueue: databaseManager.dbQueue)
         cardRepo = CardRepository(dbQueue: databaseManager.dbQueue)
         knowledgeLayerMutator = KnowledgeLayerMutationService(dbQueue: databaseManager.dbQueue)
+        speakerAttributionReader = SpeakerAttributionReadService(dbQueue: databaseManager.dbQueue)
+        speakerCorrectionService = SpeakerCorrectionService(dbQueue: databaseManager.dbQueue)
         customWordRepo = CustomWordRepository(dbQueue: databaseManager.dbQueue)
         snippetRepo = TextSnippetRepository(dbQueue: databaseManager.dbQueue)
         chatConversationRepo = ChatConversationRepository(dbQueue: databaseManager.dbQueue)
         promptRepo = PromptRepository(dbQueue: databaseManager.dbQueue)
+        promptMeetingPolicyRepo = PromptMeetingPolicyRepository(dbQueue: databaseManager.dbQueue)
+        promptLabelPolicyRepo = PromptLabelPolicyRepository(dbQueue: databaseManager.dbQueue)
+        promptVersionRepo = PromptVersionRepository(dbQueue: databaseManager.dbQueue)
+        promptCollectionRepo = PromptCollectionRepository(dbQueue: databaseManager.dbQueue)
+        promptEditingService = PromptEditingService(dbQueue: databaseManager.dbQueue)
         promptResultRepo = PromptResultRepository(dbQueue: databaseManager.dbQueue)
+        meetingArtifactStore = MeetingArtifactStore(
+            speakerAttributionReader: speakerAttributionReader,
+            classificationProvider: { [databaseManager] transcriptionID in
+                let classification = try MeetingClassificationService(
+                    dbQueue: databaseManager.dbQueue
+                ).classification(for: transcriptionID)
+                return MeetingArtifactClassificationSnapshot(classification)
+            }
+        )
+        meetingClassificationService = MeetingClassificationService(
+            dbQueue: databaseManager.dbQueue,
+            artifactRefresher: MeetingArtifactClassificationRefresher(
+                promptResultRepository: promptResultRepo,
+                artifactStore: meetingArtifactStore
+            )
+        )
         llmRunRepo = LLMRunRepository(dbQueue: databaseManager.dbQueue)
         aiFormatterProfileRepo = AIFormatterProfileRepository(dbQueue: databaseManager.dbQueue)
         transformHistoryRepo = TransformHistoryRepository(dbQueue: databaseManager.dbQueue)
@@ -302,6 +340,7 @@ final class AppEnvironment {
             transcriptionRepository: transcriptionRepo,
             segmentRepository: segmentRepo,
             cardRepository: cardRepo,
+            speakerAttributionReader: speakerAttributionReader,
             completionProvider: llmService
         )
 
@@ -378,7 +417,8 @@ final class AppEnvironment {
             podcastResolver: PodcastEpisodeResolver(),
             podcastSearchResolver: PodcastQueryResolver(),
             podcastAudioFetcher: PodcastAudioDownloader(),
-            diarizationService: diarizationService
+            diarizationService: diarizationService,
+            meetingArtifactStore: meetingArtifactStore
         )
 
         meetingRecordingRecoveryService = MeetingRecordingRecoveryService(

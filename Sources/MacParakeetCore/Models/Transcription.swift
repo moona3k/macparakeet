@@ -44,6 +44,9 @@ public struct Transcription: Codable, Identifiable, Sendable {
     public var videoDescription: String?
     public var isFavorite: Bool
     public var sourceType: SourceType
+    /// Optional primary classification for a meeting. Labels are stored in the
+    /// `transcription_meeting_labels` join table instead of this row.
+    public var meetingTypeId: UUID?
     public var recoveredFromCrash: Bool
     public var isTranscriptEdited: Bool
     /// Free-form notes the user typed during a meeting recording.
@@ -117,6 +120,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         videoDescription: String? = nil,
         isFavorite: Bool = false,
         sourceType: SourceType = .file,
+        meetingTypeId: UUID? = nil,
         recoveredFromCrash: Bool = false,
         isTranscriptEdited: Bool = false,
         userNotes: String? = nil,
@@ -156,6 +160,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         self.videoDescription = videoDescription
         self.isFavorite = isFavorite
         self.sourceType = sourceType
+        self.meetingTypeId = meetingTypeId
         self.recoveredFromCrash = recoveredFromCrash
         self.isTranscriptEdited = isTranscriptEdited
         self.userNotes = userNotes
@@ -261,7 +266,7 @@ public struct DiarizationSegmentRecord: Codable, Sendable, Equatable {
     }
 }
 
-public struct TranscriptSegmentWordRange: Codable, Sendable, Equatable {
+public struct TranscriptSegmentWordRange: Codable, Sendable, Equatable, Hashable {
     public var startIndex: Int
     public var endIndexExclusive: Int
 
@@ -333,7 +338,7 @@ extension Transcription: FetchableRecord, PersistableRecord {
         case rawTranscript, cleanTranscript, wordTimestamps, language
         case speakerCount, speakers, diarizationSegments, transcriptSegments, chatMessages
         case status, errorMessage, exportPath, sourceURL
-        case thumbnailURL, channelName, videoDescription, isFavorite, sourceType, recoveredFromCrash, isTranscriptEdited, userNotes, meetingStartContext, meetingCaptureReport, engine, engineVariant, titleOverride, derivedTitle, derivedSnippet, updatedAt
+        case thumbnailURL, channelName, videoDescription, isFavorite, sourceType, meetingTypeId, recoveredFromCrash, isTranscriptEdited, userNotes, meetingStartContext, meetingCaptureReport, engine, engineVariant, titleOverride, derivedTitle, derivedSnippet, updatedAt
         case calendarEventSnapshot
     }
 
@@ -395,6 +400,7 @@ extension Transcription: FetchableRecord, PersistableRecord {
         } else {
             sourceType = .file
         }
+        meetingTypeId = try container.decodeIfPresent(UUID.self, forKey: .meetingTypeId)
         recoveredFromCrash = try container.decodeIfPresent(Bool.self, forKey: .recoveredFromCrash) ?? false
         isTranscriptEdited = try container.decodeIfPresent(Bool.self, forKey: .isTranscriptEdited) ?? false
         userNotes = try container.decodeIfPresent(String.self, forKey: .userNotes)

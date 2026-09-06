@@ -70,6 +70,7 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
     public let startContext: MeetingStartContext?
     public let echoSuppression: MeetingEchoSuppressionMetadata?
     public let calendarEventSnapshot: MeetingCalendarSnapshot?
+    public let meetingTypeId: UUID?
 
     public init(
         sourceAlignment: MeetingSourceAlignment,
@@ -79,7 +80,8 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
         previewSpeechEngine: SpeechEngineSelection? = nil,
         startContext: MeetingStartContext? = nil,
         echoSuppression: MeetingEchoSuppressionMetadata? = nil,
-        calendarEventSnapshot: MeetingCalendarSnapshot? = nil
+        calendarEventSnapshot: MeetingCalendarSnapshot? = nil,
+        meetingTypeId: UUID? = nil
     ) {
         self.sourceAlignment = sourceAlignment
         self.captureReport = captureReport
@@ -89,6 +91,7 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
         self.startContext = startContext
         self.echoSuppression = echoSuppression
         self.calendarEventSnapshot = calendarEventSnapshot
+        self.meetingTypeId = meetingTypeId
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -99,6 +102,7 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
         case startContext
         case echoSuppression
         case calendarEventSnapshot
+        case meetingTypeId
     }
 
     public init(from decoder: Decoder) throws {
@@ -126,6 +130,7 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
                 MeetingCalendarSnapshot.self,
                 forKey: .calendarEventSnapshot
             )) ?? nil
+        meetingTypeId = (try? container.decodeIfPresent(UUID.self, forKey: .meetingTypeId)) ?? nil
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -139,6 +144,7 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
         try container.encodeIfPresent(startContext, forKey: .startContext)
         try container.encodeIfPresent(echoSuppression, forKey: .echoSuppression)
         try container.encodeIfPresent(calendarEventSnapshot, forKey: .calendarEventSnapshot)
+        try container.encodeIfPresent(meetingTypeId, forKey: .meetingTypeId)
     }
 
     public func withEchoSuppression(
@@ -152,7 +158,8 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
             previewSpeechEngine: previewSpeechEngine,
             startContext: startContext,
             echoSuppression: echoSuppression,
-            calendarEventSnapshot: calendarEventSnapshot
+            calendarEventSnapshot: calendarEventSnapshot,
+            meetingTypeId: meetingTypeId
         )
     }
 
@@ -167,7 +174,8 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
             previewSpeechEngine: previewSpeechEngine,
             startContext: startContext,
             echoSuppression: echoSuppression,
-            calendarEventSnapshot: calendarEventSnapshot
+            calendarEventSnapshot: calendarEventSnapshot,
+            meetingTypeId: meetingTypeId
         )
     }
 }

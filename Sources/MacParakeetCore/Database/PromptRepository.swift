@@ -4,6 +4,8 @@ import GRDB
 public protocol PromptRepositoryProtocol: Sendable {
     func save(_ prompt: Prompt) throws
     func fetch(id: UUID) throws -> Prompt?
+    func fetchIncludingDeleted(id: UUID) throws -> Prompt?
+    func fetchDeleted() throws -> [Prompt]
     func fetchAll() throws -> [Prompt]
     func fetchVisible(category: Prompt.Category?) throws -> [Prompt]
     func fetchAutoRunPrompts() throws -> [Prompt]
@@ -17,7 +19,27 @@ public protocol PromptRepositoryProtocol: Sendable {
     /// Enable/disable auto-run of a `.result` prompt for a single source,
     /// adjusting `appliesToSources` so other sources are unaffected.
     func setAutoRun(id: UUID, source: Transcription.SourceType, enabled: Bool) throws
+    /// Enable/disable automatic meeting-note context for a `.result` prompt.
+    /// Transform prompts ignore this setting.
+    func setIncludeMeetingNotes(id: UUID, enabled: Bool) throws
     func restoreDefaults() throws
+}
+
+public extension PromptRepositoryProtocol {
+    func setIncludeMeetingNotes(id: UUID, enabled: Bool) throws {
+        guard var prompt = try fetch(id: id), prompt.category == .result else { return }
+        prompt.includeMeetingNotes = enabled
+        prompt.updatedAt = Date()
+        try save(prompt)
+    }
+
+    func fetchIncludingDeleted(id: UUID) throws -> Prompt? {
+        try fetch(id: id)
+    }
+
+    func fetchDeleted() throws -> [Prompt] {
+        []
+    }
 }
 
 public final class PromptRepository: PromptRepositoryProtocol {
@@ -28,45 +50,48 @@ public final class PromptRepository: PromptRepositoryProtocol {
     }
 
     public func save(_ prompt: Prompt) throws {
-        try dbQueue.write { db in
-            try prompt.save(db)
-        }
+        try PromptEditingService(dbQueue: dbQueue).save(prompt)
     }
 
     public func fetch(id: UUID) throws -> Prompt? {
         try dbQueue.read { db in
-            try Prompt.fetchOne(db, key: id)
+            try PromptQuery.fetch(id: id, includingDeleted: false, db: db)
+        }
+    }
+
+    /// Administrative/trash lookup. Normal fetch APIs intentionally exclude
+    /// soft-deleted prompts.
+    public func fetchIncludingDeleted(id: UUID) throws -> Prompt? {
+        try dbQueue.read { db in
+            try PromptQuery.fetch(id: id, includingDeleted: true, db: db)
+        }
+    }
+
+    public func fetchDeleted() throws -> [Prompt] {
+        try dbQueue.read { db in
+            try Prompt.fetchAll(
+                db,
+                sql: PromptQuery.select
+                    + " WHERE p.deletedAt IS NOT NULL ORDER BY p.updatedAt DESC, p.name ASC"
+            )
         }
     }
 
     public func fetchAll() throws -> [Prompt] {
         try dbQueue.read { db in
-            try Prompt
-                .order(Prompt.Columns.sortOrder.asc, Prompt.Columns.name.asc)
-                .fetchAll(db)
+            try PromptQuery.fetchAll(db: db)
         }
     }
 
     public func fetchVisible(category: Prompt.Category? = nil) throws -> [Prompt] {
         try dbQueue.read { db in
-            var request = Prompt
-                .filter(Prompt.Columns.isVisible == true)
-                .order(Prompt.Columns.sortOrder.asc, Prompt.Columns.name.asc)
-            if let category {
-                request = request.filter(Prompt.Columns.category == category.rawValue)
-            }
-            return try request.fetchAll(db)
+            try PromptQuery.fetchAll(category: category, visibleOnly: true, db: db)
         }
     }
 
     public func fetchAutoRunPrompts() throws -> [Prompt] {
         try dbQueue.read { db in
-            try Prompt
-                .filter(Prompt.Columns.isAutoRun == true)
-                .filter(Prompt.Columns.isVisible == true)
-                .filter(Prompt.Columns.category == Prompt.Category.result.rawValue)
-                .order(Prompt.Columns.sortOrder.asc, Prompt.Columns.name.asc)
-                .fetchAll(db)
+            try PromptQuery.fetchAll(visibleOnly: true, autoRunOnly: true, db: db)
         }
     }
 
@@ -78,28 +103,24 @@ public final class PromptRepository: PromptRepositoryProtocol {
     }
 
     public func delete(id: UUID) throws -> Bool {
-        try dbQueue.write { db in
-            guard let prompt = try Prompt.fetchOne(db, key: id) else { return false }
-            guard !prompt.isBuiltIn else { return false }
-            return try Prompt.deleteOne(db, key: id)
-        }
+        try PromptEditingService(dbQueue: dbQueue).softDelete(id: id)
     }
 
     public func toggleVisibility(id: UUID) throws {
         try dbQueue.write { db in
-            guard var prompt = try Prompt.fetchOne(db, key: id) else { return }
+            guard var prompt = try PromptQuery.fetch(id: id, includingDeleted: false, db: db) else { return }
             prompt.isVisible.toggle()
             if !prompt.isVisible {
                 prompt.isAutoRun = false
             }
             prompt.updatedAt = Date()
-            try prompt.update(db)
+            try updateMetadata(prompt, db: db)
         }
     }
 
     public func toggleAutoRun(id: UUID) throws {
         try dbQueue.write { db in
-            guard var prompt = try Prompt.fetchOne(db, key: id) else { return }
+            guard var prompt = try PromptQuery.fetch(id: id, includingDeleted: false, db: db) else { return }
             guard prompt.category == .result else { return }
 
             prompt.isAutoRun.toggle()
@@ -116,13 +137,13 @@ public final class PromptRepository: PromptRepositoryProtocol {
                 prompt.appliesToSources = nil
             }
             prompt.updatedAt = Date()
-            try prompt.update(db)
+            try updateMetadata(prompt, db: db)
         }
     }
 
     public func setAutoRun(id: UUID, source: Transcription.SourceType, enabled: Bool) throws {
         try dbQueue.write { db in
-            guard var prompt = try Prompt.fetchOne(db, key: id) else { return }
+            guard var prompt = try PromptQuery.fetch(id: id, includingDeleted: false, db: db) else { return }
             guard prompt.category == .result else { return }
 
             if enabled {
@@ -159,7 +180,19 @@ public final class PromptRepository: PromptRepositoryProtocol {
                 }
             }
             prompt.updatedAt = Date()
-            try prompt.update(db)
+            try updateMetadata(prompt, db: db)
+        }
+    }
+
+    public func setIncludeMeetingNotes(id: UUID, enabled: Bool) throws {
+        try dbQueue.write { db in
+            guard let prompt = try PromptQuery.fetch(id: id, includingDeleted: false, db: db),
+                prompt.category == .result
+            else { return }
+            try db.execute(
+                sql: "UPDATE prompts SET includeMeetingNotes = ?, updatedAt = ? WHERE id = ? AND deletedAt IS NULL",
+                arguments: [enabled, Date(), id]
+            )
         }
     }
 
@@ -177,7 +210,7 @@ public final class PromptRepository: PromptRepositoryProtocol {
                 sql: """
                     UPDATE prompts
                     SET isVisible = 1, appliesToSources = NULL, updatedAt = ?
-                    WHERE isBuiltIn = 1 AND category = ?
+                    WHERE isBuiltIn = 1 AND category = ? AND deletedAt IS NULL
                     """,
                 arguments: [now, Prompt.Category.result.rawValue]
             )
@@ -185,10 +218,32 @@ public final class PromptRepository: PromptRepositoryProtocol {
                 sql: """
                     UPDATE prompts
                     SET isVisible = 1, updatedAt = ?
-                    WHERE isBuiltIn = 1 AND category = ?
+                    WHERE isBuiltIn = 1 AND category = ? AND deletedAt IS NULL
                     """,
                 arguments: [now, Prompt.Category.transform.rawValue]
             )
         }
+    }
+
+    private func updateMetadata(_ prompt: Prompt, db: Database) throws {
+        let encodedSources: String? = try prompt.appliesToSources.map { sources in
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            return String(decoding: try encoder.encode(sources), as: UTF8.self)
+        }
+        try db.execute(
+            sql: """
+                UPDATE prompts
+                SET isVisible = ?, isAutoRun = ?, appliesToSources = ?, updatedAt = ?
+                WHERE id = ? AND deletedAt IS NULL
+                """,
+            arguments: [
+                prompt.isVisible,
+                prompt.isAutoRun,
+                encodedSources,
+                prompt.updatedAt,
+                prompt.id,
+            ]
+        )
     }
 }

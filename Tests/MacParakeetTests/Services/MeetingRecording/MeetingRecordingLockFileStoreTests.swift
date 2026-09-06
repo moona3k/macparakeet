@@ -663,6 +663,19 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         XCTAssertEqual(updated.schemaVersion, lockFile.schemaVersion)
     }
 
+    func testMeetingTypeRoundTripsAndSurvivesLockTransitions() throws {
+        let folderURL = tempRoot.appendingPathComponent("typed-session")
+        let meetingTypeId = UUID()
+        let lockFile = makeLockFile(folderURL: folderURL)
+            .withMeetingTypeId(meetingTypeId)
+            .withNotes("note")
+            .withState(.awaitingTranscription)
+
+        try store.write(lockFile, folderURL: folderURL)
+
+        XCTAssertEqual(try store.read(folderURL: folderURL)?.meetingTypeId, meetingTypeId)
+    }
+
     private func makeLockFile(
         schemaVersion: Int = MeetingRecordingLockFile.currentSchemaVersion,
         sessionId: UUID = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,

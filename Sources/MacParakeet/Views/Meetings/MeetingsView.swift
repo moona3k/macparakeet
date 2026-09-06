@@ -16,6 +16,7 @@ struct MeetingsView: View {
     @State private var audioSaveErrorMessage: String?
     @State private var pendingDeleteAudio: Transcription?
     @State private var pendingDeleteMeeting: Transcription?
+    @State private var classificationTarget: Transcription?
     @State private var showingAskPromptsSheet = false
     @State private var showingPromptLibrary = false
     @FocusState private var recentMeetingsSelectionFocused: Bool
@@ -474,7 +475,7 @@ struct MeetingsView: View {
                 Button {
                     showingPromptLibrary = true
                 } label: {
-                    Label("Manage", systemImage: "slider.horizontal.3")
+                    Label("Prompts", systemImage: "text.badge.plus")
                 }
                 .parakeetAction(.secondary)
             }
@@ -502,6 +503,12 @@ struct MeetingsView: View {
     private var recentMeetingsSection: some View {
         MeetingsSection(title: "Recent Meetings", icon: "clock.arrow.circlepath") {
             VStack(alignment: .leading, spacing: 0) {
+                MeetingClassificationFilterBar(
+                    libraryViewModel: viewModel.recentMeetingsViewModel
+                )
+                .padding(.horizontal, DesignSystem.Spacing.md)
+                .padding(.vertical, DesignSystem.Spacing.sm)
+
                 if shouldShowRecentMeetingSearch {
                     recentMeetingSearchField
                 }
@@ -558,6 +565,9 @@ struct MeetingsView: View {
                 ForEach(Array(section.items.enumerated()), id: \.element.id) { idx, transcription in
                     MeetingRowCard(
                         transcription: transcription,
+                        classification: viewModel.recentMeetingsViewModel.meetingClassificationViewModel.classification(
+                            for: transcription.id
+                        ),
                         searchText: viewModel.recentMeetingsViewModel.searchText,
                         isSelected: viewModel.recentMeetingsViewModel.isTranscriptionSelected(transcription),
                         showsSelectionControls: viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled,
@@ -577,6 +587,11 @@ struct MeetingsView: View {
                         },
                         menuContent: { recentMeetingMenu(for: transcription) }
                     )
+                    .meetingClassificationPopover(
+                        item: $classificationTarget,
+                        transcription: transcription,
+                        viewModel: viewModel.recentMeetingsViewModel.meetingClassificationViewModel
+                    )
                     if idx < section.items.count - 1 {
                         MeetingRowHairline()
                     }
@@ -591,6 +606,12 @@ struct MeetingsView: View {
             onSelectMeeting(transcription)
         } label: {
             Label("Open", systemImage: "doc.text")
+        }
+
+        Button {
+            classificationTarget = transcription
+        } label: {
+            Label("Classify...", systemImage: "tag")
         }
 
         if !viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled {

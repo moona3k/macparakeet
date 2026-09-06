@@ -24,10 +24,19 @@ public struct CardProvenance: Sendable, Equatable {
 public struct CardGenerationSnapshot: Sendable, Equatable {
     public var transcriptHash: String
     public var segmentsHash: String
+    public var attributionFingerprint: TranscriptFingerprint
+    public var correctionRevision: Int
 
-    public init(transcriptHash: String, segmentsHash: String) {
+    public init(
+        transcriptHash: String,
+        segmentsHash: String,
+        attributionFingerprint: TranscriptFingerprint,
+        correctionRevision: Int
+    ) {
         self.transcriptHash = transcriptHash
         self.segmentsHash = segmentsHash
+        self.attributionFingerprint = attributionFingerprint
+        self.correctionRevision = correctionRevision
     }
 }
 

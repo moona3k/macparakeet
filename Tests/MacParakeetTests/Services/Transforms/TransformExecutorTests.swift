@@ -279,6 +279,40 @@ final class TransformExecutorTests: XCTestCase {
         XCTAssertEqual(replacementBackend.lastAXText(), "Hi there!")
     }
 
+    func testRunPassesCapturedInferenceSettingsAndModelOverrideToLLM() async throws {
+        let captureBackend = FakeSelectionCaptureBackend(
+            isTrusted: true,
+            focusedElement: AXUIElementCreateSystemWide(),
+            selectedText: "Hello world"
+        )
+        let captureService = SelectionCaptureService(
+            backend: captureBackend,
+            clipboardPollTimeout: .milliseconds(40),
+            pollIntervalNanos: 1_000_000
+        )
+        let replacementService = SelectionReplacementService(
+            backend: FakeSelectionReplacementBackend(isTrusted: true, axWriteSucceeds: true),
+            postPasteDelay: .milliseconds(1)
+        )
+        let llm = MockTransformLLMService()
+        let executor = TransformExecutor(
+            captureService: captureService,
+            replacementService: replacementService,
+            llmService: llm
+        )
+        let settings = PromptInferenceSettings(temperature: 0.2, maxTokens: 700)
+
+        _ = try await executor.run(
+            prompt: "polish",
+            inferenceSettings: settings,
+            modelOverride: "provider/model-v2",
+            onProgress: { _ in }
+        )
+
+        XCTAssertEqual(llm.capturedInferenceSettings, settings.normalized)
+        XCTAssertEqual(llm.capturedModelOverride, "provider/model-v2")
+    }
+
     func testRunCanPasteResultIntoCurrentFocusInsteadOfAXReplacing() async throws {
         let captureBackend = FakeSelectionCaptureBackend(
             isTrusted: true,
@@ -390,11 +424,20 @@ final class TransformProgressRecorder: @unchecked Sendable {
 
 final class MockTransformLLMService: LLMServiceProtocol, @unchecked Sendable {
     private let lock = OSAllocatedUnfairLock<Int>(initialState: 0)
+    private let requestLock = OSAllocatedUnfairLock<TransformRequestCapture?>(initialState: nil)
     var streamTokens: [String] = ["polished"]
     var streamError: Error?
 
     var callCount: Int {
         lock.withLock { $0 }
+    }
+
+    var capturedInferenceSettings: PromptInferenceSettings? {
+        requestLock.withLock { $0?.inferenceSettings }
+    }
+
+    var capturedModelOverride: String? {
+        requestLock.withLock { $0?.modelOverride }
     }
 
     func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String { "" }
@@ -441,6 +484,20 @@ final class MockTransformLLMService: LLMServiceProtocol, @unchecked Sendable {
             continuation.finish()
         }
     }
+    func transformStream(
+        text: String,
+        prompt: String,
+        inferenceSettings: PromptInferenceSettings?,
+        modelOverride: String?
+    ) -> AsyncThrowingStream<String, Error> {
+        requestLock.withLock {
+            $0 = TransformRequestCapture(
+                inferenceSettings: inferenceSettings,
+                modelOverride: modelOverride
+            )
+        }
+        return transformStream(text: text, prompt: prompt)
+    }
     func generatePromptResultDetailed(transcript: String, systemPrompt: String?) async throws -> LLMResult {
         LLMResult(output: "", provider: "mock", model: "mock", latencyMs: 0)
     }
@@ -453,4 +510,9 @@ final class MockTransformLLMService: LLMServiceProtocol, @unchecked Sendable {
     func transformDetailed(text: String, prompt: String) async throws -> LLMResult {
         LLMResult(output: "", provider: "mock", model: "mock", latencyMs: 0)
     }
+}
+
+private struct TransformRequestCapture: Sendable {
+    let inferenceSettings: PromptInferenceSettings?
+    let modelOverride: String?
 }

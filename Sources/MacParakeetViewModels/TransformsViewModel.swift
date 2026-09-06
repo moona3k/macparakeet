@@ -140,12 +140,11 @@ public final class TransformsViewModel {
         }
     }
 
-    /// Delete a non-built-in Transform. Built-ins are protected — the
-    /// underlying repository refuses them; this helper short-circuits so
-    /// the UI can hide the action entirely.
+    /// Soft-delete a Transform. Built-in provenance does not restrict the
+    /// lifecycle: built-in and user-created Transforms follow the same path.
     @discardableResult
     public func delete(_ prompt: Prompt) async -> Bool {
-        guard let repo, !prompt.isBuiltIn else { return false }
+        guard let repo else { return false }
         beginTransformsMutation()
         do {
             let deleted = try await Task.detached(priority: .utility) { [repo, id = prompt.id] in

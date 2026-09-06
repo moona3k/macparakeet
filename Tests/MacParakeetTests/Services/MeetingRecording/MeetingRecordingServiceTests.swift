@@ -3502,6 +3502,57 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertTrue(lockStore.writes.isEmpty, "no recording → no lock-file writes")
     }
 
+    func testUpdateMeetingTypePersistsIntoCrashRecoveryLock() async throws {
+        let lockStore = RecordingLockFileStore()
+        let service = MeetingRecordingService(
+            audioCaptureService: MockMeetingAudioCaptureService(),
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: lockStore
+        )
+        let meetingTypeId = UUID()
+
+        try await service.startRecording()
+        await service.updateMeetingType(meetingTypeId)
+
+        XCTAssertEqual(lockStore.writes.last?.file.meetingTypeId, meetingTypeId)
+        XCTAssertEqual(lockStore.writes.last?.file.state, .recording)
+        await service.cancelRecording()
+    }
+
+    func testStopRecordingCarriesMeetingTypeIntoOutputMetadataAndFinalLock() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let lockStore = RecordingLockFileStore()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: lockStore
+        )
+        let meetingTypeId = UUID()
+
+        try await service.startRecording()
+        await service.updateMeetingType(meetingTypeId)
+        let microphoneBuffer = try XCTUnwrap(
+            makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25)
+        )
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            )
+        )
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+        let metadata = try MeetingRecordingMetadataStore.load(from: output.folderURL)
+
+        XCTAssertEqual(output.meetingTypeId, meetingTypeId)
+        XCTAssertEqual(metadata.meetingTypeId, meetingTypeId)
+        XCTAssertEqual(lockStore.writes.last?.file.meetingTypeId, meetingTypeId)
+        XCTAssertEqual(lockStore.writes.last?.file.state, .awaitingTranscription)
+    }
+
     func testStopRecordingCarriesNotesIntoOutput() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let lockStore = RecordingLockFileStore()

@@ -273,7 +273,7 @@ final class LongMeetingPipelineBenchmarkTests: XCTestCase {
     private func validateSourceSessionFolder(_ source: URL) throws {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: source.path, isDirectory: &isDirectory),
-              isDirectory.boolValue
+            isDirectory.boolValue
         else {
             throw BenchmarkError.missingRequiredPath(source.path)
         }
@@ -281,7 +281,7 @@ final class LongMeetingPipelineBenchmarkTests: XCTestCase {
         let requiredURLs = [
             source.appendingPathComponent("microphone-raw.m4a"),
             source.appendingPathComponent("system-raw.m4a"),
-            MeetingRecordingMetadataStore.metadataURL(for: source)
+            MeetingRecordingMetadataStore.metadataURL(for: source),
         ]
         for url in requiredURLs where !FileManager.default.fileExists(atPath: url.path) {
             throw BenchmarkError.missingRequiredPath(url.path)
@@ -687,6 +687,18 @@ private final class StageMetricsCollector: @unchecked Sendable {
 private final class BenchmarkTranscriptionRepository: TranscriptionRepositoryProtocol, @unchecked Sendable {
     private let lock = NSLock()
     private var records: [UUID: Transcription] = [:]
+
+    func savePreservingUserMetadata(
+        _ transcription: Transcription, originalFileName: String
+    ) throws -> Transcription {
+        try lock.withLock {
+            let merged = try mergingCompletionForTest(
+                transcription, current: records[transcription.id], originalFileName: originalFileName
+            )
+            records[transcription.id] = merged
+            return merged
+        }
+    }
 
     func save(_ transcription: Transcription) throws {
         lock.withLock {

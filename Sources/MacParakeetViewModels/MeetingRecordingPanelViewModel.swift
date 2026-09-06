@@ -63,10 +63,13 @@ public final class MeetingRecordingPanelViewModel {
     public let chatViewModel: TranscriptChatViewModel = TranscriptChatViewModel()
     public let notesViewModel: MeetingNotesViewModel = MeetingNotesViewModel()
     public let quickPromptsViewModel: QuickPromptsViewModel = QuickPromptsViewModel()
+    public private(set) var meetingTypes: [MeetingType] = []
+    public private(set) var activeMeetingTypeID: UUID?
     public var onStop: (() -> Void)?
     public var onPauseToggle: (() -> Void)?
     public var onMicrophoneMuteToggle: (() -> Void)?
     public var onClose: (() -> Void)?
+    private var onMeetingTypeChange: ((UUID?) -> Void)?
 
     private var copiedResetTask: Task<Void, Never>?
     private var previewLineWordCounts: [Int] = []
@@ -106,6 +109,22 @@ public final class MeetingRecordingPanelViewModel {
             guard !Task.isCancelled else { return }
             showCopiedConfirmation = false
         }
+    }
+
+    public func configureMeetingTypes(
+        _ meetingTypes: [MeetingType],
+        selectedID: UUID?,
+        onChange: @escaping (UUID?) -> Void
+    ) {
+        self.meetingTypes = meetingTypes
+        activeMeetingTypeID = selectedID
+        onMeetingTypeChange = onChange
+    }
+
+    public func selectMeetingType(_ meetingTypeID: UUID?) {
+        guard activeMeetingTypeID != meetingTypeID else { return }
+        activeMeetingTypeID = meetingTypeID
+        onMeetingTypeChange?(meetingTypeID)
     }
 
     public func updatePreviewLines(
@@ -180,6 +199,9 @@ public final class MeetingRecordingPanelViewModel {
         copiedResetTask?.cancel()
         showCopiedConfirmation = false
         selectedTab = .notes
+        meetingTypes = []
+        activeMeetingTypeID = nil
+        onMeetingTypeChange = nil
         notesViewModel.reset()
         chatViewModel.loadTranscript("", transcriptionId: nil)
     }

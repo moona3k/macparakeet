@@ -24,6 +24,8 @@ set -euo pipefail
 #   SKIP_BUILD          (default: 0) reuse existing Release binary if 1
 #   BUILD_SYSTEM        (default: xcodebuild) 'xcodebuild' or 'swiftpm'
 #   XCODE_DERIVED_DATA  (default: .build/xcode-dist) derived data path for xcodebuild
+#   SWIFTPM_BUILD_PATH  (default: .build, or .build-no-discover-dist when Discover is disabled)
+#   MACPARAKEET_DISABLE_DISCOVER (default: 0) exclude Discover code and fallback content when 1
 #   FFMPEG_PATH         (default: auto-download static build) source ffmpeg binary to bundle
 #   FFMPEG_VERSION      (default: release) 'release' or 'snapshot' from ffmpeg.martin-riedl.de
 #   ALLOW_NON_PORTABLE_FFMPEG (default: 0) allow bundling ffmpeg with non-system dylib deps
@@ -58,7 +60,12 @@ UNIVERSAL="${UNIVERSAL:-0}"
 SKIP_BUILD="${SKIP_BUILD:-0}"
 BUILD_SYSTEM="${BUILD_SYSTEM:-xcodebuild}"
 BUILD_SOURCE="${BUILD_SOURCE:-dist-${BUILD_SYSTEM}-release}"
-XCODE_DERIVED_DATA="${XCODE_DERIVED_DATA:-$ROOT_DIR/.build/xcode-dist}"
+DISCOVER_BUILD_SUFFIX=""
+if [[ "${MACPARAKEET_DISABLE_DISCOVER:-0}" == "1" ]]; then
+  DISCOVER_BUILD_SUFFIX="-no-discover"
+fi
+XCODE_DERIVED_DATA="${XCODE_DERIVED_DATA:-$ROOT_DIR/.build/xcode-dist${DISCOVER_BUILD_SUFFIX}}"
+SWIFTPM_BUILD_PATH="${SWIFTPM_BUILD_PATH:-$ROOT_DIR/.build${DISCOVER_BUILD_SUFFIX:+-no-discover-dist}}"
 
 APP_DIR="$DIST_DIR/${APP_NAME}.app"
 CONTENTS_DIR="$APP_DIR/Contents"
@@ -91,11 +98,11 @@ build_swiftpm() {
 
   pushd "$ROOT_DIR" >/dev/null
   if [[ "$UNIVERSAL" == "1" ]]; then
-    swift build -c release --arch arm64 --arch x86_64 --product MacParakeet
-    swift build -c release --arch arm64 --arch x86_64 --product macparakeet-cli
+    swift build --scratch-path "$SWIFTPM_BUILD_PATH" -c release --arch arm64 --arch x86_64 --product MacParakeet
+    swift build --scratch-path "$SWIFTPM_BUILD_PATH" -c release --arch arm64 --arch x86_64 --product macparakeet-cli
   else
-    swift build -c release --product MacParakeet
-    swift build -c release --product macparakeet-cli
+    swift build --scratch-path "$SWIFTPM_BUILD_PATH" -c release --product MacParakeet
+    swift build --scratch-path "$SWIFTPM_BUILD_PATH" -c release --product macparakeet-cli
   fi
   popd >/dev/null
 }
@@ -107,9 +114,9 @@ build_cli_swiftpm() {
 
   pushd "$ROOT_DIR" >/dev/null
   if [[ "$UNIVERSAL" == "1" ]]; then
-    swift build -c release --arch arm64 --arch x86_64 --product macparakeet-cli
+    swift build --scratch-path "$SWIFTPM_BUILD_PATH" -c release --arch arm64 --arch x86_64 --product macparakeet-cli
   else
-    swift build -c release --product macparakeet-cli
+    swift build --scratch-path "$SWIFTPM_BUILD_PATH" -c release --product macparakeet-cli
   fi
   popd >/dev/null
 }
@@ -211,9 +218,9 @@ copy_resource_bundles() {
 swiftpm_release_bin_dir() {
   pushd "$ROOT_DIR" >/dev/null
   if [[ "$UNIVERSAL" == "1" ]]; then
-    swift build -c release --arch arm64 --arch x86_64 --product "$1" --show-bin-path
+    swift build --scratch-path "$SWIFTPM_BUILD_PATH" -c release --arch arm64 --arch x86_64 --product "$1" --show-bin-path
   else
-    swift build -c release --product "$1" --show-bin-path
+    swift build --scratch-path "$SWIFTPM_BUILD_PATH" -c release --product "$1" --show-bin-path
   fi
   popd >/dev/null
 }
@@ -247,12 +254,16 @@ if [[ "$BUILD_SYSTEM" == "swiftpm" ]]; then
   echo "[2/4] Assembling app bundle…"
   cp "$BIN_PATH" "$MACOS_DIR/$APP_NAME"
   chmod +x "$MACOS_DIR/$APP_NAME"
+  copy_resource_bundles "$BIN_DIR"
 else
   build_xcodebuild
   echo "[2/4] Assembling app bundle…"
 fi
 
 copy_cli_binary
+
+bash "$ROOT_DIR/scripts/dist/verify_discover_bundle_mode.sh" \
+  "$APP_DIR" "${MACPARAKEET_DISABLE_DISCOVER:-0}" "$APP_NAME"
 
 # Bundle FFmpeg (required at runtime for media demux/conversion).
 #

@@ -444,6 +444,112 @@ final class MeetingsWorkspaceViewModelTests: XCTestCase {
         )
     }
 
+    func testPromptPoliciesLoadInOneBulkFetch() async {
+        let promptRepo = MockPromptRepository()
+        promptRepo.prompts = [
+            makeResultPrompt(name: "Summary", sortOrder: 0),
+            makeResultPrompt(name: "Actions", sortOrder: 1),
+        ]
+        let promptsVM = PromptsViewModel()
+        promptsVM.configure(repo: promptRepo)
+        let policyRepo = MockPromptMeetingPolicyRepository()
+        let viewModel = makeViewModel(promptsViewModel: promptsVM)
+        viewModel.configure(
+            transcriptionRepo: MockTranscriptionRepository(),
+            promptMeetingPolicyRepository: policyRepo
+        )
+
+        await viewModel.refreshAutoNotes().value
+
+        XCTAssertEqual(policyRepo.bulkFetchCallCount, 1)
+        XCTAssertEqual(policyRepo.singleFetchCallCount, 0)
+    }
+
+    func testPromptPolicyMockSerializesConcurrentReadsAndMutations() async throws {
+        let policyRepo = MockPromptMeetingPolicyRepository()
+        let promptID = UUID()
+        try policyRepo.save(.allMeetings(promptId: promptID, isAvailable: true, isAutoRun: false))
+
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for worker in 0..<8 {
+                group.addTask {
+                    for iteration in 0..<200 {
+                        if worker.isMultiple(of: 2) {
+                            _ = try policyRepo.setAllMeetingsPolicy(
+                                promptId: promptID, isAvailable: true,
+                                isAutoRun: iteration.isMultiple(of: 2), sortOrder: nil
+                            )
+                        } else {
+                            let policies = try policyRepo.fetchPolicies(promptIds: [promptID])
+                            XCTAssertEqual(policies.count, 1, "Scope replacement must be atomic")
+                            XCTAssertEqual(policyRepo.policiesByPromptID[promptID]?.count, 1)
+                        }
+                    }
+                }
+            }
+            try await group.waitForAll()
+        }
+
+        XCTAssertEqual(policyRepo.bulkFetchCallCount, 800)
+        XCTAssertEqual(try policyRepo.fetchPolicies(promptId: promptID).count, 1)
+    }
+
+    func testStalePromptPolicyLoadCannotOverwriteNewerMutation() async throws {
+        let promptRepo = MockPromptRepository()
+        let prompt = makeResultPrompt(name: "Summary", sortOrder: 0)
+        promptRepo.prompts = [prompt]
+        let promptsVM = PromptsViewModel()
+        promptsVM.configure(repo: promptRepo)
+        let policyRepo = MockPromptMeetingPolicyRepository()
+        let oldPolicy = PromptMeetingPolicy.allMeetings(
+            promptId: prompt.id,
+            isAvailable: true,
+            isAutoRun: false,
+            sortOrder: prompt.sortOrder
+        )
+        policyRepo.policiesByPromptID[prompt.id] = [oldPolicy]
+        let staleLoadStarted = expectation(description: "stale load started")
+        let releaseStaleLoad = DispatchSemaphore(value: 0)
+        let handlerLock = NSLock()
+        var shouldBlockFirstLoad = true
+        policyRepo.bulkFetchHandler = { promptIDs in
+            let blocks = handlerLock.withLock {
+                defer { shouldBlockFirstLoad = false }
+                return shouldBlockFirstLoad
+            }
+            if blocks {
+                let snapshot = promptIDs.flatMap { policyRepo.policiesByPromptID[$0] ?? [] }
+                staleLoadStarted.fulfill()
+                releaseStaleLoad.wait()
+                return snapshot
+            }
+            return promptIDs.flatMap { policyRepo.policiesByPromptID[$0] ?? [] }
+        }
+        let viewModel = makeViewModel(promptsViewModel: promptsVM)
+        viewModel.configure(
+            transcriptionRepo: MockTranscriptionRepository(),
+            promptMeetingPolicyRepository: policyRepo
+        )
+
+        let staleLoad = viewModel.refreshAutoNotes()
+        await fulfillment(of: [staleLoadStarted], timeout: 1)
+        let mutation = viewModel.setMeetingPolicy(
+            prompt: prompt,
+            meetingTypeID: nil,
+            isAvailable: true,
+            isAutoRun: true
+        )
+        let concurrentLoad = viewModel.loadPromptMeetingPolicies()
+        await concurrentLoad.value
+        await mutation.value
+        releaseStaleLoad.signal()
+        await staleLoad.value
+
+        XCTAssertTrue(viewModel.meetingPolicyResolution(for: prompt, meetingTypeID: nil).isAutoRun)
+        XCTAssertFalse(policyRepo.mutationRanOnMainThread)
+        XCTAssertGreaterThanOrEqual(policyRepo.bulkFetchCallCount, 3)
+    }
+
     private func makeViewModel(
         calendarMode: CalendarAutoStartMode = .off,
         triggerFilter: MeetingTriggerFilter = .withLink,

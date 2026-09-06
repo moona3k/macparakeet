@@ -140,6 +140,129 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
         XCTAssertEqual(vm.filteredTranscriptions.first?.fileName, "meeting.mp3")
     }
 
+    func testMeetingTypeFiltersUseAnySemanticsBeforePagination() async throws {
+        let customer = MeetingType(name: "Customer")
+        let oneToOne = MeetingType(name: "1:1")
+        let manager = try DatabaseManager()
+        let transcriptionRepo = TranscriptionRepository(dbQueue: manager.dbQueue)
+        let meetingTypeRepo = MeetingTypeRepository(dbQueue: manager.dbQueue)
+        try meetingTypeRepo.save(customer)
+        try meetingTypeRepo.save(oneToOne)
+        try transcriptionRepo.save(Transcription(
+            createdAt: Date(timeIntervalSince1970: 3),
+            fileName: "Other",
+            status: .completed,
+            sourceType: .meeting
+        ))
+        try transcriptionRepo.save(Transcription(
+            createdAt: Date(timeIntervalSince1970: 2),
+            fileName: "Customer",
+            status: .completed,
+            sourceType: .meeting,
+            meetingTypeId: customer.id
+        ))
+        try transcriptionRepo.save(Transcription(
+            createdAt: Date(timeIntervalSince1970: 1),
+            fileName: "One-to-one",
+            status: .completed,
+            sourceType: .meeting,
+            meetingTypeId: oneToOne.id
+        ))
+
+        let viewModel = TranscriptionLibraryViewModel(scope: .meetings)
+        viewModel.configure(transcriptionRepo: transcriptionRepo)
+        viewModel.pageSize = 1
+        viewModel.toggleMeetingTypeFilter(customer.id)
+        viewModel.toggleMeetingTypeFilter(oneToOne.id)
+        await load(viewModel)
+
+        XCTAssertEqual(viewModel.filteredTranscriptions.map(\.fileName), ["Customer"])
+        XCTAssertTrue(viewModel.hasMore)
+    }
+
+    func testUnclassifiedMeetingFilterIsMutuallyExclusiveWithTypeFilters() async throws {
+        let customer = MeetingType(name: "Customer")
+        let manager = try DatabaseManager()
+        let transcriptionRepo = TranscriptionRepository(dbQueue: manager.dbQueue)
+        let meetingTypeRepo = MeetingTypeRepository(dbQueue: manager.dbQueue)
+        try meetingTypeRepo.save(customer)
+        try transcriptionRepo.save(Transcription(
+            fileName: "Typed",
+            status: .completed,
+            sourceType: .meeting,
+            meetingTypeId: customer.id
+        ))
+        try transcriptionRepo.save(Transcription(
+            fileName: "Unclassified",
+            status: .completed,
+            sourceType: .meeting
+        ))
+
+        let viewModel = TranscriptionLibraryViewModel(scope: .meetings)
+        viewModel.configure(transcriptionRepo: transcriptionRepo)
+        viewModel.toggleMeetingTypeFilter(customer.id)
+        viewModel.setUnclassifiedMeetingsFilter(true)
+        await load(viewModel)
+
+        XCTAssertTrue(viewModel.selectedMeetingTypeIDs.isEmpty)
+        XCTAssertTrue(viewModel.unclassifiedMeetingsOnly)
+        XCTAssertEqual(viewModel.filteredTranscriptions.map(\.fileName), ["Unclassified"])
+    }
+
+    func testMeetingLabelFiltersUseAnySemantics() async throws {
+        let manager = try DatabaseManager()
+        let transcriptionRepo = TranscriptionRepository(dbQueue: manager.dbQueue)
+        let labelRepo = MeetingLabelRepository(dbQueue: manager.dbQueue)
+        let assignmentRepo = TranscriptionMeetingLabelRepository(dbQueue: manager.dbQueue)
+        let customer = MeetingLabel(name: "Customer")
+        let important = MeetingLabel(name: "Important")
+        try labelRepo.save(customer)
+        try labelRepo.save(important)
+
+        let first = Transcription(fileName: "First", status: .completed, sourceType: .meeting)
+        let second = Transcription(fileName: "Second", status: .completed, sourceType: .meeting)
+        let third = Transcription(fileName: "Third", status: .completed, sourceType: .meeting)
+        try transcriptionRepo.save(first)
+        try transcriptionRepo.save(second)
+        try transcriptionRepo.save(third)
+        try assignmentRepo.add(labelId: customer.id, to: first.id)
+        try assignmentRepo.add(labelId: important.id, to: second.id)
+
+        let viewModel = TranscriptionLibraryViewModel(scope: .meetings)
+        viewModel.configure(transcriptionRepo: transcriptionRepo)
+        viewModel.toggleMeetingLabelFilter(customer.id)
+        viewModel.toggleMeetingLabelFilter(important.id)
+        await load(viewModel)
+
+        XCTAssertEqual(Set(viewModel.filteredTranscriptions.map(\.fileName)), ["First", "Second"])
+    }
+
+    func testLabelFilterAppliesInsidePodcastSourceTab() async throws {
+        let manager = try DatabaseManager()
+        let transcriptionRepo = TranscriptionRepository(dbQueue: manager.dbQueue)
+        let labelRepo = MeetingLabelRepository(dbQueue: manager.dbQueue)
+        let assignmentRepo = TranscriptionMeetingLabelRepository(dbQueue: manager.dbQueue)
+        let research = MeetingLabel(name: "Research")
+        try labelRepo.save(research)
+
+        let selected = Transcription(fileName: "Selected", status: .completed, sourceType: .podcast)
+        let other = Transcription(fileName: "Other", status: .completed, sourceType: .podcast)
+        let local = Transcription(fileName: "Local", status: .completed, sourceType: .file)
+        try transcriptionRepo.save(selected)
+        try transcriptionRepo.save(other)
+        try transcriptionRepo.save(local)
+        try assignmentRepo.add(labelId: research.id, to: selected.id)
+        try assignmentRepo.add(labelId: research.id, to: local.id)
+
+        let viewModel = TranscriptionLibraryViewModel()
+        viewModel.configure(transcriptionRepo: transcriptionRepo)
+        viewModel.filter = .podcast
+        viewModel.toggleMeetingLabelFilter(research.id)
+        await load(viewModel)
+
+        XCTAssertEqual(viewModel.filteredTranscriptions.map(\.fileName), ["Selected"])
+    }
+
     func testMeetingsScopeOnlyShowsMeetings() async throws {
         let meetingVM = TranscriptionLibraryViewModel(scope: .meetings)
         meetingVM.configure(transcriptionRepo: repo)

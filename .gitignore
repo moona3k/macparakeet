@@ -16,6 +16,7 @@ journal/
 # Xcode
 .build/
 .build-swift6-no-whisper/
+.build-swift6-no-discover/
 DerivedData/
 /dist/
 *.xcodeproj/xcuserdata/

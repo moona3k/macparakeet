@@ -72,6 +72,8 @@ public protocol MeetingRecordingServiceProtocol: Sendable {
     /// (completion-path deletion is owned by `MeetingRecordingSettlement`) —
     /// so notes-saves cannot race with state-transition writes.
     func updateNotes(_ notes: String) async
+    /// Persist the active recording's primary type to its crash-recovery lock.
+    func updateMeetingType(_ meetingTypeId: UUID?) async
     var isRecording: Bool { get async }
     var activeSessionID: UUID? { get async }
     /// Speech engine pinned to the active recording session. Consumers should
@@ -98,6 +100,8 @@ public protocol MeetingRecordingServiceProtocol: Sendable {
 }
 
 public extension MeetingRecordingServiceProtocol {
+    func updateMeetingType(_ meetingTypeId: UUID?) async {}
+
     /// Existing manual / hotkey callers use the no-arg form — the calendar
     /// path is the only caller that has a meaningful title to pass.
     func startRecording(title: String?) async throws {
@@ -272,6 +276,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     /// typed (which we preserve as `nil` rather than empty so downstream
     /// `Transcription.userNotes` is `nil` for non-notepad recordings).
     private var currentNotes: String?
+    private var currentMeetingTypeId: UUID?
     /// In-memory mirror of the session's `recording.lock` content. Held so
     /// `updateNotes` can persist notes by mutating + atomic-writing in one
     /// step instead of read-modify-write on every keystroke debounce. The
@@ -961,7 +966,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             speechEngine: session.speechPlan.final,
             previewSpeechEngine: session.speechPlan.preview,
             startContext: session.startContext,
-            calendarEventSnapshot: session.calendarEventSnapshot
+            calendarEventSnapshot: session.calendarEventSnapshot,
+            meetingTypeId: currentMeetingTypeId
         )
         let metadataStartedAt = Date()
         do {
@@ -1063,6 +1069,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         }
 
         let finalNotes = currentNotes
+        let finalMeetingTypeId = currentMeetingTypeId
         let notesFileManager = MeetingNotesFile.SendableFileManager(fileManager)
         let notesStartedAt = Date()
         do {
@@ -1146,7 +1153,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             previewSpeechEngine: session.speechPlan.preview,
             startContext: session.startContext,
             userNotes: finalNotes,
-            calendarEventSnapshot: session.calendarEventSnapshot
+            calendarEventSnapshot: session.calendarEventSnapshot,
+            meetingTypeId: finalMeetingTypeId
         )
 
         let cleanupStartedAt = Date()
@@ -1217,6 +1225,32 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             // an I/O error is preferable to surfacing a UI error mid-meeting.
             logger.error(
                 "meeting_recording_notes_persist_failed session=\(session.id.uuidString, privacy: .public) error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
+            )
+        }
+    }
+
+    public func updateMeetingType(_ meetingTypeId: UUID?) async {
+        guard let session = currentSession else { return }
+        currentMeetingTypeId = meetingTypeId
+        let base =
+            currentLockFile
+            ?? MeetingRecordingLockFile(
+                sessionId: session.id,
+                startedAt: session.startedAt,
+                pid: ProcessInfo.processInfo.processIdentifier,
+                displayName: session.displayName,
+                speechEngine: session.speechPlan.final,
+                startContext: session.startContext,
+                calendarEventSnapshot: session.calendarEventSnapshot,
+                folderURL: session.folderURL
+            )
+        let updated = base.withMeetingTypeId(meetingTypeId)
+        do {
+            try lockFileStore.write(updated, folderURL: session.folderURL)
+            currentLockFile = updated
+        } catch {
+            logger.error(
+                "meeting_recording_type_persist_failed session=\(session.id.uuidString, privacy: .public) error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
             )
         }
     }
@@ -2247,6 +2281,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             durableStopSessionID = nil
         }
         currentNotes = nil
+        currentMeetingTypeId = nil
         currentLockFile = nil
         paused = false
         pausedAt = nil

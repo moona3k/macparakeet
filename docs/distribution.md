@@ -19,6 +19,15 @@ This creates `dist/MacParakeet.app` and bundles:
 - Standalone helper binaries (FFmpeg, yt-dlp helper seed, and optional Node runtime) into `Contents/Resources/` when configured by the build scripts
 - No Python runtime or `uv` bootstrap is bundled (FluidAudio/CoreML STT is native Swift)
 
+Discover is included by default. Set `MACPARAKEET_DISABLE_DISCOVER=1` to
+exclude its sources and bundled fallback feed from a local release build. The
+bundle script uses a separate Xcode derived-data directory and fails if a
+Discover resource or endpoint survives in the assembled app:
+
+```bash
+MACPARAKEET_DISABLE_DISCOVER=1 VERSION=X.Y.Z scripts/dist/build_app_bundle.sh
+```
+
 `build_app_bundle.sh` automatically downloads a **statically-linked FFmpeg** from [ffmpeg.martin-riedl.de](https://ffmpeg.martin-riedl.de/) (macOS arm64, SHA256-verified). No Homebrew dependency. To use a custom binary instead, set `FFMPEG_PATH`:
 
 ```bash

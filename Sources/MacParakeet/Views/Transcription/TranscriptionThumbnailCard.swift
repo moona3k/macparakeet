@@ -6,6 +6,7 @@ private let sharedThumbnailCache = ThumbnailCacheService.shared
 /// Thumbnail card for displaying a transcription in a grid layout.
 struct TranscriptionThumbnailCard<MenuContent: View>: View {
     let transcription: Transcription
+    var classification: MeetingClassification? = nil
     var searchText: String = ""
     var isSelected: Bool = false
     var showsSelectionControls: Bool = false
@@ -262,10 +263,14 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
                     .foregroundStyle(DesignSystem.Colors.warningAmber)
                     .lineLimit(1)
             }
+
+            MeetingClassificationBadges(classification: classification)
         }
         .padding(DesignSystem.Spacing.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 80, alignment: .top)
+        // Always reserve the label row. Conditional heights made adjacent
+        // cards jump by 20 points as soon as one transcription gained a label.
+        .frame(height: 100, alignment: .top)
     }
 
     // MARK: - Search Highlighting

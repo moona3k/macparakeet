@@ -79,10 +79,26 @@ public final class MeetingsWorkspaceViewModel {
     public private(set) var calendarErrorMessage: String?
     public var calendarLookAheadDays = 7
     public var upcomingEventLimit = 4
+    /// User-selected type for the next or active meeting. The recording
+    /// coordinator snapshots this value onto the durable transcription stub
+    /// before enqueue so prompt routing stays deterministic.
+    public var recordingMeetingTypeID: UUID?
+    public private(set) var promptPoliciesByPromptID: [UUID: [PromptMeetingPolicy]] = [:]
+    public var meetingPolicyErrorMessage: String?
+
+    public var meetingClassificationViewModel: MeetingClassificationViewModel {
+        recentMeetingsViewModel.meetingClassificationViewModel
+    }
 
     @ObservationIgnored private let calendarService: any CalendarServicing
+    @ObservationIgnored private var promptMeetingPolicyRepository: (any PromptMeetingPolicyRepositoryProtocol)?
     @ObservationIgnored private var upcomingEventsTask: Task<Void, Never>?
     @ObservationIgnored private var upcomingEventsGeneration = 0
+    @ObservationIgnored private var promptPolicyLoadTask: Task<Void, Never>?
+    @ObservationIgnored private var promptPolicyLoadGeneration = 0
+    @ObservationIgnored private var promptPolicyMutationTail: Task<Void, Never>?
+    @ObservationIgnored private var promptPolicyMutationGeneration = 0
+    @ObservationIgnored private var promptPolicyCompletedMutationGeneration = 0
     @ObservationIgnored private var hasLoadedInitialState = false
 
     public init(
@@ -105,20 +121,32 @@ public final class MeetingsWorkspaceViewModel {
 
     deinit {
         upcomingEventsTask?.cancel()
+        promptPolicyLoadTask?.cancel()
+        promptPolicyMutationTail?.cancel()
     }
 
     public func configure(
         transcriptionRepo: TranscriptionRepositoryProtocol,
         quickPromptRepo: QuickPromptRepositoryProtocol? = nil,
-        promptRepo: PromptRepositoryProtocol? = nil
+        promptRepo: PromptRepositoryProtocol? = nil,
+        meetingTypeRepository: (any MeetingTypeRepositoryProtocol)? = nil,
+        meetingLabelRepository: (any MeetingLabelRepositoryProtocol)? = nil,
+        meetingClassificationService: (any MeetingClassificationServiceProtocol)? = nil,
+        promptMeetingPolicyRepository: (any PromptMeetingPolicyRepositoryProtocol)? = nil
     ) {
-        recentMeetingsViewModel.configure(transcriptionRepo: transcriptionRepo)
+        recentMeetingsViewModel.configure(
+            transcriptionRepo: transcriptionRepo,
+            meetingTypeRepository: meetingTypeRepository,
+            meetingLabelRepository: meetingLabelRepository,
+            meetingClassificationService: meetingClassificationService
+        )
         if let quickPromptRepo {
             quickPromptsViewModel.configure(repo: quickPromptRepo)
         }
         if let promptRepo {
             promptsViewModel.configure(repo: promptRepo)
         }
+        self.promptMeetingPolicyRepository = promptMeetingPolicyRepository
     }
 
     public func refresh() {
@@ -193,20 +221,26 @@ public final class MeetingsWorkspaceViewModel {
 
     // MARK: - After-each-meeting auto-notes
 
-    public func refreshAutoNotes() {
+    @discardableResult
+    public func refreshAutoNotes() -> Task<Void, Never> {
         promptsViewModel.loadPrompts()
+        return loadPromptMeetingPolicies()
     }
 
     /// Visible result prompts the user can toggle as meeting auto-notes.
     /// Hidden prompts can't auto-run, so they're excluded from the card.
     /// (`promptsViewModel.prompts` is already `.result`-only.)
     public var meetingAutoNotePrompts: [Prompt] {
-        promptsViewModel.prompts.filter { $0.isVisible }
+        promptsViewModel.prompts.filter {
+            meetingPolicyResolution(for: $0, meetingTypeID: recordingMeetingTypeID).isAvailable
+        }
     }
 
     /// Prompts that will actually auto-run after a meeting finishes.
     public var meetingAutoNoteActivePrompts: [Prompt] {
-        meetingAutoNotePrompts.filter { $0.autoRuns(for: .meeting) }
+        meetingAutoNotePrompts.filter {
+            meetingPolicyResolution(for: $0, meetingTypeID: recordingMeetingTypeID).isAutoRun
+        }
     }
 
     public var meetingAutoNoteActiveCount: Int {
@@ -214,11 +248,203 @@ public final class MeetingsWorkspaceViewModel {
     }
 
     public func isMeetingAutoNote(_ prompt: Prompt) -> Bool {
-        prompt.autoRuns(for: .meeting)
+        meetingPolicyResolution(for: prompt, meetingTypeID: recordingMeetingTypeID).isAutoRun
     }
 
     public func setMeetingAutoNote(_ prompt: Prompt, enabled: Bool) {
-        promptsViewModel.setAutoRun(prompt, source: .meeting, enabled: enabled)
+        guard promptMeetingPolicyRepository != nil else {
+            promptsViewModel.setAutoRun(prompt, source: .meeting, enabled: enabled)
+            return
+        }
+        let current = meetingPolicyResolution(for: prompt, meetingTypeID: recordingMeetingTypeID)
+        setMeetingPolicy(
+            prompt: prompt,
+            meetingTypeID: recordingMeetingTypeID,
+            isAvailable: current.isAvailable,
+            isAutoRun: enabled
+        )
+    }
+
+    public func meetingPolicyResolution(
+        for prompt: Prompt,
+        meetingTypeID: UUID?
+    ) -> PromptApplicabilityResolution {
+        guard promptMeetingPolicyRepository != nil else {
+            return PromptApplicabilityResolver.resolve(
+                prompt: prompt,
+                sourceType: .meeting,
+                meetingTypeId: meetingTypeID,
+                policies: [.defaultForNewPrompt(prompt)]
+            )
+        }
+        return PromptApplicabilityResolver.resolve(
+            prompt: prompt,
+            sourceType: .meeting,
+            meetingTypeId: meetingTypeID,
+            policies: promptPoliciesByPromptID[prompt.id] ?? []
+        )
+    }
+
+    public func hasExactMeetingPolicy(for prompt: Prompt, meetingTypeID: UUID?) -> Bool {
+        let policies = promptPoliciesByPromptID[prompt.id] ?? []
+        if let meetingTypeID {
+            return policies.contains { $0.scopeKind == .type && $0.meetingTypeId == meetingTypeID }
+        }
+        return policies.contains { $0.scopeKind == .all && $0.meetingTypeId == nil }
+    }
+
+    @discardableResult
+    public func setMeetingPolicy(
+        prompt: Prompt,
+        meetingTypeID: UUID?,
+        isAvailable: Bool,
+        isAutoRun: Bool
+    ) -> Task<Void, Never> {
+        guard promptMeetingPolicyRepository != nil else { return Task {} }
+        optimisticallySetMeetingPolicy(
+            prompt: prompt,
+            meetingTypeID: meetingTypeID,
+            isAvailable: isAvailable,
+            isAutoRun: isAutoRun
+        )
+        return enqueuePromptPolicyMutation { repository in
+            if let meetingTypeID {
+                _ = try repository.setPolicy(
+                    promptId: prompt.id,
+                    meetingTypeId: meetingTypeID,
+                    isAvailable: isAvailable,
+                    isAutoRun: isAutoRun,
+                    sortOrder: prompt.sortOrder
+                )
+            } else {
+                _ = try repository.setAllMeetingsPolicy(
+                    promptId: prompt.id,
+                    isAvailable: isAvailable,
+                    isAutoRun: isAutoRun,
+                    sortOrder: prompt.sortOrder
+                )
+            }
+        }
+    }
+
+    @discardableResult
+    public func resetMeetingTypePolicy(prompt: Prompt, meetingTypeID: UUID) -> Task<Void, Never> {
+        guard promptMeetingPolicyRepository != nil,
+            let policy = promptPoliciesByPromptID[prompt.id]?.first(where: {
+                $0.scopeKind == .type && $0.meetingTypeId == meetingTypeID
+            })
+        else { return Task {} }
+        promptPoliciesByPromptID[prompt.id]?.removeAll { $0.id == policy.id }
+        return enqueuePromptPolicyMutation { repository in
+            _ = try repository.delete(id: policy.id)
+        }
+    }
+
+    @discardableResult
+    func loadPromptMeetingPolicies() -> Task<Void, Never> {
+        guard let promptMeetingPolicyRepository else { return Task {} }
+        promptPolicyLoadTask?.cancel()
+        promptPolicyLoadGeneration += 1
+        let loadGeneration = promptPolicyLoadGeneration
+        let mutationGeneration = promptPolicyMutationGeneration
+        let promptIDs = Set(promptsViewModel.prompts.map(\.id))
+        let task = Task { @MainActor [weak self, promptMeetingPolicyRepository] in
+            do {
+                let policies = try await Task.detached(priority: .userInitiated) {
+                    try promptMeetingPolicyRepository.fetchPolicies(promptIds: promptIDs)
+                }.value
+                guard let self,
+                    !Task.isCancelled,
+                    self.promptPolicyLoadGeneration == loadGeneration,
+                    self.promptPolicyMutationGeneration == mutationGeneration,
+                    self.promptPolicyCompletedMutationGeneration == mutationGeneration
+                else { return }
+                self.promptPoliciesByPromptID = Dictionary(grouping: policies, by: \.promptId)
+                self.meetingPolicyErrorMessage = nil
+            } catch is CancellationError {
+                return
+            } catch {
+                guard let self,
+                    !Task.isCancelled,
+                    self.promptPolicyLoadGeneration == loadGeneration,
+                    self.promptPolicyMutationGeneration == mutationGeneration,
+                    self.promptPolicyCompletedMutationGeneration == mutationGeneration
+                else { return }
+                self.meetingPolicyErrorMessage = "Unable to load prompt availability: \(error.localizedDescription)"
+            }
+        }
+        promptPolicyLoadTask = task
+        return task
+    }
+
+    private func enqueuePromptPolicyMutation(
+        _ operation: @escaping @Sendable (any PromptMeetingPolicyRepositoryProtocol) throws -> Void
+    ) -> Task<Void, Never> {
+        guard let promptMeetingPolicyRepository else { return Task {} }
+        promptPolicyMutationGeneration += 1
+        let mutationGeneration = promptPolicyMutationGeneration
+        promptPolicyLoadTask?.cancel()
+        promptPolicyLoadGeneration += 1
+        let previousMutation = promptPolicyMutationTail
+        let task = Task { @MainActor [weak self, promptMeetingPolicyRepository] in
+            await previousMutation?.value
+            guard !Task.isCancelled else { return }
+            do {
+                try await Task.detached(priority: .userInitiated) {
+                    try operation(promptMeetingPolicyRepository)
+                }.value
+                guard let self else { return }
+                self.promptPolicyCompletedMutationGeneration = max(
+                    self.promptPolicyCompletedMutationGeneration,
+                    mutationGeneration
+                )
+                if self.promptPolicyMutationGeneration == mutationGeneration {
+                    self.meetingPolicyErrorMessage = nil
+                    await self.loadPromptMeetingPolicies().value
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                guard let self else { return }
+                self.promptPolicyCompletedMutationGeneration = max(
+                    self.promptPolicyCompletedMutationGeneration,
+                    mutationGeneration
+                )
+                guard self.promptPolicyMutationGeneration == mutationGeneration else { return }
+                self.meetingPolicyErrorMessage = "Unable to update prompt availability: \(error.localizedDescription)"
+                await self.loadPromptMeetingPolicies().value
+            }
+        }
+        promptPolicyMutationTail = task
+        return task
+    }
+
+    private func optimisticallySetMeetingPolicy(
+        prompt: Prompt,
+        meetingTypeID: UUID?,
+        isAvailable: Bool,
+        isAutoRun: Bool
+    ) {
+        var policies = promptPoliciesByPromptID[prompt.id] ?? []
+        let existing = policies.first { policy in
+            meetingTypeID.map { policy.scopeKind == .type && policy.meetingTypeId == $0 }
+                ?? (policy.scopeKind == .all && policy.meetingTypeId == nil)
+        }
+        let now = Date()
+        let policy = PromptMeetingPolicy(
+            id: existing?.id ?? UUID(),
+            promptId: prompt.id,
+            scopeKind: meetingTypeID == nil ? .all : .type,
+            meetingTypeId: meetingTypeID,
+            isAvailable: isAvailable,
+            isAutoRun: isAvailable && isAutoRun,
+            sortOrder: prompt.sortOrder,
+            createdAt: existing?.createdAt ?? now,
+            updatedAt: now
+        )
+        policies.removeAll { $0.id == policy.id }
+        policies.append(policy)
+        promptPoliciesByPromptID[prompt.id] = policies
     }
 
     /// Auto-notes need a configured AI provider to generate. `false` only when

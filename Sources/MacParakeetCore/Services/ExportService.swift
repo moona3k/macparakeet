@@ -30,6 +30,26 @@ public protocol ExportServiceProtocol: Sendable {
 }
 
 public extension ExportServiceProtocol {
+    func formatSRT(projection: SpeakerAttributionProjection) -> String {
+        formatSRT(transcription: projection.effectiveTranscription)
+    }
+
+    func formatVTT(projection: SpeakerAttributionProjection) -> String {
+        formatVTT(transcription: projection.effectiveTranscription)
+    }
+
+    func formatDAPT(projection: SpeakerAttributionProjection) -> String {
+        formatDAPT(transcription: projection.effectiveTranscription)
+    }
+
+    func formatMarkdown(projection: SpeakerAttributionProjection) -> String {
+        formatMarkdown(transcription: projection.effectiveTranscription)
+    }
+
+    func formatForClipboard(projection: SpeakerAttributionProjection) -> String {
+        formatForClipboard(transcription: projection.effectiveTranscription)
+    }
+
     /// Compatibility fallback so existing protocol conformers automatically
     /// gain the additive DAPT export surface.
     func formatDAPT(transcription: Transcription) -> String {
@@ -100,6 +120,26 @@ public struct TranscriptExportOptions: Sendable, Equatable {
 /// (AppKit, not thread-safe). Text, subtitle, and JSON exports are safe off-main.
 public final class ExportService: ExportServiceProtocol, Sendable {
     public init() {}
+
+    public func formatMarkdown(
+        projection: SpeakerAttributionProjection,
+        options: TranscriptExportOptions
+    ) -> String {
+        formatMarkdown(
+            transcription: projection.effectiveTranscription,
+            options: options
+        )
+    }
+
+    public func formatPlainText(
+        projection: SpeakerAttributionProjection,
+        options: TranscriptExportOptions = .default
+    ) -> String {
+        formatPlainText(
+            transcription: projection.effectiveTranscription,
+            options: options
+        )
+    }
 
     private func preferredText(transcription: Transcription) -> String {
         transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
@@ -369,10 +409,10 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             let paragraphs = TranscriptParagraphBuilder.build(from: timestamps)
             if options.includeTimestamps || options.includeSpeakerLabels {
                 var lastSpeakerId: String? = nil
-                for paragraph in paragraphs {
+                for (index, paragraph) in paragraphs.enumerated() {
                     if options.includeSpeakerLabels,
-                       let label = speakerLabel(for: paragraph.speakerId, in: transcription.speakers),
-                       paragraph.speakerId != lastSpeakerId {
+                       let label = paragraphSpeakerLabel(for: paragraph.speakerId, in: transcription.speakers),
+                       index == 0 || paragraph.speakerId != lastSpeakerId {
                         lines.append("**\(label)**")
                         lines.append("")
                     }
@@ -430,6 +470,11 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         return speakers.first(where: { $0.id == speakerId })?.label ?? speakerId
     }
 
+    private func paragraphSpeakerLabel(for speakerId: String?, in speakers: [SpeakerInfo]?) -> String? {
+        guard let speakers, !speakers.isEmpty else { return nil }
+        return speakerId == nil ? "Unassigned" : speakerLabel(for: speakerId, in: speakers)
+    }
+
     // MARK: - Timestamp Formatting
 
     /// SRT format: 00:01:23,456
@@ -483,14 +528,14 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             let paragraphs = TranscriptParagraphBuilder.build(from: timestamps)
             if options.includeTimestamps || options.includeSpeakerLabels {
                 var lastSpeakerId: String? = nil
-                for paragraph in paragraphs {
+                for (index, paragraph) in paragraphs.enumerated() {
                     if !lines.isEmpty, lines.last != "" {
                         lines.append("")
                     }
 
                     if options.includeSpeakerLabels,
-                       let label = speakerLabel(for: paragraph.speakerId, in: transcription.speakers),
-                       paragraph.speakerId != lastSpeakerId {
+                       let label = paragraphSpeakerLabel(for: paragraph.speakerId, in: transcription.speakers),
+                       index == 0 || paragraph.speakerId != lastSpeakerId {
                         lines.append("\(label):")
                     }
                     lastSpeakerId = paragraph.speakerId

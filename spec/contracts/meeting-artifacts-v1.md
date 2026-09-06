@@ -10,9 +10,20 @@ agent workflows to inspect. The database row remains canonical for meeting
 identity and current metadata; files are refreshed views of that row and its
 related prompt results.
 
+Meeting classification follows the same rule. SQLite owns the current optional
+primary type and complete label assignment; artifacts contain local snapshots
+so copied folders remain understandable. The capture metadata sidecar is
+provenance and is not rewritten when classification changes.
+
 For meeting rows, `transcriptions.meetingArtifactFolderPath` is the durable
 folder locator. `transcriptions.filePath` is only the mixed-audio
 playback/export path and may be cleared by user deletion or retention.
+Transcription completion preserves the current locator values, including clears,
+and aborts when the canonical recording was deleted during processing.
+
+If a notes write commits but its follow-up read fails, the app updates only notes
+in its loaded snapshots and keeps existing artifacts intact until a successful
+refresh can read current metadata. The saved draft is not reported as lost.
 
 Meeting rename refreshes artifacts from the row returned by the rename's
 database transaction, preserving its current transcript, notes, and folder
@@ -97,6 +108,17 @@ The v1 folder can contain these stable filenames:
 - `prompt-results/*.md`: filenames use a stable two-digit 1-based index prefix
   plus sanitized prompt-result name.
 
+Each `prompt-results.json` record preserves the prompt-result snapshots,
+including `userNotesSnapshot`, the additive Boolean
+`includeMeetingNotesSnapshot` (default `false` for legacy and imported rows),
+and optional `inferenceSettingsSnapshot`. The per-result Markdown view also
+states whether automatic meeting-notes context was enabled. When inference
+settings are present, they are the normalized effective
+provider/model-filtered receipt stored on the canonical database row. Their
+optional `reasoningEffort` is one of `low`, `medium`, `high`, or `xhigh` and
+appears only with enabled thinking; legacy and externally imported rows may
+omit it.
+
 New recordings write the role-explicit audio filenames above. For read
 compatibility with folders created before the in-place v1 audio filename
 rename, readers and artifact materializers must also resolve legacy
@@ -126,8 +148,12 @@ raw-audio filenames.
 - `promptResultsPath`
 - `promptResultsDirectoryPath`
 - `promptResultCount`
+- `meetingType`
+- `meetingLabels`
 - `calendarEventSnapshot`
 - `meetingCaptureReport`
+- `speakerCorrectionsApplied`
+- `speakerCorrectionRevision`
 
 `manifest.json` keeps:
 
@@ -137,6 +163,12 @@ raw-audio filenames.
 - `meeting` (including optional `startContext`)
 - `files`
 - `promptResults`
+
+`manifest.meeting.meetingType` is optional; absence means unclassified.
+`manifest.meeting.meetingLabels` is the complete assigned-label array and may
+be empty. Type and label snapshots carry stable UUID and display name plus
+optional presentation metadata. Archived values remain materialized while a
+meeting still references them.
 
 `manifest.meeting.calendarEventSnapshot`, when present, keeps the same local
 EventKit snapshot shape as `transcriptions.calendarEventSnapshot`: confidence,
@@ -217,15 +249,38 @@ unknown, not healthy.
 `meeting.md` frontmatter keeps the local Markdown schema
 `com.macparakeet.meeting-markdown` with `schemaVersion: 1`, meeting identity,
 timestamps, duration/status/source/engine metadata, artifact/audio paths when
-available, `speakerLabelsIncluded`, and `promptResultCount`. The body section
+available, `speakerLabelsIncluded`, `speakerCorrectionsApplied`,
+`speakerCorrectionRevision`, and `promptResultCount`. The body section
 order is: title, optional notes, transcript, optional prompt results, and
 artifact paths.
+
+Legacy v1 `MeetingArtifactSnapshot` JSON without speaker correction keys decodes
+with `speakerCorrectionsApplied = false` and `speakerCorrectionRevision = 0`.
+Metadata and speaker refreshes in the transcription view model share a queue
+per meeting and read the current DB row after earlier materializations finish.
+
+`transcript.json` publishes the effective speaker projection and includes
+`speakerCorrectionsApplied` plus `speakerCorrectionRevision`. Each durable
+`transcriptSegments` item may additionally include `speakerSpans`. A span has
+`wordRange`, nullable `speakerId`, and `speakerLabel`; multiple spans preserve
+manual splits that cannot be represented by the segment's legacy single
+speaker fields. GUI correction refreshes preserve the resolved projection and
+its revision together; CLI classification refreshes resolve corrections from
+the same database before regenerating files. These refreshes must never replay
+an effective transcription as though it were the automatic baseline.
+
+When classified, the frontmatter also includes the type id/name and complete
+label id/name list. Human-readable details render those values without changing
+the stable section order. Unclassified meetings omit the type and do not gain a
+synthetic label.
 
 `transcript.json` keeps meeting essentials: `id`, `title`, timestamps,
 `durationMs`, `status`, raw/clean/transcript text, word/speaker/diarization
 fields, durable `transcriptSegments`, `userNotes`, language/engine attribution,
 `sourceType`, `recoveredFromCrash`, `isTranscriptEdited`, and optional
-`startContext`, `calendarEventSnapshot`, and `meetingCaptureReport`.
+`startContext`, `calendarEventSnapshot`, `meetingCaptureReport`, `meetingType`,
+and `meetingLabels`. Classification uses the same snapshot shape as the
+manifest.
 
 `transcriptSegments` is an additive v1 field populated from the DB row when a
 meeting has durable segments. Each segment keeps `id`, `startMs`, `endMs`,

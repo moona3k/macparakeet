@@ -20,6 +20,21 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.formattedElapsed, "2:05")
     }
 
+    func testMeetingTypeSelectionUpdatesLiveStateAndCallback() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        let customer = MeetingType(name: "Customer")
+        var selectedIDs: [UUID?] = []
+
+        viewModel.configureMeetingTypes([customer], selectedID: nil) {
+            selectedIDs.append($0)
+        }
+        viewModel.selectMeetingType(customer.id)
+
+        XCTAssertEqual(viewModel.meetingTypes, [customer])
+        XCTAssertEqual(viewModel.activeMeetingTypeID, customer.id)
+        XCTAssertEqual(selectedIDs, [customer.id])
+    }
+
     func testRecordingStateAllowsStopAndUpdatesSegments() {
         let viewModel = MeetingRecordingPanelViewModel()
         let lines = [

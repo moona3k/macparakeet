@@ -574,10 +574,43 @@ private extension CLISpecCommand {
         ),
         CLISpecCommand(
             ["prompts", "show"],
-            summary: "Show one prompt's full content.",
+            summary: "Show one result or Transform prompt, optionally at an immutable version.",
+            arguments: [.argument("prompt", summary: "Prompt ID, UUID prefix, or exact name.")],
+            options: [
+                CLISpecParameter.option("--version", valueName: "N", summary: "Show one immutable version."),
+                databaseOption,
+            ],
+            output: "Prompt object, or PromptVersion object with --version, when --json is used."
+        ),
+        CLISpecCommand(
+            ["prompts", "history"],
+            summary: "List immutable versions for one prompt.",
             arguments: [.argument("prompt", summary: "Prompt ID, UUID prefix, or exact name.")],
             options: [databaseOption],
-            output: "Prompt object when --json is used."
+            output: "Array of PromptVersion objects."
+        ),
+        CLISpecCommand(
+            ["prompts", "diff"],
+            summary: "Compare Markdown, settings, and model across two prompt versions.",
+            arguments: [.argument("prompt", summary: "Prompt ID, UUID prefix, or exact name.")],
+            options: [
+                CLISpecParameter.option("--from", valueName: "N", required: true, summary: "Older version."),
+                CLISpecParameter.option("--to", valueName: "N", required: true, summary: "Newer version."),
+                databaseOption,
+            ],
+            output: "PromptDiffRecord object."
+        ),
+        CLISpecCommand(
+            ["prompts", "restore"],
+            summary: "Copy a historical version into a new active version.",
+            readOnly: false,
+            arguments: [.argument("prompt", summary: "Prompt ID, UUID prefix, or exact name.")],
+            options: [
+                CLISpecParameter.option("--version", valueName: "N", required: true, summary: "Version to restore."),
+                CLISpecParameter.option("--note", valueName: "TEXT", summary: "Optional history note."),
+                databaseOption,
+            ],
+            output: "Resolved Prompt object."
         ),
         CLISpecCommand(
             ["prompts", "add"],
@@ -595,7 +628,8 @@ private extension CLISpecCommand {
         ),
         CLISpecCommand(
             ["prompts", "set"],
-            summary: "Toggle a result prompt's visibility or auto-run state.",
+            summary:
+                "Update a result or Transform prompt; meeting-note context and label availability apply only to results.",
             readOnly: false,
             arguments: [.argument("prompt", summary: "Prompt ID, UUID prefix, or exact name.")],
             options: [
@@ -603,21 +637,47 @@ private extension CLISpecCommand {
                 CLISpecParameter.flag("--hidden", summary: "Hide the prompt and disable auto-run."),
                 CLISpecParameter.flag("--auto-run", summary: "Enable global auto-run."),
                 CLISpecParameter.flag("--no-auto-run", summary: "Disable auto-run."),
+                CLISpecParameter.flag(
+                    "--include-meeting-notes",
+                    summary: "Include meeting notes as additional context for this result prompt."),
+                CLISpecParameter.flag(
+                    "--no-include-meeting-notes",
+                    summary: "Disable automatic meeting-note context for this result prompt."),
                 CLISpecParameter.option(
                     "--source", valueName: "file|youtube|podcast|meeting",
                     summary: "Scope --auto-run/--no-auto-run to one source; omit for global all-source behavior."),
+                CLISpecParameter.option("--model", valueName: "MODEL", summary: "Set a versioned active-provider model override."),
+                CLISpecParameter.flag("--active-model", summary: "Clear the versioned model override."),
+                CLISpecParameter.option("--temperature", valueName: "N", summary: "Set versioned sampling temperature."),
+                CLISpecParameter.option("--top-p", valueName: "N", summary: "Set versioned nucleus sampling."),
+                CLISpecParameter.option("--top-k", valueName: "N", summary: "Set versioned top-k sampling."),
+                CLISpecParameter.option("--max-tokens", valueName: "N", summary: "Set versioned output token limit."),
+                CLISpecParameter.option("--thinking-mode", valueName: "MODE", summary: "Set versioned thinking mode."),
+                CLISpecParameter.option("--reasoning-effort", valueName: "LEVEL", summary: "Set versioned reasoning effort."),
+                CLISpecParameter.flag("--provider-default-settings", summary: "Clear all versioned inference overrides."),
+                CLISpecParameter.option("--label", valueName: "LABEL", summary: "Target one label availability rule across transcription sources."),
+                CLISpecParameter.flag("--all-labels", summary: "Target the fallback when no explicit label rule matches."),
+                CLISpecParameter.flag("--available", summary: "Make the targeted policy manually available."),
+                CLISpecParameter.flag("--unavailable", summary: "Make the targeted label policy unavailable; source auto-run settings are unchanged."),
                 databaseOption,
             ],
-            output: "Updated Prompt object when --json is used."
+            output: "Updated Prompt or PromptLabelPolicy object when --json is used."
         ),
         CLISpecCommand(
             ["prompts", "delete"],
-            summary: "Delete a custom result prompt; built-ins are protected.",
+            summary: "Soft-delete a result or Transform prompt, including a built-in.",
             readOnly: false,
-            jsonMode: "none",
             arguments: [.argument("prompt", summary: "Prompt ID, UUID prefix, or exact name.")],
             options: [databaseOption],
-            output: "Human-readable delete confirmation."
+            output: "Affected Prompt object."
+        ),
+        CLISpecCommand(
+            ["prompts", "restore-deleted"],
+            summary: "Restore a soft-deleted result or Transform prompt.",
+            readOnly: false,
+            arguments: [.argument("prompt", summary: "Deleted prompt ID, UUID prefix, or exact name.")],
+            options: [databaseOption],
+            output: "Resolved Prompt object."
         ),
         CLISpecCommand(
             ["prompts", "restore-defaults"],
@@ -835,7 +895,7 @@ private extension CLISpecCommand {
         ),
         CLISpecCommand(
             ["transforms", "delete"],
-            summary: "Delete a custom Transform; built-ins are protected.",
+            summary: "Soft-delete a custom or built-in Transform.",
             readOnly: false,
             arguments: [.argument("transform", summary: "Transform ID, UUID prefix, or name.")],
             options: [databaseOption],
@@ -1061,10 +1121,93 @@ private extension CLISpecCommand {
             summary: "List recent meeting recordings.",
             options: [
                 CLISpecParameter.option("--limit", valueName: "N", summary: "Maximum number of meetings."),
+                CLISpecParameter.option("--type", valueName: "TYPE", summary: "Filter by type; repeatable with ANY semantics."),
+                CLISpecParameter.option("--label", valueName: "LABEL", summary: "Filter by label; repeatable with ANY semantics."),
+                CLISpecParameter.flag("--unclassified", summary: "Only meetings without a primary type."),
                 CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
                 databaseOption,
             ],
             output: "Array of meeting list objects with transcript, notes, and prompt-result availability."
+        ),
+        CLISpecCommand(
+            ["meetings", "types", "list"],
+            summary: "List meeting types.",
+            options: [CLISpecParameter.flag("--include-archived", summary: "Include archived types."), databaseOption],
+            output: "Array of MeetingType objects."
+        ),
+        CLISpecCommand(
+            ["meetings", "types", "add"],
+            summary: "Create a meeting type.",
+            readOnly: false,
+            options: [
+                CLISpecParameter.option("--name", valueName: "NAME", required: true, summary: "Type name."),
+                CLISpecParameter.option("--color", valueName: "TOKEN", summary: "Optional color token."),
+                CLISpecParameter.option("--icon", valueName: "SYMBOL", summary: "Optional SF Symbol name."),
+                databaseOption,
+            ],
+            output: "MeetingType object."
+        ),
+        CLISpecCommand(
+            ["meetings", "types", "rename"],
+            summary: "Rename a meeting type.",
+            readOnly: false,
+            arguments: [.argument("type", summary: "Type UUID, prefix, or exact name.")],
+            options: [CLISpecParameter.option("--name", valueName: "NAME", required: true, summary: "New name."), databaseOption],
+            output: "MeetingType object."
+        ),
+        CLISpecCommand(
+            ["meetings", "types", "archive"],
+            summary: "Archive or restore a meeting type.",
+            readOnly: false,
+            arguments: [.argument("type", summary: "Type UUID, prefix, or exact name.")],
+            options: [CLISpecParameter.flag("--restore", summary: "Restore instead of archive."), databaseOption],
+            output: "MeetingType object."
+        ),
+        CLISpecCommand(
+            ["meetings", "labels", "list"],
+            summary: "List meeting labels.",
+            options: [CLISpecParameter.flag("--include-archived", summary: "Include archived labels."), databaseOption],
+            output: "Array of MeetingLabel objects."
+        ),
+        CLISpecCommand(
+            ["meetings", "labels", "add"],
+            summary: "Create a meeting label.",
+            readOnly: false,
+            options: [
+                CLISpecParameter.option("--name", valueName: "NAME", required: true, summary: "Label name."),
+                CLISpecParameter.option("--color", valueName: "TOKEN", summary: "Optional color token."),
+                databaseOption,
+            ],
+            output: "MeetingLabel object."
+        ),
+        CLISpecCommand(
+            ["meetings", "labels", "rename"],
+            summary: "Rename a meeting label.",
+            readOnly: false,
+            arguments: [.argument("label", summary: "Label UUID, prefix, or exact name.")],
+            options: [CLISpecParameter.option("--name", valueName: "NAME", required: true, summary: "New name."), databaseOption],
+            output: "MeetingLabel object."
+        ),
+        CLISpecCommand(
+            ["meetings", "labels", "archive"],
+            summary: "Archive or restore a meeting label.",
+            readOnly: false,
+            arguments: [.argument("label", summary: "Label UUID, prefix, or exact name.")],
+            options: [CLISpecParameter.flag("--restore", summary: "Restore instead of archive."), databaseOption],
+            output: "MeetingLabel object."
+        ),
+        CLISpecCommand(
+            ["meetings", "classify"],
+            summary: "Set a meeting type and add/remove labels atomically.",
+            readOnly: false,
+            arguments: [.argument("meeting", summary: "Meeting UUID, prefix, or exact title.")],
+            options: [
+                CLISpecParameter.option("--type", valueName: "TYPE|none", summary: "Set or clear the primary type."),
+                CLISpecParameter.option("--add-label", valueName: "LABEL", summary: "Add a label; repeatable."),
+                CLISpecParameter.option("--remove-label", valueName: "LABEL", summary: "Remove a label; repeatable."),
+                databaseOption,
+            ],
+            output: "MeetingClassificationRecord object."
         ),
         CLISpecCommand(
             ["meetings", "show"],

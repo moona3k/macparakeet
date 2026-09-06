@@ -3,6 +3,11 @@ import SwiftUI
 import MacParakeetCore
 import MacParakeetViewModels
 
+private enum LibraryLayoutMode: String {
+    case grid
+    case list
+}
+
 struct TranscriptionLibraryView: View {
     @Bindable var viewModel: TranscriptionLibraryViewModel
     var title: String = "Library"
@@ -14,6 +19,7 @@ struct TranscriptionLibraryView: View {
     var onSelect: (Transcription) -> Void
 
     @State private var pendingDelete: Transcription?
+    @State private var classificationTarget: Transcription?
     @State private var pendingRename: Transcription?
     @State private var renameTitleDraft = ""
     @State private var pendingDeleteAudio: Transcription?
@@ -27,6 +33,8 @@ struct TranscriptionLibraryView: View {
     private var bulkExportIncludeSpeakerLabels = true
     @AppStorage("com.macparakeet.libraryBulkExportIncludeMetadata")
     private var bulkExportIncludeMetadata = true
+    @AppStorage("com.macparakeet.libraryLayoutMode")
+    private var libraryLayoutMode = LibraryLayoutMode.grid
     @State private var bulkExportInProgress = false
     @State private var bulkExportResult: BulkTranscriptExportResult?
     @State private var bulkExportErrorMessage: String?
@@ -53,6 +61,20 @@ struct TranscriptionLibraryView: View {
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
 
                 Spacer()
+
+                Picker("Library layout", selection: $libraryLayoutMode) {
+                    Image(systemName: "square.grid.2x2")
+                        .accessibilityLabel("Grid")
+                        .tag(LibraryLayoutMode.grid)
+                    Image(systemName: "list.bullet")
+                        .accessibilityLabel("List")
+                        .tag(LibraryLayoutMode.list)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .accessibilityLabel("Library layout")
+                .frame(width: 76)
+                .help(libraryLayoutMode == .grid ? "Switch to list view" : "Switch to grid view")
 
                 if showsSelectManyButton {
                     LibrarySelectManyButton {
@@ -83,6 +105,10 @@ struct TranscriptionLibraryView: View {
                 .padding(.bottom, DesignSystem.Spacing.sm)
             }
 
+            MeetingClassificationFilterBar(libraryViewModel: viewModel)
+                .padding(.horizontal, DesignSystem.Spacing.lg)
+                .padding(.bottom, DesignSystem.Spacing.sm)
+
             if let errorMessage = viewModel.errorMessage {
                 Text(errorMessage)
                     .font(DesignSystem.Typography.bodySmall)
@@ -100,8 +126,8 @@ struct TranscriptionLibraryView: View {
                 loadingState
             } else if viewModel.filteredTranscriptions.isEmpty {
                 emptyState
-            } else if isMeetingListMode {
-                meetingsList
+            } else if usesListLayout {
+                transcriptionList
             } else {
                 thumbnailGrid
             }
@@ -272,6 +298,9 @@ struct TranscriptionLibraryView: View {
                     ForEach(viewModel.filteredTranscriptions) { transcription in
                         TranscriptionThumbnailCard(
                             transcription: transcription,
+                            classification: viewModel.meetingClassificationViewModel.classification(
+                                for: transcription.id
+                            ),
                             searchText: viewModel.searchText,
                             isSelected: viewModel.isTranscriptionSelected(transcription),
                             showsSelectionControls: viewModel.isBulkSelectionModeEnabled
@@ -290,6 +319,11 @@ struct TranscriptionLibraryView: View {
                         .contextMenu {
                             libraryMenuItems(for: transcription)
                         }
+                        .meetingClassificationPopover(
+                            item: $classificationTarget,
+                            transcription: transcription,
+                            viewModel: viewModel.meetingClassificationViewModel
+                        )
                     }
                 }
                 loadMoreFooter
@@ -300,7 +334,7 @@ struct TranscriptionLibraryView: View {
         }
     }
 
-    private var meetingsList: some View {
+    private var transcriptionList: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(viewModel.groupedTranscriptions, id: \.group) { section in
@@ -308,9 +342,13 @@ struct TranscriptionLibraryView: View {
                     ForEach(Array(section.items.enumerated()), id: \.element.id) { idx, transcription in
                         MeetingRowCard(
                             transcription: transcription,
+                            classification: viewModel.meetingClassificationViewModel.classification(
+                                for: transcription.id
+                            ),
                             searchText: viewModel.searchText,
                             isSelected: viewModel.isTranscriptionSelected(transcription),
                             showsSelectionControls: viewModel.isBulkSelectionModeEnabled,
+                            showsSource: !isMeetingContext,
                             isRetrying: viewModel.isRetryingMeetingTranscription(transcription),
                             onTap: {
                                 if viewModel.isBulkOperationInProgress || bulkExportInProgress {
@@ -326,6 +364,11 @@ struct TranscriptionLibraryView: View {
                                 viewModel.retryMeetingTranscription(transcription)
                             },
                             menuContent: { libraryMenuItems(for: transcription) }
+                        )
+                        .meetingClassificationPopover(
+                            item: $classificationTarget,
+                            transcription: transcription,
+                            viewModel: viewModel.meetingClassificationViewModel
                         )
                         if idx < section.items.count - 1 {
                             MeetingRowHairline()
@@ -364,7 +407,15 @@ struct TranscriptionLibraryView: View {
             }
         }
 
+        Button {
+            classificationTarget = transcription
+        } label: {
+            Label("Edit Labels...", systemImage: "tag")
+        }
+
         if transcription.sourceType == .meeting {
+            Divider()
+
             let audioState = MeetingAudioFile.state(for: transcription)
             let audioAvailable = audioState == .saved
             let audioRemovable = MeetingAudioFile.isRemovable(for: transcription, state: audioState)
@@ -470,7 +521,7 @@ struct TranscriptionLibraryView: View {
         BulkTranscriptionSelectionBar(
             selectedCount: selectedBulkExportTargets.count,
             selectedMeetingAudioCount: viewModel.selectedMeetingAudioCount,
-            isMeetingContext: isMeetingListMode,
+            isMeetingContext: isMeetingContext,
             areAllVisibleSelected: viewModel.areAllLoadedVisibleTranscriptionsSelected,
             isPerformingOperation: viewModel.isBulkOperationInProgress || bulkExportInProgress,
             operationLabel: bulkExportInProgress ? "Exporting..." : "Deleting...",
@@ -752,6 +803,7 @@ struct TranscriptionLibraryView: View {
         let runID = UUID()
         let format = selectedBulkExportFormat
         let options = bulkExportOptions
+        let projectionProvider = viewModel.speakerAttributionProjectionProvider
 
         bulkExportRunID = runID
         bulkExportInProgress = true
@@ -772,7 +824,8 @@ struct TranscriptionLibraryView: View {
                         transcriptions: targets,
                         format: format,
                         options: options,
-                        directory: directory
+                        directory: directory,
+                        projectionProvider: projectionProvider
                     )
                 }
                 bulkExportWorkerTask = exportTask
@@ -903,8 +956,12 @@ struct TranscriptionLibraryView: View {
         }
     }
 
-    private var isMeetingListMode: Bool {
+    private var isMeetingContext: Bool {
         viewModel.scope == .meetings || viewModel.filter == .meeting
+    }
+
+    private var usesListLayout: Bool {
+        libraryLayoutMode == .list
     }
 
     private var bulkOperationTitle: String {
@@ -995,15 +1052,15 @@ struct TranscriptionLibraryView: View {
 
     private var emptyStateIcon: String {
         if !viewModel.searchText.isEmpty { return "magnifyingglass" }
-        return isMeetingListMode ? "waveform.badge.mic" : "square.grid.2x2"
+        return isMeetingContext ? "waveform.badge.mic" : "square.grid.2x2"
     }
 
     private var emptyStateTitle: String {
-        isMeetingListMode ? "No meetings recorded yet" : emptyTitle
+        isMeetingContext ? "No meetings recorded yet" : emptyTitle
     }
 
     private var emptyStateMessage: String {
-        isMeetingListMode
+        isMeetingContext
             ? "Press Record Meeting on the Transcribe tab to capture system audio and transcribe locally."
             : emptyMessage
     }

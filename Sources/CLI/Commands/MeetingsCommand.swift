@@ -12,6 +12,9 @@ struct MeetingsCommand: AsyncParsableCommand {
             TranscriptSubcommand.self,
             NotesSubcommand.self,
             ResultsSubcommand.self,
+            TypesSubcommand.self,
+            LabelsSubcommand.self,
+            ClassifySubcommand.self,
             ArtifactSubcommand.self,
             ExportSubcommand.self,
         ]
@@ -32,29 +35,56 @@ struct MeetingsCommand: AsyncParsableCommand {
         @Flag(name: .long, help: "Wrap JSON output in an ok/data/meta envelope.")
         var envelope: Bool = false
 
+        @Option(name: .long, help: "Meeting type UUID, prefix, or exact name; repeatable (ANY).")
+        var type: [String] = []
+
+        @Option(name: .long, help: "Meeting label UUID, prefix, or exact name; repeatable (ANY).")
+        var label: [String] = []
+
+        @Flag(name: .long, help: "List only meetings without a primary type.")
+        var unclassified = false
+
         @Option(help: "Path to SQLite database file (defaults to the app database).")
         var database: String?
 
         func validate() throws {
             guard limit >= 0 else { throw ValidationError("--limit must be >= 0.") }
+            if unclassified && !type.isEmpty {
+                throw ValidationError("--unclassified and --type are mutually exclusive")
+            }
             try validateJSONEnvelopeFlags(json: json, envelope: envelope)
         }
 
         func run() async throws {
             try emitJSONOrRethrow(json: json || envelope) {
                 let repositories = try makeMeetingResultRepositories(database: database)
-                let meetings = try repositories.transcriptions.fetchLibraryPage(query: TranscriptionLibraryQuery(
-                    sourceType: .meeting,
-                    limit: limit,
-                    includeProcessing: true
-                )).items
+                let typeRepo = MeetingTypeRepository(dbQueue: repositories.database.dbQueue)
+                let labelRepo = MeetingLabelRepository(dbQueue: repositories.database.dbQueue)
+                let typeIDs = try Set(type.map {
+                    try findMeetingType($0, repo: typeRepo, includeArchived: true).id
+                })
+                let labelIDs = try Set(label.map {
+                    try findMeetingLabel($0, repo: labelRepo, includeArchived: true).id
+                })
+                let meetings = try repositories.transcriptions.fetchLibraryPage(
+                    query: TranscriptionLibraryQuery(
+                        sourceType: .meeting,
+                        meetingTypeIDs: typeIDs,
+                        unclassifiedMeetingsOnly: unclassified,
+                        meetingLabelIDs: labelIDs,
+                        limit: limit,
+                        includeProcessing: true
+                    )
+                ).items
                 let promptResultCounts = try repositories.promptResults.counts(
                     transcriptionIds: meetings.map(\.id)
                 )
-                let items = meetings.map { transcription in
+                let classificationService = MeetingClassificationService(dbQueue: repositories.database.dbQueue)
+                let items = try meetings.map { transcription in
                     MeetingListItem(
                         transcription,
-                        promptResultCount: promptResultCounts[transcription.id] ?? 0
+                        promptResultCount: promptResultCounts[transcription.id] ?? 0,
+                        classification: try classificationService.classification(for: transcription.id)
                     )
                 }
 
@@ -76,7 +106,9 @@ struct MeetingsCommand: AsyncParsableCommand {
                     let duration = meeting.durationMs.map(formatDuration) ?? "--"
                     let notes = meeting.hasNotes ? "notes" : "no notes"
                     let results = meeting.promptResultCount == 1 ? "1 result" : "\(meeting.promptResultCount) results"
-                    print("[\(formatDate(meeting.createdAt))] \(meeting.title) (\(duration)) [\(meeting.status)] [\(notes)] [\(results)]  (\(meeting.shortID))")
+                    print(
+                        "[\(formatDate(meeting.createdAt))] \(meeting.title) (\(duration)) [\(meeting.status)] [\(notes)] [\(results)]  (\(meeting.shortID))"
+                    )
                 }
             }
         }
@@ -108,9 +140,12 @@ struct MeetingsCommand: AsyncParsableCommand {
             try emitJSONOrRethrow(json: json || envelope) {
                 let repositories = try makeMeetingResultRepositories(database: database)
                 let transcription = try findMeeting(idOrName: meeting, repo: repositories.transcriptions)
+                let projection = try repositories.speakerAttributionReader.resolve(transcription: transcription)
                 let record = MeetingRecord(
-                    transcription,
-                    promptResultCount: try repositories.promptResults.count(transcriptionId: transcription.id)
+                    projection,
+                    promptResultCount: try repositories.promptResults.count(transcriptionId: transcription.id),
+                    classification: try MeetingClassificationService(dbQueue: repositories.database.dbQueue)
+                        .classification(for: transcription.id)
                 )
 
                 if envelope {
@@ -144,19 +179,22 @@ struct MeetingsCommand: AsyncParsableCommand {
 
         func run() async throws {
             try emitJSONOrRethrow(json: format == .json) {
-                let repo = try makeTranscriptionRepository(database: database)
-                let transcription = try findMeeting(idOrName: meeting, repo: repo)
+                let repositories = try makeMeetingResultRepositories(database: database)
+                let transcription = try findMeeting(idOrName: meeting, repo: repositories.transcriptions)
+                let projection = try repositories.speakerAttributionReader.resolve(transcription: transcription)
                 let exportService = ExportService()
 
                 switch format {
                 case .text:
-                    print(preferredTranscriptText(transcription))
+                    print(preferredTranscriptText(projection.effectiveTranscription))
                 case .json:
-                    try printJSON(MeetingTranscriptRecord(transcription))
+                    let classification = try MeetingClassificationService(dbQueue: repositories.database.dbQueue)
+                        .classification(for: transcription.id)
+                    try printJSON(MeetingTranscriptRecord(projection, classification: classification))
                 case .srt:
-                    print(exportService.formatSRT(transcription: transcription))
+                    print(exportService.formatSRT(projection: projection))
                 case .vtt:
-                    print(exportService.formatVTT(transcription: transcription))
+                    print(exportService.formatVTT(projection: projection))
                 }
             }
         }
@@ -246,10 +284,14 @@ struct MeetingsCommand: AsyncParsableCommand {
                     let repositories = try makeMeetingResultRepositories(database: database)
                     let transcription = try findMeeting(idOrName: meeting, repo: repositories.transcriptions)
                     let notes = try notesInput(text: text, stdin: stdin)
-                    try repositories.transcriptions.updateUserNotes(id: transcription.id, userNotes: normalizedNotes(notes))
+                    try repositories.transcriptions.updateUserNotes(
+                        id: transcription.id, userNotes: normalizedNotes(notes))
                     let updated = try repositories.transcriptions.fetch(id: transcription.id) ?? transcription
-                    let snapshot = await refreshMeetingArtifactBestEffort(transcription: updated, repositories: repositories)
-                    try emitNotesUpdate(MeetingNotesRecord(updated, artifact: snapshot), json: json, envelope: envelope, command: "meetings notes set")
+                    let snapshot = await refreshMeetingArtifactBestEffort(
+                        transcription: updated, repositories: repositories)
+                    try emitNotesUpdate(
+                        MeetingNotesRecord(updated, artifact: snapshot), json: json, envelope: envelope,
+                        command: "meetings notes set")
                 }
             }
         }
@@ -291,10 +333,14 @@ struct MeetingsCommand: AsyncParsableCommand {
                     let transcription = try findMeeting(idOrName: meeting, repo: repositories.transcriptions)
                     let addition = try notesInput(text: text, stdin: stdin)
                     let combined = appendedNotes(existing: transcription.userNotes, addition: addition)
-                    try repositories.transcriptions.updateUserNotes(id: transcription.id, userNotes: normalizedNotes(combined))
+                    try repositories.transcriptions.updateUserNotes(
+                        id: transcription.id, userNotes: normalizedNotes(combined))
                     let updated = try repositories.transcriptions.fetch(id: transcription.id) ?? transcription
-                    let snapshot = await refreshMeetingArtifactBestEffort(transcription: updated, repositories: repositories)
-                    try emitNotesUpdate(MeetingNotesRecord(updated, artifact: snapshot), json: json, envelope: envelope, command: "meetings notes append")
+                    let snapshot = await refreshMeetingArtifactBestEffort(
+                        transcription: updated, repositories: repositories)
+                    try emitNotesUpdate(
+                        MeetingNotesRecord(updated, artifact: snapshot), json: json, envelope: envelope,
+                        command: "meetings notes append")
                 }
             }
         }
@@ -324,8 +370,11 @@ struct MeetingsCommand: AsyncParsableCommand {
                     let transcription = try findMeeting(idOrName: meeting, repo: repositories.transcriptions)
                     try repositories.transcriptions.updateUserNotes(id: transcription.id, userNotes: nil)
                     let updated = try repositories.transcriptions.fetch(id: transcription.id) ?? transcription
-                    let snapshot = await refreshMeetingArtifactBestEffort(transcription: updated, repositories: repositories)
-                    try emitNotesUpdate(MeetingNotesRecord(updated, artifact: snapshot), json: json, envelope: envelope, command: "meetings notes clear")
+                    let snapshot = await refreshMeetingArtifactBestEffort(
+                        transcription: updated, repositories: repositories)
+                    try emitNotesUpdate(
+                        MeetingNotesRecord(updated, artifact: snapshot), json: json, envelope: envelope,
+                        command: "meetings notes clear")
                 }
             }
         }
@@ -449,7 +498,8 @@ struct MeetingsCommand: AsyncParsableCommand {
                     guard let resultName = normalizedNonEmptyText(name) else {
                         throw ValidationError("--name must not be empty.")
                     }
-                    let promptSnapshot = normalizedNonEmptyText(promptContent)
+                    let promptSnapshot =
+                        normalizedNonEmptyText(promptContent)
                         ?? "External result imported with `macparakeet-cli meetings results add`."
                     let now = Date()
                     let promptResult = PromptResult(
@@ -458,7 +508,10 @@ struct MeetingsCommand: AsyncParsableCommand {
                         promptContent: promptSnapshot,
                         extraInstructions: normalizedNonEmptyText(extra),
                         content: resultContent,
-                        userNotesSnapshot: transcription.userNotes,
+                        // Imported output did not send meeting notes through
+                        // MacParakeet, so it has no effective-notes receipt.
+                        userNotesSnapshot: nil,
+                        includeMeetingNotesSnapshot: false,
                         createdAt: now,
                         updatedAt: now
                     )
@@ -467,7 +520,8 @@ struct MeetingsCommand: AsyncParsableCommand {
                     let updatedResults = try repositories.promptResults.fetchAll(transcriptionId: transcription.id)
                     let snapshot = await refreshMeetingArtifactBestEffort(
                         transcription: transcription,
-                        promptResults: updatedResults
+                        promptResults: updatedResults,
+                        repositories: repositories
                     )
                     let record = MeetingPromptResultRecord(
                         result: promptResult,
@@ -513,9 +567,13 @@ struct MeetingsCommand: AsyncParsableCommand {
                 let repositories = try makeMeetingResultRepositories(database: database)
                 let transcription = try findMeeting(idOrName: meeting, repo: repositories.transcriptions)
                 let promptResults = try repositories.promptResults.fetchAll(transcriptionId: transcription.id)
+                let classification = try MeetingClassificationService(dbQueue: repositories.database.dbQueue)
+                    .classification(for: transcription.id)
                 let snapshot = try await materializeMeetingArtifact(
                     transcription: transcription,
-                    promptResults: promptResults
+                    promptResults: promptResults,
+                    classification: classification,
+                    speakerAttributionReader: repositories.speakerAttributionReader
                 )
 
                 if envelope {
@@ -560,11 +618,15 @@ struct MeetingsCommand: AsyncParsableCommand {
             try emitJSONOrRethrow(json: stdout && format == .json) {
                 let repositories = try makeMeetingResultRepositories(database: database)
                 let transcription = try findMeeting(idOrName: meeting, repo: repositories.transcriptions)
+                let projection = try repositories.speakerAttributionReader.resolve(transcription: transcription)
                 let promptResults = try repositories.promptResults.fetchAll(transcriptionId: transcription.id)
+                let classification = try MeetingClassificationService(dbQueue: repositories.database.dbQueue)
+                    .classification(for: transcription.id)
                 let content = try exportContent(
-                    for: transcription,
+                    for: projection,
                     format: format,
-                    promptResults: promptResults
+                    promptResults: promptResults,
+                    classification: classification
                 )
 
                 if stdout {
@@ -572,7 +634,8 @@ struct MeetingsCommand: AsyncParsableCommand {
                     return
                 }
 
-                let outputURL = resolvedOutputURL(output, transcription: transcription, fileExtension: format.fileExtension)
+                let outputURL = resolvedOutputURL(
+                    output, transcription: transcription, fileExtension: format.fileExtension)
                 try FileManager.default.createDirectory(
                     at: outputURL.deletingLastPathComponent(),
                     withIntermediateDirectories: true
@@ -615,8 +678,14 @@ private struct MeetingListItem: Encodable {
     let transcriptPreview: String?
     let artifactFolderPath: String?
     let hasArtifactManifest: Bool
+    let meetingType: MeetingType?
+    let meetingLabels: [MeetingLabel]
 
-    init(_ transcription: Transcription, promptResultCount: Int = 0) {
+    init(
+        _ transcription: Transcription,
+        promptResultCount: Int = 0,
+        classification: MeetingClassification = MeetingClassification(meetingType: nil, labels: [])
+    ) {
         id = transcription.id
         shortID = String(transcription.id.uuidString.prefix(8))
         title = transcription.fileName
@@ -634,11 +703,14 @@ private struct MeetingListItem: Encodable {
         transcriptPreview = preview(transcript)
         let artifactFolder = MeetingArtifactStore.sessionFolderURL(for: transcription)
         artifactFolderPath = artifactFolder?.path
-        hasArtifactManifest = artifactFolder.map {
+        hasArtifactManifest =
+            artifactFolder.map {
             FileManager.default.fileExists(
                 atPath: $0.appendingPathComponent(MeetingArtifactStore.manifestFileName).path
             )
         } ?? false
+        meetingType = classification.meetingType
+        meetingLabels = classification.labels
     }
 }
 
@@ -675,8 +747,17 @@ private struct MeetingRecord: Encodable {
     let playbackAudioPath: String?
     let hasArtifactManifest: Bool
     let startContext: MeetingStartContext?
+    let meetingType: MeetingType?
+    let meetingLabels: [MeetingLabel]
+    let speakerCorrectionsApplied: Bool
+    let speakerCorrectionRevision: Int
 
-    init(_ transcription: Transcription, promptResultCount: Int = 0) {
+    init(
+        _ projection: SpeakerAttributionProjection,
+        promptResultCount: Int = 0,
+        classification: MeetingClassification = MeetingClassification(meetingType: nil, labels: [])
+    ) {
+        let transcription = projection.effectiveTranscription
         id = transcription.id
         shortID = String(transcription.id.uuidString.prefix(8))
         title = transcription.fileName
@@ -711,10 +792,15 @@ private struct MeetingRecord: Encodable {
         cleanedMicrophoneAudioPath = artifactPaths.cleanedMicrophoneAudioPath
         rawSystemAudioPath = artifactPaths.rawSystemAudioPath
         playbackAudioPath = artifactPaths.playbackAudioPath
-        hasArtifactManifest = artifactPaths.manifestPath.map {
+        hasArtifactManifest =
+            artifactPaths.manifestPath.map {
             FileManager.default.fileExists(atPath: $0)
         } ?? false
         startContext = transcription.meetingStartContext
+        meetingType = classification.meetingType
+        meetingLabels = classification.labels
+        speakerCorrectionsApplied = projection.correctionsApplied
+        speakerCorrectionRevision = projection.correctionRevision
     }
 }
 
@@ -727,8 +813,16 @@ private struct MeetingTranscriptRecord: Encodable {
     let wordTimestamps: [WordTimestamp]?
     let speakers: [SpeakerInfo]?
     let transcriptSegments: [TranscriptSegmentRecord]?
+    let meetingType: MeetingType?
+    let meetingLabels: [MeetingLabel]
+    let speakerCorrectionsApplied: Bool
+    let speakerCorrectionRevision: Int
 
-    init(_ transcription: Transcription) {
+    init(
+        _ projection: SpeakerAttributionProjection,
+        classification: MeetingClassification = MeetingClassification(meetingType: nil, labels: [])
+    ) {
+        let transcription = projection.effectiveTranscription
         id = transcription.id
         title = transcription.fileName
         rawTranscript = transcription.rawTranscript
@@ -737,6 +831,10 @@ private struct MeetingTranscriptRecord: Encodable {
         wordTimestamps = transcription.wordTimestamps
         speakers = transcription.speakers
         transcriptSegments = transcription.transcriptSegments
+        meetingType = classification.meetingType
+        meetingLabels = classification.labels
+        speakerCorrectionsApplied = projection.correctionsApplied
+        speakerCorrectionRevision = projection.correctionRevision
     }
 }
 
@@ -763,11 +861,17 @@ private struct MeetingPromptResultRecord: Encodable {
     let shortID: String
     let meetingId: UUID
     let meetingTitle: String
+    let promptId: UUID?
+    let promptVersionId: UUID?
     let name: String
     let promptContent: String
     let extraInstructions: String?
     let content: String
     let userNotesSnapshot: String?
+    let includeMeetingNotesSnapshot: Bool
+    let inferenceSettingsSnapshot: PromptInferenceSettings?
+    let providerSnapshot: String?
+    let modelSnapshot: String?
     let createdAt: Date
     let updatedAt: Date
     let artifact: MeetingArtifactSnapshot?
@@ -781,11 +885,17 @@ private struct MeetingPromptResultRecord: Encodable {
         shortID = String(result.id.uuidString.prefix(8))
         meetingId = transcription.id
         meetingTitle = transcription.fileName
+        promptId = result.promptId
+        promptVersionId = result.promptVersionId
         name = result.promptName
         promptContent = result.promptContent
         extraInstructions = result.extraInstructions
         content = result.content
         userNotesSnapshot = result.userNotesSnapshot
+        includeMeetingNotesSnapshot = result.includeMeetingNotesSnapshot
+        inferenceSettingsSnapshot = result.inferenceSettingsSnapshot
+        providerSnapshot = result.providerSnapshot
+        modelSnapshot = result.modelSnapshot
         createdAt = result.createdAt
         updatedAt = result.updatedAt
         self.artifact = artifact
@@ -793,15 +903,19 @@ private struct MeetingPromptResultRecord: Encodable {
 }
 
 private struct MeetingResultRepositories {
+    let database: DatabaseManager
     let transcriptions: TranscriptionRepository
     let promptResults: PromptResultRepositoryProtocol
+    let speakerAttributionReader: SpeakerAttributionReadService
 }
 
 private func makeMeetingResultRepositories(database: String?) throws -> MeetingResultRepositories {
     let dbManager = try makeDatabaseManager(database: database)
     return MeetingResultRepositories(
+        database: dbManager,
         transcriptions: TranscriptionRepository(dbQueue: dbManager.dbQueue),
-        promptResults: PromptResultRepository(dbQueue: dbManager.dbQueue)
+        promptResults: PromptResultRepository(dbQueue: dbManager.dbQueue),
+        speakerAttributionReader: SpeakerAttributionReadService(dbQueue: dbManager.dbQueue)
     )
 }
 
@@ -812,11 +926,14 @@ private func makeTranscriptionRepository(database: String?) throws -> Transcript
 
 private func materializeMeetingArtifact(
     transcription: Transcription,
-    promptResults: [PromptResult]
+    promptResults: [PromptResult],
+    classification: MeetingClassification,
+    speakerAttributionReader: SpeakerAttributionReading
 ) async throws -> MeetingArtifactSnapshot {
-    try await MeetingArtifactStore().materialize(
+    try await MeetingArtifactStore(speakerAttributionReader: speakerAttributionReader).materialize(
         transcription: transcription,
-        promptResults: promptResults
+        promptResults: promptResults,
+        classification: MeetingArtifactClassificationSnapshot(classification)
     )
 }
 
@@ -826,9 +943,13 @@ private func refreshMeetingArtifactBestEffort(
 ) async -> MeetingArtifactSnapshot? {
     do {
         let promptResults = try repositories.promptResults.fetchAll(transcriptionId: transcription.id)
+        let classification = try MeetingClassificationService(dbQueue: repositories.database.dbQueue)
+            .classification(for: transcription.id)
         return try await materializeMeetingArtifact(
             transcription: transcription,
-            promptResults: promptResults
+            promptResults: promptResults,
+            classification: classification,
+            speakerAttributionReader: repositories.speakerAttributionReader
         )
     } catch {
         printErr("Warning: meeting artifact refresh failed: \(error.localizedDescription)")
@@ -838,12 +959,17 @@ private func refreshMeetingArtifactBestEffort(
 
 private func refreshMeetingArtifactBestEffort(
     transcription: Transcription,
-    promptResults: [PromptResult]
+    promptResults: [PromptResult],
+    repositories: MeetingResultRepositories
 ) async -> MeetingArtifactSnapshot? {
     do {
+        let classification = try MeetingClassificationService(dbQueue: repositories.database.dbQueue)
+            .classification(for: transcription.id)
         return try await materializeMeetingArtifact(
             transcription: transcription,
-            promptResults: promptResults
+            promptResults: promptResults,
+            classification: classification,
+            speakerAttributionReader: repositories.speakerAttributionReader
         )
     } catch {
         printErr("Warning: meeting artifact refresh failed: \(error.localizedDescription)")
@@ -871,7 +997,8 @@ private func normalizedNonEmptyText(_ value: String?) -> String? {
 
 private func preview(_ value: String?, maxLength: Int = 120) -> String? {
     guard let value = normalizedNotes(value) else { return nil }
-    let compact = value
+    let compact =
+        value
         .split(whereSeparator: \.isNewline)
         .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         .filter { !$0.isEmpty }
@@ -935,10 +1062,12 @@ private func emitNotesUpdate(
 }
 
 private func exportContent(
-    for transcription: Transcription,
+    for projection: SpeakerAttributionProjection,
     format: MeetingExportFormat,
-    promptResults: [PromptResult]
+    promptResults: [PromptResult],
+    classification: MeetingClassification
 ) throws -> String {
+    let transcription = projection.effectiveTranscription
     switch format {
     case .md:
         let artifactPaths = MeetingMarkdownArtifactPaths.resolve(
@@ -948,13 +1077,19 @@ private func exportContent(
         return MeetingMarkdownRenderer().render(
             transcription: transcription,
             promptResults: promptResults,
-            artifactPaths: artifactPaths
+            artifactPaths: artifactPaths,
+            speakerCorrectionsApplied: projection.correctionsApplied,
+            speakerCorrectionRevision: projection.correctionRevision,
+            classification: MeetingArtifactClassificationSnapshot(classification)
         )
     case .json:
-        let data = try cliJSONEncoder.encode(MeetingRecord(
-            transcription,
-            promptResultCount: promptResults.count
-        ))
+        let data = try cliJSONEncoder.encode(
+            MeetingRecord(
+                projection,
+                promptResultCount: promptResults.count,
+                classification: classification
+            )
+        )
         guard let string = String(data: data, encoding: .utf8) else {
             throw CocoaError(.fileReadInapplicableStringEncoding)
         }
@@ -986,14 +1121,16 @@ private func resolvedOutputURL(_ output: String?, transcription: Transcription, 
     if let output {
         return URL(fileURLWithPath: expandTilde(output))
     }
-    let baseName = sanitizedFileName(URL(fileURLWithPath: transcription.fileName).deletingPathExtension().lastPathComponent)
+    let baseName = sanitizedFileName(
+        URL(fileURLWithPath: transcription.fileName).deletingPathExtension().lastPathComponent)
     return URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         .appendingPathComponent("\(baseName).\(fileExtension)")
 }
 
 private func sanitizedFileName(_ value: String) -> String {
     let invalid = CharacterSet(charactersIn: "/:")
-    let cleaned = value
+    let cleaned =
+        value
         .components(separatedBy: invalid)
         .joined(separator: "-")
         .trimmingCharacters(in: .whitespacesAndNewlines)

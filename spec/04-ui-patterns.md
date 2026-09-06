@@ -51,7 +51,7 @@ Design philosophy: **Simple, native, stays out of the way.** No chrome, no clutt
 │  🎤 Transcribe   │  [Depends on sidebar selection]           │
 │  🗂 Library      │                                           │
 │  🕒 Dictations   │  - Transcribe: 3-mode capture hub        │
-│  📖 Vocabulary   │  - Library: Grid (or list for Meetings)  │
+│  📖 Vocabulary   │  - Library: Grid or list                 │
 │  ✦ Transforms    │  - Dictations: History list               │
 │  💬 Feedback     │  - Vocabulary: Processing mode + manage   │
 │  ⚙ Settings      │  - Transforms: Rewrite selected text      │
@@ -68,11 +68,12 @@ Minimum window width: 800pt.
 The sidebar uses NavigationSplitView with flat items (icon + label):
 
 - **Transcribe** (`waveform`) -- Capture hub: YouTube card + file drop card + Meeting Recording tile
-- **Library** (`square.grid.2x2`) -- All transcriptions; filter chips switch between thumbnail grid (All/YouTube/Local/Favorites) and date-grouped list (Meetings)
+- **Library** (`square.grid.2x2`) -- All transcriptions; every filter offers the same persistent Grid/List switch
 - **Dictations** (`clock.arrow.circlepath`) -- Flat history list with bottom bar player
 - **Meetings** (`person.2.wave.2`) -- Workflow space for upcoming, live, and saved meeting work; visible when `AppFeatures.meetingRecordingEnabled` is true
-- **Vocabulary** (`book.fill`) -- Processing mode, pipeline guide, custom words & snippets management
+- **Prompts** (`text.quote`) -- First-class prompt manager for versioned result prompts and Transforms
 - **Transforms** (`sparkles`) -- Saved selected-text rewrites backed by `.transform` prompt rows; visible when `AppFeatures.transformsEnabled` is true
+- **Vocabulary** (`book.fill`) -- Processing mode, pipeline guide, custom words & snippets management
 - **Feedback** (`bubble.left.and.text.bubble.right`) -- Bug reports, feature requests, community link
 - **Settings** (`gearshape`) -- Dictation prefs, meeting recording prefs, storage, permissions
 
@@ -119,9 +120,9 @@ States, all bound to the long-lived `MeetingRecordingPillViewModel` shared with 
 
 The tile body is informational. Only the visible Start and Stop capsules are real SwiftUI `Button`s, and both call the same `toggleRecording` path the menu bar uses. Completing, transcribing, completed, and error states render as inert status surfaces and must not expose button traits or no-op accessibility actions. The floating pill stays visible by default during recording so users who hide the main window keep an active control surface; users can hide it in Settings and continue controlling the live recording from the status menu, hotkey, or Meetings surfaces.
 
-### Library Meetings Filter
+### Library Layouts and Meeting States
 
-When `Library.filter == .meeting`, the view renders a date-grouped list (`Today` / `Yesterday` / `Previous 7 Days` / `Previous 30 Days` / `{Month Year}`) using `MeetingDateGroupHeader` + `MeetingRowCard` instead of the thumbnail grid the other filters use. Meeting rows surface saved-audio state directly (`Audio saved`, `Audio removed`, or `Audio missing`) so playback/retranscription expectations are visible before the user opens a menu.
+When list mode is selected, the view renders a date-grouped list (`Today` / `Yesterday` / `Previous 7 Days` / `Previous 30 Days` / `{Month Year}`) using `MeetingDateGroupHeader` + `MeetingRowCard`. Meeting rows surface saved-audio state directly (`Audio saved`, `Audio removed`, or `Audio missing`) so playback/retranscription expectations are visible before the user opens a menu.
 
 A finalized meeting whose `meetingCaptureReport.quality` is `partial` shows the
 existing **Partial audio** badge in its Library meeting row and the existing
@@ -131,6 +132,15 @@ system source status is `silent`, its message is: “System audio contained no
 audible signal. Microphone audio remains saved.” This state is durable and
 appears after finalization; it does not add a live alert or automatically
 restart ScreenCaptureKit during a meeting.
+
+Every Library filter, including Meetings, exposes a compact Grid/List segmented
+control in the header. The preference persists across launches. List mode reuses the
+date-grouped row presentation and adds the transcription source beside the
+title; search, label filters, contextual actions, pagination, and bulk
+selection behave identically in either layout. Grid cards reserve a fixed-height
+metadata area whether or not labels are assigned, so every card in a row stays
+aligned. Cards show at most two labels followed by `+N`; labels remain on one
+line and truncate rather than increasing card height.
 
 Opening an empty processing meeting row must preserve that same lifecycle
 truth. The transcript pane shows an indeterminate "Transcribing meeting"
@@ -146,6 +156,81 @@ meeting is recording. That in-place refresh must not navigate, activate a
 window, or replace an unrelated open detail page. Recorder-idle queued
 completion may still present the finished meeting, matching the existing
 queued-completion behavior.
+
+### Transcription Labels Popover
+
+Label editing uses a compact popover anchored to the action that opened it from
+Library, the Meetings workspace, or any saved-transcription detail. Labels are
+shared by meetings, podcasts, videos, and local files. The popover floats above
+the current context without masking or resizing it and is never presented as a
+blocking sheet. It does not repeat the transcription title or add its own
+heading; clicking outside or pressing Escape dismisses it.
+
+The source tabs — Meetings, Podcasts, Video, and Local — are the transcription
+types. The product does not add a second, user-defined "meeting type" taxonomy.
+Legacy custom meeting types are migrated to labels without removing the legacy
+database value, preserving downgrade compatibility.
+
+Result prompts expose an **Available for** label cloud in the Prompt Manager.
+**All transcriptions** is the default. Selecting one or more colored labels
+makes the prompt available when any selected label is present, across meetings,
+podcasts, videos, and local files. The same availability gate applies before
+automatic generation; the prompt's existing per-source Auto-Run setting remains
+the source of truth for whether matching content runs automatically.
+
+Library's label filter opens a compact popover with an integrated search field.
+Its options use colored, wrapping chips instead of vertical menu rows, allowing
+multi-selection at a glance in every source tab.
+
+Labels use the same search-or-create semantics with live suggestions from
+existing labels. Assigned labels render as removable
+tokens on the same row as the input; the token area scrolls horizontally so the
+control stays one line tall. Pressing Return reuses an exact match or
+creates and immediately assigns a new value; there is no separate **Add**
+button.
+
+### Saved Meeting Notes
+
+Every saved meeting detail exposes a dedicated `Notes` tab immediately after
+`Transcript`, including meetings with no notes and meetings whose transcription
+is still processing. Notes are an editorial layer and never appear inside the
+factual transcript pane. The tab always shows an editable plaintext
+`TextEditor`, including when notes are empty, with Copy, word count, and the
+existing 7,500-word soft-cap warning. The separate 8,000-word cap bounds notes
+sent to prompt assembly; it does not truncate stored notes.
+
+Changes auto-save after a 500 ms idle debounce. A quiet status reports Saving,
+Saved, or a retryable failure; the editor stays writable during persistence.
+Leaving the tab, leaving the detail page, or starting an LLM action flushes the
+latest draft. Chat and result prompts never start after a failed flush, so they
+cannot receive stale notes. Saving blank or whitespace-only text clears the
+canonical value. Database success remains authoritative even if the
+derived-artifact refresh reports a separate retryable warning. Successive
+saves use database last-writer-wins semantics, while artifact refresh remains
+ordered/latest-wins so stale completion cannot overwrite newer files.
+
+A notes-save error banner belongs to the selected meeting. Selecting another
+recording dismisses that banner while retaining the failed draft and its retry
+state in the notes coordinator. Same-meeting metadata refreshes and background
+saves for other meetings preserve the banner; unrelated diagnostics remain intact.
+
+### Result Prompt Meeting-Notes Context
+
+The expanded configuration area of every result-prompt card includes an
+**Include meeting notes as context** checkbox and this help text:
+
+> When this prompt runs on a meeting with notes, use those notes as additional
+> context. The transcript remains the source of truth.
+
+The checkbox is present for built-in and custom result prompts, absent for
+Transforms, and off by default. Custom-prompt Create/Edit sheets expose the
+same choice; an enabled card may show a quiet `Meeting notes` context badge.
+The primary UI does not mention `{{userNotes}}`: that variable remains an
+advanced custom-template compatibility mechanism. Chat/Ask does not gain this
+checkbox and retains its existing automatic use of committed meeting notes.
+
+This UI was implemented and locally verified on 2026-09-05. Release
+availability follows the normal channel process.
 
 ### Local Transcription Rename
 
@@ -578,7 +663,7 @@ Floating panel opened from the meeting recording pill. Shows live notes, live tr
 - **Elapsed timer** — updates every second
 - **Dual audio level meters** — mic and system audio levels (visual feedback that both streams are capturing)
 - **Tabs** — Notes / Transcript / Ask, with ⌘1 / ⌘2 / ⌘3 shortcuts; Notes and Transcript are plain labels, Ask adds a streaming dot while `chatViewModel.isStreaming` and collapses that dot into the tooltip at narrow width
-- **Notes pane** — plaintext editor with slash commands, debounced auto-save through `MeetingRecordingService.updateNotes(_:)`, soft-cap warning near 8,000 words, and lock-file crash recovery
+- **Notes pane** — plaintext editor with slash commands, debounced auto-save through `MeetingRecordingService.updateNotes(_:)`, soft-cap warning at 7,500 words, and lock-file crash recovery
 - **Transcript pane** — scrolling live preview grouped into reading paragraphs, with one source label and timestamp per paragraph ([Me] = mic, [Them] = system audio); lag notice appears when preview chunks fall behind or are dropped
 - **Ask pane** — live chat against the rolling transcript using the configured LLM provider; follow-up state is handed off after finalization
 - **Stop button** — stops recording, triggers batch transcription, navigates to result
@@ -1092,17 +1177,16 @@ Button to re-run onboarding flow: "Run Onboarding Again..."
 
 ## Discover (v0.4)
 
-A curated content feed displayed as a sidebar item with a full-page content view. Discover surfaces tips, quotes, affirmations, and sponsored items fetched from a remote JSON feed (`macparakeet.com/api/discover.json`) with local cache fallback and a bundled default.
+A curated content feed displayed as a sidebar item with a full-page content view. Discover surfaces tips, quotes, affirmations, and sponsored items fetched from a remote JSON feed (`macparakeet.com/api/discover.json`) with local cache fallback and a bundled default. The feature is included by default; setting `MACPARAKEET_DISABLE_DISCOVER=1` at compile time excludes its code, resources, and UI.
 
-The refresh is started unconditionally by app launch, not by selecting this
-page, and is independent of the telemetry setting. The app does not provide a
-Discover visibility/network toggle; release-readiness work leaves that product
-behavior unchanged. Cached/bundled content supports offline display, not an
-opt-out from the launch request.
+When Discover is compiled in, refresh starts at app launch, independently of
+page selection and the telemetry setting. There is no runtime visibility or
+network toggle. Cached and bundled content supports offline display; it does
+not disable the launch request.
 
 ### Sidebar Card
 
-The Discover item is **not** part of the regular sidebar `List`. It renders as a pinned card below the sidebar list via `.safeAreaInset(edge: .bottom)`. This keeps it visually distinct and always visible regardless of scroll position.
+When compiled in, the Discover item is **not** part of the regular sidebar `List`. It renders as a pinned card below the sidebar list via `.safeAreaInset(edge: .bottom)`. This keeps it visually distinct and always visible regardless of scroll position.
 
 ```
 ┌──────────────────┐
@@ -1189,6 +1273,36 @@ App launch → DiscoverViewModel.loadCached() → DiscoverService reads disk cac
           → DiscoverViewModel.refreshInBackground() → DiscoverService fetches remote JSON, writes cache
           → Sidebar card rotates through items every 30s
 ```
+
+---
+
+## LLM Markdown Content
+
+`MarkdownContentView` is the single presentation boundary for generated
+assistant content in Prompt Results, saved Chat, and live Ask. It renders the
+same CommonMark/GFM subset on every surface, including nested lists, static
+checked/unchecked task items, fenced code, and horizontally scrollable tables.
+The surrounding pane owns vertical scrolling; wide Markdown blocks must not
+expand the transcript detail or live-meeting panel.
+
+Each streaming renderer subscribes to a fresh snapshot stream and immediately
+receives the latest content. Closing or hiding a pane cancels only that
+subscription; returning to it must continue rendering new snapshots.
+
+Generated Markdown remains read-only and selectable. Task boxes communicate
+their checked state but are not controls. Headings and table cells preserve the
+renderer accessibility structure. Fonts and colors map to `DesignSystem` and
+must remain appearance-aware.
+
+Treat rendered model output as untrusted presentation data:
+
+- image loading is disabled, including remote, local-file, bundled, and data URL
+  sources;
+- only `http` and `https` links may be handed to the system browser;
+- activation of `file:`, `javascript:`, custom schemes, and relative
+  destinations is discarded;
+- raw HTML does not create a web view or executable embedded content;
+- Copy Result and exports continue using the original Markdown source.
 
 ---
 

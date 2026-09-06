@@ -885,12 +885,11 @@ private struct TransformCard: View {
             .contextMenu {
                 cardActionMenu
             }
-            .accessibilityAction(named: transform.isBuiltIn ? "Reset Transform" : "Delete Transform") {
-                if transform.isBuiltIn {
-                    onReset()
-                } else {
-                    onDelete()
-                }
+            .accessibilityAction(named: "Delete Transform") {
+                onDelete()
+            }
+            .accessibilityAction(named: "Reset Transform") {
+                if transform.isBuiltIn { onReset() }
             }
 
             cardActions
@@ -951,15 +950,14 @@ private struct TransformCard: View {
                     .parakeetAction(.subtle)
                     .controlSize(.small)
                     .accessibilityLabel("Reset Transform")
-            } else {
-                Button(action: onDelete) {
-                    Image(systemName: "trash")
-                }
-                .parakeetAction(.subtle)
-                .controlSize(.small)
-                .help("Delete this Transform")
-                .accessibilityLabel("Delete Transform")
             }
+            Button(action: onDelete) {
+                Image(systemName: "trash")
+            }
+            .parakeetAction(.subtle)
+            .controlSize(.small)
+            .help("Delete this Transform")
+            .accessibilityLabel("Delete Transform")
         }
     }
 
@@ -967,9 +965,9 @@ private struct TransformCard: View {
     private var cardActionMenu: some View {
         if transform.isBuiltIn {
             Button("Reset Transform", action: onReset)
-        } else {
-            Button("Delete Transform", role: .destructive, action: onDelete)
+            Divider()
         }
+        Button("Delete Transform", role: .destructive, action: onDelete)
     }
 
     private func firstSentence(of body: String) -> String {
