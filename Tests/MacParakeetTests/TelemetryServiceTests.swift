@@ -12,10 +12,57 @@ private struct RecordedTelemetryEvent: Decodable {
     let session: String
 }
 
+private final class TelemetryConsent: @unchecked Sendable {
+    private let lock = NSLock()
+    private var enabled = true
+    private var readObserver: (() -> Void)?
+
+    func isEnabled() -> Bool {
+        lock.lock()
+        let value = enabled
+        let observer = readObserver
+        lock.unlock()
+        observer?()
+        return value
+    }
+
+    func setEnabled(_ value: Bool) {
+        lock.lock()
+        enabled = value
+        lock.unlock()
+    }
+
+    func observeReads(_ observer: (() -> Void)?) {
+        lock.lock()
+        readObserver = observer
+        lock.unlock()
+    }
+}
+
+private final class HeldTelemetryRequest: @unchecked Sendable {
+    private let lock = NSLock()
+    private var request: TelemetryMockURLProtocol?
+
+    func hold(_ request: TelemetryMockURLProtocol) {
+        lock.lock()
+        self.request = request
+        lock.unlock()
+    }
+
+    func respond() {
+        lock.lock()
+        let request = self.request
+        self.request = nil
+        lock.unlock()
+        request?.respond(statusCode: 200)
+    }
+}
+
 private final class TelemetryMockURLProtocol: URLProtocol {
     static let lock = NSLock()
     static var statusCode = 200
     static var payloads: [RecordedTelemetryPayload] = []
+    static var requestHandler: ((TelemetryMockURLProtocol) -> Void)?
 
     override class func canInit(with request: URLRequest) -> Bool {
         true
@@ -26,8 +73,6 @@ private final class TelemetryMockURLProtocol: URLProtocol {
     }
 
     override func startLoading() {
-        defer { client?.urlProtocolDidFinishLoading(self) }
-
         let body: Data?
         if let httpBody = request.httpBody {
             body = httpBody
@@ -58,16 +103,15 @@ private final class TelemetryMockURLProtocol: URLProtocol {
             let payload = try JSONDecoder().decode(RecordedTelemetryPayload.self, from: body)
             Self.lock.lock()
             Self.payloads.append(payload)
+            let handler = Self.requestHandler
+            let statusCode = Self.statusCode
             Self.lock.unlock()
 
-            let response = HTTPURLResponse(
-                url: request.url!,
-                statusCode: Self.statusCode,
-                httpVersion: nil,
-                headerFields: nil
-            )!
-            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-            client?.urlProtocol(self, didLoad: Data())
+            if let handler {
+                handler(self)
+            } else {
+                respond(statusCode: statusCode)
+            }
         } catch {
             client?.urlProtocol(self, didFailWithError: error)
         }
@@ -75,10 +119,26 @@ private final class TelemetryMockURLProtocol: URLProtocol {
 
     override func stopLoading() {}
 
+    func respond(statusCode: Int) {
+        let response = HTTPURLResponse(
+            url: request.url!, statusCode: statusCode, httpVersion: nil, headerFields: nil
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data())
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    static func setRequestHandler(_ handler: ((TelemetryMockURLProtocol) -> Void)?) {
+        lock.lock()
+        requestHandler = handler
+        lock.unlock()
+    }
+
     static func reset() {
         lock.lock()
         payloads = []
         statusCode = 200
+        requestHandler = nil
         lock.unlock()
     }
 
@@ -109,6 +169,11 @@ final class TelemetryServiceTests: XCTestCase {
 
     override func setUp() {
         TelemetryMockURLProtocol.reset()
+        Telemetry.configure(NoOpTelemetryService())
+    }
+
+    override func tearDown() {
+        TelemetryMockURLProtocol.setRequestHandler(nil)
         Telemetry.configure(NoOpTelemetryService())
     }
 
@@ -157,6 +222,120 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertEqual(service.pendingEventCount, 0)
         let events = try await eventuallyRecordedEvents()
         XCTAssertEqual(events.map(\.event), [TelemetryEventName.telemetryOptedOut.rawValue])
+    }
+
+    func testDisabledConsentDropsEventsQueuedBeforeFlush() async {
+        let consent = TelemetryConsent()
+        let service = makeService(isEnabled: consent.isEnabled)
+        service.send(.appLaunched)
+        consent.setEnabled(false)
+
+        await service.flush()
+
+        XCTAssertEqual(service.pendingEventCount, 0)
+        XCTAssertTrue(TelemetryMockURLProtocol.recordedPayloads().isEmpty)
+    }
+
+    func testClearQueueDuringFailedRequestDoesNotResurrectEventsAfterReenable() async {
+        let consent = TelemetryConsent()
+        let service = makeService(isEnabled: consent.isEnabled)
+        TelemetryMockURLProtocol.setRequestHandler { request in
+            consent.setEnabled(false)
+            service.clearQueue()
+            consent.setEnabled(true)
+            request.respond(statusCode: 500)
+        }
+
+        let handled = await service.sendAndFlush(.appLaunched)
+
+        XCTAssertTrue(handled, "An event discarded by opt-out is intentionally handled")
+        XCTAssertEqual(service.pendingEventCount, 0)
+        await service.flush()
+        XCTAssertEqual(TelemetryMockURLProtocol.recordedPayloads().count, 1)
+    }
+
+    func testOptOutDuringFailedRequestAllowsOnlyFinalOptOutEvent() async {
+        let consent = TelemetryConsent()
+        let service = makeService(isEnabled: consent.isEnabled)
+        TelemetryMockURLProtocol.setRequestHandler { request in
+            consent.setEnabled(false)
+            service.clearQueue()
+            TelemetryMockURLProtocol.setRequestHandler(nil)
+            service.send(.telemetryOptedOut)
+            request.respond(statusCode: 500)
+        }
+
+        _ = await service.sendAndFlush(.appLaunched)
+        await service.flush()
+
+        XCTAssertEqual(service.pendingEventCount, 0)
+        XCTAssertEqual(
+            TelemetryMockURLProtocol.recordedPayloads().flatMap(\.events).map(\.event),
+            [TelemetryEventName.appLaunched.rawValue, TelemetryEventName.telemetryOptedOut.rawValue]
+        )
+    }
+
+    func testClearQueueInvalidatesSendAndFlushWaitingForAnotherRequest() async {
+        let consent = TelemetryConsent()
+        let service = makeService(isEnabled: consent.isEnabled)
+        let heldRequest = HeldTelemetryRequest()
+        let started = expectation(description: "First request is in flight")
+        TelemetryMockURLProtocol.setRequestHandler { request in
+            heldRequest.hold(request)
+            started.fulfill()
+        }
+        service.send(.appLaunched)
+        let firstFlush = Task { await service.flush() }
+        await fulfillment(of: [started], timeout: 2)
+
+        let waiting = expectation(description: "Second event checked consent before waiting")
+        consent.observeReads { waiting.fulfill() }
+        let secondFlush = Task { await service.sendAndFlush(.dictationStarted(trigger: .hotkey, mode: .hold)) }
+        await fulfillment(of: [waiting], timeout: 2)
+        consent.observeReads(nil)
+        consent.setEnabled(false)
+        service.clearQueue()
+        consent.setEnabled(true)
+        TelemetryMockURLProtocol.setRequestHandler(nil)
+        heldRequest.respond()
+
+        await firstFlush.value
+        let handled = await secondFlush.value
+        XCTAssertTrue(handled)
+        XCTAssertEqual(service.pendingEventCount, 0)
+        XCTAssertEqual(TelemetryMockURLProtocol.recordedPayloads().flatMap(\.events).map(\.event), ["app_launched"])
+    }
+
+    func testClearQueueDuringBatchSkipsRequestsThatHaveNotStarted() async {
+        let consent = TelemetryConsent()
+        let service = makeService(isEnabled: consent.isEnabled)
+        let heldRequest = HeldTelemetryRequest()
+        let started = expectation(description: "First request is in flight")
+        TelemetryMockURLProtocol.setRequestHandler { request in
+            heldRequest.hold(request)
+            started.fulfill()
+        }
+        service.send(.appLaunched)
+        let firstFlush = Task { await service.flush() }
+        await fulfillment(of: [started], timeout: 2)
+
+        // Holding the first request keeps auto-flushes behind the flush gate,
+        // so the next snapshot deterministically contains two batches.
+        for _ in 0..<150 {
+            service.send(.dictationStarted(trigger: .hotkey, mode: .hold))
+        }
+        TelemetryMockURLProtocol.setRequestHandler { request in
+            consent.setEnabled(false)
+            service.clearQueue()
+            consent.setEnabled(true)
+            request.respond(statusCode: 200)
+        }
+        heldRequest.respond()
+        await firstFlush.value
+        await service.flush()
+
+        XCTAssertEqual(TelemetryMockURLProtocol.recordedPayloads().map { $0.events.count }, [1, 100])
+        XCTAssertEqual(service.pendingEventCount, 0)
     }
 
     // MARK: - Queue Limits
@@ -353,12 +532,12 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertTrue(json["props"] is NSNull || json["props"] == nil)
     }
 
-    func testErrorOccurredDescriptionIsSanitizedAndTruncated() throws {
+    func testErrorOccurredOmitsFreeFormDescription() throws {
         let event = TelemetryEvent(
             spec: .errorOccurred(
                 domain: "Test",
                 code: "42",
-                description: "Failed /Users/alice/secret.wav via https://example.com/token?\(String(repeating: "x", count: 600))"
+                description: "Failed /Users/alice/secret.wav\nvia https://example.com/token?\(String(repeating: "x", count: 600))"
             ),
             appVer: "0.4.2",
             osVer: "15.3",
@@ -372,19 +551,13 @@ final class TelemetryServiceTests: XCTestCase {
         let data = try encoder.encode(event)
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         let props = try XCTUnwrap(json["props"] as? [String: String])
-        let description = try XCTUnwrap(props["description"])
-
         XCTAssertEqual(props["domain"], "Test")
         XCTAssertEqual(props["code"], "42")
-        XCTAssertFalse(description.contains("/Users/alice"))
-        XCTAssertFalse(description.contains("example.com"))
-        XCTAssertTrue(description.contains("<path>"))
-        XCTAssertTrue(description.contains("<url>"))
-        XCTAssertLessThanOrEqual(description.count, 512)
+        XCTAssertNil(props["description"])
     }
 
-    func testErrorDetailPropsAreSanitizedAtSerializationBoundary() throws {
-        let rawDetail = "Failed /Users/alice/private-meeting-playback.m4a via https://example.com/token?secret=abc"
+    func testErrorDetailPropsAreOmittedAtSerializationBoundary() throws {
+        let rawDetail = "private spoken content without a path, provider credential, or other recognizable pattern"
         let specs: [TelemetryEventSpec] = [
             .dictationFailed(errorType: "runtime", errorDetail: rawDetail),
             .transcriptionFailed(source: .file, stage: .stt, errorType: "runtime", errorDetail: rawDetail),
@@ -422,15 +595,30 @@ final class TelemetryServiceTests: XCTestCase {
             let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
             let props = try XCTUnwrap(json["props"] as? [String: String])
             let eventName = spec.name.rawValue
-            let detail = try XCTUnwrap(props["error_detail"], "Missing error_detail for \(eventName)")
-
-            XCTAssertFalse(detail.contains("/Users/alice"), eventName)
-            XCTAssertFalse(detail.contains("private-meeting"), eventName)
-            XCTAssertFalse(detail.contains("example.com"), eventName)
-            XCTAssertTrue(detail.contains("<path>"), eventName)
-            XCTAssertTrue(detail.contains("<url>"), eventName)
-            XCTAssertLessThanOrEqual(detail.count, 512, eventName)
+            XCTAssertNil(props["error_detail"], eventName)
+            XCTAssertNotNil(props["error_type"], eventName)
+            XCTAssertFalse(String(decoding: data, as: UTF8.self).contains(rawDetail), eventName)
         }
+    }
+
+    func testCrashOmitsFreeFormReasonButKeepsSymbolicationFields() throws {
+        let event = TelemetryEvent(
+            spec: .crashOccurred(
+                crashType: "exception", signal: "exception", name: "NSInternalInconsistencyException",
+                crashTimestamp: "1711900000", crashAppVer: "0.7.3", crashOsVer: "15.3",
+                uuid: "IMAGE-UUID", slide: "0x100000", reason: "private spoken content",
+                stackTrace: "0x1234\n0x5678"
+            ),
+            appVer: "0.7.3", osVer: "15.3", locale: nil, chip: "Apple M1", session: "test"
+        )
+        let data = try JSONEncoder().encode(event)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let props = try XCTUnwrap(json["props"] as? [String: String])
+        XCTAssertNil(props["reason"])
+        XCTAssertEqual(props["name"], "NSInternalInconsistencyException")
+        XCTAssertEqual(props["uuid"], "IMAGE-UUID")
+        XCTAssertEqual(props["slide"], "0x100000")
+        XCTAssertEqual(props["stack_trace"], "0x1234\n0x5678")
     }
 
     func testTranscriptionCompletedSerializesDiarizationContext() throws {

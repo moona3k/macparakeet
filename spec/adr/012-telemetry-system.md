@@ -46,8 +46,8 @@ The system is designed as **non-identifying, session-scoped telemetry**:
 - **Country only** — Derived from Cloudflare's `CF-IPCountry` header, not from IP geolocation we perform
 - **No content** — Transcription text, custom words, file names, URLs, LLM prompts are never sent
 - **Idempotent** — Client-generated event UUIDs prevent double-counting
-- **Error messages redacted** — Server-side regex strips file paths, URLs, API keys, and emails before storage. Descriptions truncated to 512 chars.
-- **Opt-out** — Users can disable in Settings; `send()` becomes a no-op
+- **Structured errors** — The typed client omits free-form `error_detail`, `error_occurred.description`, and crash `reason`. Keep error categories, safe domain/numeric codes, and crash symbolication fields. The paired website ingestion change discards these text fields from older clients too; public stats scrub historical snapshots before serving them. Regex cannot establish that arbitrary error text is content-free. See [the telemetry contract](../contracts/telemetry-v1.md).
+- **Opt-out** — Discard queued events and invalidate retries and waiting batches. A request already in flight may finish; only the explicit final opt-out event can bypass the disabled preference.
 
 This is not "anonymous" in the strict GDPR sense (session + chip + locale + country + timestamps could theoretically single out users). It is non-identifying: we have no mechanism to map any event to any person, and we don't try.
 

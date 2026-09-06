@@ -108,12 +108,25 @@ owned by `AppEnvironment`.
   `media_resume_*` outcomes here so uploaded logs show the
   press→pause window next to the capture timeline; issue #474).
   Capture-callback first-buffer records use `appendAsync` so log compaction
-  cannot block buffer delivery.
+  cannot block buffer delivery. Both paths stamp the event at submission time,
+  with a process ID, per-launch random `process_session`, and monotonic
+  `uptime_ns` for correlating app/CLI runs and ordering delayed writes across
+  wall-clock corrections. The shared file's `errorFields` includes classified
+  error type and numeric code, never arbitrary localized error descriptions;
+  raw details belong only to separately privacy-marked OSLog fields. File sink
+  failures surface through OSLog without failing capture or replacing history
+  when an existing log cannot be opened for append.
 - `DiagnosticLogScope.swift` — `AudioCaptureDiagnostics.scopedLogForUpload`
   trims the log to a recent window (`.recent`, the feedback default:
   last 7 days, 2 MB / 20k-line safety ceilings, min-tail fallback) or
   the whole file (`.full`, advanced opt-in) before a feedback upload.
-  Scopes whole lines by recency; never edits line contents.
+  Scopes whole lines by recency; never edits line contents. An individual line
+  larger than the entire upload byte budget is omitted whole so retained
+  records keep their timestamp and event name.
+- `scripts/dev/query_audio_diagnostics.py` provides a bounded, read-only JSON
+  query for local agents, including event/time/process filters and explicit
+  missing/partial evidence counters. See the
+  [local diagnostic query runbook](../../../docs/local-audio-diagnostics-query.md).
 - `AudioChunker.swift` — actor that buffers resampled audio for
   incremental STT (live meeting transcription).
 - `MeetingLiveAudioChunking.swift`,

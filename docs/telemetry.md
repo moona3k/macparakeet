@@ -30,6 +30,12 @@
 
 ## Philosophy
 
+The September 2026 observability changes and verification boundaries are recorded
+in [the audit](audits/2026-09-06-observability-review.md). The
+[telemetry contract](../spec/contracts/telemetry-v1.md) governs privacy and outcome
+semantics; the [local diagnostic query guide](local-audio-diagnostics-query.md)
+provides an offline JSON inspection path for agents.
+
 **Goal:** Understand how the app is used so we can make it better. Not to track users.
 
 **Principles:**
@@ -135,12 +141,14 @@ deriving it from the event name when older clients do not send the field.
 - Raw provider error bodies or free-form user content in error fields
 - Any data that could identify the user
 
-Error details that are sent are sanitized at the Swift event-serialization
-boundary: local file paths, `file://` URLs, and `http(s)` URLs are replaced and
-values are truncated. LLM call sites intentionally omit error detail because
-provider errors can echo transcript or prompt content. The ingestion Worker
-validates event names, top-level fields, batch size, and prop length; it should
-not be treated as the primary privacy scrubber for app-originated strings.
+The typed Swift serialization boundary omits free-form `error_detail`,
+`error_occurred.description`, and crash `reason` entirely. Exceptions and
+subprocess errors can echo transcript text or filenames, so regex redaction is
+insufficient. Error categories, safe domain/numeric codes and crash symbolication
+fields remain. The paired website change drops the same text fields from older
+clients before D1 insertion and removes historical error details from public
+snapshots. These changes require an app release and website deployment to affect
+production; historical private D1 rows are not rewritten by this change.
 
 ---
 
@@ -514,12 +522,10 @@ They should not be mixed into GUI app sessions, app version adoption,
 crash-free rates, or GUI operation failure lists because each CLI invocation is
 a one-shot process with a fresh session ID.
 
-> **Important:** `error_occurred` includes a bounded `description` field, but
-> callers should treat it as an allowlisted diagnostic string, not a place for
-> arbitrary provider or user-content error bodies. `TelemetryEventSpec.props`
-> sanitizes paths and URLs at serialization time and truncates descriptions to
-> 512 chars. The Worker is an ingestion validator, not the primary redaction
-> boundary.
+`error_occurred` serializes `domain` and `code`. Source-compatible factory
+arguments for descriptions remain available to callers but are not transmitted.
+The same omission applies to legacy `error_detail` factory arguments across the
+catalog below; no raw exception or provider description is a telemetry field.
 
 ---
 
@@ -795,7 +801,7 @@ External AI review of the telemetry design. Each point was evaluated and accepte
 
 | # | Feedback | Action Taken |
 |---|---|---|
-| 1 | `error_occurred.description` is a privacy leak — free-form text could contain file paths, user content | **Partially accepted.** Kept a bounded `description`, but the current implemented guardrail is Swift-side serialization sanitization for paths/URLs plus truncation. Worker-side PII redaction remains a defense-in-depth follow-up. |
+| 1 | `error_occurred.description` is a privacy leak — free-form text could contain file paths, user content | **Accepted.** The September 2026 change omits descriptions and free-form error details at both the typed client boundary and the paired Worker ingestion boundary. Historical public snapshots are scrubbed before response. |
 | 2 | No dedupe/idempotency key — retries cause double-counting | Added `event_id TEXT NOT NULL UNIQUE` (client-generated UUID) to schema. |
 | 3 | "Anonymous by architecture" is too strong — session + chip + locale + country + timestamps could theoretically single out users | Reworded to "non-identifying, session-scoped telemetry" throughout. |
 | 4 | Missing `permission_prompted` / `permission_granted` — can't compute denial rate without denominator | Added both events to new "Permissions" category. |
@@ -832,10 +838,10 @@ External AI review of the telemetry design. Each point was evaluated and accepte
 
 ## Future Considerations
 
-- **Server-side defense-in-depth redaction** — Add Worker-side scrubbing for
-  paths, URLs, API-key-looking strings, and emails before D1 insert. The app
-  already sanitizes current emitted details, but the Worker should not rely on
-  every future client doing the right thing.
+- **Per-event server property schemas** — The paired Worker now drops known
+  free-form error fields and validates envelope types/lengths. A complete
+  per-event property/value allowlist remains a separate boundary improvement;
+  do not assume generic string-length validation proves privacy.
 - **Expanded local diagnostic export** — The in-app feedback form can now
   attach `~/Library/Logs/MacParakeet/dictation-audio.log` by explicit opt-in.
   A fuller user-triggered bundle should add recent `os.Logger` entries for

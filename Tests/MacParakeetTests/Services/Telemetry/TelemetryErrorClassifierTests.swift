@@ -49,11 +49,92 @@ struct TelemetryErrorClassifierTests {
             == "CancellationError")
     }
 
-    @Test("classifies NSError with domain and code")
+    @Test("classifies NSError with a known platform domain and code")
     func nsError() {
-        let error = NSError(domain: "TestDomain", code: 42)
+        let error = NSError(domain: NSPOSIXErrorDomain, code: 42)
         #expect(TelemetryErrorClassifier.classify(error)
-            == "TestDomain.42")
+            == "NSPOSIXErrorDomain.42")
+    }
+
+    @Test("omits identifier-shaped private NSError domains")
+    func identifierShapedNSErrorDomainIsPrivate() {
+        let error = NSError(domain: "private_customer_amy", code: 7)
+        #expect(TelemetryErrorClassifier.classify(error) == "NSError.7")
+    }
+
+    @Test("preserves the allowlisted Foundation and CoreAudio domain codes")
+    func knownPlatformNSErrorDomains() {
+        for domain in [
+            NSCocoaErrorDomain, NSPOSIXErrorDomain, NSOSStatusErrorDomain,
+            "AVFoundationErrorDomain", "com.apple.coreaudio.avfaudio",
+        ] {
+            let error = NSError(domain: domain, code: -10868)
+            #expect(TelemetryErrorClassifier.classify(error) == "\(domain).-10868")
+        }
+        let urlError = NSError(domain: NSURLErrorDomain, code: URLError.notConnectedToInternet.rawValue)
+        #expect(TelemetryErrorClassifier.classify(urlError) == "URLError.notConnectedToInternet")
+    }
+
+    @Test("does not classify arbitrary custom descriptions as error types")
+    func customDescriptionsAreNotTelemetryDimensions() {
+        enum DescribedError: Error, CustomStringConvertible {
+            case failed
+            var description: String { "private_transcript_text" }
+        }
+        struct DescribedStructError: Error, CustomStringConvertible {
+            var description: String { "private transcript text" }
+        }
+        #expect(TelemetryErrorClassifier.classify(DescribedError.failed) == "DescribedError")
+        #expect(TelemetryErrorClassifier.classify(DescribedStructError()) == "DescribedStructError")
+    }
+
+    @Test("rejects NSError domains containing paths or user content")
+    func unsafeNSErrorDomain() {
+        let error = NSError(domain: "/Users/alice/private meeting.wav", code: -10868)
+        #expect(TelemetryErrorClassifier.classify(error) == "NSError.-10868")
+    }
+
+    @Test("preserves CoreAudio status in the microphone engine start wrapper")
+    func microphoneStartCoreAudioStatus() {
+        for domain in ["com.apple.coreaudio.avfaudio", "NSOSStatusErrorDomain"] {
+            let underlying = NSError(domain: domain, code: -10868)
+            let error = SharedMicrophoneStream.SubscribeError.engineStartFailed(underlying.localizedDescription)
+            #expect(TelemetryErrorClassifier.classify(error) == "SubscribeError.engineStartFailed.\(domain).-10868")
+        }
+        for domain in ["com.apple.coreaudio.avfaudio", "NSOSStatusErrorDomain"] {
+            let error = SharedMicrophoneStream.SubscribeError.engineStartFailed(
+                "Error Domain=\(domain) Code=-10868 UserInfo={private spoken content}"
+            )
+            #expect(TelemetryErrorClassifier.classify(error) == "SubscribeError.engineStartFailed.\(domain).-10868")
+        }
+        let localizedAlias = SharedMicrophoneStream.SubscribeError.engineStartFailed(
+            "The operation couldn’t be completed. (OSStatus error -10868.)"
+        )
+        #expect(TelemetryErrorClassifier.classify(localizedAlias)
+            == "SubscribeError.engineStartFailed.NSOSStatusErrorDomain.-10868")
+    }
+
+    @Test("does not scrape arbitrary numeric data from microphone errors")
+    func microphoneStartUnrecognizedDetails() {
+        let messages = [
+            "private spoken content -10868",
+            "(private.customer.domain error -10868.)",
+            "(com.apple.coreaudio.avfaudio error 999999999999999999999.)",
+        ]
+        for message in messages {
+            let error = SharedMicrophoneStream.SubscribeError.engineStartFailed(message)
+            #expect(TelemetryErrorClassifier.classify(error) == "SubscribeError.engineStartFailed")
+        }
+    }
+
+    @Test("preserves the fixed interrupted-subscribe diagnostic without free-form text")
+    func interruptedSubscribeCode() {
+        #expect(TelemetryErrorClassifier.classify(
+            AudioProcessorError.recordingFailed("interrupted during subscribe")
+        ) == "AudioProcessorError.recordingFailed.interrupted_subscribe")
+        #expect(TelemetryErrorClassifier.classify(
+            AudioProcessorError.recordingFailed("interrupted during subscribe: private spoken content")
+        ) == "AudioProcessorError.recordingFailed")
     }
 
     // MARK: - errorDetail
@@ -143,5 +224,39 @@ struct TelemetryErrorClassifierTests {
         ])
         let detail = TelemetryErrorClassifier.errorDetail(error)
         #expect(detail.count == 512)
+    }
+
+    @Test("redacts complete paths containing spaces and punctuation")
+    func pathsWithSpaces() {
+        let paths = [
+            "/Users/alice/Library/Mobile Documents/com~apple~CloudDocs/private meeting.wav",
+            "/Volumes/External Disk/Alice's Private Meeting (final).wav",
+            "~/Documents/private meeting.wav",
+            "/custom location/private meeting.wav",
+            "file:///Users/alice/Library/Application Support/private meeting.wav",
+        ]
+        for path in paths {
+            let message = "Audio conversion failed: \(path)\nCoreAudio status -10868"
+            let sanitized = TelemetryErrorClassifier.sanitize(message)
+            #expect(sanitized == "Audio conversion failed: <path>\nCoreAudio status -10868")
+            #expect(TelemetryErrorClassifier.sanitize(sanitized) == sanitized)
+        }
+    }
+
+    @Test("redacts email addresses and recognizable credentials")
+    func emailsAndCredentials() {
+        let message = "user=alice@example.com\nAuthorization: Bearer private-token-value\napi_key=private-key-value\nsk-proj-12345678901234567890"
+        let sanitized = TelemetryErrorClassifier.sanitize(message)
+        #expect(!sanitized.contains("alice@example.com"))
+        #expect(!sanitized.contains("private-token-value"))
+        #expect(!sanitized.contains("private-key-value"))
+        #expect(!sanitized.contains("sk-proj-"))
+        #expect(TelemetryErrorClassifier.sanitize(sanitized) == sanitized)
+    }
+
+    @Test("preserves useful technical dimensions")
+    func technicalContextIsPreserved() {
+        let message = "AUHAL -10868; input=48000Hz/2ch; conversionFailed; NSOSStatusErrorDomain.-10868"
+        #expect(TelemetryErrorClassifier.sanitize(message) == message)
     }
 }

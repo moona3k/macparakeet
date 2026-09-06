@@ -122,28 +122,14 @@ extension AudioCaptureDiagnostics {
         var result = kept.joined(separator: "\n")
         result.append("\n")
 
-        // Hard byte-ceiling guarantee. `tail` admits its newest line
-        // unconditionally, so only a single pathologically long line can push
-        // past `maxBytes`. Real entries are short and newline-terminated, so
-        // this trim never fires in practice — it just keeps the contract
-        // ("recent uploads stay within the cap") true for any input. Cut on a
-        // UTF-8 scalar boundary so we never emit replacement characters or
-        // overshoot the cap when a multi-byte sequence straddles the boundary.
-        if result.utf8.count > maxBytes {
-            let utf8 = result.utf8
-            var start = utf8.index(utf8.endIndex, offsetBy: -maxBytes)
-            while start < utf8.endIndex, utf8[start] & 0xC0 == 0x80 {
-                start = utf8.index(after: start)
-            }
-            result = String(decoding: utf8[start...], as: UTF8.self)
-        }
         return result
     }
 
     /// Walks `lines` newest-first, keeping lines until a hard cap halts it, and
     /// returns them in chronological order. Lines for which `skip` returns true
-    /// are passed over without stopping the walk. The newest kept line is
-    /// always admitted (so the byte cap can be exceeded only by a single line).
+    /// are passed over without stopping the walk. A line larger than the entire
+    /// byte budget is also skipped: slicing its tail would remove its timestamp
+    /// and event name, making an otherwise structured record misleading.
     private static func tail(
         of lines: [Substring],
         maxBytes: Int,
@@ -156,7 +142,8 @@ extension AudioCaptureDiagnostics {
             if kept.count >= maxLines { break }
             if skip(line) { continue }
             let lineBytes = line.utf8.count + 1 // +1 for the rejoined newline
-            if !kept.isEmpty, byteCount + lineBytes > maxBytes { break }
+            if lineBytes > maxBytes { continue }
+            if byteCount + lineBytes > maxBytes { break }
             kept.append(line)
             byteCount += lineBytes
         }

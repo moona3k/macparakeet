@@ -694,7 +694,9 @@ OpenClaw, Hermes, or another local agent framework.
   `BUILDKITE`, `CIRCLECI`, `TRAVIS`, `JENKINS_URL`, `TF_BUILD`,
   `TEAMCITY_VERSION` — any one set to a truthy value). Override CI auto-
   disable with `MACPARAKEET_TELEMETRY=1`. See `docs/telemetry.md` for the
-  full event catalog and the Worker-side PII redaction policy.
+  full event catalog and the structured-error privacy contract. For read-only
+  local audio-log JSON queries from a source checkout, see
+  [the diagnostic query guide](../docs/local-audio-diagnostics-query.md).
 - **Concurrency:** the STT scheduler reserves one slot for dictation and shares
   a second slot for meeting/batch work **within a process** (ADR-016).
   Multi-file batches are sequential. Separate CLI processes do not share that

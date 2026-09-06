@@ -254,6 +254,9 @@ extension Result where Success == Void, Failure == Error {
         case .success:
             return nil
         case .failure(let error):
+            // ArgumentParser uses successful thrown exits for help and other
+            // early completions. They must not carry a runtime error bucket.
+            guard !CLI.normalizedExitCode(for: error).isSuccess else { return nil }
             if let jsonExit = error as? CLIJSONEnvelopeExit {
                 return CLIErrorType.key(for: jsonExit.originalError)
             }

@@ -4,11 +4,17 @@ import XCTest
 private final class DictationTelemetrySpy: TelemetryServiceProtocol, @unchecked Sendable {
     private let lock = NSLock()
     private var events: [TelemetryEventSpec] = []
+    private let observer: (@Sendable (TelemetryEventSpec) -> Void)?
+
+    init(observer: (@Sendable (TelemetryEventSpec) -> Void)? = nil) {
+        self.observer = observer
+    }
 
     func send(_ event: TelemetryEventSpec) {
         lock.lock()
         events.append(event)
         lock.unlock()
+        observer?(event)
     }
 
     func sendAndFlush(_ event: TelemetryEventSpec) async -> Bool {
@@ -229,6 +235,144 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(operation["outcome"], "failure")
         XCTAssertEqual(operation["trigger"], "hotkey")
         XCTAssertEqual(operation["mode"], "hold")
+    }
+
+    func testStartCaptureCancellationEmitsOneCancelledOperationWithoutFailureBreadcrumb() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+        await mockAudio.configureCaptureError(CancellationError())
+
+        do {
+            try await service.startRecording(context: DictationTelemetryContext(trigger: .hotkey, mode: .hold))
+            XCTFail("Expected capture cancellation")
+        } catch is CancellationError {
+        }
+        await service.confirmCancel()
+
+        let events = telemetry.snapshot()
+        let operations = dictationOperationProps(in: events)
+        XCTAssertEqual(operations.count, 1)
+        XCTAssertEqual(operations.first?["outcome"], "cancelled")
+        XCTAssertEqual(operations.first?["error_type"], "CancellationError")
+        XCTAssertEqual(operations.first?["trigger"], "hotkey")
+        XCTAssertEqual(operations.first?["mode"], "hold")
+        XCTAssertFalse(
+            events.contains { event in
+                if case .dictationFailed = event { return true }
+                return false
+            })
+    }
+
+    func testStopCaptureCancellationEmitsOneCancelledOperationWithoutFailureBreadcrumb() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+        try await service.startRecording(context: DictationTelemetryContext(trigger: .hotkey, mode: .hold))
+        await mockAudio.configureCaptureError(CancellationError())
+
+        do {
+            _ = try await service.stopRecording()
+            XCTFail("Expected capture cancellation")
+        } catch is CancellationError {
+        }
+        await service.confirmCancel()
+
+        let events = telemetry.snapshot()
+        let operations = dictationOperationProps(in: events)
+        XCTAssertEqual(operations.count, 1)
+        XCTAssertEqual(operations.first?["outcome"], "cancelled")
+        XCTAssertEqual(operations.first?["error_type"], "CancellationError")
+        XCTAssertFalse(
+            events.contains { event in
+                if case .dictationFailed = event { return true }
+                return false
+            })
+    }
+
+    func testUndoTranscriptionCancellationEmitsOneCancelledOperationWithoutFailureBreadcrumb() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+        let audioURL = try makeTemporaryAudioURL()
+        await mockAudio.configure(captureResult: audioURL)
+        await mockSTT.configure(error: CancellationError())
+        try await service.startRecording(context: DictationTelemetryContext(trigger: .hotkey, mode: .hold))
+        await service.cancelRecording(reason: .hotkey)
+
+        do {
+            _ = try await service.undoCancel()
+            XCTFail("Expected transcription cancellation")
+        } catch is CancellationError {
+        }
+        await service.confirmCancel()
+
+        let events = telemetry.snapshot()
+        let operations = dictationOperationProps(in: events)
+        XCTAssertEqual(operations.count, 1)
+        XCTAssertEqual(operations.first?["outcome"], "cancelled")
+        XCTAssertEqual(operations.first?["error_type"], "CancellationError")
+        XCTAssertFalse(
+            events.contains { event in
+                if case .dictationFailed = event { return true }
+                return false
+            })
+    }
+
+    func testConfirmCancelAfterSuccessDoesNotEmitAnotherTerminalOutcome() async throws {
+        let success = expectation(description: "Success emitted before the service's existing display dwell")
+        let telemetry = DictationTelemetrySpy { event in
+            if event.name == .dictationOperation, event.props?["outcome"] == "success" {
+                success.fulfill()
+            }
+        }
+        Telemetry.configure(telemetry)
+        let audioURL = try makeTemporaryAudioURL()
+        await mockAudio.configure(captureResult: audioURL)
+        await mockSTT.configure(result: STTResult(text: "first result"))
+        let service = try XCTUnwrap(self.service)
+        try await service.startRecording(sessionID: 1)
+        let stopTask = Task { try await service.stopRecording(sessionID: 1) }
+
+        await fulfillment(of: [success], timeout: 2)
+        guard case .success = await service.state else {
+            _ = try await stopTask.value
+            return XCTFail("The test must confirm cancellation while Stop is still displaying success")
+        }
+        await service.confirmCancel(sessionID: 1)
+        _ = try await stopTask.value
+
+        let operations = dictationOperationProps(in: telemetry.snapshot())
+        XCTAssertEqual(operations.count, 1)
+        XCTAssertEqual(operations.first?["outcome"], "success")
+    }
+
+    func testNewOperationAfterSuccessRetainsItsTerminalOutcomeAndIgnoresStaleCancel() async throws {
+        let success = expectation(description: "First operation succeeded")
+        let telemetry = DictationTelemetrySpy { event in
+            if event.name == .dictationOperation, event.props?["outcome"] == "success" {
+                success.fulfill()
+            }
+        }
+        Telemetry.configure(telemetry)
+        let audioURL = try makeTemporaryAudioURL()
+        await mockAudio.configure(captureResult: audioURL)
+        await mockSTT.configure(result: STTResult(text: "first result"))
+        let service = try XCTUnwrap(self.service)
+        try await service.startRecording(sessionID: 1)
+        let stopTask = Task { try await service.stopRecording(sessionID: 1) }
+
+        await fulfillment(of: [success], timeout: 2)
+        guard case .success = await service.state else {
+            _ = try await stopTask.value
+            return XCTFail("The new operation must replace the first operation during its success dwell")
+        }
+        try await service.startRecording(sessionID: 2)
+        await service.confirmCancel(sessionID: 1)
+        await service.confirmCancel(sessionID: 2)
+        _ = try await stopTask.value
+
+        let operations = dictationOperationProps(in: telemetry.snapshot())
+        XCTAssertEqual(operations.count, 2)
+        XCTAssertEqual(operations.map { $0["outcome"] }, ["success", "cancelled"])
+        XCTAssertEqual(Set(operations.compactMap { $0["operation_id"] }).count, 2)
     }
 
     func testCancelDuringStartCaptureStillEmitsCancelledOperation() async throws {

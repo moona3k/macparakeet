@@ -581,6 +581,9 @@ public enum TelemetrySettingName: String, Sendable, Equatable {
     case calendarIncludedCalendars = "calendar_included_calendars"
 }
 
+/// Free-form error details, descriptions and crash reasons are accepted for
+/// source compatibility but omitted from network properties. Pattern-based
+/// redaction cannot guarantee that provider/subprocess output is content-free.
 public enum TelemetryEventSpec: Sendable {
     static let maxCrashStackTraceCharacters = 1024
 
@@ -1152,9 +1155,8 @@ extension TelemetryEventSpec {
                 Self.compactProps(
                     ("duration_seconds", durationSeconds.map(Self.format))
                 ), device)
-        case .dictationFailed(let errorType, let errorDetail, let device):
-            var props = ["error_type": errorType]
-            if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
+        case .dictationFailed(let errorType, _, let device):
+            let props = ["error_type": errorType]
             return Self.mergeDevice(props, device)
         case .dictationOperation(
             let operationID,
@@ -1231,13 +1233,12 @@ extension TelemetryEventSpec {
                 ("audio_duration_seconds", audioDurationSeconds.map(Self.format)),
                 ("stage", stage.rawValue)
             )
-        case .transcriptionFailed(let source, let stage, let errorType, let errorDetail):
-            var props = [
+        case .transcriptionFailed(let source, let stage, let errorType, _):
+            let props = [
                 "source": source.rawValue,
                 "stage": stage.rawValue,
                 "error_type": errorType,
             ]
-            if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
             return props
         case .transcriptionOperation(
             let operationID,
@@ -1292,33 +1293,28 @@ extension TelemetryEventSpec {
                 "speaker_count": "\(speakerCount)",
                 "duration_seconds": Self.format(durationSeconds),
             ]
-        case .diarizationFailed(let source, let errorType, let errorDetail):
-            var props = ["source": source.rawValue, "error_type": errorType]
-            if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
+        case .diarizationFailed(let source, let errorType, _):
+            let props = ["source": source.rawValue, "error_type": errorType]
             return props
         case .exportUsed(let format):
             return ["format": format]
-        case .exportFailed(let format, let errorType, let errorDetail):
-            var props = ["format": format, "error_type": errorType]
-            if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
+        case .exportFailed(let format, let errorType, _):
+            let props = ["format": format, "error_type": errorType]
             return props
         case .llmPromptResultUsed(let provider):
             return ["provider": provider]
-        case .llmPromptResultFailed(let provider, let errorType, let errorDetail):
-            var props = ["provider": provider, "error_type": errorType]
-            if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
+        case .llmPromptResultFailed(let provider, let errorType, _):
+            let props = ["provider": provider, "error_type": errorType]
             return props
         case .llmChatUsed(let provider, let source, let messageCount):
             return ["provider": provider, "source": source.rawValue, "message_count": "\(messageCount)"]
-        case .llmChatFailed(let provider, let source, let errorType, let errorDetail):
-            var props = ["provider": provider, "source": source.rawValue, "error_type": errorType]
-            if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
+        case .llmChatFailed(let provider, let source, let errorType, _):
+            let props = ["provider": provider, "source": source.rawValue, "error_type": errorType]
             return props
         case .llmTransformUsed(let provider):
             return ["provider": provider]
-        case .llmTransformFailed(let provider, let errorType, let errorDetail):
-            var props = ["provider": provider, "error_type": errorType]
-            if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
+        case .llmTransformFailed(let provider, let errorType, _):
+            let props = ["provider": provider, "error_type": errorType]
             return props
         case .transformExecuted(let name, let capture, let replace, let llmMs, let totalMs, let appCategory):
             return Self.compactProps(
@@ -1474,13 +1470,12 @@ extension TelemetryEventSpec {
                 ("total_steps", totalSteps.map(String.init)),
                 ("engine_state", engineState)
             )
-        case .licenseActivationFailed(let errorType, let errorDetail):
-            var props = ["error_type": errorType]
-            if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
+        case .licenseActivationFailed(let errorType, _):
+            let props = ["error_type": errorType]
             return props
-        case .restoreFailed(let errorType, let errorDetail):
+        case .restoreFailed(let errorType, _):
             return Self.compactProps(
-                ("error_type", errorType), ("error_detail", Self.sanitizedErrorDetail(errorDetail)))
+                ("error_type", errorType))
         case .permissionPrompted(let permission):
             return ["permission": permission.rawValue]
         case .permissionGranted(let permission):
@@ -1507,15 +1502,14 @@ extension TelemetryEventSpec {
                 ("speech_engine", speechEngine?.rawValue),
                 ("engine_variant", Self.safeEngineVariant(engineVariant))
             )
-        case .modelDownloadFailed(let errorType, let errorDetail, let modelKind, let speechEngine, let engineVariant):
-            var props =
+        case .modelDownloadFailed(let errorType, _, let modelKind, let speechEngine, let engineVariant):
+            let props =
                 Self.compactProps(
                     ("error_type", errorType),
                     ("model_kind", modelKind?.rawValue),
                     ("speech_engine", speechEngine?.rawValue),
                     ("engine_variant", Self.safeEngineVariant(engineVariant))
                 ) ?? [:]
-            if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
             return props
         case .modelOperation(
             let operationID,
@@ -1604,9 +1598,8 @@ extension TelemetryEventSpec {
             ]
         case .meetingRecordingCancelled(let durationSeconds):
             return ["duration_seconds": Self.format(durationSeconds)]
-        case .meetingRecordingFailed(let errorType, let errorDetail):
-            var props = ["error_type": errorType]
-            if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
+        case .meetingRecordingFailed(let errorType, _):
+            let props = ["error_type": errorType]
             return props
         case .meetingOperation(
             let operationID,
@@ -1664,14 +1657,13 @@ extension TelemetryEventSpec {
                 "source": source.rawValue,
                 "phases": TelemetryMeetingRecoveryPhases.aggregate(lockStates: phases),
             ]
-        case .meetingRecoveryFailed(let count, let source, let phases, let errorType, let errorDetail):
-            var props = [
+        case .meetingRecoveryFailed(let count, let source, let phases, let errorType, _):
+            let props = [
                 "count": "\(count)",
                 "source": source.rawValue,
                 "phases": TelemetryMeetingRecoveryPhases.aggregate(lockStates: phases),
                 "error_type": errorType,
             ]
-            if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
             return props
         case .meetingAutoStopProposed(let reason),
             .meetingAutoStopConfirmed(let reason),
@@ -1703,21 +1695,14 @@ extension TelemetryEventSpec {
             return ["reason": reason]
         case .sttRuntimeUnhealthy(let reason):
             return ["reason": reason]
-        case .errorOccurred(let domain, let code, let description):
-            // Defense in depth: sanitize() at the boundary so any caller route
-            // (including future call sites that forget to run
-            // `TelemetryErrorClassifier.errorDetail` first) cannot leak file
-            // paths or URLs into telemetry. `sanitize` is idempotent, so
-            // double-sanitizing existing well-behaved callers costs nothing.
-            return [
-                "domain": domain,
-                "code": code,
-                "description": String(TelemetryErrorClassifier.sanitize(description).prefix(512)),
-            ]
+        case .errorOccurred(let domain, let code, _):
+            // Descriptions and provider/subprocess errors can contain arbitrary
+            // user content. Keep only structured dimensions in network telemetry.
+            return ["domain": domain, "code": code]
         case .crashOccurred(
             let crashType, let signal, let name, let crashTimestamp,
             let crashAppVer, let crashOsVer, let uuid, let slide,
-            let reason, let stackTrace):
+            _, let stackTrace):
             return Self.compactProps(
                 ("crash_type", crashType),
                 ("signal", signal),
@@ -1727,7 +1712,6 @@ extension TelemetryEventSpec {
                 ("crash_os_ver", crashOsVer),
                 ("uuid", uuid),
                 ("slide", slide),
-                ("reason", reason.map { String($0.prefix(512)) }),
                 ("stack_trace", String(stackTrace.prefix(Self.maxCrashStackTraceCharacters)))
             )
         case .cliOperation(
@@ -1788,11 +1772,6 @@ extension TelemetryEventSpec {
 
     private static func boolString(_ value: Bool) -> String {
         value ? "true" : "false"
-    }
-
-    private static func sanitizedErrorDetail(_ detail: String?) -> String? {
-        guard let detail, !detail.isEmpty else { return nil }
-        return String(TelemetryErrorClassifier.sanitize(detail).prefix(512))
     }
 
     private static func safeEngineVariant(_ variant: String?) -> String? {
@@ -1950,7 +1929,7 @@ public enum TelemetryImplementedContract {
         .calendarAutoStartCancelled: ["reason"],
         .calendarAutoStartFailed: ["reason"],
         .sttRuntimeUnhealthy: ["reason"],
-        .errorOccurred: ["domain", "code", "description"],
+        .errorOccurred: ["domain", "code"],
         .crashOccurred: ["crash_type", "signal", "name", "crash_ts", "crash_app_ver"],
         .cliOperation: ["operation_id", "command", "outcome", "duration_seconds"],
         .autoSaveOperation: ["operation_id", "scope", "format", "outcome", "duration_seconds"],

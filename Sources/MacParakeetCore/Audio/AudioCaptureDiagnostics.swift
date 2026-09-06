@@ -1,9 +1,12 @@
 import CoreAudio
+import Darwin
 import Foundation
 import os
 
 public enum AudioCaptureDiagnostics {
     private static let lock = OSAllocatedUnfairLock(initialState: ())
+    private static let logger = Logger(subsystem: "com.macparakeet.core", category: "AudioCaptureDiagnostics")
+    private static let processSession = UUID().uuidString.lowercased()
     private static let appendQueue = DispatchQueue(
         label: "com.macparakeet.audio-capture-diagnostics.append",
         qos: .utility
@@ -60,11 +63,13 @@ public enum AudioCaptureDiagnostics {
     }
 
     static func errorFields(_ error: Error) -> String {
-        let detail = sanitizedLogValue(error.localizedDescription)
-        guard !detail.isEmpty else {
-            return "error_type=\(errorType(error))"
-        }
-        return "error_type=\(errorType(error)) error_detail=\"\(detail)\""
+        // This file can be attached to public feedback. Arbitrary error text
+        // can contain speech, filenames or credentials that regex redaction
+        // cannot reliably recognize. Keep classified type and the NSError
+        // bridge code here. For Swift wrappers that code can be an enum ordinal,
+        // not the underlying OSStatus retained in the classified type. Existing
+        // OSLog calls carry separate, privacy-marked localized descriptions.
+        "error_type=\(errorType(error)) bridged_error_code=\((error as NSError).code)"
     }
 
     static func sanitizedMessage(_ message: String) -> String {
@@ -83,66 +88,107 @@ public enum AudioCaptureDiagnostics {
     }
 
     public static func append(_ message: @autoclosure () -> String) {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let sanitized = String(sanitizedMessage(message()).prefix(maxMessageCharacters))
-        let line = "\(formatter.string(from: Date())) \(sanitized)\n"
+        append(message(), timestamp: Date(), uptimeNanoseconds: DispatchTime.now().uptimeNanoseconds)
+    }
 
-        guard let data = line.data(using: .utf8) else { return }
+    private static func append(_ message: String, timestamp: Date, uptimeNanoseconds: UInt64) {
+        let data = encodedLogLine(message, timestamp: timestamp, uptimeNanoseconds: uptimeNanoseconds)
 
         lock.withLock {
-            let fm = FileManager.default
-            let logURL = diagnosticLogURL()
-
             do {
-                try fm.createDirectory(
-                    at: logURL.deletingLastPathComponent(),
-                    withIntermediateDirectories: true
-                )
-
-                if let attributes = try? fm.attributesOfItem(atPath: logURL.path),
-                    let size = attributes[.size] as? UInt64,
-                    size + UInt64(data.count) > maxLogBytes
-                {
-                    let existingData = try Data(contentsOf: logURL)
-                    var rotatedData = retainedLogSuffix(
-                        existingData,
-                        maxBytes: retainedLogBytes
-                    )
-                    rotatedData.append(data)
-                    try rotatedData.write(to: logURL, options: .atomic)
-                    return
-                }
-
-                if fm.fileExists(atPath: logURL.path),
-                    let handle = try? FileHandle(forWritingTo: logURL)
-                {
-                    try handle.seekToEnd()
-                    try handle.write(contentsOf: data)
-                    try handle.close()
-                } else {
-                    try data.write(to: logURL, options: .atomic)
-                }
+                try writeLogLine(data, to: diagnosticLogURL())
             } catch {
-                // Diagnostics must never affect audio capture.
+                // Keep capture independent of the file sink, but make a failed
+                // diagnostic write visible through the independent system log.
+                logger.error("audio_diagnostic_write_failed error_type=\(errorType(error), privacy: .public)")
             }
         }
     }
 
+    /// Capture the clocks before dispatching: a busy utility queue must not
+    /// make a first-buffer event appear to have happened after Stop. The random
+    /// process session distinguishes app/CLI runs without a persistent ID.
     public static func appendAsync(_ message: String) {
+        let timestamp = Date()
+        let uptimeNanoseconds = DispatchTime.now().uptimeNanoseconds
         appendQueue.async {
-            append(message)
+            append(message, timestamp: timestamp, uptimeNanoseconds: uptimeNanoseconds)
         }
     }
 
-    /// Keeps only complete newest log lines. Starting after the first newline
-    /// also discards any UTF-8 code point split by the byte boundary.
+    static func encodedLogLine(_ message: String, timestamp: Date, uptimeNanoseconds: UInt64) -> Data {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let sanitized = String(sanitizedMessage(message).prefix(maxMessageCharacters))
+        let line =
+            "\(formatter.string(from: timestamp)) \(sanitized)"
+            + " process_id=\(ProcessInfo.processInfo.processIdentifier)"
+            + " process_session=\(processSession) uptime_ns=\(uptimeNanoseconds)\n"
+        return Data(line.utf8)
+    }
+
+    /// Serialize the complete create/append/rotate operation across cooperating
+    /// app and CLI processes. Keeping the boundary throwable also lets tests
+    /// exercise failures against isolated files instead of user logs.
+    static func writeLogLine(_ data: Data, to logURL: URL) throws {
+        let fm = FileManager.default
+        try fm.createDirectory(
+            at: logURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+
+        try withLogFileLock(at: logURL) {
+            if fm.fileExists(atPath: logURL.path) {
+                // An open failure is not an absent file: replacing it would erase
+                // the existing history (e.g. a read-only log in a writable folder).
+                let handle = try FileHandle(forWritingTo: logURL)
+                defer { try? handle.close() }
+                let size = try handle.seekToEnd()
+                if size + UInt64(data.count) > maxLogBytes {
+                    let existingData = try Data(contentsOf: logURL)
+                    var rotatedData = retainedLogSuffix(existingData, maxBytes: retainedLogBytes)
+                    rotatedData.append(data)
+                    try rotatedData.write(to: logURL, options: .atomic)
+                    return
+                }
+                try handle.write(contentsOf: data)
+            } else {
+                try data.write(to: logURL, options: .atomic)
+            }
+        }
+    }
+
+    /// The sibling inode is stable across atomic log replacement. Never unlink
+    /// this file: another process may already hold or be waiting on its lock.
+    /// This advisory lock only coordinates participating local writers; readers
+    /// remain independent. Closing releases it on success, failure, or exit.
+    static func withLogFileLock(at logURL: URL, _ operation: () throws -> Void) throws {
+        let lockURL = logURL.appendingPathExtension("lock")
+        let descriptor = Darwin.open(lockURL.path, O_WRONLY | O_CREAT | O_CLOEXEC, S_IRUSR | S_IWUSR)
+        guard descriptor >= 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        }
+        defer { _ = Darwin.close(descriptor) }
+        while flock(descriptor, LOCK_EX) != 0 {
+            let code = errno
+            guard code == EINTR else {
+                throw NSError(domain: NSPOSIXErrorDomain, code: Int(code))
+            }
+        }
+        try operation()
+    }
+
+    /// Keeps only complete newest log lines. If the byte boundary splits a
+    /// line, starting after its newline also discards any split UTF-8 scalar.
     static func retainedLogSuffix(_ data: Data, maxBytes: Int) -> Data {
         guard maxBytes > 0, data.count > maxBytes else {
             return maxBytes > 0 ? data : Data()
         }
 
         let suffix = data.suffix(maxBytes)
+        if data[data.index(before: suffix.startIndex)] == 0x0A {
+            return Data(suffix)
+        }
         guard let firstNewline = suffix.firstIndex(of: 0x0A) else {
             return Data()
         }

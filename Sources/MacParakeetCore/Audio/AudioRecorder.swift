@@ -518,11 +518,9 @@ public actor AudioRecorder {
                     let interleaved = bufferFormat.isInterleaved
                     let frameLength = monoBuffer.frameLength
                     let hasFloatData = monoBuffer.floatChannelData != nil
-                    Task {
-                        AudioCaptureDiagnostics.append(
-                            "dictation_capture_first_buffer sr=\(sr) ch=\(ch) original_ch=\(originalChannelCount) common_format=\(commonFormat) interleaved=\(interleaved) frames=\(frameLength) has_float_data=\(hasFloatData)"
-                        )
-                    }
+                    AudioCaptureDiagnostics.appendAsync(
+                        "dictation_capture_first_buffer sr=\(sr) ch=\(ch) original_ch=\(originalChannelCount) common_format=\(commonFormat) interleaved=\(interleaved) frames=\(frameLength) has_float_data=\(hasFloatData)"
+                    )
                 }
 
                 guard bufferFormat.sampleRate > 0, bufferFormat.channelCount > 0 else {

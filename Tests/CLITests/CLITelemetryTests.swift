@@ -5,6 +5,20 @@ import XCTest
 
 final class CLITelemetryTests: XCTestCase {
 
+    func testSuccessfulThrownExitHasNoTelemetryError() {
+        let result: Result<Void, Error> = .failure(ExitCode.success)
+        XCTAssertEqual(result.cliTelemetryOutcome, .success)
+        XCTAssertEqual(result.cliTelemetryExitCode, 0)
+        XCTAssertNil(result.cliTelemetryErrorType)
+    }
+
+    func testRuntimeFailureStillHasTelemetryError() {
+        let result: Result<Void, Error> = .failure(ExitCode.failure)
+        XCTAssertEqual(result.cliTelemetryOutcome, .failure)
+        XCTAssertEqual(result.cliTelemetryExitCode, 1)
+        XCTAssertNotNil(result.cliTelemetryErrorType)
+    }
+
     // MARK: - decideOverride: explicit MACPARAKEET_TELEMETRY
 
     func testDecideOverrideExplicitForceOffAccepts0FalseNoOff() {
