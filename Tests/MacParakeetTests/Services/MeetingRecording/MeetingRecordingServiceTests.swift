@@ -926,7 +926,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
         )
         let service = MeetingRecordingService(
             audioCaptureService: captureService,
-            audioConverter: DecodableMixAudioFileConverter(),
+            audioConverter: MockMeetingAudioFileConverter(copyFirstInputAsMix: true),
             sttTranscriber: CountingMeetingSTTClient(),
             micConditionerFactory: { PassthroughMicConditioner() },
             wallClockNow: { wallClock.now }
@@ -4375,6 +4375,12 @@ private final class PendingSourceReadGuard: FileManager {
 }
 
 private final class MockMeetingAudioFileConverter: AudioFileConverting, @unchecked Sendable {
+    private let copyFirstInputAsMix: Bool
+
+    init(copyFirstInputAsMix: Bool = false) {
+        self.copyFirstInputAsMix = copyFirstInputAsMix
+    }
+
     func convert(fileURL: URL) async throws -> URL {
         fileURL
     }
@@ -4384,36 +4390,11 @@ private final class MockMeetingAudioFileConverter: AudioFileConverting, @uncheck
         outputURL: URL,
         sourceAlignment: MeetingSourceAlignment?
     ) async throws {
+        if copyFirstInputAsMix, let firstInput = inputURLs.first {
+            try FileManager.default.copyItem(at: firstInput, to: outputURL)
+            return
+        }
         FileManager.default.createFile(atPath: outputURL.path, contents: Data("mixed".utf8))
-    }
-}
-
-/// Mixes without launching FFmpeg by copying the longest decodable input
-/// track, so `MeetingPlaybackArtifactBuilder` takes its real `.mixed` path
-/// (not a playback fallback) while staying isolated from subprocess/codec
-/// availability in CI.
-private final class DecodableMixAudioFileConverter: AudioFileConverting, @unchecked Sendable {
-    func convert(fileURL: URL) async throws -> URL {
-        fileURL
-    }
-
-    func mixToM4A(
-        inputURLs: [URL],
-        outputURL: URL,
-        sourceAlignment: MeetingSourceAlignment?
-    ) async throws {
-        let longest = inputURLs.max { lhs, rhs in
-            let lhsLength = (try? AVAudioFile(forReading: lhs))?.length ?? 0
-            let rhsLength = (try? AVAudioFile(forReading: rhs))?.length ?? 0
-            return lhsLength < rhsLength
-        }
-        guard let longest else {
-            throw MeetingAudioError.mixFailed("No decodable input for mock mix.")
-        }
-        if FileManager.default.fileExists(atPath: outputURL.path) {
-            try FileManager.default.removeItem(at: outputURL)
-        }
-        try FileManager.default.copyItem(at: longest, to: outputURL)
     }
 }
 
