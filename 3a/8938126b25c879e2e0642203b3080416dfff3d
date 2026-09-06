@@ -1,0 +1,164 @@
+LICENSES/Apache-2.0.txt
+  h_2ab1f47fea2ced 1-202
+LICENSES/transcribe.cpp-MIT.txt
+  h_2ab1f47fea2ced 1-21
+LICENSES/transcribe.cpp-ggml-MIT.txt
+  h_2ab1f47fea2ced 1-21
+LICENSES/transcribe.cpp-miniz-MIT.txt
+  h_2ab1f47fea2ced 1-22
+Package.swift
+  h_2ab1f47fea2ced 8-12,14,32-42,55,64-67,72-75,80-83,174,187
+Sources/CLI/CHANGELOG.md
+  h_2ab1f47fea2ced 107-114
+Sources/CLI/Commands/ConfigCommand.swift
+  h_2ab1f47fea2ced 42,121-123,606
+Sources/CLI/Commands/ModelsCommand.swift
+  h_2ab1f47fea2ced 562
+Sources/CLI/Commands/RetranscribeCommand.swift
+  h_2ab1f47fea2ced 147
+Sources/CLI/Commands/SpecCommand.swift
+  h_2ab1f47fea2ced 221,277
+Sources/CLI/Commands/TranscribeCommand.swift
+  h_2ab1f47fea2ced 110,302,307-308,624-626
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  h_2ab1f47fea2ced 838
+Sources/MacParakeet/Views/Dictation/DictationOverlayController.swift
+  h_2ab1f47fea2ced 210-212
+Sources/MacParakeet/Views/Dictation/LoadingCaptionView.swift
+  h_2ab1f47fea2ced 41,52
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  h_2ab1f47fea2ced 567,613,2203,2206,2572,2580,2592-2593,2873,2996
+Sources/MacParakeetCore/AppFeatures.swift
+  h_2ab1f47fea2ced 73-77
+Sources/MacParakeetCore/STT/CohereTranscribeBackend.swift
+  h_2ab1f47fea2ced 1-155
+Sources/MacParakeetCore/STT/CohereTranscribeCppBackend.swift
+  h_2ab1f47fea2ced 1-206
+Sources/MacParakeetCore/STT/CohereTranscribeEngine.swift
+  h_2ab1f47fea2ced 48-51,54-55,57-58,63-69,80-81,83,85,87-98,100-102,104-105,108-111,114-118,120-121,126-152,172,183-185,200-204,207-209,211,213,215,222-227,229-232,234-237,239-250,254-256,258-281,284,287-288,294,297-304,307,309,314-318,320,322,324,327-328,331-336,338-352,356-361,364-370,372-381,667-669,711-715,719-720,722-735,739,750,752-753,755-772,774-780,787,791,803,807,811,821-828,861-863,865-899,901-906,908-919,926-928,935-937,945-946
+Sources/MacParakeetCore/STT/CohereTranscribeModel.swift
+  h_2ab1f47fea2ced 1-119
+Sources/MacParakeetCore/STT/README.md
+  h_2ab1f47fea2ced 69-89,123-125
+Sources/MacParakeetCore/STT/STTClient.swift
+  h_2ab1f47fea2ced 10,111-114
+Sources/MacParakeetCore/STT/STTClientProtocol.swift
+  h_2ab1f47fea2ced 152-157
+Sources/MacParakeetCore/STT/STTRuntime.swift
+  h_2ab1f47fea2ced 41,64-67,268-270,1303-1305,1532-1533,1566-1585
+Sources/MacParakeetCore/STT/STTScheduler.swift
+  h_2ab1f47fea2ced 26-27,323-329,337-340,345-347,386-413
+Sources/MacParakeetCore/STT/SpeechEngineCapabilities.swift
+  h_2ab1f47fea2ced 359,367
+Sources/MacParakeetCore/Services/AppPaths.swift
+  h_2ab1f47fea2ced 123-127
+Sources/MacParakeetCore/Services/LLM/InProcessModelDownloader.swift
+  h_2ab1f47fea2ced 459
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  h_2ab1f47fea2ced 1795-1799
+Sources/MacParakeetCore/SpeechEnginePreference.swift
+  h_2ab1f47fea2ced 7-9,27-29,170-172,186-187,195-196,199
+Sources/MacParakeetViewModels/EngineSettingsViewModel.swift
+  h_2ab1f47fea2ced 53,113,196,281-283,1424,1426-1436,1493
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  h_2ab1f47fea2ced 845-846,1504
+THIRD_PARTY_LICENSES.md
+  h_2ab1f47fea2ced 49-84,168-180
+Tests/CLITests/ConfigCommandTests.swift
+  h_2ab1f47fea2ced 551-561
+Tests/CLITests/ModelLifecycleCommandTests.swift
+  h_2ab1f47fea2ced 195
+Tests/CLITests/SpecCommandTests.swift
+  h_2ab1f47fea2ced 269-270,356
+Tests/CLITests/TranscribeCommandTests.swift
+  h_2ab1f47fea2ced 279-280,378,396-414
+Tests/MacParakeetTests/STT/CohereTranscribeEngineTests.swift
+  h_2ab1f47fea2ced 5-8,11-12,258,264,267-276,279-290,296,302-325,327-340,342-355,357-380,383-391,417-525,527-554,557-594,597-634,640-643,668-713,735-919
+Tests/MacParakeetTests/STT/MockSTTClient.swift
+  h_2ab1f47fea2ced 10,32,569-572
+Tests/MacParakeetTests/STT/STTSchedulerTests.swift
+  h_2ab1f47fea2ced 482-590,1324-1338,1536,1547,1557,1740,1749,1754-1766,1802-1813,1979-1987
+Tests/MacParakeetTests/STT/SpeechEngineCapabilitiesTests.swift
+  h_2ab1f47fea2ced 111-116
+Tests/MacParakeetTests/Services/LLM/InProcessModelDownloaderTests.swift
+  h_2ab1f47fea2ced 6-20
+Tests/MacParakeetTests/TelemetryServiceTests.swift
+  h_2ab1f47fea2ced 954-955
+Tests/MacParakeetTests/ViewModels/EngineSettingsViewModelTests.swift
+  h_2ab1f47fea2ced 95,366,368,371-372,379,384,793-815
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  h_2ab1f47fea2ced 3369-3370
+benchmarks/asr/README.md
+  h_2ab1f47fea2ced 12-20,74-75,81-84,141-144,154-156,178,205,228,232-236,265-266,297,312-317
+benchmarks/asr/cohere_multilingual_speed.py
+  h_2ab1f47fea2ced 1-695
+benchmarks/asr/cohere_transcribe_cpp_release.json
+  h_2ab1f47fea2ced 1-42
+benchmarks/asr/manifest.json
+  h_2ab1f47fea2ced 147-150,159,161,450-451
+benchmarks/asr/results/cohere-transcribe-cpp-migration.md
+  h_2ab1f47fea2ced 1-97
+benchmarks/asr/results/cohere-transcribe-cpp-multilingual.json
+  h_2ab1f47fea2ced 1-136
+benchmarks/asr/run_all.sh
+  h_2ab1f47fea2ced 27
+benchmarks/asr/run_macparakeet.py
+  h_2ab1f47fea2ced 17-20,45
+benchmarks/asr/run_macparakeet_fleurs.py
+  h_2ab1f47fea2ced 14-17,40,77-78
+benchmarks/asr/speed_bench.py
+  h_2ab1f47fea2ced 23-24,53,109
+benchmarks/asr/test_cohere_multilingual_speed.py
+  h_2ab1f47fea2ced 1-294
+docs/cli-testing.md
+  h_2ab1f47fea2ced 152-155,163,167-168
+docs/distribution.md
+  h_2ab1f47fea2ced 19,21-108,721-723
+integrations/README.md
+  h_2ab1f47fea2ced 24-25,105-107,367-369
+scripts/dist/build_app_bundle.sh
+  h_2ab1f47fea2ced 23-24,45-46,66-96,112-113,293-330,710-712
+scripts/dist/homebrew-tap-scaffold/HOWTO.md
+  h_2ab1f47fea2ced 55-60,62-63,65-79,82-87,94-97
+scripts/dist/homebrew-tap-scaffold/README.md
+  h_2ab1f47fea2ced 35-38
+scripts/dist/homebrew-tap-scaffold/macparakeet-cli.rb
+  h_2ab1f47fea2ced 42-45,50,53-54
+scripts/dist/sign_notarize.sh
+  h_2ab1f47fea2ced 122-129
+scripts/dist/transcribe_cpp_release_pins.sh
+  h_2ab1f47fea2ced 1-26
+scripts/dist/verify_transcribe_cpp_release.sh
+  h_2ab1f47fea2ced 1-183
+spec/00-vision.md
+  h_2ab1f47fea2ced 488
+spec/02-features.md
+  h_2ab1f47fea2ced 727,758,771,1922,1942
+spec/03-architecture.md
+  h_2ab1f47fea2ced 85,104,415,483,516,519,521-522,755-757,759-760,763-764,766,768,772,775,1063,1082,1098-1099,1249
+spec/04-ui-patterns.md
+  h_2ab1f47fea2ced 1058,1061
+spec/06-stt-engine.md
+  h_2ab1f47fea2ced 75,79-84,86-89,91-95,101,103-104,108
+spec/README.md
+  h_2ab1f47fea2ced 4,53,120,123,288,290
+spec/adr/001-parakeet-stt.md
+  h_2ab1f47fea2ced 15,224-225,233,236,276-277
+spec/adr/016-centralized-stt-runtime-scheduler.md
+  h_2ab1f47fea2ced 13,55
+spec/adr/026-asr-engine-strategy.md
+  h_2ab1f47fea2ced 7-9,18-20,63,66-69
+spec/adr/029-cohere-transcribe-cpp-backend.md
+  h_2ab1f47fea2ced 1-205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "3a8938126b25c879e2e0642203b3080416dfff3d",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
