@@ -1,0 +1,16 @@
+Sources/MacParakeetCore/Models/PromptInferenceSettings.swift
+  h_2ab1f47fea2ced 84
+Tests/MacParakeetTests/Models/PromptInferenceSettingsTests.swift
+  h_2ab1f47fea2ced 58,63-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "bd7c86b117c8f619cb005f8084f124b2ab710a3b",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
