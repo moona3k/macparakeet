@@ -638,8 +638,6 @@ private final class MeetingRecordingAppKitPillView: NSView {
         let state = viewModel.state
         let active: Bool
         switch state {
-        case .starting:
-            active = true
         case .recording, .paused:
             active = isHovered && viewModel.elapsedSeconds > 0
         default:
@@ -653,16 +651,14 @@ private final class MeetingRecordingAppKitPillView: NSView {
             return
         }
 
-        let isStarting = state == .starting
-        let text = isStarting ? "Starting…" : viewModel.formattedElapsed
+        let text = viewModel.formattedElapsed
         let isPaused = (state == .paused)
 
         // Disable implicit animations for the per-second text/relayout so the
         // digits update crisply; the fade-in is driven separately by opacity.
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        timeDotLayer.fillColor =
-            (isStarting ? NSColor.secondaryLabelColor : (isPaused ? NSColor.systemOrange : NSColor.systemRed)).cgColor
+        timeDotLayer.fillColor = (isPaused ? NSColor.systemOrange : NSColor.systemRed).cgColor
         if (timeTextLayer.string as? String) != text {
             timeTextLayer.string = text
         }

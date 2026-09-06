@@ -73,10 +73,10 @@ struct MeetingRecordingPillView: View {
         case .idle:
             EmptyView()
         case .starting:
-            statusPill(
-                icon: AnyView(ParakeetSpinner(.inline, tint: DesignSystem.Colors.textTertiary)),
-                title: "Starting…"
-            )
+            iconPill {
+                MerkabaPillIcon(isAnimating: false, audioLevel: 0)
+                    .opacity(0.45)
+            }
             .onTapGesture { onTap?() }
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Starting meeting audio capture")
@@ -116,7 +116,7 @@ struct MeetingRecordingPillView: View {
         }
     }
 
-    /// Icon-only pill — used for transcribing (merkaba) and completed (checkmark).
+    /// Icon-only pill — used for starting, transcribing, and completed.
     private func iconPill<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
             .padding(12)

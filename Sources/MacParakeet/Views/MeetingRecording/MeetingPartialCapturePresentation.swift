@@ -37,9 +37,7 @@ struct MeetingPartialCapturePresentation: Equatable {
             )
         }
         messages.append(
-            contentsOf: report.sources
-                .filter { $0.status != .complete }
-                .map { sourceMessage(for: $0, report: report) })
+            contentsOf: report.sources.compactMap { sourceMessage(for: $0) })
 
         return messages.isEmpty
             ? "The recording is incomplete."
@@ -47,22 +45,15 @@ struct MeetingPartialCapturePresentation: Equatable {
     }
 
     private static func sourceMessage(
-        for source: MeetingCaptureReport.SourceReport,
-        report: MeetingCaptureReport
-    ) -> String {
+        for source: MeetingCaptureReport.SourceReport
+    ) -> String? {
         let label = source.source == .microphone ? "Microphone" : "System audio"
-        let duration = source.writtenDurationMs.formattedDuration
+        var duration: String { source.writtenDurationMs.formattedDuration }
         switch source.status {
-        case .complete:
-            return ""
+        case .complete, .silent:
+            return nil
         case .coverageShortfall:
             return "\(label) captured \(duration)."
-        case .silent:
-            let silenceMessage = "System audio contained no audible signal."
-            guard let microphone = report.source(for: .microphone), microphone.writtenDurationMs > 0 else {
-                return silenceMessage
-            }
-            return "\(silenceMessage) Microphone audio remains saved."
         case .interrupted:
             return "\(label) capture was interrupted after \(duration)."
         case .unavailable:

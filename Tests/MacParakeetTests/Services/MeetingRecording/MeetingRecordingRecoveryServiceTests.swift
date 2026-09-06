@@ -182,7 +182,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertEqual(reconciledReport.captureFailed, captureReport.captureFailed)
         XCTAssertEqual(reconciledReport.quality, .partial)
         XCTAssertEqual(reconciledReport.source(for: .microphone)?.status, .interrupted)
-        XCTAssertEqual(reconciledReport.source(for: .system)?.status, .silent)
+        XCTAssertEqual(reconciledReport.source(for: .system)?.status, .coverageShortfall)
         XCTAssertEqual(
             reconciledReport.source(for: .microphone)?.writtenDurationMs,
             captureReport.source(for: .microphone)?.writtenDurationMs
@@ -218,6 +218,51 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         )
     }
 
+    func testRecoverLegacySilenceOnlyPartialReportRemainsHealthy() async throws {
+        let fixture = try makeRecoverableSession(systemAudio: .silent)
+        let track = MeetingSourceAlignment.Track(
+            firstHostTime: nil,
+            lastHostTime: nil,
+            startOffsetMs: 0,
+            writtenFrameCount: 48_000,
+            sampleRate: 48_000
+        )
+        let alignment = MeetingSourceAlignment(
+            meetingOriginHostTime: nil,
+            microphone: track,
+            system: track
+        )
+        let report = MeetingCaptureReport(
+            sourceMode: .microphoneAndSystem,
+            sourceAlignment: alignment,
+            elapsedDurationMs: 1_000,
+            silentSources: [.system]
+        )
+        try MeetingRecordingMetadataStore.save(
+            MeetingRecordingMetadata(sourceAlignment: alignment, captureReport: report),
+            folderURL: fixture.folderURL
+        )
+        let metadataURL = MeetingRecordingMetadataStore.metadataURL(for: fixture.folderURL)
+        var legacyMetadata = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: metadataURL)) as? [String: Any]
+        )
+        var legacyReport = try XCTUnwrap(legacyMetadata["captureReport"] as? [String: Any])
+        legacyReport["quality"] = "partial"
+        legacyMetadata["captureReport"] = legacyReport
+        try JSONSerialization.data(withJSONObject: legacyMetadata).write(to: metadataURL)
+        audioConverter.copyFirstInputAsMix = true
+
+        let recovered = try await recoveryService.recover(fixture.lock)
+
+        let rewrittenMetadata = try MeetingRecordingMetadataStore.load(from: fixture.folderURL)
+        let reconciledReport = try XCTUnwrap(rewrittenMetadata.captureReport)
+        XCTAssertEqual(reconciledReport.quality, .healthy)
+        XCTAssertEqual(reconciledReport.source(for: .microphone)?.status, .complete)
+        XCTAssertEqual(reconciledReport.source(for: .system)?.status, .silent)
+        XCTAssertEqual(recovered.meetingCaptureReport?.quality, .healthy)
+        XCTAssertEqual(transcriptionRepo.saved.last?.meetingCaptureReport?.quality, .healthy)
+    }
+
     func testRecoverMissingPreviouslySilentSystemTrackBecomesUnavailable() async throws {
         let fixture = try makeRecoverableSession(systemAudio: .silent)
         let track = MeetingSourceAlignment.Track(
@@ -235,9 +280,11 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         let report = MeetingCaptureReport(
             sourceMode: .microphoneAndSystem,
             sourceAlignment: alignment,
-            elapsedDurationMs: 30_000,
+            elapsedDurationMs: 1_000,
             silentSources: [.system]
         )
+        XCTAssertEqual(report.quality, .healthy)
+        XCTAssertEqual(report.source(for: .system)?.status, .silent)
         try MeetingRecordingMetadataStore.save(
             MeetingRecordingMetadata(sourceAlignment: alignment, captureReport: report),
             folderURL: fixture.folderURL

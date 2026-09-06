@@ -171,9 +171,14 @@ releases file ownership before normal recovery can proceed. `recording.lock`
 continues to protect the files across that boundary.
 
 When recovery reconciles a persisted capture report against surviving media,
-it preserves known silence as well as elapsed/interruption history. It does
-not synthesize a healthy verdict merely because repaired files decode; see
-the [capture-report contract](meeting-artifacts-v1.md#stable-json-fields).
+it preserves known silence as diagnostic information when coverage is sufficient,
+as well as elapsed/interruption history. Silence alone is valid capture and does
+not make recovered self-notes partial. Older silence-only partial reports are
+normalized on decode without modifying audio. Recovery still recomputes coverage
+and unavailable-source status; interruption, capture failure, missing coverage,
+and playback fallback remain partial. Decodable repaired files alone do not
+prove healthy capture; see the
+[capture-report contract](meeting-artifacts-v1.md#stable-json-fields).
 
 ## Retention Rule
 

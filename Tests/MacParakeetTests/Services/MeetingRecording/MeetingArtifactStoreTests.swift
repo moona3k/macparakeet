@@ -292,7 +292,7 @@ final class MeetingArtifactStoreTests: XCTestCase {
     }
 
     func testMaterializeWritesCaptureReportToSnapshotManifestAndTranscript() async throws {
-        let report = makePartialCaptureReport()
+        let report = makeCaptureReport()
         let transcription = makeMeeting(
             notes: nil,
             meetingCaptureReport: report
@@ -320,10 +320,19 @@ final class MeetingArtifactStoreTests: XCTestCase {
         XCTAssertEqual(transcriptReport["playbackFallbackSource"] as? String, "system")
     }
 
-    func testMaterializePreservesSilentSystemStatusAcrossArtifactSurfaces() async throws {
-        let report = makePartialCaptureReport(
+    func testMaterializePublishesLegacySilentCaptureAsHealthyAcrossArtifactSurfaces() async throws {
+        let originalReport = makeCaptureReport(
             playbackFallbackSource: nil,
-            silentSources: [.system]
+            silentSources: [.system],
+            elapsedDurationMs: 1_000
+        )
+        var legacyReport = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(originalReport)) as? [String: Any]
+        )
+        legacyReport["quality"] = "partial"
+        let report = try JSONDecoder().decode(
+            MeetingCaptureReport.self,
+            from: JSONSerialization.data(withJSONObject: legacyReport)
         )
         let snapshot = try await MeetingArtifactStore().materialize(
             transcription: makeMeeting(
@@ -334,6 +343,7 @@ final class MeetingArtifactStoreTests: XCTestCase {
         )
 
         XCTAssertEqual(snapshot.meetingCaptureReport, report)
+        XCTAssertEqual(snapshot.meetingCaptureReport?.quality, .healthy)
 
         let manifest = try jsonObject(at: URL(fileURLWithPath: snapshot.manifestPath))
         let meeting = try XCTUnwrap(manifest["meeting"] as? [String: Any])
@@ -342,7 +352,7 @@ final class MeetingArtifactStoreTests: XCTestCase {
         let manifestSystem = try XCTUnwrap(
             manifestSources.first { $0["source"] as? String == "system" }
         )
-        XCTAssertEqual(manifestReport["quality"] as? String, "partial")
+        XCTAssertEqual(manifestReport["quality"] as? String, "healthy")
         XCTAssertEqual(manifestSystem["status"] as? String, "silent")
 
         let transcript = try jsonObject(at: URL(fileURLWithPath: snapshot.transcriptPath))
@@ -351,7 +361,7 @@ final class MeetingArtifactStoreTests: XCTestCase {
         let transcriptSystem = try XCTUnwrap(
             transcriptSources.first { $0["source"] as? String == "system" }
         )
-        XCTAssertEqual(transcriptReport["quality"] as? String, "partial")
+        XCTAssertEqual(transcriptReport["quality"] as? String, "healthy")
         XCTAssertEqual(transcriptSystem["status"] as? String, "silent")
     }
 
@@ -497,9 +507,10 @@ final class MeetingArtifactStoreTests: XCTestCase {
         )
     }
 
-    private func makePartialCaptureReport(
+    private func makeCaptureReport(
         playbackFallbackSource: AudioSource? = .system,
-        silentSources: Set<AudioSource> = []
+        silentSources: Set<AudioSource> = [],
+        elapsedDurationMs: Int = 100_000
     ) -> MeetingCaptureReport {
         MeetingCaptureReport(
             sourceMode: .microphoneAndSystem,
@@ -520,7 +531,7 @@ final class MeetingArtifactStoreTests: XCTestCase {
                     sampleRate: 48_000
                 )
             ),
-            elapsedDurationMs: 100_000,
+            elapsedDurationMs: elapsedDurationMs,
             silentSources: silentSources,
             playbackFallbackSource: playbackFallbackSource
         )

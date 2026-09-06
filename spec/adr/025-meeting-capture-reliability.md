@@ -138,10 +138,15 @@ metric, not input channel 0 or the UI RMS meter. Retained pre-pause audio counts
 dropped paused audio does not. Quiet nonzero, short, and wholly silent sessions
 remain outside this verdict.
 
-This is a durable post-stop partial-audio explanation, not a live warning,
-inferred source restart, or transcript-repair mechanism. Recovery preserves a
-known `silent` verdict while reconciling surviving media; interruption,
-capture failure, and unavailable media remain higher-precedence evidence.
+The 2026-09-06 UI simplification keeps this durable verdict as diagnostic
+information, not a partial-audio explanation or a new UI warning. Silence is
+valid input: self-notes and one-sided meetings with sufficient written coverage
+are healthy. Recovery preserves a known `silent` verdict when coverage remains
+sufficient; interruption, capture failure, unavailable media, and coverage
+shortfall take precedence. Playback fallback remains a separate partial-quality
+reason. Older reports whose only degradation was silence normalize to healthy
+on decode; real degradation and the existing encoded shape are preserved.
+No signal measurement, capture control, or source audio is changed.
 The matching contracts are [meeting artifacts](../contracts/meeting-artifacts-v1.md)
 and [recovery ownership](../contracts/meeting-recovery-retention.md).
 Candidate writer timeouts use the latter contract's aggregate deadline and

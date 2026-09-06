@@ -5,7 +5,7 @@ import Foundation
 /// Live source health is intentionally ephemeral: silence, mute state, and
 /// recent levels can change from second to second. This report is computed
 /// once after capture stops and records only finalized coverage, terminal
-/// failures, and actionable whole-track silence.
+/// failures, and diagnostic whole-track silence. Silence alone is valid capture.
 public struct MeetingCaptureReport: Codable, Sendable, Equatable {
     public enum Quality: String, Codable, Sendable, Equatable {
         case healthy
@@ -113,13 +113,13 @@ public struct MeetingCaptureReport: Codable, Sendable, Equatable {
                 status = .captureFailed
             } else if track == nil {
                 status = .unavailable
-            } else if silentSources.contains(source) {
-                status = .silent
             } else if policy.hasCoverageShortfall(
                 writtenDurationMs: writtenDurationMs,
                 elapsedDurationMs: clampedElapsedDurationMs
             ) {
                 status = .coverageShortfall
+            } else if silentSources.contains(source) {
+                status = .silent
             } else {
                 status = .complete
             }
@@ -139,7 +139,7 @@ public struct MeetingCaptureReport: Codable, Sendable, Equatable {
             }.max() ?? 0
 
         self.quality =
-            sourceReports.allSatisfy { $0.status == .complete }
+            sourceReports.allSatisfy { $0.status == .complete || $0.status == .silent }
                 && !captureFailed
                 && selectedPlaybackFallbackSource == nil
             ? .healthy
@@ -151,6 +151,51 @@ public struct MeetingCaptureReport: Codable, Sendable, Equatable {
         self.interruptedSources = selectedInterruptedSources
         self.captureFailed = captureFailed
         self.playbackFallbackSource = selectedPlaybackFallbackSource
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case quality
+        case sourceMode
+        case elapsedDurationMs
+        case capturedDurationMs
+        case sources
+        case interruptedSources
+        case captureFailed
+        case playbackFallbackSource
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let storedQuality = try container.decode(Quality.self, forKey: .quality)
+        sourceMode = try container.decode(MeetingAudioSourceMode.self, forKey: .sourceMode)
+        let elapsedDurationMs = try container.decode(Int.self, forKey: .elapsedDurationMs)
+        self.elapsedDurationMs = elapsedDurationMs
+        capturedDurationMs = try container.decode(Int.self, forKey: .capturedDurationMs)
+        sources = try container.decode([SourceReport].self, forKey: .sources)
+        interruptedSources = try container.decode([AudioSource].self, forKey: .interruptedSources)
+        captureFailed = try container.decode(Bool.self, forKey: .captureFailed)
+        playbackFallbackSource = try container.decodeIfPresent(AudioSource.self, forKey: .playbackFallbackSource)
+
+        // Older reports marked complete silent tracks partial, and silence
+        // could mask a coverage shortfall. Promote only that known legacy case;
+        // retain every other stored verdict and the original source diagnostics.
+        let selectedSources = Self.selectedSources(for: sourceMode)
+        let isSilenceOnlyPartial =
+            storedQuality == .partial
+            && !captureFailed
+            && interruptedSources.isEmpty
+            && playbackFallbackSource == nil
+            && sources.contains { $0.status == .silent }
+            && sources.count == selectedSources.count
+            && zip(sources, selectedSources).allSatisfy { report, source in
+                report.source == source
+                    && (report.status == .complete || report.status == .silent)
+                    && !Policy.production.hasCoverageShortfall(
+                        writtenDurationMs: report.writtenDurationMs,
+                        elapsedDurationMs: elapsedDurationMs
+                    )
+            }
+        quality = isSilenceOnlyPartial ? .healthy : storedQuality
     }
 
     public func source(for source: AudioSource) -> SourceReport? {

@@ -163,12 +163,12 @@ the same additive shape as `transcriptions.meetingCaptureReport`:
   the named source because combining them failed; its presence makes `quality`
   partial without changing otherwise-complete source capture statuses
 
-In the release-readiness candidate, `silent` is written only for a selected
-system source when its finalized signal verdict is actionable: system buffers
+In the release-readiness candidate, the diagnostic `silent` verdict is supplied
+only for a selected system source when system buffers
 arrived, the peak absolute sample in successfully appended converted PCM stayed
 at exact zero, the microphone had nonzero signal, and pause-adjusted capture
 lasted at least 30 seconds. Interrupted system sources do not produce a new
-silent verdict or silence warning. The source writer normally averages input
+silent verdict or diagnostic silence log. The source writer normally averages input
 channels before converting system input to 48 kHz mono; severe destructive
 cancellation instead retains one dominant-energy channel for the whole buffer.
 Right-channel-only and inverse stereo retain signal. This measures retained PCM,
@@ -177,20 +177,31 @@ Preserved pre-pause buffers count; buffers dropped for an
 intentional pause do not. Short recordings, wholly silent sessions, and quiet
 system tracks with any nonzero written sample do not receive `silent`.
 
-A silent selected source makes `quality` partial. Source status precedence is
-`interrupted`, `capture_failed`, `unavailable`, `silent`, `coverage_shortfall`,
-then `complete`, so terminal failures remain more informative and silence is
-not hidden by otherwise-complete duration coverage.
-Presentation promises preserved microphone audio only when that source has
-positive `writtenDurationMs`; an unavailable or padding-only microphone does
-not justify that promise.
+A silent selected source is valid input and does not make `quality` partial.
+Self-notes and other one-sided recordings with sufficient coverage are healthy;
+presentation consumes `quality` without adding a silence warning or note.
+Source status precedence is `interrupted`, `capture_failed`, `unavailable`,
+`coverage_shortfall`, `silent`, then `complete`, so silence never hides missing
+coverage. Runtime failure, interruption, unavailable tracks, insufficient
+coverage, and playback fallback still make the report partial.
+
+Decoding an older silence-only `partial` report normalizes its quality to
+`healthy` only when all selected sources are present in stable order, their
+statuses are `complete` or `silent` (at least one `silent`), each meets production
+coverage (90%), and there is no capture failure, interruption, or playback
+fallback. Written durations are checked because older `silent` statuses could
+hide coverage shortfalls. Other stored verdicts and all source diagnostics
+remain unchanged. Required fields remain required; the optional playback
+fallback and encoded JSON shape are unchanged. This normalization applies when
+reading stored reports, without rewriting source audio or requiring a migration.
 
 Meeting `durationMs` is the probed duration of the decodable
 `meeting-playback.m4a` artifact. Normal finalization keeps it equal to
 `capturedDurationMs`. Crash recovery refreshes surviving source media facts and
 rebuilds `capturedDurationMs`, while preserving elapsed/interruption history
-and prior `silent` source verdicts. A missing or interrupted recovered source
-takes the more informative status above. Both duration values remain coherent
+and prior `silent` source verdicts when coverage is sufficient. Missing,
+interrupted, or insufficient recovered sources take the more informative status
+above. Both duration values remain coherent
 even when a damaged source must be dropped. A
 partial report does not change transcription `status`: successfully processed
 partial audio remains `completed`. Archived reconstruction re-probes the

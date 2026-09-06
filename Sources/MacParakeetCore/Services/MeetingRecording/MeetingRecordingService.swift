@@ -2005,8 +2005,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     }
 
     /// Emit diagnostics for a system track that stayed at digital silence for
-    /// a whole meeting. The caller supplies the same finalized decision used
-    /// for the durable capture report so the warning and source status agree.
+    /// a whole meeting. This finalized signal verdict is also supplied to the
+    /// capture report, where missing coverage and failures take precedence.
     private func emitSystemAudioSilenceWarningIfNeeded(
         session: Session,
         durationSeconds: TimeInterval,
