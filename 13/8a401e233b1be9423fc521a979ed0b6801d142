@@ -1,0 +1,34 @@
+Sources/CLI/CHANGELOG.md
+  h_2ab1f47fea2ced 120-122
+Sources/MacParakeet/Views/Transcription/PromptLibraryView.swift
+  h_2ab1f47fea2ced 484-485,593-594
+Sources/MacParakeetCore/Models/LLMTypes.swift
+  h_2ab1f47fea2ced 139,163-164,169-185,189,195,197
+Sources/MacParakeetViewModels/PromptsViewModel.swift
+  h_2ab1f47fea2ced 393-400
+Tests/MacParakeetTests/Models/PromptInferenceSettingsTests.swift
+  h_2ab1f47fea2ced 122-127,137-141,161-166,169-171,174-176,183-185,196-198,205-207,225-227,246-251,261-270,286-294,302-304,316-321
+Tests/MacParakeetTests/Services/LLM/InProcessLLMClientTests.swift
+  h_2ab1f47fea2ced 486-489
+Tests/MacParakeetTests/Services/LLM/LLMClientTests.swift
+  h_2ab1f47fea2ced 892-893,904-940
+Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift
+  h_2ab1f47fea2ced 815-818,1102,1106-1108
+Tests/MacParakeetTests/Services/LLM/LocalCLILLMClientTests.swift
+  h_2ab1f47fea2ced 98
+spec/01-data-model.md
+  h_2ab1f47fea2ced 1285
+spec/11-llm-integration.md
+  h_2ab1f47fea2ced 279-283,287-309
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "138a401e233b1be9423fc521a979ed0b6801d142",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
