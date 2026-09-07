@@ -1,0 +1,21 @@
+Tests/MacParakeetTests/Services/Diarization/DiarizationServiceTests.swift
+  s_aa14297513a12d::t_0000362c1a66ad 275-279,281,287-288,332-333,346
+docs/research/2026-09-06-speaker-diarization-claude/anarlog-and-peers.md
+  s_aa14297513a12d::t_6e88d06a722981 41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "73f9449988ec607586b2c96a378d076097cebc6c",
+  "prompts": {},
+  "sessions": {
+    "s_aa14297513a12d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b828c28a-ecfb-43b2-8474-27531db956f5",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
