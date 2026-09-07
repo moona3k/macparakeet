@@ -7,6 +7,7 @@ public protocol CustomWordRepositoryProtocol: Sendable {
     func fetchAll() throws -> [CustomWord]
     func fetchEnabled() throws -> [CustomWord]
     func delete(id: UUID) throws -> Bool
+    func delete(ids: Set<UUID>) async throws -> Int
     func deleteAll() throws
 }
 
@@ -49,6 +50,23 @@ public final class CustomWordRepository: CustomWordRepositoryProtocol {
     public func delete(id: UUID) throws -> Bool {
         try dbQueue.write { db in
             try CustomWord.deleteOne(db, key: id)
+        }
+    }
+
+    /// Deletes the selected entries atomically and returns the number of rows removed.
+    public func delete(ids: Set<UUID>) async throws -> Int {
+        guard !ids.isEmpty else { return 0 }
+
+        return try await dbQueue.write { db in
+            let keys = Array(ids)
+            // Stay below SQLite's parameter limit, while keeping every chunk in one transaction.
+            let batchSize = 500
+            var deletedCount = 0
+            for start in stride(from: 0, to: keys.count, by: batchSize) {
+                let end = min(start + batchSize, keys.count)
+                deletedCount += try CustomWord.deleteAll(db, keys: keys[start..<end])
+            }
+            return deletedCount
         }
     }
 

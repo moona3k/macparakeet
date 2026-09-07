@@ -977,35 +977,38 @@ The Transforms sidebar item is visible when `AppFeatures.transformsEnabled` is t
 - The floating Transform progress pill owns running/cancel/error state. The target app remains focused; MacParakeet does not show an inline preview before replacement.
 - Local Transform history is user data. It may contain selected text and output; telemetry and `llm_runs` do not duplicate that content.
 
-### Custom Words Management (v0.2)
+### Custom Words Management
 
-```
-┌───────────────────────────────────────────────────────────┐
-│  ← Vocabulary    CUSTOM WORDS                            │
-│  ─────────────────────────────────────────────────────    │
-│                                                           │
-│  🔍 Search words...                          [+ Add]     │
-│                                                           │
-│  ┌─────────────────────────────────────────────────────┐  │
-│  │  Word              Replacement         Enabled      │  │
-│  │  ─────────────────────────────────────────────────  │  │
-│  │  para keet         Parakeet            [✓]          │  │
-│  │  mac o s           macOS               [✓]          │  │
-│  │  jay son           JSON                [✓]          │  │
-│  │  kubernetes        (anchor)            [✓]          │  │
-│  │  eye phone         iPhone              [ ]          │  │
-│  └─────────────────────────────────────────────────────┘  │
-│                                                           │
-│  Anchors (no replacement) tell the STT model to keep     │
-│  the word as-is. Corrections replace the STT output.     │
-│                                                           │
-└───────────────────────────────────────────────────────────┘
+Vocabulary > Fix words > Manage words opens a 640 × 560 sheet with a title,
+recognition-support detail, and Done button. Search matches both words and
+replacements. The grouped list shows the word, replacement or exact-spelling
+hint, an enable switch, and an individual delete action. The Add Rule form
+follows the list.
 
-- Table view with inline editing
-- "(anchor)" shown in italic for words with no replacement
-- Toggle enables/disables without deleting
-- Swipe-to-delete or select + Delete key
-```
+**Bulk deletion:** one quiet Select… action appears beside the rule count.
+It enters selection mode without adding persistent checkboxes to the normal
+view. Selection mode replaces enable switches with checkboxes, hides individual
+trash actions and the Add Rule form, and reuses the list header for Select all,
+the selection count, Delete…, and Cancel. Keep that header reachable while
+scrolling large lists. Select all indicates none, some, or all selected.
+
+- A row's checkbox and label form one selection target. Selecting a rule never
+  toggles its enabled state.
+- Select all operates on matching rules, including disabled entries. An empty
+  match set cannot initiate deletion. Changing search clears selection and any
+  unconfirmed request, preventing deletion of hidden rows.
+- Delete… opens a confirmation with the exact count. Cancelling the confirmation
+  preserves selection. Cancel leaves selection mode without deleting anything.
+- During deletion, prevent repeated actions, word mutations, and sheet dismissal.
+  Success returns to the normal list. Failure preserves the list and selection
+  and shows an error beside the list, where it remains visible in selection mode.
+- Exiting the sheet clears transient selection and unconfirmed requests.
+
+See the [selected-word deletion contract](contracts/custom-word-deletion.md)
+for transaction and confirmation-snapshot guarantees, and the
+[approved interaction study](../docs/plans/2026-09-07-issue-882-bulk-delete.md)
+for the current/proposed HTML comparison. This is development behavior until
+included in an app release.
 
 ### Text Snippets Management (v0.2)
 

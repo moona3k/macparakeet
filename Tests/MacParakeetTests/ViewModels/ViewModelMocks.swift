@@ -713,6 +713,9 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
 
 final class MockCustomWordRepository: CustomWordRepositoryProtocol, @unchecked Sendable {
     var words: [CustomWord] = []
+    var deleteError: Error?
+    var fetchAllError: Error?
+    var beforeBatchDelete: (@Sendable () async -> Void)?
 
     func save(_ word: CustomWord) throws {
         if let idx = words.firstIndex(where: { $0.id == word.id }) {
@@ -727,7 +730,8 @@ final class MockCustomWordRepository: CustomWordRepositoryProtocol, @unchecked S
     }
 
     func fetchAll() throws -> [CustomWord] {
-        words.sorted { $0.word.localizedCaseInsensitiveCompare($1.word) == .orderedAscending }
+        if let fetchAllError { throw fetchAllError }
+        return words.sorted { $0.word.localizedCaseInsensitiveCompare($1.word) == .orderedAscending }
     }
 
     func fetchEnabled() throws -> [CustomWord] {
@@ -739,6 +743,14 @@ final class MockCustomWordRepository: CustomWordRepositoryProtocol, @unchecked S
         let before = words.count
         words.removeAll { $0.id == id }
         return words.count < before
+    }
+
+    func delete(ids: Set<UUID>) async throws -> Int {
+        await beforeBatchDelete?()
+        if let deleteError { throw deleteError }
+        let before = words.count
+        words.removeAll { ids.contains($0.id) }
+        return before - words.count
     }
 
     func deleteAll() throws {

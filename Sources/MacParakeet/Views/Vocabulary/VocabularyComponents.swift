@@ -162,6 +162,7 @@ struct VocabSheetHeader: View {
     let title: String
     let subtitle: String
     let onDone: () -> Void
+    var usesDismissShortcut = true
 
     var body: some View {
         HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
@@ -178,7 +179,7 @@ struct VocabSheetHeader: View {
             Button("Done", action: onDone)
                 .parakeetAction(.secondary)
                 .controlSize(.large)
-                .keyboardShortcut(.cancelAction)
+                .keyboardShortcut(usesDismissShortcut ? .cancelAction : nil)
         }
         .padding(.horizontal, DesignSystem.Spacing.lg)
         .padding(.vertical, DesignSystem.Spacing.md)

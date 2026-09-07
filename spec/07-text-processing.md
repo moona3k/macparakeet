@@ -116,6 +116,11 @@ Stores user-defined vocabulary anchors and corrections.
 | createdAt | DATETIME | When created |
 | updatedAt | DATETIME | When last modified |
 
+Custom word management supports confirmed deletion of selected rules, including
+all search matches. Deletion changes future vocabulary application; it does not
+rewrite existing transcripts or delete other user data. See the
+[deletion contract](contracts/custom-word-deletion.md).
+
 ### text_snippets
 
 Stores trigger-to-expansion mappings.
