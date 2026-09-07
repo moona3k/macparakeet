@@ -1,0 +1,19 @@
+scripts/dist/build_app_bundle.sh
+  s_35944fe873eaab::t_688595d7d587b7 129-131,138-144,161-166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "fce05e9e4a519ddf0b645950665e2e0b8f44808e",
+  "prompts": {},
+  "sessions": {
+    "s_35944fe873eaab": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07d2c-41d3-75a1-a1cc-ff3b38be6e53",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
