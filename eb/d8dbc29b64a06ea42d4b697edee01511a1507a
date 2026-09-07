@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/STT/ModelDeletionTests.swift
+  s_aa14297513a12d::t_87de3ef14b571a 72-73,85-86,127-148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "ebd8dbc29b64a06ea42d4b697edee01511a1507a",
+  "prompts": {},
+  "sessions": {
+    "s_aa14297513a12d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b828c28a-ecfb-43b2-8474-27531db956f5",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
