@@ -1,0 +1,35 @@
+Sources/MacParakeet/Views/MeetingRecording/MeetingRowCard.swift
+  s_f004fcd19ae182::t_0a3aa332b6c4c1 2,13,149,164-168
+Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift
+  s_f004fcd19ae182::t_3d6b88e318ad5a 304-305,342,939-944
+Sources/MacParakeet/Views/Transcription/TranscriptionSourceDisplay.swift
+  s_f004fcd19ae182::t_1bee472042a453 46-60
+Sources/MacParakeet/Views/Transcription/TranscriptionSourceLabel.swift
+  s_f004fcd19ae182::t_3a5ee002ec3580 1-49
+Sources/MacParakeet/Views/Transcription/TranscriptionThumbnailCard.swift
+  s_f004fcd19ae182::t_d59f16539ee0dd 3,13,244
+Sources/MacParakeetViewModels/TranscriptionLibraryViewModel.swift
+  s_f004fcd19ae182::t_0032b4bbb6c66f 19-63
+Tests/MacParakeetTests/ViewModels/LibrarySourceLabelStyleTests.swift
+  s_f004fcd19ae182::t_4f3279b148d83c 1-76
+Tests/MacParakeetTests/Views/TranscriptionSourceDisplayTests.swift
+  s_f004fcd19ae182::t_c795e9b0380ecc 89-128
+spec/04-ui-patterns.md
+  s_f004fcd19ae182::t_37478bfebeaa6d 142-152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "90d046b444f81b1f18e812c495266fd7173994a3",
+  "prompts": {},
+  "sessions": {
+    "s_f004fcd19ae182": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e565480c-1956-49c5-8c55-0bf3a90ccde4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
