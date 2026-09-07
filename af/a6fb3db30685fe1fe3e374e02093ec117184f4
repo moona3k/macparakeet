@@ -1,0 +1,69 @@
+docs/qa/2026-09-07-0.8.0/evidence/asr-runner.log
+  s_22bb9cc62aa032::t_79f1a8c1f26832 1-11
+docs/qa/2026-09-07-0.8.0/evidence/cache-green.log
+  s_22bb9cc62aa032::t_5a6b12d054ae70 1-84
+docs/qa/2026-09-07-0.8.0/evidence/cache-red-recovery-green.log
+  s_22bb9cc62aa032::t_f3ff133a30be51 1-922
+docs/qa/2026-09-07-0.8.0/evidence/cohere-en.log
+  s_22bb9cc62aa032::t_396bf458207ac3 1-10
+docs/qa/2026-09-07-0.8.0/evidence/cohere-ja.log
+  s_22bb9cc62aa032::t_4e4b9afd84f59e 1-4
+docs/qa/2026-09-07-0.8.0/evidence/cohere-ko.log
+  s_22bb9cc62aa032::t_4db33fc808e18a 1-4
+docs/qa/2026-09-07-0.8.0/evidence/cohere-zh.log
+  s_22bb9cc62aa032::t_4016215fd5032d 1-4
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/diarization-auto.stderr.log
+  s_22bb9cc62aa032::t_0625ff05e4275a 1-64
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/diarization-exact-2.stderr.log
+  s_22bb9cc62aa032::t_d04db09e525ec7 1-66
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/track-0-invalid.stderr.log
+  s_22bb9cc62aa032::t_de2ea4e0624c1d 1-3
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/track-1-en-verified.stderr.log
+  s_22bb9cc62aa032::t_f8ee9e3318c9ae 1-21
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/track-2-ja.stderr.log
+  s_22bb9cc62aa032::t_6f990af1138d00 1-21
+docs/qa/2026-09-07-0.8.0/evidence/full-swift-test-summary.log
+  s_22bb9cc62aa032::t_304820c860fc12 1-82
+docs/qa/2026-09-07-0.8.0/evidence/gui/gui-dapt-validation.log
+  s_22bb9cc62aa032::t_dda4968cd86b0f 1-3
+docs/qa/2026-09-07-0.8.0/evidence/nemotron-en.log
+  s_22bb9cc62aa032::t_93a6e4b9eb64d1 1-21
+docs/qa/2026-09-07-0.8.0/evidence/nemotron-ja.log
+  s_22bb9cc62aa032::t_7b367b0a09c86b 1-21
+docs/qa/2026-09-07-0.8.0/evidence/nemotron-ko.log
+  s_22bb9cc62aa032::t_b6ddb570afe2cb 1-21
+docs/qa/2026-09-07-0.8.0/evidence/nemotron-zh.log
+  s_22bb9cc62aa032::t_a54b0fdad9d441 1-21
+docs/qa/2026-09-07-0.8.0/evidence/parakeet-unified-en.log
+  s_22bb9cc62aa032::t_72dd60e05425b6 1-17
+docs/qa/2026-09-07-0.8.0/evidence/parakeet-v2-en.log
+  s_22bb9cc62aa032::t_f931c5aca2e2f4 1-28
+docs/qa/2026-09-07-0.8.0/evidence/parakeet-v3-en.log
+  s_22bb9cc62aa032::t_d2ddf2f5ed2d8d 1-28
+docs/qa/2026-09-07-0.8.0/evidence/recovery-discard-red.log
+  s_22bb9cc62aa032::t_3ab2f004778a01 1-2139
+docs/qa/2026-09-07-0.8.0/evidence/recovery-mutex-release-green.log
+  s_22bb9cc62aa032::t_62d0fcad9ec75e 1-226
+docs/qa/2026-09-07-0.8.0/evidence/recovery-mutex-release-red.log
+  s_22bb9cc62aa032::t_5dac2fee97fadb 1-27
+docs/qa/2026-09-07-0.8.0/evidence/recovery-partial-delete-green.log
+  s_22bb9cc62aa032::t_6a543bbbddd24c 1-256
+docs/qa/2026-09-07-0.8.0/evidence/recovery-partial-delete-red.log
+  s_22bb9cc62aa032::t_86400d617215f0 1-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "afa6fb3db30685fe1fe3e374e02093ec117184f4",
+  "prompts": {},
+  "sessions": {
+    "s_22bb9cc62aa032": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07acb-3805-79e1-afd1-a075ff4e2953",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
