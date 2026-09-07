@@ -1,0 +1,31 @@
+Package.resolved
+  s_aa14297513a12d::t_30d2487a6865a0 17-18
+Package.swift
+  s_aa14297513a12d::t_c971977418f4a4 12-18
+Sources/MacParakeetCore/STT/CohereTranscribeEngine.swift
+  s_aa14297513a12d::t_e02f0210a9dc7e 761,818,868,894
+Sources/MacParakeetCore/STT/NemotronEngine.swift
+  s_aa14297513a12d::t_4904d5916c8040 413,439,488-489
+Sources/MacParakeetCore/STT/NemotronEnglishEngine.swift
+  s_aa14297513a12d::t_d5911735b7bd84 306,401,427,476-477
+Sources/MacParakeetCore/STT/ParakeetUnifiedEngine.swift
+  s_aa14297513a12d::t_5c9e25fb8401e0 251-258,261-265,333,337,470,496,545-546
+Sources/MacParakeetCore/STT/STTRuntime.swift
+  s_aa14297513a12d::t_a7bc352613f763 1551,2590-2591,2620,2646
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "e6eae3d318cbb45cd991a2b1ba089aa919d1186e",
+  "prompts": {},
+  "sessions": {
+    "s_aa14297513a12d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b828c28a-ecfb-43b2-8474-27531db956f5",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
