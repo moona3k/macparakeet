@@ -1,0 +1,51 @@
+.github/workflows/ci.yml
+  s_35944fe873eaab::t_f59163979a0b38 98,100
+AGENTS.md
+  s_35944fe873eaab::t_66bd648d3cd117 52-53
+Sources/MacParakeet/Resources/Legal/MarkdownDependencies.txt
+  s_35944fe873eaab::t_71f90c204487da 1-1564
+Sources/MacParakeet/Views/Components/MarkdownContentView.swift
+  s_35944fe873eaab::t_49803ee61d1be3 18,34-49,74,121-141,241
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_35944fe873eaab::t_f904acc54054c0 2561
+THIRD_PARTY_LICENSES.md
+  s_35944fe873eaab::t_60b36ded2d2491 5-14,141,176,183,185
+Tests/MacParakeetTests/Views/MarkdownContentViewTests.swift
+  s_35944fe873eaab::t_98ab9e8656b4e1 30,67-156
+docs/distribution.md
+  s_35944fe873eaab::t_2fc3eed47fecdc 5-9
+docs/human-qa-guide.md
+  s_35944fe873eaab::t_75763449127ce9 58,94-95,100
+scripts/dev/run_app.sh
+  s_35944fe873eaab::t_74da7718a6afaa 4,9-12,86,88,145-147,239,241,243
+scripts/dev/stop_app_processes.sh
+  s_35944fe873eaab::t_879a6ec0371a6d 3-4
+scripts/dev/stop_app_processes.swift
+  s_35944fe873eaab::t_0a30f48ace9e13 17,19,21-22,24-38,61-62,68
+scripts/dev/test_stop_app_processes.sh
+  s_35944fe873eaab::t_86f05eab55c9e4 16,62,66
+scripts/dev/test_stop_app_processes.swift
+  s_35944fe873eaab::t_997810b62ce5f9 29-30,32,34,36,39-40,44,46,96
+scripts/dev/test_stop_app_processes_appkit.sh
+  s_35944fe873eaab::t_32aa1bb97eda43 1-150
+scripts/dist/build_app_bundle.sh
+  s_35944fe873eaab::t_ef89a69e09b37e 25,60-63,127,141,143,163,218-219,540,542-548,596,736-737,739
+spec/04-ui-patterns.md
+  s_35944fe873eaab::t_9c1acf74e299e0 1248-1252,1267-1269
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "138d0d3fe2c912e59357c0c9bbfd3e6aa2494fa3",
+  "prompts": {},
+  "sessions": {
+    "s_35944fe873eaab": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07d2c-41d3-75a1-a1cc-ff3b38be6e53",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
