@@ -1,0 +1,133 @@
+docs/qa/2026-09-07-0.8.0/cli-runtime.md
+  s_22bb9cc62aa032::t_7c92726d822b59 3,10-50
+  s_22bb9cc62aa032::t_17ff3618f52268 1-2,4-9
+docs/qa/2026-09-07-0.8.0/audio-review.md
+  s_22bb9cc62aa032::t_1077e622a21cdb 1-139
+docs/qa/2026-09-07-0.8.0/gui-fixtures.md
+  s_22bb9cc62aa032::t_2cacc82c1bbd94 109-110
+  s_22bb9cc62aa032::t_b676209c930eff 1-108,111-127
+docs/qa/2026-09-07-0.8.0/cli-data-review.md
+  s_22bb9cc62aa032::t_76cc11da6f0089 5,11,15-16,18,20-41,43-52,54-136
+  s_22bb9cc62aa032::t_88ebec81488869 42,53
+  s_22bb9cc62aa032::t_3a5b9ee7a0643b 1-4,6-10,12-14,17,19
+docs/qa/2026-09-07-0.8.0/scripts/verify_cli_contracts.py
+  s_22bb9cc62aa032::t_17ff3618f52268 1-57,63-165,167-195,203-313
+  s_22bb9cc62aa032::t_2cb706d66b6a16 58-62,166,196-202
+docs/qa/2026-09-07-0.8.0/scripts/verify_dapt_exports.py
+  s_22bb9cc62aa032::t_c112cab629de1d 1-155
+docs/qa/2026-09-07-0.8.0/gui-runtime.md
+  s_22bb9cc62aa032::t_7d52a622a93dae 1-99
+docs/qa/2026-09-07-0.8.0/dapt-runtime.md
+  s_22bb9cc62aa032::t_c112cab629de1d 1-2,4-9
+  s_22bb9cc62aa032::t_c5646033b56fac 3,10-53
+docs/qa/2026-09-07-0.8.0/file-audio-runtime.md
+  s_22bb9cc62aa032::t_941774449bf187 1-110
+docs/qa/2026-09-07-0.8.0/scripts/seed_gui_fixtures.py
+  s_22bb9cc62aa032::t_1a40d117a370e0 1-202
+docs/qa/2026-09-07-0.8.0/README.md
+  s_22bb9cc62aa032::t_3f3078ccbf9ca0 1-72
+docs/qa/2026-09-07-0.8.0/audio-runtime.md
+  s_22bb9cc62aa032::t_7b97071e7e9104 1-29
+docs/qa/2026-09-07-0.8.0/evidence.json
+  s_22bb9cc62aa032::t_1a0d402d524a69 1-1010
+docs/qa/2026-09-07-0.8.0/evidence/cohere-en.json
+  s_22bb9cc62aa032::t_81e868c66dc8af 1-23
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/artifact-manifest.json
+  s_22bb9cc62aa032::t_00bc5eb5bbe685 1-118
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/assertions.json
+  s_22bb9cc62aa032::t_3d978d70464119 1-256
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/diarization-auto.json
+  s_22bb9cc62aa032::t_ad1ea838b68c93 1-399
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/diarization-auto.result.json
+  s_22bb9cc62aa032::t_2ce7e1a443e932 1-43
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/diarization-exact-2.json
+  s_22bb9cc62aa032::t_3866e9f12eaa1c 1-399
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/diarization-exact-2.result.json
+  s_22bb9cc62aa032::t_84c2c8a25c6332 1-45
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/fixture-manifest.json
+  s_22bb9cc62aa032::t_efe931953548df 1-368
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/quality-observations.json
+  s_22bb9cc62aa032::t_af5bc4c0e07cbb 1-32
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/results.json
+  s_22bb9cc62aa032::t_d668c48baddb2c 1-254
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/source-integrity.json
+  s_22bb9cc62aa032::t_6d91f82508a28b 1-9
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/speaker-observations.json
+  s_22bb9cc62aa032::t_661b6a9ecf28bd 1-136
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/track-0-invalid.result.json
+  s_22bb9cc62aa032::t_10615eb767b944 1-35
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/track-1-en-verified.json
+  s_22bb9cc62aa032::t_013059916bf6b4 1-156
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/track-1-en-verified.result.json
+  s_22bb9cc62aa032::t_4411ae427c0788 1-47
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/track-2-ja.json
+  s_22bb9cc62aa032::t_583c7c6df73fc4 1-42
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/track-2-ja.result.json
+  s_22bb9cc62aa032::t_0b3d9b950354c2 1-47
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/track-3-missing.json
+  s_22bb9cc62aa032::t_a799b2c89108b6 1-11
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/track-3-missing.result.json
+  s_22bb9cc62aa032::t_602a9db0f2429c 1-35
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/track-pcm-equivalence.json
+  s_22bb9cc62aa032::t_9a2cdc89ba7019 1-20
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/two-tracks-probe.json
+  s_22bb9cc62aa032::t_c244c63b379f80 1-166
+docs/qa/2026-09-07-0.8.0/evidence/format-comparison-final.json
+  s_22bb9cc62aa032::t_343fd0f3730b56 1-42
+docs/qa/2026-09-07-0.8.0/evidence/gui/gui-dapt-bbc.json
+  s_22bb9cc62aa032::t_522cda51abe36d 1
+docs/qa/2026-09-07-0.8.0/evidence/gui/gui-edited-persistence.json
+  s_22bb9cc62aa032::t_6573049430eb02 1-6
+docs/qa/2026-09-07-0.8.0/evidence/gui/gui-track-persistence.json
+  s_22bb9cc62aa032::t_ab5ec4e12dc4b5 1-10
+docs/qa/2026-09-07-0.8.0/evidence/gui/manifest.json
+  s_22bb9cc62aa032::t_47889dc97c5a34 1-143
+docs/qa/2026-09-07-0.8.0/evidence/mic-meetings-results.json
+  s_22bb9cc62aa032::t_404c1b28f3f21d 1-32
+docs/qa/2026-09-07-0.8.0/evidence/nemotron-en.json
+  s_22bb9cc62aa032::t_cc0691395f84a1 1-203
+docs/qa/2026-09-07-0.8.0/evidence/nemotron-ja.json
+  s_22bb9cc62aa032::t_6ca96fe19a70d5 1-41
+docs/qa/2026-09-07-0.8.0/evidence/nemotron-ko.json
+  s_22bb9cc62aa032::t_1d49eac0ea909d 1-113
+docs/qa/2026-09-07-0.8.0/evidence/nemotron-zh.json
+  s_22bb9cc62aa032::t_b4536ba78bfdf1 1-53
+docs/qa/2026-09-07-0.8.0/evidence/parakeet-unified-en.json
+  s_22bb9cc62aa032::t_8a914eb017a91a 1-197
+docs/qa/2026-09-07-0.8.0/evidence/parakeet-v2-en.json
+  s_22bb9cc62aa032::t_d5626a7a528d55 1-203
+docs/qa/2026-09-07-0.8.0/evidence/parakeet-v3-en.json
+  s_22bb9cc62aa032::t_87a60bbd0ad690 1-203
+docs/qa/2026-09-07-0.8.0/evidence/results.json
+  s_22bb9cc62aa032::t_cc30fbb396fc73 1-471
+docs/qa/2026-09-07-0.8.0/evidence/vocabulary-import-cli.json
+  s_22bb9cc62aa032::t_7b8e07625f4318 1-10
+docs/qa/2026-09-07-0.8.0/index.html
+  s_22bb9cc62aa032::t_1210d9a2c01d9d 1-1086
+docs/qa/2026-09-07-0.8.0/microphone-runtime.md
+  s_22bb9cc62aa032::t_b3c998930b3672 1-34
+docs/qa/2026-09-07-0.8.0/package-preflight.md
+  s_22bb9cc62aa032::t_fd7ff72e02094f 1-81
+docs/qa/2026-09-07-0.8.0/release-inventory.md
+  s_22bb9cc62aa032::t_723684ff631f8d 1-123
+docs/qa/2026-09-07-0.8.0/runtime-log.md
+  s_22bb9cc62aa032::t_96bdcb834c8fbd 1-40
+docs/qa/2026-09-07-0.8.0/ui-source-review.md
+  s_22bb9cc62aa032::t_b0a84428a6c971 1-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "c0d777df4947511e5733ee2a34e135e468991b58",
+  "prompts": {},
+  "sessions": {
+    "s_22bb9cc62aa032": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07acb-3805-79e1-afd1-a075ff4e2953",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
