@@ -1,0 +1,53 @@
+spec/contracts/custom-word-deletion.md
+  s_22bb9cc62aa032::t_e35980d00ff515 55-58
+  s_22bb9cc62aa032::t_88e9b49810e378 1-54
+Sources/MacParakeet/Views/Vocabulary/CustomWordsView.swift
+  s_22bb9cc62aa032::t_12d468f1e98a29 122-133
+  s_22bb9cc62aa032::t_68c18f83776ed8 1,11-12,24-25,31,36-37,39,42-45,49-75,78,80-84,86,88,90,92-95,134,138-208,281,283-284,287-297,299-316,318,320-328,333-337,346-363,372,390-399,418-451
+  s_22bb9cc62aa032::t_22d8b50de069a3 96,105,112,452-459
+spec/contracts/README.md
+  s_22bb9cc62aa032::t_e35980d00ff515 43
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  s_22bb9cc62aa032::t_5f467bef1c1dcc 716-718,733-734,748-753
+  s_bf1e136b8651b9::t_ce0334bc783645 754-755
+Tests/MacParakeetTests/Database/CustomWordRepositoryTests.swift
+  s_22bb9cc62aa032::t_55da77b9d5fd24 90-171
+  s_22bb9cc62aa032::t_c43c496dd05c44 172
+Sources/MacParakeetViewModels/CustomWordsViewModel.swift
+  s_22bb9cc62aa032::t_5f467bef1c1dcc 4-11,16-22,26-30,38,54,62,91,103-105,108-163,165-173,175
+Sources/MacParakeet/Views/Vocabulary/VocabularyComponents.swift
+  s_22bb9cc62aa032::t_68c18f83776ed8 165,182
+Tests/MacParakeetTests/ViewModels/CustomWordsViewModelTests.swift
+  s_22bb9cc62aa032::t_efba8d6f4d473f 72,77-80,105-296
+Sources/MacParakeetCore/Database/CustomWordRepository.swift
+  s_22bb9cc62aa032::t_55da77b9d5fd24 10,56-69
+  s_bf1e136b8651b9::t_42baa5f739c717 70-72
+spec/04-ui-patterns.md
+  s_22bb9cc62aa032::t_cb3ed6dd72f373 980-1011
+spec/07-text-processing.md
+  s_22bb9cc62aa032::t_ef3b01bf6dcb04 119-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "7a37f08556302678a248c781e5eacee4b68d3b97",
+  "prompts": {},
+  "sessions": {
+    "s_22bb9cc62aa032": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07acb-3805-79e1-afd1-a075ff4e2953",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_bf1e136b8651b9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07acf-e22f-7a43-92de-449a7da081f2",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
