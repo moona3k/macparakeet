@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Fix Words — current and proposed bulk deletion</title>
+<style>
+  :root { color-scheme:light; --canvas:#edf0f3; --app:#fafaf7; --surface:#fff; --field:#f5f5f0; --text:#1a1a1a; --secondary:#6b6b6b; --line:#deded9; --accent:#e86b3b; --accent-text:#b5451c; --red:#bb302c; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--canvas); color:var(--text); font:14px/1.45 -apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif; -webkit-font-smoothing:antialiased; }
+  button,input { font:inherit; }
+  button { cursor:pointer; color:inherit; }
+  button:disabled { cursor:default; opacity:.42; }
+  button:focus-visible,input:focus-visible,a:focus-visible,summary:focus-visible { outline:3px solid #a64321; outline-offset:3px; }
+  a { color:var(--accent-text); text-underline-offset:3px; }
+  [hidden] { display:none !important; }
+  .page { max-width:1400px; margin:auto; padding:40px 36px 30px; }
+  .intro { display:flex; justify-content:space-between; align-items:center; gap:24px; margin-bottom:34px; }
+  h1 { font-size:30px; font-weight:650; line-height:1.16; letter-spacing:-.8px; margin:0 0 9px; }
+  .intro p { color:#5e6570; font-size:15px; margin:0; }
+  .demo-tools { display:flex; align-items:center; gap:10px; flex-shrink:0; }
+  .button { border:1px solid #d3d5d7; background:#fff; border-radius:7px; padding:6px 12px; line-height:1.35; box-shadow:0 1px 1px #00000006; white-space:nowrap; }
+  .button:hover:not(:disabled) { background:#f5f5f3; }
+  .button.demo-primary { color:#fff; background:#333c46; border-color:#333c46; }
+  .button.demo-primary:hover { background:#46525f; }
+  .text-button { border:0; background:transparent; padding:5px 6px; border-radius:5px; white-space:nowrap; }
+  .text-button:hover:not(:disabled) { background:#00000006; }
+  .compare { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:32px; }
+  .panel { min-width:0; }
+  .panel-caption { margin-bottom:14px; }
+  .panel-caption h2 { margin:0 0 3px; font-size:17px; font-weight:650; letter-spacing:-.2px; }
+  .panel-caption p { margin:0; color:#616976; font-size:13px; }
+  .sheet { height:560px; width:100%; max-width:640px; margin:auto; border:1px solid #cfd1d0; border-radius:13px; background:var(--app); box-shadow:0 12px 32px #202c3810,0 2px 5px #202c3808; overflow:hidden; display:flex; flex-direction:column; position:relative; }
+  .sheet-header { display:flex; align-items:center; gap:16px; padding:16px 24px; border-bottom:1px solid var(--line); flex-shrink:0; }
+  .sheet-heading { flex:1; min-width:0; }
+  .sheet-heading h3 { font-size:22px; font-weight:650; letter-spacing:-.4px; line-height:1.25; margin:0 0 3px; }
+  .sheet-heading p { color:var(--secondary); font-size:12px; line-height:1.4; margin:0; max-width:470px; }
+  .sheet-header .button { font-size:13px; padding:6px 15px; }
+  .sheet-body { overflow:auto; padding:24px; flex:1; scrollbar-width:thin; scrollbar-color:#c6c6c0 transparent; }
+  .search { height:36px; display:flex; gap:8px; align-items:center; padding:0 10px; border:.5px solid #dcdcd6; border-radius:12px; background:var(--field); margin-bottom:18px; }
+  .search:focus-within { outline:1.5px solid var(--accent); outline-offset:0; }
+  .search svg { width:14px; height:14px; flex-shrink:0; color:var(--secondary); }
+  .search input { width:100%; min-width:0; border:0; background:none; padding:0; outline:none; color:inherit; }
+  input::placeholder { color:#777772; opacity:1; }
+  .search .clear-search { border:0; background:none; padding:1px; height:24px; width:24px; flex-shrink:0; color:#6b6b6b; font-size:19px; }
+  .list-head { min-height:32px; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:0 0 7px; background:var(--app); }
+  #proposed .list-head { position:sticky; top:-24px; padding-top:7px; margin-top:-7px; z-index:2; }
+  .section-label { font-size:11px; font-weight:600; letter-spacing:.6px; text-transform:uppercase; color:var(--secondary); }
+  .head-actions { display:flex; gap:8px; align-items:center; }
+  .count { color:var(--secondary); font-size:12px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .select-action { color:var(--accent-text); font-size:12px; padding:3px 5px; }
+  .select-all { display:flex; align-items:center; gap:10px; font-size:12px; white-space:nowrap; cursor:pointer; min-height:27px; }
+  input[type=checkbox] { width:16px; height:16px; margin:0; accent-color:var(--accent); cursor:pointer; flex-shrink:0; }
+  .select-all input { margin-left:17px; }
+  .selection-tools { gap:6px; }
+  .selection-tools .button { padding:4px 9px; font-size:12px; color:var(--red); }
+  .selection-tools .text-button { font-size:12px; padding:4px; }
+  .word-list { border:.5px solid #dcdcd7; background:var(--surface); border-radius:14px; overflow:hidden; }
+  .word-row { min-height:61px; padding:10px 16px; display:flex; gap:16px; align-items:center; position:relative; }
+  .word-row + .word-row::before { content:""; position:absolute; left:52px; right:0; top:0; height:.5px; background:var(--line); }
+  .word-row:hover { background:#f6f6f3; }
+  .word-row.selected { background:#fff0e9; }
+  .word-copy { flex:1; min-width:0; }
+  .word-copy strong { display:block; font-size:14px; line-height:1.35; font-weight:400; overflow-wrap:anywhere; }
+  .word-copy small { display:block; color:var(--secondary); font-size:12px; margin-top:3px; overflow-wrap:anywhere; }
+  .word-copy.disabled strong { opacity:.55; }
+  .control-slot { width:28px; flex-shrink:0; display:flex; align-items:center; justify-content:flex-start; }
+  .switch { padding:0; border:0; width:27px; height:16px; border-radius:10px; background:#bdbdba; position:relative; box-shadow:inset 0 0 1px #0003; }
+  .switch[aria-checked=true] { background:var(--accent); }
+  .switch::after { content:""; position:absolute; width:12px; height:12px; background:white; border-radius:50%; top:2px; left:2px; box-shadow:0 1px 2px #0003; transition:transform .12s; }
+  .switch[aria-checked=true]::after { transform:translateX(11px); }
+  .trash { width:26px; height:28px; padding:6px; border:0; background:none; border-radius:5px; color:#70706c; }
+  .trash:hover { color:var(--red); background:#bb302c09; }
+  .trash svg { width:14px; height:16px; display:block; }
+  .word-row.selectable { cursor:pointer; }
+  .add-section { margin-top:24px; }
+  .add-section .help { color:var(--secondary); font-size:12px; line-height:1.4; margin:3px 0 10px; }
+  .add-fields { display:flex; gap:8px; align-items:center; }
+  .add-fields input { min-width:0; width:100%; padding:8px 10px; background:var(--field); border:.5px solid #dcdcd6; border-radius:12px; }
+  .add-fields .button { background:var(--accent); color:white; border-color:var(--accent); padding:8px 13px; }
+  .add-fields .button:hover:not(:disabled) { background:#cf592e; }
+  .form-error { font-size:12px; color:var(--red); margin-bottom:8px; }
+  .preview { font-size:12px; margin:9px 2px 0; color:var(--secondary); overflow-wrap:anywhere; }
+  .empty { padding:31px 20px; text-align:center; color:var(--secondary); }
+  .empty svg { width:28px; height:28px; margin-bottom:6px; }
+  .empty p { font-size:12px; max-width:320px; margin:5px auto 10px; }
+  .empty .text-button { color:var(--accent-text); }
+  .closed { height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--secondary); }
+  .panel-note { margin:17px 2px 0; font-size:13px; color:#58616c; max-width:580px; line-height:1.55; }
+  .panel-note strong { color:#353c45; font-weight:600; }
+  .review-footer { display:flex; justify-content:space-between; gap:32px; align-items:baseline; margin-top:32px; padding-top:18px; border-top:1px solid #d3d9df; color:#616976; font-size:12px; }
+  .review-footer p { margin:0; max-width:740px; }
+  details { flex-shrink:0; }
+  summary { cursor:pointer; color:#4c5663; }
+  details p { padding-top:10px; max-width:340px !important; }
+  dialog { border:1px solid #d2d2ce; border-radius:15px; padding:26px 24px 20px; width:330px; max-width:calc(100vw - 32px); background:#fafaf8; box-shadow:0 18px 80px #0003; color:var(--text); }
+  dialog::backdrop { background:#202a3540; }
+  .alert-icon { color:var(--red); width:34px; height:36px; display:block; margin:0 auto 14px; }
+  dialog h2 { font-size:18px; font-weight:650; line-height:1.3; margin:0 0 9px; text-align:center; }
+  dialog p { font-size:13px; color:#555; margin:0 0 22px; text-align:center; }
+  .dialog-actions { display:flex; gap:10px; }
+  .dialog-actions .button { flex:1; }
+  .dialog-actions .destructive { background:var(--red); color:#fff; border-color:var(--red); }
+  .dialog-actions .destructive:hover { background:#9f2724; }
+  .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+  @media(max-width:1150px) { .page { max-width:720px; padding:28px 24px; } .compare { grid-template-columns:1fr; gap:32px; } .intro { align-items:flex-start; flex-direction:column; gap:16px; margin-bottom:28px; } .review-footer { flex-direction:column; gap:14px; } }
+  @media(max-width:520px) { .page { padding:24px 14px; } h1 { font-size:26px; } .intro p { font-size:14px; } .sheet-header { padding:16px; } .sheet-body { padding:16px; } #proposed .list-head { top:-16px; } .sheet-heading h3 { font-size:21px; } .sheet-heading p { font-size:11px; } .sheet-header .button { padding:6px 10px; } .word-row { gap:12px; padding:10px 12px; } .select-all input { margin-left:13px; } .select-all { gap:6px; } .head-actions { gap:5px; } .selection-tools .count { font-size:11px; } .selection-tools .button { padding:4px 6px; } .add-fields { flex-wrap:wrap; } .add-fields input { flex:1 1 110px; } .sheet { height:560px; } }
+  @media(max-width:520px) { .select-all { min-width:0; white-space:normal; line-height:1.25; } .selection-tools { flex-shrink:0; } }
+  @media(prefers-reduced-motion:reduce) { *,*::before,*::after { transition:none !important; scroll-behavior:auto !important; } }
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="intro">
+    <div><h1>Bulk deletion for Fix Words</h1><p>One extra action in the everyday view.</p></div>
+    <nav class="demo-tools" aria-label="Prototype controls">
+      <button class="text-button" id="reset-demo">Reset demo</button>
+      <button class="button demo-primary" id="preview-selection">Preview selection</button>
+    </nav>
+  </header>
+  <div class="compare">
+    <section class="panel" aria-labelledby="current-heading">
+      <header class="panel-caption"><h2 id="current-heading">Current</h2><p>Recreated from current main. One word at a time.</p></header>
+      <div class="sheet" id="current" role="region" aria-label="Current Custom Words"></div>
+      <p class="panel-note">Each word has an enable switch and its own delete action. Clearing a large import means repeating the same confirmation for every word.</p>
+    </section>
+    <section class="panel" aria-labelledby="proposed-heading">
+      <header class="panel-caption"><h2 id="proposed-heading">Proposed</h2><p>Try Select…, choose some words, then Delete….</p></header>
+      <div class="sheet" id="proposed" role="region" aria-label="Proposed Custom Words"></div>
+      <p class="panel-note"><strong>Select…</strong> opens selection mode. Checkboxes replace the switches; a single delete action handles the selection. <strong>Select all</strong> also lets you clear the entire list.</p>
+    </section>
+  </div>
+  <footer class="review-footer">
+    <p>Interactive HTML prototype with sample words. Changes stay in this page.<br>Vocabulary → Fix words → Manage words. No changes to the app.</p>
+    <details><summary>Source and interaction notes</summary><p>Current view recreated from <a href="https://github.com/moona3k/macparakeet/blob/a5cd486a8958610f559697e31aba765930574607/Sources/MacParakeet/Views/Vocabulary/CustomWordsView.swift" target="_blank" rel="noopener">main at a5cd486</a>, not a screenshot. In the proposal, the list header stays visible while scrolling. Search limits Select all to matches; changing the search clears selection. <a href="2026-09-07-issue-882-bulk-delete.md">Design note</a>.</p></details>
+  </footer>
+</main>
+<dialog id="delete-dialog" aria-labelledby="dialog-title" aria-describedby="dialog-description">
+  <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M4 6h16M9 6V3.5h6V6M6 6l1 15h10l1-15M10 10v7M14 10v7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <h2 id="dialog-title"></h2><p id="dialog-description"></p>
+  <div class="dialog-actions"><button class="button" id="cancel-delete" autofocus>Cancel</button><button class="button destructive" id="confirm-delete">Delete</button></div>
+</dialog>
+<div id="announcement" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+<script>
+'use strict';
+const icons = {
+  trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 6h16M9 6V3.5h6V6M6 6l1 15h10l1-15M10 10v7M14 10v7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.7" cy="10.7" r="6.8"/><path d="m16 16 4.7 4.7" stroke-linecap="round"/></svg>',
+  words:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="m5 16 3-8 3 8M6 13h4M14 9h5M14 12h5M14 15h3" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+};
+const samples = [
+  {id:'1',word:'Anthropic',replacement:'',enabled:true},
+  {id:'2',word:'Clawed',replacement:'Claude',enabled:true},
+  {id:'3',word:'Git hub',replacement:'GitHub',enabled:true},
+  {id:'4',word:'Mac Parakeet',replacement:'MacParakeet',enabled:true},
+  {id:'5',word:'Open AI',replacement:'OpenAI',enabled:true},
+  {id:'6',word:'Postgres',replacement:'PostgreSQL',enabled:false}
+];
+const models = {};
+const dialog = document.getElementById('delete-dialog');
+let pendingDelete = null;
+let nextID = 100;
+const escapeHTML = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+function announce(message) { document.getElementById('announcement').textContent = message; }
+function visibleWords(model) {
+  const query = model.query.toLocaleLowerCase();
+  return model.words.filter(word => word.word.toLocaleLowerCase().includes(query) || word.replacement.toLocaleLowerCase().includes(query));
+}
+function initialize(id) {
+  const model = {id, words:structuredClone(samples), query:'', selecting:false, selected:new Set(), newWord:'', newReplacement:'', closed:false};
+  models[id] = model;
+  renderShell(model);
+}
+function renderShell(model) {
+  const root = document.getElementById(model.id);
+  if (model.closed) {
+    root.innerHTML='<div class="closed"><span>Custom Words closed</span><button class="button">Reopen Custom Words</button></div>';
+    root.querySelector('button').addEventListener('click',()=>{model.closed=false;renderShell(model);});
+    return;
+  }
+  root.innerHTML=`
+    <header class="sheet-header"><div class="sheet-heading"><h3>Custom Words</h3><p>Enabled anchors boost Parakeet TDT recognition; replacement rules still run after transcription.</p></div><button class="button done">Done</button></header>
+    <div class="sheet-body">
+      <div class="search">${icons.search}<input type="search" aria-label="Search ${model.id} words" placeholder="Search words…" value="${escapeHTML(model.query)}"><button class="clear-search" aria-label="Clear search" hidden>×</button></div>
+      <div class="list-head"></div><div class="word-list" aria-label="Word rules"></div>
+      <section class="add-section" aria-label="Add rule"><div class="section-label">Add Rule</div><p class="help">Replace a word, or leave the replacement blank to lock its spelling and capitalization.</p>
+        <div class="form-error" role="alert" hidden></div>
+        <form class="add-fields"><input class="new-word" aria-label="Word or phrase" placeholder="Word or phrase" value="${escapeHTML(model.newWord)}"><input class="new-replacement" aria-label="Replacement (optional)" placeholder="Replacement (optional)" value="${escapeHTML(model.newReplacement)}"><button class="button" type="submit" disabled>Add</button></form><p class="preview" hidden></p>
+      </section>
+    </div>`;
+  root.querySelector('.done').addEventListener('click',()=>{model.closed=true;model.selecting=false;model.selected.clear();renderShell(model);});
+  const search = root.querySelector('input[type=search]');
+  function searchChanged() {
+    const hadSelection = model.selected.size > 0;
+    model.query=search.value;
+    model.selected.clear();
+    renderList(model);
+    if(hadSelection) announce('Selection cleared because the search changed.');
+  }
+  search.addEventListener('input',searchChanged);
+  root.querySelector('.clear-search').addEventListener('click',()=>{search.value='';searchChanged();search.focus();});
+  root.querySelector('.new-word').addEventListener('input',event=>{model.newWord=event.target.value;renderPreview(model);});
+  root.querySelector('.new-replacement').addEventListener('input',event=>{model.newReplacement=event.target.value;renderPreview(model);});
+  root.querySelector('.new-word').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();root.querySelector('.new-replacement').focus();}});
+  root.querySelector('form').addEventListener('submit',event=>{
+    event.preventDefault();
+    const word=model.newWord.trim();
+    if(!word)return;
+    const error=root.querySelector('.form-error');
+    if(model.words.some(item=>item.word.toLocaleLowerCase()===word.toLocaleLowerCase())){
+      error.textContent=`'${word}' already exists`;error.hidden=false;return;
+    }
+    model.words.push({id:String(nextID++),word,replacement:model.newReplacement.trim(),enabled:true});
+    model.words.sort((a,b)=>a.word.localeCompare(b.word));
+    model.newWord='';model.newReplacement='';
+    root.querySelector('.new-word').value='';root.querySelector('.new-replacement').value='';error.hidden=true;
+    renderList(model);renderPreview(model);root.querySelector('.new-word').focus();announce(`Added ${word}.`);
+  });
+  renderList(model);renderPreview(model);
+}
+function renderPreview(model) {
+  const root=document.getElementById(model.id);
+  const preview=root.querySelector('.preview');
+  root.querySelector('form button').disabled=!model.newWord.trim();
+  preview.hidden=!model.newWord.trim();
+  preview.textContent=model.newReplacement.trim()?`“${model.newWord.trim()}” → “${model.newReplacement.trim()}”`:`“${model.newWord.trim()}” kept exactly — fixes spelling & capitalization`;
+}
+function renderHeader(model) {
+  const root=document.getElementById(model.id);
+  const header=root.querySelector('.list-head');
+  const words=visibleWords(model);
+  if(model.selecting){
+    const all=words.length>0 && words.every(word=>model.selected.has(word.id));
+    const allLabel=model.query?`All ${words.length} matches`:'Select all';
+    header.innerHTML=`<label class="select-all"><input class="all-checkbox" type="checkbox" aria-label="${model.query?'Select all matching words':'Select all words'}" ${all?'checked':''} ${words.length?'':'disabled'}><span>${allLabel}</span></label><div class="head-actions selection-tools"><span class="count" aria-live="polite">${model.selected.size} selected</span><button class="button bulk-delete" ${model.selected.size?'':'disabled'} aria-label="Delete selected words">Delete…</button><button class="text-button cancel-selection">Cancel</button></div>`;
+    const checkbox=header.querySelector('.all-checkbox');
+    checkbox.indeterminate=model.selected.size>0&&!all;
+    checkbox.addEventListener('change',()=>{
+      if(checkbox.checked) words.forEach(word=>model.selected.add(word.id)); else model.selected.clear();
+      updateSelectedRows(model);renderHeader(model);header.querySelector('.all-checkbox').focus();
+    });
+    header.querySelector('.bulk-delete').addEventListener('click',()=>requestDelete(model,[...model.selected],true));
+    header.querySelector('.cancel-selection').addEventListener('click',()=>endSelection(model));
+  }else{
+    const disabled=model.words.filter(word=>!word.enabled).length;
+    const count=model.query?`${words.length} of ${model.words.length}`:disabled?`${model.words.length} · ${disabled} off`:`${model.words.length} ${model.words.length===1?'rule':'rules'}`;
+    header.innerHTML=`<span class="section-label">Word Rules</span><div class="head-actions"><span class="count">${count}</span>${model.id==='proposed'?`<button class="text-button select-action" ${words.length?'':'disabled'}>Select…</button>`:''}</div>`;
+    header.querySelector('.select-action')?.addEventListener('click',()=>startSelection(model));
+  }
+}
+function renderList(model) {
+  const root=document.getElementById(model.id);
+  const list=root.querySelector('.word-list');
+  root.querySelector('.clear-search').hidden=!model.query;
+  root.querySelector('.add-section').hidden=model.selecting;
+  renderHeader(model);
+  const words=visibleWords(model);
+  list.innerHTML=words.map(word=>`<div class="word-row ${model.selecting?'selectable':''} ${model.selected.has(word.id)?'selected':''}" data-id="${word.id}">
+      <div class="control-slot">${model.selecting?`<input type="checkbox" aria-label="Select ${escapeHTML(word.word)}" ${model.selected.has(word.id)?'checked':''}>`:`<button class="switch" role="switch" aria-checked="${word.enabled}" aria-label="Enable ${escapeHTML(word.word)}" title="${escapeHTML(word.replacement?'Replaces with '+word.replacement:'Enforces exact spelling')}"></button>`}</div>
+      <div class="word-copy ${word.enabled?'':'disabled'}"><strong>${escapeHTML(word.word)}</strong><small>${word.replacement?'Replaces with: '+escapeHTML(word.replacement):'Enforces exact spelling'}</small></div>
+      ${model.selecting?'':`<button class="trash" aria-label="Delete ${escapeHTML(word.word)}" title="Delete ${escapeHTML(word.word)}">${icons.trash}</button>`}
+    </div>`).join('');
+  if(!words.length){
+    list.innerHTML=`<div class="empty">${icons.words}<div>${model.words.length?'No matches':'No custom words yet'}</div>${model.words.length?'':`<p>Add words to fix spelling or capitalization that the speech engine gets wrong.</p><button class="text-button first-rule">Add Your First Rule</button>`}</div>`;
+    list.querySelector('.first-rule')?.addEventListener('click',()=>root.querySelector('.new-word').focus());
+  }
+  list.querySelectorAll('.word-row').forEach(row=>{
+    const word=model.words.find(item=>item.id===row.dataset.id);
+    if(model.selecting){
+      row.addEventListener('click',event=>{
+        const checkbox=row.querySelector('input');
+        const checked=event.target===checkbox?checkbox.checked:!model.selected.has(word.id);
+        if(checked)model.selected.add(word.id);else model.selected.delete(word.id);
+        updateSelectedRows(model);renderHeader(model);checkbox.focus();
+      });
+    }else{
+      row.querySelector('.switch').addEventListener('click',event=>{
+        word.enabled=!word.enabled;event.currentTarget.setAttribute('aria-checked',String(word.enabled));row.querySelector('.word-copy').classList.toggle('disabled',!word.enabled);renderHeader(model);
+      });
+      row.querySelector('.trash').addEventListener('click',()=>requestDelete(model,[word.id],false));
+    }
+  });
+}
+function updateSelectedRows(model){
+  document.getElementById(model.id).querySelectorAll('.word-row').forEach(row=>{
+    const selected=model.selected.has(row.dataset.id);row.classList.toggle('selected',selected);const checkbox=row.querySelector('input');if(checkbox)checkbox.checked=selected;
+  });
+}
+function startSelection(model){model.selecting=true;model.selected.clear();renderList(model);document.getElementById(model.id).querySelector('.all-checkbox').focus();}
+function endSelection(model){model.selecting=false;model.selected.clear();renderList(model);document.getElementById(model.id).querySelector('.select-action')?.focus();}
+function requestDelete(model,ids,bulk){
+  if(!ids.length)return;
+  pendingDelete={model,ids,bulk,trigger:document.activeElement};
+  const count=ids.length;
+  document.getElementById('dialog-title').textContent=bulk?`Delete ${count} ${count===1?'word':'words'}?`:'Delete Word?';
+  document.getElementById('dialog-description').textContent=bulk?`${count===model.words.length?'All '+count:'The selected'} word ${count===1?'rule will':'rules will'} be removed. This cannot be undone.`:`Delete “${model.words.find(word=>word.id===ids[0]).word}”? This cannot be undone.`;
+  document.getElementById('confirm-delete').textContent=bulk?`Delete ${count} ${count===1?'word':'words'}`:'Delete';
+  dialog.showModal();document.getElementById('cancel-delete').focus();
+}
+function cancelDelete(){const trigger=pendingDelete?.trigger;dialog.close();pendingDelete=null;if(trigger?.isConnected)trigger.focus();}
+document.getElementById('cancel-delete').addEventListener('click',cancelDelete);
+dialog.addEventListener('cancel',event=>{event.preventDefault();cancelDelete();});
+document.getElementById('confirm-delete').addEventListener('click',()=>{
+  if(!pendingDelete)return;
+  const {model,ids,bulk}=pendingDelete;dialog.close();pendingDelete=null;
+  const deleted=new Set(ids);model.words=model.words.filter(word=>!deleted.has(word.id));
+  if(bulk){model.selecting=false;model.selected.clear();}
+  renderList(model);
+  const root=document.getElementById(model.id);
+  const focusTarget=model.words.length?(root.querySelector('.select-action:not(:disabled)')||root.querySelector('input[type=search]')):root.querySelector('.new-word');
+  focusTarget?.focus();announce(`Deleted ${ids.length} ${ids.length===1?'word':'words'}. ${model.words.length} remain.`);
+});
+document.getElementById('reset-demo').addEventListener('click',()=>{if(dialog.open)cancelDelete();initialize('current');initialize('proposed');announce('Both examples reset to six sample words.');});
+document.getElementById('preview-selection').addEventListener('click',()=>{
+  const model=models.proposed;model.closed=false;model.query='';model.selecting=true;model.selected=new Set(model.words.slice(1,4).map(word=>word.id));renderShell(model);
+  const root=document.getElementById('proposed');root.scrollIntoView({behavior:'auto',block:'center'});root.querySelector('.bulk-delete').focus({preventScroll:true});
+});
+document.addEventListener('keydown',event=>{
+  if(dialog.open)return;
+  const root=document.activeElement?.closest('.sheet');
+  const model=root?models[root.id]:null;
+  if(!model||model.closed)return;
+  if(event.key==='Escape'&&model.selecting){event.preventDefault();endSelection(model);}
+  const editingText=document.activeElement?.matches('input:not([type=checkbox]),textarea');
+  if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='a'&&model.selecting&&!editingText){
+    event.preventDefault();visibleWords(model).forEach(word=>model.selected.add(word.id));updateSelectedRows(model);renderHeader(model);
+  }
+});
+initialize('current');initialize('proposed');
+</script>
+</body>
+</html>
