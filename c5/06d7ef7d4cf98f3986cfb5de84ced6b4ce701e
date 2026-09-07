@@ -1,0 +1,24 @@
+spec/contracts/meeting-recovery-retention.md
+  s_22bb9cc62aa032::t_123053c61525de 230-234
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingRecoveryService.swift
+  s_22bb9cc62aa032::t_d74608b5010a3a 418-422,435-445
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift
+  s_22bb9cc62aa032::t_855cb6816588ca 746-806
+  s_22bb9cc62aa032::t_123053c61525de 736-745,846,855-886,1399-1417
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "c506d7ef7d4cf98f3986cfb5de84ced6b4ce701e",
+  "prompts": {},
+  "sessions": {
+    "s_22bb9cc62aa032": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07acb-3805-79e1-afd1-a075ff4e2953",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
