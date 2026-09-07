@@ -591,6 +591,15 @@ final class MockTransformsClipboardService: ClipboardServiceProtocol, @unchecked
         false
     }
 
+    func pasteTextWithAction(
+        _ text: String,
+        postPasteAction: KeyAction?,
+        restoresClipboard: Bool,
+        requiredFrontmostBundleIdentifier: String?
+    ) async throws -> Bool {
+        false
+    }
+
     @discardableResult
     func copyToClipboard(_ text: String) async -> Bool {
         lastCopied = text

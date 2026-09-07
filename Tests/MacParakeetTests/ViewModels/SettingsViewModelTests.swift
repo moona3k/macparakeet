@@ -223,6 +223,10 @@ final class SettingsViewModelTests: XCTestCase {
             viewModel.keepDictationOnClipboard,
             "keepDictationOnClipboard should default to false (opt-in)"
         )
+        XCTAssertFalse(
+            viewModel.autoSubmitCodexDictation,
+            "Codex auto-submit should default to false (opt-in)"
+        )
         XCTAssertEqual(viewModel.dictationInsertionStyle, .sentence)
         XCTAssertTrue(viewModel.saveAudioRecordings, "saveAudioRecordings should default to true")
         XCTAssertTrue(viewModel.saveTranscriptionAudio, "saveTranscriptionAudio should default to true")
@@ -253,6 +257,7 @@ final class SettingsViewModelTests: XCTestCase {
         testDefaults.set(true, forKey: "silenceAutoStop")
         testDefaults.set(3.0, forKey: "silenceDelay")
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.keepDictationOnClipboardKey)
+        testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.autoSubmitCodexDictationKey)
         testDefaults.set(
             DictationInsertionStyle.inline.rawValue,
             forKey: UserDefaultsAppRuntimePreferences.dictationInsertionStyleKey
@@ -291,6 +296,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(vm.silenceAutoStop)
         XCTAssertEqual(vm.silenceDelay, 3.0)
         XCTAssertTrue(vm.keepDictationOnClipboard)
+        XCTAssertTrue(vm.autoSubmitCodexDictation)
         XCTAssertEqual(vm.dictationInsertionStyle, .inline)
         XCTAssertFalse(vm.saveAudioRecordings)
         XCTAssertFalse(vm.saveTranscriptionAudio)
@@ -1018,6 +1024,20 @@ final class SettingsViewModelTests: XCTestCase {
             return setting
         }
         XCTAssertEqual(settings, [.keepDictationOnClipboard])
+    }
+
+    func testSettingCodexAutoSubmitPersistsAndEmitsTelemetry() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        viewModel.autoSubmitCodexDictation = true
+
+        XCTAssertTrue(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.autoSubmitCodexDictationKey))
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting, _) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.codexAutoSubmit])
     }
 
     func testSettingDictationInsertionStylePersistsAndEmitsTelemetry() {

@@ -7,6 +7,7 @@ public actor MockClipboardService: ClipboardServiceProtocol {
         public let pastedTexts: [String]
         public let lastCopiedText: String?
         public let lastPostPasteAction: KeyAction?
+        public let lastRequiredFrontmostBundleIdentifier: String?
         public let lastRestoresClipboard: Bool?
         public let pasteCallCount: Int
     }
@@ -15,10 +16,12 @@ public actor MockClipboardService: ClipboardServiceProtocol {
     public var pastedTexts: [String] = []
     public var lastCopiedText: String?
     public var lastPostPasteAction: KeyAction?
+    public var lastRequiredFrontmostBundleIdentifier: String?
     public var lastRestoresClipboard: Bool?
     public var pasteCallCount = 0
     private var pasteError: Error?
     private var pasteDelayMs: UInt64 = 0
+    private var postPasteActionFired = true
 
     public init() {}
 
@@ -28,6 +31,7 @@ public actor MockClipboardService: ClipboardServiceProtocol {
             pastedTexts: pastedTexts,
             lastCopiedText: lastCopiedText,
             lastPostPasteAction: lastPostPasteAction,
+            lastRequiredFrontmostBundleIdentifier: lastRequiredFrontmostBundleIdentifier,
             lastRestoresClipboard: lastRestoresClipboard,
             pasteCallCount: pasteCallCount
         )
@@ -54,10 +58,29 @@ public actor MockClipboardService: ClipboardServiceProtocol {
         try await pasteTextWithAction(text, postPasteAction: postPasteAction, restoresClipboard: true)
     }
 
-    public func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?, restoresClipboard: Bool) async throws -> Bool {
+    public func pasteTextWithAction(
+        _ text: String,
+        postPasteAction: KeyAction?,
+        restoresClipboard: Bool
+    ) async throws -> Bool {
+        try await pasteTextWithAction(
+            text,
+            postPasteAction: postPasteAction,
+            restoresClipboard: restoresClipboard,
+            requiredFrontmostBundleIdentifier: nil
+        )
+    }
+
+    public func pasteTextWithAction(
+        _ text: String,
+        postPasteAction: KeyAction?,
+        restoresClipboard: Bool,
+        requiredFrontmostBundleIdentifier: String?
+    ) async throws -> Bool {
         lastPostPasteAction = postPasteAction
+        lastRequiredFrontmostBundleIdentifier = requiredFrontmostBundleIdentifier
         try await pasteText(text, restoresClipboard: restoresClipboard)
-        return postPasteAction != nil
+        return postPasteAction != nil && postPasteActionFired
     }
 
     public func copyToClipboard(_ text: String) async -> Bool {
@@ -71,5 +94,9 @@ public actor MockClipboardService: ClipboardServiceProtocol {
 
     public func setPasteDelayMs(_ delayMs: UInt64) {
         pasteDelayMs = delayMs
+    }
+
+    public func setPostPasteActionFired(_ fired: Bool) {
+        postPasteActionFired = fired
     }
 }
