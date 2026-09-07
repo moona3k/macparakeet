@@ -307,7 +307,7 @@ events remain useful for diarization-specific timing and failure analysis.
 | Event | Props | Question It Answers |
 |---|---|---|
 | `diarization_started` | — | How often is diarization used? |
-| `diarization_completed` | `duration_seconds`, `speaker_count` | How long does it take? How many speakers? |
+| `diarization_completed` | `duration_seconds`, `speaker_count`, `speaker_prior` (meetings only, the effective policy: `explicit_cli` when a CLI speaker flag overrode the calendar prior, else `unconstrained_no_attendee_count`, `unconstrained_large_attendee_count`, or `bounds_1_<n+1>` derived from the countable calendar attendee count; no identities) | How long does it take? How many speakers? Did the attendee prior apply? |
 | `diarization_failed` | `error_type` | What breaks in diarization? |
 
 ### 4. Feature Adoption — "What features matter?"

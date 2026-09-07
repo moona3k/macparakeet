@@ -1,0 +1,35 @@
+# Evidence: Zoom, Microsoft Teams, Google Meet, Otter, Pixel Recorder (observed 2026-09-06)
+
+## Zoom
+
+- Local recording per participant: Zoom client Settings > Recording > "Record a separate audio file for each participant" produces one file per participant, file name beginning with the participant's name; cloud recording does not offer per-participant files. Official article https://support.zoom.us/hc/en-us/articles/201362473 redirects to KB0063640; the fetched KB0063640 text did not include this paragraph, so the wording is from secondary sources (TechRepublic, Sonix help) and AssemblyAI's notetaker guide, all consistent. Treat the feature as real, the exact official wording as unverified.
+- Cloud audio transcript (https://support.zoom.com/hc/en/article?id=zm_kb&sysparm_article=KB0064927): transcript is a VTT with timestamps; "If a phrase belongs to an unknown speaker, you can also hover over Unknown Speaker" and "click the pencil icon to edit their name"; edits are per phrase.
+- Smart name tags for voice in Zoom Rooms (https://support.zoom.com/hc/en/article?id=zm_kb&sysparm_article=KB0077409): enrollment "Click Start recording then read the provided text out loud"; users "separately enroll and consent through their Zoom account"; "Enrolled users' reference audio data is stored in the Zoom cloud"; "users can disable this feature or delete their reference audio data from their profile at any time"; the room "will compare the audio of in-meeting participants in the Zoom Room against the reference audio data of enrolled users"; unenrolled in-room people get "a generic name tag (e.g. Speaker 1)"; "perform best when applied to 1-16 in-room participants"; requires the room and enrolled users on the invite.
+- Voice Recorder with AI Companion (https://support.zoom.com/hc/en/article?id=zm_kb&sysparm_article=KB0080794): speaker names are edited manually after recording ("Enter the name to search your contact list"; "Revert to return to the default name"). Auto-labeling internals not documented.
+
+## Microsoft Teams
+
+- Voice recognition admin doc (https://learn.microsoft.com/en-us/microsoftteams/rooms/voice-recognition, page dated 2026-08-27): "the meeting transcript is able to not only distinguish between different speakers in the room, but also identify them and attribute them to the correct person." "In a hybrid meeting, without speaker recognition, the video, and audio feed for people in the room would be attributed to the space (for example, Conference Room 1), not the individuals speaking". Policy `roomAttributeUserOverride`: Off / Attribute ("Users who are enrolled are shown with their name in the transcription. Users who aren't enrolled show as Speaker.") / Distinguish ("speaker 1, speaker 2, ...", names never shown). "People to be identified in the room, need to be enrolled with their voice profile and be invited to the scheduled meeting." Limit "50 invitees" with profiles. Suggest "limiting the number of in person attendees to 10 people".
+- Voice and face enrollment (https://learn.microsoft.com/en-us/microsoftteams/rooms/voice-and-face-recognition, dated 2026-04-16): opt-in; "Generating a voice profile using in-meeting speech typically takes a couple of meetings", or manual enrollment; "Microsoft doesn't use the voice and face profiles of users to train any models"; profile "removed right away if the user unenrolls"; unused profiles "removed automatically" after one year; users can export their own data, admins cannot; voice isolation keeps "a local copy of the voice profile ... stored encrypted" that "expires after 14 days".
+- Support page (https://support.microsoft.com/en-us/teams/calls-devices/use-microsoft-teams-intelligent-speakers-to-identify-in-room-participants-in-a-meeting-transcription): "the post-meeting transcript identifies both remote and in-room attendees, except any who choose not to be identified." "Without speaker recognition, audio will be attributed to the room in AI notes." "if more than 50 invited participants have voices enrolled, voice identification will not function."
+- Remote participants are attributed by their signed-in identity per stream (implied by the "attributed to the space" contrast; no separate mechanism page was found).
+
+## Google Meet
+
+- Use transcripts (https://support.google.com/meet/answer/12849897?hl=en): "Only the spoken words in a meeting are included in the transcripts." Eight languages. Attached to the Calendar event. The page does not describe the attribution mechanism. Community thread https://support.google.com/meet/thread/208156729 (all speech under one name) could not be read in full; consistent with per-participant-stream attribution where a shared device collapses to one name. Mechanism otherwise unknown from official docs.
+
+## Otter (help.otter.ai returned 403 to direct fetch; content from search snippets of the official articles on 2026-09-06)
+
+- Speaker Identification Overview (https://help.otter.ai/hc/en-us/articles/21665587209367): "You only need to tag a Speaker # once. Each time you tag a speaker, Otter will be able to recognize that speaker in future conversations"; algorithm "learns from just a few tagged paragraphs for each speaker".
+- Tagging (https://help.otter.ai/hc/en-us/articles/360048465453): "When you tag a speaker, Otter will automatically tag all other associated Speaker #s in the conversation"; tagging "trains Otter to automatically identify speakers in future conversations".
+- Rename (https://help.otter.ai/hc/en-us/articles/21665980053655): rename "will update that speaker's tag across all conversations"; only speakers you added.
+- Rematch (https://help.otter.ai/hc/en-us/articles/21665876084119): "Otter will use your account or Workspace's present-day speaker data to tag any Speaker #s with a matched speaker"; cannot rematch "unknown speakers".
+- Best practices (https://help.otter.ai/hc/en-us/articles/37817241040535): keep display names consistent; "ensure each paragraph contains audio from only one speaker, as mixing multiple speakers in a single paragraph can reduce future speaker identification accuracy"; import past audio and label frequent speakers; "Avoid speaking over one another."
+- Disable Speaker Learning (https://help.otter.ai/hc/en-us/articles/40643231903639): enterprise setting; "Otter will not build or update voice profiles"; labels then "rely on participant names provided by your video conferencing platform"; "Otter still separates the transcript into turns and groups bubbles by speaker — it just won't use stored voice data to identify who those speakers are."
+
+## Google Pixel Recorder speaker labels (https://support.google.com/pixelphone/answer/16269004?hl=en)
+
+- On-device: "Computes models of the voices detected in the recording on the device."
+- Labels "Speaker 1, Speaker 2, Speaker 3".
+- "If you change a speaker label for an individual paragraph in the transcript, the same speaker labels in other paragraphs won't change."
+- Voice models "stored temporarily on your device and deleted within a few minutes after labeling is complete". US English only.

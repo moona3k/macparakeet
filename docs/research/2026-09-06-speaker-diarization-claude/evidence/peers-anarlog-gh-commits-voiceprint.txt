@@ -1,0 +1,4 @@
+80bae38de 2026-09-03 Name the last remote speaker by elimination when counts match (#7282)
+760f9e44d 2026-08-26 Name speakers from 1:1 participants and unique voiceprints (#7100)
+29711a66b 2026-08-15 Reduce desktop capture resource overhead (#6797)
+638d9f8a8 2026-08-11 feat(desktop): remember speakers via on-device voiceprints (#6647)

@@ -1499,16 +1499,34 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService, Aud
         guard let systemWavURL = sourceWavURLs[.system] else { return nil }
 
         lifecycleStage = .diarization
+        // Attendee prior from the calendar snapshot captured at record start
+        // (min 1, max n + 1: it can cap over-splitting but never forces
+        // clusters), unless the service carries an explicit user constraint,
+        // which wins. Diagnostics record the effective policy.
+        let speakerPolicy = MeetingSpeakerPolicy.resolve(
+            prior: MeetingSpeakerPrior.derive(from: recording.calendarEventSnapshot),
+            explicitConstraint: await diarizationService.explicitSpeakerConstraint()
+        )
         do {
             onProgress?(.identifyingSpeakers)
             Telemetry.send(.diarizationStarted(source: .meeting))
             let diarStartedAt = Date()
-            let diarResult = try await diarizationService.diarize(audioURL: systemWavURL)
+            let diarResult = try await diarizationService.diarize(
+                audioURL: systemWavURL,
+                speakerConstraint: speakerPolicy.speakerConstraintHint
+            )
             let diarDuration = Date().timeIntervalSince(diarStartedAt)
+            logger.notice(
+                "meeting_system_diarization_completed prior=\(speakerPolicy.diagnosticsLabel, privacy: .public) speakers=\(diarResult.speakerCount, privacy: .public) segments=\(diarResult.segments.count, privacy: .public) duration_s=\(String(format: "%.2f", diarDuration), privacy: .public)"
+            )
+            AudioCaptureDiagnostics.append(
+                "meeting_system_diarization_completed session=\(recording.sessionID.uuidString) prior=\(speakerPolicy.diagnosticsLabel) speakers=\(diarResult.speakerCount) segments=\(diarResult.segments.count) duration_s=\(String(format: "%.2f", diarDuration))"
+            )
             Telemetry.send(.diarizationCompleted(
                 source: .meeting,
                 speakerCount: diarResult.speakerCount,
-                durationSeconds: diarDuration
+                durationSeconds: diarDuration,
+                speakerPrior: speakerPolicy.diagnosticsLabel
             ))
 
             guard !diarResult.segments.isEmpty else { return nil }

@@ -1,0 +1,13 @@
+0b0d79b0d 2026-09-02 Keep local diarization alive, repair the CoreML cache, simplify the diarizer (#7251)
+ba1bfbd09 2026-09-02 Add on-device speaker diarization for local transcription (#7244)
+c39df9b2e 2026-07-29 Remove obsolete support backend (#6351)
+bf1a01304 2026-02-22 comeback to static linking onnx runtime
+40f274b5d 2026-02-19 version bump and changelog
+60652e495 2026-01-26 Add #[ignore] to tests requiring external resources and update CI to test crates (#3374)
+f9f0a7e52 2025-12-29 another rodio fixes
+440207d94 2025-12-12 update rust, edition, and formatting
+fa8ab98d6 2025-11-25 fix: apply clippy auto-fixes and manual fixes (#1866)
+032a22621 2025-08-05 chores
+f55f94331 2025-07-04 Support Windows audio (#1056)
+a40749541 2025-06-25 chores
+3c088f363 2025-06-23 Tweak accelerators (#993)

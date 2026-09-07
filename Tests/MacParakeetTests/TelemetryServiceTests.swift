@@ -662,6 +662,44 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertEqual(props["stack_trace"], "0x1234\n0x5678")
     }
 
+    func testDiarizationCompletedSerializesSpeakerPriorOnlyWhenPresent() throws {
+        let withPrior = TelemetryEvent(
+            spec: .diarizationCompleted(
+                source: .meeting,
+                speakerCount: 2,
+                durationSeconds: 3.5,
+                speakerPrior: "bounds_1_3"
+            ),
+            appVer: "0.8.0",
+            osVer: "15.3",
+            locale: "en-US",
+            chip: "Apple M1",
+            session: "test-session"
+        )
+        let withoutPrior = TelemetryEvent(
+            spec: .diarizationCompleted(source: .file, speakerCount: 2, durationSeconds: 3.5),
+            appVer: "0.8.0",
+            osVer: "15.3",
+            locale: "en-US",
+            chip: "Apple M1",
+            session: "test-session"
+        )
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let withPriorProps = try XCTUnwrap(
+            (JSONSerialization.jsonObject(with: try encoder.encode(withPrior)) as? [String: Any])?["props"] as? [String: String]
+        )
+        let withoutPriorProps = try XCTUnwrap(
+            (JSONSerialization.jsonObject(with: try encoder.encode(withoutPrior)) as? [String: Any])?["props"] as? [String: String]
+        )
+
+        XCTAssertEqual(withPriorProps["source"], "meeting")
+        XCTAssertEqual(withPriorProps["speaker_count"], "2")
+        XCTAssertEqual(withPriorProps["speaker_prior"], "bounds_1_3")
+        XCTAssertNil(withoutPriorProps["speaker_prior"])
+    }
+
     func testTranscriptionCompletedSerializesDiarizationContext() throws {
         let event = TelemetryEvent(
             spec: .transcriptionCompleted(

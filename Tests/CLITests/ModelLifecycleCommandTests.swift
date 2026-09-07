@@ -1211,7 +1211,10 @@ private actor StubDiarizationService: DiarizationServiceProtocol {
         cachedModels = value
     }
 
-    func diarize(audioURL: URL) async throws -> MacParakeetDiarizationResult {
+    func diarize(
+        audioURL: URL,
+        speakerConstraint: SpeakerDiarizationConstraint?
+    ) async throws -> MacParakeetDiarizationResult {
         MacParakeetDiarizationResult(segments: [], speakerCount: 0, speakers: [])
     }
 

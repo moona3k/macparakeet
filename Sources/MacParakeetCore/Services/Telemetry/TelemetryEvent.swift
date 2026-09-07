@@ -676,7 +676,15 @@ public enum TelemetryEventSpec: Sendable {
         platform: TelemetryURLPlatform? = nil
     )
     case diarizationStarted(source: TelemetryTranscriptionSource)
-    case diarizationCompleted(source: TelemetryTranscriptionSource, speakerCount: Int, durationSeconds: Double)
+    /// `speakerPrior` is the PII-free label of the speaker-count prior applied
+    /// to the run (`MeetingSpeakerPrior.diagnosticsLabel`); `nil` for runs
+    /// without one (file/URL transcription).
+    case diarizationCompleted(
+        source: TelemetryTranscriptionSource,
+        speakerCount: Int,
+        durationSeconds: Double,
+        speakerPrior: String? = nil
+    )
     case diarizationFailed(source: TelemetryTranscriptionSource, errorType: String, errorDetail: String? = nil)
     case exportUsed(format: String)
     case exportFailed(format: String, errorType: String, errorDetail: String? = nil)
@@ -1290,12 +1298,16 @@ extension TelemetryEventSpec {
             )
         case .diarizationStarted(let source):
             return ["source": source.rawValue]
-        case .diarizationCompleted(let source, let speakerCount, let durationSeconds):
-            return [
+        case .diarizationCompleted(let source, let speakerCount, let durationSeconds, let speakerPrior):
+            var props = [
                 "source": source.rawValue,
                 "speaker_count": "\(speakerCount)",
                 "duration_seconds": Self.format(durationSeconds),
             ]
+            if let speakerPrior {
+                props["speaker_prior"] = speakerPrior
+            }
+            return props
         case .diarizationFailed(let source, let errorType, _):
             let props = ["source": source.rawValue, "error_type": errorType]
             return props

@@ -86,11 +86,20 @@ public struct EventParticipant: Codable, Sendable, Hashable {
     public var email: String?
     public var name: String?
     public var status: ParticipantStatus
+    /// EventKit participant type. Optional so events encoded before the field
+    /// existed still decode; `nil` is treated as a person.
+    public var kind: ParticipantKind?
 
-    public init(email: String? = nil, name: String? = nil, status: ParticipantStatus = .unknown) {
+    public init(
+        email: String? = nil,
+        name: String? = nil,
+        status: ParticipantStatus = .unknown,
+        kind: ParticipantKind? = nil
+    ) {
         self.email = email
         self.name = name
         self.status = status
+        self.kind = kind
     }
 
     public enum ParticipantStatus: String, Codable, Sendable {
@@ -98,6 +107,14 @@ public struct EventParticipant: Codable, Sendable, Hashable {
         case declined
         case tentative
         case pending
+        case unknown
+    }
+
+    public enum ParticipantKind: String, Codable, Sendable {
+        case person
+        case room
+        case resource
+        case group
         case unknown
     }
 }

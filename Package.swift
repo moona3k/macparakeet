@@ -9,10 +9,13 @@ let enableMLXLocalLLM = ProcessInfo.processInfo.environment["MACPARAKEET_ENABLE_
 let packageDependencies: [Package.Dependency] = [
     // GRDB for SQLite (dictation history + transcription records)
     .package(url: "https://github.com/groue/GRDB.swift", from: "7.0.0"),
-    // FluidAudio for Parakeet and Nemotron STT on CoreML/ANE. Keep this exact
-    // until MacParakeet migrates from DownloadUtils to the ModelHub API that
-    // replaced it in the breaking 0.15.5 release.
-    .package(url: "https://github.com/FluidInference/FluidAudio", exact: "0.15.4"),
+    // FluidAudio for Parakeet, Nemotron, and Cohere STT plus offline speaker
+    // diarization on CoreML/ANE. Pinned exact: the STT engines depend on the
+    // registry's model file names and the ModelHub download API, and the
+    // diarizer's clustering semantics changed between minor releases
+    // (0.15.5 and 0.15.6, see ADR-010). Bump deliberately with an STT
+    // regression pass and a diarization before/after comparison.
+    .package(url: "https://github.com/FluidInference/FluidAudio", exact: "0.15.6"),
     // ArgumentParser for CLI
     .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
     // Sparkle for auto-updates (non-App Store distribution)

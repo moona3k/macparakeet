@@ -1548,7 +1548,7 @@ public actor STTRuntime: STTRuntimeProtocol {
             try? FileManager.default.removeItem(at: AppPaths.resolvedFluidAudioModelsDir(environment: environment))
             return
         }
-        DownloadUtils.clearAllModelCaches()
+        ModelHub.clearAllCaches()
     }
 
     public func setSpeechEngine(_ preference: SpeechEnginePreference) async throws {
@@ -2242,7 +2242,7 @@ public actor STTRuntime: STTRuntimeProtocol {
             throw STTError.engineBusy
         }
 
-        let engine = NemotronEnglishEngine()
+        let engine = NemotronEnglishEngine(inferenceGate: inferenceGate)
         nemotronEnglishEngine = engine
         return engine
     }
@@ -2587,6 +2587,8 @@ public actor STTRuntime: STTRuntimeProtocol {
                 return .transcriptionFailed(message)
             case .unsupportedPlatform(let message):
                 return .engineStartFailed(message)
+            case .encoderInstantiationFailed(let message):
+                return .engineStartFailed(message)
             case .streamingConversionFailed, .fileAccessFailed:
                 return .transcriptionFailed(asrError.localizedDescription)
             }
@@ -2615,7 +2617,7 @@ public actor STTRuntime: STTRuntimeProtocol {
     /// loading and the Parakeet variant pre-download so both report identically.
     private nonisolated static func makeDownloadProgressHandler(
         _ onProgress: (@Sendable (String) -> Void)?
-    ) -> DownloadUtils.ProgressHandler? {
+    ) -> ProgressHandler? {
         guard let onProgress else { return nil }
         let clock = ContinuousClock()
         let lastProgressUpdate = OSAllocatedUnfairLock(initialState: clock.now - .seconds(1))
@@ -2641,7 +2643,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         }
     }
 
-    private nonisolated static func warmUpProgressMessage(from progress: DownloadUtils.DownloadProgress) -> String? {
+    private nonisolated static func warmUpProgressMessage(from progress: DownloadProgress) -> String? {
         switch progress.phase {
         case .listing:
             return "Preparing speech model download..."

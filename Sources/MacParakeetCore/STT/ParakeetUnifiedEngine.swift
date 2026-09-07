@@ -248,8 +248,21 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
         requiredStreamingModelFiles()
     }
 
+    /// Since FluidAudio 0.15.6 the registry's required set covers only the
+    /// context-independent files (decoder, joint, vocab, metadata); each
+    /// streaming encoder tier is a distinct bundle that the manager requests
+    /// via `additionalModelNames`. Add MacParakeet's tier (the default
+    /// `70_13_13`, the same file name 0.15.4 shipped) so the cache check and
+    /// the explicit pre-download stay complete. The CoreML preprocessor that
+    /// 0.15.4 downloaded is neither fetched nor loaded any more; an existing
+    /// copy on disk is harmless.
     nonisolated static func requiredStreamingModelFiles() -> Set<String> {
         ModelNames.ParakeetUnified.requiredModels(variant: streamingDownloadVariant)
+            .union([streamingEncoderFile])
+    }
+
+    private nonisolated static var streamingEncoderFile: String {
+        ModelNames.ParakeetUnified.streamingEncoderFile(precision: encoderPrecision)
     }
 
     nonisolated static func requiredAllModelFiles() -> Set<String> {
@@ -317,10 +330,11 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
             FileManager.default.fileExists(atPath: cacheRoot.appendingPathComponent($0).path)
         }) {
             onProgress?("Preparing Parakeet Unified streaming model download...")
-            try await DownloadUtils.downloadRepo(
+            try await ModelHub.download(
                 .parakeetUnified,
                 to: modelsBaseDirectory(),
                 variant: streamingDownloadVariant,
+                additionalModelNames: [streamingEncoderFile],
                 progressHandler: progressHandler
             )
         }
@@ -453,7 +467,7 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
 
     private nonisolated static func makeDownloadProgressHandler(
         _ onProgress: (@Sendable (String) -> Void)?
-    ) -> DownloadUtils.ProgressHandler? {
+    ) -> ProgressHandler? {
         guard let onProgress else { return nil }
         let clock = ContinuousClock()
         let lastProgressUpdate = OSAllocatedUnfairLock(initialState: clock.now - .seconds(1))
@@ -479,7 +493,7 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
         }
     }
 
-    private nonisolated static func progressMessage(from progress: DownloadUtils.DownloadProgress) -> String? {
+    private nonisolated static func progressMessage(from progress: DownloadProgress) -> String? {
         switch progress.phase {
         case .listing:
             return "Preparing Parakeet Unified model download..."
@@ -527,6 +541,8 @@ public actor ParakeetUnifiedEngine: STTTranscribing, NativeLiveDictating {
             case .processingFailed(let message):
                 return .transcriptionFailed(message)
             case .unsupportedPlatform(let message):
+                return .engineStartFailed(message)
+            case .encoderInstantiationFailed(let message):
                 return .engineStartFailed(message)
             case .streamingConversionFailed, .fileAccessFailed:
                 return .transcriptionFailed(asrError.localizedDescription)

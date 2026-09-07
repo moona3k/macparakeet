@@ -155,6 +155,12 @@ EventKit snapshot shape as `transcriptions.calendarEventSnapshot`: confidence,
 event identifiers, scheduled time range, title, attendee/organizer names and
 emails, meeting URL/service, and capture timestamp.
 
+Attendee and organizer entries may also contain optional `status` (`accepted`,
+`declined`, `tentative`, `pending`, `unknown`) and `kind` (`person`, `room`,
+`resource`, `group`, `unknown`) strings captured from EventKit. Older snapshots
+without these fields remain readable. These fields stay local with the snapshot;
+speaker-prior telemetry contains only the resulting policy label.
+
 `manifest.meeting.meetingCaptureReport`, `transcript.json`'s optional
 `meetingCaptureReport`, and `MeetingArtifactSnapshot.meetingCaptureReport` use
 the same additive shape as `transcriptions.meetingCaptureReport`:
