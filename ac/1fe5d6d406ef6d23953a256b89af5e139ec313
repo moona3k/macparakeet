@@ -1,0 +1,42 @@
+Sources/MacParakeetCore/Models/BranchingRecordingCoverRecipe.swift
+  s_8408739a4a9fbb::t_f0f4afd041424f 1-8,11-38,42-58,62-68,71-158,160-190,192-198,200-204,206,210,212-213,215-216,221-277
+  s_8408739a4a9fbb::t_a5481ef9aeeb45 159,191,199
+  s_8408739a4a9fbb::t_f992a7b6a8796c 39-41,59-61,209,214,217-220
+  s_8408739a4a9fbb::t_183a921bfd84b4 9-10,205,207-208,211
+  s_8408739a4a9fbb::t_b7a1a6d56ef3e0 69-70
+Sources/MacParakeet/Views/Transcription/TranscriptionThumbnailCard.swift
+  s_8408739a4a9fbb::t_d71964dfd7ddde 172-176,199-203,206-208
+Tests/MacParakeetTests/Views/BranchingRecordingCoverViewTests.swift
+  s_8408739a4a9fbb::t_672d08439dc66a 22-25,43,45,50,58-59,70
+  s_8408739a4a9fbb::t_551a9a89bce2d0 30-36,38,75,77
+  s_8408739a4a9fbb::t_59511d7c5f941c 1-21,26-29,37,39-42,44,46-49,51-57,60-69,71-74,76,78-90
+Tests/MacParakeetTests/Models/BranchingRecordingCoverRecipeTests.swift
+  s_8408739a4a9fbb::t_f992a7b6a8796c 43
+  s_8408739a4a9fbb::t_59511d7c5f941c 2-13,16-42,44-68
+  s_8408739a4a9fbb::t_551a9a89bce2d0 1
+  s_8408739a4a9fbb::t_183a921bfd84b4 14-15
+spec/04-ui-patterns.md
+  s_8408739a4a9fbb::t_d71964dfd7ddde 169-177
+Sources/MacParakeet/Views/Components/BranchingRecordingCoverView.swift
+  s_8408739a4a9fbb::t_8f09c1af9a1e55 57,109-110
+  s_8408739a4a9fbb::t_a85c42969b420c 1-9,11-12,14-35,37-56,58-108,111-166
+  s_8408739a4a9fbb::t_f992a7b6a8796c 10,13,36
+docs/plans/2026-09-08-recording-branching-covers.md
+  s_8408739a4a9fbb::t_eb4955fa0d84e0 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "ac1fe5d6d406ef6d23953a256b89af5e139ec313",
+  "prompts": {},
+  "sessions": {
+    "s_8408739a4a9fbb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ae-f1a3-7481-bf0f-88e289444b74",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
