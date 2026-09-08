@@ -1,0 +1,33 @@
+Sources/MacParakeetCore/Services/Telemetry/TelemetryService.swift
+  s_51167108b04048::t_15787e43bfbe66 395-396
+Tests/MacParakeetTests/TelemetryServiceTests.swift
+  s_22bb9cc62aa032::t_540589f373aca3 572-591
+docs/telemetry.md
+  s_51167108b04048::t_b824bc3809017e 891-894
+spec/contracts/telemetry-v1.md
+  s_51167108b04048::t_2980ccb91f7644 46-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "38e66b1a9d6829eb06f177460e7753a2a23c8bdc",
+  "prompts": {},
+  "sessions": {
+    "s_22bb9cc62aa032": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07acb-3805-79e1-afd1-a075ff4e2953",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_51167108b04048": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07f63-e141-7bc2-94bb-06573889d7b6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
