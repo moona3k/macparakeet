@@ -1,0 +1,53 @@
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_8408739a4a9fbb::t_8a7b04af484931 1698-1702
+Sources/MacParakeet/Views/MeetingRecording/MeetingAudioStateChip.swift
+  s_8408739a4a9fbb::t_63b782de7ec262 28-30
+  s_8408739a4a9fbb::t_ec5ce2f3dc9d5b 31-34
+  s_8408739a4a9fbb::t_eac9543a067cf9 6,10-27,35-37,56,65,74
+Sources/MacParakeet/Views/MeetingRecording/MeetingDeletionCopy.swift
+  s_8408739a4a9fbb::t_414703652dbf53 116
+Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift
+  s_8408739a4a9fbb::t_ad3a72d545ab59 918,923,1069,1075,1081-1083,1093,1098-1100
+  s_8408739a4a9fbb::t_e23d9e7c6a1b00 1076-1080,1084,1088-1092,1094
+  s_bf1e136b8651b9::t_ef6465e5d2cce2 1101
+Sources/MacParakeet/Views/MeetingRecording/MeetingRowCard.swift
+  s_8408739a4a9fbb::t_8a7b04af484931 159-162
+  s_8408739a4a9fbb::t_eac9543a067cf9 28-32,199,412
+  s_8408739a4a9fbb::t_414703652dbf53 379,420
+  s_bf1e136b8651b9::t_79eb899eb65404 163
+Sources/MacParakeet/Views/Transcription/TranscriptionThumbnailCard.swift
+  s_8408739a4a9fbb::t_eac9543a067cf9 59,61-64,273-275
+  s_8408739a4a9fbb::t_8a7b04af484931 237-249
+  s_8408739a4a9fbb::t_e23d9e7c6a1b00 60,305,310-311
+  s_bf1e136b8651b9::t_d9e92a0b4c81c3 312-313
+Sources/MacParakeet/Views/MeetingRecording/MeetingClassificationControls.swift
+  s_8408739a4a9fbb::t_414703652dbf53 203,224-226,240-249,300,385-389,739
+  s_8408739a4a9fbb::t_e23d9e7c6a1b00 458
+  s_bf1e136b8651b9::t_b74dfeb1f5b4be 390-391
+Sources/MacParakeet/Views/Transcription/FavoriteStatusMarker.swift
+  s_8408739a4a9fbb::t_87b6cdda337a24 1-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "1d61f67718612b6d4641304b42507c867af3eae8",
+  "prompts": {},
+  "sessions": {
+    "s_8408739a4a9fbb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ae-f1a3-7481-bf0f-88e289444b74",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_bf1e136b8651b9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07acf-e22f-7a43-92de-449a7da081f2",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
