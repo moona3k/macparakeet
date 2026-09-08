@@ -1,0 +1,75 @@
+docs/telemetry-api.md
+  s_51167108b04048::t_be263f401e9df9 25,27,37,55,60,121-164
+docs/telemetry-reviewer.md
+  s_51167108b04048::t_adca74230bf437 36-38,142-149
+docs/telemetry-snapshot-refresh.md
+  s_51167108b04048::t_6755b1f37848f3 1-31
+functions/api/stats.ts
+  s_51167108b04048::t_b5bcf15b25633f 1,4,18-20,70-71,77-78,104,109,118,126,149,160,165,197,202-204,206,218-219,225-232,235-236,245-248,253-254,256,260-261,303,327,331-332,675,973,985,1166-1168,1472,1478,1668-1682,1684-1711,1713-1719,1721-1722,1724-1773
+functions/api/telemetry.ts
+  s_51167108b04048::t_859ede7b8ab196 1-2,202,249,316,324,368-370,454-457,459,472,474-476,485-502
+functions/lib/crash-health.mjs
+  s_51167108b04048::t_01680c9f4169b7 1,27
+functions/lib/public-dimensions.mjs
+  s_51167108b04048::t_5250fca4665d86 1-436
+functions/lib/published-releases.mjs
+  s_51167108b04048::t_622ae3d9e91a5c 1-54
+functions/lib/stats-refresh.mjs
+  s_51167108b04048::t_64747a94b70ba5 1-30
+functions/lib/stats-response.mjs
+  s_51167108b04048::t_4685fb9931e960 1-2,9,14,16-22,24,32-36,59,73
+functions/lib/telemetry-rollups.mjs
+  s_51167108b04048::t_a63c72a5bc7259 61-73
+package.json
+  s_51167108b04048::t_76677103530223 12,16
+scripts/d1-schema.sql
+  s_51167108b04048::t_b5e259edb17a21 83-88
+scripts/migrations/2026-09-08-stats-refresh-lease.sql
+  s_51167108b04048::t_8220d3e1ed2e96 1-6
+scripts/sync-telemetry-releases.mjs
+  s_51167108b04048::t_39b27a7558432a 1-9
+scripts/telemetry-review.mjs
+  s_51167108b04048::t_065374dc42d001 3-4,29-31,712-715
+src/lib/stats-client.mjs
+  s_51167108b04048::t_64ae04674e7fb3 1-75
+src/lib/stats-dom.mjs
+  s_51167108b04048::t_8ccce805cfd53f 1-81
+src/pages/stats.astro
+  s_51167108b04048::t_84ba2d34e53d22 31,63,83,124,188,206,1369,1452,1460,1482,1489,1553,1606-1613,1839,2106-2108,2148-2186,2194-2195,2201,2214-2215,2303-2308,2330,2392,2397,2455-2456,2493,2681,2766,2895,2961,3036,3074,3126,3207,3272,3514,3694,3816,3950,4012,4175,4232,4359,4423,4452,4513,4573,4626,4669,4729,4776,4818,4842,4877,4909,4977,5038,5108,5160,5193,5284,5317-5318,5323,5369,5412,5419,5445,5520-5521,5523-5526,5528-5530,5534-5549,5552-5554
+tests/public-dimensions.test.mjs
+  s_51167108b04048::t_cf7b9c5e69ae5d 1-77
+tests/published-releases.test.mjs
+  s_51167108b04048::t_db895dec600192 1-25
+tests/stats-client.test.mjs
+  s_51167108b04048::t_03258425ff883a 1-133
+tests/stats-dom.test.mjs
+  s_51167108b04048::t_8737e755b162e1 1-58
+tests/stats-refresh.test.mjs
+  s_51167108b04048::t_c36a8611351349 1-211
+tests/telemetry-boundary.test.mjs
+  s_51167108b04048::t_52211915068ca3 1-41
+tests/telemetry-handlers.test.mjs
+  s_51167108b04048::t_4fc59cb660b056 164,166,238,241,279
+workers/telemetry-rollup-core.mjs
+  s_51167108b04048::t_4dc2440d4124df 1,9,36
+workers/telemetry-snapshots.ts
+  s_51167108b04048::t_d6f3fcf09182a7 1-14
+wrangler.telemetry-snapshots.toml
+  s_51167108b04048::t_bdcd0365c0b907 1-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "402c42c5ebd57c2422713c65ba7c9c188956ae78",
+  "prompts": {},
+  "sessions": {
+    "s_51167108b04048": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07f63-e141-7bc2-94bb-06573889d7b6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
