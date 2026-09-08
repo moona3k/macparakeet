@@ -1,0 +1,60 @@
+Sources/MacParakeetCore/Models/BranchingRecordingCoverRecipe.swift
+  s_8408739a4a9fbb::t_f992a7b6a8796c 42-44,65-67,215,220,223-226
+  s_8408739a4a9fbb::t_5897a8d29c544c 11-13,48-49,231-248,252-269,273-290
+  s_8408739a4a9fbb::t_f0f4afd041424f 1-8,14-41,45-47,50-54,58-64,68-74,77-164,166-196,198-204,206-210,212,216,218-219,221-222,227-230,249-251,270-272,291-328
+  s_8408739a4a9fbb::t_0f62a2fd338e01 55-57
+  s_8408739a4a9fbb::t_183a921bfd84b4 9-10,211,213-214,217
+  s_8408739a4a9fbb::t_b7a1a6d56ef3e0 75-76
+  s_8408739a4a9fbb::t_a5481ef9aeeb45 165,197,205
+docs/plans/2026-09-08-recording-branching-covers.md
+  s_8408739a4a9fbb::t_71529746c5c2d9 31
+  s_8408739a4a9fbb::t_8d858c182ba9df 26-30,32
+  s_8408739a4a9fbb::t_85927a1525775d 33-34
+  s_8408739a4a9fbb::t_eb4955fa0d84e0 1-25,35-36
+Tests/MacParakeetTests/Views/BranchingRecordingCoverViewTests.swift
+  s_8408739a4a9fbb::t_8d858c182ba9df 63
+  s_8408739a4a9fbb::t_59511d7c5f941c 1,3-22,31-34,48,55-58,60,64,76-78,87-89,91,93-103,115-116
+  s_8408739a4a9fbb::t_804d310e5a672d 35,61
+  s_8408739a4a9fbb::t_551a9a89bce2d0 38-43,47,49,90,92
+  s_8408739a4a9fbb::t_672d08439dc66a 23-25,30,83
+  s_8408739a4a9fbb::t_4965982fc00140 36-37
+  s_8408739a4a9fbb::t_0ceda03777afe5 59,84-86
+  s_8408739a4a9fbb::t_ea78447da13d28 28-29,65-75
+  s_8408739a4a9fbb::t_5fe6e7b564f33e 2
+  s_8408739a4a9fbb::t_46a4b0f07132db 44-46,50-54,62,79-82,104-114
+  s_8408739a4a9fbb::t_dc0e2f5ec07177 26-27
+Sources/MacParakeet/Views/Transcription/TranscriptionThumbnailCard.swift
+  s_8408739a4a9fbb::t_d71964dfd7ddde 184-188,211-215,218-220
+Sources/MacParakeet/Views/Components/BranchingRecordingCoverView.swift
+  s_8408739a4a9fbb::t_f992a7b6a8796c 10,13,36
+  s_8408739a4a9fbb::t_8f09c1af9a1e55 57,111-112
+  s_8408739a4a9fbb::t_668e1a329014cc 63-69,80-86,113-123,129-130,135-136,143-145,147-148,150-158
+  s_8408739a4a9fbb::t_a85c42969b420c 1-9,11-12,14-35,37-56,58-62,70-79,87-110,124-128,131-134,137-142,146,149,159-191
+spec/04-ui-patterns.md
+  s_8408739a4a9fbb::t_d71964dfd7ddde 169-177
+Tests/MacParakeetTests/Models/BranchingRecordingCoverRecipeTests.swift
+  s_8408739a4a9fbb::t_5897a8d29c544c 28-31,37-38,57-63,100-110,112-143
+  s_8408739a4a9fbb::t_5e0a70e17af165 111
+  s_8408739a4a9fbb::t_420ab8451e4e46 32-35,79-99
+  s_8408739a4a9fbb::t_f992a7b6a8796c 54
+  s_8408739a4a9fbb::t_183a921bfd84b4 14-15
+  s_8408739a4a9fbb::t_4611cf7075d9e5 36
+  s_8408739a4a9fbb::t_551a9a89bce2d0 1
+  s_8408739a4a9fbb::t_59511d7c5f941c 2-13,16-27,39-53,55-56,64-78,144-145
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "8747368e00d54daa04656709afd6c79e16c93644",
+  "prompts": {},
+  "sessions": {
+    "s_8408739a4a9fbb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ae-f1a3-7481-bf0f-88e289444b74",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": null
+    }
+  }
+}
