@@ -1,0 +1,25 @@
+Sources/MacParakeet/Views/MeetingRecording/MeetingClassificationControls.swift
+  s_8408739a4a9fbb::t_ecad3099bae0bc 145,187-190,265,293-332,465-466
+  s_8408739a4a9fbb::t_b106347a2ef886 144,191,264,467-480,482-487
+  s_8408739a4a9fbb::t_6f9bc24cf9c8f6 192
+spec/04-ui-patterns.md
+  s_8408739a4a9fbb::t_ecad3099bae0bc 226-233
+Tests/MacParakeetTests/Views/LabelPopoverOptionsViewportTests.swift
+  s_8408739a4a9fbb::t_d795e7a39ce0ff 1-165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "5e18a6be306e5ee4fdf9870019707e2da62e2461",
+  "prompts": {},
+  "sessions": {
+    "s_8408739a4a9fbb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ae-f1a3-7481-bf0f-88e289444b74",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
