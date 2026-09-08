@@ -1,0 +1,28 @@
+docs/research/2026-09-08-prompt-validation-pilot.md
+  s_f094b28b7c7626::t_f88b9374fb1c96 90-93
+docs/research/2026-09-08-hotkey-test-isolation.md
+  s_f094b28b7c7626::t_ef8f2dcef704ee 53-59
+  s_f094b28b7c7626::t_4488aef2018187 1-30,60-65
+  s_f094b28b7c7626::t_dfe5fda4041a16 31-47
+  s_f094b28b7c7626::t_02a073d864bf1b 48-52
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_f094b28b7c7626::t_81613cf84de14a 11
+Tests/MacParakeetTests/Hotkey/HotkeyManagerTests.swift
+  s_f094b28b7c7626::t_81613cf84de14a 18-30,844,879,907,939,976,1004,1024,1051,1137,1377,1453,1490,1507,1539,1575,1648,1683,1742,1915,1953,1975,2010
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "07ebdac250bf62e84520a40169f22b032f230232",
+  "prompts": {},
+  "sessions": {
+    "s_f094b28b7c7626": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07ef5-2cb9-76a3-9259-49a74ae554a2",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
