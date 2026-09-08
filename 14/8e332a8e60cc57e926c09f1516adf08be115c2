@@ -1,0 +1,23 @@
+Sources/MacParakeetCore/Audio/README.md
+  s_b67d25964d6cb1::t_86718794992e42 67
+plans/active/2026-06-12-june-churn-regression-tests.md
+  s_b67d25964d6cb1::t_86718794992e42 137
+docs/research/vpio-process-tap-conflict.md
+  s_b67d25964d6cb1::t_86718794992e42 542
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "148e332a8e60cc57e926c09f1516adf08be115c2",
+  "prompts": {},
+  "sessions": {
+    "s_b67d25964d6cb1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0bf2-3e7b-7b73-8504-b253c2226cf8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

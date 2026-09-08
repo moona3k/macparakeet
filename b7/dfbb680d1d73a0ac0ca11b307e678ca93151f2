@@ -1,0 +1,30 @@
+docs/human-qa-guide.md
+  s_22bb9cc62aa032::t_99cf1f55556e9f 43-59,93-96
+spec/README.md
+  s_22bb9cc62aa032::t_99cf1f55556e9f 26
+  s_22bb9cc62aa032::t_0154f79e9d96f3 67
+spec/14-per-prompt-inference-settings.md
+  s_22bb9cc62aa032::t_99cf1f55556e9f 3-6,33-38
+spec/contracts/cli-json-v1.md
+  s_22bb9cc62aa032::t_99cf1f55556e9f 107-109
+integrations/README.md
+  s_22bb9cc62aa032::t_99cf1f55556e9f 8
+docs/distribution.md
+  s_22bb9cc62aa032::t_7ecc42ec6f63be 647
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "b7dfbb680d1d73a0ac0ca11b307e678ca93151f2",
+  "prompts": {},
+  "sessions": {
+    "s_22bb9cc62aa032": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07acb-3805-79e1-afd1-a075ff4e2953",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

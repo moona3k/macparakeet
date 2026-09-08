@@ -1,0 +1,20 @@
+docs/research/2026-06-meeting-aec-open-issues-prior-art.md
+  s_5c3e9f05dc399c::t_dbf372144bad5a 169-174
+  s_5c3e9f05dc399c::t_7a4e0daaa1de8f 230-244
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "b4c68b5f8cab56fb76f3b755883f44e796e321e6",
+  "prompts": {},
+  "sessions": {
+    "s_5c3e9f05dc399c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3dcd35f5-819d-4068-bb24-9507256be270",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

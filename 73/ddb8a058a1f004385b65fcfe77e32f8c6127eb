@@ -1,0 +1,23 @@
+Sources/CLI/Commands/TranscribeCommand.swift
+  s_25bc37f0076d3d::t_c68ae33b15561d 991,1026,1028,1032
+Tests/CLITests/TranscribeCommandTests.swift
+  s_25bc37f0076d3d::t_c68ae33b15561d 1005-1023
+integrations/README.md
+  s_25bc37f0076d3d::t_0db7ac8c26da7b 602-605
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "73ddb8a058a1f004385b65fcfe77e32f8c6127eb",
+  "prompts": {},
+  "sessions": {
+    "s_25bc37f0076d3d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f87ce-8826-7ea3-afa1-430c1d06c87d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

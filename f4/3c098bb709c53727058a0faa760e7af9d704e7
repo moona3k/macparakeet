@@ -1,0 +1,23 @@
+Tests/CLITests/ModelLifecycleCommandTests.swift
+  s_63496cf754d81b::t_636e1532054ec3 791-815
+Sources/CLI/CHANGELOG.md
+  s_63496cf754d81b::t_5cfd9f89a7e920 106-108
+Sources/CLI/Commands/ModelsCommand.swift
+  s_63496cf754d81b::t_bfe6ac62e0f016 453-460,465-470,476-480
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f43c098bb709c53727058a0faa760e7af9d704e7",
+  "prompts": {},
+  "sessions": {
+    "s_63496cf754d81b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "18f620f1-22e0-47e6-bfdb-1bfc76867ba0",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

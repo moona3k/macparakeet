@@ -1,0 +1,23 @@
+integrations/README.md
+  s_6edafe92d02713::t_e0a84717cf0858 106-109,112-114,117-120
+  s_6edafe92d02713::t_5ccfa565c6acb8 121
+docs/audits/2026-07-16-v0.7.3-comprehensive-codebase-release-architecture-audit.md
+  s_6edafe92d02713::t_e38a12f8c454d0 205-214
+  s_6edafe92d02713::t_e0a84717cf0858 141,170-204,215-229,720,724-726,728-731
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "65da71fa80f6e5e78d56424ce1ec669713a41039",
+  "prompts": {},
+  "sessions": {
+    "s_6edafe92d02713": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6c61-934f-7753-a1cd-5c6945f9c3f1",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}

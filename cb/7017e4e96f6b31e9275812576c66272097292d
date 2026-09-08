@@ -1,0 +1,22 @@
+Sources/MacParakeetCore/Audio/MicrophoneCapture.swift
+  h_2ab1f47fea2ced 651
+Sources/MacParakeetCore/Audio/SystemAudioStream.swift
+  h_2ab1f47fea2ced 478
+Sources/MacParakeetCore/Services/LLM/LLMHTTPTransport.swift
+  h_2ab1f47fea2ced 96-97
+Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift
+  h_2ab1f47fea2ced 72,74-77,99-107
+Tests/MacParakeetTests/Services/PodcastAudioDownloaderTests.swift
+  h_2ab1f47fea2ced 116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "cb7017e4e96f6b31e9275812576c66272097292d",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

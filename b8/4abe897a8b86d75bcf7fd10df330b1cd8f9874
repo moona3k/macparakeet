@@ -1,0 +1,22 @@
+docs/research/2026-06-28-architecture-deepening-opportunities.md
+  s_3813e9a87c1c02::t_0e1169826a880e 201-204
+  s_3813e9a87c1c02::t_d774df45c83685 82
+  s_3813e9a87c1c02::t_4bac09a107698b 313
+  s_3813e9a87c1c02::t_f2945b94cfc4da 240
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "b84abe897a8b86d75bcf7fd10df330b1cd8f9874",
+  "prompts": {},
+  "sessions": {
+    "s_3813e9a87c1c02": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "823615ae-833d-4a31-a33b-9be9e6b8e09c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

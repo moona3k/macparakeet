@@ -1,0 +1,22 @@
+Tests/MacParakeetTests/STT/SpeechEngineCapabilitiesTests.swift
+  s_2e5bbf5846c75f::t_4648efd9ffab39 4
+  s_2e5bbf5846c75f::t_e986519d9ade4a 1-3,5-68
+Sources/MacParakeetCore/STT/SpeechEngineCapabilities.swift
+  s_2e5bbf5846c75f::t_e986519d9ade4a 1-257
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "21c209c66b1fd6e5f06be7a0c567e36767864f36",
+  "prompts": {},
+  "sessions": {
+    "s_2e5bbf5846c75f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e1e-5d74-7653-b10d-bb77e4f85980",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+plans/active/2026-06-27-on-device-local-llm-phase0-eval.md
+  s_87a25118b234bb::t_5a252ea76b8e5e 392-396
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "997c486c69836562c3840d8a4e4d2fe52e161974",
+  "prompts": {},
+  "sessions": {
+    "s_87a25118b234bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3d9732d3-bd8d-4946-8069-a9784d830c1e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/ViewModels/OnboardingViewModelTests.swift
+  s_a9ffe15dcc1a95::t_91e48852d664f1 1087-1089
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "6698e78d8c5cbce3465c4e71e81ca5ebf0355aaf",
+  "prompts": {},
+  "sessions": {
+    "s_a9ffe15dcc1a95": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a06af4-bc03-7d60-8fcc-4a4189016369",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

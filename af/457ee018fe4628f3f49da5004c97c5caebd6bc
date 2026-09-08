@@ -1,0 +1,19 @@
+Sources/MacParakeet/Views/Components/SacredGeometry.swift
+  s_8345c0eadaf10c::t_7325e5f751dfc1 123-131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "af457ee018fe4628f3f49da5004c97c5caebd6bc",
+  "prompts": {},
+  "sessions": {
+    "s_8345c0eadaf10c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6a0ef3db-2c02-46a8-88d2-770aaa91afd5",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

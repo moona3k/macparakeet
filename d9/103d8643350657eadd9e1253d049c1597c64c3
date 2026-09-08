@@ -1,0 +1,28 @@
+plans/active/2026-07-15-live-final-speech-routing.md
+  s_fe30d9e1d81161::t_cc50234f4f6d03 363
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_fe30d9e1d81161::t_e016ac07d9b36b 472
+  s_fe30d9e1d81161::t_21c6481f9f0382 488,847,1092-1093
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_fe30d9e1d81161::t_e016ac07d9b36b 321,325-326,2822,2826-2827,2841
+docs/telemetry.md
+  s_fe30d9e1d81161::t_ec96bb0b0e0c17 390
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_fe30d9e1d81161::t_79e68eb10373ae 409-410
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "d9103d8643350657eadd9e1253d049c1597c64c3",
+  "prompts": {},
+  "sessions": {
+    "s_fe30d9e1d81161": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6763-5e6a-71d3-8f91-e29adaf0a34a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

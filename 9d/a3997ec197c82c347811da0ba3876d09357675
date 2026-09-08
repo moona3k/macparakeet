@@ -1,0 +1,64 @@
+Sources/CLI/Commands/PromptsCommand.swift
+  s_35944fe873eaab::t_7f1a6f8a30c3f0 552-553,590-592,596-601
+  s_35944fe873eaab::t_cf8640a52bf6ef 589
+Sources/MacParakeetCore/Database/CardRepository.swift
+  s_35944fe873eaab::t_c3f80a82fdba8f 116-119,124,198,205
+Tests/MacParakeetTests/Services/Diarization/SpeakerAttributionReadServiceTests.swift
+  s_35944fe873eaab::t_ebd53fe6d16d45 6-26
+Sources/MacParakeetCore/Services/Diarization/SpeakerAttributionReadService.swift
+  s_35944fe873eaab::t_c3f80a82fdba8f 34,117-131,140-142
+Tests/CLITests/PromptsCommandTests.swift
+  s_35944fe873eaab::t_1a183ef37c8a82 60-63
+  s_35944fe873eaab::t_ec9f3fd68dc36b 8-59,64-106
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_0c061d306ca02e::t_cbb17fa2d114ef 1032,1053,4741-4753,5046-5077
+  s_35944fe873eaab::t_94db058ca1829d 522,574-576,717-721,1011-1031,1033-1034,3961,4125,5078
+Tests/MacParakeetTests/Database/CardRepositoryTests.swift
+  s_35944fe873eaab::t_4c12eaed8feb48 320-367
+Sources/CLI/CHANGELOG.md
+  s_35944fe873eaab::t_61847b5da38f81 105-115
+Sources/CLI/Commands/TranscribeCommand.swift
+  s_35944fe873eaab::t_2bf1aa3ed2bb0d 670-673
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_35944fe873eaab::t_223795fb687469 386-387
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_35944fe873eaab::t_0ced237aef8833 222
+Sources/MacParakeetCore/Database/README.md
+  s_35944fe873eaab::t_c262619d136fd3 112-116
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_35944fe873eaab::t_1bf0848db0bf80 131-147,322,1052,1055-1056,1058-1059,1925-1928,1933-1942,1965,1971,1976,1981,1988,1990-1993,2023,2025-2028,2066,2090
+Tests/MacParakeetTests/ViewModels/TranscriptionSpeakerCorrectionViewModelTests.swift
+  s_35944fe873eaab::t_d39d71db0353e9 42,44,46,63,420-540
+Tests/MacParakeetTests/Views/TranscriptSpeakerContextTests.swift
+  s_35944fe873eaab::t_45d06db567296c 225,240-241,284-314
+plans/active/2026-09-05-speaker-attribution-editing.md
+  s_35944fe873eaab::t_deba47fb547333 3-6,39
+spec/adr/010-speaker-diarization.md
+  s_35944fe873eaab::t_f454e24229f312 282-287
+spec/contracts/cli-json-v1.md
+  s_35944fe873eaab::t_37f40d31d827d5 138-144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "9da3997ec197c82c347811da0ba3876d09357675",
+  "prompts": {},
+  "sessions": {
+    "s_0c061d306ca02e": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "55940c7e-582b-4199-bca7-e1ff389bff08",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_35944fe873eaab": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07d2c-41d3-75a1-a1cc-ff3b38be6e53",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

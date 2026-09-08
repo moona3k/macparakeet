@@ -1,0 +1,60 @@
+Sources/MacParakeetViewModels/MeetingSourceHealthPresentation.swift
+  s_f93963c9ce92fa::t_c373317c2b58d3 1-83
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingCaptureHealth.swift
+  s_f93963c9ce92fa::t_23b1fb4fd0bfea 146-161
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingService.swift
+  s_f93963c9ce92fa::t_23b1fb4fd0bfea 393-395
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_f93963c9ce92fa::t_57d538636082cf 907
+  s_f93963c9ce92fa::t_b9f29bd71ef929 499-500,507,514,517
+  s_f93963c9ce92fa::t_0752707c4696e7 656,670
+  s_f93963c9ce92fa::t_30e0c63ff1af74 972,984-986,1010-1011
+  s_f93963c9ce92fa::t_a9a281b7af1d66 223,227-228
+  s_f93963c9ce92fa::t_a7ade0560a46f7 1012
+Sources/MacParakeetViewModels/MeetingRecordingPanelViewModel.swift
+  s_f93963c9ce92fa::t_c373317c2b58d3 44,163,263-272
+  s_f93963c9ce92fa::t_015afb3c754e21 273
+Sources/MacParakeet/Views/Transcription/MeetingRecordingTile.swift
+  s_f93963c9ce92fa::t_6977f5a9d43722 208-216,360,362,377-379
+  s_03194fc411710d::t_7505a60e9dd79e 380
+Sources/MacParakeet/Views/MeetingRecording/MeetingRecordingPillView.swift
+  s_f93963c9ce92fa::t_6977f5a9d43722 160,252-257,261-262,284-286
+  s_03194fc411710d::t_5f585541bc3cba 287
+Tests/MacParakeetTests/ViewModels/MeetingRecordingPillViewModelTests.swift
+  s_f93963c9ce92fa::t_40bde6ce59fab0 2,56-104
+Sources/MacParakeetViewModels/MeetingRecordingPillViewModel.swift
+  s_f93963c9ce92fa::t_c373317c2b58d3 1,22,49-56
+  s_f93963c9ce92fa::t_194967b75e6ccb 57
+Sources/MacParakeet/Views/MeetingRecording/MeetingSourceHealthChips.swift
+  s_f93963c9ce92fa::t_6977f5a9d43722 1-30,32-34,36-38,40-70,72-75,77-79,81-86,88-99,102
+  s_f93963c9ce92fa::t_d0404d1fb778a8 31,35,39,71,76,80,87,100-101
+Sources/MacParakeet/Views/MeetingRecording/MeetingRecordingPanelView.swift
+  s_f93963c9ce92fa::t_6977f5a9d43722 255-258
+Tests/MacParakeetTests/ViewModels/MeetingRecordingPanelViewModelTests.swift
+  s_f93963c9ce92fa::t_40bde6ce59fab0 47-92,369,403-413
+  s_f93963c9ce92fa::t_2862a540d9785b 414
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "97b7b17a6d47472698220f1cb52b748b4a94e55f",
+  "prompts": {},
+  "sessions": {
+    "s_03194fc411710d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e30-bc87-71f3-aa78-da81e88dbcca",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_f93963c9ce92fa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e30-b1d6-7e13-92f3-355e2f1d9cc5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,47 @@
+Sources/MacParakeetCore/STT/STTScheduler.swift
+  s_a22ce379f470e3::t_8ecb190f593011 175
+Sources/MacParakeetCore/Audio/MeetingAudioCaptureService.swift
+  s_a22ce379f470e3::t_37860f367a2a48 514
+docs/telemetry.md
+  s_a22ce379f470e3::t_adad7fa7d20c87 427
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_a22ce379f470e3::t_f3baac7276779f 148-195,1708-1726,1731-1742
+  s_a22ce379f470e3::t_b4698d13fa65cf 1727-1730
+  s_c8013648522926::t_4f8add573745aa 1743-1744
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_a22ce379f470e3::t_f70c3c04a9ae59 267,321,329-330
+Tests/MacParakeetTests/Audio/MeetingAudioCaptureServiceTests.swift
+  s_a22ce379f470e3::t_adad7fa7d20c87 334
+Tests/MacParakeetTests/STT/STTSchedulerTests.swift
+  s_a22ce379f470e3::t_cb33b7633764a7 93-94,102-103
+  s_a22ce379f470e3::t_b4698d13fa65cf 98-100,105-107,1736,1745-1752
+  s_a22ce379f470e3::t_2f4435b45b30b9 1426-1428,1723,1735,1737-1744,1753
+  s_a22ce379f470e3::t_cf62fb784fc4bd 90-92,95-97,101,104,108-109
+Sources/MacParakeetCore/STT/STTRuntime.swift
+  s_a22ce379f470e3::t_a54c4b5ebf56d3 51,1779-1785
+  s_c8013648522926::t_52b8fad664d5dd 1786-1787
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "94709e17e35f2d97e67f7bec2ac1b55b892b8ae6",
+  "prompts": {},
+  "sessions": {
+    "s_a22ce379f470e3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3dfa-e4a2-7ba1-99f7-4d35cd2e3fc6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_c8013648522926": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "74bfe5d1-ea98-4e2a-a36e-2827887cdcca",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_29fd8f3c93ebe0::t_32451f3fbefce8 712-735,740,742-747,750-754,761-769,771,781-785,791-795
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingService.swift
+  s_29fd8f3c93ebe0::t_6dcfa5872e842b 715-741,745,747-748,750-751,755,777,786,797,802-808,812,819,824-833,838,846,851-856,871,874,879-885,903,910,928,931
+docs/audits/2026-07-05-meeting-stop-back-to-back-readiness.md
+  s_29fd8f3c93ebe0::t_87e218c1a63895 1-555
+plans/active/2026-07-05-meeting-artifact-naming-v2.md
+  s_29fd8f3c93ebe0::t_d911851e5f3409 1-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1ccc6335683906bae507abfd57a6cb1f8441820c",
+  "prompts": {},
+  "sessions": {
+    "s_29fd8f3c93ebe0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f9d-e401-7bd2-9946-8232e9146494",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

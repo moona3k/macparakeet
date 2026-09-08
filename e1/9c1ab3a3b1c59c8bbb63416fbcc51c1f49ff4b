@@ -1,0 +1,37 @@
+Sources/MacParakeetCore/Calendar/CalendarEvent.swift
+  s_aa14297513a12d::t_5ff437b5003622 89-91,93-98,102,112-119
+Sources/MacParakeetCore/Calendar/CalendarService.swift
+  s_aa14297513a12d::t_6f60429c827f0b 247-248,252-261
+Sources/MacParakeetCore/Models/MeetingCalendarSnapshot.swift
+  s_aa14297513a12d::t_bcf580d9a670aa 55-57,59,63,81,84
+Sources/MacParakeetCore/Services/Diarization/MeetingSpeakerPrior.swift
+  s_aa14297513a12d::t_8f6453b932f076 6-12,16,20,23,38,42-45,57-61,66,89-94,96,101,124,147-148,154
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingTranscriptFinalizer.swift
+  s_aa14297513a12d::t_32cd1b973db2f5 52
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_aa14297513a12d::t_3fef8d53b0fca6 1503-1505,1514-1517,1554
+Tests/MacParakeetTests/Services/Diarization/MeetingSpeakerPriorTests.swift
+  s_aa14297513a12d::t_cee6b51fa4234e 26,29-31,34,42,45-46,49-50,54,56,80,83,85-91,95,108-120,122,127,130-132,134-136,138-139,142-144,146-148
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_aa14297513a12d::t_dc2e1dbaec451d 2578,2580,2583-2592,2607-2608,2610,2613-2615,2617,2628,2630-2631,2634,2680
+docs/telemetry.md
+  s_aa14297513a12d::t_1bc78ed5f7e497 310
+spec/adr/010-speaker-diarization.md
+  s_aa14297513a12d::t_4333d250d78d02 89,221-241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "e19c1ab3a3b1c59c8bbb63416fbcc51c1f49ff4b",
+  "prompts": {},
+  "sessions": {
+    "s_aa14297513a12d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b828c28a-ecfb-43b2-8474-27531db956f5",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

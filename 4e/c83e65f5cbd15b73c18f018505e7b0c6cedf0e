@@ -1,0 +1,23 @@
+Sources/MacParakeetCore/Utilities/KnowledgeSegmenter.swift
+  s_ff75e1c7379231::t_0b07b235aa3617 5,25,30,51,65-71,73,79-85,95,161,233-263
+  s_ff75e1c7379231::t_705d3a332a7234 264
+Tests/MacParakeetTests/Database/SegmentRepositoryTests.swift
+  s_ff75e1c7379231::t_0b07b235aa3617 59
+  s_ff75e1c7379231::t_73abb28995b315 58,60-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "4ec83e65f5cbd15b73c18f018505e7b0c6cedf0e",
+  "prompts": {},
+  "sessions": {
+    "s_ff75e1c7379231": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5027-5ae6-7d63-ba03-1ef49d9286b2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

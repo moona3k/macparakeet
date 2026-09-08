@@ -1,0 +1,19 @@
+spec/11-llm-integration.md
+  s_a0c522dded1652::t_e2f78c2a2598ee 384-391
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "688afc4642082e3a9965fd0d0f1aaf783d386688",
+  "prompts": {},
+  "sessions": {
+    "s_a0c522dded1652": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e4715b82-c092-4168-82c9-5432197cf686",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

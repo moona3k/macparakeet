@@ -1,0 +1,49 @@
+scripts/dist/verify_meeting_echo_assets.sh
+  s_a571ce3d1de216::t_11c0fc02619549 39,46,49-57
+  s_a571ce3d1de216::t_dbd855ed6c3fae 8,11-18,38,48,58-60,74,78-82,85-86,92-104,107-108,128-135,145
+  s_a571ce3d1de216::t_7b3404e047c360 40-45,47
+  s_a571ce3d1de216::t_881261953cc308 20-28,83-84,105-106,137-138
+  s_a571ce3d1de216::t_46e47787c9e96d 19
+Sources/MacParakeetCore/Services/Capture/MeetingEchoSuppressionRuntime.swift
+  s_a571ce3d1de216::t_deef0caa0890be 147-153,228-232,240-264,273
+  s_a571ce3d1de216::t_98b66fd5fe422e 267-271
+  s_a571ce3d1de216::t_f50fc45578d0c3 265-266,272
+  s_a571ce3d1de216::t_793490ec325e27 274-275
+scripts/dist/build_app_bundle.sh
+  s_a571ce3d1de216::t_08ba40f93c9634 39,439-444,472,474,476
+  s_a571ce3d1de216::t_b18fc8a0007039 468-470
+spec/05-audio-pipeline.md
+  s_a571ce3d1de216::t_0f49bcb572ae14 201-206
+docs/distribution.md
+  s_a571ce3d1de216::t_8ff7dc5b005053 191-197
+  s_a571ce3d1de216::t_e85c1aca021218 36-51,55-63
+  s_a571ce3d1de216::t_848fa3e23dc1ad 52-54
+Tests/MacParakeetTests/Services/Capture/MeetingEchoSuppressionRuntimeTests.swift
+  s_a571ce3d1de216::t_746bd8d88c6e05 502-503,505,524-525,527-533,535-538
+  s_a571ce3d1de216::t_bbb37459c06fb8 534
+  s_a571ce3d1de216::t_c12af543211814 1,160-166,191-193,197-210,212-249,251-253,288-293,295-315,317-331,333-341,367-372,374-392,394-425,434-454,462-475,484-488,493-501,508-516,521-523,526,539-541
+  s_a571ce3d1de216::t_243ce6f5fa7c72 167-174,194-196,259-261
+  s_a571ce3d1de216::t_dc809fea0b8655 294,316,332,373,393
+  s_a571ce3d1de216::t_e2d700b5770b37 342,357-360,364
+  s_a571ce3d1de216::t_12433195330dea 343-349,352-356,361-363,365-366
+  s_a571ce3d1de216::t_7fe5f5669eee20 476-483
+  s_a571ce3d1de216::t_ca8e44a6a4704a 175-190,211,250
+  s_a571ce3d1de216::t_2d5674696450ae 254-258,262-287
+  s_a571ce3d1de216::t_8e70d12e1d3536 350-351,426-433,455-461,489-492,504,506-507,517-520
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "8ee654a9e1db2336ff696a3507ab515e0585bc82",
+  "prompts": {},
+  "sessions": {
+    "s_a571ce3d1de216": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0ddf-7285-7613-8b52-7c2b7b649a83",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

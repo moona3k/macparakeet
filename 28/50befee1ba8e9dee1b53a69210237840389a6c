@@ -1,0 +1,43 @@
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_2e5bbf5846c75f::t_72e094eb963479 1708-1709,1712,1714-1715,1726-1727
+Sources/MacParakeetCore/SpeechEnginePreference.swift
+  s_2e5bbf5846c75f::t_6f5103065376d4 35,265,273,330-376
+  s_32b893bcb248f3::t_082a78e5d3a234 377-378
+Tests/MacParakeetTests/STT/STTClientTests.swift
+  s_2e5bbf5846c75f::t_7744ece427afb8 133,135
+Sources/MacParakeetCore/STT/EngineCapabilities.swift
+  s_2e5bbf5846c75f::t_6f5103065376d4 1-264
+Tests/MacParakeetTests/STT/EngineCapabilitiesTests.swift
+  s_2e5bbf5846c75f::t_8d204610ad2b28 1-68
+Tests/MacParakeetTests/STT/SpeechEnginePreferenceTests.swift
+  s_2e5bbf5846c75f::t_8d204610ad2b28 17-24
+  s_2e5bbf5846c75f::t_72e094eb963479 101-111,115-116,118,134,138-139,141,143
+  s_2e5bbf5846c75f::t_7c7e10eda20d50 296-297,303
+Sources/CLI/Commands/ModelsCommand.swift
+  s_2e5bbf5846c75f::t_b530649e7de4a7 977
+  s_2e5bbf5846c75f::t_72e094eb963479 439,442-445,654-655,686-698,709-710,783-786,789,974-976,981-983
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2850befee1ba8e9dee1b53a69210237840389a6c",
+  "prompts": {},
+  "sessions": {
+    "s_2e5bbf5846c75f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e1e-5d74-7653-b10d-bb77e4f85980",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_32b893bcb248f3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e1a-4d9e-7cc3-ba89-b770574e9558",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

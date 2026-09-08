@@ -1,0 +1,24 @@
+scripts/dist/build_app_bundle.sh
+  s_20d3828eb9e4c5::t_9cd7cee3fbed5f 117-140,148
+  s_20d3828eb9e4c5::t_e28689f689fd49 149
+docs/distribution.md
+  s_20d3828eb9e4c5::t_9cd7cee3fbed5f 189-192,391
+Package.swift
+  s_20d3828eb9e4c5::t_9cd7cee3fbed5f 12-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "19e4f050c68a6e165a811974909ecdf4dbd078a7",
+  "prompts": {},
+  "sessions": {
+    "s_20d3828eb9e4c5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6c5b-a693-7b91-8d85-3a39b6bda685",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

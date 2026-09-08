@@ -1,0 +1,19 @@
+Package.swift
+  s_9f40763b5cb5d5::t_23ff6f7736f039 29-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4ce5430b54e7fd87666bef7effaf0b0ccfef4c90",
+  "prompts": {},
+  "sessions": {
+    "s_9f40763b5cb5d5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ced68f09-ea3e-4027-85aa-238060fb2e55",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

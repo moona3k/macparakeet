@@ -1,0 +1,27 @@
+Tests/CLITests/SearchCommandTests.swift
+  s_80dd2287b63ed6::t_43266415f1bffc 6-12,28,30-31,41,55,57,80,112,114-115,123,126-127,140-141,163,165-166,180-189,194,198-203,208,220-224
+  s_80dd2287b63ed6::t_56faae8110f177 225
+Tests/MacParakeetTests/Database/DatabaseManagerTests.swift
+  s_80dd2287b63ed6::t_4de5006164db27 86-89,92-93,95-97,99
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_80dd2287b63ed6::t_af940bae0123cc 347-348,1335-1337,2112-2113,2709-2710,2724-2734,2736-2738,2753-2758
+Tests/MacParakeetTests/Database/SegmentRepositoryTests.swift
+  s_80dd2287b63ed6::t_ed9b1c2fd1b847 33-41,45-46,81-82,181-183,239-243,246-255,257-264,266-271,276-282,285-286,300-302,315,317,338-341,343-349,351-352,357,365-374,379-381
+  s_80dd2287b63ed6::t_cfe4c77fbf69ef 382-383
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "9e451dd973d21c10863a0dbdb13b372bef65a9b2",
+  "prompts": {},
+  "sessions": {
+    "s_80dd2287b63ed6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4f8a-aa4c-7270-89e0-e5e3cc252ee6",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

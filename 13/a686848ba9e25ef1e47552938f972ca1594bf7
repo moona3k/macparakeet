@@ -1,0 +1,31 @@
+spec/04-ui-patterns.md
+  s_26c3f45110e4e5::t_5e8f4d649849e3 1110-1116
+  s_26c3f45110e4e5::t_fc4823970dfa97 1023,1027
+README.md
+  s_26c3f45110e4e5::t_7b1983427af8a3 281
+spec/02-features.md
+  s_26c3f45110e4e5::t_ed8901df129ce5 1920
+  s_26c3f45110e4e5::t_e126402bce9693 1913
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_26c3f45110e4e5::t_8d435fd64695ed 66-74
+Tests/MacParakeetTests/App/AppSettingsObserverCoordinatorTests.swift
+  s_26c3f45110e4e5::t_07cc4d808af6c2 183
+  s_26c3f45110e4e5::t_3e90843b9639d2 164
+  s_26c3f45110e4e5::t_b646c79180c252 267
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "13a686848ba9e25ef1e47552938f972ca1594bf7",
+  "prompts": {},
+  "sessions": {
+    "s_26c3f45110e4e5": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "22f2523f-b744-43f6-b5ae-c2de0464e653",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

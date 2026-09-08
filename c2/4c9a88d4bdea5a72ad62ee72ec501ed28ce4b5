@@ -1,0 +1,19 @@
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_163e0b2f98ff62::t_27aea184c67a29 1811-1826
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "c24c9a88d4bdea5a72ad62ee72ec501ed28ce4b5",
+  "prompts": {},
+  "sessions": {
+    "s_163e0b2f98ff62": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20d824dc-f01d-4d17-aedd-69ad9f57e489",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

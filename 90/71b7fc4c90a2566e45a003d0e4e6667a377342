@@ -1,0 +1,30 @@
+Sources/MacParakeetCore/STT/STTRuntime.swift
+  s_63884b5a137073::t_64d004668402ec 88-92,95-125,269,287,359-360,392-393,472,479,482,497-498,507-508,514-515,519,523,536,544-547,591,596,604-606,638
+  s_63884b5a137073::t_a8b7df1aa85ba0 1314-1318,1569,1689,1780,2204-2207,2213-2216,2231-2233,2238-2241,2252-2254,2259-2262
+  s_63884b5a137073::t_6bc54902ba15d1 93-94
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_63884b5a137073::t_9edf1663387dfc 406-407,1988,2003-2004,2007,2035,2037-2038,2041
+Tests/MacParakeetTests/STT/SpeechEngineActivityTests.swift
+  s_63884b5a137073::t_3c48d025a52805 1-14,61
+  s_63884b5a137073::t_0b244c9a570fa6 15-24,35-60
+  s_63884b5a137073::t_6bc54902ba15d1 25-34
+docs/audits/2026-07-14-pr-783-merge-readiness.md
+  s_63884b5a137073::t_4e8e28a16794a1 1-2,5-87,89,102-103
+  s_63884b5a137073::t_b20ae1af7e1d3b 3-4,88,90-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "9071b7fc4c90a2566e45a003d0e4e6667a377342",
+  "prompts": {},
+  "sessions": {
+    "s_63884b5a137073": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f61de-c91e-7312-bc17-24ae7ae712ed",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

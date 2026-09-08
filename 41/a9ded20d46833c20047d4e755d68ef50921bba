@@ -1,0 +1,21 @@
+docs/qa/2026-09-07-0.8.0/scripts/verify_cli_contracts.py
+  s_ed7aef76d86263::t_d03881fd3aea43 5-7,212-213,278,284,292-295,302
+docs/qa/2026-09-07-0.8.0/cli-runtime.md
+  s_ed7aef76d86263::t_63054bb5f473ad 21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "41a9ded20d46833c20047d4e755d68ef50921bba",
+  "prompts": {},
+  "sessions": {
+    "s_ed7aef76d86263": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e9f4711-d4f8-445e-995e-08844e441c4d",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

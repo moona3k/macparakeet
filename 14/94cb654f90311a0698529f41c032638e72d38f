@@ -1,0 +1,25 @@
+Tests/MacParakeetTests/Audio/MeetingAudioCaptureServiceTests.swift
+  s_8632228864b977::t_b0676a89c2e5f6 80-92,1229,1238,1279-1292,1315,1324,1362-1375,1508,1512,1557-1561
+  s_8632228864b977::t_00407a94526416 1307-1309,1376-1377
+  s_8632228864b977::t_493cb9ebb73cb5 1239,1325,1513
+Sources/MacParakeetCore/Audio/MeetingAudioCaptureService.swift
+  s_8632228864b977::t_ea4d361961f8b4 58,80,125,143-144,153,169-170,179,536-538,542,544-548,556-560,565-569,573-576,584-586,609-611,622-626,645-649,657-659,684-688,702-704,712-714,739-743,752-754,762-770
+  s_8632228864b977::t_00407a94526416 693-695
+  s_8632228864b977::t_d69307b3e62bc6 771-772
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "1494cb654f90311a0698529f41c032638e72d38f",
+  "prompts": {},
+  "sessions": {
+    "s_8632228864b977": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a06ac7-a52d-7110-a36c-f47af918092d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

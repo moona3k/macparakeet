@@ -1,0 +1,25 @@
+scripts/dist/verify_app_privacy_surface.sh
+  s_f004fcd19ae182::t_0fd9f3d1586cc9 72-75
+scripts/dist/build_app_bundle.sh
+  s_f004fcd19ae182::t_9e3f65bffb4b83 705-718
+scripts/dev/run_app.sh
+  s_f004fcd19ae182::t_b0635460840171 162-172
+scripts/dist/test_verify_app_privacy_surface.sh
+  s_f004fcd19ae182::t_ec83a029676a22 43,59-71,124-135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "69ca298ee970c60682df6a17483b8533f037f3c6",
+  "prompts": {},
+  "sessions": {
+    "s_f004fcd19ae182": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e565480c-1956-49c5-8c55-0bf3a90ccde4",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

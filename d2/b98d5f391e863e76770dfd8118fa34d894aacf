@@ -1,0 +1,30 @@
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_03dd8677116e14::t_60d6db987b7cbb 80-82,290,299
+plans/README.md
+  s_03dd8677116e14::t_2f461c7ba3a9e4 34
+plans/active/engine-settings-layout.md
+  s_03dd8677116e14::t_60d6db987b7cbb 5-6
+spec/04-ui-patterns.md
+  s_03dd8677116e14::t_60d6db987b7cbb 967
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_03dd8677116e14::t_60d6db987b7cbb 317,328,349-354,2132,2238-2240,2285-2294,2297-2300,2302
+  s_03dd8677116e14::t_f57a7786af2011 2241-2248,2250-2253,2255,2257-2268,2270-2278,2281,2283-2284,2305
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_03dd8677116e14::t_60d6db987b7cbb 84,86,94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "d2b98d5f391e863e76770dfd8118fa34d894aacf",
+  "prompts": {},
+  "sessions": {
+    "s_03dd8677116e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6c5d-538c-7303-b46f-5a3a9924d55d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

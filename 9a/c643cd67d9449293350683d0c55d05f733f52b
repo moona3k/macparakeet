@@ -1,0 +1,119 @@
+README.md
+  s_f094b28b7c7626::t_83dbb8b5baecaa 67,75-77
+Sources/MacParakeetCore/Audio/README.md
+  s_f094b28b7c7626::t_8d235bdca43015 442-443
+Sources/MacParakeetCore/Database/README.md
+  s_f094b28b7c7626::t_57d7dca0822040 3-4,19,25,34,52,64,67-70
+Sources/MacParakeetCore/Licensing/README.md
+  s_f094b28b7c7626::t_72de623db2cef8 26-29,47-57
+Sources/MacParakeetCore/STT/README.md
+  s_f094b28b7c7626::t_271df1b638632d 142-143,256-257
+Sources/MacParakeetCore/Services/System/README.md
+  s_f094b28b7c7626::t_c3cb7e3b0c5446 19-20,22-24
+Sources/MacParakeetCore/TextProcessing/README.md
+  s_f094b28b7c7626::t_a6d608181b6145 43,59-61,104,117-118
+docs/README.md
+  s_f094b28b7c7626::t_a25587bcc625a8 1-31
+docs/audits/2026-09-07-documentation-alignment.md
+  s_f094b28b7c7626::t_f8c6c233934d5a 1-125
+docs/cli-testing.md
+  s_f094b28b7c7626::t_f6c53fcf7932e2 21-26
+docs/human-qa-guide.md
+  s_f094b28b7c7626::t_9e805990c0a6ae 8-10,17-19
+docs/release-demo-smoke.md
+  s_f094b28b7c7626::t_c1e329639f62f9 60,62-69
+docs/research/2026-09-07-documentation-audit-followups.md
+  s_f094b28b7c7626::t_27eafc4ff30cdf 1-121
+docs/runtime-revalidation-checklist.md
+  s_f094b28b7c7626::t_74077112cde120 3-7
+docs/telemetry.md
+  s_f094b28b7c7626::t_c97d4f23c9eefe 205,596-597
+docs/ui-inspiration.md
+  s_f094b28b7c7626::t_5914b2a6c0d5ed 3-4,21
+integrations/README.md
+  s_f094b28b7c7626::t_d90f734e282557 696-702,721-722
+plans/README.md
+  s_f094b28b7c7626::t_be5e4817ab4b89 6-8,37-39
+plans/active/2026-09-03-per-prompt-inference-settings.md
+  s_f094b28b7c7626::t_29d5889c8856c3 3-7
+plans/active/2026-09-05-post-meeting-notes-and-prompt-context.md
+  s_f094b28b7c7626::t_1eb1d8c7ab963d 3-8
+plans/active/2026-09-05-speaker-attribution-editing.md
+  s_f094b28b7c7626::t_b63143f2d4def4 3-6
+spec/00-vision.md
+  s_f094b28b7c7626::t_cd91d4c08e112f 363-367,405,521
+spec/01-data-model.md
+  s_f094b28b7c7626::t_40c49845516521 7-9,13,87,152,197,304,306-308,530,575-608,1416-1417
+spec/02-features.md
+  s_f094b28b7c7626::t_a4f38b049a577f 4-7,1373-1375,1430,1434,1437-1438,1986-2004,2056
+spec/03-architecture.md
+  s_f094b28b7c7626::t_9b4e288addf0ed 3-6,10-281,285-286,288-297,299-301,305-309,311-313,317-321,324-327
+spec/05-audio-pipeline.md
+  s_f094b28b7c7626::t_279c8dc7b89a1f 22,82
+spec/06-stt-engine.md
+  s_f094b28b7c7626::t_21e76b5d9683be 146,160-162,210,529-531,630,641,643-654,658
+spec/08-error-handling.md
+  s_f094b28b7c7626::t_30c20d6768b226 28,70
+spec/12-processing-layer.md
+  s_f094b28b7c7626::t_1439a281a7e07c 68,211
+spec/13-agent-workflows.md
+  s_f094b28b7c7626::t_39853692a97df5 53,105-107,111,244
+spec/14-per-prompt-inference-settings.md
+  s_f094b28b7c7626::t_2118ab7d57d62f 49,114,146,150,156,162,166,189-191,353
+spec/README.md
+  s_f094b28b7c7626::t_a58a1596806291 67,86-89,96-99,269,312-318
+spec/adr/001-parakeet-stt.md
+  s_f094b28b7c7626::t_9eb46012b3ac83 5
+spec/adr/002-local-only.md
+  s_f094b28b7c7626::t_0352f172eea331 10-13,67-72,78-79,90,92
+spec/adr/004-deterministic-pipeline.md
+  s_f094b28b7c7626::t_7a505b9e8d4f9e 79
+spec/adr/006-trial-and-license-activation.md
+  s_f094b28b7c7626::t_eaf703a3dda265 8-19
+spec/adr/007-fluidaudio-coreml-migration.md
+  s_f094b28b7c7626::t_b1e462b524d732 5
+spec/adr/008-local-llm-runtime-and-model.md
+  s_f094b28b7c7626::t_d9c2f24b059f00 5
+spec/adr/010-speaker-diarization.md
+  s_f094b28b7c7626::t_9a644654376e25 5,44,51,274-276,319,323
+spec/adr/011-llm-cloud-and-local-providers.md
+  s_f094b28b7c7626::t_0887dbf7b70533 62,97,124,129,151,169-173,252
+spec/adr/013-prompt-library-multi-summary.md
+  s_f094b28b7c7626::t_57509a2bce0cf7 25,53-55
+spec/adr/014-meeting-recording.md
+  s_f094b28b7c7626::t_55e4af58158be0 5,204,210
+spec/adr/015-concurrent-dictation-meeting.md
+  s_f094b28b7c7626::t_25daa413d027a2 7-8
+spec/adr/016-centralized-stt-runtime-scheduler.md
+  s_f094b28b7c7626::t_76bcc53862413f 119,148-150
+spec/adr/019-crash-resilient-meeting-recording.md
+  s_f094b28b7c7626::t_78318db654501e 6-11
+spec/adr/020-live-meeting-notepad-and-memo-summaries.md
+  s_f094b28b7c7626::t_53ec92f311d439 13-19,92
+spec/adr/021-whisperkit-multilingual-stt.md
+  s_f094b28b7c7626::t_33c36df08521df 5,30,83
+spec/adr/026-asr-engine-strategy.md
+  s_f094b28b7c7626::t_08703eeb38378c 88-96
+spec/adr/028-meeting-echo-cancellation.md
+  s_f094b28b7c7626::t_77079ec7820c2d 93-94,96-99
+spec/contracts/README.md
+  s_f094b28b7c7626::t_90a6e5f28d55fa 44
+spec/contracts/telemetry-v1.md
+  s_f094b28b7c7626::t_0ab347cdf4d9d5 70-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "9ac643cd67d9449293350683d0c55d05f733f52b",
+  "prompts": {},
+  "sessions": {
+    "s_f094b28b7c7626": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07ef5-2cb9-76a3-9259-49a74ae554a2",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

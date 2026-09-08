@@ -1,0 +1,19 @@
+Sources/MacParakeet/Views/Transcription/TranscriptTimestampedContentView.swift
+  s_673ccc751a4dc1::t_8c13814d7c5390 25,42-57,63-69,137-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "3cc6b42463f7b1164329c3c75f308687ce50a3de",
+  "prompts": {},
+  "sessions": {
+    "s_673ccc751a4dc1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0dcd-1639-74d1-b258-3065ecb89e0e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

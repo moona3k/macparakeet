@@ -1,0 +1,21 @@
+Sources/MacParakeetCore/Services/LLM/InProcessModelDownloader.swift
+  s_d61ef7626ce0e4::t_cae6b75568256c 512-516,525-526,528-532,589-590,610-615
+Tests/MacParakeetTests/Services/LLM/InProcessModelDownloaderTests.swift
+  s_d61ef7626ce0e4::t_fda5823f48c1e5 107-108,182-183,238-257
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5be8f5266a19d34a6be5978cee364037acb1c156",
+  "prompts": {},
+  "sessions": {
+    "s_d61ef7626ce0e4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "047eb76c-6d12-402e-a791-c23f0a3c1989",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

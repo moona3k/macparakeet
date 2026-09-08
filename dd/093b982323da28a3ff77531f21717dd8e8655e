@@ -1,0 +1,29 @@
+Sources/MacParakeetCore/Database/README.md
+  s_d5bb4593f946d4::t_14160f485189a6 48-53
+integrations/skill/macparakeet-stt/SKILL.md
+  s_d5bb4593f946d4::t_11b431eda8f08f 27-30
+docs/cli-testing.md
+  s_d5bb4593f946d4::t_76514abc284a4f 462
+  s_d5bb4593f946d4::t_ec5bf77fd65959 61,64
+  s_d5bb4593f946d4::t_114b135b3b65a1 68-69,71-72
+  s_d5bb4593f946d4::t_3dc5b7fd0a0ee0 41-44
+  s_d5bb4593f946d4::t_5a62cf43c3a022 486-490
+integrations/README.md
+  s_d5bb4593f946d4::t_da39e3f38ae349 151-155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "dd093b982323da28a3ff77531f21717dd8e8655e",
+  "prompts": {},
+  "sessions": {
+    "s_d5bb4593f946d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "75463c8f-f45c-4768-a94f-1629995567b5",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

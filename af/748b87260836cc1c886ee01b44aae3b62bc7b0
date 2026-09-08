@@ -1,0 +1,14 @@
+Sources/MacParakeet/Views/Feedback/FeedbackView.swift
+  h_2ab1f47fea2ced 17,20-22,214-215
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "af748b87260836cc1c886ee01b44aae3b62bc7b0",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

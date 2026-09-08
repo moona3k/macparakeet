@@ -1,0 +1,19 @@
+docs/telemetry.md
+  s_8cfc89c8fca285::t_24e608d326c84a 197
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bb3ffd953efcbf2dd1f7e39afd8b298cdcca673a",
+  "prompts": {},
+  "sessions": {
+    "s_8cfc89c8fca285": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2be6-d42f-7493-853d-34c1551fce03",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

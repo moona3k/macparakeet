@@ -1,0 +1,25 @@
+Tests/MacParakeetTests/Audio/FFmpegAudioTrackProbeTests.swift
+  s_37393add2b91eb::t_9f19fd05b4fe0d 13-15,37-39,57-59,68-86
+  s_37393add2b91eb::t_663f3bc87f2a97 52-55
+  s_37393add2b91eb::t_73051d8040beea 87
+Sources/MacParakeetCore/Audio/FFmpegAudioTrackProbe.swift
+  s_37393add2b91eb::t_b3a5d405b39a07 114-116,119
+  s_37393add2b91eb::t_f281b53c57e890 52-55
+  s_37393add2b91eb::t_7bc6ddf7417991 14-19,34-40,82,93-94,103,117-118,120,131-134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "ee26ae2964aa756f35969db1dc3efa979d3a2d86",
+  "prompts": {},
+  "sessions": {
+    "s_37393add2b91eb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f7118-5ca9-7580-970e-bca2613af1fe",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

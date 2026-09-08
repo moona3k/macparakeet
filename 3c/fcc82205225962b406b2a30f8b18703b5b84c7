@@ -1,0 +1,92 @@
+Sources/MacParakeetCore/MeetingRecordingFlow/MeetingRecordingFlowStateMachine.swift
+  s_657579445aa62e::t_ff4424a9e34ca5 110
+  s_657579445aa62e::t_b878c665c71db6 102,106-108,112-114
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingService.swift
+  s_657579445aa62e::t_47d6232d07446e 272-275,693-699,759,1888-1890
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  s_657579445aa62e::t_47d1201ed46de2 87-103,107-112,114-117,119-120
+  s_657579445aa62e::t_0760ca219d68b8 104-106,113,118
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowStateMachineTests.swift
+  s_657579445aa62e::t_47b62aa5d009c8 53,61-64,67,76-84,86-88
+  s_657579445aa62e::t_9cd8af6d4ddbfa 85
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_657579445aa62e::t_30b5b10b87c4bb 227-263
+  s_657579445aa62e::t_bf4b2823e81ca6 1123,1134-1135,1139-1140,1144,1165-1187
+plans/active/2026-07-15-bounded-capture-lifecycle.md
+  s_657579445aa62e::t_31edae07c9eecf 1-2,6-9,12-19,24-45,50-67,71-80,82-83,89,93-99,101-107,113,125-142,145,150-156,159-161,164-190,196,201-209,212-215,217-218
+  s_657579445aa62e::t_1309e64c06bee6 3-5
+  s_657579445aa62e::t_ec6f919a113468 197-200
+  s_657579445aa62e::t_46b3557ef46dc5 10-11,20-23,46-49,68-70,81,84-88,90-92,100,108-112,114-124,143-144,146-149,157-158,162-163,191-195,210-211,216
+spec/adr/015-concurrent-dictation-meeting.md
+  s_657579445aa62e::t_3553ecffd9cf0c 13,48-53
+  s_816742fec6b3e1::t_6b70d3ab07755b 54
+Sources/MacParakeetCore/Audio/MeetingAudioCaptureService.swift
+  s_657579445aa62e::t_13bad67f6388f8 65-80,82-83,172,175-177,182,193-197,225,253,256-263,266,273,278-279,290,296-297,300-301,314,321,328-329,338
+  s_657579445aa62e::t_85074066c81e53 84,264-265,291-294,302-313,315-317,322-327,330-337
+  s_657579445aa62e::t_f54b8bacd89fc5 267-272
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_657579445aa62e::t_c35ac270bbe70a 684-687,689-692,697-700,714-717,735-738
+  s_657579445aa62e::t_37508eb6f20f54 473-482
+Tests/MacParakeetTests/Audio/ScreenCaptureLifecycleTests.swift
+  s_657579445aa62e::t_21db89e67e295d 86-104
+  s_657579445aa62e::t_126084aff9d211 1-85,105-231
+Tests/MacParakeetTests/Audio/MeetingAudioCaptureServiceTests.swift
+  s_657579445aa62e::t_14e71da2b94b3c 39-51,82-109
+  s_657579445aa62e::t_c0c083b80bd3f7 110-132,134-193
+  s_657579445aa62e::t_f54b8bacd89fc5 133
+  s_657579445aa62e::t_f1c4509e397a0a 808,833,872-1036
+  s_fe30d9e1d81161::t_369019d4dd39be 1037
+Sources/MacParakeetCore/Audio/SystemAudioStream.swift
+  s_657579445aa62e::t_caa3a64bb7176b 229-236,239,241,245-250,252-253,260-261,270-279
+  s_657579445aa62e::t_39247bff23c7d3 350-360,362-363,365
+  s_657579445aa62e::t_eb36daf97f2024 454-469
+  s_657579445aa62e::t_316bbffb276a07 155-200,203,208,215,218
+  s_657579445aa62e::t_aa50494567af3a 18-19,35-36,39,41,51-61,72,75-79,92-93,95-96,106-109,111-112,114-115,117-119,125,127,133-134,152
+  s_657579445aa62e::t_c2f1f3cf7b2772 80-82,364
+  s_657579445aa62e::t_c5dfcf3b0b3d33 90-91,94,110,113
+spec/adr/014-meeting-recording.md
+  s_657579445aa62e::t_3553ecffd9cf0c 14,46-54,96-102
+  s_816742fec6b3e1::t_7ffa80fbb8e25b 103
+plans/README.md
+  s_657579445aa62e::t_ec6f919a113468 33
+Sources/MacParakeetCore/Audio/README.md
+  s_657579445aa62e::t_3553ecffd9cf0c 56-59,61-62,303-312
+  s_816742fec6b3e1::t_5ae45adc3a6e87 313
+Sources/MacParakeetCore/Audio/ScreenCaptureLifecycle.swift
+  s_657579445aa62e::t_d82e9afc1ec6ee 1-35,37-50,53,55,57-74,78-92,97-168,172-174,176,179-206
+  s_657579445aa62e::t_98165bea7c1c79 75-77
+  s_657579445aa62e::t_a28a8d2e63071b 36,51-52,54,56,93-96
+  s_657579445aa62e::t_60ceab89f6c075 169-171,175,177-178
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "3cfcc82205225962b406b2a30f8b18703b5b84c7",
+  "prompts": {},
+  "sessions": {
+    "s_657579445aa62e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6707-9a57-7c31-bf29-3dd24d619f21",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_816742fec6b3e1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6763-0877-7f32-aa7f-e63d595e6a90",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_fe30d9e1d81161": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6763-5e6a-71d3-8f91-e29adaf0a34a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

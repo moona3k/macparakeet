@@ -1,0 +1,54 @@
+scripts/dev/query_audio_diagnostics.py
+  s_4af6b9f11fbe3c::t_161438069866ad 126
+  s_4af6b9f11fbe3c::t_69daa76e884a13 76,109-110,112-116,125,133-142
+Tests/MacParakeetTests/TelemetryServiceTests.swift
+  s_4af6b9f11fbe3c::t_37a8a450e4d55c 239-279
+Tests/MacParakeetTests/Audio/AudioCaptureDiagnosticsTests.swift
+  s_4af6b9f11fbe3c::t_114682a5773531 7,12,238-259
+  s_4af6b9f11fbe3c::t_0500a660d12fbc 260-261
+scripts/dev/tests/test_query_audio_diagnostics.py
+  s_4af6b9f11fbe3c::t_d3a432c0fb6017 92-140
+Sources/MacParakeetCore/Audio/README.md
+  s_4af6b9f11fbe3c::t_114682a5773531 119-123
+spec/contracts/telemetry-v1.md
+  s_4af6b9f11fbe3c::t_c49eb64ec293e2 19-20
+Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift
+  s_4af6b9f11fbe3c::t_69daa76e884a13 91
+  s_4af6b9f11fbe3c::t_c49eb64ec293e2 117
+docs/local-audio-diagnostics-query.md
+  s_4af6b9f11fbe3c::t_114682a5773531 78-81
+  s_4af6b9f11fbe3c::t_69daa76e884a13 24-26
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_4af6b9f11fbe3c::t_24c38950208e1b 4-19,336-338,355,360,369-371,388,395
+docs/audits/2026-09-06-observability-review.md
+  s_4af6b9f11fbe3c::t_5f0794cc88d13c 100-105
+  s_4af6b9f11fbe3c::t_c49eb64ec293e2 86-87
+  s_4af6b9f11fbe3c::t_2747dac269a55d 85
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_4af6b9f11fbe3c::t_24c38950208e1b 163-170,437,524,571,754,797
+Sources/MacParakeetCore/Services/Telemetry/TelemetryService.swift
+  s_4af6b9f11fbe3c::t_37a8a450e4d55c 42-64,240-242,389-390,399-427,429-430
+Tests/MacParakeetTests/Services/Telemetry/TelemetryErrorClassifierTests.swift
+  s_4af6b9f11fbe3c::t_69daa76e884a13 262-275,280-286
+  s_4af6b9f11fbe3c::t_c49eb64ec293e2 276-279
+docs/telemetry.md
+  s_4af6b9f11fbe3c::t_114682a5773531 311,367,485-486
+Sources/MacParakeetCore/Audio/AudioCaptureDiagnostics.swift
+  s_4af6b9f11fbe3c::t_114682a5773531 96-121,125,134-139,165,172,197,204
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "4b81092b3e2d799ed958ce4c722bb6e795d8ee22",
+  "prompts": {},
+  "sessions": {
+    "s_4af6b9f11fbe3c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07595-d861-7b30-be95-3479ddf4c4a7",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

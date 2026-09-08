@@ -1,0 +1,62 @@
+Sources/CLI/Commands/TranscriptCommand.swift
+  s_80dd2287b63ed6::t_00f24c71d2743a 147,149-152,154,160,170,173
+  s_80dd2287b63ed6::t_fba41be3024d03 67
+  s_80dd2287b63ed6::t_6ae6f951a46d1f 1-42,44-47,49-66,68-89,96-146,148,153,155-159,163-164,172,174
+  s_80dd2287b63ed6::t_00e5039cc0c538 43,48
+  s_80dd2287b63ed6::t_76eb3c3aa920f8 165,171
+  s_80dd2287b63ed6::t_90b29cddb86030 166-169
+  s_80dd2287b63ed6::t_bb4107f524379f 90-95,161-162
+docs/cli-testing.md
+  s_80dd2287b63ed6::t_e891a27cd14914 36-37,39-40,448-451,453-457,459
+  s_80dd2287b63ed6::t_fba41be3024d03 38,452,458
+  s_80dd2287b63ed6::t_3c1437228cbc11 460
+Sources/CLI/Commands/CLIHelpers.swift
+  s_80dd2287b63ed6::t_840e74736890cb 51-61
+Tests/CLITests/SearchCommandTests.swift
+  s_80dd2287b63ed6::t_fba41be3024d03 8,46,56-57,59-60
+  s_80dd2287b63ed6::t_d90297c1f5e26c 1-7,9-45,47-55,61-82,87-95,100-101,125-135,146-182
+  s_80dd2287b63ed6::t_00f24c71d2743a 58
+  s_80dd2287b63ed6::t_bb4107f524379f 83-86,136-145
+  s_80dd2287b63ed6::t_48cec11211106a 96-99
+  s_80dd2287b63ed6::t_5d9708f9890f05 102-124
+Sources/CLI/MacParakeetCLI.swift
+  s_80dd2287b63ed6::t_840e74736890cb 11,21,23
+  s_80dd2287b63ed6::t_fba41be3024d03 22
+Sources/CLI/CHANGELOG.md
+  s_80dd2287b63ed6::t_b99d3824b2ab0c 106-114,116-126
+  s_80dd2287b63ed6::t_fba41be3024d03 115
+spec/contracts/cli-json-v1.md
+  s_80dd2287b63ed6::t_b99d3824b2ab0c 41-47,147
+Sources/CLI/Commands/SearchCommand.swift
+  s_80dd2287b63ed6::t_2db55a7af61a42 5-6,139
+  s_80dd2287b63ed6::t_bb4107f524379f 59-60,62-67
+  s_80dd2287b63ed6::t_00e5039cc0c538 50,57
+  s_80dd2287b63ed6::t_fba41be3024d03 15,19,46-47,61,85,87-91,93-94,96-97,99-100,102-117
+  s_80dd2287b63ed6::t_6ae6f951a46d1f 1-4,7-14,16-18,20-45,48-49,51-56,58,68-84,86,92,95,98,101,118-138,140-142
+Tests/CLITests/SpecCommandTests.swift
+  s_80dd2287b63ed6::t_fe705996fae210 121,126,194,196
+  s_80dd2287b63ed6::t_737373cae5227b 195
+  s_80dd2287b63ed6::t_016aaf80e7e168 122
+Sources/CLI/Commands/SpecCommand.swift
+  s_80dd2287b63ed6::t_fba41be3024d03 319
+  s_80dd2287b63ed6::t_fe705996fae210 303-318,320-341
+integrations/README.md
+  s_80dd2287b63ed6::t_e891a27cd14914 315-330,332-345
+  s_80dd2287b63ed6::t_fba41be3024d03 331
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.11",
+  "base_commit_sha": "833fd59e43488e4fe981cea2eb83b20563d1fcbf",
+  "prompts": {},
+  "sessions": {
+    "s_80dd2287b63ed6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4f8a-aa4c-7270-89e0-e5e3cc252ee6",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

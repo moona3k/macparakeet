@@ -1,0 +1,56 @@
+Tests/MacParakeetTests/STT/ParakeetUnifiedEngineDictationPadTests.swift
+  s_cc6cb42e069c1e::t_3ce3991c508d9e 1-24,26-30
+  s_cc6cb42e069c1e::t_037b4db6d951db 25
+Sources/MacParakeet/App/AppHotkeyCoordinator.swift
+  s_cc6cb42e069c1e::t_fdbeefa98fc785 158-159,200-201,236,255,264-265
+  s_cc6cb42e069c1e::t_306c96099c52f6 7-8,82,87-88,93
+Tests/MacParakeetTests/App/AppHotkeyCoordinatorTests.swift
+  s_cc6cb42e069c1e::t_bac310ae6ff077 120-124,142-146,164-168,185-189,207-208,239-243
+Sources/MacParakeetCore/DictationFlow/DictationFlowStateMachine.swift
+  s_cc6cb42e069c1e::t_bd0a914fc162ba 112,280,283,353,356
+Sources/MacParakeetCore/STT/ParakeetUnifiedEngine.swift
+  s_cc6cb42e069c1e::t_832ac5c8b1f61a 79,82,110-120
+  s_cc6cb42e069c1e::t_bab989bbc76422 121
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_cc6cb42e069c1e::t_ebd04b62849bda 1234,1243
+  s_cc6cb42e069c1e::t_dc1d9a40961cdd 1235-1242,1244-1251
+  s_cc6cb42e069c1e::t_0c3a37b44e124e 547,549,1073-1077,1082-1085
+Sources/MacParakeet/Hotkey/HotkeyManager.swift
+  s_cc6cb42e069c1e::t_fe6176aa4b0298 721,729
+  s_cc6cb42e069c1e::t_8b24b95320dc89 162
+  s_cc6cb42e069c1e::t_5cb14ccc223f82 1034,1040,1043,1045,1048,1066-1107,1147-1150
+  s_cc6cb42e069c1e::t_17d46b0bf45ad5 24,30,66-67,71,94
+  s_4115897087fa9e::t_ad416ead9064cb 1151
+Tests/MacParakeetTests/DictationFlow/DictationFlowStateMachineTests.swift
+  s_cc6cb42e069c1e::t_8a44fff5c2c83a 362,367-374,504,509-520
+  s_cc6cb42e069c1e::t_3acebfb440cd0e 1083
+  s_4115897087fa9e::t_a5ba31886a8020 521
+Tests/MacParakeetTests/Hotkey/HotkeyManagerTests.swift
+  s_cc6cb42e069c1e::t_a0f9597acc6ea9 602-612,614-621,623-635,637-639
+  s_cc6cb42e069c1e::t_745fc1d8514bb7 613,622,636
+  s_4115897087fa9e::t_1d2457eb602b37 640
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "59d8c7d0fa8ef52df0d391ba429c2d795552da0d",
+  "prompts": {},
+  "sessions": {
+    "s_4115897087fa9e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0d05-3096-7d02-870b-7c0fb3761279",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_cc6cb42e069c1e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0d5e-0b71-7480-beac-1c5a3d923979",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

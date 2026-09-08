@@ -1,0 +1,56 @@
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  h_2ab1f47fea2ced 336-341,343-344,346-348,498-540
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  h_2ab1f47fea2ced 938,1592-1597,1624,1654
+Sources/MacParakeet/App/MeetingTranscriptionQueue.swift
+  h_2ab1f47fea2ced 10-11,21,30,42,57
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  h_2ab1f47fea2ced 1246-1262
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  h_2ab1f47fea2ced 2690
+Sources/MacParakeetCore/AppRuntimePreferences.swift
+  h_2ab1f47fea2ced 25-26,490-497,588-595,692-699
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  h_2ab1f47fea2ced 566-567
+Sources/MacParakeetViewModels/PromptResultsViewModel.swift
+  h_2ab1f47fea2ced 41-42,56,69,127-132,134,137-138,140,144,148-150,154,158,162,187-198,264,305-310,413-414,437-438,490-491,495-500,510-511,521,613,647-649,679-680
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  h_2ab1f47fea2ced 83-86,91-106,284-307
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  h_2ab1f47fea2ced 270-293,872-873
+Sources/MacParakeetViewModels/TranscriptionCompletionNotifier.swift
+  h_2ab1f47fea2ced 8-12,58-78
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  h_2ab1f47fea2ced 1298-1299
+Tests/MacParakeetTests/App/MeetingFinalizationReconcilerTests.swift
+  h_2ab1f47fea2ced 224
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  h_2ab1f47fea2ced 616-677,1460,1496-1499
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingTranscriptionQueueTests.swift
+  h_2ab1f47fea2ced 37-82,383,488,496-499,501,584
+Tests/MacParakeetTests/ViewModels/PromptResultsViewModelTests.swift
+  h_2ab1f47fea2ced 719-861
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  h_2ab1f47fea2ced 185-222,342-343
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  h_2ab1f47fea2ced 237-238,275-276,305-306,314-351
+Tests/MacParakeetTests/ViewModels/TranscriptionCompletionNotifierTests.swift
+  h_2ab1f47fea2ced 25,27-33
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  h_2ab1f47fea2ced 1321-1394
+spec/02-features.md
+  h_2ab1f47fea2ced 1892-1910
+spec/04-ui-patterns.md
+  h_2ab1f47fea2ced 856
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "24c8347eff394d650c9c2db9b3d5202e33a5cc85",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

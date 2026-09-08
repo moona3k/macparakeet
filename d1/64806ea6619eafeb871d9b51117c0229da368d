@@ -1,0 +1,21 @@
+AGENTS.md
+  s_663bc47e3f060c::t_497ffe2f802a72 169-173
+docs/pr-review-workflow.md
+  s_663bc47e3f060c::t_78e72bfcb89fae 161-165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "d164806ea6619eafeb871d9b51117c0229da368d",
+  "prompts": {},
+  "sessions": {
+    "s_663bc47e3f060c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "93f7ddf1-2ee4-4086-80af-0b1d824f1a04",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

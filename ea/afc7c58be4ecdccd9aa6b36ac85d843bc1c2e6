@@ -1,0 +1,21 @@
+Sources/MacParakeetViewModels/InProcessModelManagerViewModel.swift
+  s_2a75fa1c414460::t_fd630c1b38447b 103-104
+Sources/MacParakeetCore/Services/LLM/InProcessModelDownloader.swift
+  s_2a75fa1c414460::t_344e66578b8688 529-535
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "eaafc7c58be4ecdccd9aa6b36ac85d843bc1c2e6",
+  "prompts": {},
+  "sessions": {
+    "s_2a75fa1c414460": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f9c-a119-7601-9897-5195dd6ef61f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

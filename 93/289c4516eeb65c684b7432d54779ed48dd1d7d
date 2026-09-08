@@ -1,0 +1,33 @@
+Sources/MacParakeet/Views/Settings/LLMSettingsView.swift
+  s_d22dfe75f28724::t_a88ae91dc585ff 576-579,583-584,592-594,604,608,621,628,630,650,693-695
+Sources/MacParakeetViewModels/LLMSettingsViewModel.swift
+  s_d22dfe75f28724::t_0a466802aa5ddd 467-470
+Tests/MacParakeetTests/ViewModels/LLMSettingsViewModelTests.swift
+  s_d22dfe75f28724::t_e9f1f2422a01bd 739-740
+docs/audits/2026-06-14-ai-formatter-profiles-qa.md
+  s_d22dfe75f28724::t_a1dfc103083e6f 3,5-13,17-19,96-102,243-247
+docs/historical/requirements-legacy.yaml
+  s_d22dfe75f28724::t_24f6f663f4631d 140
+plans/completed/2026-06-10-app-aware-formatter-ship-polish.md
+  s_d22dfe75f28724::t_b4f3726d5b8303 5-7,87-96
+spec/02-features.md
+  s_d22dfe75f28724::t_db7585ccdaa9ee 920
+spec/11-llm-integration.md
+  s_d22dfe75f28724::t_85a16d7c9bad6a 382-389
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "93289c4516eeb65c684b7432d54779ed48dd1d7d",
+  "prompts": {},
+  "sessions": {
+    "s_d22dfe75f28724": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2b44-3c15-7eb0-83be-f198a3d687e5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+Sources/MacParakeetCore/STT/NemotronEnglishEngine.swift
+  s_aa14297513a12d::t_de1da1bdd4148f 30-32,45-47,50,61-68,73-77,80,376-379,381-383
+Sources/MacParakeetCore/Services/Diarization/DiarizationService.swift
+  s_aa14297513a12d::t_a879051f4a7eb1 3,134-140,143,149,155-183,185-186,323-325,327,334-349,506-543
+Tests/MacParakeetTests/STT/NemotronEnglishEngineLoadGatingTests.swift
+  s_aa14297513a12d::t_ef39a9612a0f98 8-10,16,20,23-24,26-27,29,31-32,35-36,40,42-61,63,66,74-77,79-80,84-86,92-93
+Tests/MacParakeetTests/Services/Diarization/DiarizationServiceTests.swift
+  s_aa14297513a12d::t_bfe8c2c14417b3 221,223,226-230,235-236,264,266,268,271-272,275,283-284,286,289,303-309,311-325,328-330,339,341,348-354,356-357,362-365,367-386,393,395,397,399-401,403-413,422-423,425-426,432-436,448-451
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "397140746d13a021a390c74eb38ff89a436f985a",
+  "prompts": {},
+  "sessions": {
+    "s_aa14297513a12d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b828c28a-ecfb-43b2-8474-27531db956f5",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

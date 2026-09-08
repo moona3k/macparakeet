@@ -1,0 +1,25 @@
+plans/active/2026-07-20-dapt-export.md
+  s_5ef458d46fff9b::t_fdd4bf2166199c 20-22,49-51,85-87,100-102
+docs/research/2026-07-20-issue-850-dapt-export.md
+  s_5ef458d46fff9b::t_fdd4bf2166199c 62-69,72,141-147
+integrations/README.md
+  s_5ef458d46fff9b::t_fdd4bf2166199c 202-207
+docs/cli-testing.md
+  s_5ef458d46fff9b::t_fdd4bf2166199c 386-389
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "cef10000a842c3a223e6157ba1636454c6b9cba8",
+  "prompts": {},
+  "sessions": {
+    "s_5ef458d46fff9b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f8132-721d-7ed1-bdfb-73454394c4ba",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

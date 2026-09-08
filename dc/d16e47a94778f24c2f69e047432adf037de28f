@@ -1,0 +1,29 @@
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingLockFileStoreTests.swift
+  s_63884b5a137073::t_c5081ecb7da2a0 280-290
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingLockFileStore.swift
+  s_63884b5a137073::t_a28af8cb79e2b4 10-12,19,94
+spec/contracts/meeting-recovery-retention.md
+  s_63884b5a137073::t_2cd72f3779be25 39,56-66
+docs/audits/2026-07-14-pr-783-merge-readiness.md
+  s_63884b5a137073::t_2cd72f3779be25 61-72,125-127
+spec/adr/019-crash-resilient-meeting-recording.md
+  s_63884b5a137073::t_2cd72f3779be25 160-162,183-188
+spec/adr/020-live-meeting-notepad-and-memo-summaries.md
+  s_63884b5a137073::t_2cd72f3779be25 241-244
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "dcd16e47a94778f24c2f69e047432adf037de28f",
+  "prompts": {},
+  "sessions": {
+    "s_63884b5a137073": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f61de-c91e-7312-bc17-24ae7ae712ed",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

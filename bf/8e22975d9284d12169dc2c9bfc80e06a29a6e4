@@ -1,0 +1,76 @@
+docs/research/2026-07-04-voiceprints-phase0/data/sample-sessions.json
+  s_35765baab2f0ed::t_c6c4217e604b0d 2-9,14-16,21-23,28-31
+  s_c5e90b44fcbce3::t_16d0544a1f55bd 1
+  s_35765baab2f0ed::t_5900c229b22217 10-13,17-20,24-27
+docs/research/2026-07-04-voiceprints-phase0/data/.gitignore
+  s_35765baab2f0ed::t_c6c4217e604b0d 4
+  s_35765baab2f0ed::t_e7e36984d79d25 3
+  s_35765baab2f0ed::t_07fcc81d2cb34b 1-2
+plans/active/2026-07-03-speaker-voiceprints.md
+  s_35765baab2f0ed::t_4471f4a09e49b6 4-8
+  s_c5e90b44fcbce3::t_0b6de5ca532f79 194-199
+docs/research/2026-07-04-voiceprints-phase0/harness/Sources/VoiceprintHarness/main.swift
+  s_c5e90b44fcbce3::t_af6563baf4627b 98,178,188
+  s_c5e90b44fcbce3::t_0637134a42c8cc 283-293
+  s_c5e90b44fcbce3::t_73479b3826a01a 169,181-187,189-190,198,402-423
+  s_c5e90b44fcbce3::t_4dd324094013ca 1-97,99-168,170-177,179-180,191-197,199-282,294-401,424-472
+docs/research/2026-07-04-voiceprints-phase0/data/model-check.json
+  s_c5e90b44fcbce3::t_7ac25a5434e745 3-4,47
+  s_c5e90b44fcbce3::t_f4d39348acf2ca 1-2,5-46,48-49
+docs/research/2026-07-04-voiceprints-phase0-calibration.md
+  s_c5e90b44fcbce3::t_ab41811117a1f9 93-123,127-128,130-145,149-154,156-160,162-168,170-181,184-208,211-229,231-233,288-298
+  s_35765baab2f0ed::t_c6c4217e604b0d 5,146-148
+  s_e31ae2cef18ddf::t_61daf3b49beeba 247
+  s_35765baab2f0ed::t_ddbdb81be42023 7-10
+  s_c5e90b44fcbce3::t_fa8eb32ac9b642 1-4,6,11-21,65-67,90-92,124-126,129,155,161,169,182-183,209-210,230,234,286-287
+  s_c5e90b44fcbce3::t_3745484ffb2ba8 22-28,30-55,59-64
+  s_35765baab2f0ed::t_b18edb435c1cc6 29,56-58
+  s_35765baab2f0ed::t_f5267480250752 235-246,248-285
+  s_c5e90b44fcbce3::t_92a74e6629617b 68-89
+docs/research/2026-07-04-voiceprints-phase0/data/README.md
+  s_35765baab2f0ed::t_539dc44c0c9b73 4,11-16
+  s_35765baab2f0ed::t_05c8d488db7007 1-3,5-10
+docs/research/2026-07-04-voiceprints-phase0/harness/Package.resolved
+  s_c5e90b44fcbce3::t_4f47ba470e686d 1-14
+docs/research/2026-07-04-voiceprints-phase0/harness/analyze_voiceprints.py
+  s_c5e90b44fcbce3::t_9d677260a31621 1-436
+docs/research/2026-07-04-voiceprints-phase0/data/inventory.json
+  s_c5e90b44fcbce3::t_dd98654b6bdaee 1,32
+  s_35765baab2f0ed::t_c6c4217e604b0d 2-6,8-31,33-41,43-122
+  s_c5e90b44fcbce3::t_b5a522a3397150 42
+  s_35765baab2f0ed::t_2b8b3c8a3dc2a6 7
+docs/research/2026-07-04-voiceprints-phase0/harness/Package.swift
+  s_c5e90b44fcbce3::t_d50af397382901 1-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bf8e22975d9284d12169dc2c9bfc80e06a29a6e4",
+  "prompts": {},
+  "sessions": {
+    "s_35765baab2f0ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bbfded2-f315-45ed-b4c9-8dced5e0ca31",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_c5e90b44fcbce3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2bab-4242-7d23-80e5-2553fbb9485f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_e31ae2cef18ddf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2bd5-b4db-7130-8c7c-3f34c1798920",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

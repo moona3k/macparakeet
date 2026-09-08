@@ -1,0 +1,88 @@
+Tests/MacParakeetTests/STT/SpeechEngineCapabilitiesTests.swift
+  s_5a82fff34e6718::t_3cb946dcf4e0ac 82
+Sources/MacParakeetCore/STT/STTRuntime.swift
+  s_5a82fff34e6718::t_9356360815ba3d 191-192
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_5a82fff34e6718::t_188265cca80d9c 2115
+Sources/CLI/Commands/ConfigCommand.swift
+  s_5a82fff34e6718::t_3cb946dcf4e0ac 36,100
+Sources/MacParakeetCore/STT/ParakeetUnifiedEngine.swift
+  s_5a82fff34e6718::t_a588782c6efc18 14-19,22,28,37-38,72-73,84-86,89,122,137,155,166-167,176,310,344-345,372,400-440
+  s_5a82fff34e6718::t_9a341a54e4c73f 81,95
+  s_5a82fff34e6718::t_efe2e8df564e4a 256,267-270
+  s_5a82fff34e6718::t_7a63d176060a2c 295-297
+  s_63faa3d7f4499e::t_13ea70cb22c5a0 441
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  s_5a82fff34e6718::t_33aa1498d9012b 1354,1374,1377
+Sources/CLI/Commands/RetranscribeCommand.swift
+  s_5a82fff34e6718::t_3cb946dcf4e0ac 150
+integrations/README.md
+  s_5a82fff34e6718::t_f9c4fa169e701a 206-209
+  s_5a82fff34e6718::t_d5ab061f54abbf 58
+spec/adr/001-parakeet-stt.md
+  s_5a82fff34e6718::t_f6377e0482cdd8 12
+  s_5a82fff34e6718::t_9356360815ba3d 193,203-212
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_5a82fff34e6718::t_3cb946dcf4e0ac 3639
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_5a82fff34e6718::t_3cb946dcf4e0ac 2603,2650,2654,2734,2738,2778,2781-2784
+spec/adr/016-centralized-stt-runtime-scheduler.md
+  s_5a82fff34e6718::t_188265cca80d9c 9
+Tests/MacParakeetTests/STT/ParakeetUnifiedEngineDictationPadTests.swift
+  s_5a82fff34e6718::t_9a341a54e4c73f 9,23
+Sources/MacParakeetCore/STT/SpeechEngineCapabilities.swift
+  s_5a82fff34e6718::t_3cb946dcf4e0ac 195
+Tests/MacParakeetTests/STT/SpeechEnginePreferenceTests.swift
+  s_5a82fff34e6718::t_3cb946dcf4e0ac 242
+Tests/CLITests/SpecCommandTests.swift
+  s_5a82fff34e6718::t_3cb946dcf4e0ac 311
+Sources/CLI/CHANGELOG.md
+  s_5a82fff34e6718::t_294a16ec4e09d5 223-227
+Tests/MacParakeetTests/STT/ModelDeletionTests.swift
+  s_5a82fff34e6718::t_598c4c3c426b13 52,56,61
+Sources/MacParakeetCore/SpeechEnginePreference.swift
+  s_5a82fff34e6718::t_3cb946dcf4e0ac 431
+  s_5a82fff34e6718::t_9356360815ba3d 388,401-402,436-438
+Sources/CLI/Commands/SpecCommand.swift
+  s_5a82fff34e6718::t_3cb946dcf4e0ac 199,228
+docs/cli-testing.md
+  s_5a82fff34e6718::t_7e4065c77a1e2d 195
+Sources/MacParakeetCore/STT/README.md
+  s_5a82fff34e6718::t_e4bf056685aef1 5-6,42-47
+spec/06-stt-engine.md
+  s_5a82fff34e6718::t_7116c9604eda4e 5,35,38
+docs/research/2026-07-04-custom-vocab-phase0.md
+  s_5a82fff34e6718::t_188265cca80d9c 21-27,77-79,308-309,311
+  s_5a82fff34e6718::t_a376f4d8e3162c 312
+  s_5a82fff34e6718::t_64f375a3e65947 95-96
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_5a82fff34e6718::t_3cb946dcf4e0ac 30
+README.md
+  s_5a82fff34e6718::t_188265cca80d9c 90
+Sources/CLI/Commands/TranscribeCommand.swift
+  s_5a82fff34e6718::t_3cb946dcf4e0ac 106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cb385e95e0bb5c48e1e0be9bff94844cac4e11e8",
+  "prompts": {},
+  "sessions": {
+    "s_5a82fff34e6718": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3527-41bb-7e02-98b1-d839ec9cb366",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    },
+    "s_63faa3d7f4499e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3393-43a6-7c00-9aef-015cc0aaa3ad",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

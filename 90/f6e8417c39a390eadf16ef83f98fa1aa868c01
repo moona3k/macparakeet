@@ -1,0 +1,21 @@
+Tests/MacParakeetTests/Services/DAPTExportTests.swift
+  s_5ef458d46fff9b::t_e4b48b40f4aba6 105-128
+spec/contracts/dapt-export-v1.md
+  s_5ef458d46fff9b::t_e4b48b40f4aba6 49-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "90f6e8417c39a390eadf16ef83f98fa1aa868c01",
+  "prompts": {},
+  "sessions": {
+    "s_5ef458d46fff9b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f8132-721d-7ed1-bdfb-73454394c4ba",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

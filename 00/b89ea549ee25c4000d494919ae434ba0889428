@@ -1,0 +1,33 @@
+spec/04-ui-patterns.md
+  s_ee2b5ed5ad6f0a::t_b0ae6f0bbe2279 748
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_ee2b5ed5ad6f0a::t_dfba81248b9b49 1291-1292,1380-1407,1625,1669-1682
+Sources/MacParakeetCore/Services/AutoSaveService.swift
+  s_ee2b5ed5ad6f0a::t_53791622b8e0cf 52-59,84-91,103,127,138,152-155,171-195
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_ee2b5ed5ad6f0a::t_21a3c5ac2e203a 575-579,859-861,866,997,1000,1004,1007-1019,1021-1027
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_ee2b5ed5ad6f0a::t_c2955329dda5c6 909-931
+Tests/MacParakeetTests/Services/AutoSaveServiceTests.swift
+  s_ee2b5ed5ad6f0a::t_d820b60ff1472e 102,107,277,283-307
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_ee2b5ed5ad6f0a::t_9001f57b77051b 716,721,728-766
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_ee2b5ed5ad6f0a::t_ee800198e0f131 922-988
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "00b89ea549ee25c4000d494919ae434ba0889428",
+  "prompts": {},
+  "sessions": {
+    "s_ee2b5ed5ad6f0a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f69df-b992-7ed0-a862-8443c9e4fa26",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,77 @@
+Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift
+  s_5600a8e9f2f999::t_2f55e85073bf5c 683
+  s_2d764f067015ce::t_b1adddafa8646a 636,639-640,642-647
+  s_2d764f067015ce::t_fd9a6f0ba4cb47 471-475,505-508,564-565,574-578,609-610
+  s_2d764f067015ce::t_2149a82b8467b4 595,686,695
+  s_2d764f067015ce::t_68b7b9878a0d37 217,451-470,476-486,488-504,509-520,523-550,552-563,566-573,579-594,596-608,611-614,617-622,632-635,637-638,656-665,668-673,684-685,687-690,697-708,711-712
+  s_2d764f067015ce::t_7467890b86008f 25-26,218-220,443-449,623-629,631,641,648-655,666-667,674-682
+  s_5600a8e9f2f999::t_e4f4ef6dc03deb 439-442,450
+  s_5600a8e9f2f999::t_590362d8bf4d0d 487
+  s_5600a8e9f2f999::t_42cd68addf29f1 273
+  s_2d764f067015ce::t_6a64dca6fbe87c 1,19-24,202-216
+  s_5600a8e9f2f999::t_5b0d4d8d781eb7 691-694,696,709-710
+  s_2d764f067015ce::t_3c66213d5dc383 521-522
+  s_2d764f067015ce::t_d7685e05e874dd 615-616
+  s_2d764f067015ce::t_dee2427937a953 404,408-410
+  s_5600a8e9f2f999::t_89d0d9ae6499f1 630
+  s_5600a8e9f2f999::t_9210e976823508 399-400
+  s_5600a8e9f2f999::t_3a757465fa5d1c 551
+  s_5600a8e9f2f999::t_cef51fbaf5f21f 237
+Sources/MacParakeet/Views/Transcription/TranscriptResultActions.swift
+  s_2d764f067015ce::t_12d12fccdddfa9 5,51,131,136,161,228-231,234-248,261,264-266
+  s_5600a8e9f2f999::t_99813c5d8be8ce 149
+  s_5600a8e9f2f999::t_f6c171a5fa5c28 165-166,169-172
+  s_2d764f067015ce::t_7467890b86008f 143-147,151
+  s_2d764f067015ce::t_0fa96b13a6d7c0 280
+  s_2d764f067015ce::t_7ff1dff8e9ab34 52-68,117,132-135,138-142,148,150,152-160,162-164,167-168,173-178,181-186,188-201,209-227,267-278
+  s_2d764f067015ce::t_d7685e05e874dd 137,179-180,187,249-260,262-263
+  s_5600a8e9f2f999::t_baab6b99ed6f0a 232-233
+  s_2d764f067015ce::t_5766a99d730231 279
+Sources/CLI/Commands/MeetingsCommand.swift
+  s_2d764f067015ce::t_bf6ee2a4e5075e 146
+  s_2d764f067015ce::t_8b38d9d789aae3 149,157,159
+Tests/MacParakeetTests/ViewModels/TranscriptionLibraryViewModelTests.swift
+  s_2d764f067015ce::t_67b977f589dccc 318-332
+Sources/MacParakeetViewModels/TranscriptionLibraryViewModel.swift
+  s_2d764f067015ce::t_5c3e5180118dc3 163-166
+Sources/CLI/Commands/ExportCommand.swift
+  s_2d764f067015ce::t_4c035ab64e26fb 46
+  s_2d764f067015ce::t_7eb6d5594bcd0d 52,63,81,83,85,87,97,100,102,104,106,108
+  s_2d764f067015ce::t_a303a383f7c668 55,78,92-93
+Sources/MacParakeet/Views/Transcription/BulkTranscriptionSelectionBar.swift
+  s_2d764f067015ce::t_6d0dcf1ad61766 121,139
+  s_2d764f067015ce::t_c1ee49670d6c19 9,13,183,185-193
+  s_2d764f067015ce::t_feb482ba0e2f9c 50,89,184
+  s_2d764f067015ce::t_fbba1ff4fa81e9 194-195
+Sources/MacParakeetCore/Services/ExportService.swift
+  s_5600a8e9f2f999::t_8c23a165843b03 138
+  s_5600a8e9f2f999::t_3a6c6ea99663dd 222
+  s_2d764f067015ce::t_4da7eb623c4e56 2,54-55
+Tests/MacParakeetTests/Views/TranscriptResultActionsTests.swift
+  s_2d764f067015ce::t_67b977f589dccc 1-21,23-38,40-67,69-88,90-107
+  s_2d764f067015ce::t_44ae511be39a99 22,39,68,89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.4",
+  "base_commit_sha": "8936f7df07e112854cc8ceb065818599d288ae1a",
+  "prompts": {},
+  "sessions": {
+    "s_2d764f067015ce": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f15e1-877a-7e73-9360-aa4775c1de42",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    },
+    "s_5600a8e9f2f999": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a2cc4594-da07-4d0b-9933-46cd6f3d7b63",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": null
+    }
+  }
+}

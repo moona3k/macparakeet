@@ -1,0 +1,40 @@
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  h_2ab1f47fea2ced 151,155
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  h_2ab1f47fea2ced 266,268,274,587,589,596,753-757,759-766,820,1036,1064,1757-1760
+Sources/MacParakeet/Views/MeetingRecording/MeetingRecordingPanelView.swift
+  h_2ab1f47fea2ced 157-158,190-194,375-376,385-388,742-745,801-804
+Sources/MacParakeet/Views/MeetingRecording/MeetingRecordingPillController.swift
+  h_2ab1f47fea2ced 189,217-220,641-642,656-657,664-665,741,744-750
+Sources/MacParakeet/Views/MeetingRecording/MeetingRecordingPillView.swift
+  h_2ab1f47fea2ced 75-86,106-107,204-207,211-212
+Sources/MacParakeet/Views/Meetings/MeetingsView.swift
+  h_2ab1f47fea2ced 1190,1202,1213
+Sources/MacParakeet/Views/Transcription/MeetingRecordingTile.swift
+  h_2ab1f47fea2ced 130-131,143-159,391-392
+Sources/MacParakeetViewModels/MeetingRecordingPanelViewModel.swift
+  h_2ab1f47fea2ced 9,119-120,123-124,194,200,205-206,218-219,222-223,243-244,261-263,366-367
+Sources/MacParakeetViewModels/MeetingRecordingPillViewModel.swift
+  h_2ab1f47fea2ced 8,64,78,87
+Sources/MacParakeetViewModels/MeetingsWorkspaceViewModel.swift
+  h_2ab1f47fea2ced 9,246-247,263,305-313,317-325,329-337,370-371
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  h_2ab1f47fea2ced 325,335,342,355-459,465,475,484-487,494,500-501,526,574,586,602,612-613,1081,1084-1085,1089,1102-1106,1109,1118,1121-1122,1126,1149-1151,1164,1166,1401,1407-1408,1423-1424,1431,1462-1464,1496,1505-1506
+Tests/MacParakeetTests/ViewModels/MeetingRecordingPanelViewModelTests.swift
+  h_2ab1f47fea2ced 153,182,212,245,272-274,276-277,329-330,542,607-612
+Tests/MacParakeetTests/ViewModels/MeetingRecordingPillViewModelTests.swift
+  h_2ab1f47fea2ced 13-15
+Tests/MacParakeetTests/ViewModels/MeetingsWorkspaceViewModelTests.swift
+  h_2ab1f47fea2ced 198-201
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "178041857bb743abd001d08775835ee80f27c097",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

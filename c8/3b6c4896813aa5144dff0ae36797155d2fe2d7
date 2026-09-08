@@ -1,0 +1,34 @@
+Tests/MacParakeetTests/STT/STTSchedulerTests.swift
+  s_2e5bbf5846c75f::t_5a0782a24ebd9e 1300
+plans/active/2026-07-03-stt-capability-registry.md
+  s_2e5bbf5846c75f::t_24a73a2aec97ab 3,55-60,102-111,119-124
+  s_2e5bbf5846c75f::t_3aa8a4b2260133 112-118
+  s_fd5fc9fd5d9c75::t_8234e015f1173d 125
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  s_2e5bbf5846c75f::t_41cc024d0cf01e 1202-1231,1680-1702
+  s_2e5bbf5846c75f::t_0ea0d807d41a0d 1703
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c83b6c4896813aa5144dff0ae36797155d2fe2d7",
+  "prompts": {},
+  "sessions": {
+    "s_2e5bbf5846c75f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e1e-5d74-7653-b10d-bb77e4f85980",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    },
+    "s_fd5fc9fd5d9c75": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "515805ce-ac7e-45bd-82c6-25e5269a4bf9",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+Sources/MacParakeetCore/STT/README.md
+  s_a51e6d064beb7f::t_51dc1a47895846 185-192
+Sources/MacParakeetCore/STT/STTRuntime.swift
+  s_a51e6d064beb7f::t_429f34f5a41895 551
+  s_a51e6d064beb7f::t_f6cac1498dc9d1 161-173
+  s_a51e6d064beb7f::t_065224824cbc9d 149-150
+  s_a51e6d064beb7f::t_34426750f26ead 684
+  s_a51e6d064beb7f::t_11772b45be1987 497-503
+  s_a51e6d064beb7f::t_fce854301e5597 76-82
+Tests/MacParakeetTests/STT/STTRuntimeInferenceGatingTests.swift
+  s_a51e6d064beb7f::t_1db8d23c91a3ae 29-53,81-84,87,93,99-100
+  s_a51e6d064beb7f::t_8fa3873fae2b4a 1-28,54-80,85-86,88-92,94-98,101-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "7f7570f5de4d208c65e04f8381821720951f3eca",
+  "prompts": {},
+  "sessions": {
+    "s_a51e6d064beb7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d150d7b0-9c2e-476e-b316-3eb675ab17fa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

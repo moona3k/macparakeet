@@ -1,0 +1,19 @@
+Sources/MacParakeetCore/STT/STTRuntime.swift
+  s_e323b204ea3fab::t_3a58ecf5032dab 771,776-781,817
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7f6c46b2d95aa31ef33810d13053056826fe5acf",
+  "prompts": {},
+  "sessions": {
+    "s_e323b204ea3fab": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f00-212f-7b00-92dd-dc96357deceb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

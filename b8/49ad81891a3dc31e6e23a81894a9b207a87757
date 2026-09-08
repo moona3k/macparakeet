@@ -1,0 +1,19 @@
+Sources/MacParakeetCore/Audio/MicrophoneEnginePlatform.swift
+  s_34694bb29f5678::t_11b19ec90067a9 151-153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "b849ad81891a3dc31e6e23a81894a9b207a87757",
+  "prompts": {},
+  "sessions": {
+    "s_34694bb29f5678": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f8bd1-7370-74e0-bf59-d2699a27b6ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

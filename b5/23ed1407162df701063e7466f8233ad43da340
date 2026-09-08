@@ -1,0 +1,19 @@
+.github/workflows/ci.yml
+  s_93e33126c21eab::t_057cf899eb8701 91-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "b523ed1407162df701063e7466f8233ad43da340",
+  "prompts": {},
+  "sessions": {
+    "s_93e33126c21eab": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0f44-fe57-7750-9bc9-7a96819f5c4a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+spec/02-features.md
+  s_37393add2b91eb::t_0ce7abedbbe415 455-458
+spec/contracts/file-transcription-audio-tracks.md
+  s_37393add2b91eb::t_0ce7abedbbe415 41-42
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_37393add2b91eb::t_0ce7abedbbe415 374-377,952-953
+  s_37393add2b91eb::t_d7c02429190eda 175,222,420,427,464,467-486,501,514,538,552,556,558,576,956,958-961,969,971,992
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelBatchTests.swift
+  s_37393add2b91eb::t_0b369676937c69 216-244,386,391-392,396,400-402
+  s_37393add2b91eb::t_714971a48f14a0 403
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "e8beb279fc56eb9b3b49e5198c82064df177f429",
+  "prompts": {},
+  "sessions": {
+    "s_37393add2b91eb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f7118-5ca9-7580-970e-bca2613af1fe",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

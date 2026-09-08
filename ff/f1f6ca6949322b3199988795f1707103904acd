@@ -1,0 +1,19 @@
+Sources/MacParakeetCore/Services/ExportService.swift
+  s_5600a8e9f2f999::t_a92a9f5d5ebfb9 519,521
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "fff1f6ca6949322b3199988795f1707103904acd",
+  "prompts": {},
+  "sessions": {
+    "s_5600a8e9f2f999": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a2cc4594-da07-4d0b-9933-46cd6f3d7b63",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

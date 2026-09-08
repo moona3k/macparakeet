@@ -1,0 +1,107 @@
+Sources/MacParakeetCore/Database/TranscriptionRepository.swift
+  s_271b856baee649::t_e23efee4ed2428 57-60,172-179
+Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift
+  s_271b856baee649::t_12122c146bd285 185-190,302,313-315,362-372,917-918,924-927,931-932,949
+Sources/MacParakeetViewModels/MeetingRecordingPillViewModel.swift
+  s_271b856baee649::t_45c071e4303fff 24,29-30,33-45
+  s_271b856baee649::t_e641496af3b4aa 47-52
+  s_271b856baee649::t_71cbb3d7ff46b4 46
+Tests/MacParakeetTests/App/MeetingFinalizationReconcilerTests.swift
+  s_271b856baee649::t_6a2e93cb5436c5 1-42
+Sources/MacParakeet/App/MeetingFinalizationReconciler.swift
+  s_271b856baee649::t_f23dd902ff15f1 1-26
+Tests/MacParakeetTests/Views/MeetingDeletionCopyTests.swift
+  s_271b856baee649::t_332a3569f5cfdb 4,26-31,34-51,54-56,103-108,112-113
+  s_271b856baee649::t_cb5901c049c30f 32-33,52-53,109-111
+  s_271b856baee649::t_a8407b4b9d5eea 114
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingTranscriptionQueueTests.swift
+  s_271b856baee649::t_7a939e81c82d60 362,365,369-370
+  s_271b856baee649::t_cb5901c049c30f 231-239,248-252
+  s_271b856baee649::t_4e45efd82b4c77 173-174
+  s_271b856baee649::t_fd567ea431604d 13,21,43,51-52,73-76,85,92,119,127,143-172,175-213,226-230,240-247,253
+  s_271b856baee649::t_2aaef6384c40c1 254
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_271b856baee649::t_cb5901c049c30f 249-250,375-376
+  s_271b856baee649::t_6f74387c4cf217 5-12,352-356,377-397
+  s_271b856baee649::t_3ecfeda0fbf9aa 357
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_271b856baee649::t_cbaa8ed53bc8f3 599-600,604
+  s_271b856baee649::t_2afbc2fff12bdf 500-505,951-957,1171-1187
+  s_271b856baee649::t_3fa8632ef432c6 63,94-189
+  s_271b856baee649::t_86f45b69a2c568 823-840,866-895
+  s_271b856baee649::t_9b7f9377d35bf5 190,896
+  s_271b856baee649::t_ef1892dfb42fb4 191
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  s_271b856baee649::t_81adcef945b31e 420,471-473,575,578,584-585
+  s_271b856baee649::t_b69940a11f39ce 613
+  s_271b856baee649::t_166513df8d3609 403,446-449
+Sources/MacParakeet/Views/Transcription/MeetingRecordingTile.swift
+  s_271b856baee649::t_cb5901c049c30f 451-454,501-505
+  s_271b856baee649::t_300102518ae2c9 158,218,233-244,308
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_271b856baee649::t_cb5901c049c30f 282-283,640-641,1332-1334,1444-1445
+  s_271b856baee649::t_f152e351a3efb5 87,155,189-192,1388-1392,1427,1431-1443,1446-1466
+  s_271b856baee649::t_b748975e98d321 180
+  s_271b856baee649::t_9ef69a165d84bd 939
+  s_271b856baee649::t_8a676052004206 1030
+  s_271b856baee649::t_3b7aad908db47b 12-28,1467
+  s_271b856baee649::t_08f8fa54893529 1468
+Tests/MacParakeetTests/ViewModels/TranscriptionCompletionNotifierTests.swift
+  s_271b856baee649::t_b207e4c3177b5f 72-80
+Sources/MacParakeet/Views/MeetingRecording/MeetingRowCard.swift
+  s_271b856baee649::t_cb5901c049c30f 275-276,286-287,305-306
+  s_271b856baee649::t_e020d1e4af3973 179,310-322
+  s_271b856baee649::t_4a24973ee858a6 12,14,18,21-24,26-27,29-34,42,151-160,162,173-178,180-203,221-225,230-263,303-304,307-309,323-346
+  s_271b856baee649::t_cb1d49f1a82aa0 264,347
+Sources/MacParakeet/App/TranscriptionCompletionPresenter.swift
+  s_271b856baee649::t_85128ac2d482b8 28-31
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_271b856baee649::t_a54f1cd237ce0d 698-703
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_271b856baee649::t_8b0ade8ea27736 1893
+Sources/MacParakeet/App/MeetingTranscriptionQueue.swift
+  s_271b856baee649::t_6339f8baa3ce48 93,96,103,105
+  s_271b856baee649::t_447bfacc7522c1 14-24,43,56,60,94-95,97-102,104,106-108,122,141-194
+  s_271b856baee649::t_ca8cfec208b880 195
+Sources/MacParakeet/Views/MeetingRecording/MeetingDeletionCopy.swift
+  s_271b856baee649::t_cb5901c049c30f 112-113
+  s_271b856baee649::t_4be6f7190fd3f7 28-36,42-43,53-54,67-82,85-88,93-94,99-100,105-106,123-132
+Sources/MacParakeet/Views/Meetings/MeetingsView.swift
+  s_271b856baee649::t_0d66abc9fbf849 592
+  s_271b856baee649::t_4b493822fefd81 106-111,131,539,550-552,585-591,593-595,795-796,800-803
+Tests/MacParakeetTests/ViewModels/TranscriptionLibraryViewModelTests.swift
+  s_271b856baee649::t_16e966442b73b5 446-447
+  s_271b856baee649::t_e8e62f2c661386 31-35,39-40,139-140,145-148,411-445
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingAudioFile.swift
+  s_271b856baee649::t_10a0c5e685b4b5 38-39,57
+  s_271b856baee649::t_cb5901c049c30f 31-32,128-129,168-169,176-177
+Sources/MacParakeetCore/Database/TranscriptionLibraryQuery.swift
+  s_271b856baee649::t_d686f08da971aa 17,26-27,36
+Tests/MacParakeetTests/Database/TranscriptionRepositoryTests.swift
+  s_271b856baee649::t_8e8cd726e5cb5d 472-485
+Sources/MacParakeetViewModels/TranscriptionCompletionNotifier.swift
+  s_271b856baee649::t_b7fac89225ed40 56-65
+Tests/MacParakeetTests/Views/MeetingRecordingTileTests.swift
+  s_271b856baee649::t_075454eba3dc6c 95-104
+Sources/MacParakeetViewModels/TranscriptionLibraryViewModel.swift
+  s_271b856baee649::t_231830bbd8777f 135-136,237-243,246-271,275-277,280-289,653-654,698-706,708
+  s_271b856baee649::t_cb5901c049c30f 198-199,244-245,272-274,278-279,421-422,489-490,506-507,524-526,690-691,780-783
+  s_271b856baee649::t_e88579a73e4368 90-98
+  s_271b856baee649::t_4db1f20bbb934f 707,709
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0b9c152037c089f60fd6a36c51868be951d46811",
+  "prompts": {},
+  "sessions": {
+    "s_271b856baee649": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3d86-b105-7271-82da-1221c297164e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

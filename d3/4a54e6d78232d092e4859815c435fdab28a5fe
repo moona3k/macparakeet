@@ -1,0 +1,37 @@
+Sources/MacParakeetCore/Models/LLMProvider.swift
+  s_c303beb9c6c984::t_f6baf7f1795afd 56,58-60,129,131-134
+Sources/CLI/Commands/LLMInlineConfig.swift
+  s_c303beb9c6c984::t_f6baf7f1795afd 18,79
+Tests/MacParakeetTests/Services/LLM/LLMClientTests.swift
+  s_c303beb9c6c984::t_f6baf7f1795afd 181-200
+Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift
+  s_c303beb9c6c984::t_f6baf7f1795afd 138
+Sources/MacParakeetCore/Services/LLM/AnthropicLLMHTTPAdapter.swift
+  s_c303beb9c6c984::t_f6baf7f1795afd 202-203
+Tests/MacParakeetTests/Models/LLMProviderDescriptorTests.swift
+  s_c303beb9c6c984::t_f6baf7f1795afd 51-55,57-66
+Sources/CLI/CHANGELOG.md
+  s_c303beb9c6c984::t_7810057ccd95a7 92-95,99-100
+  s_c303beb9c6c984::t_6f93a37d30865b 98
+Tests/MacParakeetTests/ViewModels/LLMSettingsViewModelTests.swift
+  s_c303beb9c6c984::t_f6baf7f1795afd 277,1557
+Tests/CLITests/LLMConfigCommandTests.swift
+  s_c303beb9c6c984::t_f6baf7f1795afd 126-133,138-141
+  s_c303beb9c6c984::t_d84bc988e8118f 134-137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "d34a54e6d78232d092e4859815c435fdab28a5fe",
+  "prompts": {},
+  "sessions": {
+    "s_c303beb9c6c984": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5d28-49be-7c43-a03d-e2b87cc2227f",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

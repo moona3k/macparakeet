@@ -1,0 +1,31 @@
+plans/active/engine-settings-layout.md
+  s_03dd8677116e14::t_87323b2eceffff 1,42-47,54,56-59,61,63,125-130,134,141-143
+  s_03dd8677116e14::t_9102f3a113aa64 37-40,50-51,55,85-86,89-91
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_03dd8677116e14::t_597a28734c3ffd 279,290,296
+spec/04-ui-patterns.md
+  s_03dd8677116e14::t_87323b2eceffff 953-954,959-961,966-967,969
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_03dd8677116e14::t_a978685b434b6b 82,86
+plans/README.md
+  s_03dd8677116e14::t_87323b2eceffff 34
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_03dd8677116e14::t_6b06efdc5f35c7 115,317-319,330-332,406-407,2129-2130,2137,2139,2235-2243,2245,2247-2250,2252-2265,2267-2275,2278-2281,2283-2295,2297,2300-2307,2312,2314
+  s_03dd8677116e14::t_0b6f5d69209bc1 2244
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "9b4b7d48de5b37ef95c6cfe17cf50378d036252a",
+  "prompts": {},
+  "sessions": {
+    "s_03dd8677116e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6c5d-538c-7303-b46f-5a3a9924d55d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

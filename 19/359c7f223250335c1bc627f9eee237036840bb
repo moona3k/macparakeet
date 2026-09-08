@@ -1,0 +1,38 @@
+Sources/CLI/Commands/CLIHelpers.swift
+  s_a6a03680f52612::t_24c240d9dbbcb5 13-21
+docs/cli-testing.md
+  s_a6a03680f52612::t_24c240d9dbbcb5 620-621,623-624
+Sources/CLI/MacParakeetCLI.swift
+  s_a6a03680f52612::t_24c240d9dbbcb5 11
+Sources/CLI/CHANGELOG.md
+  s_a6a03680f52612::t_24c240d9dbbcb5 92-93,106-108
+Tests/CLITests/SpecCommandTests.swift
+  s_a6a03680f52612::t_24c240d9dbbcb5 312,329-334
+scripts/dist/homebrew-tap-scaffold/macparakeet-cli.rb
+  s_a6a03680f52612::t_24c240d9dbbcb5 42-46
+scripts/dist/homebrew-tap-scaffold/README.md
+  s_a6a03680f52612::t_24c240d9dbbcb5 35-39,41,46-49,51,53-55,61-64,68-69
+Tests/CLITests/CLIHelpersTests.swift
+  s_a6a03680f52612::t_24c240d9dbbcb5 2,9-14
+  s_a6a03680f52612::t_4afc63f19a9694 16-30
+  s_a6a03680f52612::t_d794b777e03658 15
+Sources/CLI/Commands/SpecCommand.swift
+  s_a6a03680f52612::t_24c240d9dbbcb5 206-207
+  s_a6a03680f52612::t_3c80f7cbf82571 205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "19359c7f223250335c1bc627f9eee237036840bb",
+  "prompts": {},
+  "sessions": {
+    "s_a6a03680f52612": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f7947-b2d2-70b0-8bb8-80d1048d0f0f",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}

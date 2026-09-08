@@ -1,0 +1,22 @@
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_35944fe873eaab::t_875348c46f5a5c 109,260,1228-1232,1234-1267,1269-1270,1272-1280,1283-1293,1769-1776
+  s_35944fe873eaab::t_572d15f5eac745 1777
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_35944fe873eaab::t_5c32c6e3ab5895 528-529,541-577,1517-1541
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "5bd8fe6582725fba8bceac66ba22eb2954bab304",
+  "prompts": {},
+  "sessions": {
+    "s_35944fe873eaab": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07d2c-41d3-75a1-a1cc-ff3b38be6e53",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

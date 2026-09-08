@@ -1,0 +1,36 @@
+Tests/CLITests/LLMJSONOutputTests.swift
+  s_93e33126c21eab::t_467bc82e12b405 248-260
+.github/workflows/ci.yml
+  s_93e33126c21eab::t_467bc82e12b405 68-90
+  s_a571ce3d1de216::t_9c9e073b42408e 91
+Sources/CLI/MacParakeetCLI.swift
+  s_93e33126c21eab::t_467bc82e12b405 60-62
+Sources/CLI/Commands/CLIHelpers.swift
+  s_93e33126c21eab::t_467bc82e12b405 510,513-519,521,524,527,529
+Sources/CLI/CHANGELOG.md
+  s_93e33126c21eab::t_528881560c74fd 446-447
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "4edf63223f07f7520b3e84f7a18068f5f518012a",
+  "prompts": {},
+  "sessions": {
+    "s_93e33126c21eab": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0f44-fe57-7750-9bc9-7a96819f5c4a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_a571ce3d1de216": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0ddf-7285-7613-8b52-7c2b7b649a83",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

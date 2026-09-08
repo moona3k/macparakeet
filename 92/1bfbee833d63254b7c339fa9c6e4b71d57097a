@@ -1,0 +1,21 @@
+Tests/MacParakeetTests/AppRuntimePreferencesTests.swift
+  s_29fd8f3c93ebe0::t_5027764a35f069 170-174
+Sources/MacParakeetCore/AppRuntimePreferences.swift
+  s_29fd8f3c93ebe0::t_5027764a35f069 255-256
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "921bfbee833d63254b7c339fa9c6e4b71d57097a",
+  "prompts": {},
+  "sessions": {
+    "s_29fd8f3c93ebe0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f9d-e401-7bd2-9946-8232e9146494",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

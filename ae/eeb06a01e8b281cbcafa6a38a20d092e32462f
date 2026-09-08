@@ -1,0 +1,22 @@
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_120678c055c53c::t_6d58b3455b1865 436-440
+  s_120678c055c53c::t_350cdf51236aa9 1358-1364
+  s_120678c055c53c::t_b013fdc1b40d58 511,516,522,596,724,729,735
+  s_120678c055c53c::t_75e2f6fb20d421 622,1337
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "aeeeb06a01e8b281cbcafa6a38a20d092e32462f",
+  "prompts": {},
+  "sessions": {
+    "s_120678c055c53c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6b905448-9acf-448a-9582-b11bbe1fa830",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

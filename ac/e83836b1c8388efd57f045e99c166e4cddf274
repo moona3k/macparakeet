@@ -1,0 +1,30 @@
+spec/contracts/cli-json-v1.md
+  s_80dd2287b63ed6::t_fd3c3f10c50c5f 45-48
+Sources/CLI/Commands/SearchCommand.swift
+  s_80dd2287b63ed6::t_fd3c3f10c50c5f 21,24,51-52,62-63,123-150,153-183
+Tests/CLITests/SearchCommandTests.swift
+  s_80dd2287b63ed6::t_6f7cd7834f9bfc 164-169
+  s_80dd2287b63ed6::t_157f9f3e06836e 146-163,170-171
+Sources/CLI/Commands/SpecCommand.swift
+  s_80dd2287b63ed6::t_fd3c3f10c50c5f 308-313
+integrations/README.md
+  s_80dd2287b63ed6::t_fd3c3f10c50c5f 327-329
+Sources/CLI/CHANGELOG.md
+  s_80dd2287b63ed6::t_fd3c3f10c50c5f 123-125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "ace83836b1c8388efd57f045e99c166e4cddf274",
+  "prompts": {},
+  "sessions": {
+    "s_80dd2287b63ed6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4f8a-aa4c-7270-89e0-e5e3cc252ee6",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

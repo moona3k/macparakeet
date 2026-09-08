@@ -1,0 +1,27 @@
+Tests/MacParakeetTests/Hotkey/GlobalShortcutManagerTests.swift
+  s_218c1e131aa21e::t_c4f2ac6e5885cb 147
+Tests/MacParakeetTests/Hotkey/HotkeyManagerTests.swift
+  s_218c1e131aa21e::t_c4f2ac6e5885cb 443
+scripts/dev/release_demo_smoke.sh
+  s_218c1e131aa21e::t_04187d393af504 79-83,110
+  s_218c1e131aa21e::t_c4f2ac6e5885cb 74,137,157-159,178-180,188-200,206,220,228,251,259
+docs/release-demo-smoke.md
+  s_218c1e131aa21e::t_c4f2ac6e5885cb 30-32
+  s_218c1e131aa21e::t_da0beb7ff9ef44 28,34-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "00f3ce9bd354b89ec978e0d272d11ad9c4cd561a",
+  "prompts": {},
+  "sessions": {
+    "s_218c1e131aa21e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f1145-342f-7653-87de-fa63b5183a7a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

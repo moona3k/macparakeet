@@ -1,0 +1,21 @@
+spec/adr/011-llm-cloud-and-local-providers.md
+  s_2a75fa1c414460::t_eee7cbbddf5473 57
+spec/11-llm-integration.md
+  s_2a75fa1c414460::t_1f7b8ef3943acd 384-391
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "83e1102b0a0e1172e66c50d138706087ece750da",
+  "prompts": {},
+  "sessions": {
+    "s_2a75fa1c414460": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f9c-a119-7601-9897-5195dd6ef61f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

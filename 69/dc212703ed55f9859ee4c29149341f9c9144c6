@@ -1,0 +1,40 @@
+Sources/MacParakeetCore/Services/LLM/InProcessLLMClient.swift
+  s_2a75fa1c414460::t_9ac039fa3e5412 117,124
+  s_2a75fa1c414460::t_e14b3ff27c8e16 112-116,118-123,125-128,130
+Tests/MacParakeetTests/Services/LLM/InProcessModelDownloaderTests.swift
+  s_2a75fa1c414460::t_575449268102e8 106-108,168,180-199,207-250
+  s_2a75fa1c414460::t_e1c1c64ff16780 200
+  s_29fd8f3c93ebe0::t_e3a82216ab8a2c 201
+Sources/MacParakeetCore/Services/LLM/InProcessModelDownloader.swift
+  s_2a75fa1c414460::t_b5c553ff122064 562,576,624
+  s_2a75fa1c414460::t_adb0c4c65dd08f 2,77-82,94-105,111-112,188-190,192-194,196-198,200-211,213-273,275-313,316-320,322-325,330-379,400-411,415-419
+  s_2a75fa1c414460::t_5246bfa3e530a6 314-315
+  s_2a75fa1c414460::t_c29052cc1abf59 321,326-329,380-399,412-414,420-426
+  s_2a75fa1c414460::t_9883e5419b28b0 734-747,836,845-859,911-948
+  s_2a75fa1c414460::t_02c974f82d91c6 212,274,456-468,481-493,519-523,532-536,563,568,573,577-580,586,625,643-644,651,670-671
+  s_2a75fa1c414460::t_52f77ecff9afef 191,195,199
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "69dc212703ed55f9859ee4c29149341f9c9144c6",
+  "prompts": {},
+  "sessions": {
+    "s_29fd8f3c93ebe0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f9d-e401-7bd2-9946-8232e9146494",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_2a75fa1c414460": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f9c-a119-7601-9897-5195dd6ef61f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

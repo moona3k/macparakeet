@@ -1,0 +1,21 @@
+Sources/MacParakeetCore/SpeechEnginePreference.swift
+  s_be69dd51f6ad0c::t_11a979a9207040 112-116
+Tests/MacParakeetTests/STT/CohereTranscribeEngineTests.swift
+  s_be69dd51f6ad0c::t_1405b57a7e3a71 369-381
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "3974cd27b893d7e6081173bdfdd2b5dfdf9d577f",
+  "prompts": {},
+  "sessions": {
+    "s_be69dd51f6ad0c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "33b94ec7-6251-4be6-b9f1-24ccf4d42592",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

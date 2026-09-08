@@ -1,0 +1,96 @@
+Tests/CLITests/TranscribeCommandTests.swift
+  s_5ef458d46fff9b::t_fbd8f85f538635 919,925,928-929,946,950,953-956,959-960,986-1002
+  s_5ef458d46fff9b::t_1762d138fdd13b 922,957-958
+  s_5ef458d46fff9b::t_21f33a7b9bcd39 931
+  s_5ef458d46fff9b::t_977e5cb99202c1 1003-1004
+docs/research/2026-07-20-issue-850-dapt-export.md
+  s_5ef458d46fff9b::t_3afb67dcb586d4 1-135
+  s_5ef458d46fff9b::t_08d6cc96149505 136-143
+Sources/MacParakeetCore/Services/AutoSaveService.swift
+  s_5ef458d46fff9b::t_2d2011bd2b61ef 10,19,24-26,135
+Sources/CLI/Commands/TranscribeCommand.swift
+  s_5ef458d46fff9b::t_21f33a7b9bcd39 1125
+  s_5ef458d46fff9b::t_9d26a9d6a1c43e 30,101,762-763,967,972-973,975,980,986,1003-1004
+Tests/MacParakeetTests/Services/DAPTExportTests.swift
+  s_5ef458d46fff9b::t_6f31998f81cf6f 1-41,43,45-62,64-68,91-106,108-172
+  s_5ef458d46fff9b::t_87da2fd38bc4ea 69-90
+  s_5ef458d46fff9b::t_f4c4f1f79c9ab3 42,44,63,107
+  s_5ef458d46fff9b::t_4c02dafda85b66 173-184
+Sources/MacParakeetCore/Services/ExportService.swift
+  s_5ef458d46fff9b::t_f4c4f1f79c9ab3 13,25,147-155
+  s_5ef458d46fff9b::t_87da2fd38bc4ea 33-45
+  s_5ef458d46fff9b::t_40a6b2cc270ac8 156
+plans/active/2026-07-20-dapt-export.md
+  s_5ef458d46fff9b::t_3afb67dcb586d4 1-6,8-12,17-119
+  s_5ef458d46fff9b::t_e59c6b12bc66a5 13-15
+  s_5ef458d46fff9b::t_f04107a036b835 7,16
+README.md
+  s_5ef458d46fff9b::t_4b14d7a62fd187 75
+Tests/MacParakeetTests/Views/TranscriptResultActionsTests.swift
+  s_5ef458d46fff9b::t_65e71a8c6cb229 114-133
+Sources/CLI/Commands/ExportCommand.swift
+  s_5ef458d46fff9b::t_9d26a9d6a1c43e 10,19,29,35,90-91,114-115
+docs/cli-testing.md
+  s_5ef458d46fff9b::t_87da2fd38bc4ea 29,359-361,386-388
+  s_5ef458d46fff9b::t_4b14d7a62fd187 433,443,449,452
+  s_5ef458d46fff9b::t_61d34e4b19747d 389
+integrations/README.md
+  s_5ef458d46fff9b::t_4b14d7a62fd187 188-190,195-196,199-206,211
+Sources/MacParakeetCore/Services/DAPTDocumentRenderer.swift
+  s_5ef458d46fff9b::t_f4c4f1f79c9ab3 1-116,118-120,122-191
+  s_5ef458d46fff9b::t_87da2fd38bc4ea 117,121
+  s_5ef458d46fff9b::t_9086f6c4e92917 192-195
+Sources/CLI/CHANGELOG.md
+  s_5ef458d46fff9b::t_4b14d7a62fd187 92-99
+Tests/MacParakeetTests/Services/AutoSaveServiceTests.swift
+  s_5ef458d46fff9b::t_65e71a8c6cb229 148-161,249-255
+  s_5ef458d46fff9b::t_1762d138fdd13b 398-409
+spec/02-features.md
+  s_5ef458d46fff9b::t_08d6cc96149505 1303,1340,1398
+spec/adr/014-meeting-recording.md
+  s_5ef458d46fff9b::t_08d6cc96149505 73
+spec/contracts/dapt-export-v1.md
+  s_5ef458d46fff9b::t_08d6cc96149505 1-107
+docs/telemetry.md
+  s_5ef458d46fff9b::t_4b14d7a62fd187 309
+Tests/CLITests/ExportCommandTests.swift
+  s_5ef458d46fff9b::t_fbd8f85f538635 13,23,58-95
+  s_5ef458d46fff9b::t_c0b32f58140ac3 96
+Tests/CLITests/SpecCommandTests.swift
+  s_5ef458d46fff9b::t_87da2fd38bc4ea 211-215
+  s_5ef458d46fff9b::t_fbd8f85f538635 333
+plans/README.md
+  s_5ef458d46fff9b::t_e59c6b12bc66a5 33
+spec/contracts/README.md
+  s_5ef458d46fff9b::t_08d6cc96149505 41
+spec/03-architecture.md
+  s_5ef458d46fff9b::t_08d6cc96149505 588-589,612-617
+  s_5ef458d46fff9b::t_4b14d7a62fd187 593,1282
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_5ef458d46fff9b::t_2d2011bd2b61ef 3395,3464-3465
+Sources/CLI/Commands/SpecCommand.swift
+  s_5ef458d46fff9b::t_9d26a9d6a1c43e 212,1029
+  s_5ef458d46fff9b::t_30513fcfd0dc7e 1030
+docs/marketing.md
+  s_5ef458d46fff9b::t_4b14d7a62fd187 74,127
+Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift
+  s_5ef458d46fff9b::t_2d2011bd2b61ef 525
+Sources/MacParakeet/Views/Transcription/TranscriptResultActions.swift
+  s_5ef458d46fff9b::t_2d2011bd2b61ef 6,16,29,42,56-59,326,413,416
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "74d6584671b48c1685e38419ad36b624fccbfd9c",
+  "prompts": {},
+  "sessions": {
+    "s_5ef458d46fff9b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f8132-721d-7ed1-bdfb-73454394c4ba",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

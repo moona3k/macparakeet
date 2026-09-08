@@ -1,0 +1,27 @@
+Sources/MacParakeet/Views/Transcription/TranscriptTimestampedContentView.swift
+  s_2a6eb88bf1ba11::t_dc697bb07bdedd 217-222
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_2a6eb88bf1ba11::t_3651eb445dcd38 1346-1355,1358,1362
+  s_2a6eb88bf1ba11::t_f96dd13c19c1af 238
+  s_2a6eb88bf1ba11::t_1b75e7916e9651 1380
+  s_2a6eb88bf1ba11::t_01b2e0c51c2800 126-129
+  s_2a6eb88bf1ba11::t_d871b8123155ea 1390
+  s_2a6eb88bf1ba11::t_0a7de13a74d8f8 1153
+  s_2a6eb88bf1ba11::t_37f57de88c5052 1295-1302
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "80eba07f9f29afc6d31ffbfb540a7014e9b4e958",
+  "prompts": {},
+  "sessions": {
+    "s_2a6eb88bf1ba11": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad1aa9bc-8362-4b94-8907-7b5af25cf485",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

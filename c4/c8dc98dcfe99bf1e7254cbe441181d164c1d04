@@ -1,0 +1,19 @@
+docs/research/2026-07-04-architecture-deepening-round2.md
+  s_a0c522dded1652::t_34fd5eb150f018 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c4c8dc98dcfe99bf1e7254cbe441181d164c1d04",
+  "prompts": {},
+  "sessions": {
+    "s_a0c522dded1652": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e4715b82-c092-4168-82c9-5432197cf686",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

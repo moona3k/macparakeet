@@ -1,0 +1,26 @@
+Sources/CLI/Commands/ModelsCommand.swift
+  s_bcf872d3964de0::t_0c7508ae2f68c4 456-460,465-476
+Tests/CLITests/ModelLifecycleCommandTests.swift
+  s_bcf872d3964de0::t_1a1dbe1929d2e0 811-812
+  s_bcf872d3964de0::t_d5cd33652052b6 791-810,813-814
+Sources/MacParakeetCore/Services/Diarization/DiarizationService.swift
+  s_bcf872d3964de0::t_575ee7b7628fd4 189-192
+Tests/MacParakeetTests/Services/Diarization/DiarizationServiceTests.swift
+  s_bcf872d3964de0::t_4ca6bab4c8459b 89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "27f02e8e32b2d40ff4aa38745b4c3c0d79093532",
+  "prompts": {},
+  "sessions": {
+    "s_bcf872d3964de0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d65a2072-e2dc-4682-b0e0-4a6f695e88e5",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+spec/adr/027-product-north-star.md
+  s_47e6fc593d9d56::t_7ec1c99110027e 6-8,19-21,47,69-74,89-93,103-107
+spec/00-vision.md
+  s_47e6fc593d9d56::t_fd84a07d43400f 60-62,149,411,421,514-516
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "54cf0c1daf899ccb3e7013e9bee1c2dfef9cba90",
+  "prompts": {},
+  "sessions": {
+    "s_47e6fc593d9d56": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2b1c-a3da-7553-8a01-a4b34f888ae6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

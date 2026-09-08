@@ -1,0 +1,65 @@
+Sources/MacParakeet/App/MeetingAutoStartCoordinator.swift
+  s_2de810b0ab24b8::t_b4964cc9b9e172 459-466,473
+  s_43784a8bbb773b::t_41020c2ac21118 181
+  s_43784a8bbb773b::t_464d575b546ff6 472
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingOutputTests.swift
+  s_2de810b0ab24b8::t_5bbe9afbab99f8 417-439
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingLockFileStoreTests.swift
+  s_2de810b0ab24b8::t_5bbe9afbab99f8 317,319-340
+  s_43784a8bbb773b::t_17bddbc5c5f598 293,318
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingLockFileStore.swift
+  s_2de810b0ab24b8::t_b4964cc9b9e172 89-90
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  s_2de810b0ab24b8::t_b4964cc9b9e172 1053-1054
+Sources/MacParakeetCore/Calendar/MeetingMonitor.swift
+  s_2de810b0ab24b8::t_b4964cc9b9e172 73,127
+Sources/MacParakeetCore/Calendar/CalendarService.swift
+  s_2de810b0ab24b8::t_bebef120ffe439 235-237
+Sources/MacParakeetCore/Models/Transcription.swift
+  s_2de810b0ab24b8::t_b4964cc9b9e172 329-332
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_43784a8bbb773b::t_521e8ab8e8d23a 240
+Sources/MacParakeetCore/Calendar/MeetingLinkParser.swift
+  s_2de810b0ab24b8::t_b4964cc9b9e172 81-87
+Tests/MacParakeetTests/Calendar/MeetingAutoStartCoordinatorTests.swift
+  s_2de810b0ab24b8::t_5bbe9afbab99f8 259-306,369-397
+  s_43784a8bbb773b::t_5bb07ac25d44d7 309-330
+  s_43784a8bbb773b::t_19d64c3a2cc037 117-127,307-308,331-368
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_2de810b0ab24b8::t_5bbe9afbab99f8 174-210,641-642
+  s_bca6b7fcc5ebbc::t_97943ce09a2fe2 643-644
+Tests/MacParakeetTests/Calendar/MeetingLinkParserTests.swift
+  s_2de810b0ab24b8::t_5bbe9afbab99f8 185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7a45ce80cdad35ba2188f2f4b0b383678bc49af1",
+  "prompts": {},
+  "sessions": {
+    "s_2de810b0ab24b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2bb5-2b85-78c2-b787-3612a54bd725",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_43784a8bbb773b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2c1e-c5b7-7cf0-9962-b3bc0fa49133",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    },
+    "s_bca6b7fcc5ebbc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2bba-72a9-7672-a73d-b753ed2f9128",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

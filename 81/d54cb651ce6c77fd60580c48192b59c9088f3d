@@ -1,0 +1,23 @@
+docs/research/2026-09-07-documentation-audit-followups.md
+  s_58973f7fc2f868::t_cf8ba8ff858c2c 28-33
+docs/qa/2026-09-07-0.8.0/release-inventory.md
+  s_58973f7fc2f868::t_cf8ba8ff858c2c 102
+docs/qa/2026-09-07-0.8.0/cli-runtime.md
+  s_58973f7fc2f868::t_cf8ba8ff858c2c 20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "81d54cb651ce6c77fd60580c48192b59c9088f3d",
+  "prompts": {},
+  "sessions": {
+    "s_58973f7fc2f868": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7955b0b-1f99-4a2c-aaa2-60f38dd3ba03",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

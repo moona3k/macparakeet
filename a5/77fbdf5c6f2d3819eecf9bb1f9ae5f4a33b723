@@ -1,0 +1,26 @@
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_ef2bedd2f50e3e::t_c7a2c5e247fb5a 4388-4392,4398-4399,4401-4404,4406
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_ef2bedd2f50e3e::t_c7a2c5e247fb5a 2157,2200
+  s_ef2bedd2f50e3e::t_1784e89f64b472 1986-1990,1993,1996,2015,2111-2114,2116,2125,2128,2132-2134
+Tests/MacParakeetTests/ViewModels/TranscriptionSpeakerCorrectionViewModelTests.swift
+  s_ef2bedd2f50e3e::t_1c20ddd9f9cfa8 365-368
+  s_ef2bedd2f50e3e::t_cccdd60a7beff1 383,522-551
+  s_ef2bedd2f50e3e::t_e0c06afb993ac9 552-554
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "a577fbdf5c6f2d3819eecf9bb1f9ae5f4a33b723",
+  "prompts": {},
+  "sessions": {
+    "s_ef2bedd2f50e3e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7f64201-ba7d-4228-b6f8-026d0a989f6b",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

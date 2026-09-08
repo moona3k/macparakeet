@@ -1,0 +1,22 @@
+docs/distribution.md
+  s_a8d058591b416b::t_3e21319f16a48e 174-176,374
+  s_a8d058591b416b::t_133674d117093f 272,279,282,361,371,547
+spec/09-testing.md
+  s_a8d058591b416b::t_610436f9c25006 1-360
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "57c8c64d15bda4818c617832d9920d09ade47b87",
+  "prompts": {},
+  "sessions": {
+    "s_a8d058591b416b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3fff-35fc-7273-80d8-41466137d19c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

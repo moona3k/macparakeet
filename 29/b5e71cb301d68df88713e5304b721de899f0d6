@@ -1,0 +1,38 @@
+Tests/MacParakeetTests/ViewModels/TranscriptionLibraryViewModelTests.swift
+  s_e1d002fe170c10::t_7c7fd1ddff43aa 96-102,111-117,127-137,148-151,200-201,240-246,636-641,673-674
+  s_e1d002fe170c10::t_b8456ad42ffe57 777-780
+  s_e1d002fe170c10::t_a57a4e5c7b9fe6 56-91
+Sources/MacParakeet/Views/MeetingRecording/MeetingDeletionCopy.swift
+  s_e1d002fe170c10::t_e7f7542ba24c76 134-144
+Sources/MacParakeetViewModels/TranscriptionLibraryViewModel.swift
+  s_e1d002fe170c10::t_c7b1643315bc06 584-586,589-590
+  s_e1d002fe170c10::t_7c7fd1ddff43aa 785-789
+  s_e1d002fe170c10::t_e7f7542ba24c76 117-137,168,193,200-205,292,303,378,511-515,575,577,587-588,594,596,643-645,649-651,711-715,720-724,752-756,761-784,790-816
+  s_e1d002fe170c10::t_5d79a660e4b41e 817
+Sources/MacParakeet/Views/MeetingRecording/MeetingRowCard.swift
+  s_e1d002fe170c10::t_e7f7542ba24c76 9
+Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift
+  s_e1d002fe170c10::t_7c7fd1ddff43aa 257-261,390-393,401-404,414-417,425-428,436-442,461-463,544-545,573,855-869,957-958
+  s_e1d002fe170c10::t_e7f7542ba24c76 265,281,284,302,305,323,339-342,366,368-369
+Sources/MacParakeet/Views/Components/ParakeetSpinner.swift
+  s_e1d002fe170c10::t_e7f7542ba24c76 58-70,76
+Sources/MacParakeet/Views/Meetings/MeetingsView.swift
+  s_e1d002fe170c10::t_7c7fd1ddff43aa 163-170,173-179,407-408,501-502,607-608,635-638,646-649,657-663,1597-1600,1616-1619
+  s_e1d002fe170c10::t_e7f7542ba24c76 544,547,565,576-579,594,596-597
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "29b5e71cb301d68df88713e5304b721de899f0d6",
+  "prompts": {},
+  "sessions": {
+    "s_e1d002fe170c10": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f575b-3a4f-7602-8dd2-4e23191e6263",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

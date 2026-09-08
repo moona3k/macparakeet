@@ -1,0 +1,48 @@
+Tests/CLITests/SpecCommandTests.swift
+  s_ff75e1c7379231::t_c0ea0fe1f50926 110
+Sources/CLI/Commands/SpecCommand.swift
+  s_ff75e1c7379231::t_2798aa10e34928 320-321,341-342,364-365,381-382
+  s_ff75e1c7379231::t_c0ea0fe1f50926 348-363,366-380,383
+spec/contracts/cli-json-v1.md
+  s_ff75e1c7379231::t_aba82e29677d46 61-62
+  s_ff75e1c7379231::t_c0ea0fe1f50926 52-60,163
+integrations/README.md
+  s_ff75e1c7379231::t_c0ea0fe1f50926 349-372,375
+  s_ff75e1c7379231::t_aba82e29677d46 373-374
+Sources/CLI/Commands/CardsCommand.swift
+  s_ff75e1c7379231::t_2ff4b0bdbc0acc 111-112,120,124,136-138,141,160,185,190
+  s_ff75e1c7379231::t_e44badf8f57dab 1-53,61-110,113-119,121-123,125-135,139-140,142-152,155-157,163-172,176,180-184,186-189,191-200,205-252
+  s_ff75e1c7379231::t_2798aa10e34928 54-60,158-159,161-162,173-175
+  s_ff75e1c7379231::t_c7b048fd4fc7c5 178-179,201-204
+  s_ff75e1c7379231::t_aba82e29677d46 153-154,177
+Sources/CLI/MacParakeetCLI.swift
+  s_ff75e1c7379231::t_e44badf8f57dab 24
+  s_ff75e1c7379231::t_c0ea0fe1f50926 11
+Tests/CLITests/CardsCommandTests.swift
+  s_ff75e1c7379231::t_2798aa10e34928 153-170
+  s_ff75e1c7379231::t_bfedab515706e6 30-42
+  s_ff75e1c7379231::t_e44badf8f57dab 185-188
+  s_ff75e1c7379231::t_2ff4b0bdbc0acc 91,93-107,111-112
+  s_ff75e1c7379231::t_c7b048fd4fc7c5 92,108-110
+  s_ff75e1c7379231::t_f0bc0eda1232c7 1-29,43-90,113-152,171-184
+Sources/CLI/CHANGELOG.md
+  s_ff75e1c7379231::t_c0ea0fe1f50926 104-112,116-117
+  s_ff75e1c7379231::t_aba82e29677d46 113-115
+  s_ff75e1c7379231::t_05794ff41d21f8 101-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "5f023a8a1bda24f99359fdadf81f2b4ddc34c422",
+  "prompts": {},
+  "sessions": {
+    "s_ff75e1c7379231": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5027-5ae6-7d63-ba03-1ef49d9286b2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

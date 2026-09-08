@@ -1,0 +1,21 @@
+scripts/dist/test_verify_app_privacy_surface.sh
+  s_f004fcd19ae182::t_3e7af6138d860e 40-45,48,51,54-71,115-135,137-139,142-143,146-147,150-151,154-175
+scripts/dist/verify_app_privacy_surface.sh
+  s_f004fcd19ae182::t_fa80635996a03e 70-115,117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "ef7fff4895fd2bad2a5158e35d4dd743dfa5e830",
+  "prompts": {},
+  "sessions": {
+    "s_f004fcd19ae182": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e565480c-1956-49c5-8c55-0bf3a90ccde4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

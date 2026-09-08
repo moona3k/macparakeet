@@ -1,0 +1,35 @@
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_84e0547d41e036::t_996c7c73039103 1249,1252,1257-1260,1264,1289,1291,1302,1304,1310,1315
+  s_84e0547d41e036::t_234963268cdde6 1268-1278
+Sources/MacParakeetCore/Database/TranscriptionRepository.swift
+  s_84e0547d41e036::t_996c7c73039103 437-440
+Tests/MacParakeetTests/Database/TranscriptionRepositoryTests.swift
+  s_84e0547d41e036::t_3c704aa37b5540 887-940
+docs/research/2026-07-04-voiceprints-phase0/harness/analyze_voiceprints.py
+  s_84e0547d41e036::t_996c7c73039103 403-407,434-437
+  s_84e0547d41e036::t_234963268cdde6 430-431
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  s_84e0547d41e036::t_996c7c73039103 225-228
+docs/research/2026-07-04-voiceprints-phase0/harness/Sources/VoiceprintHarness/main.swift
+  s_84e0547d41e036::t_996c7c73039103 455-457,460,463,465,467
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_84e0547d41e036::t_3c704aa37b5540 1336-1388,1420-1434,1452,1457
+Sources/MacParakeetCore/Models/Transcription.swift
+  s_84e0547d41e036::t_996c7c73039103 252-276
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4c8ca4adebb1d39e7f92d6e430a8b5ee82cc3625",
+  "prompts": {},
+  "sessions": {
+    "s_84e0547d41e036": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e8b-0aec-7a90-9302-abfece7ad365",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

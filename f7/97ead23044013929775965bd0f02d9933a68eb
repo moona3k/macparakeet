@@ -1,0 +1,19 @@
+scripts/dist/prepare_meeting_echo_assets.sh
+  s_3e1204f9e52983::t_ae898035b1a94c 12,25,77-82,150,166,171-190,219-221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "f797ead23044013929775965bd0f02d9933a68eb",
+  "prompts": {},
+  "sessions": {
+    "s_3e1204f9e52983": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f1200-bdf1-7070-a1b9-d324f6a3e675",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+Tests/MacParakeetTests/STT/STTWordTimingBuilderTests.swift
+  s_40ad4abb2b2fb1::t_07f46baa3576b1 36-48
+Sources/MacParakeetCore/STT/STTWordTimingBuilder.swift
+  s_40ad4abb2b2fb1::t_53ae44b7aebeea 41-42
+  s_40ad4abb2b2fb1::t_919e3d60e9d2ff 38,40,43-47,49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "44d4389d06f3ea4f241db2d295195035bcb17032",
+  "prompts": {},
+  "sessions": {
+    "s_40ad4abb2b2fb1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6757-8eb4-7982-b168-12b6f1f7360f",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

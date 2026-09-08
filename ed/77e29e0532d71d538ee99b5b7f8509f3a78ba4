@@ -1,0 +1,80 @@
+Tests/CLITests/HistoryCommandTests.swift
+  s_4b599720922f9c::t_85d4f3df5307ec 48-71,143-170,264,268-306,370-405
+  s_4b599720922f9c::t_1e0a52e9076257 174-175,216-217,265-266,670,673,676,679-685
+  s_4b599720922f9c::t_ab5ed29a3a35a0 171,176,218,267,406,671-672,674-675,677-678,686
+  s_4b599720922f9c::t_df8e8e6cea7a31 172
+  s_4b599720922f9c::t_323abf9d8b23dd 407
+  s_4b599720922f9c::t_54e0b6243f4d4c 687
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  s_4b599720922f9c::t_b31be5c2d7f2a2 9-14,35-73,103
+  s_63496cf754d81b::t_c4e55179039560 104-108,1122
+Sources/CLI/MacParakeetCLI.swift
+  s_4b599720922f9c::t_1681e301b3d015 11
+Tests/CLITests/VocabCommandTests.swift
+  s_4b599720922f9c::t_2dd101425bcaf2 283-305,325-349,354-357
+integrations/README.md
+  s_4b599720922f9c::t_dbf88f2a44730e 479-482
+Sources/CLI/Commands/HealthCommand.swift
+  s_4b599720922f9c::t_7a63d6c4f8215f 84,95-96,246-288,295
+Sources/CLI/Commands/VocabSnippetsCommand.swift
+  s_4b599720922f9c::t_b0a0c7283f225e 184-186,191-194,196-197,199-205,239-243
+  s_4b599720922f9c::t_ac194d2310a1b3 244
+Sources/CLI/Commands/VocabWordsCommand.swift
+  s_4b599720922f9c::t_a401333286addb 180-182,187-190,192-202,245-249
+  s_4b599720922f9c::t_2a34e07674036f 250
+Tests/CLITests/ModelLifecycleCommandTests.swift
+  s_4b599720922f9c::t_95376900b376fb 763-764
+  s_4b599720922f9c::t_b094910bc1c180 3,27-49,746-762,765,1004-1008
+  s_4b599720922f9c::t_dc48fadb39dc19 766
+Sources/CLI/Commands/HistoryCommand.swift
+  s_4b599720922f9c::t_b829eae549717a 260-262,267-270,272-285,319-321,326-329,331-341,356-358,363-366,368-371,373-375,377-394,408-410,415-428,430-434,436-444,446-455,471-476,577-595
+spec/contracts/cli-json-v1.md
+  s_4b599720922f9c::t_42c94a24baf903 82-85,136-137
+integrations/skill/macparakeet-stt/SKILL.md
+  s_4b599720922f9c::t_adc99d8146de60 1-102
+Sources/CLI/Commands/ModelsCommand.swift
+  s_4b599720922f9c::t_3be9de21e71e56 297
+  s_4b599720922f9c::t_81729f42b08edf 399,423-428,433-436,438-444
+  s_4b599720922f9c::t_e39ecd39e38522 293-294,298-310,313-383,395-396,401-422
+  s_4b599720922f9c::t_85c447c308546e 429-432,437
+  s_4b599720922f9c::t_afd0dd8087590e 296
+  s_4b599720922f9c::t_462c563a2bd1f2 397
+  s_4b599720922f9c::t_bc094defa4262a 400
+Sources/CLI/Commands/SpecCommand.swift
+  s_4b599720922f9c::t_09840078fbe079 291,313,359,367,375,382,768,808,866-876
+  s_4b599720922f9c::t_7b4fda83ac881f 877
+Sources/CLI/CHANGELOG.md
+  s_4b599720922f9c::t_b94cf93b59edcb 92-93,96-108,184-187
+Tests/CLITests/SpecCommandTests.swift
+  s_4b599720922f9c::t_115788401b8be5 400
+  s_4b599720922f9c::t_7eaa882d023484 107,189,374,378-380,385-399,401-408
+integrations/hermes/README.md
+  s_4b599720922f9c::t_0e24a012f2e3d3 27-29,36-38
+  s_4b599720922f9c::t_ba7c6550de7af2 39
+integrations/openclaw/README.md
+  s_4b599720922f9c::t_62e0fc2f82b5cd 45-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ed77e29e0532d71d538ee99b5b7f8509f3a78ba4",
+  "prompts": {},
+  "sessions": {
+    "s_4b599720922f9c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f35e6-cd74-7a13-a7dc-da007a2ce5b5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_63496cf754d81b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "18f620f1-22e0-47e6-bfdb-1bfc76867ba0",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

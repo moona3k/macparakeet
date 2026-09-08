@@ -1,0 +1,21 @@
+scripts/dist/build_app_bundle.sh
+  s_6edafe92d02713::t_9f8c89746a2d92 122-124,132-133
+docs/distribution.md
+  s_6edafe92d02713::t_9f8c89746a2d92 191-192
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "fa11895dc24ed8fae8acba9159601470e23f5706",
+  "prompts": {},
+  "sessions": {
+    "s_6edafe92d02713": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6c61-934f-7753-a1cd-5c6945f9c3f1",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

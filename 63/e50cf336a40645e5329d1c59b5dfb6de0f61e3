@@ -1,0 +1,43 @@
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingCaptureReportTests.swift
+  s_1b100f3363ef18::t_9c1729fa143621 30,41,44-45,60,68,79,157
+  s_1b100f3363ef18::t_47adc5ffb155b2 49,87,106
+  s_1b100f3363ef18::t_fc1ce78b956398 50-59,61-67
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingPlaybackArtifactBuilder.swift
+  s_1b100f3363ef18::t_90d2b52b0171d2 8-18,51,54
+  s_1b100f3363ef18::t_9c1729fa143621 19,25,31,37
+  s_1b100f3363ef18::t_47adc5ffb155b2 7
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingPlaybackArtifactBuilderTests.swift
+  s_1b100f3363ef18::t_07996a3f3c0a25 84-93,96-117
+  s_1b100f3363ef18::t_47adc5ffb155b2 94-95
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingRecoveryService.swift
+  s_1b100f3363ef18::t_90d2b52b0171d2 272
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingService.swift
+  s_1b100f3363ef18::t_90d2b52b0171d2 980
+  s_1b100f3363ef18::t_9c1729fa143621 1370,1395,1762,1775-1778,1794,1797-1798,1892,1894-1902
+spec/adr/025-meeting-capture-reliability.md
+  s_1b100f3363ef18::t_9c1729fa143621 72-73,87-89
+  s_1b100f3363ef18::t_48cec092b59ef7 74-77
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  s_1b100f3363ef18::t_fc1ce78b956398 3032-3034,3053
+  s_1b100f3363ef18::t_9c1729fa143621 2994
+  s_1b100f3363ef18::t_48cec092b59ef7 3027-3028
+  s_1b100f3363ef18::t_54f258950140d5 3029-3031
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingCaptureReport.swift
+  s_1b100f3363ef18::t_9c1729fa143621 16,20,24,34,114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "63e50cf336a40645e5329d1c59b5dfb6de0f61e3",
+  "prompts": {},
+  "sessions": {
+    "s_1b100f3363ef18": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f832c-ad6a-7b21-b088-bb991ccbc66a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

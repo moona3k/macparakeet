@@ -1,0 +1,36 @@
+Sources/CLI/Commands/LLMChatCommand.swift
+  h_2ab1f47fea2ced 22-26,31-33,57,59-61,64-66,72-75
+Sources/MacParakeetCore/Models/LLMTypes.swift
+  h_2ab1f47fea2ced 136-138,143-144,149
+Sources/MacParakeetCore/Services/LLM/AnthropicLLMHTTPAdapter.swift
+  h_2ab1f47fea2ced 104-105,110-111,118-120,133-135,172,208
+Sources/MacParakeetCore/Services/LLM/LLMHTTPTransport.swift
+  h_2ab1f47fea2ced 43,51-52,59-104,115-116,157-158,166-167,171-172,261-265,269-270,274-278,380-381,467-468,473-474,479-481
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  h_2ab1f47fea2ced 8-9,21-22,35-36,362-363,366-367,471-472,494-497,906-907,947-948
+Sources/MacParakeetCore/Services/LLM/OpenAICompatibleLLMHTTPAdapter.swift
+  h_2ab1f47fea2ced 151,160-161,213,331-332,350-351,361-363,409
+Sources/MacParakeetViewModels/TranscriptChatViewModel.swift
+  h_2ab1f47fea2ced 42-43,127-128,203-204,238-240,252-255,279,292-293,428,449,506,549,586,616-617
+Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift
+  h_2ab1f47fea2ced 4,52-308,549,551,576,578,615,617,635,637,693-696,700-703,707-710,768-769,791-804
+Tests/MacParakeetTests/Services/LLM/LLMServiceTests.swift
+  h_2ab1f47fea2ced 240-241,253-255,258-259,274-275,295-296,342-343,359-360,373-375,391,401,410-411,420,429-430,474-475,525-526,613-614,635-636,726,729,773,876,879,890-891,903,908,916-917,939-940,951-952,965-966,990-991,1023-1024,1056-1060,1065-1067,1075-1076,1094-1095,1133-1147,1174-1183,1204-1217,1233-1235,1240-1254,1270-1283,1305-1316,1330-1332,1340-1351,1368-1379,1392-1394,1399-1408
+Tests/MacParakeetTests/Services/Transforms/TransformExecutorTests.swift
+  h_2ab1f47fea2ced 267-270,401-404,406-411,425-428,447-450
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  h_2ab1f47fea2ced 828-829,852-853,856-857,942-943
+spec/11-llm-integration.md
+  h_2ab1f47fea2ced 3,18,71,83-123,196-197,252-254,281-283,296-298
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "204fa5821202a24c67361721660752c397d34cda",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

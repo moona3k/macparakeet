@@ -1,0 +1,21 @@
+plans/README.md
+  s_e658bd8f2c85c4::t_2c9f22d07d2214 45
+plans/active/2026-07-04-meeting-health-artifacts-speaker-rename.md
+  s_e658bd8f2c85c4::t_f5fd3064ffc0f7 1-706
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "12a8f62898d0abc2cd3be87fcb40eb8b4368df5d",
+  "prompts": {},
+  "sessions": {
+    "s_e658bd8f2c85c4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2c37-6220-7101-9929-0ef13c588c2f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

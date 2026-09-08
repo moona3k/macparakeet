@@ -1,0 +1,30 @@
+spec/README.md
+  s_4272d79a3d4bc7::t_cd136f8f764051 115
+spec/00-vision.md
+  s_4272d79a3d4bc7::t_dc52ecb321ea14 46-65
+  s_4272d79a3d4bc7::t_49438147b43a86 148
+  s_4272d79a3d4bc7::t_8070d22444ccf8 420
+  s_4272d79a3d4bc7::t_c64284dd8269f8 410
+  s_4272d79a3d4bc7::t_cefa0fc9b652a2 513-514
+  s_4272d79a3d4bc7::t_72f862b44b4040 13-18
+spec/adr/027-product-north-star.md
+  s_4272d79a3d4bc7::t_053f125473c69a 1-104
+AGENTS.md
+  s_4272d79a3d4bc7::t_31ca65c04203db 91-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "58bb4d487c31f1cdccbd583f2c37b7961794f17a",
+  "prompts": {},
+  "sessions": {
+    "s_4272d79a3d4bc7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2a226cfe-1186-470e-9296-f0248af07152",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

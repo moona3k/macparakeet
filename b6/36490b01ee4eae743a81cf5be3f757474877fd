@@ -1,0 +1,20 @@
+scripts/dev/greptile_review.sh
+  s_faac8bc87cd188::t_f8fd3e6d3acd56 6-7,19-21
+  s_faac8bc87cd188::t_bbf2ec9c7592c6 31-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "b636490b01ee4eae743a81cf5be3f757474877fd",
+  "prompts": {},
+  "sessions": {
+    "s_faac8bc87cd188": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0cff-2fe0-7142-b89c-ccf9bcd3a6a5",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

@@ -1,0 +1,20 @@
+Sources/MacParakeetCore/Audio/MicrophoneCapture.swift
+  s_36c7b525dd4642::t_03adb1ff74aa65 112
+  s_36c7b525dd4642::t_b4619e5a81bf66 124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a71de998e506bd4764d2a3c7e182ecc61ce0a0f4",
+  "prompts": {},
+  "sessions": {
+    "s_36c7b525dd4642": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2c7b-dc42-78a0-881e-3748b1fa08bb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

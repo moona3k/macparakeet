@@ -1,0 +1,37 @@
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_39fbf438b95e26::t_39678c94b628b2 1340,1349,1421
+  s_39fbf438b95e26::t_3dd8c5861ba7c8 1460,1462-1464,1468,1470-1472,1476-1480,1484-1488,1492-1496,1500-1504
+  s_39fbf438b95e26::t_2be4c3fec63d4b 1341,1350,1422,1432-1436,1441,1450,1452-1456
+  s_39fbf438b95e26::t_16d886f391cb2d 1406-1417
+Sources/MacParakeetCore/Hotkey/HotkeyConflictPolicy.swift
+  s_39fbf438b95e26::t_44261bc81b1ae3 2-58,60-367,373-395
+  s_39fbf438b95e26::t_9d352c3254feb9 59
+  s_39fbf438b95e26::t_b6093d2a815ff7 397-401,404-406
+Sources/MacParakeetViewModels/TransformEditorViewModel.swift
+  s_39fbf438b95e26::t_fdeb07259374f3 20-22,100,133,151
+Tests/MacParakeetTests/ViewModels/TransformEditorViewModelTests.swift
+  s_39fbf438b95e26::t_ee250194723499 7,60,72,91,110,127,140-144,149,151,161,164,175,191,205,234,240-242,249,253
+Tests/MacParakeetTests/Hotkey/HotkeyConflictPolicyTests.swift
+  s_39fbf438b95e26::t_6be20b7930d380 1-144,181-219,231-327
+  s_39fbf438b95e26::t_0e88e631310ff4 145-180,220-230
+Sources/MacParakeet/App/AppHotkeyCoordinator.swift
+  s_39fbf438b95e26::t_eff6313211afc8 106,393
+Tests/MacParakeetTests/Hotkey/TransformsHotkeyRegistryTests.swift
+  s_39fbf438b95e26::t_841021c9dd95be 85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "25a7e96559b431b9736f4882832cd7a6ee2c33d3",
+  "prompts": {},
+  "sessions": {
+    "s_39fbf438b95e26": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2ff3-dfc4-71b2-8092-6df1549de21f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

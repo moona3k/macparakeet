@@ -1,0 +1,19 @@
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_83880deed1ba53::t_e4c793f538cd69 251-253
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "aaa3678fa977168a94dbc6916d6dec3305f942df",
+  "prompts": {},
+  "sessions": {
+    "s_83880deed1ba53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "739c7882-d4fa-4372-9a38-82050c3c65f6",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

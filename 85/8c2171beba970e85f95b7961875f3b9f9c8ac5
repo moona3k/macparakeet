@@ -1,0 +1,23 @@
+Sources/MacParakeetCore/STT/NemotronEnglishEngine.swift
+  s_aa14297513a12d::t_5eb583011a7579 65-68
+Sources/MacParakeetCore/Services/Diarization/DiarizationService.swift
+  s_aa14297513a12d::t_29ef9c8bdbdd11 83-86,94,136-137,142,160,227,229-235
+Tests/MacParakeetTests/Services/Diarization/DiarizationServiceTests.swift
+  s_aa14297513a12d::t_afca01473b9848 251-292
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "858c2171beba970e85f95b7961875f3b9f9c8ac5",
+  "prompts": {},
+  "sessions": {
+    "s_aa14297513a12d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b828c28a-ecfb-43b2-8474-27531db956f5",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

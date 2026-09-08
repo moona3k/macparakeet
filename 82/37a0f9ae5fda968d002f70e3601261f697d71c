@@ -1,0 +1,19 @@
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_faac8bc87cd188::t_279d53633d720c 163,2590,2594,2606-2608,2617-2618,2633-2638
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "8237a0f9ae5fda968d002f70e3601261f697d71c",
+  "prompts": {},
+  "sessions": {
+    "s_faac8bc87cd188": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0cff-2fe0-7142-b89c-ccf9bcd3a6a5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

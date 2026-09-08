@@ -1,0 +1,27 @@
+Tests/MacParakeetTests/Audio/MutableMicrophoneTapHandlerTests.swift
+  s_63884b5a137073::t_e931f654161650 45
+  s_63884b5a137073::t_0b8727b80bb4f2 2
+  s_63884b5a137073::t_4c6c172803e3dc 1,3-6,38,40-44,46-50,62-63
+  s_63884b5a137073::t_b2590e6decbdf5 7-37,39,51-61
+Sources/MacParakeetCore/Audio/MicrophoneEnginePlatform.swift
+  s_63884b5a137073::t_94fe83ea18a42c 75
+  s_63884b5a137073::t_4c6c172803e3dc 68
+  s_63884b5a137073::t_24f591f6b02416 66-67
+  s_63884b5a137073::t_b2590e6decbdf5 71-74,76-83,86,90-97,101-102,106-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "47059329d51640e25968e4a00c1f43193b2ed107",
+  "prompts": {},
+  "sessions": {
+    "s_63884b5a137073": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f61de-c91e-7312-bc17-24ae7ae712ed",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}

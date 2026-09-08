@@ -1,0 +1,24 @@
+spec/05-audio-pipeline.md
+  s_d1853ccf505dc3::t_ffd9db9746f3b4 201-209
+plans/active/2026-06-28-meeting-aec-full-close.md
+  s_d1853ccf505dc3::t_0179bfd6a8d28f 13-40
+  s_d1853ccf505dc3::t_081b886919a59a 10-12
+  s_d1853ccf505dc3::t_cf598c88803973 41-43
+  s_d1853ccf505dc3::t_b7d7ace1f88010 1-9,44-456
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "6f5949becec4474b3459402dde92a0dfd795d0f2",
+  "prompts": {},
+  "sessions": {
+    "s_d1853ccf505dc3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0b1563cf-33e1-48ec-bd36-cb11428b41c5",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

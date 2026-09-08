@@ -1,0 +1,21 @@
+Tests/MacParakeetTests/Services/Capture/MeetingAecMeasurementHarness.swift
+  s_b57fde6fe2c5fb::t_d85d54fa24c723 336,358-361
+Tests/MacParakeetTests/Services/Capture/MeetingAecMeasurementTests.swift
+  s_b57fde6fe2c5fb::t_d85d54fa24c723 278-288
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8d328ca11171cd4ef9331a899be275e543d8b3b7",
+  "prompts": {},
+  "sessions": {
+    "s_b57fde6fe2c5fb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f29ee-31a9-7682-844e-42525cdcfc89",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

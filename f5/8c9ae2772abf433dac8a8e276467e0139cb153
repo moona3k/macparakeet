@@ -1,0 +1,33 @@
+Sources/MacParakeetCore/Audio/MicrophoneCapture.swift
+  s_41bf4e421cbf72::t_0be1cdf5d34b76 172,221,564-571,577
+Tests/MacParakeetTests/Audio/MicrophoneCaptureTests.swift
+  s_41bf4e421cbf72::t_a50564d2d6b657 495,603,737
+  s_41bf4e421cbf72::t_2f5b71ac84a548 472,494,579,602,609,713,736
+Sources/MacParakeetCore/Audio/AudioCaptureDiagnostics.swift
+  s_41bf4e421cbf72::t_b09a194300fae1 7-10,121-123
+  s_ba73a609112b65::t_7afa834d142f35 124-126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f58c9ae2772abf433dac8a8e276467e0139cb153",
+  "prompts": {},
+  "sessions": {
+    "s_41bf4e421cbf72": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2ae3-ff5c-7be2-b235-80108bc7fd45",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_ba73a609112b65": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2aa1-b191-7e70-ad46-6340e4097630",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

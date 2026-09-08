@@ -1,0 +1,177 @@
+spec/adr/028-meeting-echo-cancellation.md
+  s_6edafe92d02713::t_e19b85db290aa7 3-4
+plans/active/2026-06-18-meeting-auto-title-followups.md
+  s_6edafe92d02713::t_d4e94a96c42bf2 1,3-4,23-25,28-29
+plans/completed/2026-06-15-settings-engine-characterization-tests.md
+  s_6edafe92d02713::t_2d2acbf9fe62d8 1-263
+plans/active/2026-06-14-meeting-mic-reliability.md
+  s_6edafe92d02713::t_98d32f348d3e84 7
+docs/marketing.md
+  s_6edafe92d02713::t_a2c537375bd51b 21-22
+  s_6edafe92d02713::t_2f24aa05cc0555 184
+  s_6edafe92d02713::t_223e04c5a53f7b 3-7,13-15,73,78,121,139-140,145,159,163-165,168,179-180,186-187,198
+docs/agents/qa-agents.md
+  s_6edafe92d02713::t_2f24aa05cc0555 3-4
+README.md
+  s_6edafe92d02713::t_5b29a244cb6efc 8,58,75,133
+plans/completed/live-dictation-preview-readout.md
+  s_6edafe92d02713::t_2d2acbf9fe62d8 1-119
+docs/planning/2026-04-08-crash-report-rootcause-installtap.md
+  s_6edafe92d02713::t_2f24aa05cc0555 8-9
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_6edafe92d02713::t_5b29a244cb6efc 3489
+docs/cli-testing.md
+  s_6edafe92d02713::t_c06e56776b31df 412
+  s_6edafe92d02713::t_eeff0bc9c17060 126-128
+spec/adr/011-llm-cloud-and-local-providers.md
+  s_6edafe92d02713::t_c06e56776b31df 30,38,240
+docs/audits/2026-07-05-meeting-stop-back-to-back-readiness.md
+  s_6edafe92d02713::t_98d32f348d3e84 153
+plans/completed/2026-06-18-library-bulk-delete.md
+  s_6edafe92d02713::t_2d2acbf9fe62d8 1-241
+plans/completed/2026-06-15-transcript-formatter-dedup.md
+  s_6edafe92d02713::t_2d2acbf9fe62d8 1-312
+plans/active/2026-07-10-meeting-knowledge-layer.md
+  s_6edafe92d02713::t_d4e94a96c42bf2 25-27
+spec/adr/027-product-north-star.md
+  s_6edafe92d02713::t_e19b85db290aa7 9-11,17-18,50-51
+plans/README.md
+  s_6edafe92d02713::t_b00169400e19b7 4-7
+  s_6edafe92d02713::t_3be720da313178 91-109
+  s_6edafe92d02713::t_500cb124a88e96 43-44,54,68,73-75,81-84
+plans/completed/2026-07-03-stt-capability-registry.md
+  s_6edafe92d02713::t_2d2acbf9fe62d8 1-160
+plans/completed/2026-07-15-live-final-speech-routing.md
+  s_6edafe92d02713::t_2d2acbf9fe62d8 1-461
+plans/completed/registry-submissions/README.md
+  s_6edafe92d02713::t_2d2acbf9fe62d8 1-71
+plans/completed/2026-06-15-settings-observer-fanout-collapse.md
+  s_6edafe92d02713::t_2d2acbf9fe62d8 1-273
+brand-assets/compositions/social-story.svg
+  s_6edafe92d02713::t_8b109b31c5c17a 20
+spec/02-features.md
+  s_6edafe92d02713::t_460da1ad459ae4 6,198,1853,1857,1860
+plans/completed/2026-07-05-meeting-artifact-naming-v2.md
+  s_6edafe92d02713::t_2d2acbf9fe62d8 1-117
+spec/adr/017-calendar-meeting-auto-start.md
+  s_6edafe92d02713::t_191db1b6ba9b58 3,6,23,99,101,175,201,228,230
+plans/completed/cli-as-canonical-parakeet-surface.md
+  s_6edafe92d02713::t_2d2acbf9fe62d8 1-303
+plans/completed/engine-settings-layout.md
+  s_6edafe92d02713::t_2d2acbf9fe62d8 1-143
+spec/adr/022-transforms-system-wide-rewrite.md
+  s_6edafe92d02713::t_98d32f348d3e84 95
+spec/adr/026-asr-engine-strategy.md
+  s_6edafe92d02713::t_a2c537375bd51b 102-104,110-111
+  s_6edafe92d02713::t_98d32f348d3e84 3-5,109
+docs/research/2026-07-15-live-final-speech-routing-fable-review.md
+  s_6edafe92d02713::t_98d32f348d3e84 7
+Sources/CLI/CHANGELOG.md
+  s_6edafe92d02713::t_98d32f348d3e84 977
+docs/audits/2026-07-16-fresh-eye-product-documentation-audit.md
+  s_6edafe92d02713::t_bcd6d1d2aa3ae8 228-231,234-239,244
+  s_6edafe92d02713::t_e2c41bb45f590f 135,140-144,149-151,217-219,222
+  s_6edafe92d02713::t_b9a98f0f08a2b1 1-6,11-134,136-139,145-148,152-216,220-221,227,245-267,270-311
+  s_6edafe92d02713::t_e9bee126551764 232-233,240-243
+  s_6edafe92d02713::t_6bf8828fa4ca5b 223-226
+  s_6edafe92d02713::t_c3669148853b14 7-10,268-269
+spec/adr/001-parakeet-stt.md
+  s_6edafe92d02713::t_e19b85db290aa7 5
+docs/brand-identity.md
+  s_6edafe92d02713::t_5b29a244cb6efc 174
+scripts/dist/homebrew-tap-scaffold/HOWTO.md
+  s_6edafe92d02713::t_98d32f348d3e84 158
+brand-assets/compositions/wordmark-lockup.svg
+  s_6edafe92d02713::t_8b109b31c5c17a 24
+plans/active/2026-06-12-advisor-index.md
+  s_6edafe92d02713::t_485310f000d686 39
+spec/12-processing-layer.md
+  s_6edafe92d02713::t_c06e56776b31df 183
+docs/audits/2026-05-05-telemetry-error-count-verification.md
+  s_6edafe92d02713::t_98d32f348d3e84 4-5
+plans/completed/2026-06-15-settings-engine-viewmodel-extraction.md
+  s_6edafe92d02713::t_2d2acbf9fe62d8 1-294
+spec/adr/014-meeting-recording.md
+  s_6edafe92d02713::t_009077d9e4d5fd 10-11,133-135,139
+plans/active/2026-05-dictation-first-onboarding.md
+  s_6edafe92d02713::t_98d32f348d3e84 21
+plans/completed/multilingual-whisperkit.md
+  s_6edafe92d02713::t_98d32f348d3e84 302
+plans/completed/nemotron-english-streaming-variant.md
+  s_6edafe92d02713::t_2d2acbf9fe62d8 1-349
+spec/00-vision.md
+  s_6edafe92d02713::t_bdb35965d7f1d0 73-78,92,103,107,320
+  s_6edafe92d02713::t_a2c537375bd51b 22-24,26-28,263-265,271-274,276-278,411-413,427-428
+  s_6edafe92d02713::t_d748ff83620da1 4,11,80,90,101,282
+  s_6edafe92d02713::t_adfd3430a03b5d 294,296,298-305,315-318,330,522
+  s_6edafe92d02713::t_eeff0bc9c17060 484-492
+spec/adr/005-onboarding-first-run.md
+  s_6edafe92d02713::t_d6634c7ff5c9b6 3-9,11,18,27,32-34,48
+plans/completed/2026-05-ask-quick-prompts.md
+  s_6edafe92d02713::t_98d32f348d3e84 6
+plans/completed/2026-06-onboarding-stall-watchdog-test.md
+  s_6edafe92d02713::t_2d2acbf9fe62d8 1-319
+docs/audits/2026-07-16-v0.7.3-comprehensive-codebase-release-architecture-audit.md
+  s_6edafe92d02713::t_98d32f348d3e84 830
+  s_6edafe92d02713::t_b9a98f0f08a2b1 840-843
+plans/completed/2026-06-advisor-index.md
+  s_6edafe92d02713::t_98d32f348d3e84 26
+spec/03-architecture.md
+  s_6edafe92d02713::t_84e41f08cc3b0b 74-76,103,720-722,1149,1157-1158,1189,1197,1226,1230
+  s_6edafe92d02713::t_a2c537375bd51b 1112-1113,1131-1134,1137-1139,1145-1146
+plans/completed/2026-05-unified-quick-prompts.md
+  s_6edafe92d02713::t_98d32f348d3e84 6
+brand-assets/compositions/og-image.svg
+  s_6edafe92d02713::t_8b109b31c5c17a 20
+plans/completed/community-posts/README.md
+  s_6edafe92d02713::t_2d2acbf9fe62d8 1-70
+docs/agents/demo-agents.md
+  s_6edafe92d02713::t_2f24aa05cc0555 3-5
+docs/telemetry.md
+  s_6edafe92d02713::t_2f24aa05cc0555 4-6
+marketing/video/src/content/script.ts
+  s_6edafe92d02713::t_9ec6db0e789bea 25,27,34
+spec/adr/007-fluidaudio-coreml-migration.md
+  s_6edafe92d02713::t_e19b85db290aa7 6
+plans/active/2026-06-15-advisor-index.md
+  s_6edafe92d02713::t_485310f000d686 39-43
+spec/11-llm-integration.md
+  s_6edafe92d02713::t_c06e56776b31df 50,487,495
+spec/adr/013-prompt-library-multi-summary.md
+  s_6edafe92d02713::t_c06e56776b31df 6
+plans/completed/2026-07-15-bounded-capture-lifecycle.md
+  s_6edafe92d02713::t_2d2acbf9fe62d8 1-221
+plans/active/2026-06-28-meeting-aec-full-close.md
+  s_6edafe92d02713::t_d4e94a96c42bf2 5-7,15-19
+  s_6edafe92d02713::t_bec28dd1443a97 20
+plans/active/asr-benchmark-and-model-expansion.md
+  s_6edafe92d02713::t_d4e94a96c42bf2 3-5
+plans/completed/2026-06-15-dx-format-lint-baseline.md
+  s_6edafe92d02713::t_2d2acbf9fe62d8 1-301
+plans/active/2026-07-03-parakeet-custom-vocabulary.md
+  s_6edafe92d02713::t_485310f000d686 7
+docs/agents/README.md
+  s_6edafe92d02713::t_2f24aa05cc0555 3-4,12-13
+docs/blog/using-all-three-chips.md
+  s_6edafe92d02713::t_8b109b31c5c17a 3
+spec/05-audio-pipeline.md
+  s_6edafe92d02713::t_964ac0cf4dbcca 421
+plans/completed/2026-06-18-meeting-back-to-back-recording.md
+  s_6edafe92d02713::t_2d2acbf9fe62d8 1-252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "d603eac060413953d99dc9c6b3f22b5873289f12",
+  "prompts": {},
+  "sessions": {
+    "s_6edafe92d02713": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6c61-934f-7753-a1cd-5c6945f9c3f1",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

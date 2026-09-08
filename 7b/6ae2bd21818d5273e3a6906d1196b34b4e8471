@@ -1,0 +1,20 @@
+Sources/MacParakeetCore/STT/STTRuntime.swift
+  s_83880deed1ba53::t_af6ed12c94821b 213-214
+  s_83880deed1ba53::t_da089efbae44c4 2355-2358
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7b6ae2bd21818d5273e3a6906d1196b34b4e8471",
+  "prompts": {},
+  "sessions": {
+    "s_83880deed1ba53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "739c7882-d4fa-4372-9a38-82050c3c65f6",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

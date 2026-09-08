@@ -1,0 +1,14 @@
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  h_2ab1f47fea2ced 2599-2600,2603,2605-2608,2639
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "05053f16b43262c43bc49790d2f08d3c16217b3c",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

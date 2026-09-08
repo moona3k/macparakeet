@@ -1,0 +1,69 @@
+docs/qa/2026-09-07-0.8.0/cohere-extended.md
+  s_22bb9cc62aa032::t_f6f07f89efaeb1 1-53
+  s_22bb9cc62aa032::t_f0c1a5e5a85404 54-125
+docs/qa/2026-09-07-0.8.0/packaging-sparkle-finding.md
+  s_22bb9cc62aa032::t_47fd8e451026fe 1,3,5,7-14,17,23,34,89
+  s_22bb9cc62aa032::t_392bb080595a10 2,4,6,15-16,18-22,24-33,35-88
+docs/qa/2026-09-07-0.8.0/report-validation.md
+  s_22bb9cc62aa032::t_70e25a324bd425 1-71
+docs/qa/2026-09-07-0.8.0/audio-runtime.md
+  s_22bb9cc62aa032::t_3c908f8bcedac9 3,17-19,23,30-62
+docs/qa/2026-09-07-0.8.0/evidence.json
+  s_22bb9cc62aa032::t_c815243b1d7dab 269,477,480,483,485,488,490-497,501-502,506,509,512,514,517,519-526,530-531,535,538,541,543,546,548-555,559-560,837-944
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/ja-result.json
+  s_22bb9cc62aa032::t_1f027d1111cf14 1-57
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/ja-stderr.log
+  s_22bb9cc62aa032::t_0532774ad4179c 1-9
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/ja-stdout.json
+  s_22bb9cc62aa032::t_6e4bd2e2308721 1-23
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/ko-result.json
+  s_22bb9cc62aa032::t_a443c24523b13e 1-59
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/ko-stderr.log
+  s_22bb9cc62aa032::t_80cfdb2f305cbe 1-9
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/ko-stdout.json
+  s_22bb9cc62aa032::t_1757f27df4a843 1-23
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/manifest.json
+  s_22bb9cc62aa032::t_a685bdbb96c220 1-92
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/summary.json
+  s_22bb9cc62aa032::t_e78bf39362080f 1-44
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/zh-result.json
+  s_22bb9cc62aa032::t_3847dadd1a41d3 1-59
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/zh-stderr.log
+  s_22bb9cc62aa032::t_d37fded6638b18 1-9
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/zh-stdout.json
+  s_22bb9cc62aa032::t_4a916e01bd1f2f 1-23
+docs/qa/2026-09-07-0.8.0/evidence/packaging-sparkle/actual-bundle-inspection.json
+  s_22bb9cc62aa032::t_3596caa8ab74b6 1-7
+docs/qa/2026-09-07-0.8.0/evidence/packaging-sparkle/actual-bundle-red.log
+  s_22bb9cc62aa032::t_465589cebe198f 1-6
+docs/qa/2026-09-07-0.8.0/evidence/packaging-sparkle/actual-framework-copy-green.log
+  s_22bb9cc62aa032::t_6c039c62b81ae6 1-10
+docs/qa/2026-09-07-0.8.0/evidence/packaging-sparkle/actual-framework-copy-result.json
+  s_22bb9cc62aa032::t_60e5acaa7f2181 1-14
+docs/qa/2026-09-07-0.8.0/evidence/packaging-sparkle/artifact-manifest.json
+  s_22bb9cc62aa032::t_6700ac4e52ba78 1-34
+docs/qa/2026-09-07-0.8.0/evidence/packaging-sparkle/fixture-red-green.log
+  s_22bb9cc62aa032::t_674f7aa9330a27 1-5
+docs/qa/2026-09-07-0.8.0/evidence/packaging-sparkle/repro.sh
+  s_22bb9cc62aa032::t_ba03bb1e316d69 1-56
+docs/qa/2026-09-07-0.8.0/evidence/packaging-sparkle/sparkle-root-symlink.patch
+  s_22bb9cc62aa032::t_d5e4560bf0d5ed 1-12
+docs/qa/2026-09-07-0.8.0/index.html
+  s_22bb9cc62aa032::t_8c3c173847de84 13,1075
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "578bd14f1fbfb15e2b455ef4d64893249c4bbde0",
+  "prompts": {},
+  "sessions": {
+    "s_22bb9cc62aa032": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07acb-3805-79e1-afd1-a075ff4e2953",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

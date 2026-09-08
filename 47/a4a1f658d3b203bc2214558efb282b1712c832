@@ -1,0 +1,24 @@
+plans/active/2026-07-03-speaker-voiceprints.md
+  s_35765baab2f0ed::t_98b2d4cb605a55 4-11
+docs/research/2026-07-04-voiceprints-phase0b-clean-corpus.md
+  s_35765baab2f0ed::t_c3018d5a5ebea9 3
+  s_35765baab2f0ed::t_a991ebea0e64fa 1-2,4-235
+docs/research/2026-07-04-voiceprints-phase0b/analyze_voiceprints.py
+  s_35765baab2f0ed::t_b399672e596a32 1-237
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "47a4a1f658d3b203bc2214558efb282b1712c832",
+  "prompts": {},
+  "sessions": {
+    "s_35765baab2f0ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bbfded2-f315-45ed-b4c9-8dced5e0ca31",
+        "model": "claude-fable-5"
+      },
+      "human_author": null
+    }
+  }
+}

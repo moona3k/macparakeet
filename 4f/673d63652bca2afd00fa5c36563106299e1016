@@ -1,0 +1,56 @@
+README.md
+  h_2ab1f47fea2ced 67,286
+Sources/MacParakeet/App/AppSettingsObserverCoordinator.swift
+  h_2ab1f47fea2ced 20,58,76,99-109
+Sources/MacParakeet/AppDelegate.swift
+  h_2ab1f47fea2ced 336-338,641-650
+Sources/MacParakeet/Views/MainWindowView.swift
+  h_2ab1f47fea2ced 55-56,108-114
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  h_2ab1f47fea2ced 704-712,714-717,719-726
+Sources/MacParakeetCore/AppNotifications.swift
+  h_2ab1f47fea2ced 15
+Sources/MacParakeetCore/AppRuntimePreferences.swift
+  h_2ab1f47fea2ced 486
+Sources/MacParakeetCore/Services/Discover/DiscoverService.swift
+  h_2ab1f47fea2ced 72,77-79,103
+Sources/MacParakeetViewModels/DiscoverViewModel.swift
+  h_2ab1f47fea2ced 26-35,47,50-55,72-90,94-100
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  h_2ab1f47fea2ced 452-459
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  h_2ab1f47fea2ced 121-133,814
+Tests/MacParakeetTests/App/AppSettingsObserverCoordinatorTests.swift
+  h_2ab1f47fea2ced 29,83-86,126,146,153-172,192,212,297
+Tests/MacParakeetTests/ViewModels/DiscoverViewModelTests.swift
+  h_2ab1f47fea2ced 1-299
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  h_2ab1f47fea2ced 75-83
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  h_2ab1f47fea2ced 1294-1313
+docs/telemetry.md
+  h_2ab1f47fea2ced 610-617
+spec/00-vision.md
+  h_2ab1f47fea2ced 104-108,339
+spec/02-features.md
+  h_2ab1f47fea2ced 1945,1952-1957
+spec/03-architecture.md
+  h_2ab1f47fea2ced 1159,1392
+spec/04-ui-patterns.md
+  h_2ab1f47fea2ced 1097,1099-1105,1109,1192-1198
+spec/README.md
+  h_2ab1f47fea2ced 4
+spec/adr/002-local-only.md
+  h_2ab1f47fea2ced 6,52,55-60,89-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "4f673d63652bca2afd00fa5c36563106299e1016",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

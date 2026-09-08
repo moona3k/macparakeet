@@ -1,0 +1,19 @@
+Tests/CLITests/SearchCommandTests.swift
+  s_e236039aae95b5::t_700f1a106956af 118,127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "99d76dc5df5ce04539367936e52c100ba19c445b",
+  "prompts": {},
+  "sessions": {
+    "s_e236039aae95b5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f697a-a1ab-7032-a48e-4211119af943",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

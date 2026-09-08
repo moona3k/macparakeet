@@ -1,0 +1,42 @@
+Tests/MacParakeetTests/Services/Capture/MeetingEchoSuppressionRuntimeTests.swift
+  s_a571ce3d1de216::t_ca8e44a6a4704a 175-190,211,250
+  s_a571ce3d1de216::t_243ce6f5fa7c72 167-174,194-196,259-261
+  s_a571ce3d1de216::t_7fe5f5669eee20 473-480
+  s_a571ce3d1de216::t_2d5674696450ae 254-258,262-287
+  s_a571ce3d1de216::t_dc809fea0b8655 294,316,332,370,390
+  s_a571ce3d1de216::t_c12af543211814 1,160-166,191-193,197-210,212-249,251-253,288-293,295-315,317-331,333-341,364-369,371-389,391-422,431-451,459-472,481-485,490-498,503-511,516-525
+  s_a571ce3d1de216::t_12433195330dea 342-349,352-363
+  s_a571ce3d1de216::t_8e70d12e1d3536 350-351,423-430,452-458,486-489,499-502,512-515
+spec/05-audio-pipeline.md
+  s_a571ce3d1de216::t_0f49bcb572ae14 201-206
+Sources/MacParakeetCore/Services/Capture/MeetingEchoSuppressionRuntime.swift
+  s_a571ce3d1de216::t_deef0caa0890be 147-153,228-232,240-264,268
+  s_a571ce3d1de216::t_f50fc45578d0c3 265-267
+  s_a571ce3d1de216::t_793490ec325e27 269-270
+scripts/dist/build_app_bundle.sh
+  s_a571ce3d1de216::t_b18fc8a0007039 468-470
+  s_a571ce3d1de216::t_08ba40f93c9634 39,439-444,472,474,476
+docs/distribution.md
+  s_a571ce3d1de216::t_8ff7dc5b005053 191-197
+  s_a571ce3d1de216::t_a9e847178e9f5c 52-54
+  s_a571ce3d1de216::t_e85c1aca021218 36-51,55-63
+scripts/dist/verify_meeting_echo_assets.sh
+  s_a571ce3d1de216::t_7b3404e047c360 37-44
+  s_a571ce3d1de216::t_dbd855ed6c3fae 8,11-18,28-36,45-48,62,66-72,78-92,112-119,127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "f6ad78ff6f3d55887edb3b3efb0626ed31d54a38",
+  "prompts": {},
+  "sessions": {
+    "s_a571ce3d1de216": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0ddf-7285-7613-8b52-7c2b7b649a83",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

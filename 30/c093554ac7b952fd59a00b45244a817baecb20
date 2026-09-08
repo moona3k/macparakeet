@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/Audio/MicrophoneEnginePlatformConfigChangeRecoveryTests.swift
+  s_d0ef5a767ad070::t_0c8068ca1c330e 623-624,632,646
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "30c093554ac7b952fd59a00b45244a817baecb20",
+  "prompts": {},
+  "sessions": {
+    "s_d0ef5a767ad070": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f89a2-7797-7ce2-b319-de21dcdd3136",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

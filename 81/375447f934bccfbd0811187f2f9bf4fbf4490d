@@ -1,0 +1,21 @@
+spec/contracts/meeting-recovery-retention.md
+  s_557109b6e131b4::t_f55e2fd68f340c 97-103
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingLockFileStore.swift
+  s_557109b6e131b4::t_f55e2fd68f340c 449-452,456-458
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "81375447f934bccfbd0811187f2f9bf4fbf4490d",
+  "prompts": {},
+  "sessions": {
+    "s_557109b6e131b4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa4cc-252a-7751-b90c-71689437cbb4",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

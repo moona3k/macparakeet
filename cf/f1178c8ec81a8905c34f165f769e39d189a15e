@@ -1,0 +1,37 @@
+Tests/MacParakeetTests/Audio/AudioDeviceManagerTransportTests.swift
+  s_4115897087fa9e::t_35c84e5be428e7 87-114
+Sources/MacParakeetCore/Audio/AudioDeviceManager.swift
+  s_4115897087fa9e::t_2b9d5bb031043c 168-187
+  s_4115897087fa9e::t_ced1f9845a5fa7 357,360
+  s_4115897087fa9e::t_d82643a6b2f9d7 366-369,378-379,384
+  s_4115897087fa9e::t_3c13d8739190b2 283-286,295,327-337,340
+docs/cli-testing.md
+  s_4115897087fa9e::t_c34f2843e4b7dc 305
+  s_4115897087fa9e::t_462f1052961881 294-296,301-304,306
+Sources/CLI/Commands/SpecCommand.swift
+  s_4115897087fa9e::t_69613132f235c8 220
+Tests/CLITests/SpecCommandTests.swift
+  s_4115897087fa9e::t_d8680a78458e37 213-215
+diagnostics/1782193165821-dictation-audio.log
+  s_4115897087fa9e::t_02b049dcd81899 1-393
+diagnostics/1782238724374-dictation-audio.log
+  s_4115897087fa9e::t_43ea7f1489b27b 1-543
+diagnostics/1782247611938-dictation-audio.log
+  s_4115897087fa9e::t_cd57f0f5f87eaa 1-824
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "cff1178c8ec81a8905c34f165f769e39d189a15e",
+  "prompts": {},
+  "sessions": {
+    "s_4115897087fa9e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0d05-3096-7d02-870b-7c0fb3761279",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

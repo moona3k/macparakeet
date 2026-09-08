@@ -1,0 +1,19 @@
+docs/audits/2026-07-14-pr-783-merge-readiness.md
+  s_63884b5a137073::t_f7ba8d24a8f431 3-5,100-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "45e1a361c036014decad47cb012e7162e26e0bbb",
+  "prompts": {},
+  "sessions": {
+    "s_63884b5a137073": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f61de-c91e-7312-bc17-24ae7ae712ed",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

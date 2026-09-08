@@ -1,0 +1,28 @@
+spec/06-stt-engine.md
+  s_68774ec8633b59::t_be2599ccfb12fe 86
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_68774ec8633b59::t_e383cf2a3c4173 2609-2613
+docs/telemetry.md
+  s_68774ec8633b59::t_cb87b56984eda8 386
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_68774ec8633b59::t_6ce9986072c889 180-191
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_68774ec8633b59::t_24d46dd603b3aa 301-302
+  s_68774ec8633b59::t_af46c28adf0aeb 303-314
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "9e1d1667926fc5462bc8e57a2f74e1bc662e558c",
+  "prompts": {},
+  "sessions": {
+    "s_68774ec8633b59": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "78a2dc9a-dd41-407b-b0f0-dda0d952b5bd",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": null
+    }
+  }
+}

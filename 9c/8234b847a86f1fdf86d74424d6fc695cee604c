@@ -1,0 +1,52 @@
+Sources/MacParakeet/App/AppSettingsObserverCoordinator.swift
+  h_2ab1f47fea2ced 18,36,55,72
+Sources/MacParakeet/App/AppWindowCoordinator.swift
+  h_2ab1f47fea2ced 115-119,121-125
+Sources/MacParakeet/App/MenuBarCoordinator.swift
+  h_2ab1f47fea2ced 7-33,59,354-367,370-379,381,557-578,630-631
+Sources/MacParakeet/AppDelegate.swift
+  h_2ab1f47fea2ced 329-332,371
+Sources/MacParakeet/BreathWaveIcon.swift
+  h_2ab1f47fea2ced 25
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  h_2ab1f47fea2ced 981-991,995-998
+Sources/MacParakeetCore/AppNotifications.swift
+  h_2ab1f47fea2ced 13
+Sources/MacParakeetCore/AppPreferences.swift
+  h_2ab1f47fea2ced 6,17-20
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  h_2ab1f47fea2ced 543
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  h_2ab1f47fea2ced 457-460
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  h_2ab1f47fea2ced 11-19,58,60-62,64-86,89-106,789-798
+Tests/MacParakeetTests/App/AppDelegateMenuBarResolverTests.swift
+  h_2ab1f47fea2ced 51-83
+Tests/MacParakeetTests/App/AppSettingsObserverCoordinatorTests.swift
+  h_2ab1f47fea2ced 27,74-77,106,119,138,163,182,266
+Tests/MacParakeetTests/App/MenuBarCoordinatorTests.swift
+  h_2ab1f47fea2ced 7-36
+Tests/MacParakeetTests/AppRuntimePreferencesTests.swift
+  h_2ab1f47fea2ced 406-417
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  h_2ab1f47fea2ced 66-74
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  h_2ab1f47fea2ced 212,283,873,878-936,2765,2780
+docs/telemetry.md
+  h_2ab1f47fea2ced 401
+spec/02-features.md
+  h_2ab1f47fea2ced 533,549,553,578-579,581-582,699,702-703,753-754
+spec/04-ui-patterns.md
+  h_2ab1f47fea2ced 631-633,838
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "9c8234b847a86f1fdf86d74424d6fc695cee604c",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

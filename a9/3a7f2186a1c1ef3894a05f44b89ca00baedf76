@@ -1,0 +1,21 @@
+Sources/MacParakeet/Views/Feedback/FeedbackView.swift
+  s_65963fa116987f::t_931b692ff1399e 213
+  s_65963fa116987f::t_751ef84ff4a5bc 17-21
+  s_65963fa116987f::t_a96f5921c02394 192
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "a93a7f2186a1c1ef3894a05f44b89ca00baedf76",
+  "prompts": {},
+  "sessions": {
+    "s_65963fa116987f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9932264f-b9f8-4782-a1f8-7d104d5e8743",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

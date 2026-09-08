@@ -1,0 +1,97 @@
+AGENTS.md
+  s_d3c7e0bd6bd387::t_73758ca745330e 41
+  s_36aa787fe583fd::t_96eb5419a1ff49 150
+  s_d3c7e0bd6bd387::t_1b1179179cb8d3 39-40,138-149
+  s_e275b1808b51d6::t_c1d89b1ac28001 46-52
+docs/pr-review-workflow.md
+  s_d3c7e0bd6bd387::t_70bab3ca019785 51-61,67,78,80,84,87,148-149,167-168
+  s_d3c7e0bd6bd387::t_57645c834bd7c1 62
+plans/active/2026-07-04-hide-meeting-recording-pill.md
+  s_77a0b6a27746de::t_56c22d5c6b2d93 1-2,4,6-74,78-82,84-106,108-134,136-157,159-232
+  s_77a0b6a27746de::t_f912187886f11d 3,5,75-77,83,107,135,158
+plans/README.md
+  s_9f40763b5cb5d5::t_dd4af0fd68153a 46-47
+.gitignore
+  s_d3c7e0bd6bd387::t_734eaf0f778129 13-15
+.no-mistakes.yaml
+  s_d3c7e0bd6bd387::t_6db9729c9bc615 1-29
+plans/active/2026-07-04-context-engine-agent-tools.md
+  s_f71187307ef6c2::t_0eb9b3436d7b40 1-2,7-343
+  s_f71187307ef6c2::t_788b5f1b884c90 3-6
+docs/audits/2026-07-05-mlx-local-llm-integration-review.md
+  s_9f40763b5cb5d5::t_1faaa819758ffb 149
+  s_9f40763b5cb5d5::t_5e9c2eff7beb8f 181
+  s_9f40763b5cb5d5::t_f194fa38948c00 382-383,385-393,395-399
+  s_9f40763b5cb5d5::t_3ad29f26677481 110-114
+  s_9f40763b5cb5d5::t_6fa8badbaaf255 8-14
+  s_9f40763b5cb5d5::t_26b819efc50060 202-220
+  s_9f40763b5cb5d5::t_a44e2c2dbc8c2d 328,330-334,338-356
+  s_9f40763b5cb5d5::t_b4ec338c911a7a 362
+  s_9f40763b5cb5d5::t_4a5e05794955c2 375
+  s_03ffc656b0e855::t_6c78549273f5e1 1-7,15-51,59-109,115-148,150-180,182-201,221-327,329,335-337,357-361,363-374,376-381,384,394,400-457
+  s_9f40763b5cb5d5::t_78152978f77e14 52-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "272ad827dde7996fec44d56559d5d94bd7db80d0",
+  "prompts": {},
+  "sessions": {
+    "s_03ffc656b0e855": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f34aa-bb70-71c0-9ac3-df25d2b4fcad",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_36aa787fe583fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3350-b90a-7211-ae25-285a3b30c27d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_77a0b6a27746de": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f1b-a504-7613-969e-94371c4f3e7c",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    },
+    "s_9f40763b5cb5d5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ced68f09-ea3e-4027-85aa-238060fb2e55",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_d3c7e0bd6bd387": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2a04-d7c9-7781-b7c0-eedd16920923",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_e275b1808b51d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bfafb08d-006e-442e-805c-6f243ea9e764",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_f71187307ef6c2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f15-5453-7e93-b7c9-b1a703554dd5",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

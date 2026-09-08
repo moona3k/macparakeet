@@ -1,0 +1,27 @@
+benchmarks/asr/speed_bench.py
+  s_11cf0f9121451d::t_19cd550b390c7c 15-16,20-22,27-29,51,115-116,150-152,161,164-166,168-172,177
+  s_11cf0f9121451d::t_cc34b144d9e724 132-140
+  s_11cf0f9121451d::t_6b7698fb30bf2e 53-54,147-148,167,175,178
+benchmarks/asr/manifest.json
+  s_11cf0f9121451d::t_6f21f0e8042586 240,452
+benchmarks/asr/README.md
+  s_11cf0f9121451d::t_7d28e96edf9162 141,217-220,294-296
+benchmarks/asr/run_all.sh
+  s_11cf0f9121451d::t_eab9c896976596 14,16,50-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "dafc182e3f95c514229d59e25540533bd98aca17",
+  "prompts": {},
+  "sessions": {
+    "s_11cf0f9121451d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f15e8-d418-7521-b751-82647cfa9549",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

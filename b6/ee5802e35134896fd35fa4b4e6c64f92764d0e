@@ -1,0 +1,23 @@
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_35944fe873eaab::t_96ecee45ab01d1 265,1925,1940,1964-1966,2080-2082,2085,2089-2102,2105-2116,2118
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_35944fe873eaab::t_2ddd363baa519a 2252-2314,4654,4662-4666,4668,4694
+plans/active/2026-09-05-post-meeting-notes-and-prompt-context.md
+  s_35944fe873eaab::t_64ba48b7d26ecb 5-9,30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "b6ee5802e35134896fd35fa4b4e6c64f92764d0e",
+  "prompts": {},
+  "sessions": {
+    "s_35944fe873eaab": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07d2c-41d3-75a1-a1cc-ff3b38be6e53",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

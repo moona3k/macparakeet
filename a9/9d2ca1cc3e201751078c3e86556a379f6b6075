@@ -1,0 +1,31 @@
+plans/active/2026-07-05-meeting-artifact-naming-v2.md
+  s_29fd8f3c93ebe0::t_d911851e5f3409 1-59
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingService.swift
+  s_29fd8f3c93ebe0::t_84e38a5827680d 76,117-120,381-383,771-785
+  s_29fd8f3c93ebe0::t_6dcfa5872e842b 724-750,754,756-757,759-760,764,800,809,820,825-831,835,842,847-856,861,869,874-879,894,897,902-908,926,933,951,954
+  s_29fd8f3c93ebe0::t_f1382eb413a3b4 384
+docs/audits/2026-07-05-meeting-stop-back-to-back-readiness.md
+  s_29fd8f3c93ebe0::t_87e218c1a63895 1-439,441-556
+  s_29fd8f3c93ebe0::t_51748573982ddd 440
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_29fd8f3c93ebe0::t_d1c98b0e2bae0c 714,748
+  s_29fd8f3c93ebe0::t_6846544e239202 711-713,715-745,757,761-773,788-801,832-833,844-845
+  s_29fd8f3c93ebe0::t_32451f3fbefce8 746,753,755-756,758-760,775-779,786,802-806,808,818-822
+  s_29fd8f3c93ebe0::t_f724c846df16dc 787
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a99d2ca1cc3e201751078c3e86556a379f6b6075",
+  "prompts": {},
+  "sessions": {
+    "s_29fd8f3c93ebe0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f9d-e401-7bd2-9946-8232e9146494",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

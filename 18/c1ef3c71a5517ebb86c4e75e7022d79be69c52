@@ -1,0 +1,54 @@
+Tests/MacParakeetTests/ViewModels/TranscriptionLibraryViewModelTests.swift
+  s_2d764f067015ce::t_67b977f589dccc 318-332
+Sources/MacParakeetCore/Services/ExportService.swift
+  s_2d764f067015ce::t_4da7eb623c4e56 2,54-55
+Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift
+  s_2d764f067015ce::t_68b7b9878a0d37 217,439,447-467,473-501,506-517,520-560,563-570,576-591,593-605,608-611,614-619,627,629-632,634-635,653-662,665-670,680-681,683-686,688-699,707,710-712
+  s_2d764f067015ce::t_fd9a6f0ba4cb47 468-472,502-505,561-562,571-575,606-607
+  s_2d764f067015ce::t_b1adddafa8646a 633,636-637,639-644
+  s_2d764f067015ce::t_6a64dca6fbe87c 1,19-24,202-216
+  s_2d764f067015ce::t_dee2427937a953 399-400,404,408-410
+  s_2d764f067015ce::t_2149a82b8467b4 592,682,687,700-706,708-709
+  s_2d764f067015ce::t_d7685e05e874dd 612-613
+  s_2d764f067015ce::t_7467890b86008f 25-26,218-220,440-446,620-626,628,638,645-652,663-664,671-679
+  s_2d764f067015ce::t_3c66213d5dc383 518-519
+Sources/MacParakeet/Views/Transcription/BulkTranscriptionSelectionBar.swift
+  s_2d764f067015ce::t_c1ee49670d6c19 9,13,183,185-193
+  s_2d764f067015ce::t_6d0dcf1ad61766 121,139
+  s_2d764f067015ce::t_fbba1ff4fa81e9 194-195
+  s_2d764f067015ce::t_feb482ba0e2f9c 50,89,184
+Sources/CLI/Commands/MeetingsCommand.swift
+  s_2d764f067015ce::t_bf6ee2a4e5075e 146
+  s_2d764f067015ce::t_8b38d9d789aae3 149,157,159
+Sources/MacParakeetViewModels/TranscriptionLibraryViewModel.swift
+  s_2d764f067015ce::t_5c3e5180118dc3 163-166
+Sources/MacParakeet/Views/Transcription/TranscriptResultActions.swift
+  s_2d764f067015ce::t_12d12fccdddfa9 5,51,131,136,160,222-243,256,259-261
+  s_2d764f067015ce::t_7467890b86008f 143-147,150
+  s_2d764f067015ce::t_5766a99d730231 274
+  s_2d764f067015ce::t_0fa96b13a6d7c0 275
+  s_2d764f067015ce::t_7ff1dff8e9ab34 52-68,117,132-135,138-142,148-149,151-159,161-172,175-180,182-195,203-221,262-273
+  s_2d764f067015ce::t_d7685e05e874dd 137,173-174,181,244-255,257-258
+Sources/CLI/Commands/ExportCommand.swift
+  s_2d764f067015ce::t_4c035ab64e26fb 46
+  s_2d764f067015ce::t_7eb6d5594bcd0d 52,55,63,78,81,83,85,87,100,103,105,107,109,111
+Tests/MacParakeetTests/Views/TranscriptResultActionsTests.swift
+  s_2d764f067015ce::t_44ae511be39a99 22,39,68,89
+  s_2d764f067015ce::t_67b977f589dccc 1-21,23-38,40-67,69-88,90-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.4",
+  "base_commit_sha": "18c1ef3c71a5517ebb86c4e75e7022d79be69c52",
+  "prompts": {},
+  "sessions": {
+    "s_2d764f067015ce": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f15e1-877a-7e73-9360-aa4775c1de42",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

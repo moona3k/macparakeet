@@ -1,0 +1,19 @@
+plans/README.md
+  s_741b05fa7fe81b::t_e932ac3ec02d82 50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b80349d324a642f8dbe830b5b9f38243af236cc3",
+  "prompts": {},
+  "sessions": {
+    "s_741b05fa7fe81b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b0d028ac-a245-4222-b6fc-76e336fe62bf",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

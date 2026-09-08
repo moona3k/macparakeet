@@ -1,0 +1,34 @@
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingOutputTests.swift
+  s_e23a17e8e36e85::t_3836ae3ff58b4a 1,16,34-45,73,82-93,128-153
+  s_e23a17e8e36e85::t_ed726c0367adab 154
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingCleanedMicRendererTests.swift
+  s_e23a17e8e36e85::t_3836ae3ff58b4a 85,93,95,99,119,122,124,133,136,138,163,168,171
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingService.swift
+  s_e23a17e8e36e85::t_3836ae3ff58b4a 1277
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingRecoveryService.swift
+  s_e23a17e8e36e85::t_3836ae3ff58b4a 295-296,300,307
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift
+  s_e23a17e8e36e85::t_3836ae3ff58b4a 273-284
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingCleanedMicRenderer.swift
+  s_e23a17e8e36e85::t_3836ae3ff58b4a 35,71-72,79,113,312,374,385,391-397
+  s_e23a17e8e36e85::t_4de423a7cb3191 398-399
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingOutput.swift
+  s_e23a17e8e36e85::t_065615e9e108be 69
+  s_e23a17e8e36e85::t_3836ae3ff58b4a 1,56,61,67-68,70,75-79,93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "9361ff673fac905b7a4f79a1e67dec0bfe76ef3d",
+  "prompts": {},
+  "sessions": {
+    "s_e23a17e8e36e85": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f104b-6f72-7910-bf43-75dde003685e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

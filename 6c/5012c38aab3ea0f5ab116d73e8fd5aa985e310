@@ -1,0 +1,48 @@
+spec/adr/014-meeting-recording.md
+  s_657579445aa62e::t_45f8e324e7d841 51-52
+  s_657579445aa62e::t_e2264263298f84 53-55
+plans/active/2026-07-15-bounded-capture-lifecycle.md
+  s_657579445aa62e::t_e2264263298f84 93-96
+  s_657579445aa62e::t_45f8e324e7d841 90-92
+Sources/MacParakeetCore/Audio/SystemAudioStream.swift
+  s_657579445aa62e::t_544ab8e3a4cb61 174-175,188,190
+  s_657579445aa62e::t_14076e234776a9 508-510
+  s_657579445aa62e::t_44f8e01b2c4602 8-56,80,147-156,227,242,257,267-270,273-279,286-298,309,315-325,405
+  s_657579445aa62e::t_45f8e324e7d841 511-518,532-538
+  s_657579445aa62e::t_7696c30185da08 141
+Tests/MacParakeetTests/Audio/ScreenCaptureLifecycleTests.swift
+  s_657579445aa62e::t_ec77cd69b77abc 168-169
+  s_657579445aa62e::t_4efae56eee510d 188,202
+  s_657579445aa62e::t_7696c30185da08 135-160,189-201,203-217,259
+  s_657579445aa62e::t_45f8e324e7d841 161-167,170-187,255-258
+  s_fe30d9e1d81161::t_c15abab43e01f2 260
+Sources/MacParakeetCore/Audio/README.md
+  s_657579445aa62e::t_e2264263298f84 310-311
+  s_657579445aa62e::t_bd5c6da9f2c55b 309
+Sources/MacParakeetCore/Audio/ScreenCaptureLifecycle.swift
+  s_657579445aa62e::t_45f8e324e7d841 20,23,67,75-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "6c5012c38aab3ea0f5ab116d73e8fd5aa985e310",
+  "prompts": {},
+  "sessions": {
+    "s_657579445aa62e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6707-9a57-7c31-bf29-3dd24d619f21",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_fe30d9e1d81161": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6763-5e6a-71d3-8f91-e29adaf0a34a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

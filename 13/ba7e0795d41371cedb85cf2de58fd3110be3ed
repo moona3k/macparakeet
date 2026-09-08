@@ -1,0 +1,29 @@
+Sources/MacParakeet/Views/Transcription/TranscriptionSourceDisplay.swift
+  s_f004fcd19ae182::t_599b71208fb693 46-65
+Sources/MacParakeet/Views/Transcription/TranscriptionSourceLabel.swift
+  s_f004fcd19ae182::t_ed6febc863a9cc 2,5-6,11-15,20-29,35-50
+Sources/MacParakeet/Views/Transcription/TranscriptionThumbnailCard.swift
+  s_f004fcd19ae182::t_6177383264618e 244-248
+Sources/MacParakeetViewModels/TranscriptionLibraryViewModel.swift
+  s_f004fcd19ae182::t_f588421fc0b50f 29-33,57
+Tests/MacParakeetTests/ViewModels/LibrarySourceLabelStyleTests.swift
+  s_f004fcd19ae182::t_8ed726e872a3bf 53,56-57,64-88,90-94
+Tests/MacParakeetTests/Views/TranscriptionSourceDisplayTests.swift
+  s_f004fcd19ae182::t_582ab376d1a788 90-106,108-112,114,116,118-124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "13ba7e0795d41371cedb85cf2de58fd3110be3ed",
+  "prompts": {},
+  "sessions": {
+    "s_f004fcd19ae182": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e565480c-1956-49c5-8c55-0bf3a90ccde4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

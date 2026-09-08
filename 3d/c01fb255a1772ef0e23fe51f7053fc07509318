@@ -1,0 +1,22 @@
+plans/README.md
+  s_47e6fc593d9d56::t_59428f79633c93 33
+plans/active/2026-07-03-meeting-corpus-capture.md
+  s_47e6fc593d9d56::t_686ec52fde5f83 19
+  s_47e6fc593d9d56::t_ab4fb2aca8ffdc 9-10,30-36,63-65,77-79,95-98,100-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3dc01fb255a1772ef0e23fe51f7053fc07509318",
+  "prompts": {},
+  "sessions": {
+    "s_47e6fc593d9d56": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2b1c-a3da-7553-8a01-a4b34f888ae6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

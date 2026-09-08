@@ -1,0 +1,38 @@
+Sources/CLI/Commands/CLIHelpers.swift
+  s_0b1ac55e19e259::t_c9448d5f976b31 290-291
+  s_0b1ac55e19e259::t_b54d19d9d5fb00 2,245-247,252-259,261-289
+  s_4144ceefbb8753::t_85868632c1954e 248-251,260
+Tests/CLITests/CLIHelpersTests.swift
+  s_0b1ac55e19e259::t_7e79bd9b2b9862 333
+  s_0b1ac55e19e259::t_638f3ebcb94c55 1,318-332
+Sources/CLI/Commands/HealthCommand.swift
+  s_4144ceefbb8753::t_0925c9b5cf9929 151-164
+Sources/CLI/Commands/RetranscribeCommand.swift
+  s_4144ceefbb8753::t_0925c9b5cf9929 244-278,280
+Sources/CLI/Commands/TranscribeCommand.swift
+  s_0b1ac55e19e259::t_868ee3cdd37bf2 566-571,587-593,595-601
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a17f9d63a0ce4c53b7833bdd5dce6d6dbaf66eeb",
+  "prompts": {},
+  "sessions": {
+    "s_0b1ac55e19e259": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f111e-bf59-7e40-82ad-9bab73b0ef83",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_4144ceefbb8753": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e3a-0f0b-7400-881f-3d5f97f513a9",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

@@ -1,0 +1,24 @@
+spec/adr/002-local-only.md
+  s_92b3d20e9679ec::t_4a4e0b6035875f 87
+spec/README.md
+  s_92b3d20e9679ec::t_8f5708412a800c 83
+spec/03-architecture.md
+  s_92b3d20e9679ec::t_d8b057b2e1313d 1066
+  s_92b3d20e9679ec::t_bc2faa4264fe77 1048
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e77d91a953ffc3a480c5fc77b07b90f9ad339552",
+  "prompts": {},
+  "sessions": {
+    "s_92b3d20e9679ec": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "923cbef9-a744-4866-9050-fb5e59396bb1",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

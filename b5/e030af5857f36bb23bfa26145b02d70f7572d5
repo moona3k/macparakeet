@@ -1,0 +1,36 @@
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingArtifactPathAliases.swift
+  s_88b21d7bd1dbf6::t_dc3f29898440ac 1-22
+Sources/MacParakeet/App/MeetingTranscriptionQueue.swift
+  s_88b21d7bd1dbf6::t_03de77c986db9e 80,82,89-97,105,108
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingRecoveryService.swift
+  s_88b21d7bd1dbf6::t_132c1521755b7f 375
+spec/contracts/meeting-recovery-retention.md
+  s_88b21d7bd1dbf6::t_4cb94e0a213d0e 101-104
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingSettlement.swift
+  s_88b21d7bd1dbf6::t_e79c1f254a6689 72
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingTranscriptionQueueTests.swift
+  s_88b21d7bd1dbf6::t_638a873b1de521 68-98
+  s_88b21d7bd1dbf6::t_dccee7cde2cc49 269-272,276-277
+  s_88b21d7bd1dbf6::t_5694a09b134418 205-208
+  s_88b21d7bd1dbf6::t_cf0af9efdbfd00 185
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingSettlementTests.swift
+  s_88b21d7bd1dbf6::t_edd09e98b638e5 80-152
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift
+  s_88b21d7bd1dbf6::t_35b10777e13550 432
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b5e030af5857f36bb23bfa26145b02d70f7572d5",
+  "prompts": {},
+  "sessions": {
+    "s_88b21d7bd1dbf6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "12efd9c3-b3bc-4f6e-a27a-d08701fad748",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

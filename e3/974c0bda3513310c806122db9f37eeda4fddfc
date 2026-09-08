@@ -1,0 +1,21 @@
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_c4cc9a8ad9913b::t_0dedd17272feaa 1250-1252
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_c4cc9a8ad9913b::t_3a9c32635cd2e6 1302-1327
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e3974c0bda3513310c806122db9f37eeda4fddfc",
+  "prompts": {},
+  "sessions": {
+    "s_c4cc9a8ad9913b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e43-8014-74f2-ba44-91eba4c8bb2d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,33 @@
+Tests/MacParakeetTests/Views/SpeakerRenameAccessibilityTests.swift
+  s_c4cc9a8ad9913b::t_9f3337b0533cdc 50-72
+  s_c4cc9a8ad9913b::t_638b62b25e61bd 1-17,22-31,36-40,45-49,73
+  s_c4cc9a8ad9913b::t_6b9cae7deafbe0 18-21,32-35,41-44
+Sources/MacParakeet/Views/Transcription/SpeakerRenameAccessibility.swift
+  s_c4cc9a8ad9913b::t_fb8726baa3155a 5,7-8
+  s_c4cc9a8ad9913b::t_33b6ff571519e8 1-4,6,9-24,38
+  s_c4cc9a8ad9913b::t_a8b198583af93d 25-37
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_c4cc9a8ad9913b::t_b149f94f89d91a 2922,2995,3019
+  s_c4cc9a8ad9913b::t_61082aaa8939f3 3003
+  s_c4cc9a8ad9913b::t_8e98489582df28 140,2853-2856,2859-2860,2934-2938,2975,3007,3026-3027,3031,3047
+  s_c4cc9a8ad9913b::t_18644dfaf9ab46 2857-2858,2969-2974,2977,3000
+  s_c4cc9a8ad9913b::t_68113cd2b88447 94,230,2889-2897,2899-2906,2910,2912-2915,2918-2921,2923,2926-2933,2940-2944,2948-2954,2956-2958,2994,2996,3009-3010,3016-3018,3020,3022
+Sources/MacParakeet/Views/Transcription/TranscriptTimestampedContentView.swift
+  s_c4cc9a8ad9913b::t_c77ce00a2e2c5e 91,97,114-120,122-123,167-168,185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b62d91973219378419a1fa516624bb27fcafa9d4",
+  "prompts": {},
+  "sessions": {
+    "s_c4cc9a8ad9913b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e43-8014-74f2-ba44-91eba4c8bb2d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

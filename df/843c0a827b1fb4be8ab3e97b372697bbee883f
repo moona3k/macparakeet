@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/Views/TranscriptBodyLayoutTests.swift
+  s_33f5d7430bf7ee::t_e9c5e97ff06704 9-13,18-21,29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "df843c0a827b1fb4be8ab3e97b372697bbee883f",
+  "prompts": {},
+  "sessions": {
+    "s_33f5d7430bf7ee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "af93fe8a-8e0b-4cce-a090-0422ed2704b4",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

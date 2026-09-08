@@ -1,0 +1,19 @@
+README.md
+  s_3554f82f547388::t_d64d7237f7836b 127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3caf031b2e1cbdf0e47682c7fa5b48ecedde70e7",
+  "prompts": {},
+  "sessions": {
+    "s_3554f82f547388": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "18fbc836-6670-44c8-a25b-5d17f0143eaf",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

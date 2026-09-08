@@ -1,0 +1,19 @@
+spec/03-architecture.md
+  s_e9e3d4321f37f2::t_60be1bab35430b 338
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "c216d44c8d681c70af6094ebe270169c312529cd",
+  "prompts": {},
+  "sessions": {
+    "s_e9e3d4321f37f2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f694a-67df-7a60-9a2d-eacef805efc4",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

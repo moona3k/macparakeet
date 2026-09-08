@@ -1,0 +1,155 @@
+Sources/CLI/CHANGELOG.md
+  s_35944fe873eaab::t_bff87f3c102bbe 94-97
+Sources/CLI/Commands/CardsCommand.swift
+  s_35944fe873eaab::t_127836d6237a65 140
+Sources/CLI/Commands/ExportCommand.swift
+  s_35944fe873eaab::t_b21a859c251b2d 52,55,59,67,82-85,88,90,92,94,96,98,102-106,109,111,113,115,117,119-134,136
+Sources/CLI/Commands/MeetingsCommand.swift
+  s_35944fe873eaab::t_3f3df38b9bdf60 115,117,152-154,159,161,163,165,491-492,540-541,586,589,704-705,707-708,748-749,762-763,765-766,775-776,839,846-847,858-859,861,875-876,886-887,892-893,986,990,1000-1002,1007
+Sources/CLI/Commands/PromptsCommand.swift
+  s_35944fe873eaab::t_37dd925aabed8d 468,471-473,475,552,590,593,599
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_35944fe873eaab::t_97472744a4689b 19-20,75-76,309
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_35944fe873eaab::t_71919d0c9c481e 116-118,121-124,223
+Sources/MacParakeet/Views/MainWindowView.swift
+  s_35944fe873eaab::t_b25c3f9540da64 169-174
+Sources/MacParakeet/Views/Transcription/SpeakerEditSelectionModel.swift
+  s_35944fe873eaab::t_0e847468847c4d 1-97
+Sources/MacParakeet/Views/Transcription/TranscriptResultActions.swift
+  s_35944fe873eaab::t_f1a758c09479ad 149,183-189,191
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_35944fe873eaab::t_559187aba82904 2,9-17,19,48-50,69-82,102-103,137,143,184,194-195,211,230,328-329,427,484-490,496,522-524,572-580,614-630,713-714,718,1003,1005-1010,1015-1018,1036-1039,1066-1069,1085-1089,1161-1162,1183-1200,1205-1222,1232-1263,1276,1280,1304-1307,1324,1327,1373-1382,1769-1771,1779-1783,1789-1791,1793-1798,1800-1802,1804-1808,1810-1812,1814-1822,1824-1829,1832-1853,1855-1861,1864-1876,1882,1898-1901,1922,1996-2011,2020,2022,2030,2040,2042-2057,2115-2116,2128-2136,2138,2275-2289,2324-2331,2482-2483,3706-3709,3848-3869,3901-4012,4016-4125,4131-4133,4173-4182,4184,4196-4197,4212-4271,4417-4418,4420-4422,4539-4541,4543-4550
+Sources/MacParakeet/Views/Transcription/TranscriptTimestampedContentView.swift
+  s_35944fe873eaab::t_6a64f9e01dda00 117-165,215-234,240-250,262-272,336-396,406-608,734-743,749-766,778-781,785-789,803-808,841-857,884-917
+Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift
+  s_35944fe873eaab::t_6435170006d2d8 784,805-806
+Sources/MacParakeetCore/Database/CardRepository.swift
+  s_35944fe873eaab::t_0426992306ddf9 38,42-51,117-122,178,191-200,202-204
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  s_35944fe873eaab::t_355a1d495f4d42 1370-1424
+Sources/MacParakeetCore/Database/README.md
+  s_35944fe873eaab::t_693e7d7e5df592 22-25,92
+Sources/MacParakeetCore/Database/SegmentRepository.swift
+  s_35944fe873eaab::t_797321e2f735b0 105-106,109,151-154,160,162,164,203-206,212,214,216,301-330
+Sources/MacParakeetCore/Database/SpeakerCorrectionRepository.swift
+  s_35944fe873eaab::t_2d555114f38f61 1-261
+Sources/MacParakeetCore/Models/AudioSource.swift
+  s_35944fe873eaab::t_208b3bb8140712 4
+Sources/MacParakeetCore/Models/Card.swift
+  s_35944fe873eaab::t_92b47c95595c8d 27-28,30-35,38-39
+Sources/MacParakeetCore/Models/SpeakerCorrection.swift
+  s_35944fe873eaab::t_3e7f0720328543 1-287
+Sources/MacParakeetCore/Models/Transcription.swift
+  s_35944fe873eaab::t_0746e5b794b9a6 264
+Sources/MacParakeetCore/Services/DAPTDocumentRenderer.swift
+  s_35944fe873eaab::t_a13b579a9ee5ae 84-87
+Sources/MacParakeetCore/Services/Diarization/DiarizationService.swift
+  s_35944fe873eaab::t_d78bf90312dd9d 33-95
+Sources/MacParakeetCore/Services/Diarization/SpeakerAttributionReadService.swift
+  s_35944fe873eaab::t_5e183c621506c8 1-157
+Sources/MacParakeetCore/Services/Diarization/SpeakerAttributionResolver.swift
+  s_35944fe873eaab::t_b30441db0356e2 1-784
+Sources/MacParakeetCore/Services/ExportService.swift
+  s_35944fe873eaab::t_071f892bf22a9c 33-52,124-143,412,414-415,473-477,531,537-538
+Sources/MacParakeetCore/Services/KnowledgeLayerMutationService.swift
+  s_35944fe873eaab::t_71b2a49d84c6d7 22-27,29,34-46
+Sources/MacParakeetCore/Services/LLM/CardGenerationService.swift
+  s_35944fe873eaab::t_9a15c3a3193536 50,58,65,77-80,107-110,113-115,140-142,194-206
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingArtifactStore.swift
+  s_35944fe873eaab::t_ae672ff09e95c3 9-26,61-62,66-114,133-134,155-156,173,175-178,180,192,196,204-230,238,250-251,259,265,271,291-294,298,300-302,309,506-508,521,535-555,570-618
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingMarkdownRenderer.swift
+  s_35944fe873eaab::t_b9b6b3f5dd38d9 150-152,160-162,199-201,228-229
+Sources/MacParakeetCore/Services/SpeakerCorrectionService.swift
+  s_35944fe873eaab::t_e19ae8277e55c7 1-400
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_35944fe873eaab::t_c9f2adc62c4ad2 61-81,225-268,298,325,359,392,428,463,685-720,723,748,772-803,809-813,843,849-855,1413,1418-1421,1448,1652,1816,1822-1824,1870
+Sources/MacParakeetCore/TextProcessing/TranscriptAIContextFormatter.swift
+  s_35944fe873eaab::t_837c037371e12e 4-13
+Sources/MacParakeetCore/TextProcessing/TranscriptParagraphBuilder.swift
+  s_35944fe873eaab::t_c29669c7862b26 47,53,76
+Sources/MacParakeetCore/Utilities/KnowledgeSegmenter.swift
+  s_35944fe873eaab::t_20e4b1b6e32c9d 5,161-212,285-293
+Sources/MacParakeetCore/Utilities/TranscriptSegmenter.swift
+  s_35944fe873eaab::t_8ce8e6da735c4d 32,45-58,205-207
+Sources/MacParakeetViewModels/PromptResultsViewModel.swift
+  s_35944fe873eaab::t_ee8c79c723b562 111,216,227,759,761-772
+Sources/MacParakeetViewModels/TranscriptionLibraryViewModel.swift
+  s_35944fe873eaab::t_8b3c3b9a92e720 189-190,202-205,207-215
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_35944fe873eaab::t_b72db3e157cfe9 128-138,244-261,277-280,310,358-360,370-371,375-377,915-919,959-974,976-993,1036-1049,1907-2071,2075-2090,2194,2208,2225-2226,2340-2342,2344-2348,2351-2352,2357-2366,2369
+Tests/CLITests/ExportCommandTests.swift
+  s_35944fe873eaab::t_e830c2b12b61ed 97-160
+Tests/MacParakeetTests/Database/CardRepositoryTests.swift
+  s_35944fe873eaab::t_f1244079894085 81-83,98-128,427
+Tests/MacParakeetTests/Database/DatabaseManagerTests.swift
+  s_35944fe873eaab::t_870ef075c108cb 65-159
+Tests/MacParakeetTests/Database/SegmentRepositoryTests.swift
+  s_35944fe873eaab::t_f7cb1c73b3eedf 32-48,76,254-260
+Tests/MacParakeetTests/Database/SpeakerCorrectionRepositoryTests.swift
+  s_35944fe873eaab::t_c18aeac849bf5f 1-132
+Tests/MacParakeetTests/Models/SpeakerCorrectionTests.swift
+  s_35944fe873eaab::t_c1cc39a2f33064 1-65
+Tests/MacParakeetTests/Services/Diarization/DiarizationServiceTests.swift
+  s_35944fe873eaab::t_4de986f6f93f95 129-152
+Tests/MacParakeetTests/Services/Diarization/SpeakerAttributionReadServiceTests.swift
+  s_35944fe873eaab::t_b5ce95514ce936 1-170
+Tests/MacParakeetTests/Services/Diarization/SpeakerAttributionResolverTests.swift
+  s_35944fe873eaab::t_bf04a098ccb177 1-557
+Tests/MacParakeetTests/Services/Diarization/SpeakerParityRegressionTests.swift
+  s_35944fe873eaab::t_382736ef6be854 1-95
+Tests/MacParakeetTests/Services/ExportServiceTests.swift
+  s_35944fe873eaab::t_ba285450db6343 13-67
+Tests/MacParakeetTests/Services/LLM/CardGenerationServiceTests.swift
+  s_35944fe873eaab::t_dd3f24a2c76545 258-309,662-694,722,730,789
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingArtifactStoreTests.swift
+  s_35944fe873eaab::t_7381b45202fe85 30-60,228-314
+Tests/MacParakeetTests/Services/SpeakerCorrectionServiceTests.swift
+  s_35944fe873eaab::t_e1fa3bc5234678 1-356
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_35944fe873eaab::t_4bf7fd96a8322e 71-82,3249-3421
+Tests/MacParakeetTests/TextProcessing/TranscriptParagraphBuilderTests.swift
+  s_35944fe873eaab::t_4b64977895c500 36,85-87,109-129
+Tests/MacParakeetTests/ViewModels/TranscriptionSpeakerCorrectionViewModelTests.swift
+  s_35944fe873eaab::t_a9422ee781d409 1-459
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_35944fe873eaab::t_e4f21c8d3e02c3 3508-3581
+Tests/MacParakeetTests/ViewModels/ViewModelMocks.swift
+  s_35944fe873eaab::t_2d39fc2d753440 453,468,717-741
+Tests/MacParakeetTests/Views/SpeakerEditSelectionModelTests.swift
+  s_35944fe873eaab::t_73edc081e5f7b7 1-152
+Tests/MacParakeetTests/Views/TranscriptResultActionsTests.swift
+  s_35944fe873eaab::t_dd87a499615b42 134-191
+Tests/MacParakeetTests/Views/TranscriptSpeakerContextTests.swift
+  s_35944fe873eaab::t_32637c074a6593 1-331
+Tests/MacParakeetTests/Views/TranscriptTimestampedLayoutSmokeTests.swift
+  s_35944fe873eaab::t_0c249f3ac74cc0 75-76,78-79,97-102,176-192,210-274
+plans/README.md
+  s_35944fe873eaab::t_8f37e460913495 37
+plans/active/2026-09-05-speaker-attribution-editing.md
+  s_35944fe873eaab::t_faae8ffe1c2742 1-682
+spec/01-data-model.md
+  s_35944fe873eaab::t_7edf4d469d635a 23-24,215-269,301-304,1367-1371,1418,1448-1451
+spec/adr/010-speaker-diarization.md
+  s_35944fe873eaab::t_b044e68a6e81bd 267-295
+spec/contracts/cli-json-v1.md
+  s_35944fe873eaab::t_ee10eef40c7dda 138-142
+spec/contracts/meeting-artifacts-v1.md
+  s_35944fe873eaab::t_c3391806764e62 23-27,156-157,253-254,258-269
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "85e23ff82ace589a5472eb02728c9110e230af88",
+  "prompts": {},
+  "sessions": {
+    "s_35944fe873eaab": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07d2c-41d3-75a1-a1cc-ff3b38be6e53",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

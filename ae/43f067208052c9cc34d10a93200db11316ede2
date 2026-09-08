@@ -1,0 +1,19 @@
+Sources/MacParakeetCore/Utilities/TranscriptionAssetCleanup.swift
+  s_f2aa740cd9212c::t_8ad04a3c092aaf 171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ae43f067208052c9cc34d10a93200db11316ede2",
+  "prompts": {},
+  "sessions": {
+    "s_f2aa740cd9212c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3490-2476-7f10-87c3-37da284a16cd",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

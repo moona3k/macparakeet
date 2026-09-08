@@ -1,0 +1,21 @@
+plans/active/2026-06-14-meeting-mic-reliability.md
+  s_66d3337be753fc::t_fe62554b72208d 3
+plans/active/2026-07-04-meeting-health-artifacts-speaker-rename.md
+  s_66d3337be753fc::t_6f6c9c12778196 3-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e6ffa831e2922504b5149c523e759295182c92a3",
+  "prompts": {},
+  "sessions": {
+    "s_66d3337be753fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1d0ad57f-1172-43bb-9860-c42ce0bf5356",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

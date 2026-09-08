@@ -1,0 +1,23 @@
+Sources/CLI/CHANGELOG.md
+  s_f004fcd19ae182::t_4b6185a3bc0102 92-93
+Sources/CLI/MacParakeetCLI.swift
+  s_f004fcd19ae182::t_f3fc3c23b93f89 11
+spec/README.md
+  s_f004fcd19ae182::t_65e690b2fe3d36 67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "c3e77c7f9c7e9ab045bb2b89613c1dda70fa1b44",
+  "prompts": {},
+  "sessions": {
+    "s_f004fcd19ae182": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e565480c-1956-49c5-8c55-0bf3a90ccde4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

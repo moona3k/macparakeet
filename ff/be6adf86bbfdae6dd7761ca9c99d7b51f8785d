@@ -1,0 +1,25 @@
+Tests/MacParakeetTests/App/MeetingRecoveryCoordinatorTests.swift
+  s_95c6a0fb11a878::t_71da5f5c286ec0 16-18
+Sources/MacParakeet/App/MeetingRecoveryCoordinator.swift
+  s_95c6a0fb11a878::t_9e4a45a282cc68 186,188,190,199,201,203,246-247
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_95c6a0fb11a878::t_fa2ddd51fe1f6c 885-886,891,893,897,1616,1622,1629,1635,1641
+Tests/MacParakeetTests/TelemetryServiceTests.swift
+  s_95c6a0fb11a878::t_e49af8fe4cd60a 403,506,531,550,1660-1664
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ffbe6adf86bbfdae6dd7761ca9c99d7b51f8785d",
+  "prompts": {},
+  "sessions": {
+    "s_95c6a0fb11a878": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d101878-f237-4b7a-8bcf-b0f32a615cbe",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

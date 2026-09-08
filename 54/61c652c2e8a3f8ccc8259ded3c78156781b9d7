@@ -1,0 +1,25 @@
+plans/README.md
+  s_fe30d9e1d81161::t_f0792a65ddd814 33
+docs/research/2026-07-15-live-final-speech-routing-fable-review.md
+  s_fe30d9e1d81161::t_f0792a65ddd814 263-268,270-275
+  s_fe30d9e1d81161::t_928507707ef414 269
+plans/active/2026-07-15-live-final-speech-routing.md
+  s_fe30d9e1d81161::t_f0792a65ddd814 3,402-420
+  s_fe30d9e1d81161::t_acc10964e1c85f 421
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "5461c652c2e8a3f8ccc8259ded3c78156781b9d7",
+  "prompts": {},
+  "sessions": {
+    "s_fe30d9e1d81161": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6763-5e6a-71d3-8f91-e29adaf0a34a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

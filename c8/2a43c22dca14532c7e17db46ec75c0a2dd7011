@@ -1,0 +1,27 @@
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_29fd8f3c93ebe0::t_6df84590e5b820 498,597-599,888-895
+  s_29fd8f3c93ebe0::t_8d9d4f65adccf3 896-898
+Sources/MacParakeetCore/DictationFlow/DictationFlowStateMachine.swift
+  s_29fd8f3c93ebe0::t_2b448134738e46 387,464-467
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorLoadCaptionTests.swift
+  s_29fd8f3c93ebe0::t_6df84590e5b820 83-86,291-292
+  s_29fd8f3c93ebe0::t_2b448134738e46 284-286,293-297
+Tests/MacParakeetTests/DictationFlow/DictationFlowStateMachineTests.swift
+  s_29fd8f3c93ebe0::t_2b448134738e46 569,710-712,715,743-744,806-807,811,938-944
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c82a43c22dca14532c7e17db46ec75c0a2dd7011",
+  "prompts": {},
+  "sessions": {
+    "s_29fd8f3c93ebe0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f9d-e401-7bd2-9946-8232e9146494",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

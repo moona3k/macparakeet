@@ -1,0 +1,21 @@
+docs/agent-memory-governance.md
+  s_f1803faa18efa7::t_738a12069b5977 33-34,85-86
+AGENTS.md
+  s_f1803faa18efa7::t_738a12069b5977 99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "ca98be271b3f8d160d14b9b135874b6836f3fde0",
+  "prompts": {},
+  "sessions": {
+    "s_f1803faa18efa7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0f63-20bb-72f1-8484-b1e680e82276",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

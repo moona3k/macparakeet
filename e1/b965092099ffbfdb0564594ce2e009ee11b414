@@ -1,0 +1,61 @@
+Tests/MacParakeetTests/Calendar/MeetingLinkParserTests.swift
+  s_2de810b0ab24b8::t_5bbe9afbab99f8 185
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingOutputTests.swift
+  s_2de810b0ab24b8::t_5bbe9afbab99f8 417-439
+Tests/MacParakeetTests/Calendar/MeetingAutoStartCoordinatorTests.swift
+  s_2de810b0ab24b8::t_5bbe9afbab99f8 248-324
+Sources/MacParakeetCore/Calendar/CalendarService.swift
+  s_2de810b0ab24b8::t_bebef120ffe439 235-237
+Sources/MacParakeetCore/Models/Transcription.swift
+  s_2de810b0ab24b8::t_b4964cc9b9e172 329-332
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  s_2de810b0ab24b8::t_b4964cc9b9e172 1053-1054
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingLockFileStore.swift
+  s_2de810b0ab24b8::t_b4964cc9b9e172 89-90
+Sources/MacParakeetCore/Calendar/MeetingLinkParser.swift
+  s_2de810b0ab24b8::t_b4964cc9b9e172 81-87
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_43784a8bbb773b::t_521e8ab8e8d23a 240
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingLockFileStoreTests.swift
+  s_43784a8bbb773b::t_17bddbc5c5f598 293,318
+  s_2de810b0ab24b8::t_5bbe9afbab99f8 317,319-340
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_2de810b0ab24b8::t_5bbe9afbab99f8 174-210,641-642
+  s_bca6b7fcc5ebbc::t_97943ce09a2fe2 643-644
+Sources/MacParakeetCore/Calendar/MeetingMonitor.swift
+  s_2de810b0ab24b8::t_b4964cc9b9e172 73,127
+Sources/MacParakeet/App/MeetingAutoStartCoordinator.swift
+  s_2de810b0ab24b8::t_b4964cc9b9e172 458-465,471
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e1b965092099ffbfdb0564594ce2e009ee11b414",
+  "prompts": {},
+  "sessions": {
+    "s_2de810b0ab24b8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2bb5-2b85-78c2-b787-3612a54bd725",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_43784a8bbb773b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2c1e-c5b7-7cf0-9962-b3bc0fa49133",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    },
+    "s_bca6b7fcc5ebbc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2bba-72a9-7672-a73d-b753ed2f9128",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

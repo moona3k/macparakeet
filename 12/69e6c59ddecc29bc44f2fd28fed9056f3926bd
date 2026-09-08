@@ -1,0 +1,25 @@
+CLAUDE.md
+  s_faac8bc87cd188::t_5ea25eefa53720 86-89
+docs/pr-review-workflow.md
+  s_faac8bc87cd188::t_5ea25eefa53720 56-67,69,73,76,134
+scripts/dev/greptile_review.sh
+  s_faac8bc87cd188::t_5ea25eefa53720 1-27
+AGENTS.md
+  s_faac8bc87cd188::t_5ea25eefa53720 37,112-114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "1269e6c59ddecc29bc44f2fd28fed9056f3926bd",
+  "prompts": {},
+  "sessions": {
+    "s_faac8bc87cd188": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0cff-2fe0-7142-b89c-ccf9bcd3a6a5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+Sources/CLI/CHANGELOG.md
+  s_22bb9cc62aa032::t_985e67ce1edba0 92-93,107,111-117
+Sources/CLI/MacParakeetCLI.swift
+  s_22bb9cc62aa032::t_7563181e3421ce 11
+integrations/README.md
+  s_22bb9cc62aa032::t_d97fad427b6d79 8
+spec/contracts/cli-json-v1.md
+  s_22bb9cc62aa032::t_938e909e7da1a1 139,143-145
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "7e2a1896e55dc42f9b8d51b1e82c7c522f86abf6",
+  "prompts": {},
+  "sessions": {
+    "s_22bb9cc62aa032": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07acb-3805-79e1-afd1-a075ff4e2953",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

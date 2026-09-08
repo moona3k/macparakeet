@@ -1,0 +1,35 @@
+spec/adr/014-meeting-recording.md
+  s_b67d25964d6cb1::t_d171c7c3058a13 141-142
+plans/active/2026-06-12-advisor-index.md
+  s_b67d25964d6cb1::t_7b2ab3f5e654f6 82
+plans/active/2026-06-12-june-churn-regression-tests.md
+  s_b67d25964d6cb1::t_6b7801aad4df34 229,231,251
+docs/research/2026-06-meeting-aec-open-issues-prior-art.md
+  s_b67d25964d6cb1::t_7029b12f99714f 1-223,253-361
+  s_b67d25964d6cb1::t_c2a754ec3af6ac 224-252
+docs/research/vpio-process-tap-conflict.md
+  s_b67d25964d6cb1::t_f1ab0659743ca4 540-542
+  s_b67d25964d6cb1::t_61aefe67c7bbd4 127-131
+spec/05-audio-pipeline.md
+  s_b67d25964d6cb1::t_c7db32917cbdba 160-161,197-205,230,232
+Sources/MacParakeetCore/Audio/README.md
+  s_b67d25964d6cb1::t_b758f9023e67be 63-67
+plans/completed/2026-05-meeting-neural-echo-suppression.md
+  s_b67d25964d6cb1::t_8b3dbb7e4cc7b8 3-7,29,97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "abca048806f1567a027b2abab40879cd14262243",
+  "prompts": {},
+  "sessions": {
+    "s_b67d25964d6cb1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0bf2-3e7b-7b73-8504-b253c2226cf8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+README.md
+  s_7f3e1551b03906::t_d2f1ce3ab12bae 66,88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9d2d0751bf32a11c44e303658f786bce1e56512d",
+  "prompts": {},
+  "sessions": {
+    "s_7f3e1551b03906": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f365e-15fb-7ef0-98f2-b98b7bfdfa19",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

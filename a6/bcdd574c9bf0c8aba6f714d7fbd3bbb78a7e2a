@@ -1,0 +1,39 @@
+Tests/MacParakeetTests/STT/NemotronEnglishEngineLoadGatingTests.swift
+  s_aa14297513a12d::t_f82bfc8f97943b 1-86
+Sources/MacParakeetCore/Models/MeetingCalendarSnapshot.swift
+  s_aa14297513a12d::t_091813c63218b6 51-54,56,59,77,80
+Sources/MacParakeetCore/STT/NemotronEnglishEngine.swift
+  s_aa14297513a12d::t_264597550c7b04 30-35,40-58,60-63,110,117,182,200,358-368
+Sources/MacParakeetCore/STT/STTRuntime.swift
+  s_aa14297513a12d::t_b9ac376d0cab7c 2245
+Sources/MacParakeetCore/Services/Diarization/DiarizationService.swift
+  s_aa14297513a12d::t_6974be3d99a1e9 44-48,56-59,82,84-86,93,100,103,110-161,171-173,281-284,287-304,306,405,409-416
+Sources/MacParakeetCore/Services/Diarization/MeetingSpeakerPrior.swift
+  s_aa14297513a12d::t_ad15db37cf50dd 46-55,60-61,65,111-158
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingTranscriptFinalizer.swift
+  s_aa14297513a12d::t_3167695f450711 13-23,63-69
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_aa14297513a12d::t_01c10e159cbeb8 1502-1509,1515,1520,1525,1528,1534,1559-1560,1575-1579
+Tests/MacParakeetTests/Services/Diarization/DiarizationServiceTests.swift
+  s_aa14297513a12d::t_89660101261468 3,216-360,368-369,375-382,385-390
+Tests/MacParakeetTests/Services/Diarization/MeetingSpeakerPriorTests.swift
+  s_aa14297513a12d::t_f907b6cc66fe05 83-125
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_aa14297513a12d::t_b63b8535bb7f61 2651-2774
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "a6bcdd574c9bf0c8aba6f714d7fbd3bbb78a7e2a",
+  "prompts": {},
+  "sessions": {
+    "s_aa14297513a12d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b828c28a-ecfb-43b2-8474-27531db956f5",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

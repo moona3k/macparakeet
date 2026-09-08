@@ -1,0 +1,31 @@
+Tests/MacParakeetTests/App/MeetingRecoveryCoordinatorTests.swift
+  s_ad23b80e45997d::t_d85403f6e99ee4 1-30
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingLockFileStore.swift
+  s_ad23b80e45997d::t_d85403f6e99ee4 4
+docs/telemetry.md
+  s_ad23b80e45997d::t_d85403f6e99ee4 352-356
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_ad23b80e45997d::t_7f08d2f0f6e27e 455-459
+  s_ad23b80e45997d::t_d85403f6e99ee4 435-454,460-477,885-893,897,1612,1616,1618,1622,1624,1629,1631,1635,1637,1641,1763-1767,1895-1899
+Tests/MacParakeetTests/TelemetryServiceTests.swift
+  s_ad23b80e45997d::t_d85403f6e99ee4 400-406,502-507,525,530-575,1660-1664
+Sources/MacParakeet/App/MeetingRecoveryCoordinator.swift
+  s_ad23b80e45997d::t_d85403f6e99ee4 62-66,138-142,153-154,167,190-194,200,242-244
+  s_ad23b80e45997d::t_cadbe2344ce2b1 245
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "75aa7b02294a3b116ec712d128ac3215c7359902",
+  "prompts": {},
+  "sessions": {
+    "s_ad23b80e45997d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f348b-1451-79a3-a287-c185347f4369",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+Sources/MacParakeetObjCShims/MPKObjCExceptionCatcher.m
+  s_2a75fa1c414460::t_32a3d0ede216fc 40-43
+Sources/MacParakeetCore/Services/LLM/InProcessLLMClient.swift
+  s_2a75fa1c414460::t_f4b9645b1a3972 3,451
+Sources/MacParakeetObjCShims/include/MPKObjCExceptionCatcher.h
+  s_2a75fa1c414460::t_970c5d1da997b0 2,31-33
+  s_2a75fa1c414460::t_3c0df9f82348b1 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9676f9ddb35bd88adb22e896653e079cc05731c0",
+  "prompts": {},
+  "sessions": {
+    "s_2a75fa1c414460": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f9c-a119-7601-9897-5195dd6ef61f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

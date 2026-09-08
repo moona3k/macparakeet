@@ -1,0 +1,30 @@
+scripts/dist/meeting_echo_asset_defaults.sh
+  s_3e1204f9e52983::t_e6999b250dc3cb 1,3-5
+  s_3e1204f9e52983::t_8478ec69e4cd27 2
+scripts/dist/build_app_bundle.sh
+  s_3e1204f9e52983::t_e6999b250dc3cb 47-48
+scripts/dist/prepare_meeting_echo_assets.sh
+  s_3e1204f9e52983::t_e6999b250dc3cb 10-11,15,27,51-52
+  s_3e1204f9e52983::t_41ecb465b082ff 100-115,202-206
+  s_3e1204f9e52983::t_ae898035b1a94c 14,26,94-95,214,230,235-254,286-288
+  s_3e1204f9e52983::t_da38adde4085a3 80,83-84,279-280,282
+  s_3e1204f9e52983::t_a91e511021ae69 78-79,81-82,85-86
+  s_3e1204f9e52983::t_a0cccba3a28d1f 22,157-158,163-166,183-200,207-211,295
+  s_3e1204f9e52983::t_8478ec69e4cd27 87-93,201,290
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "38baa9f433e89cdb73741923bd48a6292bd853ff",
+  "prompts": {},
+  "sessions": {
+    "s_3e1204f9e52983": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f1200-bdf1-7070-a1b9-d324f6a3e675",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

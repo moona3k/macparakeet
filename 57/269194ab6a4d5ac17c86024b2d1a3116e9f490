@@ -1,0 +1,43 @@
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingService.swift
+  s_7b8ad3432c9dd3::t_3451459622f028 35-42,86-89,115-120,287-289,496-524,606,1140-1144,1155,1159-1185,1751,1784-1786
+Sources/MacParakeetCore/MeetingRecordingFlow/MeetingRecordingFlowStateMachine.swift
+  s_7b8ad3432c9dd3::t_e050a2566be7e7 29-35
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  s_7b8ad3432c9dd3::t_5f7e6db0584342 620-642,1856-1864
+  s_7b8ad3432c9dd3::t_b13090f01b0c3c 1866,1913-1915
+  s_7b8ad3432c9dd3::t_4655abf4727b14 597-619,643-668,1868-1869,1890-1912,1916-1920,3041
+  s_7b8ad3432c9dd3::t_c0b8658b815f05 1865
+  s_7b8ad3432c9dd3::t_1eb5f8cad1da73 1867
+  s_7b8ad3432c9dd3::t_b3e63748ce7173 1870
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_7b8ad3432c9dd3::t_15afb6ddde2ca0 1401-1412
+  s_7b8ad3432c9dd3::t_76fe7aea44c421 89,203,647,1109-1131,1135
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_7b8ad3432c9dd3::t_7b8926e0349f1d 93-190,687-719,785-787,809-811,817,821,823-824,866-911
+  s_7b8ad3432c9dd3::t_b0cdb54732ce86 784,808,816,822,826-828,830-832,842,850
+  s_2a75fa1c414460::t_e3ec01afeca9ad 720,912
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "57269194ab6a4d5ac17c86024b2d1a3116e9f490",
+  "prompts": {},
+  "sessions": {
+    "s_2a75fa1c414460": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f9c-a119-7601-9897-5195dd6ef61f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_7b8ad3432c9dd3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2ff3-0202-7420-82fd-eb04158945e0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

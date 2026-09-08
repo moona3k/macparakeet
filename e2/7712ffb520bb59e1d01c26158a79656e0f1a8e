@@ -1,0 +1,25 @@
+Sources/MacParakeet/Views/Settings/LLMSettingsView.swift
+  s_a367ae118b64cc::t_e8d3880d08cf4f 287
+Sources/MacParakeetViewModels/LLMSettingsDraft.swift
+  s_a367ae118b64cc::t_70680c551d8b2e 310-316
+  s_a367ae118b64cc::t_e2b92d0bf926df 3,165,293-295,306-309,317-350,353-356,362
+Tests/MacParakeetTests/ViewModels/LLMSettingsDraftTests.swift
+  s_a367ae118b64cc::t_8b75db379cc6eb 100-113,120-133
+  s_a367ae118b64cc::t_81127ef4bc0fcb 86-99,114-119,134-155,301-321
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e27712ffb520bb59e1d01c26158a79656e0f1a8e",
+  "prompts": {},
+  "sessions": {
+    "s_a367ae118b64cc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2ac0-f2e5-7161-9375-4e3e84625458",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

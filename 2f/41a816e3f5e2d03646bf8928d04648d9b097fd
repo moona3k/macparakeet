@@ -1,0 +1,34 @@
+Sources/MacParakeetViewModels/InProcessModelManagerViewModel.swift
+  s_c28530f223a02b::t_65e1fb8d6470fc 113,116,119-121
+  s_c28530f223a02b::t_6ee8ff011e8a6d 103-104,114-115,117-118
+  s_c28530f223a02b::t_db3093845df745 73
+  s_c28530f223a02b::t_322e4768cd73be 112
+Sources/MacParakeetCore/Services/LLM/InProcessLLMClient.swift
+  s_c28530f223a02b::t_4ccaccf9e06589 8
+  s_c28530f223a02b::t_6ee8ff011e8a6d 112-113,317-318
+  s_c28530f223a02b::t_2ea4f4a26fa0db 84-87
+Sources/MacParakeetCore/Services/LLM/LocalLLMRuntime.swift
+  s_c28530f223a02b::t_03aefd73f934a4 19,29-38,42-43,46
+Tests/MacParakeetTests/ViewModels/InProcessModelManagerViewModelTests.swift
+  s_c28530f223a02b::t_6ee8ff011e8a6d 302-309
+  s_c28530f223a02b::t_c4c79d978bf8e1 129-182
+Sources/MacParakeetCore/Services/LLM/RoutingLLMClient.swift
+  s_c28530f223a02b::t_a5dc697a0a50e6 21-24
+  s_c28530f223a02b::t_7fd9c20300f58e 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2f41a816e3f5e2d03646bf8928d04648d9b097fd",
+  "prompts": {},
+  "sessions": {
+    "s_c28530f223a02b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7edaed81-639e-479f-9df9-ba8f95630da5",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

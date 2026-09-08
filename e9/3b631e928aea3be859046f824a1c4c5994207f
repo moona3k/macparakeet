@@ -1,0 +1,43 @@
+Tests/MacParakeetTests/Services/System/MockClipboardService.swift
+  s_29fd8f3c93ebe0::t_8520ae6eb8c985 21,42-44,71-73
+  s_29fd8f3c93ebe0::t_389a6a735125b1 74
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_29fd8f3c93ebe0::t_1012dbbf83fe06 867,881-885
+  s_29fd8f3c93ebe0::t_335a7b947b1cef 612,655,661
+  s_29fd8f3c93ebe0::t_8d9d4f65adccf3 893-894
+  s_29fd8f3c93ebe0::t_d3ec3172087ab2 596-597,638-643,645-646,652
+  s_29fd8f3c93ebe0::t_6df84590e5b820 498,880,886-892
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorLoadCaptionTests.swift
+  s_29fd8f3c93ebe0::t_2b448134738e46 312-314,321-325
+  s_29fd8f3c93ebe0::t_6df84590e5b820 83-86,319-320
+  s_29fd8f3c93ebe0::t_0e2d937ece9bab 232-259
+Sources/MacParakeetCore/DictationFlow/DictationFlowStateMachine.swift
+  s_29fd8f3c93ebe0::t_2b448134738e46 464-467
+  s_29fd8f3c93ebe0::t_86338c04c0909a 387
+  s_29fd8f3c93ebe0::t_1012dbbf83fe06 497
+  s_29fd8f3c93ebe0::t_4976a729206b88 488
+Tests/MacParakeetTests/DictationFlow/DictationFlowStateMachineTests.swift
+  s_29fd8f3c93ebe0::t_4976a729206b88 882
+  s_29fd8f3c93ebe0::t_2b448134738e46 569,711-713,716,745-746,808-809,813,941-947
+  s_29fd8f3c93ebe0::t_01921ef1fb2cc6 572
+  s_29fd8f3c93ebe0::t_1012dbbf83fe06 728
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_29fd8f3c93ebe0::t_db65863c94d2b6 85-86
+  s_29fd8f3c93ebe0::t_8520ae6eb8c985 71-84,87-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e93b631e928aea3be859046f824a1c4c5994207f",
+  "prompts": {},
+  "sessions": {
+    "s_29fd8f3c93ebe0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f9d-e401-7bd2-9946-8232e9146494",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

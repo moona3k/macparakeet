@@ -1,0 +1,42 @@
+Sources/MacParakeetCore/STT/STTClient.swift
+  s_d83ed5a0631a14::t_4b56a20a54a530 20-21,26-29,37-38
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_d83ed5a0631a14::t_4b56a20a54a530 93-96
+Tests/MacParakeetTests/STT/CustomVocabularyBoostingTests.swift
+  s_d83ed5a0631a14::t_72f2c8bb039833 84-100
+Sources/MacParakeetCore/STT/CustomVocabularyBoosting.swift
+  s_d83ed5a0631a14::t_4b0bf7453f1903 34-37,45,48-51,53-59
+Tests/MacParakeetTests/AppRuntimePreferencesTests.swift
+  s_d83ed5a0631a14::t_72f2c8bb039833 42-54
+Tests/MacParakeetTests/STT/SpeechEngineCapabilitiesTests.swift
+  s_d83ed5a0631a14::t_72f2c8bb039833 46-47,52-57
+  s_d83ed5a0631a14::t_23e47e4b7f9b73 58
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_d83ed5a0631a14::t_4b56a20a54a530 403,408-415
+Sources/MacParakeetCore/AppRuntimePreferences.swift
+  s_d83ed5a0631a14::t_1c9497cc690c52 28,534,694-695
+  s_d83ed5a0631a14::t_53985e582c673f 696-697
+Tests/CLITests/VocabCommandTests.swift
+  s_d83ed5a0631a14::t_72f2c8bb039833 111-117,123-125
+  s_d83ed5a0631a14::t_fd913e35da319a 109-110
+Sources/CLI/Commands/VocabWordsCommand.swift
+  s_d83ed5a0631a14::t_4b56a20a54a530 27-31
+Sources/MacParakeetCore/STT/STTRuntime.swift
+  s_d83ed5a0631a14::t_89c14c93ce0529 171,246-247,262,813,845-846,849,1137-1138,1155-1156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8bbb7606530b1eeeb515cff8012e4843f4dc28ee",
+  "prompts": {},
+  "sessions": {
+    "s_d83ed5a0631a14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4657-90da-7992-9e5f-6aab084b389b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+Sources/CLI/Commands/MeetingsCommand.swift
+  s_03194fc411710d::t_cda33674145755 563,567,571,671-672,700-708,945,949-957,961
+Tests/CLITests/MeetingsCommandTests.swift
+  s_03194fc411710d::t_23a6f298f4b17b 795-796
+  s_03194fc411710d::t_aa404de5e13d31 406-420
+  s_03194fc411710d::t_859972d382a8ab 2,344,348,387-388,400-401,421-542,743-794
+  s_03194fc411710d::t_278656b6cec20a 236
+  s_03194fc411710d::t_0214477e2fa3bf 402
+Sources/CLI/Commands/SpecCommand.swift
+  s_03194fc411710d::t_f2b318c04b1413 892,987,1001
+Tests/CLITests/SpecCommandTests.swift
+  s_03194fc411710d::t_36212f00e2e8d2 391-392,396-403
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9ec825ba5346f0e30b76328b8dc91f42c0832880",
+  "prompts": {},
+  "sessions": {
+    "s_03194fc411710d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e30-bc87-71f3-aa78-da81e88dbcca",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

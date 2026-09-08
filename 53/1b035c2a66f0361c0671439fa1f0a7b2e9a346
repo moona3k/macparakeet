@@ -1,0 +1,19 @@
+spec/adr/016-centralized-stt-runtime-scheduler.md
+  s_434e3dc88fa355::t_20bc38d6dc6ebd 121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "531b035c2a66f0361c0671439fa1f0a7b2e9a346",
+  "prompts": {},
+  "sessions": {
+    "s_434e3dc88fa355": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7bc15049-405e-4ef3-b9bc-a730cad9392b",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

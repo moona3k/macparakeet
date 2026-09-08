@@ -1,0 +1,63 @@
+Sources/MacParakeetCore/Services/Capture/MeetingEchoSuppressionRuntime.swift
+  s_a571ce3d1de216::t_c096ec07109a2a 261-266
+  s_a571ce3d1de216::t_635205c0a0d214 395,406-407,510-511
+  s_a571ce3d1de216::t_deef0caa0890be 147-148,150-153,228-232,240-260,267-268,277
+  s_a571ce3d1de216::t_f50fc45578d0c3 269-270,276
+  s_a571ce3d1de216::t_98b66fd5fe422e 271-275
+  s_a571ce3d1de216::t_140e5adfce7b62 149
+  s_a571ce3d1de216::t_793490ec325e27 278-279
+spec/05-audio-pipeline.md
+  s_a571ce3d1de216::t_0f49bcb572ae14 201-206
+scripts/dist/verify_meeting_echo_assets.sh
+  s_a571ce3d1de216::t_881261953cc308 20-28,83-84,105-106,138-139
+  s_a571ce3d1de216::t_11c0fc02619549 39,46,49-57
+  s_a571ce3d1de216::t_b2e413a52587a7 112
+  s_a571ce3d1de216::t_e7b42561b9bd9f 111
+  s_a571ce3d1de216::t_46e47787c9e96d 19
+  s_a571ce3d1de216::t_fe1357554810f7 96
+  s_a571ce3d1de216::t_dbd855ed6c3fae 8,11-18,38,48,58-60,74,78-82,85-86,92-95,97-104,107-108,129-136,146
+  s_a571ce3d1de216::t_7b3404e047c360 40-45,47
+Tests/MacParakeetTests/Services/Capture/MeetingEchoSuppressionRuntimeTests.swift
+  s_a571ce3d1de216::t_ca8e44a6a4704a 176-191,258
+  s_a571ce3d1de216::t_e7b42561b9bd9f 164
+  s_a571ce3d1de216::t_2d5674696450ae 262-266,270-295
+  s_a571ce3d1de216::t_e2d700b5770b37 350,365-368,372
+  s_a571ce3d1de216::t_d6756b7388d342 218-219
+  s_a571ce3d1de216::t_746bd8d88c6e05 514-515,517,536-537,539-545,547-550
+  s_a571ce3d1de216::t_3f4d6f5099f6ab 211,216,456-459
+  s_a571ce3d1de216::t_7fe5f5669eee20 488-495
+  s_a571ce3d1de216::t_12433195330dea 351-357,360-364,369-371,373-374
+  s_a571ce3d1de216::t_243ce6f5fa7c72 168-175,193-195,267-269
+  s_a571ce3d1de216::t_c12af543211814 1,160-163,165-167,192,196-202,209-210,212-215,217,220-222,224-257,259-261,296-301,303-313,315-323,325-339,341-349,375-380,382-400,402-433,442-455,460-466,474-487,496-500,505-513,520-528,533-535,538,551-553
+  s_a571ce3d1de216::t_dc809fea0b8655 302,324,340,381,401
+  s_a571ce3d1de216::t_ecdaaeca1f784e 203-208,223
+  s_a571ce3d1de216::t_5570b7e5dee38d 314
+  s_a571ce3d1de216::t_bbb37459c06fb8 546
+  s_a571ce3d1de216::t_8e70d12e1d3536 358-359,434-441,467-473,501-504,516,518-519,529-532
+scripts/dist/build_app_bundle.sh
+  s_a571ce3d1de216::t_fe1357554810f7 472-473
+  s_a571ce3d1de216::t_b18fc8a0007039 470-471,474
+  s_a571ce3d1de216::t_08ba40f93c9634 39,439-444,476,478,480
+  s_a571ce3d1de216::t_b2e413a52587a7 447,450
+  s_a571ce3d1de216::t_e7b42561b9bd9f 449
+docs/distribution.md
+  s_a571ce3d1de216::t_848fa3e23dc1ad 52-54
+  s_a571ce3d1de216::t_8ff7dc5b005053 191-197
+  s_a571ce3d1de216::t_e85c1aca021218 36-51,55-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "1e7a35584cead149b233d4eb534d82b62ebe0ed8",
+  "prompts": {},
+  "sessions": {
+    "s_a571ce3d1de216": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0ddf-7285-7613-8b52-7c2b7b649a83",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

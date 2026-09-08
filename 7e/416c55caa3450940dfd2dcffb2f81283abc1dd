@@ -1,0 +1,33 @@
+spec/adr/011-llm-cloud-and-local-providers.md
+  s_2a75fa1c414460::t_74e0ca609208fb 1-25,27-29,31-35,39-42,54-57,59-60,62-72,80-84,86-88,90-95,99-103,105-107,109-114,122-124,126,128,131-158,166-170,209-235,237,241-243,245-246,248
+plans/active/2026-06-27-on-device-local-llm-phase0-eval.md
+  s_fc1eb14fbdc2fc::t_2f999c31ae8d30 17-25,60-63,73-75,77-81,200-203,292-298,302-305,407-413,418-423
+plans/active/2026-06-27-on-device-local-llm.md
+  s_fc1eb14fbdc2fc::t_8037134efad15a 3,13,15,17-19,24,34-38,40,48,55,70-71,84,86,116-117,124,136,138,142,151,160,165,167,170-175,177,179
+spec/11-llm-integration.md
+  s_fc1eb14fbdc2fc::t_74ce419ecce2bf 21,26-27,384-388
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7e416c55caa3450940dfd2dcffb2f81283abc1dd",
+  "prompts": {},
+  "sessions": {
+    "s_2a75fa1c414460": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f9c-a119-7601-9897-5195dd6ef61f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_fc1eb14fbdc2fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6de26207-f1f2-483f-80c0-ca7464e694a1",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

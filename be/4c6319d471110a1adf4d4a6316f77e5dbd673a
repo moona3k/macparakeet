@@ -1,0 +1,52 @@
+spec/adr/019-crash-resilient-meeting-recording.md
+  s_557109b6e131b4::t_66588d38967f55 182-189
+spec/04-ui-patterns.md
+  s_557109b6e131b4::t_66588d38967f55 126-134
+spec/adr/014-meeting-recording.md
+  s_557109b6e131b4::t_66588d38967f55 101-106
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingLockFileStoreTests.swift
+  s_557109b6e131b4::t_fecc3100ec9a8d 70-95
+Tests/MacParakeetTests/App/MeetingFinalizationReconcilerTests.swift
+  s_557109b6e131b4::t_fecc3100ec9a8d 44-113,213-219
+  s_557109b6e131b4::t_9322a44fe4fed9 220
+spec/05-audio-pipeline.md
+  s_557109b6e131b4::t_66588d38967f55 325-330
+Sources/MacParakeetCore/Database/TranscriptionRepository.swift
+  s_557109b6e131b4::t_bb28e44ab576c1 18-24,119-131,492-510
+  s_557109b6e131b4::t_748e726b7535df 511
+Tests/MacParakeetTests/Views/MeetingTranscriptProcessingPresentationTests.swift
+  s_557109b6e131b4::t_fecc3100ec9a8d 1-8,10-20,22-24,26-54
+  s_557109b6e131b4::t_c8927465ac0957 9,21,25
+  s_557109b6e131b4::t_4cdab2482c58dd 55-62
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingLockFileStore.swift
+  s_557109b6e131b4::t_bb28e44ab576c1 246-256
+Sources/MacParakeet/App/MeetingFinalizationReconciler.swift
+  s_557109b6e131b4::t_bb28e44ab576c1 11-12,15,17-28,30-31,34-36,38
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_557109b6e131b4::t_c8927465ac0957 131,134,1291-1292,1306,1712-1718
+  s_557109b6e131b4::t_b7612b6490af67 1304
+  s_557109b6e131b4::t_18a5dbcbed1cd4 1270
+  s_557109b6e131b4::t_bb28e44ab576c1 125-130,132-133,135-160,648-653,659,1689-1696,1701-1711,1719-1744
+  s_557109b6e131b4::t_adb6c50051b28d 1293-1294
+  s_557109b6e131b4::t_0ba0d852080dbb 1745
+spec/contracts/meeting-recovery-retention.md
+  s_557109b6e131b4::t_66588d38967f55 20-22,32,80-81,91-104,172-173,181-189
+Tests/MacParakeetTests/Database/TranscriptionRepositoryTests.swift
+  s_557109b6e131b4::t_fecc3100ec9a8d 760-788
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "be4c6319d471110a1adf4d4a6316f77e5dbd673a",
+  "prompts": {},
+  "sessions": {
+    "s_557109b6e131b4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa4cc-252a-7751-b90c-71689437cbb4",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

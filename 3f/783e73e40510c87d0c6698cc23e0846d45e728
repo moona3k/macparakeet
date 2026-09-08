@@ -1,0 +1,78 @@
+Sources/CLI/Commands/TranscribeCommand.swift
+  s_e323b204ea3fab::t_1b1f70f421c1b3 504-505
+Sources/CLI/Commands/SpecCommand.swift
+  s_e323b204ea3fab::t_74124bcacb1773 742,751
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_e323b204ea3fab::t_1b1f70f421c1b3 374-381
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_e323b204ea3fab::t_1b1f70f421c1b3 89-90
+Sources/MacParakeetCore/TextProcessing/CustomWordReplacer.swift
+  s_e323b204ea3fab::t_1b1f70f421c1b3 18-19,32-38,43
+Sources/CLI/Commands/RetranscribeCommand.swift
+  s_e323b204ea3fab::t_1b1f70f421c1b3 242-243
+Tests/MacParakeetTests/STT/SpeechEngineCapabilitiesTests.swift
+  s_e323b204ea3fab::t_5ce7d3edf57a3d 33-70,75,83,89,98
+Sources/MacParakeet/Views/Vocabulary/CustomWordsView.swift
+  s_e323b204ea3fab::t_3d63d35d584f7c 7-8,21,164-167,184-185
+spec/adr/026-asr-engine-strategy.md
+  s_e323b204ea3fab::t_74124bcacb1773 82-85
+Sources/CLI/CHANGELOG.md
+  s_e323b204ea3fab::t_74124bcacb1773 128-134
+spec/contracts/cli-json-v1.md
+  s_e323b204ea3fab::t_74124bcacb1773 72-77
+Sources/MacParakeetCore/STT/STTRuntime.swift
+  s_e323b204ea3fab::t_f3478d58f28548 83-84,153-155,167-168,522-525,528-529,576-580,589,683-776
+  s_e323b204ea3fab::t_9d6504f6c62e9c 777
+Sources/MacParakeetCore/STT/CustomVocabularyBoosting.swift
+  s_e323b204ea3fab::t_d9cff06e461751 32-34,38-39,45-46,50-51,57-58,101-102,128-129,232-234
+  s_e323b204ea3fab::t_0a5ad2652942a4 35-37,40-44
+  s_e323b204ea3fab::t_82b593644ef0bd 21-31,47-49,52-56,59-79
+  s_e323b204ea3fab::t_a2d8ae7249ea0d 1-20,80-100,103-113,119-122,124-127,133-194,196-198,200-202,204-231,235-353
+  s_e323b204ea3fab::t_bf1262c9048994 195,199,203
+  s_e323b204ea3fab::t_4db2be39d849aa 114-118,123,130-132
+Sources/CLI/Commands/VocabWordsCommand.swift
+  s_e323b204ea3fab::t_3d63d35d584f7c 18-30,70,76-77,84
+Tests/CLITests/VocabCommandTests.swift
+  s_e323b204ea3fab::t_5ce7d3edf57a3d 100-141
+spec/06-stt-engine.md
+  s_e323b204ea3fab::t_dae4cbed76b959 148-197,207
+Tests/MacParakeetTests/TextProcessing/CustomWordReplacerTests.swift
+  s_e323b204ea3fab::t_5ce7d3edf57a3d 60-64,80,87
+Sources/MacParakeetCore/STT/SpeechEngineCapabilities.swift
+  s_e323b204ea3fab::t_1b1f70f421c1b3 197
+Sources/MacParakeetCore/STT/STTClient.swift
+  s_e323b204ea3fab::t_1b1f70f421c1b3 18-20,22-24,30-32
+Tests/MacParakeetTests/STT/STTRuntimeDictationPadTests.swift
+  s_e323b204ea3fab::t_5ce7d3edf57a3d 64-96,153-174
+  s_e323b204ea3fab::t_7ce6ce654f113e 175
+Sources/MacParakeet/Views/Vocabulary/VocabularyView.swift
+  s_e323b204ea3fab::t_3d63d35d584f7c 47-50,140,175-176
+  s_66d3337be753fc::t_9e11c546bfd849 177-178
+Tests/MacParakeetTests/STT/CustomVocabularyBoostingTests.swift
+  s_e323b204ea3fab::t_9c7c3c87df7e66 1-51,54-67,70-102,105-133,138-143
+  s_e323b204ea3fab::t_7b8439dcba8dfe 52-53,68-69,103-104,134-137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3f783e73e40510c87d0c6698cc23e0846d45e728",
+  "prompts": {},
+  "sessions": {
+    "s_66d3337be753fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1d0ad57f-1172-43bb-9860-c42ce0bf5356",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_e323b204ea3fab": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f00-212f-7b00-92dd-dc96357deceb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+Tests/CLITests/SpecCommandTests.swift
+  s_4115897087fa9e::t_a17ce53afd3c1f 216-222
+Sources/CLI/CHANGELOG.md
+  s_4115897087fa9e::t_a462d0e48f5b77 126-129
+Tests/CLITests/ConfigCommandTests.swift
+  s_4115897087fa9e::t_1892911a5fe585 40-41,45,81-82,86,164-176,199-207,239-262,532
+  s_faac8bc87cd188::t_dc45952dae5597 533-534
+Sources/CLI/Commands/ConfigCommand.swift
+  s_4115897087fa9e::t_8bb1c0f41634b2 45-46,55,137-148,167-172,334-340,348-352,428-436,449-452,642-655
+  s_faac8bc87cd188::t_51e3c59cf3d493 656
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "31e35ccc24586bc1056b51c1671ad7a6701ab61b",
+  "prompts": {},
+  "sessions": {
+    "s_4115897087fa9e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0d05-3096-7d02-870b-7c0fb3761279",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_faac8bc87cd188": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0cff-2fe0-7142-b89c-ccf9bcd3a6a5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

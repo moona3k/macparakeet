@@ -1,0 +1,21 @@
+docs/research/2026-07-04-voiceprints-phase0-calibration.md
+  s_35765baab2f0ed::t_b18edb435c1cc6 29,56-58
+docs/research/2026-07-04-voiceprints-phase0/data/inventory.json
+  s_35765baab2f0ed::t_2b8b3c8a3dc2a6 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "87becf2461536669ad2d040c2c84fb8c831686c7",
+  "prompts": {},
+  "sessions": {
+    "s_35765baab2f0ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bbfded2-f315-45ed-b4c9-8dced5e0ca31",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

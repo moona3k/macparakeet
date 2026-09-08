@@ -1,0 +1,21 @@
+docs/pr-description-guidelines.md
+  s_e275b1808b51d6::t_1fa4daf55750dd 1-155
+docs/pr-review-workflow.md
+  s_e275b1808b51d6::t_6d007e245574fa 117-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "669204100f02e94714f4ed48dc7b1fd18f02a607",
+  "prompts": {},
+  "sessions": {
+    "s_e275b1808b51d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bfafb08d-006e-442e-805c-6f243ea9e764",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

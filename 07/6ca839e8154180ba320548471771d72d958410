@@ -1,0 +1,35 @@
+spec/README.md
+  s_32b893bcb248f3::t_f3340ef83e6276 116
+spec/adr/028-meeting-echo-cancellation.md
+  s_32b893bcb248f3::t_f3340ef83e6276 1-126
+spec/05-audio-pipeline.md
+  s_3cd47b02197da7::t_061afe55710f2c 198-201,216-220,227-240,247,249-251,262,321
+  s_32b893bcb248f3::t_f3340ef83e6276 248
+  s_3cd47b02197da7::t_53ba3f3e193d60 241-246
+plans/active/2026-07-aec-artifact-provenance.md
+  s_32b893bcb248f3::t_f3340ef83e6276 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "076ca839e8154180ba320548471771d72d958410",
+  "prompts": {},
+  "sessions": {
+    "s_32b893bcb248f3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e1a-4d9e-7cc3-ba89-b770574e9558",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    },
+    "s_3cd47b02197da7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2b39-80a4-76d2-9fb5-396e8e4e7a08",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

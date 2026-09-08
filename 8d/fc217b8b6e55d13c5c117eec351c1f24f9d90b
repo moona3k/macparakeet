@@ -1,0 +1,27 @@
+Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift
+  s_2d764f067015ce::t_830b4361983a0e 237,273,399-400,439-442,450,487,551,630,683,691-694,696,709-710
+Sources/CLI/Commands/ExportCommand.swift
+  s_2d764f067015ce::t_1cad1d7a87f1b2 93-96
+Sources/MacParakeetCore/Services/ExportService.swift
+  s_2d764f067015ce::t_3d55a4884f974a 138,222
+Sources/MacParakeet/Views/Transcription/TranscriptResultActions.swift
+  s_2d764f067015ce::t_28a904cf43b3a0 156,172-173,176-179,241-242
+  s_2d764f067015ce::t_1cad1d7a87f1b2 137-143,188
+  s_2d764f067015ce::t_d7685e05e874dd 189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.4",
+  "base_commit_sha": "8dfc217b8b6e55d13c5c117eec351c1f24f9d90b",
+  "prompts": {},
+  "sessions": {
+    "s_2d764f067015ce": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f15e1-877a-7e73-9360-aa4775c1de42",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

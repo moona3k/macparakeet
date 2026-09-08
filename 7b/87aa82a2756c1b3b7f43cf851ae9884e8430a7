@@ -1,0 +1,62 @@
+spec/01-data-model.md
+  s_72c73025e7c4d0::t_eab415963b013d 124,153,177,601,640-654,1152
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingArtifactStore.swift
+  s_72c73025e7c4d0::t_9e7dc5073ad83d 334,358
+Tests/CLITests/MeetingsCommandTests.swift
+  s_72c73025e7c4d0::t_cd6db701b08abd 238-295,510-531
+Tests/MacParakeetTests/Database/DatabaseManagerTests.swift
+  s_72c73025e7c4d0::t_c4c13741736c06 47-55
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  s_72c73025e7c4d0::t_979bb9568368f9 1034-1042
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_72c73025e7c4d0::t_8a85d92d7a1810 2013-2069
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingArtifactStoreTests.swift
+  s_72c73025e7c4d0::t_9fd7d7ced788ee 78-79,84-88,248-257
+  s_dcba8a1ad7a2cc::t_0a2022d2844fce 258
+  s_72c73025e7c4d0::t_736f7bf646642e 80-83
+Sources/CLI/Commands/SpecCommand.swift
+  s_72c73025e7c4d0::t_581310431c6900 892,903
+Sources/MacParakeetCore/Utilities/TranscriptSegmenter.swift
+  s_72c73025e7c4d0::t_f333851b6660cc 58-61
+  s_72c73025e7c4d0::t_e99c2629e53a2e 47-48,50,52-57,62-72,146-229
+Sources/CLI/CHANGELOG.md
+  s_72c73025e7c4d0::t_60cdf363bce102 102-106
+spec/contracts/cli-json-v1.md
+  s_72c73025e7c4d0::t_264b47144dae49 48-53,110-112
+spec/contracts/meeting-artifacts-v1.md
+  s_72c73025e7c4d0::t_9b5727c72e9d26 102-110,150-152
+Tests/MacParakeetTests/Database/TranscriptionRepositoryTests.swift
+  s_72c73025e7c4d0::t_2ebad3f8f38605 50-84
+Tests/MacParakeetTests/Utilities/TranscriptSegmenterTests.swift
+  s_72c73025e7c4d0::t_8fd930a433d85d 94-147
+Sources/CLI/Commands/MeetingsCommand.swift
+  s_72c73025e7c4d0::t_eeebb5a9669d5f 666,693,714,724
+Sources/MacParakeetCore/Models/Transcription.swift
+  s_72c73025e7c4d0::t_97987aeebd29eb 32,89,123,205-242,249,294
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_72c73025e7c4d0::t_ee4bf49cb0ef53 1147-1150,1619
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7b87aa82a2756c1b3b7f43cf851ae9884e8430a7",
+  "prompts": {},
+  "sessions": {
+    "s_72c73025e7c4d0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2bb5-3c28-7c01-a4fd-a9f6afc29519",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_dcba8a1ad7a2cc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2ae7-6076-79a3-9300-28c76e60b78f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

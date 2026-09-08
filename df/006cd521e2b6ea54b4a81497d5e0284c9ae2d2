@@ -1,0 +1,159 @@
+spec/adr/011-llm-cloud-and-local-providers.md
+  s_f3d833bbadce7c::t_63950a95084de4 46,58,67-73
+Tests/MacParakeetTests/Database/PromptRepositoryTests.swift
+  s_f3d833bbadce7c::t_41781d5f297274 582-596
+Sources/MacParakeetCore/STT/CohereTranscribeEngine.swift
+  s_f3d833bbadce7c::t_2402a4b9bcb32d 233,301,334-347,723
+Sources/CLI/Commands/TranscribeCommand.swift
+  s_f3d833bbadce7c::t_eea9c23916f380 101,104
+Sources/CLI/CHANGELOG.md
+  s_f3d833bbadce7c::t_57d9c54d97027d 124-126,129-131,157-158
+  s_f3d833bbadce7c::t_577abf141cd037 127-128
+spec/adr/016-centralized-stt-runtime-scheduler.md
+  s_f3d833bbadce7c::t_e08a39728b664b 234
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_f3d833bbadce7c::t_09d79ab4051b06 322-330
+  s_f3d833bbadce7c::t_a153d8d483dd32 313-321,331-346
+  s_f3d833bbadce7c::t_2aa320426486e4 753-783
+Sources/CLI/Commands/ConfigCommand.swift
+  s_f3d833bbadce7c::t_f8304d12a228e7 5-11,73-187,189
+Tests/CLITests/PromptsCommandTests.swift
+  s_f3d833bbadce7c::t_f4cd55eba3b5ac 308-370
+  s_f3d833bbadce7c::t_608375dae40a5f 296-298,412-414
+  s_f3d833bbadce7c::t_cd56f493cc06b9 371-393,421
+  s_f3d833bbadce7c::t_a4092ee9f7cdeb 207-232,279,286-293,295,299-307,394,401-409,411,415-420
+  s_f3d833bbadce7c::t_4a1218eab6abf0 280-285,294,395-400,410
+  s_f3d833bbadce7c::t_8d9908c81fd5b3 422
+Tests/CLITests/TransformsCommandTests.swift
+  s_f3d833bbadce7c::t_2d5a385163a704 454-485
+  s_f3d833bbadce7c::t_d1d1830d8b924c 765
+  s_f3d833bbadce7c::t_fff568dd52ac0f 105-115,572-614,774-790
+  s_f3d833bbadce7c::t_9136b3ec1c38c0 615-653,744-764,766-773,791-792
+  s_f3d833bbadce7c::t_3e1c4e03751039 654-716,721-743
+  s_f3d833bbadce7c::t_0cf974d944d5fd 717-720
+  s_f3d833bbadce7c::t_7ee264ce1d5a67 793
+Tests/MacParakeetTests/TelemetryServiceTests.swift
+  s_f3d833bbadce7c::t_3537533185ab8e 704-722
+  s_f3d833bbadce7c::t_72e26de01fdfd2 658-660,664,667-668
+spec/01-data-model.md
+  s_f3d833bbadce7c::t_fe69236b466ee6 288
+  s_f3d833bbadce7c::t_93ff710a37fb4e 165
+Sources/CLI/Commands/VocabSnippetsCommand.swift
+  s_f3d833bbadce7c::t_ca0aaa5927bbcf 103-111,115-117,119,121-122,127-144,146-152,155-159,162-171,229-232
+  s_f3d833bbadce7c::t_4669c24ffdd5fc 123-125
+  s_f3d833bbadce7c::t_33e364fbd9a494 233
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_f3d833bbadce7c::t_58fae42eff0398 123,582,586,589,615,630,653-654,665,717,721-724,728,762,1330,1349-1358
+  s_f3d833bbadce7c::t_2d5a385163a704 644
+  s_f3d833bbadce7c::t_a6d3177a59fd64 908
+  s_f3d833bbadce7c::t_5100089eae19b4 438,450,663-664,666-667,1163,1261,1315,1319-1320,1346-1348
+  s_f3d833bbadce7c::t_d0f838577c5313 1321
+  s_f3d833bbadce7c::t_eb865f29696611 1359
+spec/03-architecture.md
+  s_f3d833bbadce7c::t_67da4193b04ce4 467,483
+Sources/CLI/Commands/SpecCommand.swift
+  s_f3d833bbadce7c::t_bc3a60934e3576 37,63,390-393,430,851
+  s_f3d833bbadce7c::t_75d0d160343ae1 660
+  s_f3d833bbadce7c::t_b7add2cfc42831 328,396,459-629,634-655,666-729,742-775,778-779,781-846
+  s_f3d833bbadce7c::t_90ae1902e3673a 656-659,661-665
+  s_f3d833bbadce7c::t_e6204a164ee40d 199-200
+  s_f3d833bbadce7c::t_b3210cfc951ac2 730-741,776-777
+  s_f3d833bbadce7c::t_70a9f56ae0b77f 780
+  s_f3d833bbadce7c::t_522b14cb5b0cb3 397-418,420-426,428-429,431-448,454,457-458
+  s_f3d833bbadce7c::t_18242b7225b855 419,427
+  s_f3d833bbadce7c::t_9e1c56475fc5f2 152-162
+  s_f3d833bbadce7c::t_c68388ffc31472 329-386
+Sources/MacParakeet/App/MenuBarCoordinator.swift
+  s_f3d833bbadce7c::t_3537533185ab8e 495
+Tests/CLITests/SpecCommandTests.swift
+  s_f3d833bbadce7c::t_1e1ebcb40a225c 103-119,131-143,145-147,149-158,164-175
+  s_f3d833bbadce7c::t_235dacb67f1fa6 144,148,159-160,162-163
+  s_f3d833bbadce7c::t_f4cd55eba3b5ac 161,176-212
+  s_f3d833bbadce7c::t_810b5ac9f35ef3 254-258,261-264
+  s_f3d833bbadce7c::t_20339217afa915 213
+Sources/MacParakeetCore/Models/Transcription.swift
+  s_f3d833bbadce7c::t_e678c8cb45560d 50
+Sources/CLI/Commands/VocabWordsCommand.swift
+  s_f3d833bbadce7c::t_ffdc20f72672ed 12,104-154,187-206,222-225
+  s_f3d833bbadce7c::t_9ee12307f73a78 226
+Sources/CLI/Commands/TransformsCommand.swift
+  s_f3d833bbadce7c::t_b2eb8587fdc3d1 23,381-389,391-405,411-430,432,434-437
+  s_f3d833bbadce7c::t_9bebe1eeee9d5f 390,431,433
+  s_f3d833bbadce7c::t_e0df091546e205 801
+  s_f3d833bbadce7c::t_a4083c1bf5f217 440,442,767-800,817,824-835,851-875,877-882
+  s_f3d833bbadce7c::t_e900950273a70c 876
+  s_f3d833bbadce7c::t_2d5a385163a704 272,290,307
+  s_f3d833bbadce7c::t_b9e80aaba3db82 406-410,441,802-816,818-823,836-850,919-923,925-929
+  s_f3d833bbadce7c::t_844c5e9dcc7400 438-439
+  s_f3d833bbadce7c::t_0374deb9479895 443
+spec/README.md
+  s_f3d833bbadce7c::t_e0eecd84137a7e 66,124-125,270,275
+  s_f3d833bbadce7c::t_b4e4a8df1803d9 279
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_f3d833bbadce7c::t_e900950273a70c 1437
+spec/adr/002-local-only.md
+  s_f3d833bbadce7c::t_4ba9d90c183e02 21,25,33,94
+Sources/CLI/MacParakeetCLI.swift
+  s_f3d833bbadce7c::t_675585876566d7 15
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_f3d833bbadce7c::t_cf5543f55cdb0d 355-383,386-420
+  s_f3d833bbadce7c::t_910e65285d7210 384-385
+Tests/CLITests/VocabCommandTests.swift
+  s_f3d833bbadce7c::t_631380c7181cd5 100-127,189-217
+  s_f3d833bbadce7c::t_f4cd55eba3b5ac 128-153
+  s_f3d833bbadce7c::t_9d416338b823ed 218
+Sources/CLI/Commands/PromptsCommand.swift
+  s_f3d833bbadce7c::t_4a410cfe767a50 235-237,289-292,294,296-306,308-316
+  s_f3d833bbadce7c::t_e900950273a70c 361,372
+  s_f3d833bbadce7c::t_01411afc6525e2 6-20,232-233,254-261,317,501-511
+  s_f3d833bbadce7c::t_c952f60c613a1e 5
+  s_f3d833bbadce7c::t_89336cb7a4b9be 234
+Sources/MacParakeetViewModels/TransformsViewModel.swift
+  s_f3d833bbadce7c::t_f9eafd386f61bb 382-384
+  s_f3d833bbadce7c::t_4eb9074bb7148b 396-420
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_f3d833bbadce7c::t_3537533185ab8e 496
+  s_f3d833bbadce7c::t_152d4c980e9f56 1694-1696,1702-1703
+spec/contracts/cli-json-v1.md
+  s_f3d833bbadce7c::t_8c2cb9de9d88b5 85-89
+docs/telemetry.md
+  s_f3d833bbadce7c::t_ded329d35fbbd5 258-261,386
+spec/06-stt-engine.md
+  s_f3d833bbadce7c::t_6cec8dce80e6f2 245,250
+  s_f3d833bbadce7c::t_775f756c139116 285
+Tests/MacParakeetTests/Integration/CancelFlowTests.swift
+  s_f3d833bbadce7c::t_cf5543f55cdb0d 218-236
+  s_f3d833bbadce7c::t_09d79ab4051b06 139-140,147
+Sources/MacParakeetCore/Database/PromptRepository.swift
+  s_f3d833bbadce7c::t_c1034f00819e13 168-172,177,179
+docs/cli-testing.md
+  s_f3d833bbadce7c::t_9a24d8a4ec9cf5 81,83,100,692,701-702,705-708
+README.md
+  s_f3d833bbadce7c::t_58ba52c96f5dd5 67,237
+  s_f3d833bbadce7c::t_82b3767606a64e 75
+spec/04-ui-patterns.md
+  s_f3d833bbadce7c::t_737f2e667482e0 944,949-951,958-960,965,967,970
+Tests/MacParakeetTests/ViewModels/TransformsViewModelTests.swift
+  s_f3d833bbadce7c::t_eebc2f0bd4242b 291-310
+spec/05-audio-pipeline.md
+  s_f3d833bbadce7c::t_06d9e6824723a2 78,320,339-340
+Tests/CLITests/StandardOutputCapture.swift
+  s_f3d833bbadce7c::t_c142f8988ec366 4,11-18,23-24,43,48,62,67,92
+  s_f3d833bbadce7c::t_055fc1f461b595 60-61,68,87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "df006cd521e2b6ea54b4a81497d5e0284c9ae2d2",
+  "prompts": {},
+  "sessions": {
+    "s_f3d833bbadce7c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0bed-52bb-7123-9fe3-5a580d4deed5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

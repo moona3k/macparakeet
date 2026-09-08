@@ -1,0 +1,127 @@
+Sources/MacParakeetCore/Models/Transcription.swift
+  s_37393add2b91eb::t_550d0a87c172f1 22-25,93,131,325,341
+spec/01-data-model.md
+  s_37393add2b91eb::t_45b544fd1efd6a 121,168-171,692,1245,1270
+Tests/CLITests/TranscribeCommandTests.swift
+  s_37393add2b91eb::t_54f5a5f64c139a 12-44
+  s_37393add2b91eb::t_73730b3236f328 45-70
+  s_37393add2b91eb::t_0da0d9a9d4be2b 902,910
+spec/contracts/README.md
+  s_37393add2b91eb::t_45b544fd1efd6a 41
+spec/05-audio-pipeline.md
+  s_37393add2b91eb::t_45b544fd1efd6a 66-70,92,94
+Tests/MacParakeetTests/Database/DatabaseManagerTests.swift
+  s_37393add2b91eb::t_4f0a60f23502d8 403-413
+Sources/MacParakeetCore/Audio/AudioFileConverter.swift
+  s_37393add2b91eb::t_68599991035486 6,15-23,56-60,71-74,86-89,133-138,141-145,152-153,227-230,232-234,251-255
+  s_37393add2b91eb::t_b08822aebd4c53 151
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_37393add2b91eb::t_125457736c5da2 906-910,941-943,947,967
+  s_37393add2b91eb::t_9e07b670d46c82 9-17,143-144,173,211,216-219,276,282-283
+  s_37393add2b91eb::t_5f211d73d0172a 308,312-331,337,342-361,382-385,393-399,401-402,404-405,407-416,418-422,424-437,445-458,460-469,473-484,486-496,498-519,521-523,527,530-532,534-538,540-542,550-555
+  s_37393add2b91eb::t_58c96f980090d6 174,220,400,417,423,438-444,459,470-472,485,497,520,524-526,529,533,539,556,944-946,968
+  s_f45851066e8b83::t_37f139fe10eed6 528
+Sources/CLI/Commands/TranscribeCommand.swift
+  s_37393add2b91eb::t_e67be1e370ad1b 92-93,180-186,454-455,861-873
+  s_37393add2b91eb::t_73730b3236f328 456,458-473,852-857
+  s_37393add2b91eb::t_078465d709284a 88-91
+  s_37393add2b91eb::t_f1e429cfc494e5 850-851,858,860
+  s_37393add2b91eb::t_7972a237d5ab9a 457
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_37393add2b91eb::t_7c6fe4c272a4e9 61-62,64-78,233,411-426,440,446-464,468,489,708,738,1642-1645
+  s_37393add2b91eb::t_9e07b670d46c82 63
+Sources/MacParakeetCore/Audio/AudioProcessorProtocol.swift
+  s_37393add2b91eb::t_79ce1a361eed52 106-108,139-147
+Tests/MacParakeetTests/Audio/FFmpegAudioTrackProbeTests.swift
+  s_37393add2b91eb::t_8df0ee08219672 7-12,30-34,42-56
+  s_37393add2b91eb::t_7c7a00a3ca281c 1-6,13-29,35-41,57-58
+Sources/MacParakeet/Views/Transcription/TranscribeView.swift
+  s_37393add2b91eb::t_52fc3f90d906ff 672-673,675-678
+  s_37393add2b91eb::t_95fc23452af87e 674
+  s_37393add2b91eb::t_ec92ff20aa3e10 105-122,656-671,679-716
+  s_f45851066e8b83::t_cf83c324600a8e 717
+spec/contracts/cli-json-v1.md
+  s_37393add2b91eb::t_45b544fd1efd6a 55-58
+Sources/MacParakeetCore/Audio/FFmpegAudioTrackProbe.swift
+  s_37393add2b91eb::t_77ea47da676e99 1-18,22-33,35-43,46-56,64-79,83-112
+  s_37393add2b91eb::t_8df0ee08219672 19-21,34,44-45,57-63,80-82
+Sources/MacParakeetCore/Audio/AudioProcessor.swift
+  s_37393add2b91eb::t_79ce1a361eed52 52-55
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelBatchTests.swift
+  s_37393add2b91eb::t_a517f4f5918801 34-43,69-82,85-103,106-110,113-114,139-156,161-162,216-227,230-232,353-378,386-403
+  s_37393add2b91eb::t_2ac2190d5b0704 83-84,104-105,111-112,157-160,228-229
+  s_37393add2b91eb::t_df85f7d8b67bd0 138
+  s_37393add2b91eb::t_453b028b90e0c4 163-190
+  s_37393add2b91eb::t_d551ef1174b39b 191-215,379-385
+  s_37393add2b91eb::t_18bf1c8a67c1e6 115-137
+  s_f45851066e8b83::t_fc01f60c855861 404
+spec/02-features.md
+  s_37393add2b91eb::t_80d4a9766a4e56 451-455,457-459
+  s_37393add2b91eb::t_45b544fd1efd6a 353-358,360,446-450,456
+  s_37393add2b91eb::t_378538c228f1d6 460
+spec/contracts/file-transcription-audio-tracks.md
+  s_37393add2b91eb::t_45b544fd1efd6a 1-36,41-43,47-78
+  s_37393add2b91eb::t_80d4a9766a4e56 37-40,44
+  s_37393add2b91eb::t_73730b3236f328 45-46
+Tests/MacParakeetTests/Audio/AudioFileConverterTests.swift
+  s_37393add2b91eb::t_7c7a00a3ca281c 52-68
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  s_37393add2b91eb::t_550d0a87c172f1 1317-1325
+Tests/MacParakeetTests/Models/TranscriptionModelTests.swift
+  s_37393add2b91eb::t_ee37e3a1d4c338 12,85,104,128
+spec/04-ui-patterns.md
+  s_37393add2b91eb::t_45b544fd1efd6a 641-642,648,652-653
+  s_37393add2b91eb::t_80d4a9766a4e56 649-651
+  s_37393add2b91eb::t_8e71e86f199f90 643-647
+Tests/MacParakeetTests/Audio/MockAudioProcessor.swift
+  s_37393add2b91eb::t_4f0a60f23502d8 17,70-73,76
+integrations/README.md
+  s_37393add2b91eb::t_45b544fd1efd6a 177-187
+Sources/MacParakeetCore/Audio/AudioTrackDescriptor.swift
+  s_37393add2b91eb::t_77ea47da676e99 1-48
+docs/cli-testing.md
+  s_37393add2b91eb::t_45b544fd1efd6a 369-371,374-377
+  s_929cd2e607778b::t_559f6b87875cb7 378
+plans/active/2026-07-17-issue-767-audio-track-selection.md
+  s_37393add2b91eb::t_86802ad654e466 1-24,28-83,87
+  s_37393add2b91eb::t_fae0154109e479 25-27,84-86
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_37393add2b91eb::t_4f0a60f23502d8 401-411,414-417,2920
+  s_37393add2b91eb::t_e8b603acc690d5 412-413,2921-2922
+  s_37393add2b91eb::t_10beecd11f5f0d 2868
+Sources/CLI/CHANGELOG.md
+  s_37393add2b91eb::t_45b544fd1efd6a 92-93,97
+  s_37393add2b91eb::t_43e139145166af 94-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "ebd6151384555b6a7ebacf6ed0c23fc641c91f9f",
+  "prompts": {},
+  "sessions": {
+    "s_37393add2b91eb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f7118-5ca9-7580-970e-bca2613af1fe",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_929cd2e607778b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f710d-db44-7280-ab47-de1357d57c55",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_f45851066e8b83": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f7108-7dc9-73f2-97d1-ca8fca9c5436",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

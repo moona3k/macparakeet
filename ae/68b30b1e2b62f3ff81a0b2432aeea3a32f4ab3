@@ -1,0 +1,26 @@
+Tests/MacParakeetTests/STT/STTRuntimeDictationPadTests.swift
+  s_e323b204ea3fab::t_b3c933ea2b76b8 75
+  s_e323b204ea3fab::t_e1a57c093f4109 118-138
+Sources/MacParakeetCore/STT/STTRuntime.swift
+  s_e323b204ea3fab::t_fca37d20028ad7 663
+  s_e323b204ea3fab::t_fd4c50baf53515 523,578,580,664-671,673,682,688-689,696,700-701,703-706,713,715,718-719,738,771,874,882
+Tests/MacParakeetTests/STT/CustomVocabularyBoostingTests.swift
+  s_e323b204ea3fab::t_4229ae0375797d 54,70,87,108
+  s_e323b204ea3fab::t_61f61326d13d36 122-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ae68b30b1e2b62f3ff81a0b2432aeea3a32f4ab3",
+  "prompts": {},
+  "sessions": {
+    "s_e323b204ea3fab": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f00-212f-7b00-92dd-dc96357deceb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

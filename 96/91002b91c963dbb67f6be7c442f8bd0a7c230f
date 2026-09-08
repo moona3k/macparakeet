@@ -1,0 +1,81 @@
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_89ea8e21ef615c::t_b715f5a553b3cc 257-261,323-327
+docs/cli-testing.md
+  s_89ea8e21ef615c::t_657b680c02416c 200
+  s_89ea8e21ef615c::t_aca47167a8408d 193,201-202
+  s_89ea8e21ef615c::t_d8c3afe68a0c40 217-218,229-233
+  s_89ea8e21ef615c::t_a52d82753daa87 197
+  s_89ea8e21ef615c::t_e457d5f21bd5bc 194-196,219
+Sources/CLI/Commands/RetranscribeCommand.swift
+  s_89ea8e21ef615c::t_d0ee0df06feb11 150
+  s_89ea8e21ef615c::t_d8db4de2072bac 144,147,153
+Tests/MacParakeetTests/STT/SpeechEnginePreferenceTests.swift
+  s_89ea8e21ef615c::t_149425c7f8a955 209-211,213-215,217,221-223,225-227
+  s_89ea8e21ef615c::t_e457d5f21bd5bc 212,216,220,224,228
+  s_11cf0f9121451d::t_7a1e221eac0644 207-208
+Sources/CLI/Commands/SpecCommand.swift
+  s_89ea8e21ef615c::t_e457d5f21bd5bc 199,228
+  s_89ea8e21ef615c::t_214b47a76c6d56 198,200,227,229
+docs/marketing.md
+  s_89ea8e21ef615c::t_cb75a47803802e 67,69,181
+Sources/MacParakeet/Views/Settings/Components/EngineOptionTile.swift
+  s_89ea8e21ef615c::t_6bfbef2ac0a1f3 343,345-346,349,360,362
+  s_89ea8e21ef615c::t_d02e2664418738 364
+  s_89ea8e21ef615c::t_e457d5f21bd5bc 363,366
+  s_89ea8e21ef615c::t_cbb02507735299 347
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_89ea8e21ef615c::t_fc586a1f0151eb 3566,3568,3572-3573,3575,3577
+  s_89ea8e21ef615c::t_d0ee0df06feb11 3567
+Sources/CLI/Commands/TranscribeCommand.swift
+  s_89ea8e21ef615c::t_d0ee0df06feb11 101
+  s_89ea8e21ef615c::t_6bd9c8b0f0c91f 95,98,104
+Sources/MacParakeetCore/SpeechEnginePreference.swift
+  s_89ea8e21ef615c::t_7ef49232489087 23
+  s_89ea8e21ef615c::t_e457d5f21bd5bc 384,386,388,454,456
+Tests/CLITests/SpecCommandTests.swift
+  s_89ea8e21ef615c::t_e457d5f21bd5bc 305
+  s_89ea8e21ef615c::t_9f3b98ff92d8a1 311,316
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_89ea8e21ef615c::t_07bd0f005deefe 445,2947-2950,2969
+  s_89ea8e21ef615c::t_7dbab4ff739a8f 451
+  s_89ea8e21ef615c::t_a0a73c18a5984d 2235,2254
+  s_89ea8e21ef615c::t_8790c35c8e1bda 574,583,964,967,2220,2236-2237,2270,2930
+  s_89ea8e21ef615c::t_e457d5f21bd5bc 2253,2256,2274
+  s_89ea8e21ef615c::t_0dcb0361db7cf1 2203,2216,2218-2219,2222,2233,2239,2250,2252,2272-2273,2276,2338,2460
+integrations/openclaw/README.md
+  s_89ea8e21ef615c::t_3d2a2191fe2a75 79,81-83
+integrations/README.md
+  s_89ea8e21ef615c::t_f04d0f2bf5317e 207-209
+  s_89ea8e21ef615c::t_e457d5f21bd5bc 58,206
+  s_89ea8e21ef615c::t_da8c96fa087634 56-57,59
+  s_89ea8e21ef615c::t_d0ee0df06feb11 116-121
+  s_89ea8e21ef615c::t_62cff8fa184fbc 204
+  s_89ea8e21ef615c::t_8b6fe8249eedd5 205
+Sources/CLI/Commands/ConfigCommand.swift
+  s_89ea8e21ef615c::t_106cf9364d53ff 38,42,93,105,111,117,123
+  s_89ea8e21ef615c::t_e457d5f21bd5bc 35-36,99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "9691002b91c963dbb67f6be7c442f8bd0a7c230f",
+  "prompts": {},
+  "sessions": {
+    "s_11cf0f9121451d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f15e8-d418-7521-b751-82647cfa9549",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_89ea8e21ef615c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f209e-dec5-7cb1-951d-632e7ef8eca7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_59d51300f0ae15::t_e2e73dbb081844 2437-2458
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_59d51300f0ae15::t_b6117c934b7c76 98-101,104
+Tests/MacParakeetTests/ViewModels/TranscriptChatViewModelTests.swift
+  s_59d51300f0ae15::t_ec5901147a74f4 210-212,239-241
+  s_59d51300f0ae15::t_e2e73dbb081844 2,209,213-214,217-236,238,246,248-249,252,254-257,260-264,266,269-273,275,279-280,282-283,1164-1169,1171-1189
+  s_59d51300f0ae15::t_52bddebf0a64ab 208,215-216,237,242-245,247,250-251,253,258-259,265,267-268,274,276-278,281,1170
+  s_65963fa116987f::t_57b36bf22c36a2 1190-1191
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_59d51300f0ae15::t_b6117c934b7c76 67-100,102-111,113-124,297,428-435,445,3372-3381,3548-3549,3560-3561
+  s_59d51300f0ae15::t_c913ac59f659cc 101,112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "2d657dfb9729abae68a5d00acea31aa498612b0b",
+  "prompts": {},
+  "sessions": {
+    "s_59d51300f0ae15": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a06ac8-6fa9-7041-a889-556653eb0fda",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_65963fa116987f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9932264f-b9f8-4782-a1f8-7d104d5e8743",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

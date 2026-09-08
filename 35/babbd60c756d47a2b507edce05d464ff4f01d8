@@ -1,0 +1,22 @@
+scripts/dist/verify_meeting_echo_assets.sh
+  s_45c3cc47aca4a7::t_113737b9ed30ec 116-118
+Tests/MacParakeetTests/Services/Capture/MeetingEchoSuppressionRuntimeTests.swift
+  s_45c3cc47aca4a7::t_21d0467dc90cd4 423-432
+  s_45c3cc47aca4a7::t_892ccf9fc28ee8 420-422
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "35babbd60c756d47a2b507edce05d464ff4f01d8",
+  "prompts": {},
+  "sessions": {
+    "s_45c3cc47aca4a7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2feb-1bf4-74f1-b701-2e14fc93dfa7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

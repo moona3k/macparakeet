@@ -1,0 +1,24 @@
+spec/contracts/meeting-artifacts-v1.md
+  s_b57fde6fe2c5fb::t_b619f5903cb78a 50-56
+plans/active/2026-06-28-meeting-aec-full-close.md
+  s_b57fde6fe2c5fb::t_b619f5903cb78a 124-125,211-212,287,298,310,462
+  s_b57fde6fe2c5fb::t_caf9648cdf72cc 45-53,56-69,74-78,311-315,338-346,404-409,480,517,571
+spec/05-audio-pipeline.md
+  s_b57fde6fe2c5fb::t_caf9648cdf72cc 223-224,228-233,244-253,324
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b7e220b6bf436a5c32c1b7698ef7b56d56f4ec09",
+  "prompts": {},
+  "sessions": {
+    "s_b57fde6fe2c5fb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f29ee-31a9-7682-844e-42525cdcfc89",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

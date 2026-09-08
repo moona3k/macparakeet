@@ -1,0 +1,23 @@
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingService.swift
+  s_a571ce3d1de216::t_4b940e2349560b 1341-1344
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  s_a571ce3d1de216::t_ed8e7f61e41cd3 526-529,1079-1082,2584-2588,2612-2616
+plans/active/2026-06-28-meeting-aec-full-close.md
+  s_a571ce3d1de216::t_a2967ffaf83dba 31-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "a3189b49d522451f62b19c722013e61913f64dd1",
+  "prompts": {},
+  "sessions": {
+    "s_a571ce3d1de216": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0ddf-7285-7613-8b52-7c2b7b649a83",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

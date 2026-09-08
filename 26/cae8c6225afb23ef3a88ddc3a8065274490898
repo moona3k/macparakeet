@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/Benchmarks/LongMeetingPipelineBenchmarkTests.swift
+  s_01cd8be84fc9fd::t_c59e60134d209b 228-234
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "26cae8c6225afb23ef3a88ddc3a8065274490898",
+  "prompts": {},
+  "sessions": {
+    "s_01cd8be84fc9fd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2c4a-1d94-7842-9a9d-56c60765bc98",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

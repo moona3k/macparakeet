@@ -1,0 +1,21 @@
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorLoadCaptionTests.swift
+  s_29fd8f3c93ebe0::t_f2e0f3b96efec2 613-614
+  s_29fd8f3c93ebe0::t_d3d6e82b767dda 154,157-159,163,165-168,171-174,330-331,343-344,491,493-499,504,520,522,573,579,581,583,592,597-604,612
+  s_29fd8f3c93ebe0::t_07471b9198c799 521,574-578,580,582,584-591,593-596,605-611
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fff19a5849cdfb6773be22ee65561df821762d22",
+  "prompts": {},
+  "sessions": {
+    "s_29fd8f3c93ebe0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f9d-e401-7bd2-9946-8232e9146494",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

@@ -1,0 +1,70 @@
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_51efd1f8647ee0::t_a83156caf5228a 22-51
+Sources/MacParakeetCore/TextProcessing/TranscriptParagraphBuilder.swift
+  s_51efd1f8647ee0::t_98025d4dbc22c7 1-20,23-46,57-63,67-75,77-88
+  s_51efd1f8647ee0::t_2e1975c4132e48 21,64-66
+  s_51efd1f8647ee0::t_338e5150e409bb 76
+  s_51efd1f8647ee0::t_190ca3d37e94f9 22,47-49,53
+  s_51efd1f8647ee0::t_70438772fb3e18 50-52,54-56
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_51efd1f8647ee0::t_fd102bb0b2e3eb 1358-1378,1380-1388
+  s_51efd1f8647ee0::t_7d169de0c65169 1379
+Sources/MacParakeetCore/Services/AutoSaveService.swift
+  s_51efd1f8647ee0::t_b4cbb991c4424c 73-75,96,117-128,226-237
+  s_51efd1f8647ee0::t_fad09c54788e67 238
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_51efd1f8647ee0::t_018ba9913e9334 511-534,812-820
+Sources/MacParakeetCore/TextProcessing/README.md
+  s_51efd1f8647ee0::t_f1a03617578e43 34-37
+spec/02-features.md
+  s_51efd1f8647ee0::t_030c65e481bf77 1337
+  s_51efd1f8647ee0::t_f1a03617578e43 1299-1300,1397-1402
+  s_51efd1f8647ee0::t_b9db42d1245878 1403
+Tests/MacParakeetTests/TextProcessing/TranscriptParagraphBuilderTests.swift
+  s_51efd1f8647ee0::t_ebb2ee5031878f 74-75
+  s_51efd1f8647ee0::t_7e148227d9e4a5 1-30,91-105
+  s_51efd1f8647ee0::t_e448e5f8c4c226 56-66
+  s_51efd1f8647ee0::t_4990d30d9c7d61 31-55
+  s_51efd1f8647ee0::t_cf96dc3032c4a9 67-73,76-77
+  s_51efd1f8647ee0::t_6a30f31ffbcd67 78-90
+  s_51efd1f8647ee0::t_dd135b10e0c95e 106-109
+Sources/MacParakeetCore/Services/ExportService.swift
+  s_51efd1f8647ee0::t_7ca860300c018b 324,326-331,334-339,342,344-346,348-352,438,440-449,451-455,459-461,463-468
+  s_51efd1f8647ee0::t_b4cbb991c4424c 6-10,14-18
+Tests/MacParakeetTests/Services/ExportServiceTests.swift
+  s_51efd1f8647ee0::t_3eb8b76cf73bee 175-187,1103-1113
+  s_51efd1f8647ee0::t_56123b86b4be49 236-251,549-550,1116-1117
+  s_51efd1f8647ee0::t_6ba911e7f9bf2d 1114-1115
+Tests/MacParakeetTests/Services/AutoSaveServiceTests.swift
+  s_51efd1f8647ee0::t_289fb1cc4998a2 377-378
+  s_51efd1f8647ee0::t_fe3c508eae5dd0 107-108,383-385
+  s_51efd1f8647ee0::t_d571a45b475f6e 381-382,386-419
+  s_51efd1f8647ee0::t_2c92da50ad34bb 379-380
+Tests/MacParakeetTests/Views/TranscriptTextViewTests.swift
+  s_51efd1f8647ee0::t_7b332f63b0b1d9 34-56
+spec/04-ui-patterns.md
+  s_51efd1f8647ee0::t_f1a03617578e43 552,761
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_51efd1f8647ee0::t_ce38cd466eddd6 664-686
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_51efd1f8647ee0::t_716ac4a480e05a 1490-1492,1494-1497
+  s_51efd1f8647ee0::t_a83156caf5228a 1687-1692
+Sources/MacParakeet/Views/MeetingRecording/TranscriptTextView.swift
+  s_51efd1f8647ee0::t_47be889438aa29 200
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "77ad6436148f341f99e6a8d180633cd6488a29e3",
+  "prompts": {},
+  "sessions": {
+    "s_51efd1f8647ee0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f790b-46ab-7382-a4e6-e4648c2d5944",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

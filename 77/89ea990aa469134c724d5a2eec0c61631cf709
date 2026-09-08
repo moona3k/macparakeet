@@ -1,0 +1,19 @@
+Sources/MacParakeetLocalLLM/MLXLocalLLMRuntime.swift
+  s_2a75fa1c414460::t_8d63dd1369ec3a 40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7789ea990aa469134c724d5a2eec0c61631cf709",
+  "prompts": {},
+  "sessions": {
+    "s_2a75fa1c414460": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2f9c-a119-7601-9897-5195dd6ef61f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+scripts/dist/build_app_bundle.sh
+  s_e12253d018f692::t_81c7d261404c2c 34,36-37,67-70,418-420,438-449,454-470,480,492,495,499,502,509-511,516,530-532
+  s_e12253d018f692::t_2c1831cc3c3307 450-453
+  s_e12253d018f692::t_5ef6d052cd40fe 429,487-491,493
+THIRD_PARTY_LICENSES.md
+  s_e12253d018f692::t_ee7e30178dc369 26-38
+scripts/dist/prepare_meeting_echo_assets.sh
+  s_e12253d018f692::t_76b1f5d8c28bef 26,48-58
+  s_e12253d018f692::t_4e5abb0c1cdc3f 1-25,27-47,59-209
+Tests/MacParakeetTests/Services/Capture/MeetingEchoSuppressionRuntimeTests.swift
+  s_e12253d018f692::t_86ca7e3e1d86f2 86-92,199,204-207,229-230,368
+docs/distribution.md
+  s_e12253d018f692::t_090844461d17c9 36-56,68-70
+spec/05-audio-pipeline.md
+  s_e12253d018f692::t_f9d33a09e54a71 197-201,205-207
+Sources/MacParakeetCore/Services/Capture/MeetingEchoSuppressionRuntime.swift
+  s_e12253d018f692::t_7ec165fe373e8c 146-147,150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "0c687335dbfbd2fbd950970edd4cc8deed39fa69",
+  "prompts": {},
+  "sessions": {
+    "s_e12253d018f692": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f1188-bb6e-7b93-a39d-cb4b10ac5786",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

@@ -1,0 +1,42 @@
+Tests/MacParakeetTests/Audio/MicrophoneEnginePlatformConfigChangeRecoveryTests.swift
+  s_d0ef5a767ad070::t_db7edf8a3fba26 604-605,611-641,643
+  s_d0ef5a767ad070::t_90327d7f9cabca 645-705
+  s_d0ef5a767ad070::t_8c8826b22b07f7 609
+  s_d0ef5a767ad070::t_4dbdb07f922667 569-603,606-608,610,642,644
+spec/README.md
+  s_d0ef5a767ad070::t_baa7f65992b1f3 230-231
+Sources/MacParakeetCore/Audio/MicrophoneEnginePlatform.swift
+  s_d0ef5a767ad070::t_a06aeca379deb6 1217
+  s_d0ef5a767ad070::t_8b75524d4aa806 267-269
+  s_d0ef5a767ad070::t_4dbdb07f922667 270-271,275-276,380-381,392-393,402-403
+  s_d0ef5a767ad070::t_b5af576d9821e3 91-97,100-102,107-109,116-124,126-131,135-151,153-157,744-745,747-748,756,759,891,914,958,960-965,991,1181,1190-1192,1203,1208-1209
+  s_d0ef5a767ad070::t_632b47b87efab0 310,746,749,751,959,999,1036,1052,1163-1166,1177-1180,1182-1186,1188-1189,1193-1202,1204-1207,1210-1216,1218-1220,1222-1223
+  s_d0ef5a767ad070::t_b4f7e141280fd9 1187
+  s_d0ef5a767ad070::t_e16d5c7ddfbe93 286,1139-1143
+spec/05-audio-pipeline.md
+  s_d0ef5a767ad070::t_baa7f65992b1f3 19,267
+spec/08-error-handling.md
+  s_d0ef5a767ad070::t_baa7f65992b1f3 54
+Tests/MacParakeetTests/Audio/MutableMicrophoneTapHandlerTests.swift
+  s_d0ef5a767ad070::t_3dcf3eacbd4a23 53-90
+Sources/MacParakeetCore/Audio/README.md
+  s_d0ef5a767ad070::t_baa7f65992b1f3 25-28,264-266,268-287,295-297
+spec/02-features.md
+  s_d0ef5a767ad070::t_baa7f65992b1f3 1838,1854,1856,1858
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "2dc2974a42c609eea1d1c150b16dd5e93ca0ce42",
+  "prompts": {},
+  "sessions": {
+    "s_d0ef5a767ad070": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f89a2-7797-7ce2-b319-de21dcdd3136",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

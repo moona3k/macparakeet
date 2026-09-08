@@ -1,0 +1,20 @@
+docs/research/2026-07-16-codebase-architecture-deep-dive.md
+  s_6edafe92d02713::t_624ca7004089d0 266-271,748-750
+  s_6edafe92d02713::t_58b70f52941cb2 1-265,272-747,751-1039
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "2bf88f4a2c780a43d20fdf99f4b118108a91657e",
+  "prompts": {},
+  "sessions": {
+    "s_6edafe92d02713": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6c61-934f-7753-a1cd-5c6945f9c3f1",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,44 @@
+docs/audits/2026-07-04-onboarding-telemetry-review.md
+  s_8cfc89c8fca285::t_bd768bfcd0ecfa 1-79
+Sources/MacParakeetViewModels/OnboardingViewModel.swift
+  s_8cfc89c8fca285::t_08174c638a8404 42-52,95,98,156,172-174,178-187,218,227,233,322-324,438,496,709-736
+  s_5bc065599acadc::t_1da11641644665 737
+Sources/MacParakeet/Views/Onboarding/OnboardingFlowView.swift
+  s_8cfc89c8fca285::t_a73fd425aa74eb 73,140-142,416-417,421-422,945,958
+Tests/MacParakeetTests/TelemetryServiceTests.swift
+  s_8cfc89c8fca285::t_4512d1da2a7356 1556-1563
+docs/telemetry.md
+  s_8cfc89c8fca285::t_530405f4589d1d 23-26
+  s_8cfc89c8fca285::t_09c1be05b16f0c 197
+Sources/MacParakeet/Onboarding/OnboardingWindowController.swift
+  s_8cfc89c8fca285::t_f1d13dc458b49e 82
+Tests/MacParakeetTests/ViewModels/OnboardingViewModelTests.swift
+  s_8cfc89c8fca285::t_b98fffa4370b7c 894-903,905-909,911,913-943,945-949,951-953,955,957,959-987
+  s_8cfc89c8fca285::t_96e0c1f9953f92 61-81,904,910,912,944,950,954,956,958
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_8cfc89c8fca285::t_d154667629498d 456-466,728-735,1389-1397,1804
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a70af99cdb86dee543b3b8fbc231a4f7e686ea00",
+  "prompts": {},
+  "sessions": {
+    "s_5bc065599acadc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2bd5-0a1b-79a3-a454-03fd1fe286f1",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_8cfc89c8fca285": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2be6-d42f-7493-853d-34c1551fce03",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

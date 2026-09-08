@@ -1,0 +1,19 @@
+docs/research/2026-07-04-voiceprints-phase0/data/sample-sessions.json
+  s_35765baab2f0ed::t_5900c229b22217 10-13,17-20,24-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f05e1dcd75dda3c2b5596f1858631057c289f5b1",
+  "prompts": {},
+  "sessions": {
+    "s_35765baab2f0ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bbfded2-f315-45ed-b4c9-8dced5e0ca31",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

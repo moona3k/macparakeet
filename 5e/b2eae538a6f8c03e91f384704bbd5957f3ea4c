@@ -1,0 +1,29 @@
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingSettlement.swift
+  s_360c1951ff7ffb::t_074a8a932cfc08 26-28
+  s_360c1951ff7ffb::t_9a44c82edb43a2 70
+spec/contracts/meeting-recovery-retention.md
+  s_360c1951ff7ffb::t_c93f6e2906ea0a 149-152
+  s_360c1951ff7ffb::t_50c9b18e2dc909 100-105
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingSettlementTests.swift
+  s_360c1951ff7ffb::t_ecde6d531933ed 153,161-170
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift
+  s_360c1951ff7ffb::t_a6293c6b251f31 261-285
+  s_360c1951ff7ffb::t_aed8e15839ad5d 85-90
+  s_360c1951ff7ffb::t_04d69bf5846e72 286-288
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5eb2eae538a6f8c03e91f384704bbd5957f3ea4c",
+  "prompts": {},
+  "sessions": {
+    "s_360c1951ff7ffb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "645af37c-273c-49f3-bdd0-8a65ddc7a98f",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+AGENTS.md
+  s_f1803faa18efa7::t_f81f13014637bc 57-59,93-95,135
+CLAUDE.md
+  s_f1803faa18efa7::t_6f0018be981389 5-41
+docs/agent-memory-governance.md
+  s_f1803faa18efa7::t_557b4e2e6a61a5 25
+  s_f1803faa18efa7::t_6f0018be981389 1-24,26-113
+docs/research/coding-agent-instructions-2026-06.md
+  s_f1803faa18efa7::t_f81f13014637bc 13-15,27-28,33-44,46-49,138-141
+  s_f1803faa18efa7::t_557b4e2e6a61a5 29-32,128-129
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "1a298b51e68ed8e00779933d77855dbe58f7821c",
+  "prompts": {},
+  "sessions": {
+    "s_f1803faa18efa7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0f63-20bb-72f1-8484-b1e680e82276",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

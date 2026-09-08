@@ -1,0 +1,19 @@
+Sources/MacParakeetCore/Audio/AudioDeviceManager.swift
+  s_4115897087fa9e::t_c10b03532dbeb5 158-161
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "dd4546af2b1ae9e287445f6327e4de6c5149a5ed",
+  "prompts": {},
+  "sessions": {
+    "s_4115897087fa9e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0d05-3096-7d02-870b-7c0fb3761279",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

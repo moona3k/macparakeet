@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/STT/STTRuntimeInferenceGatingTests.swift
+  s_a51e6d064beb7f::t_0ad9bf0d049be7 58-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "0eb16b047349f91a6e4ce69883c8c0760c02ed18",
+  "prompts": {},
+  "sessions": {
+    "s_a51e6d064beb7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d150d7b0-9c2e-476e-b316-3eb675ab17fa",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

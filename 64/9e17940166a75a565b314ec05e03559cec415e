@@ -1,0 +1,66 @@
+Sources/MacParakeetCore/STT/STTClientProtocol.swift
+  s_8f8980736f3deb::t_191dafaab66396 72-91
+Tests/MacParakeetTests/ViewModels/OnboardingViewModelTests.swift
+  s_8f8980736f3deb::t_f7abef4a55bdc6 920
+Tests/MacParakeetTests/TelemetryServiceTests.swift
+  s_8f8980736f3deb::t_ea9b19ae673f2d 779,782,784,799,1272-1305,1608,1621
+Sources/MacParakeetCore/STT/STTScheduler.swift
+  s_8f8980736f3deb::t_dc68b0d8e65f5b 26,174-181
+  s_8f8980736f3deb::t_9b6f3befc9e428 182-183
+Sources/MacParakeetCore/Audio/MeetingAudioCaptureService.swift
+  s_8f8980736f3deb::t_00530789cc83e4 370-389,396-399,415,421-422,424,426-429,458-460,463-466,469,475-483,486,489-490,494-527
+  s_8f8980736f3deb::t_9716283959637e 473-474
+Tests/MacParakeetTests/STT/MockSTTClient.swift
+  s_8f8980736f3deb::t_184b4cf7c3334f 4,48,64-70
+  s_8f8980736f3deb::t_e149cf066a43d4 71
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_8f8980736f3deb::t_2ad4ab69e0d631 1658
+  s_8f8980736f3deb::t_b7d56f5b34d69b 53,60,67,88-91,146,158-161,190,200-203,213,222-225,235,244-247,256-259,284,319,397,415,421,427-430,441,458,464,470-473,494,508,537,563
+  s_8f8980736f3deb::t_0e087fef34630c 618-621
+Sources/MacParakeetViewModels/EngineSettingsViewModel.swift
+  s_8f8980736f3deb::t_e7000121dea343 58,1015,1045,1075,1105
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_8f8980736f3deb::t_3d2f3e53c207e0 757,770,904-909
+  s_8f8980736f3deb::t_a1e729e711e82a 1438-1446,1661-1667,1912
+docs/telemetry.md
+  s_8f8980736f3deb::t_2dc43dd2fe7969 233,323,390,427,645
+Tests/MacParakeetTests/Audio/MeetingAudioCaptureServiceTests.swift
+  s_8f8980736f3deb::t_6bc1bf50c7d189 290,333-343
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_8f8980736f3deb::t_afbce34b96d108 510-551,2370-2373,2375
+  s_8f8980736f3deb::t_f7abef4a55bdc6 334,362,380,417,445,466,485,504,614,861,887,904,946,1032,1144,1818
+  s_8f8980736f3deb::t_08d8b32f836675 2374
+  s_8f8980736f3deb::t_f5d01fdafd148c 2376
+spec/adr/012-telemetry-system.md
+  s_8f8980736f3deb::t_80c44b7dae0ca8 87
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_8f8980736f3deb::t_1cbe5e55de1282 118-122,143-145,205-209,221,227-229,392-396,444-454,456,458-480
+  s_8f8980736f3deb::t_eb8e78f1e456be 455,457
+spec/02-features.md
+  s_8f8980736f3deb::t_7e0063d2fbf916 1805
+Sources/MacParakeetViewModels/DictationHistoryViewModel.swift
+  s_8f8980736f3deb::t_0c38f14fad9e17 493,495-496
+  s_8f8980736f3deb::t_8fc713cd553aab 182-184,212-213,497-514
+Tests/MacParakeetTests/ViewModels/DictationHistoryViewModelTests.swift
+  s_8f8980736f3deb::t_e05bad82dbe7b0 5-35,46-52,180-205,684-686
+  s_8f8980736f3deb::t_e1adc8ad9eaab4 687
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_8f8980736f3deb::t_e36875105196c0 128,262,272,321,397,405,1415,1427,1440,1452-1454,1459-1464
+  s_8f8980736f3deb::t_6e20cc835c1b58 1465
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "649e17940166a75a565b314ec05e03559cec415e",
+  "prompts": {},
+  "sessions": {
+    "s_8f8980736f3deb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3dc3-2bfe-73a0-8785-16c877141d39",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

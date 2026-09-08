@@ -1,0 +1,50 @@
+Sources/CLI/Commands/TranscribeCommand.swift
+  s_816742fec6b3e1::t_87987bc61691b7 795,836
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_816742fec6b3e1::t_856fd01cf8fcea 344-368
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_816742fec6b3e1::t_10151b5479856c 1394
+  s_816742fec6b3e1::t_87987bc61691b7 1591
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_816742fec6b3e1::t_b1e0cee351a443 1442-1445,1472-1478
+  s_816742fec6b3e1::t_919626f35bcd4b 418
+  s_816742fec6b3e1::t_d31ba0507071c9 1188-1192
+  s_816742fec6b3e1::t_d7295824914746 336,341,346,413-416
+  s_816742fec6b3e1::t_856fd01cf8fcea 337-340,342-345,347-350,401-412,417
+Sources/MacParakeet/Views/Transcription/TranscribeView.swift
+  s_816742fec6b3e1::t_87987bc61691b7 508-509,536
+Sources/CLI/Commands/RetranscribeCommand.swift
+  s_816742fec6b3e1::t_87987bc61691b7 708-709
+Sources/CLI/CHANGELOG.md
+  s_816742fec6b3e1::t_6cbccd296a9f34 92-93,97
+  s_816742fec6b3e1::t_d7295824914746 94-96
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_816742fec6b3e1::t_87987bc61691b7 68,1110,1123-1124,1142-1143,1170-1173
+Sources/MacParakeetCore/Models/TranscriptionProgress.swift
+  s_816742fec6b3e1::t_87987bc61691b7 8,18
+spec/04-ui-patterns.md
+  s_816742fec6b3e1::t_6cbccd296a9f34 650-651,660,663
+  s_816742fec6b3e1::t_e5f195b8a0a1c0 659
+  s_816742fec6b3e1::t_d7295824914746 664-665
+Tests/MacParakeetTests/STT/MockSTTClient.swift
+  s_816742fec6b3e1::t_856fd01cf8fcea 56,103-106,133-135
+  s_816742fec6b3e1::t_ebc920c981b90b 136
+spec/02-features.md
+  s_816742fec6b3e1::t_d7295824914746 479-480
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "0ce9766e5269b7bb0891d1ef085fc9e435a38049",
+  "prompts": {},
+  "sessions": {
+    "s_816742fec6b3e1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6763-0877-7f32-aa7f-e63d595e6a90",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}

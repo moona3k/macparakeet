@@ -1,0 +1,113 @@
+docs/research/2026-09-06-speaker-diarization-claude/README.md
+  s_aa14297513a12d::t_a6cc445e9765ec 1-24
+docs/research/2026-09-06-speaker-diarization-claude/anarlog-and-peers.md
+  s_aa14297513a12d::t_c390299efa8232 1-232
+docs/research/2026-09-06-speaker-diarization-claude/briefs/anarlog-and-peers.md
+  s_aa14297513a12d::t_2004e48e4377b6 1-30
+docs/research/2026-09-06-speaker-diarization-claude/briefs/frontier.md
+  s_aa14297513a12d::t_29226fceeb184e 1-41
+docs/research/2026-09-06-speaker-diarization-claude/briefs/macparakeet-baseline.md
+  s_aa14297513a12d::t_32be610a689ff9 1-36
+docs/research/2026-09-06-speaker-diarization-claude/briefs/production.md
+  s_aa14297513a12d::t_32da39037f7f15 1-25
+docs/research/2026-09-06-speaker-diarization-claude/briefs/shared.md
+  s_aa14297513a12d::t_ddf3696eb12fb0 1-53
+docs/research/2026-09-06-speaker-diarization-claude/evidence/baseline-fluidaudio-0.15.4-offline-defaults.md
+  s_aa14297513a12d::t_74dcf37aefe6e6 1-98
+docs/research/2026-09-06-speaker-diarization-claude/evidence/baseline-pipeline-trace.md
+  s_aa14297513a12d::t_ed40fa8244e617 1-126
+docs/research/2026-09-06-speaker-diarization-claude/evidence/baseline-tests-and-eval-inventory.md
+  s_aa14297513a12d::t_5a42b28c7c9fc6 1-40
+docs/research/2026-09-06-speaker-diarization-claude/evidence/frontier-benchmark-excerpts.md
+  s_aa14297513a12d::t_bbe6f9bfb0e44b 1-132
+docs/research/2026-09-06-speaker-diarization-claude/evidence/frontier-fluidaudio-pr883-nemotron3.md
+  s_aa14297513a12d::t_24bcdbb45f64f7 1-26
+docs/research/2026-09-06-speaker-diarization-claude/evidence/frontier-fluidaudio-prs.md
+  s_aa14297513a12d::t_b5ab7e5751af0b 1-159
+docs/research/2026-09-06-speaker-diarization-claude/evidence/frontier-fluidaudio-releases.md
+  s_aa14297513a12d::t_de97f24a386226 1-136
+docs/research/2026-09-06-speaker-diarization-claude/evidence/frontier-hf-model-metadata.txt
+  s_aa14297513a12d::t_3f1e43008d8939 1-27
+docs/research/2026-09-06-speaker-diarization-claude/evidence/frontier-nemotron3-hf-card.md
+  s_aa14297513a12d::t_df20ddb07ccc99 1-41
+docs/research/2026-09-06-speaker-diarization-claude/evidence/frontier-pinned-0.15.4-clustering-defects.md
+  s_aa14297513a12d::t_0a2d0ec0f9e416 1-73
+docs/research/2026-09-06-speaker-diarization-claude/evidence/peers-anarlog-gh-commits-diarize-rs.txt
+  s_aa14297513a12d::t_439ef4ae43ce93 1-5
+docs/research/2026-09-06-speaker-diarization-claude/evidence/peers-anarlog-gh-commits-pyannote-local.txt
+  s_aa14297513a12d::t_3f027925fb6e36 1-13
+docs/research/2026-09-06-speaker-diarization-claude/evidence/peers-anarlog-gh-commits-voiceprint-plugin.txt
+  s_aa14297513a12d::t_7d97fff5006926 1-6
+docs/research/2026-09-06-speaker-diarization-claude/evidence/peers-anarlog-gh-commits-voiceprint.txt
+  s_aa14297513a12d::t_9399188b5c74c2 1-4
+docs/research/2026-09-06-speaker-diarization-claude/evidence/peers-anarlog-git-log-diarization.txt
+  s_aa14297513a12d::t_2597c9dd1889ae 1
+docs/research/2026-09-06-speaker-diarization-claude/evidence/peers-anarlog-pr-6647.json
+  s_aa14297513a12d::t_a7fe0f8fdd2ea3 1
+docs/research/2026-09-06-speaker-diarization-claude/evidence/peers-anarlog-pr-7100.json
+  s_aa14297513a12d::t_a9b324ce037ad6 1
+docs/research/2026-09-06-speaker-diarization-claude/evidence/peers-anarlog-pr-7244-body.md
+  s_aa14297513a12d::t_452a85a7cf9aa5 1-33
+docs/research/2026-09-06-speaker-diarization-claude/evidence/peers-anarlog-pr-7244.json
+  s_aa14297513a12d::t_ed791de6238146 1
+docs/research/2026-09-06-speaker-diarization-claude/evidence/peers-anarlog-pr-7251-body.md
+  s_aa14297513a12d::t_b073538517ad77 1-41
+docs/research/2026-09-06-speaker-diarization-claude/evidence/peers-anarlog-pr-7251.json
+  s_aa14297513a12d::t_8b1e28bb9c2c99 1
+docs/research/2026-09-06-speaker-diarization-claude/evidence/peers-anarlog-pr-7278.json
+  s_aa14297513a12d::t_6bdf9d526297f3 1
+docs/research/2026-09-06-speaker-diarization-claude/evidence/peers-anarlog-pr-7280.json
+  s_aa14297513a12d::t_d9807b4e6219a4 1
+docs/research/2026-09-06-speaker-diarization-claude/evidence/peers-anarlog-pr-7282.json
+  s_aa14297513a12d::t_c1c33e2cab782a 1
+docs/research/2026-09-06-speaker-diarization-claude/evidence/peers-anarlog-pr-7285.json
+  s_aa14297513a12d::t_a589d1fb9d2402 1
+docs/research/2026-09-06-speaker-diarization-claude/evidence/peers-anarlog-pr-7353.json
+  s_aa14297513a12d::t_a532b7aba0dbb9 1
+docs/research/2026-09-06-speaker-diarization-claude/evidence/peers-anarlog-speaker-files.txt
+  s_aa14297513a12d::t_c89c8f0b13ec06 1-551
+docs/research/2026-09-06-speaker-diarization-claude/evidence/peers-hf-pyannote-community1-coreml.json
+  s_aa14297513a12d::t_89a6d9351c3eb3 1
+docs/research/2026-09-06-speaker-diarization-claude/evidence/peers-hf-pyannote-community1.json
+  s_aa14297513a12d::t_f9deaff4748f46 1
+docs/research/2026-09-06-speaker-diarization-claude/evidence/peers-other-apps-speaker-files.txt
+  s_aa14297513a12d::t_036680372ba74a 1-209
+docs/research/2026-09-06-speaker-diarization-claude/evidence/peers-soniqo-speech-swift-readme.md
+  s_aa14297513a12d::t_da1069e72f72f6 1-574
+docs/research/2026-09-06-speaker-diarization-claude/evidence/peers-soniqo-speech-swift-repo.json
+  s_aa14297513a12d::t_fee4d67523e718 1
+docs/research/2026-09-06-speaker-diarization-claude/evidence/production-assemblyai.md
+  s_aa14297513a12d::t_d112a3aa25a192 1-60
+docs/research/2026-09-06-speaker-diarization-claude/evidence/production-deepgram-soniox.md
+  s_aa14297513a12d::t_ac86128be6fa4a 1-45
+docs/research/2026-09-06-speaker-diarization-claude/evidence/production-granola-fireflies-fathom.md
+  s_aa14297513a12d::t_0379fa896c3641 1-32
+docs/research/2026-09-06-speaker-diarization-claude/evidence/production-platforms-otter.md
+  s_aa14297513a12d::t_4636fc051385ba 1-35
+docs/research/2026-09-06-speaker-diarization-claude/evidence/production-pyannoteai.md
+  s_aa14297513a12d::t_bde2a5614e38bb 1-88
+docs/research/2026-09-06-speaker-diarization-claude/frontier.md
+  s_aa14297513a12d::t_b2c64f40ac470c 1-438
+docs/research/2026-09-06-speaker-diarization-claude/macparakeet-baseline.md
+  s_aa14297513a12d::t_ed8930f60e6d9a 1-395
+docs/research/2026-09-06-speaker-diarization-claude/production-practices.md
+  s_aa14297513a12d::t_15e675f93d6c2e 1-376
+docs/research/2026-09-06-speaker-diarization-claude/synthesis.md
+  s_aa14297513a12d::t_25954b06b631d2 1-153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "1eccbdb6b05caafdda255f6b1b8e50f673e34e89",
+  "prompts": {},
+  "sessions": {
+    "s_aa14297513a12d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b828c28a-ecfb-43b2-8474-27531db956f5",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

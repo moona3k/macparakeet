@@ -1,0 +1,39 @@
+Tests/MacParakeetTests/Services/Diarization/MeetingSpeakerPriorTests.swift
+  s_aa14297513a12d::t_102995c85c58c4 1-110
+Sources/MacParakeetCore/Services/Diarization/MeetingSpeakerPrior.swift
+  s_aa14297513a12d::t_5595160ac74296 1-100
+Sources/MacParakeetCore/Services/Diarization/DiarizationService.swift
+  s_aa14297513a12d::t_732bd5883f80dc 28,34-40,47-50,62-65,68-82,84-88,91-102,109-111,114-115,117,121-123,132-134,140-141,145,148-151,154-157,167,256-283,287-293,316-317,347-350,352
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_aa14297513a12d::t_9cd40cc8821f21 679-687,1301-1302,1307-1310
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_aa14297513a12d::t_1d55005ecd6512 1502-1504,1509-1517,1519-1524,1528-1529,1569-1580
+Tests/CLITests/ModelLifecycleCommandTests.swift
+  s_aa14297513a12d::t_f95019a1be43ad 1214-1217
+Tests/MacParakeetTests/Services/Diarization/DiarizationServiceTests.swift
+  s_aa14297513a12d::t_e48bf950f3d4ca 95-118,179-214,221,231-234,236
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_aa14297513a12d::t_123dd21c3c79fb 2548-2650,3354-3366,3371-3372,3413-3414
+Tests/MacParakeetTests/TelemetryServiceTests.swift
+  s_aa14297513a12d::t_a48ffcb8998b22 665-702
+docs/telemetry.md
+  s_aa14297513a12d::t_c82066ea5f3817 310
+spec/adr/010-speaker-diarization.md
+  s_aa14297513a12d::t_7d0f7b387c299b 39,82-90,130,186-241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "a4b3113b89ca728f42151f452cc2151c3ebb87f5",
+  "prompts": {},
+  "sessions": {
+    "s_aa14297513a12d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b828c28a-ecfb-43b2-8474-27531db956f5",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

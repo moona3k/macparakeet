@@ -1,0 +1,375 @@
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_35944fe873eaab::t_d39ec945bf26bf 497-498,4396-4408,4454,4470-4479,4483,5324-5389
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingLockFileStore.swift
+  s_35944fe873eaab::t_1445b496b2c5e5 371,409,428-444,452,615
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingRecoveryService.swift
+  s_35944fe873eaab::t_d33be74169c225 418-422,435-455
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift
+  s_35944fe873eaab::t_1c91aa0bf7b84b 736-806,846,855-1008,1521-1560
+Tests/MacParakeetTests/Views/TranscriptSegmentCacheTests.swift
+  s_35944fe873eaab::t_c48b16b8f12523 1-127
+docs/distribution.md
+  s_35944fe873eaab::t_89132de66d1468 407-408,416,418,431-435,437-440,442,444-446,448-451,453-455,458-471,663
+docs/human-qa-guide.md
+  s_35944fe873eaab::t_88a2aa822c39ef 43-59,93-96
+docs/qa/2026-09-07-0.8.0/README.md
+  s_35944fe873eaab::t_41a17136dc61b8 1-69
+docs/qa/2026-09-07-0.8.0/audio-review.md
+  s_35944fe873eaab::t_d0fdf1b3da259e 1-142
+docs/qa/2026-09-07-0.8.0/audio-runtime.md
+  s_35944fe873eaab::t_c1616162c6d2a9 1-62
+docs/qa/2026-09-07-0.8.0/cli-data-review.md
+  s_35944fe873eaab::t_700768a09de033 1-136
+docs/qa/2026-09-07-0.8.0/cli-runtime.md
+  s_35944fe873eaab::t_3cdc1300cc96fe 1-50
+docs/qa/2026-09-07-0.8.0/cohere-extended.md
+  s_35944fe873eaab::t_b3f98262efcae6 1-125
+docs/qa/2026-09-07-0.8.0/dapt-runtime.md
+  s_35944fe873eaab::t_2e0d70552347a3 1-53
+docs/qa/2026-09-07-0.8.0/evidence.json
+  s_35944fe873eaab::t_f5543931506efa 1-1368
+docs/qa/2026-09-07-0.8.0/evidence/asr-runner.log
+  s_35944fe873eaab::t_88343236b33a1c 1-11
+docs/qa/2026-09-07-0.8.0/evidence/cache-green.log
+  s_35944fe873eaab::t_1688bb6a0f904d 1-84
+docs/qa/2026-09-07-0.8.0/evidence/cache-red-recovery-green.log
+  s_35944fe873eaab::t_f266f198e32c54 1-922
+docs/qa/2026-09-07-0.8.0/evidence/cohere-en.json
+  s_35944fe873eaab::t_25c6fc07deee3f 1-23
+docs/qa/2026-09-07-0.8.0/evidence/cohere-en.log
+  s_35944fe873eaab::t_b53d2690a3daf9 1-10
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/ja-result.json
+  s_35944fe873eaab::t_8ab15991a7a595 1-57
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/ja-stderr.log
+  s_35944fe873eaab::t_c8d43d0ef8c2a1 1-9
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/ja-stdout.json
+  s_35944fe873eaab::t_ff79566ff8e50f 1-23
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/ko-result.json
+  s_35944fe873eaab::t_65c85f2252e7d2 1-59
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/ko-stderr.log
+  s_35944fe873eaab::t_25e5522fc466d5 1-9
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/ko-stdout.json
+  s_35944fe873eaab::t_43831a1f1dff9e 1-23
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/manifest.json
+  s_35944fe873eaab::t_4daf4accb77d4d 1-92
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/summary.json
+  s_35944fe873eaab::t_d2163a9266dee6 1-44
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/zh-result.json
+  s_35944fe873eaab::t_98de6a9de15153 1-59
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/zh-stderr.log
+  s_35944fe873eaab::t_d9a95e21111b7d 1-9
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/zh-stdout.json
+  s_35944fe873eaab::t_9d8ea7d7cba5c6 1-23
+docs/qa/2026-09-07-0.8.0/evidence/cohere-ja.log
+  s_35944fe873eaab::t_9099ac927cf12d 1-4
+docs/qa/2026-09-07-0.8.0/evidence/cohere-ko.log
+  s_35944fe873eaab::t_2001d2aee80dcc 1-4
+docs/qa/2026-09-07-0.8.0/evidence/cohere-zh.log
+  s_35944fe873eaab::t_aa90c2bd719c00 1-4
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/artifact-manifest.json
+  s_35944fe873eaab::t_ebfab73b931908 1-118
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/assertions.json
+  s_35944fe873eaab::t_417d3fe80da613 1-256
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/diarization-auto.json
+  s_35944fe873eaab::t_99bc70dc885087 1-399
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/diarization-auto.result.json
+  s_35944fe873eaab::t_3d551a39e93c9e 1-43
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/diarization-auto.stderr.log
+  s_35944fe873eaab::t_36b5554d3e5e6c 1-64
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/diarization-exact-2.json
+  s_35944fe873eaab::t_78350ab809ca6b 1-399
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/diarization-exact-2.result.json
+  s_35944fe873eaab::t_8a101f5522c5ae 1-45
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/diarization-exact-2.stderr.log
+  s_35944fe873eaab::t_3b252784cbf303 1-66
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/fixture-manifest.json
+  s_35944fe873eaab::t_ea27eb0029eadf 1-368
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/quality-observations.json
+  s_35944fe873eaab::t_3b257f4a3b111e 1-32
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/results.json
+  s_35944fe873eaab::t_43ef544ab3b6b7 1-254
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/source-integrity.json
+  s_35944fe873eaab::t_8013e4e3c97071 1-9
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/speaker-observations.json
+  s_35944fe873eaab::t_a7495a3caf1dea 1-136
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/track-0-invalid.result.json
+  s_35944fe873eaab::t_6888f73e40231d 1-35
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/track-0-invalid.stderr.log
+  s_35944fe873eaab::t_9811e38bb3751c 1-3
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/track-1-en-verified.json
+  s_35944fe873eaab::t_4d4e9ec37de56e 1-156
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/track-1-en-verified.result.json
+  s_35944fe873eaab::t_02f49511139d0b 1-47
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/track-1-en-verified.stderr.log
+  s_35944fe873eaab::t_5c171fd92e0ee9 1-21
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/track-2-ja.json
+  s_35944fe873eaab::t_9008aac3003ee8 1-42
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/track-2-ja.result.json
+  s_35944fe873eaab::t_b80467b0494ef7 1-47
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/track-2-ja.stderr.log
+  s_35944fe873eaab::t_20a6d3020a835b 1-21
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/track-3-missing.json
+  s_35944fe873eaab::t_b68229ee0cb0b2 1-11
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/track-3-missing.result.json
+  s_35944fe873eaab::t_04ac77d11c9740 1-35
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/track-pcm-equivalence.json
+  s_35944fe873eaab::t_f497eca7d01771 1-20
+docs/qa/2026-09-07-0.8.0/evidence/file-audio-runtime/two-tracks-probe.json
+  s_35944fe873eaab::t_0e885ede266186 1-166
+docs/qa/2026-09-07-0.8.0/evidence/format-comparison-final.json
+  s_35944fe873eaab::t_884ae43d9dd72f 1-42
+docs/qa/2026-09-07-0.8.0/evidence/full-swift-test-summary.log
+  s_35944fe873eaab::t_5b3bd129eb0d88 1-82
+docs/qa/2026-09-07-0.8.0/evidence/gui-rebuilt/copy-controls-current.json
+  s_35944fe873eaab::t_ed5ff94b9040e4 1-17
+docs/qa/2026-09-07-0.8.0/evidence/gui-rebuilt/manifest.json
+  s_35944fe873eaab::t_6a1a5f5b65aa3f 1-104
+docs/qa/2026-09-07-0.8.0/evidence/gui-rebuilt/results.json
+  s_35944fe873eaab::t_fb65e4d0769086 1-48
+docs/qa/2026-09-07-0.8.0/evidence/gui-rebuilt/saved-notes-gui-results.json
+  s_35944fe873eaab::t_28a09f75920c1d 1-43
+docs/qa/2026-09-07-0.8.0/evidence/gui-rebuilt/summary-copy.txt
+  s_35944fe873eaab::t_b60af8a26e993f 1-37
+docs/qa/2026-09-07-0.8.0/evidence/gui-rebuilt/table-copy.txt
+  s_35944fe873eaab::t_dcc3130dd89f27 1-7
+docs/qa/2026-09-07-0.8.0/evidence/gui/gui-dapt-bbc.json
+  s_35944fe873eaab::t_80afe1a44efc82 1
+docs/qa/2026-09-07-0.8.0/evidence/gui/gui-dapt-validation.log
+  s_35944fe873eaab::t_6ca940920a683d 1-3
+docs/qa/2026-09-07-0.8.0/evidence/gui/gui-edited-persistence.json
+  s_35944fe873eaab::t_9bb52338bb3bec 1-6
+docs/qa/2026-09-07-0.8.0/evidence/gui/gui-track-persistence.json
+  s_35944fe873eaab::t_317677ff252868 1-10
+docs/qa/2026-09-07-0.8.0/evidence/gui/manifest.json
+  s_35944fe873eaab::t_df214cd80d3797 1-143
+docs/qa/2026-09-07-0.8.0/evidence/hardware-microphone-summary.log
+  s_35944fe873eaab::t_853c5365005f84 1-26
+docs/qa/2026-09-07-0.8.0/evidence/merged-notes-focused-summary.log
+  s_35944fe873eaab::t_ce1820b42de45c 1-771
+docs/qa/2026-09-07-0.8.0/evidence/mic-meetings-results.json
+  s_35944fe873eaab::t_1c8133558388b6 1-32
+docs/qa/2026-09-07-0.8.0/evidence/nemotron-en.json
+  s_35944fe873eaab::t_50afa9f920c1db 1-203
+docs/qa/2026-09-07-0.8.0/evidence/nemotron-en.log
+  s_35944fe873eaab::t_1c5ec9edc585c6 1-21
+docs/qa/2026-09-07-0.8.0/evidence/nemotron-ja.json
+  s_35944fe873eaab::t_ebf7f98c41378d 1-41
+docs/qa/2026-09-07-0.8.0/evidence/nemotron-ja.log
+  s_35944fe873eaab::t_ae0dc4d2f45a80 1-21
+docs/qa/2026-09-07-0.8.0/evidence/nemotron-ko.json
+  s_35944fe873eaab::t_e5c1b357d7bfe4 1-113
+docs/qa/2026-09-07-0.8.0/evidence/nemotron-ko.log
+  s_35944fe873eaab::t_a76d51432f82d0 1-21
+docs/qa/2026-09-07-0.8.0/evidence/nemotron-zh.json
+  s_35944fe873eaab::t_7d1be880cfe8db 1-53
+docs/qa/2026-09-07-0.8.0/evidence/nemotron-zh.log
+  s_35944fe873eaab::t_0bf11b04078835 1-21
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/app-gatekeeper.log
+  s_35944fe873eaab::t_5c64ad6ab99df1 1-2
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/app-notary-info.log
+  s_35944fe873eaab::t_88e8b0ab3623f3 1
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/app-signature-details.log
+  s_35944fe873eaab::t_1ec3693dc23090 1-29
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/app-staple-validation.log
+  s_35944fe873eaab::t_491b247efb2c4b 1-2
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/app-strict-signature.log
+  s_35944fe873eaab::t_917eb4a6c4d004 1-16
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/artifact-manifest.json
+  s_35944fe873eaab::t_3fe6f3e43dcad2 1-165
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/binary-dependencies.log
+  s_35944fe873eaab::t_bba86b3632353f 1-162
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/build-distribution-notes.log
+  s_35944fe873eaab::t_146677b4f4c5cb 1-61
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/bundle-zip-identities.json
+  s_35944fe873eaab::t_0126654febf995 1-42
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/cli-version.log
+  s_35944fe873eaab::t_a1e9754ab14c1f 1
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-attach-readonly-canonical.log
+  s_35944fe873eaab::t_807e65d77f731b 1-53
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-attach-readonly.log
+  s_35944fe873eaab::t_853d55d45e27fa 1-53
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-cleanup.json
+  s_35944fe873eaab::t_08a13575183413 1-9
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-detach-owned-canonical-mount.log
+  s_35944fe873eaab::t_d0d27b5535f9d9 1
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-detach-owned-mount.log
+  s_35944fe873eaab::t_4400cd7dbb8af1 1
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-gatekeeper.log
+  s_35944fe873eaab::t_06eddb22ecc88b 1-2
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-image-verification.log
+  s_35944fe873eaab::t_4152ec52614dfb 1-18
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-manifest.json
+  s_35944fe873eaab::t_d76b0ce08c7e75 1-8
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-mount-canonical-results.json
+  s_35944fe873eaab::t_522f02451af0a9 1-59
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-notary-info.log
+  s_35944fe873eaab::t_761c7e0ba31bc0 1
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-payload-verification.json
+  s_35944fe873eaab::t_471c079484e6ee 1-78
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-results.json
+  s_35944fe873eaab::t_b6bf19923d72f8 1-102
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-staple-validation.log
+  s_35944fe873eaab::t_16f5f0c54f88e8 1-2
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-strict-signature.log
+  s_35944fe873eaab::t_3ba83c7c4c1db1 1-2
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/ffmpeg-version.log
+  s_35944fe873eaab::t_b3017e270d3504 1-12
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/mounted-app-staple-validation.log
+  s_35944fe873eaab::t_77de278bc22c70 1-2
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/mounted-app-strict-signature.log
+  s_35944fe873eaab::t_17b55061bb8baf 1-16
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/node-version.log
+  s_35944fe873eaab::t_d98ecd956c6f0f 1
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/results.json
+  s_35944fe873eaab::t_bbf7f0d70a8c70 1-165
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/runtime-metadata.json
+  s_35944fe873eaab::t_46654bd5a7c645 1-9
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/sign-notarize-notes.log
+  s_35944fe873eaab::t_22d724faab4651 1-86
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/ytdlp-version.log
+  s_35944fe873eaab::t_b1839b5125f590 1
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/zip-manifest.json
+  s_35944fe873eaab::t_901465813321f2 1-26
+docs/qa/2026-09-07-0.8.0/evidence/packaged-aec-summary.log
+  s_35944fe873eaab::t_f0af4ed06bd6f9 1-17
+docs/qa/2026-09-07-0.8.0/evidence/packaging-sparkle/actual-bundle-inspection.json
+  s_35944fe873eaab::t_ec748bcb269952 1-7
+docs/qa/2026-09-07-0.8.0/evidence/packaging-sparkle/actual-bundle-red.log
+  s_35944fe873eaab::t_046d56aa544674 1-6
+docs/qa/2026-09-07-0.8.0/evidence/packaging-sparkle/actual-framework-copy-green.log
+  s_35944fe873eaab::t_96728e5197c9c8 1-10
+docs/qa/2026-09-07-0.8.0/evidence/packaging-sparkle/actual-framework-copy-result.json
+  s_35944fe873eaab::t_5c1e0558164a3f 1-14
+docs/qa/2026-09-07-0.8.0/evidence/packaging-sparkle/artifact-manifest.json
+  s_35944fe873eaab::t_d34389a2fa924c 1-34
+docs/qa/2026-09-07-0.8.0/evidence/packaging-sparkle/fixture-red-green.log
+  s_35944fe873eaab::t_a22e5b0d361bc3 1-5
+docs/qa/2026-09-07-0.8.0/evidence/packaging-sparkle/repro.sh
+  s_35944fe873eaab::t_f6dfb32fc3c406 1-56
+docs/qa/2026-09-07-0.8.0/evidence/packaging-sparkle/sparkle-root-symlink.patch
+  s_35944fe873eaab::t_08a0a519d26e39 1-8
+docs/qa/2026-09-07-0.8.0/evidence/parakeet-unified-en.json
+  s_35944fe873eaab::t_e9dbf7ef9a64b0 1-197
+docs/qa/2026-09-07-0.8.0/evidence/parakeet-unified-en.log
+  s_35944fe873eaab::t_446f9102bc9573 1-17
+docs/qa/2026-09-07-0.8.0/evidence/parakeet-v2-en.json
+  s_35944fe873eaab::t_7ee3aba5ebd57a 1-203
+docs/qa/2026-09-07-0.8.0/evidence/parakeet-v2-en.log
+  s_35944fe873eaab::t_7e1d5b8aecabd5 1-28
+docs/qa/2026-09-07-0.8.0/evidence/parakeet-v3-en.json
+  s_35944fe873eaab::t_e3f3ea34f84e91 1-203
+docs/qa/2026-09-07-0.8.0/evidence/parakeet-v3-en.log
+  s_35944fe873eaab::t_0381d7f192b01b 1-28
+docs/qa/2026-09-07-0.8.0/evidence/pr979-ci-summary.json
+  s_35944fe873eaab::t_933e51a2a9d2bd 1-247
+docs/qa/2026-09-07-0.8.0/evidence/pr979-ci-summary.log
+  s_35944fe873eaab::t_da82aea326ddbf 1-15
+docs/qa/2026-09-07-0.8.0/evidence/recovery-discard-red.log
+  s_35944fe873eaab::t_2298ac16807f7a 1-2139
+docs/qa/2026-09-07-0.8.0/evidence/recovery-mutex-release-green.log
+  s_35944fe873eaab::t_ac93d9db86f629 1-226
+docs/qa/2026-09-07-0.8.0/evidence/recovery-mutex-release-red.log
+  s_35944fe873eaab::t_cf705af8ea5e76 1-27
+docs/qa/2026-09-07-0.8.0/evidence/recovery-partial-delete-green.log
+  s_35944fe873eaab::t_a1c7c16a19f8d1 1-256
+docs/qa/2026-09-07-0.8.0/evidence/recovery-partial-delete-red.log
+  s_35944fe873eaab::t_c16a6cbc4b4696 1-33
+docs/qa/2026-09-07-0.8.0/evidence/report-browser-final/manifest.json
+  s_35944fe873eaab::t_705c5e1f5b33cb 1-40
+docs/qa/2026-09-07-0.8.0/evidence/report-browser-final/results.json
+  s_35944fe873eaab::t_9b0570058fa968 1-3377
+docs/qa/2026-09-07-0.8.0/evidence/report-browser/cleanup.json
+  s_35944fe873eaab::t_9431e58e548f06 1-3
+docs/qa/2026-09-07-0.8.0/evidence/report-browser/later-data-sync.json
+  s_35944fe873eaab::t_3cd7dd83ee72aa 1-14
+docs/qa/2026-09-07-0.8.0/evidence/report-browser/layout-probe.json
+  s_35944fe873eaab::t_a5f4525e2e07d8 1-48
+docs/qa/2026-09-07-0.8.0/evidence/report-browser/manifest.json
+  s_35944fe873eaab::t_54212b95b1afd7 1-151
+docs/qa/2026-09-07-0.8.0/evidence/report-browser/report-fixes.json
+  s_35944fe873eaab::t_a6bceb8d2b7650 1-11
+docs/qa/2026-09-07-0.8.0/evidence/report-browser/retest_fixes.py
+  s_35944fe873eaab::t_c8c7b80c2a66a1 1-70
+docs/qa/2026-09-07-0.8.0/evidence/report-browser/review-path-redactions.json
+  s_35944fe873eaab::t_63339e8ef20684 1-60
+docs/qa/2026-09-07-0.8.0/evidence/report-browser/run-01.log
+  s_35944fe873eaab::t_9a7d0f5353090b 1-108
+docs/qa/2026-09-07-0.8.0/evidence/report-browser/run-01/results.json
+  s_35944fe873eaab::t_e2b00f37a9ce19 1-5569
+docs/qa/2026-09-07-0.8.0/evidence/report-browser/run-02.log
+  s_35944fe873eaab::t_9405d7de5170e3 1-27
+docs/qa/2026-09-07-0.8.0/evidence/report-browser/run-02/results.json
+  s_35944fe873eaab::t_bb4d4cc9fabb7d 1-2591
+docs/qa/2026-09-07-0.8.0/evidence/report-browser/verify_report.py
+  s_35944fe873eaab::t_fe87e8f2ebd844 1-225
+docs/qa/2026-09-07-0.8.0/evidence/results.json
+  s_35944fe873eaab::t_9ab0d499d3e2c9 1-471
+docs/qa/2026-09-07-0.8.0/evidence/vocabulary-import-cli.json
+  s_35944fe873eaab::t_0d8c12346d0e8f 1-10
+docs/qa/2026-09-07-0.8.0/file-audio-runtime.md
+  s_35944fe873eaab::t_88d1665f80b45f 1-110
+docs/qa/2026-09-07-0.8.0/gui-fixtures.md
+  s_35944fe873eaab::t_70af1bfb526120 1-127
+docs/qa/2026-09-07-0.8.0/gui-rebuilt.md
+  s_35944fe873eaab::t_135a2e152c49c2 1-41
+docs/qa/2026-09-07-0.8.0/gui-runtime.md
+  s_35944fe873eaab::t_d327dd3f20a73f 1-99
+docs/qa/2026-09-07-0.8.0/index.html
+  s_35944fe873eaab::t_c6fe3b468bd012 1-1446
+docs/qa/2026-09-07-0.8.0/microphone-runtime.md
+  s_35944fe873eaab::t_22af0e962abdb8 1-34
+docs/qa/2026-09-07-0.8.0/new-main-notes-review.md
+  s_35944fe873eaab::t_fc09657affd0ad 1-94
+docs/qa/2026-09-07-0.8.0/package-preflight.md
+  s_35944fe873eaab::t_76e116d4b9e496 1-81
+docs/qa/2026-09-07-0.8.0/package-runtime.md
+  s_35944fe873eaab::t_55f9b9d8933f4f 1-70
+docs/qa/2026-09-07-0.8.0/packaging-sparkle-finding.md
+  s_35944fe873eaab::t_ad55d587bc9426 1-89
+docs/qa/2026-09-07-0.8.0/pr-review-disposition.md
+  s_35944fe873eaab::t_963c9c4ad03565 1-95
+docs/qa/2026-09-07-0.8.0/release-inventory.md
+  s_35944fe873eaab::t_c412ee8a31da24 1-125
+docs/qa/2026-09-07-0.8.0/report-validation.md
+  s_35944fe873eaab::t_6daf79e9f8e17e 1-95
+docs/qa/2026-09-07-0.8.0/runtime-log.md
+  s_35944fe873eaab::t_13db67e33854b2 1-40
+docs/qa/2026-09-07-0.8.0/saved-notes-gui.md
+  s_35944fe873eaab::t_e9c939fa47696e 1-28
+docs/qa/2026-09-07-0.8.0/scripts/seed_gui_fixtures.py
+  s_35944fe873eaab::t_7521d9ec7cea74 1-202
+docs/qa/2026-09-07-0.8.0/scripts/verify_cli_contracts.py
+  s_35944fe873eaab::t_1ffd776912207e 1-313
+docs/qa/2026-09-07-0.8.0/scripts/verify_dapt_exports.py
+  s_35944fe873eaab::t_1374577920c394 1-155
+docs/qa/2026-09-07-0.8.0/ui-source-review.md
+  s_35944fe873eaab::t_404e84350480bf 1-87
+integrations/README.md
+  s_35944fe873eaab::t_e5ee1e790a7bbb 8
+scripts/dist/build_app_bundle.sh
+  s_35944fe873eaab::t_e74512f147e77d 561-562
+spec/14-per-prompt-inference-settings.md
+  s_35944fe873eaab::t_6d8c372ed60851 3-6,33-38
+spec/README.md
+  s_35944fe873eaab::t_2f4fecd425fb2f 26,67
+spec/contracts/cli-json-v1.md
+  s_35944fe873eaab::t_37c5acc832569e 114-116
+spec/contracts/meeting-recovery-retention.md
+  s_35944fe873eaab::t_a126dd95fdaad5 230-242
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "795e6cb064d956333141076e88c69053d583d62e",
+  "prompts": {},
+  "sessions": {
+    "s_35944fe873eaab": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07d2c-41d3-75a1-a1cc-ff3b38be6e53",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

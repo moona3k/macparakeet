@@ -1,0 +1,27 @@
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingLockFileStore.swift
+  s_557109b6e131b4::t_ee2ab05837ce45 350,440-446,458-461,505-512
+  s_557109b6e131b4::t_ae79f9b926df67 377-379,410,513,543,546,549-555,561
+  s_557109b6e131b4::t_e5bd6feba74604 514
+spec/contracts/meeting-recovery-retention.md
+  s_557109b6e131b4::t_ee2ab05837ce45 87-89,126-127
+  s_557109b6e131b4::t_ae79f9b926df67 124-125
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingLockFileStoreTests.swift
+  s_557109b6e131b4::t_ae79f9b926df67 177-181,183,218-225
+  s_557109b6e131b4::t_ee2ab05837ce45 199-207
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "73e91f886861b29ecf831e61c19277c3c329fc2c",
+  "prompts": {},
+  "sessions": {
+    "s_557109b6e131b4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa4cc-252a-7751-b90c-71689437cbb4",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

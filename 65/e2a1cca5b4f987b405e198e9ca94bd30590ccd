@@ -1,0 +1,29 @@
+plans/active/2026-07-04-meeting-health-artifacts-speaker-rename.md
+  s_66d3337be753fc::t_214f328ff547c3 308-309
+  s_66d3337be753fc::t_2076734841d6c9 80-88
+  s_66d3337be753fc::t_92bb698efc536b 475-476
+  s_66d3337be753fc::t_9e9e89c41a2a23 114-115
+  s_66d3337be753fc::t_a2ed71ab934e27 183-188
+  s_66d3337be753fc::t_9f3526102b4239 701-702
+  s_66d3337be753fc::t_a8547ac2da5ac0 455,457-460
+  s_66d3337be753fc::t_f07a07913e0d07 492
+  s_66d3337be753fc::t_6631c996f3a5ba 257-259
+docs/research/2026-07-04-open-source-meeting-recorder-review.md
+  s_66d3337be753fc::t_8a261edd720782 1-877
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "65e2a1cca5b4f987b405e198e9ca94bd30590ccd",
+  "prompts": {},
+  "sessions": {
+    "s_66d3337be753fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1d0ad57f-1172-43bb-9860-c42ce0bf5356",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

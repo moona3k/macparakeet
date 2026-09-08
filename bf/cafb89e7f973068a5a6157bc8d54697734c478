@@ -1,0 +1,22 @@
+plans/completed/2026-07-17-issue-767-audio-track-selection.md
+  s_37393add2b91eb::t_93a4f4d3c9768d 3,91
+plans/README.md
+  s_37393add2b91eb::t_93a4f4d3c9768d 91-96
+  s_37393add2b91eb::t_f75b0dabde57cd 97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "bfcafb89e7f973068a5a6157bc8d54697734c478",
+  "prompts": {},
+  "sessions": {
+    "s_37393add2b91eb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f7118-5ca9-7580-970e-bca2613af1fe",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

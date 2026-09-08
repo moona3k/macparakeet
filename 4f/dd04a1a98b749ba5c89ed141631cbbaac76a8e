@@ -1,0 +1,19 @@
+docs/research/2026-07-04-voiceprints-phase0-calibration.md
+  s_e31ae2cef18ddf::t_61daf3b49beeba 247
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4fdd04a1a98b749ba5c89ed141631cbbaac76a8e",
+  "prompts": {},
+  "sessions": {
+    "s_e31ae2cef18ddf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2bd5-b4db-7130-8c7c-3f34c1798920",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

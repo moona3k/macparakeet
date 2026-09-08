@@ -1,0 +1,27 @@
+Sources/MacParakeetCore/Audio/MicrophoneEnginePlatform.swift
+  s_34694bb29f5678::t_8420dc8db3a428 387-392,1414,1424,1460-1464,1466,1470-1473,1496-1513,1603-1630,1637,1640,1645
+  s_34694bb29f5678::t_589862e6df29ab 1644,1646-1648,1721,1752
+Tests/MacParakeetTests/Audio/MicrophoneEnginePlatformConfigChangeRecoveryTests.swift
+  s_34694bb29f5678::t_b0e14c84b9f313 933-987,989,993-996,999-1008
+  s_34694bb29f5678::t_1728c70f979f9f 988,990-992,997-998
+  s_34694bb29f5678::t_ab1ad6fac8d410 867-932
+Sources/MacParakeetCore/Audio/README.md
+  s_34694bb29f5678::t_3b39bbe74a8b49 315-317
+  s_34694bb29f5678::t_473f124848fddc 310-314
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "b24eb8471f101c03943d7f628d367d3fc00cbd20",
+  "prompts": {},
+  "sessions": {
+    "s_34694bb29f5678": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f8bd1-7370-74e0-bf59-d2699a27b6ab",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

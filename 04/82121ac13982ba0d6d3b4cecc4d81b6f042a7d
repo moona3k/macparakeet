@@ -1,0 +1,20 @@
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_68774ec8633b59::t_ce9192167f79a9 2607-2613
+  s_68774ec8633b59::t_2a12edfbcce188 2562
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "0482121ac13982ba0d6d3b4cecc4d81b6f042a7d",
+  "prompts": {},
+  "sessions": {
+    "s_68774ec8633b59": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "78a2dc9a-dd41-407b-b0f0-dda0d952b5bd",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

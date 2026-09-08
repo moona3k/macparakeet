@@ -1,0 +1,42 @@
+Sources/CLI/Commands/VocabWordsCommand.swift
+  s_be69dd51f6ad0c::t_8e8f78e2818dbf 172-175
+Sources/CLI/MacParakeetCLI.swift
+  s_be69dd51f6ad0c::t_7147dcb72a8a62 11
+docs/cli-testing.md
+  s_be69dd51f6ad0c::t_62d55436159c04 544,546-547
+Sources/CLI/Commands/FeedbackCommand.swift
+  s_be69dd51f6ad0c::t_691f8fd89e7c1e 35-37,39,41
+Sources/CLI/Commands/PromptsCommand.swift
+  s_be69dd51f6ad0c::t_4be4109f00a501 183
+Sources/CLI/Commands/MeetingVADSimCommand.swift
+  s_be69dd51f6ad0c::t_f21459b482ef3a 14-18
+spec/README.md
+  s_be69dd51f6ad0c::t_8441a40f5a3337 143
+Sources/CLI/Commands/TransformsCommand.swift
+  s_be69dd51f6ad0c::t_b725d8ecac5382 266
+Sources/CLI/CHANGELOG.md
+  s_be69dd51f6ad0c::t_4bc2301fd4475d 92-93
+  s_be69dd51f6ad0c::t_903808ca4c6dd4 161-174
+Sources/CLI/README.md
+  s_be69dd51f6ad0c::t_65e95a82484878 1-101
+Tests/CLITests/SpecCommandTests.swift
+  s_be69dd51f6ad0c::t_15d7107689fb19 131-160
+spec/contracts/cli-json-v1.md
+  s_be69dd51f6ad0c::t_0edf9f68970e65 37-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "701846c34838249641d4a90d50946bff39b8cff1",
+  "prompts": {},
+  "sessions": {
+    "s_be69dd51f6ad0c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "33b94ec7-6251-4be6-b9f1-24ccf4d42592",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

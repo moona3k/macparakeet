@@ -1,0 +1,25 @@
+Sources/MacParakeetCore/Audio/AudioCaptureDiagnostics.swift
+  s_4af6b9f11fbe3c::t_e744d5d7d374b0 23-31,110,112-115,119,122,124-126,176-178,193
+Tests/MacParakeetTests/Audio/AudioCaptureDiagnosticsTests.swift
+  s_4af6b9f11fbe3c::t_e744d5d7d374b0 262-286
+docs/local-audio-diagnostics-query.md
+  s_4af6b9f11fbe3c::t_e744d5d7d374b0 78-79
+Sources/MacParakeetCore/Audio/README.md
+  s_4af6b9f11fbe3c::t_e744d5d7d374b0 119-120,122-124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "3bee9d4bf14f7b6c2b37e45acd491437242a1766",
+  "prompts": {},
+  "sessions": {
+    "s_4af6b9f11fbe3c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07595-d861-7b30-be95-3479ddf4c4a7",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

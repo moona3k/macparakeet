@@ -1,0 +1,31 @@
+plans/README.md
+  s_35765baab2f0ed::t_c538d377e79513 33
+plans/active/2026-07-03-speaker-voiceprints.md
+  s_35765baab2f0ed::t_6d04059eeb6976 1-185
+docs/research/2026-07-03-speaker-voiceprints/report-competitor-prior-art.md
+  s_35765baab2f0ed::t_eacbd9e60401ac 1-31
+docs/research/2026-07-03-speaker-voiceprints/report-fluidaudio-api.md
+  s_35765baab2f0ed::t_78135245482fb0 1-67
+docs/research/2026-07-03-speaker-voiceprints/report-matching-best-practices.md
+  s_35765baab2f0ed::t_67a3ea2c9ec004 1-22
+docs/research/2026-07-03-speaker-voiceprints/report-privacy-biometrics.md
+  s_35765baab2f0ed::t_c9a10287399d54 1-11
+docs/research/2026-07-03-speaker-voiceprints/report-repo-dive.md
+  s_35765baab2f0ed::t_5f3a4132378faa 1-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6c1e4b85439103212c2dafc304d32dc1bd894ae0",
+  "prompts": {},
+  "sessions": {
+    "s_35765baab2f0ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bbfded2-f315-45ed-b4c9-8dced5e0ca31",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,49 @@
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_35944fe873eaab::t_efe195ad12ce62 1185-1186,1191,4039-4041,4044,4051
+Sources/MacParakeetViewModels/SavedMeetingNotesCoordinator.swift
+  s_35944fe873eaab::t_a875754741998f 15,25,36,41
+Sources/MacParakeetViewModels/SavedMeetingNotesViewModel.swift
+  s_35944fe873eaab::t_2393a6a1fcb443 28-33,59-61,86,95-97,99,117,119-129,132-133,135,137-144,147-165,184-185,187
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_35944fe873eaab::t_684f30e0ec31cf 1604-1605,1661-1664,1674-1679,1723-1729,1733,1738,1742-1745,1753
+Tests/MacParakeetTests/ViewModels/SavedMeetingNotesCoordinatorTests.swift
+  s_35944fe873eaab::t_e0092c184a1a0d 132-164
+Tests/MacParakeetTests/ViewModels/SavedMeetingNotesViewModelTests.swift
+  s_35944fe873eaab::t_838a1abc66fd9d 184-265
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_35944fe873eaab::t_99baf471871466 2894,2944-2988
+Tests/MacParakeetTests/Views/TranscriptNotesActionGateTests.swift
+  s_35944fe873eaab::t_a9619d7ed666ac 2,180-209
+spec/02-features.md
+  s_bf1e136b8651b9::t_9c32c3f365b59e 1737-1739
+spec/04-ui-patterns.md
+  s_bf1e136b8651b9::t_3069d98dd95d79 196,199-202,206-208
+spec/adr/020-live-meeting-notepad-and-memo-summaries.md
+  s_bf1e136b8651b9::t_9b818e63070dad 84
+spec/contracts/meeting-artifacts-v1.md
+  s_bf1e136b8651b9::t_0c1699fc0bd2c7 39-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "8fa552d3c26ea27b79a1f871caf8fcb7f509e5c5",
+  "prompts": {},
+  "sessions": {
+    "s_35944fe873eaab": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07d2c-41d3-75a1-a1cc-ff3b38be6e53",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_bf1e136b8651b9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07acf-e22f-7a43-92de-449a7da081f2",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

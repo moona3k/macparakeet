@@ -1,0 +1,25 @@
+Tests/CLITests/CLIHelpersTests.swift
+  s_0b1ac55e19e259::t_638f3ebcb94c55 1,318-332
+  s_0b1ac55e19e259::t_7e79bd9b2b9862 333
+Sources/CLI/Commands/CLIHelpers.swift
+  s_0b1ac55e19e259::t_b54d19d9d5fb00 2,245-284
+  s_0b1ac55e19e259::t_c9448d5f976b31 285-286
+Sources/CLI/Commands/TranscribeCommand.swift
+  s_0b1ac55e19e259::t_868ee3cdd37bf2 566-571,587-593,595-601
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "44a45b6b1a71560fa5184b7ed77280bbd851cb45",
+  "prompts": {},
+  "sessions": {
+    "s_0b1ac55e19e259": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f111e-bf59-7e40-82ad-9bab73b0ef83",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

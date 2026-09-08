@@ -1,0 +1,22 @@
+Sources/MacParakeetCore/Models/Transcription.swift
+  s_84e0547d41e036::t_7eca5bce260b39 258
+docs/research/2026-07-04-voiceprints-phase0/harness/Sources/VoiceprintHarness/main.swift
+  s_84e0547d41e036::t_7eca5bce260b39 455-458,460-466,469,471,473-475,477-478,480
+  s_84e0547d41e036::t_6e208e600bebdb 459
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c1855359d5d7d21fa55fa8ffd3df733d8e439653",
+  "prompts": {},
+  "sessions": {
+    "s_84e0547d41e036": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2e8b-0aec-7a90-9302-abfece7ad365",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

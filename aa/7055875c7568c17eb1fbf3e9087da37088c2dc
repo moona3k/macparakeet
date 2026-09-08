@@ -1,0 +1,62 @@
+docs/discovery/itzhak-bentov/sources/primary/.gitignore
+  s_878c04589cc687::t_0cb6e129433e10 1-3
+docs/discovery/itzhak-bentov/sources/primary/download-sources.sh
+  s_878c04589cc687::t_175a0287565085 1-40
+docs/discovery/itzhak-bentov/sources/primary/MANIFEST.md
+  s_878c04589cc687::t_d3e2ef071b5e57 7-11
+  s_878c04589cc687::t_acf42896269f05 4-6
+  s_878c04589cc687::t_46815516193387 12-14
+  s_878c04589cc687::t_5e33bc4efcd0d0 1-3,15-68
+docs/discovery/itzhak-bentov/sources/flight191-bentov-primary.md
+  s_d83ed5a0631a14::t_d87d2c67724d1b 1-140
+docs/discovery/itzhak-bentov/sources/gateway-bentov-quotes.md
+  s_d83ed5a0631a14::t_0de7d886d3379a 1-63
+docs/discovery/itzhak-bentov/sources/hemed-rocket-dig-r4.md
+  s_d83ed5a0631a14::t_214a25acc8af0e 1-208
+docs/discovery/itzhak-bentov/sources/hemed-rocket-dig.md
+  s_d83ed5a0631a14::t_468fabad169aa2 1-42
+docs/discovery/itzhak-bentov/sources/negative-findings.md
+  s_d83ed5a0631a14::t_1ac96630114fec 1-38
+docs/discovery/itzhak-bentov/sources/patents-index.md
+  s_d83ed5a0631a14::t_42c41f7b442bed 1-29
+docs/discovery/itzhak-bentov/sources/primary/gateway-process-report-fulltext.txt
+  s_878c04589cc687::t_2f67e828c8604d 1-1699
+docs/discovery/itzhak-bentov/sources/subagent-source-matrix.md
+  s_3f48352905353c::t_71019b340019ab 1-73
+docs/discovery/itzhak-bentov/README.md
+  s_878c04589cc687::t_fa3e1dc24f1f9c 1-33
+docs/discovery/itzhak-bentov/report.md
+  s_878c04589cc687::t_37ac69e10a12bd 1-172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "aa7055875c7568c17eb1fbf3e9087da37088c2dc",
+  "prompts": {},
+  "sessions": {
+    "s_3f48352905353c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4652-8fe9-7e92-82b3-e3bb95493073",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_878c04589cc687": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e43da9a-99a1-49bc-b6be-295e9777cc01",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_d83ed5a0631a14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4657-90da-7992-9e5f-6aab084b389b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

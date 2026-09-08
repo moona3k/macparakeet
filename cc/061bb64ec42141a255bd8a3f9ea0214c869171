@@ -1,0 +1,25 @@
+docs/distribution.md
+  s_b8327d68d78cce::t_1a05cf0d1b69dd 55-70
+scripts/dist/prepare_meeting_echo_assets.sh
+  s_b8327d68d78cce::t_16cea37805df1c 120-125
+  s_b8327d68d78cce::t_35597c35f0f53d 24,34-35,50-66,85-111,113-119,126-175,181,272-284,305-309,312-325,361
+  s_b8327d68d78cce::t_4fd07712e5e6fb 112
+scripts/dist/build_app_bundle.sh
+  s_b8327d68d78cce::t_04f76e04df221e 38-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cc061bb64ec42141a255bd8a3f9ea0214c869171",
+  "prompts": {},
+  "sessions": {
+    "s_b8327d68d78cce": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f44bc-f891-71e1-ab86-7a8eb2627084",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

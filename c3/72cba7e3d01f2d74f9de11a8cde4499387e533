@@ -1,0 +1,45 @@
+Sources/MacParakeet/Views/Settings/Components/EngineOptionTile.swift
+  s_90aa06f70d0575::t_3db7b0c8c6139a 306
+Sources/MacParakeet/Views/Transcription/MeetingRecordingTile.swift
+  s_90aa06f70d0575::t_3db7b0c8c6139a 235
+Sources/MacParakeet/Views/MeetingRecording/MeetingRecordingPanelView.swift
+  s_90aa06f70d0575::t_3db7b0c8c6139a 378
+Sources/MacParakeet/Views/Settings/LLMSettingsView.swift
+  s_90aa06f70d0575::t_3db7b0c8c6139a 462,1414,1971
+Sources/MacParakeet/Views/History/DictationSubTabPicker.swift
+  s_90aa06f70d0575::t_3db7b0c8c6139a 37
+Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift
+  s_90aa06f70d0575::t_3db7b0c8c6139a 835,856
+Sources/MacParakeet/Views/Transcription/BulkTranscriptionSelectionBar.swift
+  s_90aa06f70d0575::t_3db7b0c8c6139a 82
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_90aa06f70d0575::t_3db7b0c8c6139a 2651,3415
+Sources/MacParakeet/Views/Components/ParakeetSpinner.swift
+  s_90aa06f70d0575::t_b38301e303dd41 1-71
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_90aa06f70d0575::t_3db7b0c8c6139a 2625-2628
+Sources/MacParakeet/Views/Settings/CalendarSettingsView.swift
+  s_90aa06f70d0575::t_3db7b0c8c6139a 136
+Sources/MacParakeet/Views/Meetings/MeetingsView.swift
+  s_90aa06f70d0575::t_3db7b0c8c6139a 921,1232
+Sources/MacParakeet/Views/Components/SacredGeometry.swift
+  s_90aa06f70d0575::t_3db7b0c8c6139a 35,43-46,54-55,59,61,66-69,71-76,105-127
+Sources/MacParakeet/Views/MeetingRecording/LiveAskPaneView.swift
+  s_90aa06f70d0575::t_3db7b0c8c6139a 346,350
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c372cba7e3d01f2d74f9de11a8cde4499387e533",
+  "prompts": {},
+  "sessions": {
+    "s_90aa06f70d0575": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3d7c-39bb-7600-9858-dcd83cb5f2a5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

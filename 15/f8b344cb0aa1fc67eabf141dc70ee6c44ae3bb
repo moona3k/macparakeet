@@ -1,0 +1,21 @@
+docs/plans/2026-09-07-issue-882-bulk-delete.html
+  s_22bb9cc62aa032::t_fdb6fc0f7752e7 1-333
+docs/plans/2026-09-07-issue-882-bulk-delete.md
+  s_22bb9cc62aa032::t_554345d76c0fcc 1-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "15f8b344cb0aa1fc67eabf141dc70ee6c44ae3bb",
+  "prompts": {},
+  "sessions": {
+    "s_22bb9cc62aa032": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07acb-3805-79e1-afd1-a075ff4e2953",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+benchmarks/asr/run_macparakeet_fleurs.py
+  s_11cf0f9121451d::t_9fb1c6a40999e3 24,88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "c4c9d2c31546ac090ca45aeb0b36f02d776b151e",
+  "prompts": {},
+  "sessions": {
+    "s_11cf0f9121451d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f15e8-d418-7521-b751-82647cfa9549",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

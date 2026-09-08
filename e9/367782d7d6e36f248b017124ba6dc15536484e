@@ -1,0 +1,22 @@
+Tests/MacParakeetTests/Services/Capture/MeetingEchoDelayEstimatorTests.swift
+  s_d1853ccf505dc3::t_f021ffac1d173a 1-57,64-65,68-70,72-77,79-84,87-88
+  s_d1853ccf505dc3::t_aa48c2d5ede2ef 58-63,66-67,71,78,85-86
+Sources/MacParakeetCore/Services/Capture/MeetingEchoDelayEstimator.swift
+  s_d1853ccf505dc3::t_12d3313acc2889 1-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "e9367782d7d6e36f248b017124ba6dc15536484e",
+  "prompts": {},
+  "sessions": {
+    "s_d1853ccf505dc3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0b1563cf-33e1-48ec-bd36-cb11428b41c5",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

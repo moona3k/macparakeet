@@ -1,0 +1,35 @@
+Sources/MacParakeetLocalLLM/MLXLocalLLMRuntime.swift
+  s_e39a8806273e48::t_ccbfc19c4a9917 7
+  s_e39a8806273e48::t_4388915c7dba2f 36-39,101-107,109,115
+Package.swift
+  s_e39a8806273e48::t_0256901571036e 104-105
+  s_e39a8806273e48::t_96c526f95778c2 31
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_e39a8806273e48::t_ec1d10cceb6523 3-5,277,442-450
+  s_e39a8806273e48::t_92fc5f32357657 451
+Sources/MacParakeetCore/Services/LLM/InProcessLLMClient.swift
+  s_e39a8806273e48::t_5368c55ce3e756 19,30-49,57,454-456,459-460,462-471,475,478-480,484-490,512,528,534-535,538-544,551-557,563-599,602
+  s_e39a8806273e48::t_5459e44eb8497a 22,481
+Tests/MacParakeetTests/Services/LLM/InProcessLLMClientTests.swift
+  s_e39a8806273e48::t_3e45c1baafd91b 291-292,301-302,316-317,418-419,423-424,433-434,438-439,580
+  s_e39a8806273e48::t_07251fef3768c1 267-290,293-300,303-315,318-322,394-417,420,425-432,435-437,440-441,444,541-579,581-603
+  s_e39a8806273e48::t_c7751dbd87fa3a 421-422,442-443
+  s_e39a8806273e48::t_35767ba1052c16 445
+  s_e39a8806273e48::t_995fcedfbd8387 604
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2ce7ad9d72d867002f189059ff17babe0a258618",
+  "prompts": {},
+  "sessions": {
+    "s_e39a8806273e48": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3070-2525-70f3-b594-4fe693913db0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,43 @@
+Tests/MacParakeetTests/Services/AutoSaveServiceTests.swift
+  s_a5044373591c15::t_acbcd344a63d4a 102,107-110,280,286-308
+Sources/MacParakeetCore/Services/AutoSaveService.swift
+  s_a5044373591c15::t_afd3660cdb121d 52-59,84-91,103,127,138,168-177
+  s_e236039aae95b5::t_fbf16b87144cf8 178-179
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_a5044373591c15::t_6f13c72d94ac64 922-954
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_a5044373591c15::t_7215db0e66899f 909-923
+spec/04-ui-patterns.md
+  s_a5044373591c15::t_59607edd04ed92 748
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_a5044373591c15::t_e3a6f4fd33d72e 567-569,578-582,877-879,1013,1020-1027,1029-1030
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_a5044373591c15::t_5edd38a463860f 728-748
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_a5044373591c15::t_010d543272bb83 1293-1294,1382-1405,1623,1667-1679
+  s_e236039aae95b5::t_1757093a690fba 1680
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "dc20f5313fde53918daffbee125994bd462f1008",
+  "prompts": {},
+  "sessions": {
+    "s_a5044373591c15": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f697c-a58f-7fa0-b5a0-2ff0a3f2efa3",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_e236039aae95b5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f697a-a1ab-7032-a48e-4211119af943",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
