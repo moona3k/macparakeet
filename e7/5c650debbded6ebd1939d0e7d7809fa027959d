@@ -1,0 +1,21 @@
+docs/plans/2026-09-08-recording-branching-covers.md
+  s_8408739a4a9fbb::t_77670e77562b95 43,53-65,68-74
+  s_8408739a4a9fbb::t_0975f5b781a912 50-52
+  s_8408739a4a9fbb::t_ea4413f42a822f 45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "e75c650debbded6ebd1939d0e7d7809fa027959d",
+  "prompts": {},
+  "sessions": {
+    "s_8408739a4a9fbb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ae-f1a3-7481-bf0f-88e289444b74",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
