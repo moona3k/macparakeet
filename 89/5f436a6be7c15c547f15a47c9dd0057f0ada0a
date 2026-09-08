@@ -1,0 +1,24 @@
+spec/contracts/speaker-correction-view-model.md
+  s_22bb9cc62aa032::t_eb7dac2bd8d921 1-59
+  s_22bb9cc62aa032::t_c7142a2f1cb3b5 60-62
+docs/qa/2026-09-07-0.8.0/scripts/verify_cli_contracts.py
+  s_22bb9cc62aa032::t_eb7dac2bd8d921 28,149,184,186
+spec/contracts/README.md
+  s_22bb9cc62aa032::t_eb7dac2bd8d921 44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "895f436a6be7c15c547f15a47c9dd0057f0ada0a",
+  "prompts": {},
+  "sessions": {
+    "s_22bb9cc62aa032": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07acb-3805-79e1-afd1-a075ff4e2953",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
