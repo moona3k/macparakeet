@@ -1,0 +1,19 @@
+Sources/MacParakeet/Views/Transcription/TranscriptionThumbnailCard.swift
+  s_8408739a4a9fbb::t_96fd658915109a 21-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "a016ccbc26a217f95d31d0f54e88a716cecf852b",
+  "prompts": {},
+  "sessions": {
+    "s_8408739a4a9fbb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ae-f1a3-7481-bf0f-88e289444b74",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
