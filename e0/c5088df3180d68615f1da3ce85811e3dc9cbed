@@ -1,0 +1,213 @@
+docs/distribution.md
+  s_bf1e136b8651b9::t_33f79f01ce16fe 407-408,416,418,431-435,437-440,442,444-446,448-451,453-455,458-471
+docs/qa/2026-09-07-0.8.0/README.md
+  s_22bb9cc62aa032::t_a56bf2eac22740 3-69
+docs/qa/2026-09-07-0.8.0/audio-review.md
+  s_22bb9cc62aa032::t_d23734aa74f5b6 15,47,51-55,80,83-87,92,104-105
+docs/qa/2026-09-07-0.8.0/cohere-extended.md
+  s_22bb9cc62aa032::t_5686dc7b836b04 11,16,19,121
+docs/qa/2026-09-07-0.8.0/evidence.json
+  s_22bb9cc62aa032::t_801ec9beac041a 45-49,53-55,57-61,370,372-378,381-382,385-386,434,442,454,456,458-462,465-466,469-470,946-1085,1169-1218,1334-1365
+docs/qa/2026-09-07-0.8.0/evidence/cohere-en.json
+  s_22bb9cc62aa032::t_4f944e2bfead09 9
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/ja-stdout.json
+  s_22bb9cc62aa032::t_5d22b81c00f553 9
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/ko-stdout.json
+  s_22bb9cc62aa032::t_f303735d6b9cdd 9
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/manifest.json
+  s_22bb9cc62aa032::t_f631897e42ed04 23-25,47-49,71-73
+docs/qa/2026-09-07-0.8.0/evidence/cohere-extended/zh-stdout.json
+  s_22bb9cc62aa032::t_503148434f79b8 9
+docs/qa/2026-09-07-0.8.0/evidence/gui-rebuilt/copy-controls-current.json
+  s_22bb9cc62aa032::t_5e6e5cf0a5432d 1-17
+docs/qa/2026-09-07-0.8.0/evidence/gui-rebuilt/manifest.json
+  s_22bb9cc62aa032::t_b06a536b535423 1-104
+docs/qa/2026-09-07-0.8.0/evidence/gui-rebuilt/results.json
+  s_22bb9cc62aa032::t_ddb3c6c9d30bbb 1-48
+docs/qa/2026-09-07-0.8.0/evidence/gui-rebuilt/saved-notes-gui-results.json
+  s_22bb9cc62aa032::t_0951b1c9e8f30f 1-43
+docs/qa/2026-09-07-0.8.0/evidence/gui-rebuilt/summary-copy.txt
+  s_22bb9cc62aa032::t_16700752c5fe63 1-37
+docs/qa/2026-09-07-0.8.0/evidence/gui-rebuilt/table-copy.txt
+  s_22bb9cc62aa032::t_c439ecb44bef1c 1-7
+docs/qa/2026-09-07-0.8.0/evidence/hardware-microphone-summary.log
+  s_22bb9cc62aa032::t_64621d3254d9ef 1-26
+docs/qa/2026-09-07-0.8.0/evidence/merged-notes-focused-summary.log
+  s_22bb9cc62aa032::t_00eaf329c98476 1-771
+docs/qa/2026-09-07-0.8.0/evidence/nemotron-en.json
+  s_22bb9cc62aa032::t_dfed4388d6ee4a 9
+docs/qa/2026-09-07-0.8.0/evidence/nemotron-ja.json
+  s_22bb9cc62aa032::t_cfd1dd6e770b26 9
+docs/qa/2026-09-07-0.8.0/evidence/nemotron-ko.json
+  s_22bb9cc62aa032::t_10502c3d50e7d3 9
+docs/qa/2026-09-07-0.8.0/evidence/nemotron-zh.json
+  s_22bb9cc62aa032::t_d204cc36792106 9
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/app-gatekeeper.log
+  s_22bb9cc62aa032::t_67ec8bc28ccd9b 1-2
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/app-notary-info.log
+  s_22bb9cc62aa032::t_964377645d565d 1
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/app-signature-details.log
+  s_22bb9cc62aa032::t_ec54fb2e498f4c 1-29
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/app-staple-validation.log
+  s_22bb9cc62aa032::t_ba3ba72f06827b 1-2
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/app-strict-signature.log
+  s_22bb9cc62aa032::t_aa8d63b248216a 1-16
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/artifact-manifest.json
+  s_22bb9cc62aa032::t_85ab8a02eb9d6e 1-165
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/binary-dependencies.log
+  s_22bb9cc62aa032::t_5f3efca8248db7 1-162
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/build-distribution-notes.log
+  s_22bb9cc62aa032::t_6758a11413d0b9 1-61
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/bundle-zip-identities.json
+  s_22bb9cc62aa032::t_e817a05da2a213 1-42
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/cli-version.log
+  s_22bb9cc62aa032::t_513d6974215154 1
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-attach-readonly-canonical.log
+  s_22bb9cc62aa032::t_0f1cf9b836278d 1-53
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-attach-readonly.log
+  s_22bb9cc62aa032::t_8fcef18a9b4e16 1-53
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-cleanup.json
+  s_22bb9cc62aa032::t_5c31c3044351b5 1-9
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-detach-owned-canonical-mount.log
+  s_22bb9cc62aa032::t_29bf46376dc567 1
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-detach-owned-mount.log
+  s_22bb9cc62aa032::t_c24c24f2e37c67 1
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-gatekeeper.log
+  s_22bb9cc62aa032::t_4f7b939d488b22 1-2
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-image-verification.log
+  s_22bb9cc62aa032::t_07ab16d9267749 1-18
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-manifest.json
+  s_22bb9cc62aa032::t_91bdc16d305893 1-8
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-mount-canonical-results.json
+  s_22bb9cc62aa032::t_ade3b7399c4da8 1-59
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-notary-info.log
+  s_22bb9cc62aa032::t_d021633d14e906 1
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-payload-verification.json
+  s_22bb9cc62aa032::t_0d4adeaff9da0b 1-78
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-results.json
+  s_22bb9cc62aa032::t_d08b32ba4453bd 1-102
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-staple-validation.log
+  s_22bb9cc62aa032::t_512d464fa5a2c1 1-2
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/dmg-strict-signature.log
+  s_22bb9cc62aa032::t_7af2ff3717cf39 1-2
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/ffmpeg-version.log
+  s_22bb9cc62aa032::t_72871ae8805cc2 1-12
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/mounted-app-staple-validation.log
+  s_22bb9cc62aa032::t_9725f21559bfb7 1-2
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/mounted-app-strict-signature.log
+  s_22bb9cc62aa032::t_f9cd5a8cc33a8f 1-16
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/node-version.log
+  s_22bb9cc62aa032::t_26e286fb4616b2 1
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/results.json
+  s_22bb9cc62aa032::t_46f8c9a1cf5cd1 1-165
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/runtime-metadata.json
+  s_22bb9cc62aa032::t_18a9751c3e866b 1-9
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/sign-notarize-notes.log
+  s_22bb9cc62aa032::t_7fbe788a1a1bdd 1-86
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/ytdlp-version.log
+  s_22bb9cc62aa032::t_d37ae7413cce42 1
+docs/qa/2026-09-07-0.8.0/evidence/package-runtime/zip-manifest.json
+  s_22bb9cc62aa032::t_3d688f47e557e5 1-26
+docs/qa/2026-09-07-0.8.0/evidence/packaged-aec-summary.log
+  s_22bb9cc62aa032::t_5e40052474bddb 1-17
+docs/qa/2026-09-07-0.8.0/evidence/packaging-sparkle/artifact-manifest.json
+  s_22bb9cc62aa032::t_30c0033527ba4d 22
+docs/qa/2026-09-07-0.8.0/evidence/packaging-sparkle/sparkle-root-symlink.patch
+  s_22bb9cc62aa032::t_a92234ef846acd 1-2,5
+docs/qa/2026-09-07-0.8.0/evidence/parakeet-unified-en.json
+  s_22bb9cc62aa032::t_8788db34ec3d1e 9
+docs/qa/2026-09-07-0.8.0/evidence/parakeet-v2-en.json
+  s_22bb9cc62aa032::t_13899ca8407c38 9
+docs/qa/2026-09-07-0.8.0/evidence/parakeet-v3-en.json
+  s_22bb9cc62aa032::t_94c6af92441f56 9
+docs/qa/2026-09-07-0.8.0/evidence/pr979-ci-summary.json
+  s_22bb9cc62aa032::t_dccb48f9cc0111 1-247
+docs/qa/2026-09-07-0.8.0/evidence/pr979-ci-summary.log
+  s_22bb9cc62aa032::t_7679801136fae6 1-15
+docs/qa/2026-09-07-0.8.0/evidence/report-browser-final/manifest.json
+  s_22bb9cc62aa032::t_dd069649d50c79 1-40
+docs/qa/2026-09-07-0.8.0/evidence/report-browser-final/results.json
+  s_22bb9cc62aa032::t_00ef7294534fbd 1-3377
+docs/qa/2026-09-07-0.8.0/evidence/report-browser/cleanup.json
+  s_22bb9cc62aa032::t_2822a7c5f31b46 1-3
+docs/qa/2026-09-07-0.8.0/evidence/report-browser/later-data-sync.json
+  s_22bb9cc62aa032::t_60a5b97e510dc0 1-14
+docs/qa/2026-09-07-0.8.0/evidence/report-browser/layout-probe.json
+  s_22bb9cc62aa032::t_dd04cfa9f34391 1-48
+docs/qa/2026-09-07-0.8.0/evidence/report-browser/manifest.json
+  s_22bb9cc62aa032::t_e3a5d5c7dac4d7 1-151
+docs/qa/2026-09-07-0.8.0/evidence/report-browser/report-fixes.json
+  s_22bb9cc62aa032::t_a8dd1920d76229 1-11
+docs/qa/2026-09-07-0.8.0/evidence/report-browser/retest_fixes.py
+  s_22bb9cc62aa032::t_1153f691509472 1-70
+docs/qa/2026-09-07-0.8.0/evidence/report-browser/review-path-redactions.json
+  s_22bb9cc62aa032::t_453d2f3e4aaa2f 1-60
+docs/qa/2026-09-07-0.8.0/evidence/report-browser/run-01.log
+  s_22bb9cc62aa032::t_7ed23d36c4949c 1-108
+docs/qa/2026-09-07-0.8.0/evidence/report-browser/run-01/results.json
+  s_22bb9cc62aa032::t_fb1cc6ca0e40a6 1-5569
+docs/qa/2026-09-07-0.8.0/evidence/report-browser/run-02.log
+  s_22bb9cc62aa032::t_cc943be77570d1 1-27
+docs/qa/2026-09-07-0.8.0/evidence/report-browser/run-02/results.json
+  s_22bb9cc62aa032::t_a9927cd0d946e1 1-2591
+docs/qa/2026-09-07-0.8.0/evidence/report-browser/verify_report.py
+  s_22bb9cc62aa032::t_49b9599bf63c77 1-225
+docs/qa/2026-09-07-0.8.0/evidence/results.json
+  s_22bb9cc62aa032::t_e6b7a446ef4dc6 4,7,9,20,52,55,57,68,100,103,105,116,148,151,153,166,198,201,203,214,245,248,250,263,295,298,300,313,345,348,350,363,395,398,400,411,421,424,426,437,447,450,452,463
+docs/qa/2026-09-07-0.8.0/gui-rebuilt.md
+  s_22bb9cc62aa032::t_893ee3b224e9f0 1-41
+docs/qa/2026-09-07-0.8.0/index.html
+  s_22bb9cc62aa032::t_e1f15be435017d 54-55,99-103,107-109,111-115,324,424,426-432,435-436,439-440,488,496,508,510,512-516,519-520,523-524,532,535,538,540,543,545-552,556-557,561,564,567,569,572,574-581,585-586,590,593,596,598,601,603-610,614-615,892-1139,1223-1272,1388-1419,1422-1423
+docs/qa/2026-09-07-0.8.0/pr-review-disposition.md
+  s_22bb9cc62aa032::t_affa02a5e8be59 1-95
+docs/qa/2026-09-07-0.8.0/release-inventory.md
+  s_22bb9cc62aa032::t_8add66d6d7872f 7,14,16-18,30,34,36,38,40
+docs/qa/2026-09-07-0.8.0/report-validation.md
+  s_22bb9cc62aa032::t_12eed19def4d71 9,49,51,54-55,58,60-69,74-95
+docs/qa/2026-09-07-0.8.0/saved-notes-gui.md
+  s_22bb9cc62aa032::t_555eaf66ba884f 1-28
+docs/qa/2026-09-07-0.8.0/new-main-notes-review.md
+  s_998b4cd1551013::t_d77e30d027d56f 1-94
+docs/qa/2026-09-07-0.8.0/package-runtime.md
+  s_d7e3b9b4dcf245::t_056ce72177eb42 1-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "e0c5088df3180d68615f1da3ce85811e3dc9cbed",
+  "prompts": {},
+  "sessions": {
+    "s_22bb9cc62aa032": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07acb-3805-79e1-afd1-a075ff4e2953",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_998b4cd1551013": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07dcb-54e3-7440-a5ab-1f85370bdcbf",
+        "model": "unknown"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_bf1e136b8651b9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07acf-e22f-7a43-92de-449a7da081f2",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_d7e3b9b4dcf245": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07dcb-79e0-7d10-8d60-d26c3ae534eb",
+        "model": "unknown"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
