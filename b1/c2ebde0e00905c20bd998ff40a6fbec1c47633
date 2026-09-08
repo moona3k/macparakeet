@@ -1,0 +1,371 @@
+docs/qa/2026-09-07-0.8.0/report-validation.md
+  s_22bb9cc62aa032::t_4e6732ab134c98 96-146
+docs/qa/2026-09-07-0.8.0/README.md
+  s_22bb9cc62aa032::t_4e6732ab134c98 3-32,34-67,75-77,81,83,85,91-92,96-97,101,121-207
+docs/qa/2026-09-07-0.8.0/cli-runtime.md
+  s_22bb9cc62aa032::t_4d033c48c7630f 11
+docs/qa/2026-09-07-0.8.0/cli-versioned-prompts-integration.md
+  s_22bb9cc62aa032::t_c4d65bc21a0fc9 1-43
+docs/qa/2026-09-07-0.8.0/evidence.json
+  s_22bb9cc62aa032::t_6a0d78c1b9a055 45-49,52-55,57-59,61-117,374,510,513,516,518,1125,1129,1131,1133,1138-1149,1154,1156-1173,1176-1193,1196-1213,1216-1253,1256-1273,1276-1293,1296-1321,1324-1381,1384-1405,1408-1429,1432-1453,1456-1477,1480-2667,2701-2716,2739-2770,2860,2862-2949
+docs/qa/2026-09-07-0.8.0/evidence/cli-runner-a58/execution.json
+  s_22bb9cc62aa032::t_fbeb58ae25a82f 1-25
+docs/qa/2026-09-07-0.8.0/evidence/cli-runner-a58/manifest.json
+  s_22bb9cc62aa032::t_abe58d8a0ad34f 1-35
+docs/qa/2026-09-07-0.8.0/evidence/cli-runner-a58/original-metadata.json
+  s_22bb9cc62aa032::t_de91569ee96c69 1-13
+docs/qa/2026-09-07-0.8.0/evidence/cli-runner-a58/provenance.json
+  s_22bb9cc62aa032::t_21fe4d4a506444 1-16
+docs/qa/2026-09-07-0.8.0/evidence/cli-runner-a58/result.json
+  s_22bb9cc62aa032::t_ba68eab26dc307 1-5
+docs/qa/2026-09-07-0.8.0/evidence/cli-runner-a58/supplemental-summary.json
+  s_22bb9cc62aa032::t_b8fa93a2892dcb 1-90
+docs/qa/2026-09-07-0.8.0/evidence/cli-versioned-prompts-integration/bounded-assertions-and-commands.json
+  s_22bb9cc62aa032::t_98849abaf47a35 1-507
+docs/qa/2026-09-07-0.8.0/evidence/cli-versioned-prompts-integration/manifest.json
+  s_22bb9cc62aa032::t_42ba72e14462cc 1-35
+docs/qa/2026-09-07-0.8.0/evidence/cli-versioned-prompts-integration/metadata.json
+  s_22bb9cc62aa032::t_042177f6f8c908 1-10
+docs/qa/2026-09-07-0.8.0/evidence/cli-versioned-prompts-integration/result.json
+  s_22bb9cc62aa032::t_7f82bc561639b2 1-16
+docs/qa/2026-09-07-0.8.0/evidence/cli-versioned-prompts-integration/run-metadata.json
+  s_22bb9cc62aa032::t_2edae83b3143ef 1-9
+docs/qa/2026-09-07-0.8.0/evidence/cli-versioned-prompts-integration/source-provenance.json
+  s_22bb9cc62aa032::t_021e7fc46f4af2 1-41
+docs/qa/2026-09-07-0.8.0/evidence/final-02d/cli-audit/README.md
+  s_22bb9cc62aa032::t_02d941b021365f 1-85
+docs/qa/2026-09-07-0.8.0/evidence/final-02d/cli-audit/docs-proposal.patch
+  s_22bb9cc62aa032::t_386f5ae90ac349 1-104
+docs/qa/2026-09-07-0.8.0/evidence/final-02d/cli-audit/standalone-release-notes-draft.md
+  s_22bb9cc62aa032::t_adcf38a9258bf8 1-56
+docs/qa/2026-09-07-0.8.0/evidence/final-02d/native/peer-visual-review.json
+  s_22bb9cc62aa032::t_4a543fec4f7e78 1-29
+docs/qa/2026-09-07-0.8.0/evidence/final-02d/native/safe-summary.json
+  s_22bb9cc62aa032::t_3d7c5728c99452 1-53
+docs/qa/2026-09-07-0.8.0/evidence/final-02d/package/app-metadata.json
+  s_22bb9cc62aa032::t_f0a30c9d0fd22f 1-28
+docs/qa/2026-09-07-0.8.0/evidence/final-02d/package/dmg-payload-verification.json
+  s_22bb9cc62aa032::t_6b9abe9d959daa 1-146
+docs/qa/2026-09-07-0.8.0/evidence/final-02d/package/dmg-result.json
+  s_22bb9cc62aa032::t_f38a477944e919 1-19
+docs/qa/2026-09-07-0.8.0/evidence/final-02d/package/exact-main-ci-result.json
+  s_22bb9cc62aa032::t_507a1f8b754213 1-38
+docs/qa/2026-09-07-0.8.0/evidence/final-02d/package/standalone-cli-build.json
+  s_22bb9cc62aa032::t_14aaba45ef0070 1-23
+docs/qa/2026-09-07-0.8.0/evidence/final-02d/package/standalone-cli-homebrew-readiness.json
+  s_22bb9cc62aa032::t_3ad50e2926fe4d 1-75
+docs/qa/2026-09-07-0.8.0/evidence/final-02d/package/standalone-cli-package.json
+  s_22bb9cc62aa032::t_ada5e852c80a11 1-45
+docs/qa/2026-09-07-0.8.0/evidence/final-02d/packaged-cli/result.json
+  s_22bb9cc62aa032::t_293c731fa00f7d 1-134
+docs/qa/2026-09-07-0.8.0/evidence/final-02d/standalone-cli/result.json
+  s_22bb9cc62aa032::t_d014e2cf369039 1-157
+docs/qa/2026-09-07-0.8.0/evidence/final-fixed-native/build-metadata.json
+  s_22bb9cc62aa032::t_6dbb1934be2b0b 1-13
+docs/qa/2026-09-07-0.8.0/evidence/final-fixed-native/cli-integrated-runner-red-commands.json
+  s_22bb9cc62aa032::t_05142e4481fa42 1-46
+docs/qa/2026-09-07-0.8.0/evidence/final-fixed-native/cli-integrated-runner-red-metadata.json
+  s_22bb9cc62aa032::t_7dd06c75f6763a 1-13
+docs/qa/2026-09-07-0.8.0/evidence/final-fixed-native/cli-integrated-runner-red.json
+  s_22bb9cc62aa032::t_66a6f8b07b5134 1-7
+docs/qa/2026-09-07-0.8.0/evidence/final-fixed-native/fn-hold-cancellation-events.txt
+  s_22bb9cc62aa032::t_ea1201fee57cc3 1-6
+docs/qa/2026-09-07-0.8.0/evidence/final-fixed-native/integration-gates.json
+  s_22bb9cc62aa032::t_28791a71b67f30 1-57
+docs/qa/2026-09-07-0.8.0/evidence/final-fixed-native/manifest.json
+  s_22bb9cc62aa032::t_1ae936d537c96d 1-71
+docs/qa/2026-09-07-0.8.0/evidence/final-fixed-native/mute-action-result.json
+  s_22bb9cc62aa032::t_b5da7714db42ef 1-32
+docs/qa/2026-09-07-0.8.0/evidence/final-fixed-native/mute-control-events.txt
+  s_22bb9cc62aa032::t_15f98c694e7c72 1-2
+docs/qa/2026-09-07-0.8.0/evidence/final-fixed-native/pr961-prior-verification.json
+  s_22bb9cc62aa032::t_117a1af0f1d602 1-61
+docs/qa/2026-09-07-0.8.0/evidence/final-fixed-native/static-validation.json
+  s_22bb9cc62aa032::t_73275e58255018 1-29
+docs/qa/2026-09-07-0.8.0/evidence/final-integrated-package/acceptance-summary.json
+  s_22bb9cc62aa032::t_214f12947a7398 1-38
+docs/qa/2026-09-07-0.8.0/evidence/final-integrated-package/app-metadata.json
+  s_22bb9cc62aa032::t_31800df97babc7 1-35
+docs/qa/2026-09-07-0.8.0/evidence/final-integrated-package/dmg-payload-verification.json
+  s_22bb9cc62aa032::t_adc50a2b81e875 1-101
+docs/qa/2026-09-07-0.8.0/evidence/final-integrated-package/dmg-result.json
+  s_22bb9cc62aa032::t_cdd72228af0f3c 1-11
+docs/qa/2026-09-07-0.8.0/evidence/final-integrated-package/first-detach-retry.json
+  s_22bb9cc62aa032::t_d113c108f3a835 1-5
+docs/qa/2026-09-07-0.8.0/evidence/final-integrated-package/inactive-debug-intermediate-cleanup.json
+  s_22bb9cc62aa032::t_864ef83bb6644a 1-15
+docs/qa/2026-09-07-0.8.0/evidence/final-integrated-package/manifest.json
+  s_22bb9cc62aa032::t_5c2dc881383a6a 1-45
+docs/qa/2026-09-07-0.8.0/evidence/final-integrated-package/payload-detach-followup.json
+  s_22bb9cc62aa032::t_0431d61e844f8c 1-7
+docs/qa/2026-09-07-0.8.0/evidence/final-source-followup/cli-runner-400-green-summary.json
+  s_22bb9cc62aa032::t_1a0e2352c88c9e 1-109
+docs/qa/2026-09-07-0.8.0/evidence/final-source-followup/handoff-refusal-lint-summary.json
+  s_22bb9cc62aa032::t_34df5c3ce6aab5 1-20
+docs/qa/2026-09-07-0.8.0/evidence/final-source-followup/manifest.json
+  s_22bb9cc62aa032::t_1ecc3208b9ce37 1-53
+docs/qa/2026-09-07-0.8.0/evidence/final-source-followup/permission-recovery-result.json
+  s_22bb9cc62aa032::t_a5604e34018a94 1-41
+docs/qa/2026-09-07-0.8.0/evidence/final-source-followup/source-review-and-gates.json
+  s_22bb9cc62aa032::t_e131050183cd73 1-24
+docs/qa/2026-09-07-0.8.0/evidence/final-source-followup/staging-validation.json
+  s_22bb9cc62aa032::t_342fffdd8a310c 1-117
+docs/qa/2026-09-07-0.8.0/evidence/fn-paste-control/manifest.json
+  s_22bb9cc62aa032::t_56be77e9d95bf2 1-7
+docs/qa/2026-09-07-0.8.0/evidence/fn-paste-control/result.json
+  s_22bb9cc62aa032::t_cd69d4385c82b0 1-45
+docs/qa/2026-09-07-0.8.0/evidence/fn-persistent-attempt-01/README.md
+  s_22bb9cc62aa032::t_b315af10fef0ff 1-19
+docs/qa/2026-09-07-0.8.0/evidence/fn-persistent-attempt-01/manifest.json
+  s_22bb9cc62aa032::t_bcec3ffd373920 1-61
+docs/qa/2026-09-07-0.8.0/evidence/fn-persistent-attempt-01/postflight-validation.json
+  s_22bb9cc62aa032::t_e79e0180939a20 1-34
+docs/qa/2026-09-07-0.8.0/evidence/fn-persistent-attempt-01/preflight.json
+  s_22bb9cc62aa032::t_ece8c9c7a6ac09 1-50
+docs/qa/2026-09-07-0.8.0/evidence/fn-persistent-attempt-01/result.json
+  s_22bb9cc62aa032::t_2b41d64213b06f 1-19
+docs/qa/2026-09-07-0.8.0/evidence/fn-persistent-attempt-01/runner-events.jsonl
+  s_22bb9cc62aa032::t_47dd51e8078c71 1-6
+docs/qa/2026-09-07-0.8.0/evidence/fn-persistent-attempt-01/source-allowlist.json
+  s_22bb9cc62aa032::t_9a077ef187d4fc 1-67
+docs/qa/2026-09-07-0.8.0/evidence/fn-persistent-attempt-03/README.md
+  s_22bb9cc62aa032::t_1bef64482e4d8e 1-15
+docs/qa/2026-09-07-0.8.0/evidence/fn-persistent-attempt-03/attempt-02-postflight-classification.json
+  s_22bb9cc62aa032::t_d16d473e7c49cd 1-12
+docs/qa/2026-09-07-0.8.0/evidence/fn-persistent-attempt-03/content-check.json
+  s_22bb9cc62aa032::t_1c2916fd3f484b 1-43
+docs/qa/2026-09-07-0.8.0/evidence/fn-persistent-attempt-03/manifest.json
+  s_22bb9cc62aa032::t_593348ffc2348c 1-47
+docs/qa/2026-09-07-0.8.0/evidence/fn-persistent-attempt-03/result.json
+  s_22bb9cc62aa032::t_d31d3279035381 1-109
+docs/qa/2026-09-07-0.8.0/evidence/fn-recovery/ci-merge-summary.json
+  s_22bb9cc62aa032::t_f403836ea89170 1-104
+docs/qa/2026-09-07-0.8.0/evidence/fn-recovery/diagnosis.json
+  s_22bb9cc62aa032::t_f28d738e4b8295 1-64
+docs/qa/2026-09-07-0.8.0/evidence/fn-recovery/final-format-comparison.json
+  s_22bb9cc62aa032::t_564f9ac2c8a8e8 1-42
+docs/qa/2026-09-07-0.8.0/evidence/fn-recovery/final-validation.json
+  s_22bb9cc62aa032::t_666f6ae796042d 1-53
+docs/qa/2026-09-07-0.8.0/evidence/hybrid-migration-proof/manifest.json
+  s_22bb9cc62aa032::t_ee6e8aee3c5fff 1-6
+docs/qa/2026-09-07-0.8.0/evidence/hybrid-migration-proof/narrowed-repair-review.json
+  s_22bb9cc62aa032::t_af23a14d99d5ad 1-26
+docs/qa/2026-09-07-0.8.0/evidence/hybrid-migration-proof/proof.json
+  s_22bb9cc62aa032::t_95f169e986ebdb 1-257
+docs/qa/2026-09-07-0.8.0/evidence/meeting-controls-native/all-meeting-results.json
+  s_22bb9cc62aa032::t_f634feed93db12 1-259
+docs/qa/2026-09-07-0.8.0/evidence/meeting-controls-native/bounded-summary.json
+  s_22bb9cc62aa032::t_5f48d3e54a2472 1-96
+docs/qa/2026-09-07-0.8.0/evidence/meeting-controls-native/browser-66-record-summary.json
+  s_22bb9cc62aa032::t_d480f7c0eb6db0 1-142
+docs/qa/2026-09-07-0.8.0/evidence/meeting-controls-native/control-events.txt
+  s_22bb9cc62aa032::t_5d31749c5bbc39 1-5
+docs/qa/2026-09-07-0.8.0/evidence/meeting-controls-native/final-pending-fix.md
+  s_22bb9cc62aa032::t_d9665e9f99233f 1-7
+docs/qa/2026-09-07-0.8.0/evidence/meeting-controls-native/manifest.json
+  s_22bb9cc62aa032::t_b02552a484bdf3 1-96
+docs/qa/2026-09-07-0.8.0/evidence/meeting-controls-native/microphone-mute-audio-check.json
+  s_22bb9cc62aa032::t_bd21a798955844 1-23
+docs/qa/2026-09-07-0.8.0/evidence/meeting-controls-native/pr982-a577-followups.json
+  s_22bb9cc62aa032::t_64e773b593d5ee 1-28
+docs/qa/2026-09-07-0.8.0/evidence/meeting-controls-native/results.json
+  s_22bb9cc62aa032::t_cc925e92c9a822 1-235
+docs/qa/2026-09-07-0.8.0/evidence/meeting-controls-native/staging-validation.json
+  s_22bb9cc62aa032::t_5e14245a179725 1-113
+docs/qa/2026-09-07-0.8.0/evidence/meeting-controls-native/v5-pause-samples.json
+  s_22bb9cc62aa032::t_74ed20a189205b 1-47
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/commands.json
+  s_22bb9cc62aa032::t_e0e3f9c4255ca8 1-305
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/extra-export-results.json
+  s_22bb9cc62aa032::t_744b930caa68ad 1-29
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/fixtures.json
+  s_22bb9cc62aa032::t_30070511773c8f 1-103
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/manifest.json
+  s_22bb9cc62aa032::t_eb7840fe848e3d 1-144
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/metadata.json
+  s_22bb9cc62aa032::t_da3c40c39ba2ac 1-16
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/result.json
+  s_22bb9cc62aa032::t_e41be402da6950 1-40
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/timed-no-speaker-xsd.json
+  s_22bb9cc62aa032::t_73f45ec4d187b4 1-4
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/timed-no-speaker.dapt.xml
+  s_22bb9cc62aa032::t_b3ad08a655176f 1-21
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/timed-no-speaker.json
+  s_22bb9cc62aa032::t_150f042ef0cc2b 1-31
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/timed-no-speaker.md
+  s_22bb9cc62aa032::t_eac64d36fd8b9f 1-9
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/timed-no-speaker.srt
+  s_22bb9cc62aa032::t_9c645cc856d96c 1-3
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/timed-no-speaker.txt
+  s_22bb9cc62aa032::t_314e0bcbd09571 1-4
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/timed-no-speaker.vtt
+  s_22bb9cc62aa032::t_8f64e6426fde00 1-5
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/timed-speaker-xsd.json
+  s_22bb9cc62aa032::t_438d921ec2ea1d 1-4
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/timed-speaker.dapt.xml
+  s_22bb9cc62aa032::t_1a0ea40e987df6 1-30
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/timed-speaker.json
+  s_22bb9cc62aa032::t_04c573dcee24af 1-64
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/timed-speaker.md
+  s_22bb9cc62aa032::t_6b6d5d1f75f437 1-15
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/timed-speaker.srt
+  s_22bb9cc62aa032::t_b444e08e260e44 1-7
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/timed-speaker.txt
+  s_22bb9cc62aa032::t_e49be8e5a86b54 1-8
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/timed-speaker.vtt
+  s_22bb9cc62aa032::t_7547d3c6272fff 1-8
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/untimed-edited-xsd.json
+  s_22bb9cc62aa032::t_3487c6873f69c7 1-4
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/untimed-edited.dapt.xml
+  s_22bb9cc62aa032::t_73b1da3cd0d92d 1-20
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/untimed-edited.json
+  s_22bb9cc62aa032::t_3afbb3a0a208ab 1-31
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/untimed-edited.md
+  s_22bb9cc62aa032::t_60b07edccf5ec9 1-8
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/untimed-edited.srt
+  s_22bb9cc62aa032::t_580e7d30c757d4 1-3
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/untimed-edited.txt
+  s_22bb9cc62aa032::t_8acb4d339ffe19 1-4
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/exports/untimed-edited.vtt
+  s_22bb9cc62aa032::t_4ce05e78937a84 1-5
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/native/assigned-export.json
+  s_22bb9cc62aa032::t_ae2dfc14e20e00 1-406
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/native/baseline-db.json
+  s_22bb9cc62aa032::t_5983f2e03b2c1c 1-5
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/native/build-metadata.json
+  s_22bb9cc62aa032::t_884bd5e19539fd 1-14
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/native/manifest.json
+  s_22bb9cc62aa032::t_ff85dfc27874df 1-231
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/native/merged-speaker-export.json
+  s_22bb9cc62aa032::t_80a96f98bbafb0 1-402
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/native/new-speaker-export.json
+  s_22bb9cc62aa032::t_d80f6cd36fca70 1-410
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/native/reset-export.json
+  s_22bb9cc62aa032::t_8bd67d47ad438f 1-402
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/native/results.json
+  s_22bb9cc62aa032::t_4c1b314f91a71d 1-554
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/native/retranscribed-export.json
+  s_22bb9cc62aa032::t_f72bcca3111f95 1-401
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/native/retranscription-runtime.json
+  s_22bb9cc62aa032::t_dbd4d18b6edc88 1-74
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/native/undo-export.json
+  s_22bb9cc62aa032::t_1965763e502919 1-402
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/native/undo-merge-export.json
+  s_22bb9cc62aa032::t_c30eb63d2ebc3c 1-410
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/native/undo-reset-export.json
+  s_22bb9cc62aa032::t_42791b4ccb44ce 1-410
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/new-main-speaker-checks.json
+  s_22bb9cc62aa032::t_9a866f1a5ac3fa 1-33
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/runtime/diarization-auto.json
+  s_22bb9cc62aa032::t_f3a80a9131cb3a 1-399
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/runtime/diarization-auto.result.json
+  s_22bb9cc62aa032::t_1e9ef2854cc45a 1-43
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/runtime/diarization-exact-2.json
+  s_22bb9cc62aa032::t_a483216a139589 1-399
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/runtime/diarization-exact-2.result.json
+  s_22bb9cc62aa032::t_8ddf2524a3be08 1-45
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/runtime/manifest.json
+  s_22bb9cc62aa032::t_854a9ca63f1d27 1-46
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/runtime/metadata.json
+  s_22bb9cc62aa032::t_95a5ecae6f7ace 1-6
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/runtime/results.json
+  s_22bb9cc62aa032::t_b97b6813297c62 1-90
+docs/qa/2026-09-07-0.8.0/evidence/new-main-speaker/runtime/speaker-observations.json
+  s_22bb9cc62aa032::t_ec165d6fcd1878 1-68
+docs/qa/2026-09-07-0.8.0/evidence/pr984/audit.json
+  s_22bb9cc62aa032::t_e5db573b82ac01 1-47
+docs/qa/2026-09-07-0.8.0/evidence/report-browser-final-02d/manifest.json
+  s_22bb9cc62aa032::t_1a023d937bf034 1-30
+docs/qa/2026-09-07-0.8.0/evidence/report-browser-final-02d/results.json
+  s_22bb9cc62aa032::t_498505e0ac0eea 1-13439
+docs/qa/2026-09-07-0.8.0/evidence/retained-wav-cli/manifest.json
+  s_22bb9cc62aa032::t_52c200e5907984 1-21
+docs/qa/2026-09-07-0.8.0/evidence/retained-wav-cli/result.json
+  s_22bb9cc62aa032::t_efcfeb805ef9fa 1-59
+docs/qa/2026-09-07-0.8.0/evidence/retained-wav-cli/retained-audio-energy.json
+  s_22bb9cc62aa032::t_989b7d425aa486 1-215
+docs/qa/2026-09-07-0.8.0/evidence/retained-wav-cli/source-followup.md
+  s_22bb9cc62aa032::t_eb369747c2bb1b 1-15
+docs/qa/2026-09-07-0.8.0/evidence/review-followups/browser-61-record-green-summary.json
+  s_22bb9cc62aa032::t_61a4b6455e9e4b 1-143
+docs/qa/2026-09-07-0.8.0/evidence/review-followups/browser-61-record-red-summary.json
+  s_22bb9cc62aa032::t_7775203e4f8ab4 1-143
+docs/qa/2026-09-07-0.8.0/evidence/review-followups/cli-runner-red-summary.json
+  s_22bb9cc62aa032::t_7d77a0b66d4217 1-33
+docs/qa/2026-09-07-0.8.0/evidence/review-followups/earlier-artifact-relocation.json
+  s_22bb9cc62aa032::t_887200749c6887 1-25
+docs/qa/2026-09-07-0.8.0/evidence/review-followups/manifest.json
+  s_22bb9cc62aa032::t_0f13bfd7f6bbba 1-49
+docs/qa/2026-09-07-0.8.0/evidence/review-followups/production-build-held.json
+  s_22bb9cc62aa032::t_54fb2b29c8eec8 1-11
+docs/qa/2026-09-07-0.8.0/evidence/review-followups/review-followups.json
+  s_22bb9cc62aa032::t_b29ac0375db25e 1-19
+docs/qa/2026-09-07-0.8.0/evidence/review-followups/staging-validation.json
+  s_22bb9cc62aa032::t_410ac84e5d79a3 1-156
+docs/qa/2026-09-07-0.8.0/evidence/speaker-editor-final-native/build-before-native.json
+  s_22bb9cc62aa032::t_1db6367f4bd39f 1-36
+docs/qa/2026-09-07-0.8.0/evidence/speaker-editor-final-native/build-metadata.json
+  s_22bb9cc62aa032::t_581372f3ab615b 1-48
+docs/qa/2026-09-07-0.8.0/evidence/speaker-editor-final-native/manifest.json
+  s_22bb9cc62aa032::t_48336f3fd2799a 1-62
+docs/qa/2026-09-07-0.8.0/evidence/speaker-editor-final-native/results.json
+  s_22bb9cc62aa032::t_a46759a6f5844e 1-95
+docs/qa/2026-09-07-0.8.0/evidence/speaker-editor-final-native/staging-validation.json
+  s_22bb9cc62aa032::t_af73b758e14c3a 1-133
+docs/qa/2026-09-07-0.8.0/evidence/speaker-editor-fixes/cli-400-runtime-results.json
+  s_22bb9cc62aa032::t_0e8715529d3abb 1-28
+docs/qa/2026-09-07-0.8.0/evidence/speaker-editor-fixes/final-qa-build.json
+  s_22bb9cc62aa032::t_e2cb0522c04a45 1-48
+docs/qa/2026-09-07-0.8.0/evidence/speaker-editor-fixes/independent-reviews.json
+  s_22bb9cc62aa032::t_8af6b5d747b4ea 1-24
+docs/qa/2026-09-07-0.8.0/evidence/speaker-editor-fixes/manifest.json
+  s_22bb9cc62aa032::t_733236a56cd7f9 1-99
+docs/qa/2026-09-07-0.8.0/evidence/speaker-editor-fixes/native-build-metadata.json
+  s_22bb9cc62aa032::t_f606b10816c951 1-12
+docs/qa/2026-09-07-0.8.0/evidence/speaker-editor-fixes/native-interrupted-results.json
+  s_22bb9cc62aa032::t_7e88c44b2fe1a8 1-22
+docs/qa/2026-09-07-0.8.0/evidence/speaker-editor-fixes/staging-validation.json
+  s_22bb9cc62aa032::t_87109805fc00a1 1-192
+docs/qa/2026-09-07-0.8.0/final-02d-runtime.md
+  s_22bb9cc62aa032::t_ea4ef8ff39da32 1-76
+docs/qa/2026-09-07-0.8.0/final-fixed-native.md
+  s_22bb9cc62aa032::t_28749789bd3934 1-121
+docs/qa/2026-09-07-0.8.0/final-integrated-package.md
+  s_22bb9cc62aa032::t_64d121fa89ce4c 1-59
+docs/qa/2026-09-07-0.8.0/final-source-followup.md
+  s_22bb9cc62aa032::t_88cd081acc25fa 1-85
+docs/qa/2026-09-07-0.8.0/fn-recovery.md
+  s_22bb9cc62aa032::t_be655068883f04 1-267
+docs/qa/2026-09-07-0.8.0/index.html
+  s_22bb9cc62aa032::t_365d21658305a3 11,14,94,99-103,106-109,111-113,115-171,195,219,428,564,567,570,572,982,1018,1054,1179,1183,1185,1187,1192-1203,1208,1210-1227,1230-1247,1250-1267,1270-1307,1310-1327,1330-1347,1350-1375,1378-1435,1438-1459,1462-1483,1486-1507,1510-1531,1534-2721,2755-2770,2793-2824,2914,2916-3003
+docs/qa/2026-09-07-0.8.0/meeting-controls-native.md
+  s_22bb9cc62aa032::t_caf56fc03cdf75 1-120
+docs/qa/2026-09-07-0.8.0/new-main-speaker-qa.md
+  s_22bb9cc62aa032::t_9ded3ed5705a0f 1-341
+docs/qa/2026-09-07-0.8.0/package-preflight.md
+  s_22bb9cc62aa032::t_6afdd09df261cf 60
+docs/qa/2026-09-07-0.8.0/release-notes-draft.md
+  s_22bb9cc62aa032::t_1d9e67705771d5 1-25
+docs/qa/2026-09-07-0.8.0/retained-wav-cli.md
+  s_22bb9cc62aa032::t_3df453e18decbf 1-34
+docs/qa/2026-09-07-0.8.0/runner-a58-runtime.md
+  s_22bb9cc62aa032::t_db0a2cdbda4695 1-30
+docs/qa/2026-09-07-0.8.0/runner-migration-followup.md
+  s_22bb9cc62aa032::t_e74509062bae5f 1-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "b1c2ebde0e00905c20bd998ff40a6fbec1c47633",
+  "prompts": {},
+  "sessions": {
+    "s_22bb9cc62aa032": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07acb-3805-79e1-afd1-a075ff4e2953",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
