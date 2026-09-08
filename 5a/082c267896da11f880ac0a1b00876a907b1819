@@ -1,0 +1,21 @@
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_7d009f578351b3::t_faf258e453ad3d 1305-1307,1310-1311
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_7d009f578351b3::t_faf258e453ad3d 1442-1459
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "5a082c267896da11f880ac0a1b00876a907b1819",
+  "prompts": {},
+  "sessions": {
+    "s_7d009f578351b3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "51fa899a-baba-4d14-8128-62a661e4f69e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
