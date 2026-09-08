@@ -1,0 +1,21 @@
+functions/api/stats.ts
+  s_1bb59254d1dc1b::t_dcbdf16a91d199 1007-1026,1028-1046,1062-1082,1577-1582
+src/pages/stats.astro
+  s_1bb59254d1dc1b::t_320a4a971febbd 221-223,225-230,240,256,383-397,1611-1616,1729-1886,2112-2118,2387,2425-2428,4061-4095,4099-4139,4149-4154,4235-4242,4244-4253,4255-4259,4264-4267,4269,4271-4327,4330-4370,4375-4406,5311-5313
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "4894c909d55959d1325533d900ce84b85b7d75d4",
+  "prompts": {},
+  "sessions": {
+    "s_1bb59254d1dc1b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "85289ff0-4cfe-42ea-9f89-c298da76d769",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

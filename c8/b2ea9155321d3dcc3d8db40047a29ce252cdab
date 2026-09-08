@@ -1,0 +1,48 @@
+package.json
+  s_f45851066e8b83::t_9725251cff55c4 11,13
+src/pages/stats.astro
+  s_f45851066e8b83::t_a84ed4b56a3cca 824,827,829,847,3697-3699,3723-3725,3741,3799
+functions/api/stats.ts
+  s_f45851066e8b83::t_21bac0d33faa43 338,342,548-549,553
+  s_f45851066e8b83::t_7e1a81eee85cb9 5-6,8-10,19,336,339,533-536,540-543,550,967-968
+  s_f45851066e8b83::t_a84ed4b56a3cca 7,337,547,961-962
+scripts/telemetry-review.mjs
+  s_f45851066e8b83::t_af5ab5fbd96e08 289-291,293,295-296,298-300
+  s_f45851066e8b83::t_d5447c8f1c5c7c 6,215,223,225-234,249-250,252,332,1173-1178
+  s_f45851066e8b83::t_2afd002bf78f0a 9-10,12-14,216-222,235-236,241-244,247-248,251,341,344,347,378,392,406,420,452,476,512,537,547-550,564-571,577
+  s_f45851066e8b83::t_a84ed4b56a3cca 11,237-240,245-246,342-343,574-576
+  s_f45851066e8b83::t_0895fc8a8f0e4a 224
+tests/telemetry-review.test.mjs
+  s_f45851066e8b83::t_ffc89f1ad72f30 13,15,22,24-27
+  s_f45851066e8b83::t_d5447c8f1c5c7c 1-4,9-12,14,16-21,23,28-45,58
+  s_f45851066e8b83::t_af5ab5fbd96e08 5-8,46-57
+docs/telemetry-crash-health.md
+  s_f45851066e8b83::t_a84ed4b56a3cca 47-51
+  s_f45851066e8b83::t_9725251cff55c4 1-46,52-91
+functions/lib/crash-health.mjs
+  s_f45851066e8b83::t_966ed4edbbb16a 21-23,59-60
+  s_f45851066e8b83::t_7e1a81eee85cb9 1-20,24-58
+tests/crash-health.test.mjs
+  s_f45851066e8b83::t_7e1a81eee85cb9 99-102
+  s_f45851066e8b83::t_a84ed4b56a3cca 81-91,108-109
+  s_f45851066e8b83::t_966ed4edbbb16a 1-80,92-98,103-107,110
+README.md
+  s_f45851066e8b83::t_9725251cff55c4 46,71-87
+  s_f45851066e8b83::t_dc41f662fea140 88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "c8b2ea9155321d3dcc3d8db40047a29ce252cdab",
+  "prompts": {},
+  "sessions": {
+    "s_f45851066e8b83": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f7108-7dc9-73f2-97d1-ca8fca9c5436",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

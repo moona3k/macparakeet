@@ -1,0 +1,33 @@
+src/pages/issues.astro
+  s_65a29a55d81443::t_ba53b9fc6b29bb 164-165,406
+  s_65a29a55d81443::t_0f86a0b9ca6219 11-14,41-42,76,79,141-142,145-146,149-150,153-157,163,166-167,279-281,283,295,404,414-419
+  s_65a29a55d81443::t_b6fb0a0b4eaf96 785-790,944-947,987-990,1137-1143,1159-1162
+src/data/issue-triage.ts
+  s_65a29a55d81443::t_0f86a0b9ca6219 91,527,652,681
+  s_65a29a55d81443::t_22da509fe8e660 5,25,27,62,80,164-165,167-168,174-177,335-338,363-364,366-367,412,414-416,422,424-425,431-435,441,450,535,537-538,544,546-547,572,574-575,626-651,653-680,682-705
+src/pages/stats.astro
+  s_65a29a55d81443::t_0f86a0b9ca6219 10
+src/components/Header.astro
+  s_65a29a55d81443::t_0f86a0b9ca6219 32,57
+public/llms.txt
+  s_65a29a55d81443::t_0f86a0b9ca6219 32
+  s_65a29a55d81443::t_ba53b9fc6b29bb 7
+astro.config.mjs
+  s_65a29a55d81443::t_297a75a370350c 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "81ba78a1ef6e759a54b25c0370f16ae4e35ab32b",
+  "prompts": {},
+  "sessions": {
+    "s_65a29a55d81443": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f713c-badf-71f2-8e03-2ffc9b9627ce",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

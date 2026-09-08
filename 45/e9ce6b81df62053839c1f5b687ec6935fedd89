@@ -1,0 +1,39 @@
+src/pages/[slug].astro
+  s_1bb59254d1dc1b::t_8cb06a9fc1253c 195
+  s_1bb59254d1dc1b::t_7ba46826ce8116 570
+  s_1bb59254d1dc1b::t_bde0154aaafc6b 738-742
+  s_1bb59254d1dc1b::t_89a1f1b47ffb53 770
+  s_1bb59254d1dc1b::t_e383b84e992f32 1223
+  s_1bb59254d1dc1b::t_58bbffa1ffdb18 430
+  s_1bb59254d1dc1b::t_4923a7f4dbe9e1 109
+  s_1bb59254d1dc1b::t_30c6809dfabfc2 228
+  s_1bb59254d1dc1b::t_ddb4c3b84a9961 1281
+  s_1bb59254d1dc1b::t_84507d0c6c2b8f 1272-1277
+  s_1bb59254d1dc1b::t_6ab2543b0badcd 851-855
+  s_1bb59254d1dc1b::t_2a60bfc7781f35 1291
+  s_1bb59254d1dc1b::t_03ab21d302e932 1471-1472
+  s_1bb59254d1dc1b::t_55642cfcf94c19 56,179,295,409,523,635,749,862,1080
+src/layouts/BlogPost.astro
+  s_1bb59254d1dc1b::t_8dc21949cd60ca 59
+src/pages/meetings.astro
+  s_1bb59254d1dc1b::t_0cab5ea78687f6 213
+  s_1bb59254d1dc1b::t_c02150b3f116bc 231
+  s_1bb59254d1dc1b::t_013e1f36131c5c 439-457
+  s_1bb59254d1dc1b::t_9e1cf25f59705d 270
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "45e9ce6b81df62053839c1f5b687ec6935fedd89",
+  "prompts": {},
+  "sessions": {
+    "s_1bb59254d1dc1b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "85289ff0-4cfe-42ea-9f89-c298da76d769",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

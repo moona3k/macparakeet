@@ -1,0 +1,19 @@
+functions/lib/telemetry-validation.mjs
+  s_51167108b04048::t_53fe0df570a841 44-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "6a8da36773f2d54ef9c5df89d7dbb970e7767f54",
+  "prompts": {},
+  "sessions": {
+    "s_51167108b04048": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07f63-e141-7bc2-94bb-06573889d7b6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

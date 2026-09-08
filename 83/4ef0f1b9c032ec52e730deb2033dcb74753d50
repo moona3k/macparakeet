@@ -1,0 +1,30 @@
+tests/crash-health.test.mjs
+  s_f45851066e8b83::t_cbfbf5849c3f8e 98-108,119-120
+scripts/telemetry-review.mjs
+  s_f45851066e8b83::t_55a63fd7e7ece8 230-251,254-271,562,593-604
+package.json
+  s_f45851066e8b83::t_55a63fd7e7ece8 7-9
+docs/telemetry-crash-health.md
+  s_f45851066e8b83::t_55a63fd7e7ece8 32,69-73
+tests/telemetry-review.test.mjs
+  s_f45851066e8b83::t_cbfbf5849c3f8e 7,60-115
+  s_f45851066e8b83::t_b3dc059f2ec139 116
+functions/lib/crash-health.mjs
+  s_f45851066e8b83::t_55a63fd7e7ece8 4-10,15,42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "834ef0f1b9c032ec52e730deb2033dcb74753d50",
+  "prompts": {},
+  "sessions": {
+    "s_f45851066e8b83": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f7108-7dc9-73f2-97d1-ca8fca9c5436",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

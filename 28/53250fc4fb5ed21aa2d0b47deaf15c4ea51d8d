@@ -1,0 +1,69 @@
+src/layouts/Layout.astro
+  s_1bb59254d1dc1b::t_4c4cc9f0cf62f6 10-12
+  s_d0cc1b5a90e985::t_44185c5d7062e0 18
+  s_1bb59254d1dc1b::t_64e201bc275b1d 20-22,26-34,50,52,59,70
+public/llms.txt
+  s_d0cc1b5a90e985::t_cee6971eaff17e 7,34-50
+docs/seo-strategy.md
+  s_d0cc1b5a90e985::t_9f46154a0c6340 40,85
+src/components/Footer.astro
+  s_d0cc1b5a90e985::t_bd43465eb81e4b 2-14,16-70,74-104
+  s_d0cc1b5a90e985::t_3aac32df252096 15
+  s_1bb59254d1dc1b::t_4987410f2c0448 106-109
+docs/free-tools-strategy.md
+  s_d0cc1b5a90e985::t_ac7b2efff83cec 101
+src/pages/index.astro
+  s_1bb59254d1dc1b::t_daca7dd60f89d7 17-35,38,50-55,97,137,349,708,728
+src/pages/meetings.astro
+  s_d0cc1b5a90e985::t_69d58b13446932 10-46,49-53,56-57,59-93,95-109,114,132,213,409-410,413-414,417-418,421-422,425-426,429-430,433-434
+  s_d0cc1b5a90e985::t_54b661782fd521 54,58
+  s_1bb59254d1dc1b::t_daf98724f28691 55
+  s_1bb59254d1dc1b::t_68991db63a67fe 94
+  s_d0cc1b5a90e985::t_f67788eba0e96e 115,135
+  s_d0cc1b5a90e985::t_e791216cb8b41b 128
+  s_d0cc1b5a90e985::t_667e618eee02bd 303,305-308,379-381
+src/pages/[slug].astro
+  s_d0cc1b5a90e985::t_134fe791de5ffc 1424
+  s_d0cc1b5a90e985::t_502da0a5c63f5f 1-51,53-1191,1193-1216,1218-1423,1425-1495
+  s_1bb59254d1dc1b::t_dffe2156b9cf94 1192
+  s_d0cc1b5a90e985::t_9e9ea36f051bf1 1217
+  s_d0cc1b5a90e985::t_ab8e7205642612 52
+src/pages/blog/index.astro
+  s_1bb59254d1dc1b::t_1267fd14f5e440 22
+  s_1bb59254d1dc1b::t_997d18bc52898b 49
+  s_1bb59254d1dc1b::t_80fbd0ae3c02cd 32
+  s_d0cc1b5a90e985::t_bb6884ebc284d4 14-21,23-31,33-48,50-57,59
+  s_1bb59254d1dc1b::t_17b636eafb4df3 8-13,58,60-61,66-68,83-87
+src/layouts/BlogPost.astro
+  s_d0cc1b5a90e985::t_43545ec55c549f 11-12,15-16,20-62,66,68
+  s_1bb59254d1dc1b::t_949a3721040315 63-65,67,69,72-78,81
+public/robots.txt
+  s_1bb59254d1dc1b::t_b0c6f7c253eda4 2-6,11,18,26-28,35,46-48
+  s_d0cc1b5a90e985::t_d6f739fb2c0095 12-17,25,42-45
+src/pages/blog/[...slug].astro
+  s_1bb59254d1dc1b::t_f8c64b1edff19c 22-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "2853250fc4fb5ed21aa2d0b47deaf15c4ea51d8d",
+  "prompts": {},
+  "sessions": {
+    "s_1bb59254d1dc1b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "85289ff0-4cfe-42ea-9f89-c298da76d769",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_d0cc1b5a90e985": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0c38-1e62-78d2-9c3a-ac7ecb411cb7",
+        "model": "gpt-5.3-codex-spark"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

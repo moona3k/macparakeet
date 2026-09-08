@@ -1,0 +1,23 @@
+package.json
+  s_51167108b04048::t_b6a077159df9a0 16
+src/pages/stats.astro
+  s_51167108b04048::t_7022d4fa81f48b 2191,2194,5518-5520,5522,5548,5562-5565,5575
+tests/stats-bootstrap.test.mjs
+  s_51167108b04048::t_bf9e1beedef844 1-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "e3381ba4ea4097878f2f6de7ad14127cc9d5cc5e",
+  "prompts": {},
+  "sessions": {
+    "s_51167108b04048": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07f63-e141-7bc2-94bb-06573889d7b6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

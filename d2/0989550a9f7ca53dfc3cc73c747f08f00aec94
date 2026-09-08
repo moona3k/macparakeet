@@ -1,0 +1,19 @@
+public/appcast.xml
+  s_14acdbbab238ee::t_1c217366b62fcf 48-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "d20989550a9f7ca53dfc3cc73c747f08f00aec94",
+  "prompts": {},
+  "sessions": {
+    "s_14acdbbab238ee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "67fff10d-6a52-4a19-a056-0ba7d6573f2c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

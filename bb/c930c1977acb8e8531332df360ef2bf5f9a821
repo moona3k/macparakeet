@@ -1,0 +1,96 @@
+src/pages/index.astro
+  s_d83ed5a0631a14::t_c623d68476ab6d 42,142-145,156,287,364-373,509-551,758-760
+src/components/Header.astro
+  s_d83ed5a0631a14::t_4ba47a5440173b 13
+src/content/blog/why-local-transcription.md
+  s_d83ed5a0631a14::t_c3866678c0ea31 40,64
+src/pages/[slug].astro
+  s_d83ed5a0631a14::t_28e28dcb6778f2 95,195,1101,1284
+src/pages/meetings.astro
+  s_d83ed5a0631a14::t_c546ab99d8c3a3 43,172-175,231,256,270,305,308,322,335
+src/content/blog/macparakeet-open-source.md
+  s_d83ed5a0631a14::t_01bfd0534dbc1d 14,20
+  s_98d41f166520a8::t_d68ba083d99893 21
+src/content/blog/macparakeet-vs-macwhisper.md
+  s_d83ed5a0631a14::t_e90f73b75212f8 29,31,37,39,41,43
+  s_d83ed5a0631a14::t_4bbe4cf1d8f081 16,22,28,30,32,38,40,42,44,48-50
+  s_98d41f166520a8::t_9ceb82a290543c 36
+src/content/blog/macparakeet-vs-superwhisper.md
+  s_d83ed5a0631a14::t_c3866678c0ea31 68
+src/pages/multilingual.astro
+  s_d83ed5a0631a14::t_a5329d9bd9c3f0 9-10,45-46,49-50,58,62,76,93,104,148,150,154,212-240,249,257,261-262,277,287,290,294
+src/content/blog/macparakeet-vs-wisprflow.md
+  s_d83ed5a0631a14::t_c3866678c0ea31 40,52
+src/content/blog/transcribe-podcast-mac.md
+  s_d83ed5a0631a14::t_c3866678c0ea31 35-39,79
+src/pages/dictation.astro
+  s_d83ed5a0631a14::t_56c95b88afafde 26,208,302
+public/llms.txt
+  s_d83ed5a0631a14::t_c5b6c6c5c6b458 7,19,37,81,89,99,105-106,121,133,152
+src/pages/privacy.astro
+  s_d83ed5a0631a14::t_cb7e4dd1eb655a 17,37,41,68,78
+src/pages/changelog.astro
+  s_d83ed5a0631a14::t_10a866cb249eea 6-83
+src/pages/tools/audio-duration-calculator.astro
+  s_d83ed5a0631a14::t_59f2cd371d93d1 301
+src/pages/tools/audio-file-size-calculator.astro
+  s_d83ed5a0631a14::t_513029b401ef65 313
+src/pages/tools/convert/ass-to-srt.astro
+  s_d83ed5a0631a14::t_2bedf5f69db389 188
+src/pages/tools/convert/sbv-to-srt.astro
+  s_d83ed5a0631a14::t_350abacd9d6a26 190
+src/pages/tools/convert/srt-to-ass.astro
+  s_d83ed5a0631a14::t_6c904b119653d1 198
+src/pages/tools/convert/srt-to-csv.astro
+  s_d83ed5a0631a14::t_1226c9a2f93bd1 190
+src/pages/tools/convert/srt-to-json.astro
+  s_d83ed5a0631a14::t_e5f8d56b50ec80 188
+src/pages/tools/convert/srt-to-lrc.astro
+  s_d83ed5a0631a14::t_56103756526305 218
+src/pages/tools/convert/srt-to-sbv.astro
+  s_d83ed5a0631a14::t_007b407af807b1 188
+src/pages/tools/convert/srt-to-txt.astro
+  s_d83ed5a0631a14::t_191431737532a0 248
+src/pages/tools/convert/srt-to-vtt.astro
+  s_d83ed5a0631a14::t_5f367505314582 198
+src/pages/tools/convert/txt-to-srt.astro
+  s_d83ed5a0631a14::t_311887d6b42c74 264
+src/pages/tools/convert/vtt-to-srt.astro
+  s_d83ed5a0631a14::t_bc02a2c9215bd2 198
+src/pages/tools/convert/vtt-to-txt.astro
+  s_d83ed5a0631a14::t_85c2c0e5193d7e 240
+src/pages/tools/playback-speed-calculator.astro
+  s_d83ed5a0631a14::t_6798a54b9bf3db 368
+src/pages/tools/reading-time-calculator.astro
+  s_d83ed5a0631a14::t_238166f3aba0a1 259
+src/pages/tools/speech-time-calculator.astro
+  s_d83ed5a0631a14::t_2aaac541f3fa9c 263
+src/pages/tools/transcribe-video.astro
+  s_d83ed5a0631a14::t_1d2b57358a15c7 312
+src/pages/tools/voice-to-text.astro
+  s_d83ed5a0631a14::t_50bdffe2bda5f4 298
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bbc930c1977acb8e8531332df360ef2bf5f9a821",
+  "prompts": {},
+  "sessions": {
+    "s_98d41f166520a8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f47f5-d378-7930-8bd4-a45b939b3188",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_d83ed5a0631a14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4657-90da-7992-9e5f-6aab084b389b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

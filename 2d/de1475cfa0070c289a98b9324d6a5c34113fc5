@@ -1,0 +1,188 @@
+src/components/PlatformTranscribe.astro
+  s_0a1a8021679158::t_bee664eaaa86b2 117-118
+  s_82f6fbf889762c::t_1efef61cef979f 61-65,105-116
+src/pages/tools/youtube-transcript.astro
+  s_82f6fbf889762c::t_7fd3b59879b52f 23,61,69-77,99,111,262,273,275-279,297-299,336-338,348,352-356
+src/pages/zoom-recording-transcription.astro
+  s_82f6fbf889762c::t_faeb696ce5b775 31,56,94,96-267,276-277
+  s_bc4fd80b51f678::t_f9c9b16f1eb24b 1-30,32-55,57-93,95,268-275,278-292
+src/pages/reports/ai-formatter-transcripts.astro
+  s_82f6fbf889762c::t_8a96a658440940 32
+src/pages/tools/transcribe.astro
+  s_82f6fbf889762c::t_e0298f484fddd4 23,61,77-85,100,112,225,285,296,298-310,379,387-391
+src/pages/[slug].astro
+  s_82f6fbf889762c::t_8a96a658440940 1206-1222,1260-1265,1299-1310
+README.md
+  s_82f6fbf889762c::t_01ff88636b4771 9,42-47,50
+src/pages/transcribe-instagram-reel.astro
+  s_dcc5468be439ea::t_1b1bff62424d5a 1-331
+src/content/blog/why-local-transcription.md
+  s_32b3b9adb97c2b::t_a9360afd073bf5 50,62,70,74
+  s_32b3b9adb97c2b::t_97385310dc5dee 3
+src/pages/interview-transcription.astro
+  s_e351ab848aa34c::t_f587d0447f29c3 1-95,104-251,265-292
+  s_82f6fbf889762c::t_faeb696ce5b775 96-103,252-264
+src/pages/wav-to-text.astro
+  s_82f6fbf889762c::t_e2775b03491582 31,54,87,89-255,264-265
+  s_bc4fd80b51f678::t_667d8a400db423 1-30,32-53,55-86,88,256-263,266-280
+public/llms.txt
+  s_82f6fbf889762c::t_78ba20325790aa 5,17,21-23,25,27-30,33-74,114,130,149-163
+src/pages/dictation.astro
+  s_82f6fbf889762c::t_92396abbdc49a9 11-37,40-55,286
+src/pages/transcribe-youtube-video.astro
+  s_dcc5468be439ea::t_1b1bff62424d5a 1-91,93-359
+  s_82f6fbf889762c::t_faeb696ce5b775 92
+src/pages/youtube-to-srt.astro
+  s_bc4fd80b51f678::t_e7cdc328585d6b 1-30,32-53,55-91,93,261-268,271-285
+  s_82f6fbf889762c::t_faeb696ce5b775 31,54,92,94-260,269-270
+src/pages/tools/voice-to-text.astro
+  s_82f6fbf889762c::t_c048c2fd2511e2 23,85-86,98-101
+src/content/blog/macparakeet-cli-1-0.md
+  s_32b3b9adb97c2b::t_97385310dc5dee 3
+AGENTS.md
+  s_82f6fbf889762c::t_01ff88636b4771 11
+src/pages/multilingual.astro
+  s_82f6fbf889762c::t_92396abbdc49a9 39-69,72-87,276
+docs/agent-orchestration.md
+  s_82f6fbf889762c::t_01ff88636b4771 676
+src/pages/mp3-to-text.astro
+  s_82f6fbf889762c::t_e2775b03491582 31,54,87,89-259,268-269
+  s_bc4fd80b51f678::t_f71af873fdf44a 1-30,32-53,55-86,88,260-267,270-284
+src/pages/changelog.astro
+  s_82f6fbf889762c::t_bad93d3a068ab4 236-246,248,255
+  s_ef23f620199b31::t_4782a3706e986d 247,249-253
+  s_ef23f620199b31::t_ce17b4ef951e18 254,256-257,261-263
+src/pages/transcribe-tiktok-video.astro
+  s_dcc5468be439ea::t_1b1bff62424d5a 1-331
+src/pages/404.astro
+  s_82f6fbf889762c::t_8a96a658440940 20-21
+src/pages/transcribe-soundcloud-audio.astro
+  s_dcc5468be439ea::t_1b1bff62424d5a 1-331
+src/pages/transcribe-video-url.astro
+  s_82f6fbf889762c::t_1efef61cef979f 11-14,29-43,45-47,108-120,299
+  s_f9028d506e4a6a::t_4bda07f3a9b217 121-122
+  s_82f6fbf889762c::t_3e420d215eb2be 44,172,232
+src/pages/stats.astro
+  s_82f6fbf889762c::t_8a96a658440940 10
+src/content/blog/macparakeet-vs-macwhisper.md
+  s_32b3b9adb97c2b::t_a9360afd073bf5 16,20
+  s_ef23f620199b31::t_e59a608723de20 36,38,43
+  s_ef23f620199b31::t_69409a25d9437f 22,24,28,31,45
+src/content/blog/macparakeet-open-source.md
+  s_32b3b9adb97c2b::t_a9360afd073bf5 30,48
+  s_32b3b9adb97c2b::t_21110cc873a7e7 20,93
+src/pages/voice-memos-to-text.astro
+  s_82f6fbf889762c::t_e2775b03491582 31,54,92,94-260,269-270
+  s_bc4fd80b51f678::t_13ed27c2552413 1-30,32-53,55-91,93,261-268,271-285
+astro.config.mjs
+  s_82f6fbf889762c::t_8a96a658440940 10-11
+  s_abe715521416ff::t_2f2c16d97b8d7d 12-14
+  s_abe715521416ff::t_59aa0da57f63b6 15-17
+src/content/blog/macparakeet-vs-superwhisper.md
+  s_32b3b9adb97c2b::t_a9360afd073bf5 3,10,20,22,30,56
+  s_32b3b9adb97c2b::t_5502bf238487d2 12
+src/pages/tools/transcribe-video.astro
+  s_82f6fbf889762c::t_363965278a3cd9 61-77,88-103,379-387,393-400
+src/pages/m4a-to-text.astro
+  s_82f6fbf889762c::t_e2775b03491582 31,54,87,89-255,264-265
+  s_bc4fd80b51f678::t_e3e85bf3c67681 1-30,32-53,55-86,88,256-263,266-280
+src/pages/transcribe-podcast.astro
+  s_82f6fbf889762c::t_3e19056f38b5f8 5,31-38,52-53,64-65,88,90-92
+  s_82f6fbf889762c::t_3e420d215eb2be 18
+src/content/blog/transcribe-any-video-url.md
+  s_32b3b9adb97c2b::t_a9360afd073bf5 3,8,12,30,32,74,95,111
+src/content/blog/fluidaudio-speech-ai-sdk.md
+  s_32b3b9adb97c2b::t_97385310dc5dee 3
+  s_32b3b9adb97c2b::t_a9360afd073bf5 14,26,28,92,109,113,129,131
+src/content/blog/whisper-to-parakeet-neural-engine.md
+  s_32b3b9adb97c2b::t_a9360afd073bf5 9,41,116,138,154,162,172,176
+  s_32b3b9adb97c2b::t_97385310dc5dee 3
+src/content/blog/macparakeet-vs-wisprflow.md
+  s_32b3b9adb97c2b::t_97385310dc5dee 20
+  s_32b3b9adb97c2b::t_5502bf238487d2 26
+  s_32b3b9adb97c2b::t_a9360afd073bf5 3,48,56
+.gitignore
+  s_bc4fd80b51f678::t_88d2c012d2488c 40
+src/layouts/Layout.astro
+  s_ef23f620199b31::t_87adf12eb02646 13-14,25-26,39,48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2dde1475cfa0070c289a98b9324d6a5c34113fc5",
+  "prompts": {},
+  "sessions": {
+    "s_0a1a8021679158": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cfc6f13d-4357-48f3-95f1-ed2d7dbe232a",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_32b3b9adb97c2b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3632-19f5-78e0-9a6c-ceeeb1360e7e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_82f6fbf889762c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f364e-4d96-7c90-bcb3-a67ac773ff5a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_abe715521416ff": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3656-39f4-7b11-9e7c-8cd0b3599e0a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_bc4fd80b51f678": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c2642b0-71bf-4062-b81d-0e0c46d8182a",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_dcc5468be439ea": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3630-0d01-7c30-a1af-d51dcab9d681",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_e351ab848aa34c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3630-47c9-7630-b0cc-83808d69193a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_ef23f620199b31": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3656-4b16-77f2-bca3-b79fa9328e05",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_f9028d506e4a6a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3642-5185-75a0-b5c4-a5057a70e629",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

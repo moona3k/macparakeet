@@ -1,0 +1,16 @@
+public/dev/index.html
+  h_2ab1f47fea2ced 44
+public/dev/pr/953/index.html
+  h_2ab1f47fea2ced 9-10,12-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "80be9ebbb2c577432f7b7ca096911305cc667c08",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

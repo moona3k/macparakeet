@@ -1,0 +1,30 @@
+functions/api/stats.ts
+  s_f45851066e8b83::t_c518c34d7f7a8a 10,277-279,328-333,555-563,981
+tests/telemetry-review.test.mjs
+  s_f45851066e8b83::t_a55ce7460e023e 74,77,92
+docs/telemetry-crash-health.md
+  s_f45851066e8b83::t_c518c34d7f7a8a 31-32
+scripts/telemetry-review.mjs
+  s_f45851066e8b83::t_c518c34d7f7a8a 13,29-31,255-256,602-603,609-610
+tests/crash-health.test.mjs
+  s_f45851066e8b83::t_ea8a59cbbb4c90 136
+  s_f45851066e8b83::t_a55ce7460e023e 63-77,124-127,135
+functions/lib/crash-health.mjs
+  s_f45851066e8b83::t_c518c34d7f7a8a 24-34,41,52,59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "cfb3bd2dce6cb9c0887df1a31c62b3e7067a776b",
+  "prompts": {},
+  "sessions": {
+    "s_f45851066e8b83": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f7108-7dc9-73f2-97d1-ca8fca9c5436",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

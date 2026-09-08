@@ -1,0 +1,31 @@
+src/pages/issues.astro
+  s_d20ebe201bfd8d::t_95002ee7988089 632-635
+  s_d20ebe201bfd8d::t_4e601c9eed7af2 1-631,636-1144
+public/llms.txt
+  s_d20ebe201bfd8d::t_e328d48db0bc82 33
+functions/api/github-issues.ts
+  s_d20ebe201bfd8d::t_bd24ffe0922df3 1-63,65-138
+  s_d20ebe201bfd8d::t_130ccd67318c0f 64
+src/components/Header.astro
+  s_d20ebe201bfd8d::t_130ccd67318c0f 32,57
+src/components/Footer.astro
+  s_d20ebe201bfd8d::t_130ccd67318c0f 12-13,67-68
+src/data/issue-triage.ts
+  s_d20ebe201bfd8d::t_84fa86d956d40b 1-629
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "e01a4ed31b6f82f1596610bdcd4ae51e9f1152b8",
+  "prompts": {},
+  "sessions": {
+    "s_d20ebe201bfd8d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f643c-c11b-7d62-a451-89ef2882cbe7",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
