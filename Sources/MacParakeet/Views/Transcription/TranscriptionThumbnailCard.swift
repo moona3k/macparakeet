@@ -181,7 +181,11 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                default:
+                case .empty:
+                    remoteLoadingView
+                case .failure:
+                    placeholderView
+                @unknown default:
                     placeholderView
                 }
             }
@@ -204,32 +208,21 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
     }
 
     private var placeholderView: some View {
+        BranchingRecordingCoverView(recordingID: transcription.id)
+            .id(transcription.id)
+    }
+
+    private var remoteLoadingView: some View {
         ZStack {
             DesignSystem.Colors.surfaceElevated
-
-            if let symbolText = sourceDisplay.symbolText {
-                Text(symbolText)
-                    .font(.system(size: 28, weight: .semibold))
-                    .foregroundStyle(sourceDisplay.tint)
-            } else {
-                Image(systemName: sourceIcon)
-                    .font(.system(size: 28, weight: .light))
-                    .foregroundStyle(DesignSystem.Colors.textTertiary)
-            }
+            ProgressView()
+                .controlSize(.small)
+                .tint(DesignSystem.Colors.textTertiary)
         }
     }
 
     private var displayTitle: String {
         transcription.effectiveDisplayTitle
-    }
-
-    private var sourceIcon: String {
-        if transcription.sourceType != .file {
-            return sourceDisplay.systemImage
-        }
-        let ext = transcription.filePath.map { URL(fileURLWithPath: $0).pathExtension.lowercased() } ?? ""
-        let videoExts: Set = ["mp4", "mov", "mkv", "avi", "webm", "m4v", "flv", "wmv"]
-        return videoExts.contains(ext) ? "film" : "waveform"
     }
 
     private var sourceDisplay: TranscriptionSourceDisplay {

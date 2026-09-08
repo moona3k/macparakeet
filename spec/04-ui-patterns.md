@@ -166,6 +166,15 @@ finalization both use the persisted `processing` status and the existing
 must not hide a card's non-completed status. Missing audio, recovery, and
 partial-capture warnings remain explicit rather than being compressed into a
 routine state icon.
+
+When a grid card has locally cached or successfully loaded remote artwork, that
+real artwork remains first. A remote image that is still loading keeps its loading
+surface. When no artwork exists or remote loading fails, the 16:9 area shows a
+static Branching Field cover derived only from the transcription UUID and fixed
+v1 recipe. The selected curated palette is decorative; it does not encode source,
+status, audio, transcript, confidence, title, duration, or time. The cover has no
+text or animation, so existing title, duration, source, and lifecycle chrome stay
+legible and authoritative outside the artwork.
 List rows retain their existing snippet-first preview behavior, including while
 a meeting with saved transcript text is being retranscribed.
 
