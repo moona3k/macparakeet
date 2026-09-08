@@ -226,8 +226,13 @@ factual transcript pane. The tab always shows an editable plaintext
 existing 7,500-word soft-cap warning. The separate 8,000-word cap bounds notes
 sent to prompt assembly; it does not truncate stored notes.
 
-Changes auto-save to SQLite after a 500 ms idle debounce. A quiet status reports Saving,
-Saved, or a retryable failure; the editor stays writable during persistence.
+Changes auto-save to SQLite after a 500 ms idle debounce. The status is hidden
+on entry, including for empty notes. Editing shows a small spinner; a successful
+save briefly shows a muted green check before the status disappears. These
+routine states use icons with tooltips and accessibility labels, in a fixed-size
+slot. Save failures retain visible text and Retry. The word count remains
+separate and uses singular wording for one word. The editor stays writable
+during persistence.
 Leaving the tab, leaving the detail page, or starting an LLM action flushes the
 latest draft and refreshes the derived meeting files once. Ordinary quit also
 flushes pending file refreshes, including drafts already saved to SQLite.

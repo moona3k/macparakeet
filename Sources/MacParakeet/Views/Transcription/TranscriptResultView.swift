@@ -497,6 +497,7 @@ struct TranscriptResultView: View {
     @State private var notesCopied = false
     @State private var notesCopiedResetTask: Task<Void, Never>?
     @State private var savedMeetingNotesViewModel = SavedMeetingNotesViewModel()
+    @State private var savedMeetingNotesSaveStatus = SavedMeetingNotesSaveStatusPresentation()
     @State private var dismissTask: Task<Void, Never>?
     @State private var editingTitle = false
     @State private var titleDraft = ""
@@ -2661,7 +2662,10 @@ struct TranscriptResultView: View {
 
                 meetingNotesSaveStatus
 
-                Text("\(savedMeetingNotesViewModel.wordCount.formatted()) words")
+                Text(
+                    "\(savedMeetingNotesViewModel.wordCount.formatted()) "
+                        + (savedMeetingNotesViewModel.wordCount == 1 ? "word" : "words")
+                )
                     .font(DesignSystem.Typography.caption.monospacedDigit())
                     .foregroundStyle(DesignSystem.Colors.textTertiary)
             }
@@ -2692,36 +2696,84 @@ struct TranscriptResultView: View {
 
     @ViewBuilder
     private var meetingNotesSaveStatus: some View {
-        switch savedMeetingNotesViewModel.saveState {
-        case .deleted:
-            Label("Meeting deleted — notes were not saved", systemImage: "trash")
-                .foregroundStyle(DesignSystem.Colors.textSecondary)
-        case .saved:
-            Label("Saved", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(DesignSystem.Colors.successGreen)
-        case .saving:
-            HStack(spacing: DesignSystem.Spacing.xs) {
+        if savedMeetingNotesViewModel.meetingID != displayedMeetingNotesID {
+            Color.clear
+                .frame(width: 16, height: 16)
+        } else {
+            switch savedMeetingNotesViewModel.saveState {
+            case .deleted:
+                Label("Meeting deleted — notes were not saved", systemImage: "trash")
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .help("Meeting deleted — notes were not saved")
+            case .saved where savedMeetingNotesSaveStatus.showsSaveConfirmation:
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(DesignSystem.Colors.successGreen.opacity(0.7))
+                    .help("Saved")
+                    .accessibilityLabel("Saved")
+                    .frame(width: 16, alignment: .leading)
+            case .saved:
+                Color.clear
+                    .frame(width: 16, height: 16)
+            case .saving:
                 ProgressView()
                     .controlSize(.small)
-                Text("Saving…")
-            }
-            .foregroundStyle(DesignSystem.Colors.textSecondary)
-        case .failed:
-            HStack(spacing: DesignSystem.Spacing.xs) {
-                Label("Couldn’t save", systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(DesignSystem.Colors.errorRed)
-                Button("Retry") {
-                    retrySavedMeetingNotes()
+                    .help("Saving")
+                    .accessibilityLabel("Saving")
+                    .frame(width: 16, alignment: .leading)
+            case .failed:
+                HStack(spacing: DesignSystem.Spacing.xs) {
+                    Label("Couldn’t save", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(DesignSystem.Colors.errorRed)
+                    Button("Retry") {
+                        retrySavedMeetingNotes()
+                    }
+                    .parakeetAction(.secondary)
+                    .controlSize(.small)
                 }
-                .parakeetAction(.secondary)
-                .controlSize(.small)
             }
         }
+    }
+
+    private var displayedMeetingNotesID: UUID {
+        activeTranscription.id
+    }
+
+    private func beginMeetingNotesSaveStatusPresentation() {
+        savedMeetingNotesSaveStatus.beginPresentation(
+            meetingID: savedMeetingNotesViewModel.meetingID,
+            displayedMeetingID: displayedMeetingNotesID,
+            saveState: savedMeetingNotesViewModel.saveState
+        )
+    }
+
+    private func observeMeetingNotesSaveState(
+        from previousState: SavedMeetingNotesViewModel.SaveState,
+        to saveState: SavedMeetingNotesViewModel.SaveState
+    ) {
+        savedMeetingNotesSaveStatus.observeSaveStateChange(
+            from: previousState,
+            to: saveState,
+            meetingID: savedMeetingNotesViewModel.meetingID,
+            displayedMeetingID: displayedMeetingNotesID
+        )
+    }
+
+    private func resetMeetingNotesSaveStatusPresentation() {
+        savedMeetingNotesSaveStatus.endPresentation()
     }
 
     private var meetingNotesPane: some View {
         meetingNotesSection
             .padding(DesignSystem.Spacing.lg)
+            .onAppear(perform: beginMeetingNotesSaveStatusPresentation)
+            .onChange(of: savedMeetingNotesViewModel.meetingID) {
+                beginMeetingNotesSaveStatusPresentation()
+            }
+            .onChange(of: savedMeetingNotesViewModel.saveState) { previousState, saveState in
+                observeMeetingNotesSaveState(from: previousState, to: saveState)
+            }
+            .onDisappear(perform: resetMeetingNotesSaveStatusPresentation)
     }
 
     // MARK: - Tab Bar
@@ -4482,6 +4534,7 @@ struct TranscriptResultView: View {
     private var cachedSpeakerStats: [String: SpeakerStatistics] { displayedSegmentCache?.payload.speakerStats ?? [:] }
 
     private func handleDisappear() {
+        resetMeetingNotesSaveStatusPresentation()
         navigationNotesActionGate.invalidate()
         promptNotesActionGate.invalidate()
         chatNotesActionGate.invalidate()
@@ -4676,6 +4729,7 @@ struct TranscriptResultView: View {
     }
 
     private func configureSavedMeetingNotes(for transcription: Transcription) {
+        resetMeetingNotesSaveStatusPresentation()
         let previousEditor = savedMeetingNotesViewModel
         if transcription.sourceType == .meeting {
             savedMeetingNotesViewModel = SavedMeetingNotesCoordinator.shared.editor(
