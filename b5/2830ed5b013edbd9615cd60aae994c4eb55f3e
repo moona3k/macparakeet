@@ -1,0 +1,23 @@
+Sources/CLI/CHANGELOG.md
+  s_22bb9cc62aa032::t_f4d3be72d71316 97-99
+integrations/README.md
+  s_22bb9cc62aa032::t_bc8f8495781378 130-161,524-528,531-534
+spec/contracts/cli-json-v1.md
+  s_22bb9cc62aa032::t_91b71be77bb869 123-125,156-162
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "b52830ed5b013edbd9615cd60aae994c4eb55f3e",
+  "prompts": {},
+  "sessions": {
+    "s_22bb9cc62aa032": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07acb-3805-79e1-afd1-a075ff4e2953",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
