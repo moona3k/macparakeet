@@ -612,6 +612,28 @@ final class LLMHTTPAdapterTests: XCTestCase {
         XCTAssertEqual(resolution.unsupportedSettings, [.temperature])
     }
 
+    func testLMStudioKeepsMaxTokensEvenWhenModelIDLooksLikeGPT5() async throws {
+        var capturedRequest: URLRequest?
+
+        AdapterRequestURLProtocol.handler = { request in
+            capturedRequest = request
+            return (self.okResponse(for: request), self.validOpenAIResponseData())
+        }
+
+        _ = try await openAIAdapter.chatCompletion(
+            messages: goldenMessages,
+            config: .lmstudio(model: "gpt-5.5"),
+            options: ChatCompletionOptions(temperature: 0.2, maxTokens: 256)
+        )
+
+        try assertJSONBody(
+            try XCTUnwrap(capturedRequest),
+            equals: """
+                {"max_tokens":256,"messages":[{"content":"System","role":"system"},{"content":"Hello","role":"user"}],"model":"gpt-5.5","stream":false,"temperature":0.2}
+                """
+        )
+    }
+
     func testOpenAICompatibleAdapterEncodesNullableKnowledgeCardOwnerSchema() async throws {
         var capturedRequest: URLRequest?
 

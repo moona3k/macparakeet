@@ -221,7 +221,8 @@ struct OpenAICompatibleLLMHTTPAdapter: LLMHTTPAdapter {
         // Models that use reasoning tokens (o1/o3/o4, gpt-5.x) need more budget since
         // max_completion_tokens covers both reasoning and visible output.
         // 128 is enough for a minimal response. Older models can use 1 to minimize cost.
-        let needsMoreTokens = Self.openAIRequiresMaxCompletionTokens(config.modelName)
+        let needsMoreTokens =
+            config.id != .lmstudio && Self.openAIRequiresMaxCompletionTokens(config.modelName)
         let options = ChatCompletionOptions(maxTokens: needsMoreTokens ? 128 : 1)
         _ = try await chatCompletion(messages: messages, config: config, options: options)
     }
@@ -310,9 +311,14 @@ struct OpenAICompatibleLLMHTTPAdapter: LLMHTTPAdapter {
         // "-chat" variants still accept explicit values. Apply this from the
         // model ID, including gateway prefixes such as `openai/gpt-5.6-sol`,
         // rather than only the native OpenAI provider. Newer models also
-        // require max_completion_tokens instead of max_tokens.
-        let shouldOmitSampling = Self.openAIShouldOmitTemperature(config.modelName)
-        let needsNewTokenParam = Self.openAIRequiresMaxCompletionTokens(config.modelName)
+        // require max_completion_tokens instead of max_tokens. LM Studio's
+        // documented chat-completions contract still uses max_tokens and
+        // temperature even when a loaded model ID happens to look like GPT-5.
+        let appliesOpenAIFamilyWirePolicy = config.id != .lmstudio
+        let shouldOmitSampling =
+            appliesOpenAIFamilyWirePolicy && Self.openAIShouldOmitTemperature(config.modelName)
+        let needsNewTokenParam =
+            appliesOpenAIFamilyWirePolicy && Self.openAIRequiresMaxCompletionTokens(config.modelName)
         let temperature = shouldOmitSampling ? nil : options.temperature
         let topP: Double?
         switch config.id {
