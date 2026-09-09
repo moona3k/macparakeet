@@ -1,0 +1,33 @@
+spec/09-testing.md
+  s_8408739a4a9fbb::t_c57e19c646107a 145
+Tests/MacParakeetTests/Services/AppPathsTests.swift
+  s_8408739a4a9fbb::t_10e270991f5f00 65,75,95
+Sources/MacParakeetCore/Services/AppPaths.swift
+  s_8408739a4a9fbb::t_c57e19c646107a 142
+scripts/dev/run_app.sh
+  s_8408739a4a9fbb::t_24d46c5e4d905b 20-22,242-243,252
+docs/local-audio-diagnostics-query.md
+  s_8408739a4a9fbb::t_c57e19c646107a 14-15
+docs/cli-testing.md
+  s_8408739a4a9fbb::t_c57e19c646107a 531
+Sources/MacParakeetCore/Database/README.md
+  s_8408739a4a9fbb::t_c57e19c646107a 174-177
+docs/human-qa-guide.md
+  s_8408739a4a9fbb::t_c57e19c646107a 47-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "7487f6161600e44bbf18122027cae339c03a7e2c",
+  "prompts": {},
+  "sessions": {
+    "s_8408739a4a9fbb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ae-f1a3-7481-bf0f-88e289444b74",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
