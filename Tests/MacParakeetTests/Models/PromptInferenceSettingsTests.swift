@@ -177,6 +177,105 @@ final class PromptInferenceSettingsTests: XCTestCase {
         XCTAssertNil(openAIReasoning.effectiveSettings)
     }
 
+    func testGemini3AutomaticSamplingOmitsOnlyTheInheritedApplicationBaseline() throws {
+        let config = LLMProviderConfig.gemini(apiKey: "key", model: "gemini-3.5-flash")
+
+        let automatic = try PromptInferenceCapabilityResolver.resolve(config: config, requested: nil)
+        XCTAssertNil(automatic.options.temperature)
+        XCTAssertNil(automatic.effectiveSettings)
+
+        let historicalReceipt = try PromptInferenceCapabilityResolver.resolve(
+            config: config,
+            requested: PromptInferenceSettings(temperature: 0.7)
+        )
+        XCTAssertEqual(historicalReceipt.options.temperature, 0.7)
+        XCTAssertEqual(historicalReceipt.effectiveSettings, PromptInferenceSettings(temperature: 0.7))
+
+        let explicitBaseline = try PromptInferenceCapabilityResolver.resolve(
+            config: config,
+            baseline: ChatCompletionOptions(temperature: 0.1),
+            requested: nil
+        )
+        XCTAssertEqual(explicitBaseline.options.temperature, 0.1)
+        XCTAssertEqual(explicitBaseline.effectiveSettings, PromptInferenceSettings(temperature: 0.1))
+    }
+
+    func testPresentationPreservesInvalidDraftAndUsesCompatibleOverrideForMetadata() {
+        let config = LLMProviderConfig.gemini(apiKey: "key", model: "gemini-3.5-flash")
+        let invalidDraft = PromptInferenceSettings(temperature: 3)
+
+        let invalidSettings = PromptInferenceCapabilityResolver.presentation(
+            config: config,
+            modelOverride: nil,
+            requested: invalidDraft
+        )
+        XCTAssertEqual(invalidSettings.requestedSettings, invalidDraft)
+        XCTAssertEqual(
+            invalidSettings.validationError,
+            .outOfRange(field: .temperature, minimum: 0, maximum: 2)
+        )
+        XCTAssertEqual(invalidSettings.effectiveModel, "gemini-3.5-flash")
+        XCTAssertEqual(
+            invalidSettings.fieldCapabilities[.temperature]?.availability,
+            .supported
+        )
+        XCTAssertTrue(invalidSettings.fieldCapabilities[.temperature]?.isDiscouraged == true)
+
+        let invalidModel = PromptInferenceCapabilityResolver.presentation(
+            config: config,
+            modelOverride: "claude-sonnet-5",
+            requested: PromptInferenceSettings(temperature: 0.7)
+        )
+        XCTAssertEqual(invalidModel.requestedModelOverride, "claude-sonnet-5")
+        XCTAssertNil(invalidModel.effectiveModel)
+        XCTAssertEqual(
+            invalidModel.modelOverrideStatus,
+            .invalid(reason: "the model identifier does not match this provider.")
+        )
+        XCTAssertEqual(
+            invalidModel.fieldCapabilities[.temperature]?.defaultSource,
+            .provider
+        )
+    }
+
+    func testPresentationReportsImplementedReasoningChoicesWithoutInventingNativeMappings() {
+        let openAI = PromptInferenceCapabilityResolver.presentation(
+            config: .openai(apiKey: "key", model: "gpt-5.5"),
+            modelOverride: nil,
+            requested: nil
+        )
+        XCTAssertEqual(openAI.fieldCapabilities[.thinkingMode]?.availability, .unsupported)
+        XCTAssertTrue(openAI.fieldCapabilities[.thinkingMode]?.allowedThinkingModes.isEmpty == true)
+        XCTAssertTrue(openAI.fieldCapabilities[.reasoningEffort]?.allowedReasoningEfforts.isEmpty == true)
+
+        let custom = PromptInferenceCapabilityResolver.presentation(
+            config: .openaiCompatible(
+                model: "manual-model",
+                baseURL: URL(string: "http://localhost:8080/v1")!
+            ),
+            modelOverride: nil,
+            requested: nil
+        )
+        XCTAssertEqual(custom.fieldCapabilities[.thinkingMode]?.availability, .unverified)
+        XCTAssertEqual(
+            custom.fieldCapabilities[.thinkingMode]?.allowedThinkingModes,
+            PromptInferenceSettings.ThinkingMode.allCases
+        )
+        XCTAssertEqual(
+            custom.fieldCapabilities[.reasoningEffort]?.allowedReasoningEfforts,
+            PromptInferenceSettings.ReasoningEffort.allCases
+        )
+
+        let ollama = PromptInferenceCapabilityResolver.presentation(
+            config: .ollama(model: "qwen3.5:9b"),
+            modelOverride: nil,
+            requested: nil
+        )
+        XCTAssertEqual(ollama.fieldCapabilities[.thinkingMode]?.availability, .unverified)
+        XCTAssertEqual(ollama.fieldCapabilities[.reasoningEffort]?.availability, .unsupported)
+        XCTAssertTrue(ollama.fieldCapabilities[.reasoningEffort]?.allowedReasoningEfforts.isEmpty == true)
+    }
+
     func testAnthropicTopPReplacesInheritedTemperatureAndRegeneratesUnchanged() throws {
         let config = LLMProviderConfig.anthropic(apiKey: "key", model: "claude-haiku-4-5")
         for topP in [0.0, 0.9] {

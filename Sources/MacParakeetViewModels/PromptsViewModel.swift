@@ -64,6 +64,12 @@ public final class PromptsViewModel {
     public private(set) var promptVersions: [PromptVersion] = []
     public private(set) var availableLabels: [MeetingLabel] = []
     public private(set) var labelIDsByPromptID: [UUID: Set<UUID>] = [:]
+    /// The configured AI provider and model shown by prompt-level generation
+    /// settings. Keep the configuration itself private because it can carry an
+    /// API key; views only need this display-safe projection.
+    public private(set) var generationProviderID: LLMProviderID?
+    public private(set) var generationModelName = ""
+    public private(set) var generationAvailableModels: [String] = []
     public var newName: String = "" {
         didSet { resetValidationError() }
     }
@@ -134,6 +140,12 @@ public final class PromptsViewModel {
     private var editingService: PromptEditingServiceProtocol?
     private var labelRepository: MeetingLabelRepositoryProtocol?
     private var labelPolicyRepository: PromptLabelPolicyRepositoryProtocol?
+    private var configStore: LLMConfigStoreProtocol?
+    private var llmClient: LLMClientProtocol?
+    private var generationConfig: LLMProviderConfig?
+    private var generationConfigLoadTask: Task<Void, Never>?
+    private var generationModelListTask: Task<Void, Never>?
+    private var generationContextRevision = 0
 
     public init() {}
 
@@ -143,7 +155,9 @@ public final class PromptsViewModel {
         collectionRepo: PromptCollectionRepositoryProtocol? = nil,
         editingService: PromptEditingServiceProtocol? = nil,
         labelRepository: MeetingLabelRepositoryProtocol? = nil,
-        labelPolicyRepository: PromptLabelPolicyRepositoryProtocol? = nil
+        labelPolicyRepository: PromptLabelPolicyRepositoryProtocol? = nil,
+        configStore: LLMConfigStoreProtocol? = nil,
+        llmClient: LLMClientProtocol? = nil
     ) {
         self.repo = repo
         self.versionRepo = versionRepo
@@ -151,10 +165,13 @@ public final class PromptsViewModel {
         self.editingService = editingService
         self.labelRepository = labelRepository
         self.labelPolicyRepository = labelPolicyRepository
+        self.configStore = configStore
+        self.llmClient = llmClient
         loadPrompts()
         loadDeletedPrompts()
         loadCollections()
         loadLabels()
+        refreshGenerationSettingsContext()
     }
 
     public func loadPrompts() {
@@ -174,6 +191,65 @@ public final class PromptsViewModel {
         loadDeletedPrompts()
         loadCollections()
         loadLabels()
+        refreshGenerationSettingsContext()
+    }
+
+    /// Refreshes the display-safe provider/model context used by prompt-level
+    /// settings. Configuration access is kept off the main actor; the existing
+    /// model-list helper owns network work and its configuration staleness
+    /// guard.
+    public func refreshGenerationSettingsContext() {
+        generationConfigLoadTask?.cancel()
+        generationModelListTask?.cancel()
+        generationContextRevision += 1
+        let revision = generationContextRevision
+
+        guard let configStore else {
+            applyGenerationSettingsConfig(nil, revision: revision)
+            return
+        }
+
+        let llmClient = self.llmClient
+        generationConfigLoadTask = Task { [weak self, configStore] in
+            let config = await Task.detached(priority: .utility) {
+                try? configStore.loadConfig()
+            }.value
+            guard !Task.isCancelled else { return }
+            self?.applyGenerationSettingsConfig(
+                config,
+                llmClient: llmClient,
+                revision: revision
+            )
+        }
+    }
+
+    private func applyGenerationSettingsConfig(
+        _ config: LLMProviderConfig?,
+        llmClient: LLMClientProtocol? = nil,
+        revision: Int
+    ) {
+        guard revision == generationContextRevision else { return }
+        generationConfig = config
+        generationProviderID = config?.id
+        generationModelName = config?.modelName ?? ""
+
+        guard let config else {
+            generationAvailableModels = []
+            return
+        }
+
+        generationAvailableModels = LLMModelAvailability.pickerModels(
+            for: config,
+            discoveredModels: []
+        )
+        generationModelListTask = LLMModelAvailability.refreshPickerModelsTask(
+            for: config,
+            llmClient: llmClient,
+            configStore: configStore
+        ) { [weak self] models in
+            guard self?.generationContextRevision == revision else { return }
+            self?.generationAvailableModels = models
+        }
     }
 
     public func addPrompt() {

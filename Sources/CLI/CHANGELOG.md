@@ -117,6 +117,11 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Changed
 
+- Gemini 3 prompt generation and `llm summarize` inherit provider sampling
+  defaults instead of injecting temperature 0.7. Explicit saved overrides and
+  historical execution receipts retain their values; CLI flags and JSON shapes
+  are unchanged.
+
 - Prompt availability can be updated with `prompts set --label LABEL` or
   `--all-labels`, plus `--available`/`--unavailable`. Writes now affect the same
   label rules used by execution and preserve existing exceptions. JSON returns

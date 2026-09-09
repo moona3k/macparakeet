@@ -144,7 +144,173 @@ public struct PromptInferenceResolution: Sendable, Equatable {
     }
 }
 
+/// Presentation-only information for a prompt's effective provider and model.
+/// It intentionally preserves requested values even when dispatch validation
+/// would reject them, so callers can explain and remove an incompatible draft.
+public struct PromptInferencePresentation: Sendable, Equatable {
+    public enum ModelOverrideStatus: Sendable, Equatable {
+        case inherited
+        case applied
+        case invalid(reason: String)
+    }
+
+    public let provider: LLMProviderID
+    public let configuredModel: String
+    public let requestedModelOverride: String?
+    /// Nil when the requested override is locally incompatible.
+    public let effectiveModel: String?
+    public let modelOverrideStatus: ModelOverrideStatus
+    /// The caller's unmodified settings, including values that are currently unavailable.
+    public let requestedSettings: PromptInferenceSettings?
+    /// The settings that would be sent after resolver filtering, when valid.
+    public let effectiveSettings: PromptInferenceSettings?
+    /// Dispatch validation failure for `requestedSettings`, without dropping it.
+    public let validationError: PromptInferenceSettings.ValidationError?
+    public let fieldCapabilities: [PromptInferenceSettings.Field: PromptInferenceFieldCapability]
+
+    public init(
+        provider: LLMProviderID,
+        configuredModel: String,
+        requestedModelOverride: String?,
+        effectiveModel: String?,
+        modelOverrideStatus: ModelOverrideStatus,
+        requestedSettings: PromptInferenceSettings?,
+        effectiveSettings: PromptInferenceSettings?,
+        validationError: PromptInferenceSettings.ValidationError?,
+        fieldCapabilities: [PromptInferenceSettings.Field: PromptInferenceFieldCapability]
+    ) {
+        self.provider = provider
+        self.configuredModel = configuredModel
+        self.requestedModelOverride = requestedModelOverride
+        self.effectiveModel = effectiveModel
+        self.modelOverrideStatus = modelOverrideStatus
+        self.requestedSettings = requestedSettings
+        self.effectiveSettings = effectiveSettings
+        self.validationError = validationError
+        self.fieldCapabilities = fieldCapabilities
+    }
+}
+
+public struct PromptInferenceFieldCapability: Sendable, Equatable {
+    public enum Availability: String, Sendable, Equatable {
+        /// The current adapter has a documented request mapping for this field.
+        case supported
+        /// The current adapter does not send this field for the effective provider/model.
+        case unsupported
+        /// Explicit values are serialized, but endpoint or model acceptance is not known.
+        case unverified
+    }
+
+    public enum DefaultSource: String, Sendable, Equatable {
+        /// The application supplies a value when this field is left automatic.
+        case application
+        /// The application omits the field and lets the provider choose its default.
+        case provider
+        /// The integration cannot identify the automatic value's source.
+        case unknown
+        case notApplicable
+    }
+
+    /// A provider-documented range. Application validation bounds are never
+    /// represented here as a model limit.
+    public struct KnownRange: Sendable, Equatable {
+        public let minimum: Double
+        public let maximum: Double
+
+        public init(minimum: Double, maximum: Double) {
+            self.minimum = minimum
+            self.maximum = maximum
+        }
+    }
+
+    public let availability: Availability
+    public let allowedThinkingModes: [PromptInferenceSettings.ThinkingMode]
+    public let allowedReasoningEfforts: [PromptInferenceSettings.ReasoningEffort]
+    public let knownRange: KnownRange?
+    public let defaultSource: DefaultSource
+    public let reason: String?
+    public let isDiscouraged: Bool
+
+    public init(
+        availability: Availability,
+        allowedThinkingModes: [PromptInferenceSettings.ThinkingMode] = [],
+        allowedReasoningEfforts: [PromptInferenceSettings.ReasoningEffort] = [],
+        knownRange: KnownRange? = nil,
+        defaultSource: DefaultSource,
+        reason: String? = nil,
+        isDiscouraged: Bool = false
+    ) {
+        self.availability = availability
+        self.allowedThinkingModes = allowedThinkingModes
+        self.allowedReasoningEfforts = allowedReasoningEfforts
+        self.knownRange = knownRange
+        self.defaultSource = defaultSource
+        self.reason = reason
+        self.isDiscouraged = isDiscouraged
+    }
+}
+
 public enum PromptInferenceCapabilityResolver {
+    /// Returns editor and compatibility metadata without validating away a
+    /// saved draft. `resolve` remains the sole dispatch-validation path.
+    public static func presentation(
+        config: LLMProviderConfig,
+        modelOverride: String?,
+        baseline: ChatCompletionOptions = .default,
+        requested: PromptInferenceSettings?
+    ) -> PromptInferencePresentation {
+        let overrideResolution = config.resolvingModelOverride(modelOverride)
+        let effectiveConfig: LLMProviderConfig
+        let modelOverrideStatus: PromptInferencePresentation.ModelOverrideStatus
+        let effectiveModel: String?
+
+        switch overrideResolution {
+        case .resolved(let resolvedConfig):
+            effectiveConfig = resolvedConfig
+            effectiveModel = resolvedConfig.modelName
+            modelOverrideStatus = modelOverride == nil ? .inherited : .applied
+        case .invalid(_, let reason):
+            effectiveConfig = config
+            effectiveModel = nil
+            modelOverrideStatus = .invalid(reason: reason)
+        }
+
+        let effectiveSettings: PromptInferenceSettings?
+        let validationError: PromptInferenceSettings.ValidationError?
+        switch overrideResolution {
+        case .invalid:
+            effectiveSettings = nil
+            validationError = nil
+        case .resolved:
+            do {
+                effectiveSettings = try resolve(
+                    config: effectiveConfig,
+                    baseline: baseline,
+                    requested: requested
+                ).effectiveSettings
+                validationError = nil
+            } catch let error as PromptInferenceSettings.ValidationError {
+                effectiveSettings = nil
+                validationError = error
+            } catch {
+                effectiveSettings = nil
+                validationError = nil
+            }
+        }
+
+        return PromptInferencePresentation(
+            provider: config.id,
+            configuredModel: config.modelName,
+            requestedModelOverride: modelOverride,
+            effectiveModel: effectiveModel,
+            modelOverrideStatus: modelOverrideStatus,
+            requestedSettings: requested,
+            effectiveSettings: effectiveSettings,
+            validationError: validationError,
+            fieldCapabilities: fieldCapabilities(for: effectiveConfig, baseline: baseline)
+        )
+    }
+
     public static func resolve(
         config: LLMProviderConfig,
         baseline: ChatCompletionOptions = .default,
@@ -153,7 +319,11 @@ public enum PromptInferenceCapabilityResolver {
         let requested = try requested?.validated()
         var supported = supportedFields(for: config)
 
-        var resolvedOptions = legacyBaseline(config: config, baseline: baseline).applying(requested)
+        var resolvedOptions = legacyBaseline(
+            config: config,
+            baseline: baseline,
+            requested: requested
+        ).applying(requested)
         // Anthropic accepts one sampling control at a time. Top P wins over
         // both an explicit temperature and the inherited 0.7 default, so a
         // saved Top P receipt also remains stable when regenerated.
@@ -209,8 +379,21 @@ public enum PromptInferenceCapabilityResolver {
         case .ollama:
             return [.temperature, .topP, .topK, .maxTokens, .thinkingMode]
         case .openaiCompatible:
+            if OpenAIModelPolicy.requiresMaxCompletionTokens(model: config.modelName) {
+                var fields: Set<PromptInferenceSettings.Field> = [.maxTokens]
+                if !OpenAIModelPolicy.shouldOmitSampling(model: config.modelName) {
+                    fields.formUnion([.temperature, .topP])
+                }
+                return fields
+            }
             return [.temperature, .topP, .topK, .maxTokens, .thinkingMode, .reasoningEffort]
-        case .gemini, .openrouter, .lmstudio:
+        case .openrouter:
+            var fields: Set<PromptInferenceSettings.Field> = [.maxTokens]
+            if !OpenAIModelPolicy.shouldOmitSampling(model: config.modelName) {
+                fields.insert(.temperature)
+            }
+            return fields
+        case .gemini, .lmstudio:
             return [.temperature, .maxTokens]
         case .localCLI:
             return []
@@ -249,16 +432,148 @@ public enum PromptInferenceCapabilityResolver {
         )
     }
 
-    private static func legacyBaseline(
+    private static func fieldCapabilities(
+        for config: LLMProviderConfig,
+        baseline: ChatCompletionOptions
+    ) -> [PromptInferenceSettings.Field: PromptInferenceFieldCapability] {
+        Dictionary(
+            uniqueKeysWithValues: PromptInferenceSettings.Field.allCases.map { field in
+                (field, fieldCapability(for: field, config: config, baseline: baseline))
+            }
+        )
+    }
+
+    private static func fieldCapability(
+        for field: PromptInferenceSettings.Field,
         config: LLMProviderConfig,
         baseline: ChatCompletionOptions
+    ) -> PromptInferenceFieldCapability {
+        let supported = supportedFields(for: config).contains(field)
+        let availability: PromptInferenceFieldCapability.Availability
+        if !supported {
+            availability = .unsupported
+        } else if config.id == .openaiCompatible || config.id == .openrouter
+            || (config.id == .ollama && field == .thinkingMode)
+        {
+            availability = .unverified
+        } else {
+            availability = .supported
+        }
+
+        let isGemini3Temperature =
+            field == .temperature && config.id == .gemini && isGemini3(config.modelName)
+        let knownRange: PromptInferenceFieldCapability.KnownRange?
+        if field == .temperature,
+            config.id == .anthropic,
+            AnthropicModelPolicy.acceptsSampling(model: config.modelName)
+        {
+            knownRange = .init(minimum: 0, maximum: 1)
+        } else {
+            knownRange = nil
+        }
+
+        let allowedThinkingModes: [PromptInferenceSettings.ThinkingMode]
+        if field == .thinkingMode && availability != .unsupported,
+            config.id == .ollama || config.id == .openaiCompatible
+        {
+            allowedThinkingModes = PromptInferenceSettings.ThinkingMode.allCases
+        } else {
+            allowedThinkingModes = []
+        }
+
+        let allowedReasoningEfforts: [PromptInferenceSettings.ReasoningEffort]
+        if field == .reasoningEffort && availability != .unsupported, config.id == .openaiCompatible {
+            allowedReasoningEfforts = PromptInferenceSettings.ReasoningEffort.allCases
+        } else {
+            allowedReasoningEfforts = []
+        }
+
+        let reason: String?
+        switch availability {
+        case .supported:
+            reason = isGemini3Temperature
+                ? "Gemini 3 recommends automatic sampling for this setting."
+                : nil
+        case .unsupported:
+            reason = field == .thinkingMode || field == .reasoningEffort
+                ? "Not available with this provider or model."
+                : "This provider or model does not support this setting."
+        case .unverified:
+            reason = config.id == .ollama
+                ? "Thinking support depends on the selected Ollama model; sent as requested."
+                : "Custom endpoint support is unverified; sent as requested."
+        }
+
+        return PromptInferenceFieldCapability(
+            availability: availability,
+            allowedThinkingModes: allowedThinkingModes,
+            allowedReasoningEfforts: allowedReasoningEfforts,
+            knownRange: knownRange,
+            defaultSource: defaultSource(for: field, config: config, baseline: baseline, availability: availability),
+            reason: reason,
+            isDiscouraged: isGemini3Temperature && availability == .supported
+        )
+    }
+
+    private static func defaultSource(
+        for field: PromptInferenceSettings.Field,
+        config: LLMProviderConfig,
+        baseline: ChatCompletionOptions,
+        availability: PromptInferenceFieldCapability.Availability
+    ) -> PromptInferenceFieldCapability.DefaultSource {
+        guard availability != .unsupported else { return .notApplicable }
+        if field == .maxTokens, config.id == .anthropic { return .application }
+        if field == .thinkingMode, config.id == .ollama { return .application }
+
+        let automatic = legacyBaseline(config: config, baseline: baseline, requested: nil)
+        let appliesApplicationValue: Bool
+        switch field {
+        case .temperature: appliesApplicationValue = automatic.temperature != nil
+        case .topP: appliesApplicationValue = automatic.topP != nil
+        case .topK: appliesApplicationValue = automatic.topK != nil
+        case .maxTokens: appliesApplicationValue = automatic.maxTokens != nil
+        case .thinkingMode: appliesApplicationValue = automatic.thinkingMode != .providerDefault
+        case .reasoningEffort: appliesApplicationValue = automatic.reasoningEffort != nil
+        }
+        return appliesApplicationValue ? .application : .provider
+    }
+
+    private static func legacyBaseline(
+        config: LLMProviderConfig,
+        baseline: ChatCompletionOptions,
+        requested: PromptInferenceSettings?
     ) -> ChatCompletionOptions {
-        guard config.id == .ollama else { return baseline }
+        if config.id == .ollama {
+            return ChatCompletionOptions(
+                thinkingMode: .disabled,
+                responseFormat: baseline.responseFormat,
+                conversationID: baseline.conversationID
+            )
+        }
+        // Prompt-generation callers inherit `.default`. Gemini 3 recommends
+        // omitting that legacy 0.7 baseline so its provider default applies.
+        // An explicit prompt temperature, including a historical 0.7 receipt,
+        // is overlaid below and therefore remains an explicit request.
+        guard config.id == .gemini,
+            isGemini3(config.modelName),
+            baseline == .default,
+            requested?.temperature == nil
+        else {
+            return baseline
+        }
         return ChatCompletionOptions(
-            thinkingMode: .disabled,
+            topP: baseline.topP,
+            topK: baseline.topK,
+            maxTokens: baseline.maxTokens,
+            thinkingMode: baseline.thinkingMode,
+            reasoningEffort: baseline.reasoningEffort,
             responseFormat: baseline.responseFormat,
             conversationID: baseline.conversationID
         )
+    }
+
+    private static func isGemini3(_ model: String) -> Bool {
+        model.lowercased().hasPrefix("gemini-3")
     }
 
     private static func effectiveSettings(
@@ -307,22 +622,46 @@ private extension ChatCompletionOptions {
 }
 
 enum OpenAIModelPolicy {
-    static func shouldOmitSampling(model: String) -> Bool {
+    /// Last path component of a provider-prefixed ID (`openai/gpt-5.6-luna` →
+    /// `gpt-5.6-luna`). Gateways use this form; native OpenAI IDs are unchanged.
+    static func canonicalModelID(_ model: String) -> String {
         let lowered = model.lowercased()
-        if isReasoningModel(lowered) { return true }
-        if lowered.contains("chat") { return false }
-        guard lowered.hasPrefix("gpt-") else { return false }
-        let digits = lowered.dropFirst(4).prefix(while: { $0.isNumber })
-        return (Int(digits) ?? 0) >= 5
+        guard let slash = lowered.lastIndex(of: "/") else { return lowered }
+        return String(lowered[lowered.index(after: slash)...])
     }
 
-    private static func isReasoningModel(_ model: String) -> Bool {
-        guard model.hasPrefix("o") else { return false }
-        let suffix = model.dropFirst()
+    static func shouldOmitSampling(model: String) -> Bool {
+        let id = canonicalModelID(model)
+        if isReasoningModel(id) { return true }
+        if id.contains("chat") { return false }
+        return gptMajorVersion(id).map { $0 >= 5 } ?? false
+    }
+
+    static func requiresMaxCompletionTokens(model: String) -> Bool {
+        let id = canonicalModelID(model)
+        if isReasoningModel(id) { return true }
+        return gptMajorVersion(id).map { $0 >= 5 } ?? false
+    }
+
+    static func isReasoningModelID(_ model: String) -> Bool {
+        isReasoningModel(canonicalModelID(model))
+    }
+
+    /// Major version of a `gpt-<n>...` model ID, accepting gateway prefixes.
+    static func gptMajorVersion(_ model: String) -> Int? {
+        let id = canonicalModelID(model)
+        guard id.hasPrefix("gpt-") else { return nil }
+        let digits = id.dropFirst(4).prefix(while: { $0.isNumber })
+        return Int(digits)
+    }
+
+    private static func isReasoningModel(_ id: String) -> Bool {
+        guard id.hasPrefix("o") else { return false }
+        let suffix = id.dropFirst()
         guard let generation = suffix.first, generation.isNumber else { return false }
         let prefix = "o\(generation)"
-        let boundary = model.dropFirst(prefix.count).first
-        return model.hasPrefix(prefix) && (boundary == nil || boundary == "-")
+        let boundary = id.dropFirst(prefix.count).first
+        return id.hasPrefix(prefix) && (boundary == nil || boundary == "-")
     }
 }
 

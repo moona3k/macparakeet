@@ -529,6 +529,30 @@ final class LLMHTTPAdapterTests: XCTestCase {
         }
     }
 
+    func testGemini3PromptResolutionOmitsInheritedTemperatureButSendsHistoricalOverride() throws {
+        let config = LLMProviderConfig.gemini(apiKey: "key", model: "gemini-3.5-flash")
+        let automatic = try PromptInferenceCapabilityResolver.resolve(config: config, requested: nil)
+        let automaticRequest = try openAIAdapter.buildRequest(
+            messages: goldenMessages,
+            config: config,
+            options: automatic.options,
+            stream: false
+        )
+        XCTAssertNil(try jsonBody(from: automaticRequest)["temperature"])
+
+        let historicalReceipt = try PromptInferenceCapabilityResolver.resolve(
+            config: config,
+            requested: PromptInferenceSettings(temperature: 0.7)
+        )
+        let historicalRequest = try openAIAdapter.buildRequest(
+            messages: goldenMessages,
+            config: config,
+            options: historicalReceipt.options,
+            stream: false
+        )
+        XCTAssertEqual(try jsonBody(from: historicalRequest)["temperature"] as? Double, 0.7)
+    }
+
     func testOpenAICompatibleAdapterEncodesNullableKnowledgeCardOwnerSchema() async throws {
         var capturedRequest: URLRequest?
 

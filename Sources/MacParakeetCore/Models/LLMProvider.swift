@@ -442,3 +442,61 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
     }
 
 }
+
+/// A model override checked against the provider rules that can be evaluated
+/// without making a network request. Endpoint-specific providers deliberately
+/// retain arbitrary non-empty model IDs for the generation endpoint to verify.
+public enum LLMModelOverrideResolution: Sendable, Equatable {
+    case resolved(LLMProviderConfig)
+    case invalid(model: String, reason: String)
+}
+
+public extension LLMProviderConfig {
+    /// Produces a request-scoped configuration without mutating stored settings.
+    /// The same rule is used before dispatch and when presenting prompt settings.
+    func resolvingModelOverride(_ rawModelOverride: String?) -> LLMModelOverrideResolution {
+        guard let rawModelOverride else { return .resolved(self) }
+        let modelOverride = rawModelOverride.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !modelOverride.isEmpty else {
+            return .invalid(model: rawModelOverride, reason: "the model name is empty.")
+        }
+        guard Self.isLocallyCompatible(modelOverride, with: id) else {
+            return .invalid(
+                model: modelOverride,
+                reason: "the model identifier does not match this provider."
+            )
+        }
+        guard modelOverride != modelName else { return .resolved(self) }
+        guard id != .localCLI else {
+            return .invalid(
+                model: modelOverride,
+                reason: "the configured CLI command controls its model. "
+                    + "Remove the override or change the command in Settings."
+            )
+        }
+        return .resolved(
+            LLMProviderConfig(
+                id: id,
+                baseURL: baseURL,
+                apiKey: apiKey,
+                modelName: modelOverride,
+                isLocal: isLocal
+            )
+        )
+    }
+
+    private static func isLocallyCompatible(_ model: String, with provider: LLMProviderID) -> Bool {
+        switch provider {
+        case .anthropic:
+            return model.hasPrefix("claude-")
+        case .gemini:
+            let lowered = model.lowercased()
+            return lowered.hasPrefix("gemini-") || lowered.hasPrefix("gemma-")
+        case .openrouter:
+            let components = model.split(separator: "/", omittingEmptySubsequences: false)
+            return components.count == 2 && components.allSatisfy { !$0.isEmpty }
+        case .openai, .openaiCompatible, .ollama, .lmstudio, .localCLI, .inProcessLocal:
+            return true
+        }
+    }
+}

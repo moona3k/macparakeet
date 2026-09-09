@@ -162,7 +162,10 @@ with human progress/status kept off stdout.
   effective receipt is available; callers must not reinterpret it as raw
   upstream-provider defaults. `llm summarize --json` uses the same generation
   path and may report its resolved baseline settings without loading a saved
-  prompt. Chat and Transform commands omit this receipt.
+  prompt. For Gemini 3 models, inherited prompt-generation sampling omits
+  temperature so the provider chooses its default; an explicit saved temperature
+  remains an override. This applies to `prompts run` and the shared `llm summarize`
+  path. Historical receipts are not rewritten. Chat and Transform commands omit this receipt.
   `prompts set` can create or clear versioned model and inference overrides with
   `--model|--active-model`, sampling, thinking, and
   `--provider-default-settings` flags. Results do not include requested-settings

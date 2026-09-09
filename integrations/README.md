@@ -490,6 +490,15 @@ prompt-result defaults. `prompts run --json` includes additive optional
 provider/model-filtered receipt of settings actually sent, not a copy of the
 unfiltered prompt request. Automations should treat either field as optional
 and must not infer provider support from `inferenceSettings` alone.
+
+The prompt editor derives available controls from the effective provider/model,
+including a prompt's model override. Inherited values stay unset until explicitly
+customized; custom endpoint capabilities are not assumed to match native vendor
+APIs. For Gemini 3, inherited prompt sampling omits temperature instead of sending
+the app's legacy default. Explicit overrides and historical execution receipts
+retain their values. The same resolver serves `prompts run` and `llm summarize`;
+this changes no command flags or JSON field names.
+
 `prompts set` configures these settings through `--temperature`, `--top-p`,
 `--top-k`, `--max-tokens`, `--thinking-mode`, and `--reasoning-effort`. Use
 `--model` for a model override, `--active-model` to clear that override, or

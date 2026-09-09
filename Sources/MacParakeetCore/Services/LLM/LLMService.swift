@@ -1443,63 +1443,18 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         _ context: LLMExecutionContext,
         overridingModelWith modelOverride: String?
     ) throws -> LLMExecutionContext {
-        guard let rawModelOverride = modelOverride else { return context }
-        let modelOverride = rawModelOverride.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !modelOverride.isEmpty else {
+        switch context.providerConfig.resolvingModelOverride(modelOverride) {
+        case .resolved(let providerConfig):
+            return LLMExecutionContext(
+                providerConfig: providerConfig,
+                localCLIConfig: context.localCLIConfig
+            )
+        case .invalid(let model, let reason):
             throw LLMError.invalidModelOverride(
-                model: rawModelOverride,
+                model: model,
                 provider: context.providerConfig.id,
-                reason: "the model name is empty."
+                reason: reason
             )
-        }
-        guard Self.isLocallyCompatible(modelOverride, with: context.providerConfig.id) else {
-            throw LLMError.invalidModelOverride(
-                model: modelOverride,
-                provider: context.providerConfig.id,
-                reason: "the model identifier does not match this provider."
-            )
-        }
-        guard modelOverride != context.providerConfig.modelName else { return context }
-
-        guard context.providerConfig.id != .localCLI else {
-            throw LLMError.invalidModelOverride(
-                model: modelOverride,
-                provider: .localCLI,
-                reason: "the configured CLI command controls its model. "
-                    + "Remove the override or change the command in Settings."
-            )
-        }
-
-        let config = context.providerConfig
-        return LLMExecutionContext(
-            providerConfig: LLMProviderConfig(
-                id: config.id,
-                baseURL: config.baseURL,
-                apiKey: config.apiKey,
-                modelName: modelOverride,
-                isLocal: config.isLocal
-            ),
-            localCLIConfig: context.localCLIConfig
-        )
-    }
-
-    /// Rejects provider/model combinations that can be disproved without a
-    /// network request. OpenAI-compatible and local runtimes intentionally
-    /// accept arbitrary non-empty identifiers because their installed model
-    /// sets are endpoint-specific. Discovery lists can omit valid aliases, so
-    /// the generation endpoint validates existence without a fallback model.
-    private static func isLocallyCompatible(_ model: String, with provider: LLMProviderID) -> Bool {
-        switch provider {
-        case .anthropic:
-            return model.hasPrefix("claude-")
-        case .gemini:
-            let lowered = model.lowercased()
-            return lowered.hasPrefix("gemini-") || lowered.hasPrefix("gemma-")
-        case .openrouter:
-            let components = model.split(separator: "/", omittingEmptySubsequences: false)
-            return components.count == 2 && components.allSatisfy { !$0.isEmpty }
-        case .openai, .openaiCompatible, .ollama, .lmstudio, .localCLI, .inProcessLocal:
-            return true
         }
     }
 

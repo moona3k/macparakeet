@@ -1290,6 +1290,27 @@ retains version metadata, text/settings comparisons, and restore-as-new-version.
 Restoring requires explicit confirmation; cancelling ordinary edits does not
 silently discard or restore a version. Deleted prompts remain recoverable.
 
+Generation settings use the effective provider and model, including any prompt
+model override. The collapsed summary distinguishes inherited AI settings from
+explicit overrides. **Use AI settings** shows the current provider/model; the
+model chooser retains custom-ID entry when model discovery is unavailable.
+Opening and saving an untouched editor preserves inheritance rather than saving
+displayed defaults as explicit values.
+
+Controls reflect what the integration sends and identify unverified custom
+endpoint support. Known model/provider restrictions and setting combinations apply before save; inherited values are
+identified as app or provider defaults. Unknown defaults and model limits are
+not presented as exact numbers. Existing unsupported overrides remain visible
+with an explanation and an explicit removal action. Custom compatible endpoints
+retain manual configuration with an unverified-support explanation. Reasoning
+controls are unavailable when the adapter cannot send them. The same effective
+model drives run-screen compatibility feedback and request resolution.
+
+Gemini 3 inherited prompt sampling uses the provider default instead of injecting
+the app's legacy temperature. Explicit settings and historical execution receipts
+remain intact. This does not introduce a separate global numeric settings layer
+or change the Transforms editor.
+
 Availability and automatic generation are separate controls. **All transcriptions**
 is the common default; selected labels permit any matching transcription,
 independent of its source. Source-aware auto-run only runs an available prompt.

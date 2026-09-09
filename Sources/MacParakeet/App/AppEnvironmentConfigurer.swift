@@ -192,7 +192,9 @@ final class AppEnvironmentConfigurer {
             collectionRepo: env.promptCollectionRepo,
             editingService: env.promptEditingService,
             labelRepository: env.meetingLabelRepo,
-            labelPolicyRepository: env.promptLabelPolicyRepo
+            labelPolicyRepository: env.promptLabelPolicyRepo,
+            configStore: env.llmConfigStore,
+            llmClient: env.llmClient
         )
         promptsViewModel.onTransformsChanged = {
             NotificationCenter.default.post(name: .transformsBindingsChanged, object: nil)
@@ -587,6 +589,7 @@ final class AppEnvironmentConfigurer {
             cardGenerator: hasConfig ? env.cardGenerationService : nil
         )
         transformsViewModel.setHasLLMProvider(hasConfig)
+        promptsViewModel.refreshGenerationSettingsContext()
         liveMeetingCoordinator?.updateLLMService(service)
     }
 }
