@@ -83,7 +83,8 @@ OpenAI-family model IDs (`gpt-5.x`, `o3`, and prefixed forms such as
 `openai/gpt-5.6-luna`) use the native OpenAI chat-completions parameter policy
 on that path: omit sampling the model rejects, send `max_completion_tokens`,
 and do not attach llama.cpp `chat_template_kwargs`. Generic local model IDs
-keep the broader compatible mapping.
+keep the broader compatible mapping. OpenRouter shares this adapter, so the
+same model-ID policy applies there.
 
 **Local CLI:** Users with Claude Code or Codex subscriptions can use their CLI tools directly. The app runs the configured command as a subprocess via `posix_spawn`, delivering prompts via stdin and `MACPARAKEET_*` environment variables. No API key needed — the CLI tool manages its own authentication. Built-in presets for Claude Code (`claude -p --model haiku`) and Codex (`codex exec --model gpt-5.4-mini`), or any custom command. See PR #47.
 
@@ -266,8 +267,9 @@ capability contract is:
 | Native OpenAI | `temperature` and `topP` when model policy permits them; `maxTokens` through the existing token-key policy |
 | Native Anthropic | `temperature` in `0...1` or `topP` in `0...1` when model-compatible (Top P wins); `maxTokens` |
 | Native Ollama | Temperature, top-p, top-k, output tokens, and thinking; numeric values use Ollama `options`, thinking uses top-level `think`; reasoning effort is unsupported |
-| Custom OpenAI-compatible | All six settings; thinking uses `chat_template_kwargs.enable_thinking`, and optional effort uses `chat_template_kwargs.reasoning_effort` only while thinking is enabled |
-| Gemini, OpenRouter, LM Studio | `temperature` and `maxTokens` initially |
+| Custom OpenAI-compatible | All six settings for generic local IDs; thinking uses `chat_template_kwargs.enable_thinking`, and optional effort uses `chat_template_kwargs.reasoning_effort` only while thinking is enabled. OpenAI-family IDs follow the native OpenAI token-key and sampling policy instead of the llama.cpp mapping |
+| OpenRouter | `maxTokens` through the existing token-key policy; `temperature` when model policy permits it |
+| Gemini, LM Studio | `temperature` and `maxTokens` initially |
 | In-process local | `temperature` and `maxTokens` |
 | Local CLI | None in the initial contract |
 
