@@ -905,11 +905,12 @@ final class PromptsViewModelTests: XCTestCase {
         let store = MockLLMConfigStore()
         store.config = .openai(apiKey: "key", model: "gpt-5.5")
         let client = MockLLMClient()
+        client.modelsList = ["discovered-model"]
         client.listModelsError = LLMError.connectionFailed("offline")
         viewModel.configure(repo: repo, configStore: store, llmClient: client)
-        try await waitUntil { self.viewModel.generationProviderID == .openai }
-        try await Task.sleep(for: .milliseconds(50))
+        try await waitUntil(timeout: .seconds(2)) { client.listModelsCompletedCount >= 1 }
 
+        XCTAssertEqual(client.listModelsCallCount, 1)
         XCTAssertTrue(viewModel.generationAvailableModels.contains("gpt-5.5"))
         XCTAssertFalse(viewModel.generationAvailableModels.contains("discovered-model"))
     }
@@ -919,19 +920,28 @@ final class PromptsViewModelTests: XCTestCase {
         store.config = .openai(apiKey: "key", model: "gpt-5.5")
         let client = MockLLMClient()
         client.modelsList = ["stale-openai-model"]
-        client.listModelsDelayNs = 250_000_000
+        client.holdListModels = true
+        defer { client.releaseHeldListModels() }
         viewModel.configure(repo: repo, configStore: store, llmClient: client)
-        try await waitUntil { self.viewModel.generationProviderID == .openai }
+        try await waitUntil(timeout: .seconds(2)) { client.listModelsCallCount >= 1 }
 
         store.config = .anthropic(apiKey: "key", model: "claude-haiku-4-5")
         client.modelsList = ["claude-discovered"]
-        client.listModelsDelayNs = 0
+        client.holdListModels = false
         viewModel.refreshGenerationSettingsContext()
-        try await waitUntil { self.viewModel.generationProviderID == .anthropic }
-        try await Task.sleep(for: .milliseconds(400))
+        try await waitUntil(timeout: .seconds(2)) { client.listModelsCallCount >= 2 }
+        try await waitUntil(timeout: .seconds(2)) {
+            self.viewModel.generationAvailableModels.contains("claude-discovered")
+        }
 
+        XCTAssertEqual(client.listModelsCompletedCount, 1)
         XCTAssertFalse(viewModel.generationAvailableModels.contains("stale-openai-model"))
-        XCTAssertTrue(viewModel.generationAvailableModels.contains("claude-haiku-4-5"))
+        XCTAssertTrue(viewModel.generationAvailableModels.contains("claude-discovered"))
+
+        client.releaseHeldListModels()
+        try await waitUntil(timeout: .seconds(2)) { client.listModelsCompletedCount >= 2 }
+        XCTAssertFalse(viewModel.generationAvailableModels.contains("stale-openai-model"))
+        XCTAssertTrue(viewModel.generationAvailableModels.contains("claude-discovered"))
     }
 
     private func loadGenerationConfig(_ config: LLMProviderConfig) async throws {

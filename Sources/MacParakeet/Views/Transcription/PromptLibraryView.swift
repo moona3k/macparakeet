@@ -1546,11 +1546,6 @@ private struct GenerationSettingsEditor: View {
                 isExpanded = true
             }
         }
-        .onChange(of: draft) { _, newDraft in
-            if newDraft.isDefault {
-                customizingFields = []
-            }
-        }
         .onChange(of: modelOverride) { _, _ in
             modelSelection.reconcile(
                 modelOverride: modelOverride,
