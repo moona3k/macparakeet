@@ -1,0 +1,44 @@
+Sources/MacParakeetCore/Models/PromptInferenceSettings.swift
+  s_632fe40950d5d9::t_6d78c005fb41e0 652
+  s_8408739a4a9fbb::t_3f5245d7f42a41 626-627,651
+Sources/CLI/CHANGELOG.md
+  s_8408739a4a9fbb::t_b726d40c65d9f0 92-99
+Sources/MacParakeetCore/Services/LLM/LLMHTTPTransport.swift
+  s_8408739a4a9fbb::t_c4cd197fb9cca2 144,157,177-203
+Sources/MacParakeetCore/Services/LLM/OpenAICompatibleLLMHTTPAdapter.swift
+  s_8408739a4a9fbb::t_9ec44c6b6c4cb8 224-225,310-321,325,331-333,372,378,385-386,388,392-393,395,399
+Tests/MacParakeetTests/Models/PromptInferenceSettingsTests.swift
+  s_8408739a4a9fbb::t_59faf19620ec2c 178-185
+Tests/MacParakeetTests/Services/LLM/LLMClientTests.swift
+  s_8408739a4a9fbb::t_ecbec370f780ff 527-564,590-601,647-668,1061,1082-1107
+Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift
+  s_8408739a4a9fbb::t_e7f5bc88802a40 516-519,526-529,562-660
+spec/11-llm-integration.md
+  s_8408739a4a9fbb::t_438549641ab698 81-88,270-272
+spec/14-per-prompt-inference-settings.md
+  s_8408739a4a9fbb::t_127b27645d5386 215,219-220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "e914a2d4fd2b46b914931ee45d1e46d00b73e25f",
+  "prompts": {},
+  "sessions": {
+    "s_632fe40950d5d9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "93db28df-a74e-466c-a31f-a344cba374ce",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_8408739a4a9fbb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ae-f1a3-7481-bf0f-88e289444b74",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
