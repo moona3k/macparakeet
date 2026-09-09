@@ -572,6 +572,79 @@ final class MeetingsWorkspaceViewModelTests: XCTestCase {
         }
     }
 
+    func testLabelPolicyReloadFailureHidesUnknownChipsPreservesRestrictedCacheAndSurvivesMeetingReload() async throws {
+        let promptRepo = MockPromptRepository()
+        let summary = makeResultPrompt(name: "Summary", isAutoRun: true, sortOrder: 0)
+        let actionItems = makeResultPrompt(name: "Action Items", isAutoRun: false, sortOrder: 1)
+        promptRepo.prompts = [summary, actionItems]
+        let labelPolicyRepo = MockPromptLabelPolicyRepository()
+        labelPolicyRepo.fetchError = PromptLabelPolicyFetchError()
+        let meetingPolicyRepo = MockPromptMeetingPolicyRepository()
+        meetingPolicyRepo.policiesByPromptID[summary.id] = [.defaultForNewPrompt(summary)]
+        meetingPolicyRepo.policiesByPromptID[actionItems.id] = [.defaultForNewPrompt(actionItems)]
+        let viewModel = makeViewModel()
+        viewModel.configure(
+            transcriptionRepo: MockTranscriptionRepository(),
+            promptRepo: promptRepo,
+            promptMeetingPolicyRepository: meetingPolicyRepo,
+            promptLabelPolicyRepository: labelPolicyRepo
+        )
+
+        await viewModel.refreshAutoNotes().value
+
+        XCTAssertTrue(
+            viewModel.meetingAutoNotePrompts.isEmpty,
+            "First-load failure must not treat empty policies as unrestricted."
+        )
+        XCTAssertFalse(viewModel.isMeetingAutoNote(summary))
+        XCTAssertNotNil(viewModel.meetingPolicyErrorMessage)
+        viewModel.setMeetingAutoNote(summary, enabled: false)
+        XCTAssertTrue(
+            try XCTUnwrap(promptRepo.fetch(id: summary.id)).autoRuns(for: .meeting),
+            "Unknown availability must not keep offering auto-note toggles."
+        )
+
+        await viewModel.loadPromptMeetingPolicies().value
+        XCTAssertNotNil(viewModel.meetingPolicyErrorMessage)
+        XCTAssertTrue(viewModel.meetingAutoNotePrompts.isEmpty)
+
+        let customerLabelID = UUID()
+        labelPolicyRepo.fetchError = nil
+        labelPolicyRepo.policiesByPromptID[actionItems.id] = [
+            PromptLabelPolicy(promptId: actionItems.id, scopeKind: .all, isAvailable: false),
+            PromptLabelPolicy(
+                promptId: actionItems.id,
+                scopeKind: .label,
+                labelId: customerLabelID,
+                isAvailable: true
+            ),
+        ]
+        await viewModel.refreshAutoNotes().value
+
+        XCTAssertNil(viewModel.meetingPolicyErrorMessage)
+        XCTAssertEqual(viewModel.meetingAutoNotePrompts.map(\.name), ["Summary"])
+        XCTAssertTrue(viewModel.isMeetingAutoNote(summary))
+        XCTAssertFalse(viewModel.meetingAutoNotePrompts.contains { $0.id == actionItems.id })
+
+        labelPolicyRepo.fetchError = PromptLabelPolicyFetchError()
+        await viewModel.refreshAutoNotes().value
+
+        XCTAssertNotNil(viewModel.meetingPolicyErrorMessage)
+        XCTAssertEqual(viewModel.meetingAutoNotePrompts.map(\.name), ["Summary"])
+        XCTAssertTrue(viewModel.isMeetingAutoNote(summary))
+        XCTAssertFalse(
+            viewModel.meetingAutoNotePrompts.contains { $0.id == actionItems.id },
+            "Last-good restrictions must survive a later read failure."
+        )
+
+        await viewModel.loadPromptMeetingPolicies().value
+        XCTAssertNotNil(
+            viewModel.meetingPolicyErrorMessage,
+            "Meeting-policy reload success must not clear a label-policy load error."
+        )
+        XCTAssertFalse(viewModel.meetingAutoNotePrompts.contains { $0.id == actionItems.id })
+    }
+
     func testSuccessfulDetailRenamePropagatesAcrossSeparateMeetingCollectionsInPlace() async throws {
         let target = Transcription(
             createdAt: Date(timeIntervalSinceReferenceDate: 300),
@@ -895,5 +968,48 @@ final class MeetingsWorkspaceViewModelTests: XCTestCase {
             calendarIdentifier: calendarIdentifier,
             userStatus: userStatus
         )
+    }
+}
+
+private struct PromptLabelPolicyFetchError: Error {}
+
+private final class MockPromptLabelPolicyRepository: PromptLabelPolicyRepositoryProtocol, @unchecked Sendable {
+    var policiesByPromptID: [UUID: [PromptLabelPolicy]] = [:]
+    var fetchError: Error?
+
+    func fetchPolicies(promptId: UUID) throws -> [PromptLabelPolicy] {
+        if let fetchError { throw fetchError }
+        return policiesByPromptID[promptId] ?? []
+    }
+
+    func fetchPolicies(promptIds: Set<UUID>) throws -> [PromptLabelPolicy] {
+        if let fetchError { throw fetchError }
+        return promptIds.flatMap { policiesByPromptID[$0] ?? [] }
+    }
+
+    func replaceTargetLabels(promptId: UUID, labelIds: Set<UUID>) throws {
+        let now = Date()
+        policiesByPromptID[promptId] =
+            labelIds.isEmpty
+            ? []
+            : [
+                PromptLabelPolicy(
+                    promptId: promptId,
+                    scopeKind: .all,
+                    isAvailable: false,
+                    createdAt: now,
+                    updatedAt: now
+                )
+            ]
+                + labelIds.map {
+                    PromptLabelPolicy(
+                        promptId: promptId,
+                        scopeKind: .label,
+                        labelId: $0,
+                        isAvailable: true,
+                        createdAt: now,
+                        updatedAt: now
+                    )
+                }
     }
 }

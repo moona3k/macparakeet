@@ -28,6 +28,11 @@ used by Prompt Library and execution. Its display uses label availability and
 Meetings refreshes its prompt snapshot, so edits made in the separate Prompts
 screen are reflected without reloading the calendar or recent-meeting list.
 
+Review also identified a misleading fallback on label-policy read errors. The
+card preserves its last known restrictions, treats an initial failed load as
+unknown, and displays an error instead of offering switches. A successful
+legacy meeting-policy reload cannot clear the separate label-policy error.
+
 No reverse migration is appropriate: published 0.7.3 already stores auto-run in
 these canonical fields. The legacy table was introduced only in development.
 Existing development testers may see the card return to the settings execution
@@ -42,10 +47,13 @@ preferences were rewritten during this review.
 | Original defect | Two production-wiring regressions failed before the fix. Real repositories plus a mock LLM prove queue selection without provider calls. |
 | Focused fix tests | 72 workspace/result tests passed. Coverage includes Summary off, Action Items on, other-source preservation, hidden prompts, and labeled/unlabeled queues. |
 | Tab-return defect | A separate real-repository regression failed before the refresh correction. All 22 workspace tests passed afterward, including unchanged calendar/list fetch counts. |
+| Availability read errors | Regression failed before correction; all 23 workspace tests passed afterward. First-load errors hide unknown controls, later errors preserve restrictions, and legacy policy success cannot erase the error. Independent Grok review: LGTM. |
 | CLI version | Two `CLIVersionTests` passed. Unreleased gateway notes and inference flags are recorded under the unpublished 4.0.0 release. |
 | Distribution fixtures | Version and privacy validation fixture scripts passed; distribution scripts were not changed. |
 | Initial real bundle | Built 0.8.0 / `20260909074325` at `9eebffc7`, CLI 4.0.0, required echo assets verified. **Predates fix; not a final artifact.** |
 | Initial CLI runtime | Raw-mode local transcription/export and disposable-database collections, prompts, label colors/rename, versioned model/settings, label availability, and reset commands passed in that initial bundle. |
+| Intermediate signed bundle | Build `20260909082721`, source `6c0200ae`, passed signing/privacy/echo checks, helper startup, and local transcription/export. Its notarization upload is preserved under submission `a2c56ec5-7fa1-4726-8732-a13f4d46708e`; it predates the availability-error correction and is superseded. |
+| Isolated GUI startup | A separately identified copy of `6c0200ae` opened Meetings against a verified disposable SQLite path. Auto-note chips required AI setup, so no GUI toggle or provider configuration was attempted. The QA copy quit normally; the user's open app was untouched. |
 
 Local detailed review and command logs are under `/tmp/macparakeet-release-*` on
 the review host. They are supporting local evidence, not durable public assets.

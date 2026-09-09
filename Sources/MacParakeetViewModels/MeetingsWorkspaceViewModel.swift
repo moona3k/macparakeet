@@ -84,7 +84,9 @@ public final class MeetingsWorkspaceViewModel {
     /// before enqueue so prompt routing stays deterministic.
     public var recordingMeetingTypeID: UUID?
     public private(set) var promptPoliciesByPromptID: [UUID: [PromptMeetingPolicy]] = [:]
-    public var meetingPolicyErrorMessage: String?
+    public var meetingPolicyErrorMessage: String? {
+        promptLabelPolicyErrorMessage ?? promptMeetingPolicyErrorMessage
+    }
 
     public var meetingClassificationViewModel: MeetingClassificationViewModel {
         recentMeetingsViewModel.meetingClassificationViewModel
@@ -94,6 +96,9 @@ public final class MeetingsWorkspaceViewModel {
     @ObservationIgnored private var promptMeetingPolicyRepository: (any PromptMeetingPolicyRepositoryProtocol)?
     @ObservationIgnored private var promptLabelPolicyRepository: (any PromptLabelPolicyRepositoryProtocol)?
     @ObservationIgnored private var promptLabelPoliciesByPromptID: [UUID: [PromptLabelPolicy]] = [:]
+    private var hasLoadedPromptLabelPolicies = false
+    private var promptLabelPolicyErrorMessage: String?
+    private var promptMeetingPolicyErrorMessage: String?
     @ObservationIgnored private var upcomingEventsTask: Task<Void, Never>?
     @ObservationIgnored private var upcomingEventsGeneration = 0
     @ObservationIgnored private var promptPolicyLoadTask: Task<Void, Never>?
@@ -250,9 +255,11 @@ public final class MeetingsWorkspaceViewModel {
     /// Hidden prompts can't auto-run, so they're excluded from the card.
     /// Label targeting uses the same availability rules as post-meeting
     /// execution for an unlabeled recording. (`promptsViewModel.prompts` is
-    /// already `.result`-only.)
+    /// already `.result`-only.) While label policies have never loaded, the
+    /// card stays empty instead of treating missing rules as unrestricted.
     public var meetingAutoNotePrompts: [Prompt] {
-        promptsViewModel.prompts.filter {
+        guard areMeetingAutoNotePoliciesReady else { return [] }
+        return promptsViewModel.prompts.filter {
             meetingAutoNoteResolution(for: $0).isAvailable
         }
     }
@@ -276,6 +283,7 @@ public final class MeetingsWorkspaceViewModel {
     /// Label availability is not stored here; execution still consults
     /// `prompt_label_policies` for the completed recording.
     public func setMeetingAutoNote(_ prompt: Prompt, enabled: Bool) {
+        guard areMeetingAutoNotePoliciesReady else { return }
         promptsViewModel.setAutoRun(prompt, source: .meeting, enabled: enabled)
     }
 
@@ -354,8 +362,19 @@ public final class MeetingsWorkspaceViewModel {
         }
     }
 
+    private var areMeetingAutoNotePoliciesReady: Bool {
+        promptLabelPolicyRepository == nil || hasLoadedPromptLabelPolicies
+    }
+
     private func meetingAutoNoteResolution(for prompt: Prompt) -> PromptLabelApplicabilityResolution {
-        PromptLabelApplicabilityResolver.resolve(
+        guard areMeetingAutoNotePoliciesReady else {
+            return PromptLabelApplicabilityResolution(
+                isAvailable: false,
+                isAutoRun: false,
+                reason: .noMatchingLabelPolicy
+            )
+        }
+        return PromptLabelApplicabilityResolver.resolve(
             prompt: prompt,
             sourceType: .meeting,
             transcriptionLabelIDs: [],
@@ -366,6 +385,8 @@ public final class MeetingsWorkspaceViewModel {
     private func reloadPromptLabelPolicies() {
         guard let promptLabelPolicyRepository else {
             promptLabelPoliciesByPromptID = [:]
+            hasLoadedPromptLabelPolicies = true
+            promptLabelPolicyErrorMessage = nil
             return
         }
         let promptIDs = Set(promptsViewModel.prompts.map(\.id))
@@ -374,8 +395,11 @@ public final class MeetingsWorkspaceViewModel {
                 grouping: try promptLabelPolicyRepository.fetchPolicies(promptIds: promptIDs),
                 by: \.promptId
             )
+            hasLoadedPromptLabelPolicies = true
+            promptLabelPolicyErrorMessage = nil
         } catch {
-            promptLabelPoliciesByPromptID = [:]
+            promptLabelPolicyErrorMessage =
+                "Unable to load prompt availability: \(error.localizedDescription)"
         }
     }
 
@@ -399,7 +423,7 @@ public final class MeetingsWorkspaceViewModel {
                     self.promptPolicyCompletedMutationGeneration == mutationGeneration
                 else { return }
                 self.promptPoliciesByPromptID = Dictionary(grouping: policies, by: \.promptId)
-                self.meetingPolicyErrorMessage = nil
+                self.promptMeetingPolicyErrorMessage = nil
             } catch is CancellationError {
                 return
             } catch {
@@ -409,7 +433,8 @@ public final class MeetingsWorkspaceViewModel {
                     self.promptPolicyMutationGeneration == mutationGeneration,
                     self.promptPolicyCompletedMutationGeneration == mutationGeneration
                 else { return }
-                self.meetingPolicyErrorMessage = "Unable to load prompt availability: \(error.localizedDescription)"
+                self.promptMeetingPolicyErrorMessage =
+                    "Unable to load prompt availability: \(error.localizedDescription)"
             }
         }
         promptPolicyLoadTask = task
@@ -438,7 +463,7 @@ public final class MeetingsWorkspaceViewModel {
                     mutationGeneration
                 )
                 if self.promptPolicyMutationGeneration == mutationGeneration {
-                    self.meetingPolicyErrorMessage = nil
+                    self.promptMeetingPolicyErrorMessage = nil
                     await self.loadPromptMeetingPolicies().value
                 }
             } catch is CancellationError {
@@ -450,7 +475,8 @@ public final class MeetingsWorkspaceViewModel {
                     mutationGeneration
                 )
                 guard self.promptPolicyMutationGeneration == mutationGeneration else { return }
-                self.meetingPolicyErrorMessage = "Unable to update prompt availability: \(error.localizedDescription)"
+                self.promptMeetingPolicyErrorMessage =
+                    "Unable to update prompt availability: \(error.localizedDescription)"
                 await self.loadPromptMeetingPolicies().value
             }
         }

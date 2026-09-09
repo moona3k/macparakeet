@@ -449,7 +449,12 @@ struct MeetingsView: View {
                 Spacer(minLength: DesignSystem.Spacing.sm)
             }
 
-            if viewModel.meetingAutoNotePrompts.isEmpty {
+            if let errorMessage = viewModel.meetingPolicyErrorMessage {
+                Text(errorMessage)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if viewModel.meetingAutoNotePrompts.isEmpty {
                 Text("No note types yet. Add one in Manage.")
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(DesignSystem.Colors.textTertiary)
