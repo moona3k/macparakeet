@@ -89,14 +89,6 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
-### Fixed
-
-- OpenAI-compatible gateways (including Vercel AI Gateway model IDs such as
-  `openai/gpt-5.6-luna` and `openai/gpt-5.6-sol`) now use the same GPT-5.x
-  request policy as native OpenAI: omit unsupported sampling, send
-  `max_completion_tokens`, and surface parameter-compatibility 400s as provider
-  errors instead of a false context-limit failure.
-
 ## [4.0.0] — 2026-09-07
 
 ### Added
@@ -116,9 +108,13 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   returns the saved prompt record.
 - Immutable prompt history, version-aware `prompts show`, source/settings diff,
   restore-as-new-version, recoverable deletion, and optional prompt collections.
-  Built-in and custom prompts share the same mutation rights. Prompt JSON adds
-  active-version metadata and model override; saved results retain optional
-  prompt/version identity and provider/model receipts.
+  Built-in and custom prompts share the same mutation rights. `prompts set`
+  persists versioned inference settings with `--temperature`, `--top-p`,
+  `--top-k`, `--max-tokens`, `--thinking-mode`, `--reasoning-effort`, and
+  `--provider-default-settings`; `--model` / `--active-model` set or clear a
+  model override. Prompt JSON adds active-version metadata and model override;
+  saved results retain optional prompt/version identity and provider/model
+  receipts.
 - Meeting classification commands expose labels and legacy meeting types.
   Labels control prompt availability across transcription sources; legacy types
   remain compatibility metadata. See `spec/contracts/cli-json-v1.md`.
@@ -166,6 +162,14 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 - TXT/Markdown paragraphs with no assigned speaker remain separate and may
   display `Unassigned` when other speakers exist. Original word attribution in
   JSON, subtitles, and DAPT remains unchanged when no corrections are active.
+
+### Fixed
+
+- OpenAI-compatible gateways (including Vercel AI Gateway model IDs such as
+  `openai/gpt-5.6-luna` and `openai/gpt-5.6-sol`) now use the same GPT-5.x
+  request policy as native OpenAI: omit unsupported sampling, send
+  `max_completion_tokens`, and surface parameter-compatibility 400s as provider
+  errors instead of a false context-limit failure.
 
 ## [3.3.0] — 2026-09-06
 

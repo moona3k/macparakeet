@@ -92,6 +92,8 @@ public final class MeetingsWorkspaceViewModel {
 
     @ObservationIgnored private let calendarService: any CalendarServicing
     @ObservationIgnored private var promptMeetingPolicyRepository: (any PromptMeetingPolicyRepositoryProtocol)?
+    @ObservationIgnored private var promptLabelPolicyRepository: (any PromptLabelPolicyRepositoryProtocol)?
+    @ObservationIgnored private var promptLabelPoliciesByPromptID: [UUID: [PromptLabelPolicy]] = [:]
     @ObservationIgnored private var upcomingEventsTask: Task<Void, Never>?
     @ObservationIgnored private var upcomingEventsGeneration = 0
     @ObservationIgnored private var promptPolicyLoadTask: Task<Void, Never>?
@@ -158,6 +160,8 @@ public final class MeetingsWorkspaceViewModel {
             )
         }
         self.promptMeetingPolicyRepository = promptMeetingPolicyRepository
+        self.promptLabelPolicyRepository = promptLabelPolicyRepository
+        reloadPromptLabelPolicies()
     }
 
     public func refresh() {
@@ -169,8 +173,11 @@ public final class MeetingsWorkspaceViewModel {
     }
 
     public func refreshIfNeeded() {
-        guard !hasLoadedInitialState else { return }
-        refresh()
+        if !hasLoadedInitialState {
+            refresh()
+            return
+        }
+        refreshAutoNotes()
     }
 
     @discardableResult
@@ -235,22 +242,25 @@ public final class MeetingsWorkspaceViewModel {
     @discardableResult
     public func refreshAutoNotes() -> Task<Void, Never> {
         promptsViewModel.loadPrompts()
+        reloadPromptLabelPolicies()
         return loadPromptMeetingPolicies()
     }
 
     /// Visible result prompts the user can toggle as meeting auto-notes.
     /// Hidden prompts can't auto-run, so they're excluded from the card.
-    /// (`promptsViewModel.prompts` is already `.result`-only.)
+    /// Label targeting uses the same availability rules as post-meeting
+    /// execution for an unlabeled recording. (`promptsViewModel.prompts` is
+    /// already `.result`-only.)
     public var meetingAutoNotePrompts: [Prompt] {
         promptsViewModel.prompts.filter {
-            meetingPolicyResolution(for: $0, meetingTypeID: recordingMeetingTypeID).isAvailable
+            meetingAutoNoteResolution(for: $0).isAvailable
         }
     }
 
     /// Prompts that will actually auto-run after a meeting finishes.
     public var meetingAutoNoteActivePrompts: [Prompt] {
         meetingAutoNotePrompts.filter {
-            meetingPolicyResolution(for: $0, meetingTypeID: recordingMeetingTypeID).isAutoRun
+            meetingAutoNoteResolution(for: $0).isAutoRun
         }
     }
 
@@ -259,21 +269,14 @@ public final class MeetingsWorkspaceViewModel {
     }
 
     public func isMeetingAutoNote(_ prompt: Prompt) -> Bool {
-        meetingPolicyResolution(for: prompt, meetingTypeID: recordingMeetingTypeID).isAutoRun
+        meetingAutoNoteResolution(for: prompt).isAutoRun
     }
 
+    /// Toggles source-scoped auto-run for `.meeting` on the prompt itself.
+    /// Label availability is not stored here; execution still consults
+    /// `prompt_label_policies` for the completed recording.
     public func setMeetingAutoNote(_ prompt: Prompt, enabled: Bool) {
-        guard promptMeetingPolicyRepository != nil else {
-            promptsViewModel.setAutoRun(prompt, source: .meeting, enabled: enabled)
-            return
-        }
-        let current = meetingPolicyResolution(for: prompt, meetingTypeID: recordingMeetingTypeID)
-        setMeetingPolicy(
-            prompt: prompt,
-            meetingTypeID: recordingMeetingTypeID,
-            isAvailable: current.isAvailable,
-            isAutoRun: enabled
-        )
+        promptsViewModel.setAutoRun(prompt, source: .meeting, enabled: enabled)
     }
 
     public func meetingPolicyResolution(
@@ -348,6 +351,31 @@ public final class MeetingsWorkspaceViewModel {
         promptPoliciesByPromptID[prompt.id]?.removeAll { $0.id == policy.id }
         return enqueuePromptPolicyMutation { repository in
             _ = try repository.delete(id: policy.id)
+        }
+    }
+
+    private func meetingAutoNoteResolution(for prompt: Prompt) -> PromptLabelApplicabilityResolution {
+        PromptLabelApplicabilityResolver.resolve(
+            prompt: prompt,
+            sourceType: .meeting,
+            transcriptionLabelIDs: [],
+            policies: promptLabelPoliciesByPromptID[prompt.id] ?? []
+        )
+    }
+
+    private func reloadPromptLabelPolicies() {
+        guard let promptLabelPolicyRepository else {
+            promptLabelPoliciesByPromptID = [:]
+            return
+        }
+        let promptIDs = Set(promptsViewModel.prompts.map(\.id))
+        do {
+            promptLabelPoliciesByPromptID = Dictionary(
+                grouping: try promptLabelPolicyRepository.fetchPolicies(promptIds: promptIDs),
+                by: \.promptId
+            )
+        } catch {
+            promptLabelPoliciesByPromptID = [:]
         }
     }
 

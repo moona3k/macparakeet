@@ -1278,7 +1278,12 @@ empty state, not a claim that the user has no custom prompts.
 The Meetings **After each meeting → Prompts** entry reuses transcript management;
 Live Ask contextual management reuses the same question manager available from
 Prompts. Meetings remains the place to use live questions and choose automatic
-post-meeting outputs. All entries receive their configured repositories and
+post-meeting outputs. The **After each meeting** chips read and write
+`Prompt.autoRuns(for: .meeting)` via `PromptRepository.setAutoRun(id:source:.meeting)`,
+gated by current `prompt_label_policies` availability for an unlabeled recording.
+They do not persist auto-run in legacy `prompt_meeting_policies`. Hidden prompts
+stay off the card; other transcription sources keep their own auto-run bits.
+All entries receive their configured repositories and
 editing services. Collections organize transcript/Transform instruction records;
 recording labels classify recordings and gate availability. Live Ask retains its
 existing question groups and pinning, without a collection migration. Auto-Run

@@ -360,6 +360,218 @@ final class MeetingsWorkspaceViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.meetingAutoNoteActiveCount, 1)
     }
 
+    func testSetMeetingAutoNoteWithPolicyRepositoryWritesPromptAutoRunForMeetings() async throws {
+        let promptRepo = MockPromptRepository()
+        let actionItems = makeResultPrompt(name: "Action Items", isAutoRun: false, sortOrder: 0)
+        promptRepo.prompts = [actionItems]
+        let policyRepo = MockPromptMeetingPolicyRepository()
+        policyRepo.policiesByPromptID[actionItems.id] = [.defaultForNewPrompt(actionItems)]
+        let viewModel = makeViewModel()
+        viewModel.configure(
+            transcriptionRepo: MockTranscriptionRepository(),
+            promptRepo: promptRepo,
+            promptMeetingPolicyRepository: policyRepo
+        )
+        await viewModel.refreshAutoNotes().value
+
+        let listed = try XCTUnwrap(viewModel.meetingAutoNotePrompts.first)
+        XCTAssertFalse(listed.autoRuns(for: .meeting))
+
+        viewModel.setMeetingAutoNote(listed, enabled: true)
+
+        let toggled = try XCTUnwrap(promptRepo.fetch(id: actionItems.id))
+        XCTAssertTrue(toggled.autoRuns(for: .meeting))
+        XCTAssertEqual(toggled.appliesToSources, [.meeting])
+        XCTAssertTrue(viewModel.isMeetingAutoNote(try XCTUnwrap(viewModel.meetingAutoNotePrompts.first)))
+    }
+
+    func testMeetingAutoNoteCardWithProductionRepositoriesControlsQueue() async throws {
+        let manager = try DatabaseManager()
+        let promptRepo = PromptRepository(dbQueue: manager.dbQueue)
+        let labelPolicyRepo = PromptLabelPolicyRepository(dbQueue: manager.dbQueue)
+        let meetingPolicyRepo = PromptMeetingPolicyRepository(dbQueue: manager.dbQueue)
+        let meetingLabelRepo = MeetingLabelRepository(dbQueue: manager.dbQueue)
+        let transcriptionRepo = TranscriptionRepository(dbQueue: manager.dbQueue)
+        let transcriptionLabelRepo = TranscriptionMeetingLabelRepository(dbQueue: manager.dbQueue)
+        let viewModel = makeViewModel()
+        viewModel.configure(
+            transcriptionRepo: transcriptionRepo,
+            promptRepo: promptRepo,
+            promptEditingService: PromptEditingService(dbQueue: manager.dbQueue),
+            meetingLabelRepository: meetingLabelRepo,
+            promptMeetingPolicyRepository: meetingPolicyRepo,
+            promptLabelPolicyRepository: labelPolicyRepo
+        )
+        await viewModel.refreshAutoNotes().value
+
+        let summary = try XCTUnwrap(viewModel.meetingAutoNotePrompts.first { $0.name == "Summary" })
+        let actionItems = try XCTUnwrap(
+            viewModel.meetingAutoNotePrompts.first { $0.name == "Action Items & Decisions" }
+        )
+        let chapter = try XCTUnwrap(
+            viewModel.promptsViewModel.prompts.first { $0.name == "Chapter Breakdown" }
+        )
+        XCTAssertTrue(viewModel.isMeetingAutoNote(summary))
+        XCTAssertFalse(viewModel.isMeetingAutoNote(actionItems))
+        XCTAssertTrue(viewModel.meetingAutoNotePrompts.contains { $0.name == "Chapter Breakdown" })
+
+        try promptRepo.toggleVisibility(id: chapter.id)
+        await viewModel.refreshAutoNotes().value
+        XCTAssertFalse(viewModel.meetingAutoNotePrompts.contains { $0.name == "Chapter Breakdown" })
+
+        viewModel.setMeetingAutoNote(summary, enabled: false)
+        viewModel.setMeetingAutoNote(actionItems, enabled: true)
+
+        let storedSummary = try XCTUnwrap(promptRepo.fetch(id: summary.id))
+        let storedActions = try XCTUnwrap(promptRepo.fetch(id: actionItems.id))
+        XCTAssertFalse(storedSummary.autoRuns(for: .meeting))
+        XCTAssertTrue(storedSummary.autoRuns(for: .youtube))
+        XCTAssertTrue(storedSummary.autoRuns(for: .file))
+        XCTAssertTrue(storedActions.autoRuns(for: .meeting))
+        XCTAssertFalse(storedActions.autoRuns(for: .youtube))
+        XCTAssertFalse(
+            viewModel.isMeetingAutoNote(
+                try XCTUnwrap(viewModel.meetingAutoNotePrompts.first { $0.name == "Summary" })
+            )
+        )
+        XCTAssertTrue(
+            viewModel.isMeetingAutoNote(
+                try XCTUnwrap(
+                    viewModel.meetingAutoNotePrompts.first { $0.name == "Action Items & Decisions" }
+                )
+            )
+        )
+
+        let meeting = Transcription(
+            fileName: "standup.m4a",
+            status: .completed,
+            sourceType: .meeting
+        )
+        let youtube = Transcription(
+            fileName: "talk.mp4",
+            status: .completed,
+            sourceType: .youtube
+        )
+        try transcriptionRepo.save(meeting)
+        try transcriptionRepo.save(youtube)
+
+        XCTAssertEqual(
+            queuedPromptNames(
+                promptRepo: promptRepo,
+                promptResultRepo: PromptResultRepository(dbQueue: manager.dbQueue),
+                labelPolicyRepo: labelPolicyRepo,
+                transcriptionRepo: transcriptionRepo,
+                transcriptionLabelRepo: transcriptionLabelRepo,
+                transcriptionId: meeting.id,
+                sourceType: .meeting
+            ),
+            ["Action Items & Decisions"]
+        )
+        XCTAssertEqual(
+            queuedPromptNames(
+                promptRepo: promptRepo,
+                promptResultRepo: PromptResultRepository(dbQueue: manager.dbQueue),
+                labelPolicyRepo: labelPolicyRepo,
+                transcriptionRepo: transcriptionRepo,
+                transcriptionLabelRepo: transcriptionLabelRepo,
+                transcriptionId: youtube.id,
+                sourceType: .youtube
+            ),
+            ["Summary"]
+        )
+
+        let customer = MeetingLabel(name: "Customer")
+        try meetingLabelRepo.save(customer)
+        try labelPolicyRepo.replaceTargetLabels(promptId: actionItems.id, labelIds: [customer.id])
+        await viewModel.refreshAutoNotes().value
+        XCTAssertFalse(viewModel.meetingAutoNotePrompts.contains { $0.name == "Action Items & Decisions" })
+        XCTAssertEqual(
+            queuedPromptNames(
+                promptRepo: promptRepo,
+                promptResultRepo: PromptResultRepository(dbQueue: manager.dbQueue),
+                labelPolicyRepo: labelPolicyRepo,
+                transcriptionRepo: transcriptionRepo,
+                transcriptionLabelRepo: transcriptionLabelRepo,
+                transcriptionId: meeting.id,
+                sourceType: .meeting
+            ),
+            []
+        )
+
+        try transcriptionLabelRepo.replaceLabels(for: meeting.id, with: [customer.id])
+        XCTAssertEqual(
+            queuedPromptNames(
+                promptRepo: promptRepo,
+                promptResultRepo: PromptResultRepository(dbQueue: manager.dbQueue),
+                labelPolicyRepo: labelPolicyRepo,
+                transcriptionRepo: transcriptionRepo,
+                transcriptionLabelRepo: transcriptionLabelRepo,
+                transcriptionId: meeting.id,
+                sourceType: .meeting
+            ),
+            ["Action Items & Decisions"]
+        )
+    }
+
+    func testRefreshIfNeededReloadsAutoNotesFromSeparateRepositoriesWithoutReloadingCalendar() async throws {
+        let manager = try DatabaseManager()
+        let meetingsPromptRepo = PromptRepository(dbQueue: manager.dbQueue)
+        let promptsTabPromptRepo = PromptRepository(dbQueue: manager.dbQueue)
+        let meetingsLabelPolicyRepo = PromptLabelPolicyRepository(dbQueue: manager.dbQueue)
+        let promptsTabLabelPolicyRepo = PromptLabelPolicyRepository(dbQueue: manager.dbQueue)
+        let meetingLabelRepo = MeetingLabelRepository(dbQueue: manager.dbQueue)
+        let transcriptionRepo = MockTranscriptionRepository()
+        let calendar = MockCalendarService()
+        calendar.stubPermissionStatus = .granted
+        calendar.stubEvents = [makeEvent(title: "Design Review", meetUrl: "https://zoom.us/j/1")]
+        let viewModel = makeViewModel(calendarMode: .notify, calendarService: calendar)
+        viewModel.settingsViewModel.calendarPermissionStatus = .granted
+        viewModel.configure(
+            transcriptionRepo: transcriptionRepo,
+            promptRepo: meetingsPromptRepo,
+            promptEditingService: PromptEditingService(dbQueue: manager.dbQueue),
+            meetingLabelRepository: meetingLabelRepo,
+            promptMeetingPolicyRepository: PromptMeetingPolicyRepository(dbQueue: manager.dbQueue),
+            promptLabelPolicyRepository: meetingsLabelPolicyRepo
+        )
+
+        viewModel.refreshIfNeeded()
+        try await waitUntil { !transcriptionRepo.fetchAllCalls.isEmpty }
+        if AppFeatures.calendarEnabled {
+            try await waitUntil { calendar.fetchUpcomingEventsCallCount >= 1 }
+        }
+
+        let summary = try XCTUnwrap(viewModel.meetingAutoNotePrompts.first { $0.name == "Summary" })
+        let actionItems = try XCTUnwrap(
+            viewModel.meetingAutoNotePrompts.first { $0.name == "Action Items & Decisions" }
+        )
+        XCTAssertTrue(viewModel.isMeetingAutoNote(summary))
+        XCTAssertTrue(viewModel.meetingAutoNotePrompts.contains { $0.id == actionItems.id })
+
+        let calendarFetchesAfterFirstVisit = calendar.fetchUpcomingEventsCallCount
+        let listLoadsAfterFirstVisit = transcriptionRepo.fetchAllCalls.count
+
+        try promptsTabPromptRepo.setAutoRun(id: summary.id, source: .meeting, enabled: false)
+        try promptsTabPromptRepo.setAutoRun(id: actionItems.id, source: .meeting, enabled: true)
+        let customer = MeetingLabel(name: "Customer")
+        try meetingLabelRepo.save(customer)
+        try promptsTabLabelPolicyRepo.replaceTargetLabels(promptId: actionItems.id, labelIds: [customer.id])
+
+        viewModel.refreshIfNeeded()
+
+        XCTAssertFalse(
+            viewModel.isMeetingAutoNote(
+                try XCTUnwrap(viewModel.meetingAutoNotePrompts.first { $0.name == "Summary" })
+            )
+        )
+        XCTAssertFalse(viewModel.meetingAutoNotePrompts.contains { $0.name == "Action Items & Decisions" })
+        XCTAssertEqual(transcriptionRepo.fetchAllCalls.count, listLoadsAfterFirstVisit)
+        if AppFeatures.calendarEnabled {
+            try await Task.sleep(for: .milliseconds(50))
+            XCTAssertEqual(calendar.fetchUpcomingEventsCallCount, calendarFetchesAfterFirstVisit)
+        }
+    }
+
     func testSuccessfulDetailRenamePropagatesAcrossSeparateMeetingCollectionsInPlace() async throws {
         let target = Transcription(
             createdAt: Date(timeIntervalSinceReferenceDate: 300),
@@ -592,6 +804,50 @@ final class MeetingsWorkspaceViewModelTests: XCTestCase {
             promptsViewModel: promptsViewModel,
             calendarService: calendarService
         )
+    }
+
+    private func waitUntil(
+        timeout: Duration = .seconds(1),
+        pollInterval: Duration = .milliseconds(10),
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        _ condition: () -> Bool
+    ) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now + timeout
+        while !condition() {
+            if clock.now >= deadline {
+                XCTFail("Timed out waiting for condition", file: file, line: line)
+                return
+            }
+            try await Task.sleep(for: pollInterval)
+        }
+    }
+
+    private func queuedPromptNames(
+        promptRepo: PromptRepository,
+        promptResultRepo: PromptResultRepository,
+        labelPolicyRepo: PromptLabelPolicyRepository,
+        transcriptionRepo: TranscriptionRepository,
+        transcriptionLabelRepo: TranscriptionMeetingLabelRepository,
+        transcriptionId: UUID,
+        sourceType: Transcription.SourceType
+    ) -> [String] {
+        let results = PromptResultsViewModel()
+        results.configure(
+            llmService: MockLLMService(),
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo,
+            promptLabelPolicyRepository: labelPolicyRepo,
+            transcriptionLabelRepository: transcriptionLabelRepo,
+            transcriptionRepo: transcriptionRepo
+        )
+        _ = results.autoGeneratePromptResults(
+            transcript: String(repeating: "Long transcript ", count: 50),
+            transcriptionId: transcriptionId,
+            sourceType: sourceType
+        )
+        return results.pendingGenerations.map(\.promptName)
     }
 
     private func makeResultPrompt(
