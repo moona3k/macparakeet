@@ -623,7 +623,8 @@ private extension ChatCompletionOptions {
 
 enum OpenAIModelPolicy {
     /// Last path component of a provider-prefixed ID (`openai/gpt-5.6-luna` →
-    /// `gpt-5.6-luna`). Gateways use this form; native OpenAI IDs are unchanged.
+    /// `gpt-5.6-luna`). Gateways such as Vercel AI Gateway and OpenRouter use
+    /// this form; native OpenAI IDs are returned unchanged.
     static func canonicalModelID(_ model: String) -> String {
         let lowered = model.lowercased()
         guard let slash = lowered.lastIndex(of: "/") else { return lowered }
@@ -647,7 +648,8 @@ enum OpenAIModelPolicy {
         isReasoningModel(canonicalModelID(model))
     }
 
-    /// Major version of a `gpt-<n>...` model ID, accepting gateway prefixes.
+    /// Major version of a "gpt-<n>..." model ID ("gpt-5.5" → 5, "gpt-10" → 10),
+    /// or nil for IDs without a gpt- numeric prefix. Accepts gateway prefixes.
     static func gptMajorVersion(_ model: String) -> Int? {
         let id = canonicalModelID(model)
         guard id.hasPrefix("gpt-") else { return nil }

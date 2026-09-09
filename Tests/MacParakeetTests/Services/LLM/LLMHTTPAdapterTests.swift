@@ -513,14 +513,20 @@ final class LLMHTTPAdapterTests: XCTestCase {
     }
 
     func testOpenAIShouldOmitTemperatureModelMatrix() {
-        let rejecting = ["o3", "o4-mini", "gpt-5.5", "gpt-5.4", "gpt-5.4-nano", "GPT-5.4-Mini", "gpt-10"]
+        let rejecting = [
+            "o3", "o4-mini", "gpt-5.5", "gpt-5.4", "gpt-5.4-nano", "GPT-5.4-Mini", "gpt-10",
+            "gpt-5.6-sol", "gpt-5.6-luna", "openai/gpt-5.6-sol", "openai/gpt-5.6-luna",
+        ]
         for model in rejecting {
             XCTAssertTrue(
                 OpenAICompatibleLLMHTTPAdapter.openAIShouldOmitTemperature(model),
                 "\(model) should omit temperature"
             )
         }
-        let accepting = ["gpt-5.3-chat-latest", "gpt-4.1", "gpt-4.1-mini", "gpt-4o", "chatgpt-4o-latest"]
+        let accepting = [
+            "gpt-5.3-chat-latest", "openai/gpt-5.3-chat-latest", "gpt-4.1", "gpt-4.1-mini",
+            "gpt-4o", "chatgpt-4o-latest", "local-model", "gpt-oss-120b",
+        ]
         for model in accepting {
             XCTAssertFalse(
                 OpenAICompatibleLLMHTTPAdapter.openAIShouldOmitTemperature(model),
@@ -551,6 +557,105 @@ final class LLMHTTPAdapterTests: XCTestCase {
             stream: false
         )
         XCTAssertEqual(try jsonBody(from: historicalRequest)["temperature"] as? Double, 0.7)
+    }
+
+    func testOpenAICompatibleGatewayGPT56UsesNativeOpenAIParameterPolicy() async throws {
+        var capturedRequest: URLRequest?
+
+        AdapterRequestURLProtocol.handler = { request in
+            capturedRequest = request
+            return (self.okResponse(for: request), self.validOpenAIResponseData())
+        }
+
+        let providerConfig = LLMProviderConfig.openaiCompatible(
+            apiKey: "vck-test",
+            model: "openai/gpt-5.6-luna",
+            baseURL: URL(string: "https://ai-gateway.vercel.sh/v1")!
+        )
+        let resolution = try PromptInferenceCapabilityResolver.resolve(
+            config: providerConfig,
+            requested: PromptInferenceSettings(
+                temperature: 0.2,
+                topP: 0.9,
+                topK: 20,
+                maxTokens: 4096,
+                thinkingMode: .enabled,
+                reasoningEffort: .medium
+            )
+        )
+
+        _ = try await openAIAdapter.chatCompletion(
+            messages: goldenMessages,
+            config: providerConfig,
+            options: resolution.options
+        )
+
+        try assertJSONBody(
+            try XCTUnwrap(capturedRequest),
+            equals: """
+                {"max_completion_tokens":4096,"messages":[{"content":"System","role":"system"},{"content":"Hello","role":"user"}],"model":"openai/gpt-5.6-luna","stream":false}
+                """
+        )
+        XCTAssertEqual(resolution.effectiveSettings, PromptInferenceSettings(maxTokens: 4096))
+        XCTAssertEqual(
+            resolution.unsupportedSettings,
+            [.temperature, .topP, .topK, .thinkingMode, .reasoningEffort]
+        )
+    }
+
+    func testOpenRouterGatewayGPT56UsesNativeOpenAIParameterPolicy() async throws {
+        var capturedRequest: URLRequest?
+
+        AdapterRequestURLProtocol.handler = { request in
+            capturedRequest = request
+            return (self.okResponse(for: request), self.validOpenAIResponseData())
+        }
+
+        let providerConfig = LLMProviderConfig.openrouter(
+            apiKey: "sk-or-test",
+            model: "openai/gpt-5.6-sol"
+        )
+        let resolution = try PromptInferenceCapabilityResolver.resolve(
+            config: providerConfig,
+            requested: PromptInferenceSettings(temperature: 0.2, maxTokens: 2048)
+        )
+
+        _ = try await openAIAdapter.chatCompletion(
+            messages: goldenMessages,
+            config: providerConfig,
+            options: resolution.options
+        )
+
+        try assertJSONBody(
+            try XCTUnwrap(capturedRequest),
+            equals: """
+                {"max_completion_tokens":2048,"messages":[{"content":"System","role":"system"},{"content":"Hello","role":"user"}],"model":"openai/gpt-5.6-sol","stream":false}
+                """
+        )
+        XCTAssertEqual(resolution.effectiveSettings, PromptInferenceSettings(maxTokens: 2048))
+        XCTAssertEqual(resolution.unsupportedSettings, [.temperature])
+    }
+
+    func testLMStudioKeepsMaxTokensEvenWhenModelIDLooksLikeGPT5() async throws {
+        var capturedRequest: URLRequest?
+
+        AdapterRequestURLProtocol.handler = { request in
+            capturedRequest = request
+            return (self.okResponse(for: request), self.validOpenAIResponseData())
+        }
+
+        _ = try await openAIAdapter.chatCompletion(
+            messages: goldenMessages,
+            config: .lmstudio(model: "gpt-5.5"),
+            options: ChatCompletionOptions(temperature: 0.2, maxTokens: 256)
+        )
+
+        try assertJSONBody(
+            try XCTUnwrap(capturedRequest),
+            equals: """
+                {"max_tokens":256,"messages":[{"content":"System","role":"system"},{"content":"Hello","role":"user"}],"model":"gpt-5.5","stream":false,"temperature":0.2}
+                """
+        )
     }
 
     func testOpenAICompatibleAdapterEncodesNullableKnowledgeCardOwnerSchema() async throws {

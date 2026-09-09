@@ -89,6 +89,14 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Fixed
+
+- OpenAI-compatible gateways (including Vercel AI Gateway model IDs such as
+  `openai/gpt-5.6-luna` and `openai/gpt-5.6-sol`) now use the same GPT-5.x
+  request policy as native OpenAI: omit unsupported sampling, send
+  `max_completion_tokens`, and surface parameter-compatibility 400s as provider
+  errors instead of a false context-limit failure.
+
 ## [4.0.0] — 2026-09-07
 
 ### Added

@@ -141,7 +141,7 @@ enum LLMHTTPErrorMapper {
             }
             return .providerError(message)
         case 400:
-            if message.lowercased().contains("context") || message.lowercased().contains("token") {
+            if isContextOverflowMessage(message) {
                 return .contextTooLong
             }
             return .providerError(message)
@@ -154,11 +154,7 @@ enum LLMHTTPErrorMapper {
         let message = scrubAPIKeyArtifacts(from: rawMessage)
         let lowered = message.lowercased()
 
-        if lowered.contains("context")
-            || lowered.contains("tokens to keep")
-            || lowered.contains("too many tokens")
-            || lowered.contains("maximum number of tokens")
-        {
+        if isContextOverflowMessage(message) {
             return .contextTooLong
         }
         if lowered.contains("rate limit") || lowered.contains("rate_limit") {
@@ -176,6 +172,33 @@ enum LLMHTTPErrorMapper {
             return .modelNotFound(message)
         }
         return .streamingError(message)
+    }
+
+    /// True context-window failures, not parameter-compatibility errors that
+    /// happen to mention `max_tokens`.
+    static func isContextOverflowMessage(_ message: String) -> Bool {
+        let lowered = message.lowercased()
+        if isUnsupportedTokenParameterMessage(lowered) {
+            return false
+        }
+        return lowered.contains("context length")
+            || lowered.contains("context window")
+            || lowered.contains("context limit")
+            || lowered.contains("maximum context")
+            || lowered.contains("too many tokens")
+            || lowered.contains("tokens to keep")
+            || lowered.contains("maximum number of tokens")
+            || lowered.contains("prompt is too long")
+    }
+
+    private static func isUnsupportedTokenParameterMessage(_ lowered: String) -> Bool {
+        let mentionsTokenParameter =
+            lowered.contains("max_tokens") || lowered.contains("max_completion_tokens")
+        let mentionsUnsupported =
+            lowered.contains("unsupported")
+            || lowered.contains("not supported")
+            || lowered.contains("unknown parameter")
+        return mentionsTokenParameter && mentionsUnsupported
     }
 
     /// Strips obvious API-key artifacts from a provider error message before

@@ -212,11 +212,12 @@ configured value when a model rejects it.
 
 | Provider path | Mapping |
 | --- | --- |
-| Custom OpenAI-compatible, including llama.cpp | `temperature`, `top_p`, `top_k`, `max_tokens`; thinking and optional effort map to `chat_template_kwargs.enable_thinking` and `chat_template_kwargs.reasoning_effort` |
+| Custom OpenAI-compatible, including llama.cpp | `temperature`, `top_p`, `top_k`, `max_tokens`; thinking and optional effort map to `chat_template_kwargs.enable_thinking` and `chat_template_kwargs.reasoning_effort`. OpenAI-family IDs on the same path (`gpt-5.x`, `gpt-5.6-luna`/`sol`, and gateway prefixes such as `openai/gpt-5.6-luna`) follow the native OpenAI mapping instead: omit llama.cpp kwargs, omit sampling when the model rejects it, and send `max_completion_tokens`. |
 | Native Ollama | `temperature`, `top_p`, `top_k`, `num_predict` inside `options`; thinking maps to top-level `think`; reasoning effort is initially unsupported |
 | Native OpenAI | `temperature` and `top_p` when model-compatible; output budget uses the adapter's existing `max_tokens` / `max_completion_tokens` policy; omit `top_k` and thinking |
 | Native Anthropic | `temperature` in `0...1` or `top_p` in `0...1`, and `max_tokens` when model-compatible; Top P takes precedence over explicit or inherited temperature; omit `top_k` and thinking |
-| Gemini / OpenRouter / LM Studio | Map fields explicitly supported by the existing endpoint contract; omit the rest |
+| OpenRouter | Output budget uses the adapter's `max_tokens` / `max_completion_tokens` policy; `temperature` when the model accepts sampling; omit `top_p`, `top_k`, and thinking. Prefixed OpenAI-family IDs such as `openai/gpt-5.6-sol` follow the same GPT-5 / o-series sampling omit as native OpenAI. |
+| Gemini / LM Studio | Map fields explicitly supported by the existing endpoint contract; omit the rest |
 | In-process MLX / local CLI | Apply only fields supported by the runtime/CLI contract; report the rest as unsupported |
 
 For a model served through an OpenAI-compatible llama.cpp endpoint:

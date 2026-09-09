@@ -524,6 +524,44 @@ final class LLMClientTests: XCTestCase {
         }
     }
 
+    func testUnsupportedMaxTokensParameterIsNotMappedToContextLimit() async {
+        MockURLProtocol.handler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 400, httpVersion: nil, headerFields: nil
+            )!
+            return (
+                response,
+                Data(
+                    """
+                    {"error":{"message":"Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead."}}
+                    """.utf8
+                )
+            )
+        }
+
+        let config = LLMProviderConfig.openaiCompatible(
+            apiKey: "vck-test",
+            model: "openai/gpt-5.6-sol",
+            baseURL: URL(string: "https://ai-gateway.vercel.sh/v1")!
+        )
+        do {
+            _ = try await llmClient.chatCompletion(
+                messages: [ChatMessage(role: .user, content: "Hi")],
+                config: config,
+                options: .default
+            )
+            XCTFail("Expected LLMError.providerError")
+        } catch let error as LLMError {
+            if case .providerError(let message) = error {
+                XCTAssertTrue(message.contains("max_completion_tokens"), message)
+            } else {
+                XCTFail("Expected providerError, got \(error)")
+            }
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+    }
+
     func testContextLengthErrorMappedCorrectly() async {
         MockURLProtocol.handler = { request in
             let response = HTTPURLResponse(
@@ -546,6 +584,18 @@ final class LLMClientTests: XCTestCase {
             }
         } catch {
             XCTFail("Unexpected error type: \(error)")
+        }
+    }
+
+    func testGenericContextWordIsNotMappedToContextLimit() {
+        let error = LLMHTTPErrorMapper.mapError(
+            statusCode: 400,
+            data: Data("{\"error\":{\"message\":\"Please provide more context for this request\"}}".utf8)
+        )
+        if case .providerError(let message) = error {
+            XCTAssertTrue(message.contains("more context"), message)
+        } else {
+            XCTFail("Expected providerError, got \(error)")
         }
     }
 
@@ -592,6 +642,28 @@ final class LLMClientTests: XCTestCase {
         try await llmClient.testConnection(config: config)
 
         XCTAssertEqual(capturedBody?["max_tokens"] as? Int, 1)
+    }
+
+    func testGatewayGPT56ConnectionTestUsesMaxCompletionTokens() async throws {
+        var capturedBody: [String: Any]?
+
+        MockURLProtocol.handler = { request in
+            if let body = self.extractBody(from: request) {
+                capturedBody = body
+            }
+            return (self.okResponse(for: request), self.validResponseData())
+        }
+
+        let config = LLMProviderConfig.openaiCompatible(
+            apiKey: "vck-test",
+            model: "openai/gpt-5.6-sol",
+            baseURL: URL(string: "https://ai-gateway.vercel.sh/v1")!
+        )
+        try await llmClient.testConnection(config: config)
+
+        XCTAssertNil(capturedBody?["max_tokens"])
+        XCTAssertEqual(capturedBody?["max_completion_tokens"] as? Int, 128)
+        XCTAssertNil(capturedBody?["temperature"])
     }
 
     // MARK: - SSE Parsing
@@ -986,7 +1058,7 @@ final class LLMClientTests: XCTestCase {
         XCTAssertEqual(capturedBody?["temperature"] as? Double, 0.7)
     }
 
-    func testOpenAICompatibleProviderDoesNotApplyOpenAISpecificTokenParameters() async throws {
+    func testOpenAICompatibleGPT5AppliesNativeTokenParameters() async throws {
         var capturedBody: [String: Any]?
 
         MockURLProtocol.handler = { request in
@@ -999,6 +1071,32 @@ final class LLMClientTests: XCTestCase {
         let config = LLMProviderConfig.openaiCompatible(
             apiKey: "sk-test",
             model: "gpt-5.2",
+            baseURL: URL(string: "https://api.example.com/v1")!
+        )
+        _ = try await llmClient.chatCompletion(
+            messages: [ChatMessage(role: .user, content: "Hi")],
+            config: config,
+            options: ChatCompletionOptions(temperature: 0.7, maxTokens: 500)
+        )
+
+        XCTAssertNil(capturedBody?["max_tokens"])
+        XCTAssertEqual(capturedBody?["max_completion_tokens"] as? Int, 500)
+        XCTAssertNil(capturedBody?["temperature"])
+    }
+
+    func testOpenAICompatibleGenericModelKeepsMaxTokensAndTemperature() async throws {
+        var capturedBody: [String: Any]?
+
+        MockURLProtocol.handler = { request in
+            if let body = self.extractBody(from: request) {
+                capturedBody = body
+            }
+            return (self.okResponse(for: request), self.validResponseData())
+        }
+
+        let config = LLMProviderConfig.openaiCompatible(
+            apiKey: "sk-test",
+            model: "llama-3.1-8b-instruct",
             baseURL: URL(string: "https://api.example.com/v1")!
         )
         _ = try await llmClient.chatCompletion(

@@ -221,7 +221,8 @@ struct OpenAICompatibleLLMHTTPAdapter: LLMHTTPAdapter {
         // Models that use reasoning tokens (o1/o3/o4, gpt-5.x) need more budget since
         // max_completion_tokens covers both reasoning and visible output.
         // 128 is enough for a minimal response. Older models can use 1 to minimize cost.
-        let needsMoreTokens = config.id == .openai && Self.openAIRequiresMaxCompletionTokens(config.modelName)
+        let needsMoreTokens =
+            config.id != .lmstudio && Self.openAIRequiresMaxCompletionTokens(config.modelName)
         let options = ChatCompletionOptions(maxTokens: needsMoreTokens ? 128 : 1)
         _ = try await chatCompletion(messages: messages, config: config, options: options)
     }
@@ -306,23 +307,30 @@ struct OpenAICompatibleLLMHTTPAdapter: LLMHTTPAdapter {
 
         // OpenAI reasoning models reject max_tokens. Explicit temperature
         // support varies by model and reasoning effort, so omit it for the
-        // GPT-5.x reasoning tier (gpt-5.5, gpt-5.4-mini, ...); its "-chat"
-        // variants still accept explicit values. Newer models also require
-        // max_completion_tokens instead of max_tokens.
-        let shouldOmitSampling = config.id == .openai && Self.openAIShouldOmitTemperature(config.modelName)
-        let needsNewTokenParam = config.id == .openai && Self.openAIRequiresMaxCompletionTokens(config.modelName)
+        // GPT-5.x reasoning tier (gpt-5.5, gpt-5.4-mini, gpt-5.6-luna, ...);
+        // "-chat" variants still accept explicit values. Apply this from the
+        // model ID, including gateway prefixes such as `openai/gpt-5.6-sol`,
+        // rather than only the native OpenAI provider. Newer models also
+        // require max_completion_tokens instead of max_tokens. LM Studio's
+        // documented chat-completions contract still uses max_tokens and
+        // temperature even when a loaded model ID happens to look like GPT-5.
+        let appliesOpenAIFamilyWirePolicy = config.id != .lmstudio
+        let shouldOmitSampling =
+            appliesOpenAIFamilyWirePolicy && Self.openAIShouldOmitTemperature(config.modelName)
+        let needsNewTokenParam =
+            appliesOpenAIFamilyWirePolicy && Self.openAIRequiresMaxCompletionTokens(config.modelName)
         let temperature = shouldOmitSampling ? nil : options.temperature
         let topP: Double?
         switch config.id {
-        case .openai:
+        case .openai, .openaiCompatible:
             topP = shouldOmitSampling ? nil : options.topP
-        case .openaiCompatible:
-            topP = options.topP
         case .anthropic, .gemini, .openrouter, .ollama, .lmstudio, .localCLI, .inProcessLocal:
             topP = nil
         }
         let supportsCustomOpenAICompatibleOptions =
-            config.id == .openaiCompatible && options.usesPromptInferenceSettings
+            config.id == .openaiCompatible
+            && options.usesPromptInferenceSettings
+            && !needsNewTokenParam
         let maxTokens = needsNewTokenParam ? nil : options.maxTokens
         let maxCompletionTokens = needsNewTokenParam ? options.maxTokens : nil
 
@@ -361,48 +369,34 @@ struct OpenAICompatibleLLMHTTPAdapter: LLMHTTPAdapter {
 
     /// OpenAI reasoning models that reject temperature and max_tokens parameters.
     static func isOpenAIReasoningModel(_ model: String) -> Bool {
-        isOpenAIReasoningModelID(model.lowercased())
+        OpenAIModelPolicy.isReasoningModelID(model)
     }
 
     /// OpenAI models for which MacParakeet omits explicit `temperature`: the
     /// o-series and GPT-5.x+ reasoning tier. Chat-tier variants
     /// (gpt-5.3-chat-latest) and pre-5.x models keep the caller's value.
+    /// Provider prefixes (`openai/gpt-5.6-luna`) are stripped first.
     static func openAIShouldOmitTemperature(_ model: String) -> Bool {
         OpenAIModelPolicy.shouldOmitSampling(model: model)
     }
 
     /// Major version of a "gpt-<n>..." model ID ("gpt-5.5" → 5, "gpt-10" → 10),
     /// or nil for IDs without a gpt- numeric prefix. Reads all leading digits so
-    /// future multi-digit major versions compare correctly.
+    /// future multi-digit major versions compare correctly. Accepts gateway
+    /// prefixes such as `openai/gpt-5.6-sol`.
     static func gptMajorVersion(_ loweredModel: String) -> Int? {
-        guard loweredModel.hasPrefix("gpt-") else { return nil }
-        let digits = loweredModel.dropFirst(4).prefix(while: { $0.isNumber })
-        return Int(digits)
+        OpenAIModelPolicy.gptMajorVersion(loweredModel)
     }
 
     /// OpenAI models that require max_completion_tokens instead of max_tokens.
-    /// Includes reasoning models and newer GPT models (5.x+).
+    /// Includes reasoning models and newer GPT models (5.x+), including
+    /// gateway IDs such as `openai/gpt-5.6-luna`.
     static func openAIRequiresMaxCompletionTokens(_ model: String) -> Bool {
-        let lowered = model.lowercased()
-        if isOpenAIReasoningModel(lowered) { return true }
-        // GPT-5.x and beyond reject max_tokens
-        if let version = gptMajorVersion(lowered), version >= 5 {
-            return true
-        }
-        return false
+        OpenAIModelPolicy.requiresMaxCompletionTokens(model: model)
     }
 
     static func isOpenAIReasoningModelID(_ model: String) -> Bool {
-        guard model.hasPrefix("o") else { return false }
-        let suffix = model.dropFirst()
-        guard let generation = suffix.first, generation.isNumber else { return false }
-        return hasOpenAIModelPrefix(model, prefix: "o\(generation)")
-    }
-
-    static func hasOpenAIModelPrefix(_ model: String, prefix: String) -> Bool {
-        guard model.hasPrefix(prefix) else { return false }
-        let boundary = model.dropFirst(prefix.count).first
-        return boundary == nil || boundary == "-"
+        OpenAIModelPolicy.isReasoningModelID(model)
     }
 
     static func responseFormat(from format: ChatResponseFormat?) -> OpenAIResponseFormat? {
