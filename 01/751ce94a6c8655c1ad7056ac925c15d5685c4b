@@ -1,0 +1,41 @@
+Sources/MacParakeetViewModels/MeetingsWorkspaceViewModel.swift
+  s_29305f0ccb4e47::t_6dfb710cad4a70 466,478-479
+  s_29305f0ccb4e47::t_02118c42691f97 365-368,370-377,388-389,398-399,401-402
+  s_29305f0ccb4e47::t_2195f9526d1f8a 87-89
+  s_29305f0ccb4e47::t_4e6adddef3deca 258-259,261-262
+  s_29305f0ccb4e47::t_ea21f4b55ceeb4 99-101
+  s_29305f0ccb4e47::t_1bcc38a35730af 286
+  s_29305f0ccb4e47::t_c5ab3dff112a14 426,436-437
+Tests/MacParakeetTests/ViewModels/MeetingsWorkspaceViewModelTests.swift
+  s_29305f0ccb4e47::t_3799b0b3ad9902 575-647
+  s_29305f0ccb4e47::t_c89467ab8471d0 973-1015
+Sources/MacParakeet/Views/Meetings/MeetingsView.swift
+  s_8408739a4a9fbb::t_c4c2d714d190d7 452-457
+docs/qa/2026-09-09-release-readiness.md
+  s_8408739a4a9fbb::t_26c722052a7861 31-35
+  s_8408739a4a9fbb::t_26275b8d51ea6f 50,55-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "01751ce94a6c8655c1ad7056ac925c15d5685c4b",
+  "prompts": {},
+  "sessions": {
+    "s_29305f0ccb4e47": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "70b4bb3d-46f3-4849-9e47-121ce75fbddd",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_8408739a4a9fbb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ae-f1a3-7481-bf0f-88e289444b74",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
