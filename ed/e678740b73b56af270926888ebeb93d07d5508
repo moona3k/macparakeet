@@ -1,0 +1,55 @@
+Sources/MacParakeetViewModels/PromptsViewModel.swift
+  s_8408739a4a9fbb::t_ccd4c67a4ab54c 145,218,223-251
+  s_8408739a4a9fbb::t_326ab7415b21ff 67-72,143-144,146-148,158-160,168-169,174,194-217,219-222,252
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_8408739a4a9fbb::t_ccd4c67a4ab54c 195-197,592
+Sources/MacParakeetCore/Models/PromptInferenceSettings.swift
+  s_8408739a4a9fbb::t_268c7f14f45073 463-464
+  s_8408739a4a9fbb::t_216d10769383a9 147-252,254-313,322-326,435-447,450-462,465-498,501-502,505-544,546-563,565-569,575-576
+  s_8408739a4a9fbb::t_422ab2bc25eeb2 382-388,390-396,577,625-627,629-655,658-660,663-664
+  s_8408739a4a9fbb::t_83229fd0c855ac 499-500,503-504
+  s_8408739a4a9fbb::t_24cd09f365e272 578
+docs/audits/2026-09-08-provider-generation-contracts.md
+  s_8408739a4a9fbb::t_8f59605ba034e4 20-32,89-90,116-125,145-149,151,160-162,178-181,192-198,202-207,210-214
+  s_8408739a4a9fbb::t_8d2feeb85544dc 1-19,33-41,50-56,127-131,133-144,150,152-159,163-177,182-191,199-201,208-209,215-217,219,222-227
+  s_8408739a4a9fbb::t_764cae705d2c8b 57-88,91-115,126
+  s_8408739a4a9fbb::t_d31e851b913eac 132
+  s_8408739a4a9fbb::t_537c2c8274b951 218,220-221
+  s_8408739a4a9fbb::t_788c0972ab62cd 42-49
+Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift
+  s_8408739a4a9fbb::t_42d08b6e6e04d9 532-555
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_8408739a4a9fbb::t_3833960424e0c1 1446-1450,1452,1454,1456
+Tests/MacParakeetTests/Models/PromptInferenceSettingsTests.swift
+  s_8408739a4a9fbb::t_42d08b6e6e04d9 180-278
+Sources/MacParakeetCore/Models/LLMProvider.swift
+  s_8408739a4a9fbb::t_3833960424e0c1 445-502
+Sources/CLI/CHANGELOG.md
+  s_8408739a4a9fbb::t_04800f6883e56d 120-124
+docs/audits/2026-09-08-generation-settings-review.md
+  s_8408739a4a9fbb::t_e6272bfce8ec09 1-74
+docs/plans/2026-09-08-model-aware-generation-settings.md
+  s_8408739a4a9fbb::t_4c9a265e22e0ce 1-45
+integrations/README.md
+  s_8408739a4a9fbb::t_284785f3395e26 493-501
+spec/04-ui-patterns.md
+  s_8408739a4a9fbb::t_6654b87839274c 1293-1313
+spec/contracts/cli-json-v1.md
+  s_8408739a4a9fbb::t_6d5454d6fe8539 165-168
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "ede678740b73b56af270926888ebeb93d07d5508",
+  "prompts": {},
+  "sessions": {
+    "s_8408739a4a9fbb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ae-f1a3-7481-bf0f-88e289444b74",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
