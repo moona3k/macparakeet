@@ -1,6 +1,6 @@
 # Model-aware generation settings
 
-Status: implemented; focused verification passed; PR/full CI pending. Base: main `75d75e5ab313e9a5a9693d1e2b171ba90b9d328d`. Integrated concurrent gateway-policy main `6e421dbbab09bdaaa9c37d7097fb0f4d023919e7` before completing implementation. Review evidence: [generation-settings audit](../audits/2026-09-08-generation-settings-review.md).
+Status: implemented; focused verification passed. [PR #991](https://github.com/moona3k/macparakeet/pull/991) records final CI, review and merge evidence. Base: main `75d75e5ab313e9a5a9693d1e2b171ba90b9d328d`. Integrated concurrent gateway-policy main `6e421dbbab09bdaaa9c37d7097fb0f4d023919e7` before completing implementation. Review evidence: [generation-settings audit](../audits/2026-09-08-generation-settings-review.md).
 
 ## Problem and intended behavior
 
