@@ -1,0 +1,31 @@
+Sources/MacParakeet/Views/Meetings/MeetingsView.swift
+  s_8408739a4a9fbb::t_c96020f77e63ae 196-199
+Sources/MacParakeetViewModels/MeetingsWorkspaceViewModel.swift
+  s_8408739a4a9fbb::t_c96020f77e63ae 132-134,138-139,151-158
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_8408739a4a9fbb::t_c96020f77e63ae 132-134,138-139
+Sources/MacParakeet/Views/Transcription/PromptLibraryView.swift
+  s_8408739a4a9fbb::t_a94389630e98f4 434,453,806-817,904-908,1657
+  s_8408739a4a9fbb::t_cfbfcf7d0138fe 5-12,20-22,24,26-29,51,80,86,105-109,111-112,266-272,297,324,340-342
+  s_8408739a4a9fbb::t_3fff83f4ac163a 13-14,17-19,77,360-362
+  s_8408739a4a9fbb::t_befbe6bcb2574d 15-16,23,25
+  s_8408739a4a9fbb::t_ec07912b79811b 343
+Tests/MacParakeetTests/ViewModels/MeetingsWorkspaceViewModelTests.swift
+  s_8408739a4a9fbb::t_c96020f77e63ae 324-341
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "7ffc0bccbc71680f65443515a17b53a6606858d6",
+  "prompts": {},
+  "sessions": {
+    "s_8408739a4a9fbb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ae-f1a3-7481-bf0f-88e289444b74",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": null
+    }
+  }
+}
