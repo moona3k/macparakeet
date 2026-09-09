@@ -17,6 +17,9 @@ APP_BUNDLE="$PRODUCT_DIR/MacParakeet-Dev.app"
 LOG_FILE="${TMPDIR:-/tmp}/macparakeet-dev.log"
 BUILD_LOG_FILE="${TMPDIR:-/tmp}/macparakeet-dev-build.log"
 APP_MACOS_BIN="$APP_BUNDLE/Contents/MacOS/MacParakeet"
+# Keep every Dev bundle off the stable app's database and media directories.
+# The override is honored in both Debug and optimized Release configurations.
+APP_STATE_DIR="${MACPARAKEET_DEBUG_APP_STATE_DIR:-$HOME/Library/Application Support/MacParakeet-Dev}"
 
 pick_codesign_identity() {
   local preferred="${MACPARAKEET_CODESIGN_IDENTITY:-}"
@@ -236,7 +239,8 @@ BUILD_DATE_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 BUILD_SOURCE="dev-run-xcodebuild-$(echo "$CONFIG" | tr '[:upper:]' '[:lower:]')"
 
 echo "[4/5] Launching ${CONFIG} app…"
-open -n "$APP_BUNDLE" --env MACPARAKEET_GIT_COMMIT="$GIT_COMMIT" \
+open -n "$APP_BUNDLE" --env MACPARAKEET_DEBUG_APP_STATE_DIR="$APP_STATE_DIR" \
+  --env MACPARAKEET_GIT_COMMIT="$GIT_COMMIT" \
   --env MACPARAKEET_BUILD_DATE_UTC="$BUILD_DATE_UTC" \
   --env MACPARAKEET_BUILD_SOURCE="$BUILD_SOURCE" >"$LOG_FILE" 2>&1
 
@@ -245,6 +249,7 @@ echo "  bundle: $APP_BUNDLE"
 echo "  source: $BUILD_SOURCE"
 echo "  commit: $GIT_COMMIT"
 echo "  built-at: $BUILD_DATE_UTC"
+echo "  state: $APP_STATE_DIR"
 echo "  codesign: $CODESIGN_IDENTITY"
 echo "  log: $LOG_FILE"
 echo "  build-log: $BUILD_LOG_FILE"

@@ -11,8 +11,8 @@ python3 scripts/dev/query_audio_diagnostics.py --path /tmp/copied-audio.log --pr
 It reads `~/Library/Logs/MacParakeet/dictation-audio.log`, performs no network
 requests, and never modifies the source. `--path` overrides
 `MACPARAKEET_AUDIO_DIAGNOSTICS_LOG_PATH`, which overrides the usual location.
-When `MACPARAKEET_DEBUG_APP_STATE_DIR` is set for a debug app, the default is
-`<debug-root>/logs/dictation-audio.log`. Explicit paths are useful for copied
+When `MACPARAKEET_DEBUG_APP_STATE_DIR` is set, the default is
+`<state-root>/logs/dictation-audio.log`. Explicit paths are useful for copied
 support attachments. The utility does not open audio, transcripts, or databases.
 
 JSON output has `schema_version: 1`. `records` contains timestamp, event, and

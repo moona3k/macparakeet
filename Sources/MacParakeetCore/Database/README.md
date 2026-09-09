@@ -171,6 +171,7 @@ the migration for the column, and the `resetLifetimeStats()` path.
   previous-version snapshot.
 - `swift test` — full suite. Schema changes ripple through services
   and view models.
-- Manual: launch a DEBUG build with `MACPARAKEET_DEBUG_APP_STATE_DIR` set to
-  a new temporary directory, then confirm migrations initialize its empty
-  database. Never delete or reset the normal app database for verification.
+- Manual: `scripts/dev/run_app.sh` uses an isolated Dev state directory by
+  default. For a one-off smoke run, set `MACPARAKEET_DEBUG_APP_STATE_DIR` to a
+  new temporary directory and confirm migrations initialize its empty database.
+  Never delete or reset the normal app database for verification.

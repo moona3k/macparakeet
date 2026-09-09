@@ -5,9 +5,7 @@ import Foundation
 public enum AppPaths {
     public static let preferencesSuiteName = "com.macparakeet.MacParakeet"
     public static let meetingArtifactsFolderKey = "meetingArtifactsFolder"
-    #if DEBUG
     public static let debugAppStateDirEnvironmentKey = "MACPARAKEET_DEBUG_APP_STATE_DIR"
-    #endif
 
     /// Application Support directory
     public static var appSupportDir: String {
@@ -15,11 +13,9 @@ public enum AppPaths {
     }
 
     static func resolvedAppSupportDir(environment: [String: String]) -> String {
-        #if DEBUG
         if let override = debugAppStateDir(environment: environment) {
             return override
         }
-        #endif
         let path =
             FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)
@@ -69,11 +65,9 @@ public enum AppPaths {
         defaults: UserDefaults = .standard,
         environment: [String: String]
     ) -> String {
-        #if DEBUG
         if debugAppStateDir(environment: environment) != nil {
             return defaultMeetingRecordingsDir(environment: environment)
         }
-        #endif
         if let raw = defaults.string(forKey: meetingArtifactsFolderKey),
             let path = normalizedMeetingArtifactsFolder(raw)
         {
@@ -120,11 +114,9 @@ public enum AppPaths {
 
     /// Local diagnostic logs directory.
     public static var logsDir: String {
-        #if DEBUG
         if let override = debugAppStateDir(environment: ProcessInfo.processInfo.environment) {
             return "\(override)/logs"
         }
-        #endif
         let path =
             FileManager.default
             .urls(for: .libraryDirectory, in: .userDomainMask)
@@ -147,7 +139,7 @@ public enum AppPaths {
     /// FluidAudio model cache base.
     ///
     /// Production intentionally delegates to FluidAudio's own default resolver.
-    /// Debug/test runs with `MACPARAKEET_DEBUG_APP_STATE_DIR` keep FluidAudio
+    /// Developer/test runs with `MACPARAKEET_DEBUG_APP_STATE_DIR` keep FluidAudio
     /// models inside the same throwaway state root as the rest of MacParakeet.
     public static var fluidAudioModelsDir: String {
         fluidAudioModelsDirURL.path
@@ -162,11 +154,7 @@ public enum AppPaths {
     }
 
     static func hasDebugAppStateDirOverride(environment: [String: String]) -> Bool {
-        #if DEBUG
         debugAppStateDir(environment: environment) != nil
-        #else
-        false
-        #endif
     }
 
     static var fluidAudioBaseDirURL: URL {
@@ -182,14 +170,12 @@ public enum AppPaths {
     }
 
     static func resolvedFluidAudioModelsDir(environment: [String: String]) -> URL {
-        #if DEBUG
         if let override = debugAppStateDir(environment: environment) {
             return URL(fileURLWithPath: override, isDirectory: true)
                 .appendingPathComponent("FluidAudio", isDirectory: true)
                 .appendingPathComponent("Models", isDirectory: true)
                 .standardizedFileURL
         }
-        #endif
         return MLModelConfigurationUtils.defaultModelsDirectory()
     }
 
@@ -280,7 +266,6 @@ public enum AppPaths {
         return FileManager.default.isExecutableFile(atPath: ffmpegPath) ? ffmpegPath : nil
     }
 
-    #if DEBUG
     private static func debugAppStateDir(environment: [String: String]) -> String? {
         guard
             let raw = environment[debugAppStateDirEnvironmentKey]?
@@ -295,5 +280,4 @@ public enum AppPaths {
         }
         return URL(fileURLWithPath: expanded).standardizedFileURL.path
     }
-    #endif
 }

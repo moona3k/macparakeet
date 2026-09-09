@@ -44,14 +44,14 @@ scripts/dev/run_app.sh
 
 Builds, signs, and launches the dev build. Its separate bundle identifier
 (`com.macparakeet.dev`) separates standard GUI preferences and macOS permissions.
-It still uses the normal MacParakeet database and artifact paths by default.
+It also uses `~/Library/Application Support/MacParakeet-Dev` for its database,
+artifacts, model caches, and logs, keeping stable app data untouched.
 
-Destructive QA requires verified throwaway data. A **DEBUG** binary supports
-`MACPARAKEET_DEBUG_APP_STATE_DIR` as an explicit override for app data, artifacts,
-model caches, and logs. Release builds ignore it. The script's `open --env`
-arguments currently forward build metadata only; setting the override in the
-calling shell does not establish that the launched app received it. Verify the
-running process's environment and resolved paths before testing deletion or recovery.
+Destructive QA requires verified throwaway data. Set
+`MACPARAKEET_DEBUG_APP_STATE_DIR` to an absolute temporary directory to replace
+the default Dev state root for app data, artifacts, model caches, and logs. The
+launcher forwards that override in both Debug and optimized Release configurations.
+Verify the resolved path before testing deletion or recovery.
 
 The data override does not isolate preferences or Keychain. CLI configuration
 commands still use `com.macparakeet.MacParakeet` preferences, and GUI LLM credentials
