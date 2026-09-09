@@ -1,6 +1,6 @@
 # Model-aware generation settings
 
-Status: approved for implementation. Base: main `75d75e5ab313e9a5a9693d1e2b171ba90b9d328d`. Review evidence: [generation-settings audit](../audits/2026-09-08-generation-settings-review.md).
+Status: implemented; focused verification passed; PR/full CI pending. Base: main `75d75e5ab313e9a5a9693d1e2b171ba90b9d328d`. Integrated concurrent gateway-policy main `6e421dbbab09bdaaa9c37d7097fb0f4d023919e7` before completing implementation. Review evidence: [generation-settings audit](../audits/2026-09-08-generation-settings-review.md).
 
 ## Problem and intended behavior
 
@@ -43,3 +43,14 @@ The editor must show the effective provider/model, distinguish inherited setting
 ## Shipping
 
 Branch from origin/main, commit plan/spec/implementation together, open a real PR, resolve actionable review findings, and merge only the exact reviewed passing head. User authorized implementation, PR and merge. No public app release publication in this task.
+
+## Implementation verification
+
+- Normal-dependency focused `swift test` run: 469 XCTest cases passed, zero
+  failures. Coverage includes resolver and HTTP payloads, prompt and result
+  view models, model-selection intent, and public CLI prompt commands.
+- Independent Grok/Cursor Core and UI reviews reached LGTM after fixing custom
+  model selection from an empty override, override-only warning visibility,
+  action styling, and repeated unverified-endpoint help.
+- No storage/CLI schema changes, paid provider probes or user-data mutations.
+  Full-suite CI and the release app build remain the final shipping gates.

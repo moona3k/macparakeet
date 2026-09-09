@@ -52,11 +52,20 @@ the context and token budget unnecessarily.
 ### Prompt Library
 
 The create and edit forms expose a collapsed **Generation settings** section.
-Every field starts at **Default**. This means inheriting MacParakeet's current
-prompt-result and adapter behavior, not forcing the upstream provider to omit
-the parameter. The user may set only the values needed by that prompt.
+Transcript-prompt controls start at **Automatic**, preserving unset stored values.
+The editor identifies whether the effective value comes from an app default or
+an omitted parameter chosen by the provider. Showing a default never saves that
+number as an explicit override. The user may set only the values needed by that
+prompt. The Transforms editor remains unchanged.
 
-Controls:
+The model chooser defaults to **Use AI settings** and displays the actual
+provider/model. Discovered models and custom IDs use the same selection pattern
+as AI Settings. The effective model override drives field availability,
+validation and run-screen compatibility notes. Unsupported saved fields remain
+visible and explicitly removable; custom endpoint fields that are sent without
+verified model support remain editable and are marked unverified.
+
+Persisted fields and application validation bounds (not universal model limits):
 
 | Setting | UI | Accepted value |
 | --- | --- | --- |
@@ -245,9 +254,9 @@ OpenAI-compatible mapping is:
 ```
 
 The accepted levels are endpoint- and model-template-dependent. MacParakeet
-offers the common typed superset and reports the field as supported for custom
-OpenAI-compatible endpoints without claiming that every endpoint implements
-every value.
+retains its existing typed controls but identifies custom endpoint acceptance
+as unverified. An explicit value is sent using the existing mapping; this is
+not a claim that every endpoint implements that field or value.
 
 The neutral numeric limits are application bounds, not a guarantee that every
 model accepts every output-token limit. Per-model token maxima and custom
@@ -303,14 +312,17 @@ model, because provider/model filtering belongs in the adapter layer.
 ## Backward compatibility and safety
 
 - Existing database rows decode with `nil` settings.
-- Unset settings preserve historical request parameters, including the current
-  `.default` temperature. Input budgeting reserves Anthropic's inherited 4096
+- Unset settings preserve existing app defaults except that Gemini 3 shared
+  prompt/Transform generation omits the inherited temperature 0.7. Explicit
+  temperature values, including historical result receipts, remain explicit.
+  Input budgeting reserves Anthropic's inherited 4096
   output tokens on initial runs and regeneration alike; near-limit transcripts
   may therefore be truncated earlier than before this correction.
 - Provider-specific keys are allow-listed; arbitrary nested JSON is out of
   scope.
-- Settings affect Prompt Library result generation only. They do not alter
-  transcription, knowledge cards, chat, transforms, or formatter defaults.
+- These settings apply through the shared prompt/Transform resolver. This
+  amendment changes only the transcript-prompt editor; transcription, knowledge
+  cards, ordinary chat, formatter controls and Transforms UI remain unchanged.
 - CLI prompt commands and built-in reconciliation preserve settings they do
   not edit. This feature adds no result-prompt export/import workflow.
 - No prompt, transcript, output, API key, or request body is added to telemetry

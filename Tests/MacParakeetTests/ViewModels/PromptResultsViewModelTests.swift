@@ -59,6 +59,69 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.canGenerateManualPromptResult)
     }
 
+    func testSelectedPromptInferenceCompatibilityUsesModelOverrideWhenSettingsAreNil() {
+        let store = MockLLMConfigStore()
+        store.config = .gemini(apiKey: "key", model: "gemini-3.5-flash")
+        let prompt = Prompt(
+            name: "Override only",
+            content: "Summarize.",
+            modelOverride: "claude-sonnet-5"
+        )
+        promptRepo.prompts = [prompt]
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo,
+            configStore: store
+        )
+        viewModel.selectedPrompt = prompt
+
+        XCTAssertNil(viewModel.selectedPromptInferenceSummary)
+        XCTAssertEqual(
+            viewModel.selectedPromptInferenceCompatibilityMessage,
+            "This prompt's model isn't available with Google Gemini: the model identifier does not match this provider."
+        )
+    }
+
+    func testSelectedPromptInferenceCompatibilityUsesOverrideForUnsupportedSampling() {
+        let store = MockLLMConfigStore()
+        store.config = .openai(apiKey: "key", model: "gpt-4.1")
+        let prompt = Prompt(
+            name: "Sampling",
+            content: "Summarize.",
+            inferenceSettings: PromptInferenceSettings(temperature: 0.2),
+            modelOverride: "gpt-5.5"
+        )
+        promptRepo.prompts = [prompt]
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo,
+            configStore: store
+        )
+        viewModel.selectedPrompt = prompt
+
+        XCTAssertEqual(
+            viewModel.selectedPromptInferenceCompatibilityMessage,
+            "Not applied with this provider/model and setting combination: Temperature."
+        )
+    }
+
+    func testSelectedPromptInferenceCompatibilityIsSilentForInheritedModelWithoutSettings() {
+        let store = MockLLMConfigStore()
+        store.config = .openai(apiKey: "key", model: "gpt-5.5")
+        let prompt = Prompt(name: "Plain", content: "Summarize.")
+        promptRepo.prompts = [prompt]
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo,
+            configStore: store
+        )
+        viewModel.selectedPrompt = prompt
+
+        XCTAssertNil(viewModel.selectedPromptInferenceCompatibilityMessage)
+    }
 
     func testRefreshModelInfoLoadsDiscoveredOllamaModelsForPromptSelector() async throws {
         let configStore = MockLLMConfigStore()
@@ -966,10 +1029,11 @@ final class PromptResultsViewModelTests: XCTestCase {
         )
         viewModel.loadPromptResults(transcriptionId: displayedID)
         llm.streamTokens = []
-        let generationID = try XCTUnwrap(viewModel.autoGeneratePromptResults(
-            transcript: "Background transcript", transcriptionId: meetingID,
-            sourceType: .meeting, runInBackground: true
-        ).first)
+        let generationID = try XCTUnwrap(
+            viewModel.autoGeneratePromptResults(
+                transcript: "Background transcript", transcriptionId: meetingID,
+                sourceType: .meeting, runInBackground: true
+            ).first)
         try await waitUntil { !self.viewModel.pendingGenerations.contains { $0.state.isActive } }
         guard case .failed = viewModel.pendingGeneration(id: generationID)?.state else {
             return XCTFail("Expected the empty response to fail")
@@ -1158,7 +1222,7 @@ final class PromptResultsViewModelTests: XCTestCase {
                     isAvailable: true,
                     isAutoRun: true,
                     sortOrder: 10
-                ),
+                )
             ],
         ]
         llm.streamDelayNs = 1_000_000_000
@@ -1194,10 +1258,10 @@ final class PromptResultsViewModelTests: XCTestCase {
                     meetingTypeId: meetingTypeID,
                     isAvailable: false,
                     isAutoRun: false
-                ),
+                )
             ],
             later.id: [
-                .allMeetings(promptId: later.id, isAvailable: true, isAutoRun: false, sortOrder: 20),
+                .allMeetings(promptId: later.id, isAvailable: true, isAutoRun: false, sortOrder: 20)
             ],
             first.id: [
                 .meetingType(
@@ -1206,15 +1270,16 @@ final class PromptResultsViewModelTests: XCTestCase {
                     isAvailable: true,
                     isAutoRun: false,
                     sortOrder: 10
-                ),
+                )
             ],
         ]
-        try transcriptionRepo.save(Transcription(
-            id: transcriptionID,
-            fileName: "meeting.m4a",
-            sourceType: .meeting,
-            meetingTypeId: meetingTypeID
-        ))
+        try transcriptionRepo.save(
+            Transcription(
+                id: transcriptionID,
+                fileName: "meeting.m4a",
+                sourceType: .meeting,
+                meetingTypeId: meetingTypeID
+            ))
         viewModel.configure(
             llmService: llm,
             promptRepo: promptRepo,
@@ -1741,24 +1806,28 @@ private final class PromptLabelPolicyRepositoryMock: PromptLabelPolicyRepository
 
     func replaceTargetLabels(promptId: UUID, labelIds: Set<UUID>) throws {
         let now = Date()
-        policiesByPromptID[promptId] = labelIds.isEmpty
+        policiesByPromptID[promptId] =
+            labelIds.isEmpty
             ? []
-            : [PromptLabelPolicy(
-                promptId: promptId,
-                scopeKind: .all,
-                isAvailable: false,
-                createdAt: now,
-                updatedAt: now
-            )] + labelIds.map {
+            : [
                 PromptLabelPolicy(
                     promptId: promptId,
-                    scopeKind: .label,
-                    labelId: $0,
-                    isAvailable: true,
+                    scopeKind: .all,
+                    isAvailable: false,
                     createdAt: now,
                     updatedAt: now
                 )
-            }
+            ]
+                + labelIds.map {
+                    PromptLabelPolicy(
+                        promptId: promptId,
+                        scopeKind: .label,
+                        labelId: $0,
+                        isAvailable: true,
+                        createdAt: now,
+                        updatedAt: now
+                    )
+                }
     }
 }
 

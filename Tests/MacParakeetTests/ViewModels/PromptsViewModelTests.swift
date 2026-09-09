@@ -49,10 +49,12 @@ final class PromptsViewModelTests: XCTestCase {
         subject.deletePrompt(prompt)
         subject.restoreDeletedPrompt(prompt)
 
-        XCTAssertEqual(snapshots, [
-            ["Original instructions"], ["Edited instructions"], ["Original instructions"],
-            [], ["Original instructions"], [], ["Original instructions"],
-        ])
+        XCTAssertEqual(
+            snapshots,
+            [
+                ["Original instructions"], ["Edited instructions"], ["Original instructions"],
+                [], ["Original instructions"], [], ["Original instructions"],
+            ])
     }
 
     func testFailedTransformEditDoesNotInvalidateBindings() throws {
@@ -97,9 +99,10 @@ final class PromptsViewModelTests: XCTestCase {
         )
         XCTAssertEqual(subject.labelIDsByPromptID[created.id], [customer.id])
         XCTAssertEqual(
-            Set(try policyRepository.fetchPolicies(promptId: created.id).compactMap {
-                $0.scopeKind == .label && $0.isAvailable ? $0.labelId : nil
-            }),
+            Set(
+                try policyRepository.fetchPolicies(promptId: created.id).compactMap {
+                    $0.scopeKind == .label && $0.isAvailable ? $0.labelId : nil
+                }),
             [customer.id]
         )
     }
@@ -133,10 +136,11 @@ final class PromptsViewModelTests: XCTestCase {
         XCTAssertNil(subject.errorMessage)
         XCTAssertTrue(try policies.fetchPolicies(promptId: prompt.id).isEmpty)
         XCTAssertFalse(subject.hasCustomTargetingRules(for: prompt))
-        XCTAssertTrue(PromptLabelApplicabilityResolver.resolve(
-            prompt: prompt, sourceType: .meeting, transcriptionLabelIDs: [],
-            policies: try policies.fetchPolicies(promptId: prompt.id)
-        ).isAvailable)
+        XCTAssertTrue(
+            PromptLabelApplicabilityResolver.resolve(
+                prompt: prompt, sourceType: .meeting, transcriptionLabelIDs: [],
+                policies: try policies.fetchPolicies(promptId: prompt.id)
+            ).isAvailable)
     }
 
     func testStandardLabelSelectionDoesNotDisplayAsCustomRules() throws {
@@ -552,7 +556,6 @@ final class PromptsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.prompts.contains { $0.id == builtIn.id })
     }
 
-
     func testBeginEditingLoadsNewestVersions() {
         let prompt = viewModel.prompts[0]
         let versionRepo = MockPromptVersionRepository()
@@ -654,6 +657,306 @@ final class PromptsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.deletedPrompts.isEmpty)
         XCTAssertTrue(viewModel.managedPrompts.contains { $0.id == builtIn.id })
         XCTAssertTrue(viewModel.managedPrompts.contains { $0.id == custom.id })
+    }
+
+    func testBlankDraftPresentationDoesNotMaterializeInheritedGeminiTemperature() async throws {
+        try await loadGenerationConfig(.gemini(apiKey: "sk-secret-test-key", model: "gemini-3.5-flash"))
+
+        let presentation = try XCTUnwrap(
+            viewModel.generationSettingsPresentation(
+                draft: .init(),
+                modelOverride: ""
+            )
+        )
+        XCTAssertNil(presentation.requestedSettings)
+        XCTAssertNil(presentation.effectiveSettings)
+        XCTAssertEqual(presentation.fieldCapabilities[.temperature]?.defaultSource, .provider)
+        XCTAssertEqual(presentation.effectiveModel, "gemini-3.5-flash")
+        XCTAssertFalse("\(presentation)".contains("sk-secret-test-key"))
+        XCTAssertFalse(
+            String(describing: viewModel.generationProviderID).contains("sk-secret-test-key")
+        )
+    }
+
+    func testInvalidDraftTextKeepsFieldMetadataAndStillReportsValidation() async throws {
+        try await loadGenerationConfig(.gemini(apiKey: "key", model: "gemini-3.5-flash"))
+        viewModel.newInferenceSettings.temperature = "abc"
+        viewModel.newName = "Invalid text"
+        viewModel.newContent = "Keep metadata."
+
+        let presentation = try XCTUnwrap(
+            viewModel.generationSettingsPresentation(
+                draft: viewModel.newInferenceSettings,
+                modelOverride: ""
+            )
+        )
+        XCTAssertNil(presentation.requestedSettings?.temperature)
+        XCTAssertEqual(presentation.fieldCapabilities[.temperature]?.availability, .supported)
+        XCTAssertTrue(presentation.fieldCapabilities[.temperature]?.isDiscouraged == true)
+
+        viewModel.addPrompt()
+        XCTAssertFalse(viewModel.prompts.contains { $0.name == "Invalid text" })
+        XCTAssertNotNil(viewModel.newInferenceValidationErrors[.temperature])
+    }
+
+    func testResetInferenceSettingsLeavesInheritanceUnset() throws {
+        viewModel.newName = "Reset"
+        viewModel.newContent = "Use inherited settings."
+        viewModel.newInferenceSettings.temperature = "0.2"
+        viewModel.newInferenceSettings.maxTokens = "4096"
+        viewModel.resetNewInferenceSettings()
+
+        XCTAssertTrue(viewModel.newInferenceSettings.isDefault)
+        viewModel.addPrompt()
+        let prompt = try XCTUnwrap(viewModel.prompts.first { $0.name == "Reset" })
+        XCTAssertNil(prompt.inferenceSettings)
+    }
+
+    func testAnthropicKnownRangeIsValidatedBeforeSave() async throws {
+        try await loadGenerationConfig(.anthropic(apiKey: "key", model: "claude-haiku-4-5"))
+        viewModel.newName = "Anthropic range"
+        viewModel.newContent = "Summarize."
+        viewModel.newInferenceSettings.temperature = "1.5"
+
+        viewModel.addPrompt()
+        XCTAssertFalse(viewModel.prompts.contains { $0.name == "Anthropic range" })
+        XCTAssertEqual(
+            viewModel.newInferenceValidationErrors[.temperature],
+            "Enter a number from 0 to 1."
+        )
+
+        viewModel.newInferenceSettings.temperature = "0.8"
+        viewModel.addPrompt()
+        let prompt = try XCTUnwrap(viewModel.prompts.first { $0.name == "Anthropic range" })
+        XCTAssertEqual(prompt.inferenceSettings?.temperature, 0.8)
+    }
+
+    func testUnsupportedSavedValuesRemainWhenTheCurrentModelOmitsThem() async throws {
+        try await loadGenerationConfig(.openai(apiKey: "key", model: "gpt-5.5"))
+        viewModel.newName = "GPT-5 sampling"
+        viewModel.newContent = "Summarize."
+        viewModel.newInferenceSettings.temperature = "0.2"
+        viewModel.newInferenceSettings.thinkingMode = .enabled
+
+        viewModel.addPrompt()
+        let prompt = try XCTUnwrap(viewModel.prompts.first { $0.name == "GPT-5 sampling" })
+        XCTAssertEqual(prompt.inferenceSettings?.temperature, 0.2)
+        XCTAssertEqual(prompt.inferenceSettings?.thinkingMode, .enabled)
+
+        viewModel.beginEditing(prompt)
+        try await waitUntil { self.viewModel.generationProviderID == .openai }
+        let presentation = try XCTUnwrap(
+            viewModel.generationSettingsPresentation(
+                draft: viewModel.editingInferenceSettings,
+                modelOverride: viewModel.editingModelOverride
+            )
+        )
+        XCTAssertEqual(presentation.requestedSettings?.temperature, 0.2)
+        XCTAssertEqual(presentation.fieldCapabilities[.temperature]?.availability, .unsupported)
+        XCTAssertEqual(presentation.fieldCapabilities[.thinkingMode]?.availability, .unsupported)
+
+        viewModel.updatePrompt(prompt, name: "GPT-5 sampling renamed", content: prompt.content)
+        let updated = try XCTUnwrap(viewModel.prompts.first { $0.id == prompt.id })
+        XCTAssertEqual(updated.inferenceSettings?.temperature, 0.2)
+        XCTAssertEqual(updated.inferenceSettings?.thinkingMode, .enabled)
+        XCTAssertEqual(updated.name, "GPT-5 sampling renamed")
+    }
+
+    func testModelOverrideDrivesPresentationAndCompatibilityWarning() async throws {
+        try await loadGenerationConfig(.openai(apiKey: "key", model: "gpt-4.1"))
+        let presentation = try XCTUnwrap(
+            viewModel.generationSettingsPresentation(
+                draft: .init(temperature: "0.2"),
+                modelOverride: "gpt-5.5"
+            )
+        )
+        XCTAssertEqual(presentation.modelOverrideStatus, .applied)
+        XCTAssertEqual(presentation.effectiveModel, "gpt-5.5")
+        XCTAssertEqual(presentation.fieldCapabilities[.temperature]?.availability, .unsupported)
+
+        try await loadGenerationConfig(.gemini(apiKey: "key", model: "gemini-3.5-flash"))
+        let invalid = try XCTUnwrap(
+            viewModel.generationSettingsPresentation(
+                draft: .init(),
+                modelOverride: "claude-sonnet-5"
+            )
+        )
+        XCTAssertEqual(
+            invalid.modelOverrideStatus,
+            .invalid(reason: "the model identifier does not match this provider.")
+        )
+
+        let warning = PromptsViewModel.inferenceCompatibilityMessage(
+            settings: nil,
+            config: .gemini(apiKey: "key", model: "gemini-3.5-flash"),
+            modelOverride: "claude-sonnet-5"
+        )
+        XCTAssertEqual(
+            warning,
+            "This prompt's model isn't available with Google Gemini: the model identifier does not match this provider."
+        )
+    }
+
+    func testGenerationModelSelectionCustomFromEmptyOverrideRevealsListAndCustomID() {
+        let models = ["gpt-5.5", "gpt-4.1"]
+        var override = ""
+        var selection = PromptsViewModel.GenerationModelSelection(
+            modelOverride: override,
+            availableModels: models
+        )
+        XCTAssertFalse(selection.showsCustomControls)
+        XCTAssertFalse(selection.showsModelList(availableModels: models))
+        XCTAssertFalse(selection.showsCustomIDField(availableModels: models))
+
+        selection.selectCustom(availableModels: models)
+        XCTAssertTrue(selection.showsCustomControls)
+        XCTAssertTrue(selection.showsModelList(availableModels: models))
+        XCTAssertFalse(selection.showsCustomIDField(availableModels: models))
+        XCTAssertEqual(override, "")
+        selection.reconcile(modelOverride: "", availableModels: models)
+        XCTAssertTrue(selection.showsCustomControls)
+        XCTAssertTrue(selection.showsModelList(availableModels: models))
+
+        selection.useCustomModelID()
+        XCTAssertTrue(selection.showsCustomIDField(availableModels: models))
+        XCTAssertFalse(selection.showsModelList(availableModels: models))
+        XCTAssertEqual(override, "")
+
+        override = "house-model"
+        selection.reconcile(modelOverride: override, availableModels: models)
+        XCTAssertTrue(selection.showsCustomIDField(availableModels: models))
+
+        selection.chooseFromList()
+        XCTAssertTrue(selection.showsModelList(availableModels: models))
+        XCTAssertEqual(override, "house-model")
+    }
+
+    func testGenerationModelSelectionEmptyListStartsOnCustomIDAndDoesNotMaterializeInheritance() {
+        let override = ""
+        var selection = PromptsViewModel.GenerationModelSelection(
+            modelOverride: override,
+            availableModels: []
+        )
+        selection.selectCustom(availableModels: [])
+        XCTAssertTrue(selection.showsCustomIDField(availableModels: []))
+        XCTAssertFalse(selection.showsModelList(availableModels: []))
+        XCTAssertEqual(override, "")
+
+        selection.reconcile(modelOverride: "", availableModels: [])
+        XCTAssertTrue(selection.showsCustomControls)
+        XCTAssertEqual(override, "")
+    }
+
+    func testGenerationModelSelectionUseAISettingsAndResetRestoreInheritance() {
+        let models = ["gpt-5.5"]
+        var override = "gpt-5.5"
+        var selection = PromptsViewModel.GenerationModelSelection(
+            modelOverride: override,
+            availableModels: models
+        )
+        XCTAssertTrue(selection.showsModelList(availableModels: models))
+
+        selection.selectUseAISettings()
+        override = ""
+        XCTAssertFalse(selection.showsCustomControls)
+        XCTAssertEqual(override, "")
+
+        override = "house-model"
+        selection = PromptsViewModel.GenerationModelSelection(
+            modelOverride: override,
+            availableModels: models
+        )
+        XCTAssertTrue(selection.showsCustomIDField(availableModels: models))
+        selection.reset()
+        override = ""
+        XCTAssertFalse(selection.showsCustomControls)
+        XCTAssertEqual(override, "")
+    }
+
+    func testSavedInvalidModelOverrideStaysWarningOnlyAndCustomID() async throws {
+        let models = ["gpt-5.5"]
+        var selection = PromptsViewModel.GenerationModelSelection(
+            modelOverride: "claude-sonnet-5",
+            availableModels: models
+        )
+        XCTAssertTrue(selection.showsCustomIDField(availableModels: models))
+        selection.reconcile(modelOverride: "claude-sonnet-5", availableModels: models)
+        XCTAssertTrue(selection.showsCustomIDField(availableModels: models))
+
+        try await loadGenerationConfig(.gemini(apiKey: "key", model: "gemini-3.5-flash"))
+        viewModel.newName = "Invalid override"
+        viewModel.newContent = "Summarize."
+        viewModel.newModelOverride = "claude-sonnet-5"
+        viewModel.addPrompt()
+
+        let prompt = try XCTUnwrap(viewModel.prompts.first { $0.name == "Invalid override" })
+        XCTAssertEqual(prompt.modelOverride, "claude-sonnet-5")
+        XCTAssertTrue(viewModel.newInferenceValidationErrors.isEmpty)
+        XCTAssertEqual(
+            viewModel.generationSettingsPresentation(
+                draft: .init(),
+                modelOverride: prompt.modelOverride ?? ""
+            )?.modelOverrideStatus,
+            .invalid(reason: "the model identifier does not match this provider.")
+        )
+    }
+
+    func testGenerationModelListKeepsFallbackWhenDiscoveryFails() async throws {
+        let store = MockLLMConfigStore()
+        store.config = .openai(apiKey: "key", model: "gpt-5.5")
+        let client = MockLLMClient()
+        client.listModelsError = LLMError.connectionFailed("offline")
+        viewModel.configure(repo: repo, configStore: store, llmClient: client)
+        try await waitUntil { self.viewModel.generationProviderID == .openai }
+        try await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertTrue(viewModel.generationAvailableModels.contains("gpt-5.5"))
+        XCTAssertFalse(viewModel.generationAvailableModels.contains("discovered-model"))
+    }
+
+    func testGenerationModelListIgnoresStaleResultAfterProviderChange() async throws {
+        let store = MockLLMConfigStore()
+        store.config = .openai(apiKey: "key", model: "gpt-5.5")
+        let client = MockLLMClient()
+        client.modelsList = ["stale-openai-model"]
+        client.listModelsDelayNs = 250_000_000
+        viewModel.configure(repo: repo, configStore: store, llmClient: client)
+        try await waitUntil { self.viewModel.generationProviderID == .openai }
+
+        store.config = .anthropic(apiKey: "key", model: "claude-haiku-4-5")
+        client.modelsList = ["claude-discovered"]
+        client.listModelsDelayNs = 0
+        viewModel.refreshGenerationSettingsContext()
+        try await waitUntil { self.viewModel.generationProviderID == .anthropic }
+        try await Task.sleep(for: .milliseconds(400))
+
+        XCTAssertFalse(viewModel.generationAvailableModels.contains("stale-openai-model"))
+        XCTAssertTrue(viewModel.generationAvailableModels.contains("claude-haiku-4-5"))
+    }
+
+    private func loadGenerationConfig(_ config: LLMProviderConfig) async throws {
+        let store = MockLLMConfigStore()
+        store.config = config
+        viewModel.configure(repo: repo, configStore: store)
+        try await waitUntil { self.viewModel.generationProviderID == config.id }
+    }
+
+    private func waitUntil(
+        timeout: Duration = .seconds(1),
+        pollInterval: Duration = .milliseconds(10),
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        _ condition: () -> Bool
+    ) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now + timeout
+        while !condition() {
+            if clock.now >= deadline {
+                XCTFail("Timed out waiting for condition", file: file, line: line)
+                return
+            }
+            try await Task.sleep(for: pollInterval)
+        }
     }
 
 }

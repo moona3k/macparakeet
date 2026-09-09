@@ -3245,11 +3245,15 @@ struct TranscriptResultView: View {
             // Prompt chips
             promptChips
 
-            if let summary = promptResultsViewModel.selectedPromptInferenceSummary {
+            if promptResultsViewModel.selectedPromptInferenceSummary != nil
+                || promptResultsViewModel.selectedPromptInferenceCompatibilityMessage != nil
+            {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                    Label(summary, systemImage: "slider.horizontal.3")
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    if let summary = promptResultsViewModel.selectedPromptInferenceSummary {
+                        Label(summary, systemImage: "slider.horizontal.3")
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    }
 
                     if let compatibility = promptResultsViewModel.selectedPromptInferenceCompatibilityMessage {
                         Text(compatibility)

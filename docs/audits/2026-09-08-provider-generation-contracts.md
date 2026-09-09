@@ -197,6 +197,28 @@ baseline and labels it accurately. Top-k extensions, model templates and
 universal omission rules are future work; a dedicated vLLM wire fixture would
 belong with that work.
 
+## xAI and DeepSeek custom endpoints
+
+A supplemental Grok/Cursor review checked two hosted OpenAI-compatible APIs.
+Their native reasoning shapes differ from the custom adapter's existing
+`chat_template_kwargs` mapping:
+
+- xAI documents reasoning effort separately from sampling, with model-specific
+  restrictions. Its Chat Completions and Responses interfaces also have different
+  token-budget semantics. See [reasoning](https://docs.x.ai/developers/model-capabilities/text/reasoning)
+  and [API comparison](https://docs.x.ai/developers/model-capabilities/text/comparison).
+- DeepSeek documents top-level `thinking` and `reasoning_effort`, uses
+  `max_tokens` for Chat Completions, and states that sampling controls have no
+  effect in thinking mode. See [Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/)
+  and [thinking mode](https://api-docs.deepseek.com/guides/thinking_mode/).
+
+Neither is evidence that the app's generic local-template thinking controls
+configure that vendor's reasoning. Retain existing manual custom settings as
+unverified, explain that an endpoint may reject or ignore them, and never show
+vendor-specific thinking defaults or output ceilings as known custom-endpoint
+values. Native vendor mappings, additional token-key policies and Responses
+integrations remain future work. No paid inference calls were made.
+
 ## Resulting small implementation boundary
 
 1. Compute presentation from the already effective provider/model using the

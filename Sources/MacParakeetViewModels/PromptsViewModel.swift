@@ -46,12 +46,147 @@ public final class PromptsViewModel {
                 && reasoningEffort == nil
         }
 
-        fileprivate static func renderNumber(_ value: Double) -> String {
+        var unvalidatedSettings: PromptInferenceSettings? {
+            PromptInferenceSettings(
+                temperature: Self.parseUnvalidatedDouble(temperature),
+                topP: Self.parseUnvalidatedDouble(topP),
+                topK: Self.parseUnvalidatedInt(topK),
+                maxTokens: Self.parseUnvalidatedInt(maxTokens),
+                thinkingMode: thinkingMode,
+                reasoningEffort: reasoningEffort
+            ).normalized
+        }
+
+        nonisolated public static func renderNumber(_ value: Double) -> String {
             var rendered = String(value)
             if rendered.hasSuffix(".0") {
                 rendered.removeLast(2)
             }
             return rendered
+        }
+
+        public func hasExplicitValue(for field: PromptInferenceSettings.Field) -> Bool {
+            switch field {
+            case .temperature:
+                return !temperature.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            case .topP:
+                return !topP.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            case .topK:
+                return !topK.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            case .maxTokens:
+                return !maxTokens.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            case .thinkingMode:
+                return thinkingMode != .providerDefault
+            case .reasoningEffort:
+                return reasoningEffort != nil
+            }
+        }
+
+        public mutating func clearField(_ field: PromptInferenceSettings.Field) {
+            switch field {
+            case .temperature: temperature = ""
+            case .topP: topP = ""
+            case .topK: topK = ""
+            case .maxTokens: maxTokens = ""
+            case .thinkingMode:
+                thinkingMode = .providerDefault
+                reasoningEffort = nil
+            case .reasoningEffort:
+                reasoningEffort = nil
+            }
+        }
+
+        private static func parseUnvalidatedDouble(_ rawValue: String) -> Double? {
+            let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !value.isEmpty, let parsed = Double(value), parsed.isFinite else { return nil }
+            return parsed
+        }
+
+        private static func parseUnvalidatedInt(_ rawValue: String) -> Int? {
+            let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !value.isEmpty else { return nil }
+            return Int(value)
+        }
+    }
+
+    /// Editor intent for the prompt model chooser. Independent of the stored
+    /// override string so choosing Custom does not require writing a model ID,
+    /// and Use AI settings can clear an override without losing the next Custom
+    /// interaction.
+    public struct GenerationModelSelection: Equatable, Sendable {
+        public enum Source: Equatable, Sendable, Hashable {
+            case useAISettings
+            case custom
+        }
+
+        public var source: Source
+        public var prefersCustomModelID: Bool
+
+        public init(source: Source = .useAISettings, prefersCustomModelID: Bool = false) {
+            self.source = source
+            self.prefersCustomModelID = prefersCustomModelID
+        }
+
+        public init(modelOverride: String, availableModels: [String]) {
+            let override = modelOverride.trimmingCharacters(in: .whitespacesAndNewlines)
+            if override.isEmpty {
+                source = .useAISettings
+                prefersCustomModelID = false
+            } else {
+                source = .custom
+                prefersCustomModelID = !availableModels.contains(override)
+            }
+        }
+
+        public var showsCustomControls: Bool { source == .custom }
+
+        public func showsCustomIDField(availableModels: [String]) -> Bool {
+            source == .custom && (prefersCustomModelID || availableModels.isEmpty)
+        }
+
+        public func showsModelList(availableModels: [String]) -> Bool {
+            source == .custom && !prefersCustomModelID && !availableModels.isEmpty
+        }
+
+        public mutating func selectUseAISettings() {
+            source = .useAISettings
+            prefersCustomModelID = false
+        }
+
+        public mutating func selectCustom(availableModels: [String]) {
+            source = .custom
+            prefersCustomModelID = availableModels.isEmpty
+        }
+
+        public mutating func chooseFromList() {
+            source = .custom
+            prefersCustomModelID = false
+        }
+
+        public mutating func useCustomModelID() {
+            source = .custom
+            prefersCustomModelID = true
+        }
+
+        public mutating func reset() {
+            selectUseAISettings()
+        }
+
+        /// Updates list-versus-ID presentation from a saved or typed override
+        /// without snapping Custom back to Use AI settings when the override
+        /// is still empty.
+        public mutating func reconcile(modelOverride: String, availableModels: [String]) {
+            let override = modelOverride.trimmingCharacters(in: .whitespacesAndNewlines)
+            if source == .useAISettings {
+                if !override.isEmpty {
+                    source = .custom
+                    prefersCustomModelID = !availableModels.contains(override)
+                }
+                return
+            }
+            if !override.isEmpty, !availableModels.contains(override) {
+                prefersCustomModelID = true
+            }
         }
     }
 
@@ -271,7 +406,7 @@ public final class PromptsViewModel {
         }
 
         let inferenceSettings: PromptInferenceSettings?
-        switch Self.validateInferenceSettings(newInferenceSettings) {
+        switch validateInferenceSettings(newInferenceSettings, modelOverride: newModelOverride) {
         case .valid(let settings):
             inferenceSettings = settings
             newInferenceValidationErrors = [:]
@@ -347,7 +482,9 @@ public final class PromptsViewModel {
             ? editingInferenceSettings
             : InferenceSettingsDraft(settings: prompt.inferenceSettings)
         let inferenceSettings: PromptInferenceSettings?
-        switch Self.validateInferenceSettings(inferenceDraft) {
+        let modelOverrideForValidation =
+            ownsEditingState ? editingModelOverride : (prompt.modelOverride ?? "")
+        switch validateInferenceSettings(inferenceDraft, modelOverride: modelOverrideForValidation) {
         case .valid(let settings):
             inferenceSettings = settings
             if ownsEditingState { editingInferenceValidationErrors = [:] }
@@ -410,6 +547,7 @@ public final class PromptsViewModel {
     }
 
     public func beginEditing(_ prompt: Prompt) {
+        refreshGenerationSettingsContext()
         editingIncludeMeetingNotes = prompt.includeMeetingNotes
         editingInferenceSettings = InferenceSettingsDraft(settings: prompt.inferenceSettings)
         editingModelOverride = prompt.modelOverride ?? ""
@@ -480,6 +618,44 @@ public final class PromptsViewModel {
         !draft.isDefault || !modelOverride.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// Presentation metadata for the current draft. Invalid numeric text is
+    /// omitted from `requestedSettings` but field availability still comes from
+    /// the saved provider and effective model. The saved configuration stays
+    /// private so API keys never reach the editor.
+    public func generationSettingsPresentation(
+        draft: InferenceSettingsDraft,
+        modelOverride: String
+    ) -> PromptInferencePresentation? {
+        guard let config = generationConfig else { return nil }
+        return PromptInferenceCapabilityResolver.presentation(
+            config: config,
+            modelOverride: normalizedOptional(modelOverride),
+            requested: draft.unvalidatedSettings
+        )
+    }
+
+    public func generationSettingsCollapsedSummary(
+        draft: InferenceSettingsDraft,
+        modelOverride: String
+    ) -> String? {
+        var parts: [String] = []
+        if let providerID = generationProviderID {
+            parts.append(providerID.displayName)
+        }
+        let override = normalizedOptional(modelOverride)
+        if let override {
+            parts.append(override)
+        } else if !generationModelName.isEmpty {
+            parts.append(generationModelName)
+        }
+        if let draftSummary = Self.compactInferenceDraftSummary(draft) {
+            parts.append(draftSummary)
+        } else if let requested = draft.unvalidatedSettings {
+            parts.append(contentsOf: Self.compactRequestedParts(requested))
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
     public static func compactInferenceSummary(_ settings: PromptInferenceSettings?) -> String? {
         guard let settings = settings?.normalized else { return nil }
         var parts: [String] = []
@@ -510,20 +686,26 @@ public final class PromptsViewModel {
 
     public static func inferenceCompatibilityMessage(
         settings: PromptInferenceSettings?,
-        config: LLMProviderConfig
+        config: LLMProviderConfig,
+        modelOverride: String? = nil
     ) -> String? {
-        do {
-            let unsupported = try PromptInferenceCapabilityResolver.resolve(
-                config: config,
-                requested: settings
-            ).unsupportedSettings
-            guard !unsupported.isEmpty else { return nil }
-            let names = PromptInferenceSettings.Field.allCases
-                .filter { unsupported.contains($0) }
-                .map(Self.displayName)
-            return "Not applied with this provider/model and setting combination: \(names.joined(separator: ", "))."
-        } catch {
-            return "Cannot generate with this provider/model: \(error.localizedDescription)"
+        switch config.resolvingModelOverride(modelOverride) {
+        case .invalid(_, let reason):
+            return "This prompt's model isn't available with \(config.id.displayName): \(reason)"
+        case .resolved(let effectiveConfig):
+            do {
+                let unsupported = try PromptInferenceCapabilityResolver.resolve(
+                    config: effectiveConfig,
+                    requested: settings
+                ).unsupportedSettings
+                guard !unsupported.isEmpty else { return nil }
+                let names = PromptInferenceSettings.Field.allCases
+                    .filter { unsupported.contains($0) }
+                    .map(Self.displayName)
+                return "Not applied with this provider/model and setting combination: \(names.joined(separator: ", "))."
+            } catch {
+                return "Cannot generate with this provider/model: \(error.localizedDescription)"
+            }
         }
     }
 
@@ -748,15 +930,17 @@ public final class PromptsViewModel {
         do {
             let policies = try labelPolicyRepository.fetchPolicies(promptIds: Set(prompts.map(\.id)))
             let grouped = Dictionary(grouping: policies, by: \.promptId)
-            customTargetingPromptIDs = Set(grouped.compactMap { promptID, rules in
-                let fallbacks = rules.filter { $0.scopeKind == .all }
-                let labels = rules.filter { $0.scopeKind == .label }
-                let representsAll = rules.count == 1 && fallbacks.first?.isAvailable == true
-                let representsSelectedLabels = fallbacks.count == 1
-                    && fallbacks.first?.isAvailable == false && !labels.isEmpty
-                    && labels.allSatisfy { $0.isAvailable && $0.labelId != nil }
-                return representsAll || representsSelectedLabels ? nil : promptID
-            })
+            customTargetingPromptIDs = Set(
+                grouped.compactMap { promptID, rules in
+                    let fallbacks = rules.filter { $0.scopeKind == .all }
+                    let labels = rules.filter { $0.scopeKind == .label }
+                    let representsAll = rules.count == 1 && fallbacks.first?.isAvailable == true
+                    let representsSelectedLabels =
+                        fallbacks.count == 1
+                        && fallbacks.first?.isAvailable == false && !labels.isEmpty
+                        && labels.allSatisfy { $0.isAvailable && $0.labelId != nil }
+                    return representsAll || representsSelectedLabels ? nil : promptID
+                })
             labelIDsByPromptID = grouped.reduce(into: [:]) { result, entry in
                 let hasRestrictedFallback = entry.value.contains {
                     $0.scopeKind == .all && !$0.isAvailable
@@ -765,9 +949,10 @@ public final class PromptsViewModel {
                     result[entry.key] = []
                     return
                 }
-                result[entry.key] = Set(entry.value.compactMap {
-                    $0.scopeKind == .label && $0.isAvailable ? $0.labelId : nil
-                })
+                result[entry.key] = Set(
+                    entry.value.compactMap {
+                        $0.scopeKind == .label && $0.isAvailable ? $0.labelId : nil
+                    })
             }
         } catch {
             labelIDsByPromptID = [:]
@@ -803,6 +988,76 @@ public final class PromptsViewModel {
         case invalid(InferenceValidationErrors)
     }
 
+    private func validateInferenceSettings(
+        _ draft: InferenceSettingsDraft,
+        modelOverride: String
+    ) -> InferenceDraftValidationResult {
+        switch Self.validateInferenceSettings(draft) {
+        case .invalid(let errors):
+            return .invalid(errors)
+        case .valid(let settings):
+            guard let config = generationConfig else {
+                return .valid(settings)
+            }
+            let presentation = PromptInferenceCapabilityResolver.presentation(
+                config: config,
+                modelOverride: normalizedOptional(modelOverride),
+                requested: settings
+            )
+            guard let error = presentation.validationError else {
+                return .valid(settings)
+            }
+            return .invalid(Self.fieldErrors(from: error))
+        }
+    }
+
+    private static func fieldErrors(
+        from error: PromptInferenceSettings.ValidationError
+    ) -> InferenceValidationErrors {
+        switch error {
+        case .outOfRange(let field, let minimum, let maximum):
+            return [field: rangeValidationMessage(for: field, minimum: minimum, maximum: maximum)]
+        case .nonFinite(let field):
+            return [field: validationMessage(for: field)]
+        case .unsupportedPromptCategory:
+            return [:]
+        }
+    }
+
+    private static func rangeValidationMessage(
+        for field: PromptInferenceSettings.Field,
+        minimum: Double,
+        maximum: Double
+    ) -> String {
+        switch field {
+        case .temperature, .topP:
+            return
+                "Enter a number from \(InferenceSettingsDraft.renderNumber(minimum)) to \(InferenceSettingsDraft.renderNumber(maximum))."
+        case .topK, .maxTokens:
+            return "Enter a whole number from \(Int(minimum)) to \(Int(maximum))."
+        case .thinkingMode, .reasoningEffort:
+            return validationMessage(for: field)
+        }
+    }
+
+    private static func compactRequestedParts(_ settings: PromptInferenceSettings) -> [String] {
+        var parts: [String] = []
+        if let temperature = settings.temperature {
+            parts.append("Temp \(InferenceSettingsDraft.renderNumber(temperature))")
+        }
+        if let topP = settings.topP {
+            parts.append("Top P \(InferenceSettingsDraft.renderNumber(topP))")
+        }
+        if let topK = settings.topK { parts.append("Top K \(topK)") }
+        if let maxTokens = settings.maxTokens { parts.append("Max \(maxTokens)") }
+        switch settings.thinkingMode {
+        case .providerDefault: break
+        case .enabled: parts.append("Thinking on")
+        case .disabled: parts.append("Thinking off")
+        }
+        return parts
+    }
+
     private static func validateInferenceSettings(
         _ draft: InferenceSettingsDraft
     ) -> InferenceDraftValidationResult {
@@ -836,14 +1091,15 @@ public final class PromptsViewModel {
             errors: &nextErrors
         )
         if nextErrors.isEmpty {
-            return .valid(PromptInferenceSettings(
-                temperature: temperature,
-                topP: topP,
-                topK: topK,
-                maxTokens: maxTokens,
-                thinkingMode: draft.thinkingMode,
-                reasoningEffort: draft.reasoningEffort
-            ).normalized)
+            return .valid(
+                PromptInferenceSettings(
+                    temperature: temperature,
+                    topP: topP,
+                    topK: topK,
+                    maxTokens: maxTokens,
+                    thinkingMode: draft.thinkingMode,
+                    reasoningEffort: draft.reasoningEffort
+                ).normalized)
         }
 
         return .invalid(nextErrors)
@@ -900,6 +1156,16 @@ public final class PromptsViewModel {
         case .maxTokens: return "Maximum output tokens"
         case .thinkingMode: return "Thinking"
         case .reasoningEffort: return "Reasoning effort"
+        }
+    }
+
+    nonisolated public static func displayName(
+        for mode: PromptInferenceSettings.ThinkingMode
+    ) -> String {
+        switch mode {
+        case .providerDefault: return "Automatic"
+        case .enabled: return "On"
+        case .disabled: return "Off"
         }
     }
 

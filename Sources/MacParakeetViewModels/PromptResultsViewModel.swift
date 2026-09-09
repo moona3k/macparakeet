@@ -206,12 +206,13 @@ public final class PromptResultsViewModel {
     }
 
     public var selectedPromptInferenceCompatibilityMessage: String? {
-        guard let settings = selectedPrompt?.inferenceSettings,
+        guard let prompt = selectedPrompt,
               let config = try? configStore?.loadConfig()
         else { return nil }
         return PromptsViewModel.inferenceCompatibilityMessage(
-            settings: settings,
-            config: config
+            settings: prompt.inferenceSettings,
+            config: config,
+            modelOverride: prompt.modelOverride
         )
     }
 
