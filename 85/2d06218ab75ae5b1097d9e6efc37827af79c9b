@@ -1,0 +1,33 @@
+Sources/MacParakeet/Views/MainWindowView.swift
+  s_8408739a4a9fbb::t_3a031ece57711d 199-201
+Sources/MacParakeet/Views/MeetingRecording/AskPromptsSheet.swift
+  s_8408739a4a9fbb::t_7a23b16ab62bf1 20-22,75-78,146,149,170-182
+Sources/MacParakeet/Views/Transcription/PromptLibraryView.swift
+  s_8408739a4a9fbb::t_7e017ee9d7acf8 11-12,19,21,24-29,67-73,119,146,200,210,258,262,317,323,328,347,424,480,807,819,861,908-914,926
+Sources/MacParakeet/Views/Transcription/PromptsWorkspaceView.swift
+  s_8408739a4a9fbb::t_16a10254d7825b 1-61
+Tests/MacParakeetTests/Views/PromptManagementPresentationTests.swift
+  s_8408739a4a9fbb::t_33b8bfdbdb32e0 1-24
+docs/plans/2026-09-08-prompt-management-navigation.md
+  s_8408739a4a9fbb::t_ba017dd5950e2b 1-34
+integrations/README.md
+  s_8408739a4a9fbb::t_52c78912d94167 555-559
+spec/04-ui-patterns.md
+  s_8408739a4a9fbb::t_93118a551f635b 1259-1285
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "852d06218ab75ae5b1097d9e6efc37827af79c9b",
+  "prompts": {},
+  "sessions": {
+    "s_8408739a4a9fbb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ae-f1a3-7481-bf0f-88e289444b74",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
