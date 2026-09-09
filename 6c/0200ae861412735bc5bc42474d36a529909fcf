@@ -1,0 +1,56 @@
+Sources/CLI/CHANGELOG.md
+  s_9522ddae48c1d2::t_09895f25ec08e0 111-117
+  s_9522ddae48c1d2::t_0ba5bc118b4f47 166-173
+docs/qa/2026-09-09-release-readiness.md
+  s_9522ddae48c1d2::t_76af591226185a 1-71
+  s_8408739a4a9fbb::t_328f1725849fb7 72-84
+Tests/MacParakeetTests/ViewModels/MeetingsWorkspaceViewModelTests.swift
+  s_29305f0ccb4e47::t_c6d95e3f3c1aab 363,365-368,373,375,377-378,380
+  s_29305f0ccb4e47::t_fc532dcb8e2072 364,369-372,374,376,379,381-515
+  s_29305f0ccb4e47::t_abdb692a48d8e3 809-826
+  s_29305f0ccb4e47::t_f04fff048b55c8 827-852
+  s_29305f0ccb4e47::t_487089013fc315 516-574
+spec/04-ui-patterns.md
+  s_29305f0ccb4e47::t_efebf663a419fd 1281-1286
+spec/01-data-model.md
+  s_29305f0ccb4e47::t_360713b732ec37 520
+Sources/MacParakeetViewModels/MeetingsWorkspaceViewModel.swift
+  s_29305f0ccb4e47::t_c9597b4d05d8d1 176-180
+  s_29305f0ccb4e47::t_6c771d94fb87e2 96
+  s_29305f0ccb4e47::t_3134f386395a14 163-164
+  s_29305f0ccb4e47::t_96e1088a98b9eb 95
+  s_29305f0ccb4e47::t_7ef0bea1a5a899 357-381
+  s_29305f0ccb4e47::t_db3f543a62c44c 245,251-253,256,263,272,275-277,279
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "6c0200ae861412735bc5bc42474d36a529909fcf",
+  "prompts": {},
+  "sessions": {
+    "s_29305f0ccb4e47": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "70b4bb3d-46f3-4849-9e47-121ce75fbddd",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_8408739a4a9fbb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ae-f1a3-7481-bf0f-88e289444b74",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_9522ddae48c1d2": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "75c87d3f-ed53-4baf-bceb-31dfd875bcca",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
