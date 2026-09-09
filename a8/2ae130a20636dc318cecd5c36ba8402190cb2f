@@ -1,0 +1,19 @@
+Tests/CLITests/PromptsCommandTests.swift
+  s_8408739a4a9fbb::t_bfa6581652dfa4 190,213,227,250
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "a82ae130a20636dc318cecd5c36ba8402190cb2f",
+  "prompts": {},
+  "sessions": {
+    "s_8408739a4a9fbb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ae-f1a3-7481-bf0f-88e289444b74",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
