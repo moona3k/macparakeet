@@ -196,9 +196,9 @@ struct MainWindowView: View {
                     case .dictations:
                         DictationHistoryView(viewModel: historyViewModel)
                     case .prompts:
-                        PromptLibraryView(
-                            viewModel: promptsViewModel,
-                            showsDismissButton: false
+                        PromptsWorkspaceView(
+                            promptsViewModel: promptsViewModel,
+                            quickPromptsViewModel: meetingsWorkspaceViewModel.quickPromptsViewModel
                         )
                     case .transforms:
                         TransformsView(

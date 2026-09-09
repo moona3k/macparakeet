@@ -1256,22 +1256,33 @@ Button to re-run onboarding flow: "Run Onboarding Again..."
 
 ## Prompts
 
-The sidebar **Prompts** destination and generation-popover management action
-share `PromptLibraryView`. A single searchable list has prompt-kind and optional
-collection filters. **New prompt** opens creation in a sheet; **Manage
-collections** opens collection creation, renaming, reordering and deletion in a
-separate sheet. Built-in provenance is shown on rows, without separate built-in
-and custom sections or an always-visible creation form. No search matches is a
-filter empty state, not a claim that the user has no custom prompts.
+The sidebar **Prompts** destination is the management home for **Transcript
+prompts** and **Live Ask**. Transcript prompts generate outputs from completed
+meeting, file, podcast and video transcripts. Live Ask manages reusable questions
+for ongoing meetings using the existing QuickPrompt model and manager. These are
+clearly named sections, not an All prompts / Results / Transforms type picker.
 
-The Meetings **After Each Meeting → Prompts** entry opens the same manager
-in a meeting presentation: active and deleted lists contain only transcript
-result prompts, creation is fixed to that kind, and the Transform kind picker
-is absent. It receives the same collection, version, editing and label-policy
-dependencies as the standalone manager. Collections remain shared prompt
-organization; they are distinct from recording labels and availability rules.
-Live Ask keeps its separate quick-question manager. Auto-Run help uses native
-help so it is not clipped by a row or sheet and does not intercept clicks.
+**Transforms** remains its existing self-contained selected-text rewrite
+surface. This navigation change does not add another Transform manager or change
+its editor. Transcript management does not expose Transform rows, including
+creation and Trash. Stored categories, versions, metadata and CLI commands remain
+compatible; advanced Transform controls formerly exposed through the mixed
+Prompts manager are outside this UI change.
+
+Transcript prompt lists retain search and optional collection filtering. **New
+prompt** creates a transcript prompt; **Manage collections** opens collection
+creation, renaming, reordering and deletion. Built-in provenance is shown on rows,
+without redundant Result/Transform category badges. No search matches is a filter
+empty state, not a claim that the user has no custom prompts.
+
+The Meetings **After each meeting → Prompts** entry reuses transcript management;
+Live Ask contextual management reuses the same question manager available from
+Prompts. Meetings remains the place to use live questions and choose automatic
+post-meeting outputs. All entries receive their configured repositories and
+editing services. Collections organize transcript/Transform instruction records;
+recording labels classify recordings and gate availability. Live Ask retains its
+existing question groups and pinning, without a collection migration. Auto-Run
+help uses native help so it is not clipped and does not intercept clicks.
 
 The editor retains Markdown source/preview, notes-context opt-in, collection
 assignment, model override, and collapsed generation settings. **Version history**

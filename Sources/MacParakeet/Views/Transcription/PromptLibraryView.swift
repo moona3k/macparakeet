@@ -6,24 +6,26 @@ enum PromptLibraryPresentation {
     case library
     case meetingAutoNotes
 
-    var includesTransforms: Bool {
-        self == .library
-    }
-
     var title: String {
         switch self {
-        case .library: "Prompts"
-        case .meetingAutoNotes: "Meeting Prompts"
+        case .library: "Transcript prompts"
+        case .meetingAutoNotes: "Meeting prompts"
         }
     }
 
     var subtitle: String {
         switch self {
         case .library:
-            "Instructions for your transcripts and selected-text Transforms."
+            "Instructions that run on completed transcripts."
         case .meetingAutoNotes:
-            "Instructions that generate results from meeting transcripts."
+            "Instructions that generate notes from completed meetings."
         }
+    }
+
+    var creationCategory: Prompt.Category { .result }
+
+    func includes(category: Prompt.Category) -> Bool {
+        category == .result
     }
 }
 
@@ -31,12 +33,6 @@ struct PromptLibraryView: View {
     private enum ContentMode: String, CaseIterable {
         case edit = "Edit"
         case preview = "Preview"
-    }
-
-    private enum PromptKindFilter: String, CaseIterable {
-        case all = "All prompts"
-        case results = "Results"
-        case transforms = "Transforms"
     }
 
     private enum LibrarySheet: String, Identifiable {
@@ -58,7 +54,6 @@ struct PromptLibraryView: View {
     @State private var diffToVersionID: UUID?
     @State private var versionDiff = PromptVersionDiffViewModel()
     @State private var collectionFilterID: UUID?
-    @State private var promptKindFilter: PromptKindFilter = .all
     @State private var collectionDraftNames: [UUID: String] = [:]
     @State private var hoveredPromptId: UUID?
     @State private var expandedPromptIds: Set<UUID> = []
@@ -68,6 +63,13 @@ struct PromptLibraryView: View {
     /// gets the same icon brightening + AutoRunBadge reveal that a mouse
     /// user gets on hover.
     @FocusState private var focusedPromptId: UUID?
+
+    private var editingTranscriptPrompt: Prompt? {
+        guard let prompt = viewModel.editingPrompt, presentation.includes(category: prompt.category) else {
+            return nil
+        }
+        return prompt
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -102,15 +104,6 @@ struct PromptLibraryView: View {
                         .textFieldStyle(.roundedBorder)
                         .frame(minWidth: 160, maxWidth: .infinity)
                         .accessibilityLabel("Search prompts")
-                    if presentation.includesTransforms {
-                        Picker("Prompt kind", selection: $promptKindFilter) {
-                            ForEach(PromptKindFilter.allCases, id: \.self) { kind in
-                                Text(kind.rawValue).tag(kind)
-                            }
-                        }
-                        .labelsHidden()
-                        .frame(width: 140)
-                    }
                     if !viewModel.collections.isEmpty {
                         Picker("Collection", selection: $collectionFilterID) {
                             Text("All collections").tag(Optional<UUID>.none)
@@ -123,7 +116,7 @@ struct PromptLibraryView: View {
                     }
                     Menu {
                         Button("Manage collections…") { librarySheet = .collections }
-                        Button("Trash (\(viewModel.deletedPrompts.count))…") { librarySheet = .trash }
+                        Button("Trash (\(displayedDeletedPrompts.count))…") { librarySheet = .trash }
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
@@ -140,7 +133,6 @@ struct PromptLibraryView: View {
 
             ScrollView {
                 let prompts = filteredPrompts
-                let showsTransformBadge = shouldShowTransformBadge(in: prompts)
 
                 VStack(spacing: DesignSystem.Spacing.lg) {
                     if let errorMessage = viewModel.errorMessage {
@@ -151,7 +143,7 @@ struct PromptLibraryView: View {
                     } else {
                         cardGroup {
                             ForEach(Array(prompts.enumerated()), id: \.element.id) { index, prompt in
-                                promptRow(prompt, showsTransformBadge: showsTransformBadge)
+                                promptRow(prompt)
                                 if index < prompts.count - 1 { Divider().padding(.leading, 16) }
                             }
                         }
@@ -205,7 +197,7 @@ struct PromptLibraryView: View {
         }
         .sheet(
             isPresented: Binding(
-                get: { viewModel.editingPrompt != nil },
+                get: { editingTranscriptPrompt != nil },
                 set: { if !$0 { viewModel.editingPrompt = nil } }
             ),
             onDismiss: {
@@ -215,7 +207,7 @@ struct PromptLibraryView: View {
                 viewModel.cancelEditing()
             }
         ) {
-            if let prompt = viewModel.editingPrompt {
+            if let prompt = editingTranscriptPrompt {
                 editSheet(prompt: prompt)
                     .alert("Discard changes?", isPresented: $showingDiscardConfirm) {
                         Button("Discard", role: .destructive) {
@@ -263,13 +255,11 @@ struct PromptLibraryView: View {
 
     private var hasActiveFilters: Bool {
         !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || collectionFilterID != nil || promptKindFilter != .all
+            || collectionFilterID != nil
     }
 
     private func beginCreatingPrompt() {
-        if !presentation.includesTransforms {
-            viewModel.newPromptCategory = .result
-        }
+        viewModel.newPromptCategory = presentation.creationCategory
         librarySheet = .create
     }
 
@@ -324,31 +314,18 @@ struct PromptLibraryView: View {
     private var filteredPrompts: [Prompt] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         return viewModel.managedPrompts.filter {
-            guard presentation.includesTransforms || $0.category == .result else { return false }
+            guard presentation.includes(category: $0.category) else { return false }
             let matchesCollection = collectionFilterID == nil || $0.collectionId == collectionFilterID
-            let matchesKind: Bool
-            switch promptKindFilter {
-            case .all: matchesKind = true
-            case .results: matchesKind = $0.category == .result
-            case .transforms: matchesKind = $0.category == .transform
-            }
             let matchesQuery =
                 query.isEmpty
                 || $0.name.localizedCaseInsensitiveContains(query)
                 || $0.content.localizedCaseInsensitiveContains(query)
-            return matchesCollection && matchesKind && matchesQuery
+            return matchesCollection && matchesQuery
         }
     }
 
-    private func shouldShowTransformBadge(in prompts: [Prompt]) -> Bool {
-        presentation.includesTransforms
-            && promptKindFilter == .all
-            && prompts.contains { $0.category == .result }
-            && prompts.contains { $0.category == .transform }
-    }
-
     private var displayedDeletedPrompts: [Prompt] {
-        viewModel.deletedPrompts.filter { presentation.includesTransforms || $0.category == .result }
+        viewModel.deletedPrompts.filter { presentation.includes(category: $0.category) }
     }
 
     private func errorBanner(_ message: String) -> some View {
@@ -367,9 +344,7 @@ struct PromptLibraryView: View {
     private var collectionManager: some View {
         sectionContainer(
             title: "Collections",
-            subtitle: presentation.includesTransforms
-                ? "Organize result prompts and Transforms without changing their version history."
-                : "Organize result prompts without changing their version history."
+            subtitle: "Organize your prompts into collections."
         ) {
             cardGroup {
                 VStack(spacing: 0) {
@@ -446,7 +421,7 @@ struct PromptLibraryView: View {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(prompt.name)
                                 .font(DesignSystem.Typography.body.weight(.semibold))
-                            Text(prompt.category == .transform ? "Transform" : "Result prompt")
+                            Text("Transcript prompt")
                                 .font(DesignSystem.Typography.caption)
                                 .foregroundStyle(DesignSystem.Colors.textSecondary)
                         }
@@ -502,7 +477,7 @@ struct PromptLibraryView: View {
         .cardShadow(DesignSystem.Shadows.cardRest)
     }
 
-    private func promptRow(_ prompt: Prompt, showsTransformBadge: Bool) -> some View {
+    private func promptRow(_ prompt: Prompt) -> some View {
         // Treat keyboard focus the same as hover so a Tab-only user gets
         // identical icon brightening + AutoRunBadge reveal.
         let isActive = hoveredPromptId == prompt.id || focusedPromptId == prompt.id
@@ -540,16 +515,6 @@ struct PromptLibraryView: View {
                     if prompt.isBuiltIn {
                         Text("Built-in")
                             .font(DesignSystem.Typography.caption.weight(.semibold))
-                            .foregroundStyle(DesignSystem.Colors.textSecondary)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 2)
-                            .background(DesignSystem.Colors.surfaceElevated)
-                            .clipShape(Capsule())
-                    }
-
-                    if showsTransformBadge && prompt.category == .transform {
-                        Text("Transform")
-                            .font(DesignSystem.Typography.caption)
                             .foregroundStyle(DesignSystem.Colors.textSecondary)
                             .padding(.horizontal, 7)
                             .padding(.vertical, 2)
@@ -796,7 +761,6 @@ struct PromptLibraryView: View {
                 Button("Clear filters") {
                     searchText = ""
                     collectionFilterID = nil
-                    promptKindFilter = .all
                 }
                 .parakeetAction(.secondary)
             }
@@ -815,21 +779,6 @@ struct PromptLibraryView: View {
     private var addPromptCard: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
-                if presentation.includesTransforms {
-                    VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                        Text("Type")
-                            .font(DesignSystem.Typography.caption.weight(.medium))
-                            .foregroundStyle(DesignSystem.Colors.textSecondary)
-                        Picker("Type", selection: $viewModel.newPromptCategory) {
-                            Text("Result prompt").tag(Prompt.Category.result)
-                            Text("Transform").tag(Prompt.Category.transform)
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.segmented)
-                        .frame(width: 240)
-                    }
-                }
-
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
                     Text("Name")
                         .font(DesignSystem.Typography.caption.weight(.medium))
@@ -855,9 +804,7 @@ struct PromptLibraryView: View {
 
                 collectionPicker(selection: $viewModel.newCollectionID)
 
-                if viewModel.newPromptCategory == .result {
-                    promptLabelTargeting(selection: $viewModel.newTargetLabelIDs)
-                }
+                promptLabelTargeting(selection: $viewModel.newTargetLabelIDs)
 
                 GenerationSettingsEditor(
                     draft: $viewModel.newInferenceSettings,
@@ -869,9 +816,7 @@ struct PromptLibraryView: View {
                     }
                 )
 
-                if viewModel.newPromptCategory == .result {
-                    meetingNotesContextToggle(isOn: $viewModel.newIncludeMeetingNotes)
-                }
+                meetingNotesContextToggle(isOn: $viewModel.newIncludeMeetingNotes)
             }
             .padding(DesignSystem.Spacing.lg)
 
@@ -884,7 +829,6 @@ struct PromptLibraryView: View {
                     if viewModel.newName.isEmpty && viewModel.newContent.isEmpty {
                         searchText = ""
                         collectionFilterID = nil
-                        promptKindFilter = .all
                         librarySheet = nil
                     }
                 } label: {
@@ -914,9 +858,7 @@ struct PromptLibraryView: View {
         )
         .cardShadow(DesignSystem.Shadows.cardRest)
         .onAppear {
-            if !presentation.includesTransforms {
-                viewModel.newPromptCategory = .result
-            }
+            viewModel.newPromptCategory = presentation.creationCategory
         }
     }
 
@@ -963,15 +905,13 @@ struct PromptLibraryView: View {
 
                     collectionPicker(selection: $viewModel.editingCollectionID)
 
-                    if prompt.category == .result {
-                        promptLabelTargeting(
-                            selection: Binding(
-                                get: { viewModel.editingTargetLabelIDs },
-                                set: { viewModel.setEditingTargetLabels($0) }
-                            ),
-                            hasCustomRules: viewModel.editingHasCustomTargetingRules
-                        )
-                    }
+                    promptLabelTargeting(
+                        selection: Binding(
+                            get: { viewModel.editingTargetLabelIDs },
+                            set: { viewModel.setEditingTargetLabels($0) }
+                        ),
+                        hasCustomRules: viewModel.editingHasCustomTargetingRules
+                    )
 
                     GenerationSettingsEditor(
                         draft: $viewModel.editingInferenceSettings,
@@ -983,9 +923,7 @@ struct PromptLibraryView: View {
                         }
                     )
 
-                    if prompt.category == .result {
-                        meetingNotesContextToggle(isOn: $viewModel.editingIncludeMeetingNotes)
-                    }
+                    meetingNotesContextToggle(isOn: $viewModel.editingIncludeMeetingNotes)
                     versionHistory(prompt: prompt)
                 }
                 .padding(DesignSystem.Spacing.xl)
