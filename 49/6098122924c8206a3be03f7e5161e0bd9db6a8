@@ -1,0 +1,21 @@
+spec/12-processing-layer.md
+  s_8408739a4a9fbb::t_e05fce821a0dbf 239-243
+spec/14-per-prompt-inference-settings.md
+  s_8408739a4a9fbb::t_214d4535b9a79b 83-89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "496098122924c8206a3be03f7e5161e0bd9db6a8",
+  "prompts": {},
+  "sessions": {
+    "s_8408739a4a9fbb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ae-f1a3-7481-bf0f-88e289444b74",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
