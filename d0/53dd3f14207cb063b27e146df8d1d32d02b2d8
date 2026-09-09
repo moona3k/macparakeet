@@ -1,0 +1,110 @@
+Sources/MacParakeet/Views/MeetingRecording/MeetingClassificationControls.swift
+  s_8408739a4a9fbb::t_5a86a459a09c6f 55,75-78,95-99,127,158-161
+  s_8408739a4a9fbb::t_d7d3f4273bacf6 306
+  s_8408739a4a9fbb::t_aa286044a0fa78 513-517,519-533,535-541,551-586,592-618,620-661,665,667-683,689-698,700-709,711,713-723,725-744,746-750,752-757,759-760,767-775,777-820,828-830
+  s_8408739a4a9fbb::t_c34dc8d8f630ca 518,534,547-550,587-591,619,662-664,684-688,710,712,724,751,761-766,821-827
+  s_8408739a4a9fbb::t_1024b0e33ddbed 542-546,699,745
+  s_8408739a4a9fbb::t_f1220887aba1de 666
+  s_8408739a4a9fbb::t_1f39d220473b2a 758
+  s_8408739a4a9fbb::t_0124bdc83e3137 776
+  s_8408739a4a9fbb::t_5a1d08aa7d9990 1076,1079-1098
+  s_8408739a4a9fbb::t_816812f0637891 264,284-287
+  s_eb710a214f1b07::t_a93650a41b8c24 162,288
+Tests/MacParakeetTests/Views/LabelPopoverOptionsViewportTests.swift
+  s_8408739a4a9fbb::t_f8cab2ceb4be32 90-91
+  s_8408739a4a9fbb::t_b27499712cc645 4-5,8,10-12,15,19,24-25,29,41-46,49-50,52-53,56-60,63-77,80-83,86-89,92-109,112-119,122,124,127-133,135,138-146
+Sources/CLI/Commands/SpecCommand.swift
+  s_8408739a4a9fbb::t_65cc458cb0679d 1254-1269
+  s_8408739a4a9fbb::t_a715b5c5ebf9c4 1253
+integrations/README.md
+  s_8408739a4a9fbb::t_2edabc0934cad6 610-611,620-623
+docs/qa/2026-09-08-label-management-followup.md
+  s_8408739a4a9fbb::t_7c6d86698b64a8 1-35
+  s_8408739a4a9fbb::t_e25ca7f2bf0f85 36-39
+Tests/MacParakeetTests/ViewModels/MeetingClassificationViewModelTests.swift
+  s_8408739a4a9fbb::t_bd5f82aff42517 167-186,189,191-195,199-201,219-220,300-356,614-619,719
+  s_8408739a4a9fbb::t_811e92f7b4344d 221,261-268,274-288,718
+  s_8408739a4a9fbb::t_1f39d220473b2a 203-218
+  s_8408739a4a9fbb::t_a79d98635e151f 166
+  s_8408739a4a9fbb::t_87f76dd6f50ed6 222-260,269-273,289,294-299
+  s_8408739a4a9fbb::t_59eefed2883db4 187,190,196-198,202
+  s_8408739a4a9fbb::t_d023da8b232fb2 188
+  s_8408739a4a9fbb::t_f9f6be64c89b2e 290-293
+  s_8408739a4a9fbb::t_6d442dcf05800b 620,720-721
+spec/contracts/cli-json-v1.md
+  s_8408739a4a9fbb::t_9a4ec7a3a7fc74 219-220
+  s_8408739a4a9fbb::t_6905c9dbce7f57 221-223
+  s_8408739a4a9fbb::t_a287f39a145c0f 225
+  s_8408739a4a9fbb::t_ae1d9302a25e2a 224
+spec/04-ui-patterns.md
+  s_8408739a4a9fbb::t_87f76dd6f50ed6 247-248
+  s_8408739a4a9fbb::t_fd2c83f1dee9a3 212-216,243-246
+  s_8408739a4a9fbb::t_1f39d220473b2a 241-242
+Tests/CLITests/SpecCommandTests.swift
+  s_8408739a4a9fbb::t_5ec62f2e41f456 76,88-93
+  s_8408739a4a9fbb::t_a96fe6567691c9 94
+Sources/CLI/Commands/MeetingClassificationCommands.swift
+  s_8408739a4a9fbb::t_24a15966962569 217-224,228-241,249-255
+  s_8408739a4a9fbb::t_a49d52b3486da7 112,115-132
+  s_8408739a4a9fbb::t_0fa63eedc75707 205-216,225-227,242-248,256-258
+Tests/CLITests/MeetingsCommandTests.swift
+  s_8408739a4a9fbb::t_57331568ffd614 112,117,120,155,158-178,218-222,224-237
+  s_8408739a4a9fbb::t_ebe132d0fd2682 74,119,121-151,153-154,156-157,223,238-240
+  s_8408739a4a9fbb::t_c0d2537366cc49 179-198
+  s_8408739a4a9fbb::t_29a9fdbaea34bd 199-217
+  s_8408739a4a9fbb::t_ae1d9302a25e2a 152
+Tests/MacParakeetTests/Views/DictationHistoryViewTests.swift
+  s_8408739a4a9fbb::t_942e58b44b83c8 5-11,14-19,23-29,32-36,40-42,45,47,79-80
+Sources/MacParakeetViewModels/MeetingClassificationViewModel.swift
+  s_8408739a4a9fbb::t_87f76dd6f50ed6 31,194-201,261-269,472-473,479-481
+  s_8408739a4a9fbb::t_20c7d00e942d36 12,84
+  s_8408739a4a9fbb::t_1f39d220473b2a 175,240,291
+  s_8408739a4a9fbb::t_78d83c587f97c6 193,202-203
+  s_8408739a4a9fbb::t_aedb0a0ab61063 75
+  s_8408739a4a9fbb::t_e2476456c245fa 174,176-179,181-184,187-188,190,206,211,214
+  s_8408739a4a9fbb::t_7a05211ba944e3 238,254-260,270-274,493-495
+  s_8408739a4a9fbb::t_121eedbc183137 322,477,482-484,496-511,513
+  s_8408739a4a9fbb::t_f1220887aba1de 280-281,308-309,476,478
+  s_8408739a4a9fbb::t_a9bed4d0401a98 19,74,77-78,241-246,248,292-299
+  s_8408739a4a9fbb::t_7cc497ba7af533 236-237,239,251-253,275-277,279,283-284,289-290,302-307,311-321,323,474,512
+  s_8408739a4a9fbb::t_155547bb837923 300-301
+  s_8408739a4a9fbb::t_ff4ba384f2f7a0 310
+  s_8408739a4a9fbb::t_fa6ac2a895c211 324
+  s_8408739a4a9fbb::t_eca92a0bd1204f 475
+  s_8408739a4a9fbb::t_c294d9bd96f31a 514
+Sources/MacParakeet/Views/Transcription/PromptLibraryView.swift
+  s_8408739a4a9fbb::t_e1b7291642613a 343-349,505,550-558
+  s_8408739a4a9fbb::t_26f11fe2982670 142-144,149,153-155
+Sources/MacParakeet/Views/History/DictationHistoryView.swift
+  s_8408739a4a9fbb::t_942e58b44b83c8 549-550,693-694,705-707
+  s_8408739a4a9fbb::t_122784534693bf 493,517,519-521,585
+  s_8408739a4a9fbb::t_82884a195b6306 325,338-346,349-350,386,518,552,557-559,588-590,654-689,703-704,708-721,751-753,757-760,843-862
+  s_8408739a4a9fbb::t_16433acce0980b 690
+  s_8408739a4a9fbb::t_882a125f222887 863
+Sources/CLI/CHANGELOG.md
+  s_8408739a4a9fbb::t_efa4be4c198272 96-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "d053dd3f14207cb063b27e146df8d1d32d02b2d8",
+  "prompts": {},
+  "sessions": {
+    "s_8408739a4a9fbb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ae-f1a3-7481-bf0f-88e289444b74",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_eb710a214f1b07": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "de4b5d98-0b4e-4a96-9fca-13e9d559188b",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
