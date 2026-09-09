@@ -1,0 +1,29 @@
+Sources/MacParakeet/Views/Transcription/PromptLibraryView.swift
+  s_d3b47e6893db8c::t_ac036859c69d64 143,154,343,505,550-551
+docs/qa/2026-09-08-label-management-followup.md
+  s_8408739a4a9fbb::t_fb7cc056a62b28 7,20,29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "233b5f4d7f855449ba35e97b886a5fbdde948cf2",
+  "prompts": {},
+  "sessions": {
+    "s_8408739a4a9fbb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ae-f1a3-7481-bf0f-88e289444b74",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_d3b47e6893db8c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6d2b771f-1331-4d6b-9f82-c910057d52d5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
