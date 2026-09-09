@@ -175,6 +175,14 @@ final class PromptInferenceSettingsTests: XCTestCase {
             config: .openai(apiKey: "key", model: "gpt-5.5"),
             requested: nil)
         XCTAssertNil(openAIReasoning.effectiveSettings)
+
+        let gatewayLuna = try PromptInferenceCapabilityResolver.resolve(
+            config: .openaiCompatible(
+                model: "openai/gpt-5.6-luna",
+                baseURL: URL(string: "https://ai-gateway.vercel.sh/v1")!
+            ),
+            requested: nil)
+        XCTAssertNil(gatewayLuna.effectiveSettings)
     }
 
     func testAnthropicTopPReplacesInheritedTemperatureAndRegeneratesUnchanged() throws {

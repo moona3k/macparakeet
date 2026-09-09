@@ -209,8 +209,21 @@ public enum PromptInferenceCapabilityResolver {
         case .ollama:
             return [.temperature, .topP, .topK, .maxTokens, .thinkingMode]
         case .openaiCompatible:
+            if OpenAIModelPolicy.requiresMaxCompletionTokens(model: config.modelName) {
+                var fields: Set<PromptInferenceSettings.Field> = [.maxTokens]
+                if !OpenAIModelPolicy.shouldOmitSampling(model: config.modelName) {
+                    fields.formUnion([.temperature, .topP])
+                }
+                return fields
+            }
             return [.temperature, .topP, .topK, .maxTokens, .thinkingMode, .reasoningEffort]
-        case .gemini, .openrouter, .lmstudio:
+        case .openrouter:
+            var fields: Set<PromptInferenceSettings.Field> = [.maxTokens]
+            if !OpenAIModelPolicy.shouldOmitSampling(model: config.modelName) {
+                fields.insert(.temperature)
+            }
+            return fields
+        case .gemini, .lmstudio:
             return [.temperature, .maxTokens]
         case .localCLI:
             return []
@@ -307,22 +320,48 @@ private extension ChatCompletionOptions {
 }
 
 enum OpenAIModelPolicy {
-    static func shouldOmitSampling(model: String) -> Bool {
+    /// Last path component of a provider-prefixed ID (`openai/gpt-5.6-luna` →
+    /// `gpt-5.6-luna`). Gateways such as Vercel AI Gateway and OpenRouter use
+    /// this form; native OpenAI IDs are returned unchanged.
+    static func canonicalModelID(_ model: String) -> String {
         let lowered = model.lowercased()
-        if isReasoningModel(lowered) { return true }
-        if lowered.contains("chat") { return false }
-        guard lowered.hasPrefix("gpt-") else { return false }
-        let digits = lowered.dropFirst(4).prefix(while: { $0.isNumber })
-        return (Int(digits) ?? 0) >= 5
+        guard let slash = lowered.lastIndex(of: "/") else { return lowered }
+        return String(lowered[lowered.index(after: slash)...])
     }
 
-    private static func isReasoningModel(_ model: String) -> Bool {
-        guard model.hasPrefix("o") else { return false }
-        let suffix = model.dropFirst()
+    static func shouldOmitSampling(model: String) -> Bool {
+        let id = canonicalModelID(model)
+        if isReasoningModel(id) { return true }
+        if id.contains("chat") { return false }
+        return gptMajorVersion(id).map { $0 >= 5 } ?? false
+    }
+
+    static func requiresMaxCompletionTokens(model: String) -> Bool {
+        let id = canonicalModelID(model)
+        if isReasoningModel(id) { return true }
+        return gptMajorVersion(id).map { $0 >= 5 } ?? false
+    }
+
+    static func isReasoningModelID(_ model: String) -> Bool {
+        isReasoningModel(canonicalModelID(model))
+    }
+
+    /// Major version of a "gpt-<n>..." model ID ("gpt-5.5" → 5, "gpt-10" → 10),
+    /// or nil for IDs without a gpt- numeric prefix.
+    static func gptMajorVersion(_ model: String) -> Int? {
+        let id = canonicalModelID(model)
+        guard id.hasPrefix("gpt-") else { return nil }
+        let digits = id.dropFirst(4).prefix(while: { $0.isNumber })
+        return Int(digits)
+    }
+
+    private static func isReasoningModel(_ id: String) -> Bool {
+        guard id.hasPrefix("o") else { return false }
+        let suffix = id.dropFirst()
         guard let generation = suffix.first, generation.isNumber else { return false }
         let prefix = "o\(generation)"
-        let boundary = model.dropFirst(prefix.count).first
-        return model.hasPrefix(prefix) && (boundary == nil || boundary == "-")
+        let boundary = id.dropFirst(prefix.count).first
+        return id.hasPrefix(prefix) && (boundary == nil || boundary == "-")
     }
 }
 
