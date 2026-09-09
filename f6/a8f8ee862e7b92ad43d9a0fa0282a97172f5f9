@@ -1,0 +1,19 @@
+docs/plans/2026-09-08-model-aware-generation-settings.md
+  s_8408739a4a9fbb::t_b51dc2509545a2 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "f6a8f8ee862e7b92ad43d9a0fa0282a97172f5f9",
+  "prompts": {},
+  "sessions": {
+    "s_8408739a4a9fbb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ae-f1a3-7481-bf0f-88e289444b74",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
