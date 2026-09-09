@@ -555,6 +555,8 @@ These figures are Apple M4 Pro benchmark evidence from `benchmarks/asr/`, not un
 
 For dictation (the primary use case), transcription time is imperceptible. For long file transcription, the ANE path is still remarkably fast.
 
+On macOS 14 (Sonoma), Parakeet TDT long-form file, YouTube, and meeting jobs run FluidAudio's 15-second windows **one at a time** (`parallelChunkConcurrency: 1`). FluidAudio's default of four concurrent Core ML predictions on shared models is not reentrant on Sonoma's Neural Engine and surfaces as `Transcription failed: Unable to compute the asynchronous prediction using ML Program` (GitHub #997). macOS 15+ keeps the four-wide default. Dictation is unchanged. See `ParakeetTDTASRConfig` and `docs/research/2026-09-09-issue-997-coreml-long-file-stt/`.
+
 ### Memory Budget
 
 - Parakeet STT: 115-131 MB peak RSS in the non-boosted M4 Pro speed/memory benchmark, depending on build

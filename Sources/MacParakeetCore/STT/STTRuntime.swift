@@ -2343,8 +2343,11 @@ public actor STTRuntime: STTRuntimeProtocol {
             do {
                 // FluidAudio progress is manager-scoped, so each slot keeps its
                 // own manager while the read-only model bundle stays shared.
-                let loadedInteractiveManager = AsrManager(config: .default)
-                let loadedBackgroundManager = AsrManager(config: .default)
+                // `ParakeetTDTASRConfig` drops long-file chunk concurrency to 1
+                // on macOS 14 (issue #997); 15+ keeps FluidAudio's default of 4.
+                let asrConfig = ParakeetTDTASRConfig.make()
+                let loadedInteractiveManager = AsrManager(config: asrConfig)
+                let loadedBackgroundManager = AsrManager(config: asrConfig)
                 interactiveManager = loadedInteractiveManager
                 backgroundManager = loadedBackgroundManager
                 try await loadedInteractiveManager.loadModels(downloadedModels)

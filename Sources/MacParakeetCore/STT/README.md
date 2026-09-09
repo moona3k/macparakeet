@@ -210,6 +210,18 @@ gate close over inline. A new call site that invokes `AsrManager.transcribe`
 directly **must** wrap it the same way — calling the manager bare reopens the
 crash for whichever lane runs unguarded.
 
+**Long-file TDT chunk workers are serialized on macOS 14 (issue #997).**
+`ANEInferenceGate` wraps the outer `transcribe(audioURL:)` call only. FluidAudio
+still splits hour-class files into 15 s windows and, with `ASRConfig.default`,
+runs four Core ML `prediction()` calls on the same compiled models. That inner
+pool is what crashed Sonoma file / YouTube / meeting jobs with Apple's
+"asynchronous prediction using ML Program" error. `ParakeetTDTASRConfig.make()`
+sets `parallelChunkConcurrency: 1` when the ANE gate requires serialization
+(macOS 14) and keeps FluidAudio's default of 4 on macOS 15+. Dictation is
+unaffected (single window). Do not construct TDT `AsrManager(config: .default)`
+from a new site — go through `ParakeetTDTASRConfig`. Diagnosis:
+`docs/research/2026-09-09-issue-997-coreml-long-file-stt/`.
+
 **Engine routing is per-job.** Parakeet stays default. Settings persists Live
 Speech plus an optional Final Transcription override. Missing override state
 inherits Live Speech, so upgrades preserve the old single-choice behavior. New
