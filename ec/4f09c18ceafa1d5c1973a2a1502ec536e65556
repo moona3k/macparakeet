@@ -1,0 +1,23 @@
+README.md
+  s_8408739a4a9fbb::t_2fa3cc6144c3cc 210-228
+Sources/CLI/CHANGELOG.md
+  s_8408739a4a9fbb::t_a5f9897a3a378d 92-93
+integrations/README.md
+  s_8408739a4a9fbb::t_9d53b71d9975f4 39-42,493-507,529-558
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "ec4f09c18ceafa1d5c1973a2a1502ec536e65556",
+  "prompts": {},
+  "sessions": {
+    "s_8408739a4a9fbb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ae-f1a3-7481-bf0f-88e289444b74",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
