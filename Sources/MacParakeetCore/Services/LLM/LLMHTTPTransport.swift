@@ -181,10 +181,14 @@ enum LLMHTTPErrorMapper {
         if isUnsupportedTokenParameterMessage(lowered) {
             return false
         }
-        return lowered.contains("context")
+        return lowered.contains("context length")
+            || lowered.contains("context window")
+            || lowered.contains("context limit")
+            || lowered.contains("maximum context")
             || lowered.contains("too many tokens")
             || lowered.contains("tokens to keep")
             || lowered.contains("maximum number of tokens")
+            || lowered.contains("prompt is too long")
     }
 
     private static func isUnsupportedTokenParameterMessage(_ lowered: String) -> Bool {

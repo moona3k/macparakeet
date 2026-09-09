@@ -525,7 +525,7 @@ final class LLMHTTPAdapterTests: XCTestCase {
         }
         let accepting = [
             "gpt-5.3-chat-latest", "openai/gpt-5.3-chat-latest", "gpt-4.1", "gpt-4.1-mini",
-            "gpt-4o", "chatgpt-4o-latest", "local-model",
+            "gpt-4o", "chatgpt-4o-latest", "local-model", "gpt-oss-120b",
         ]
         for model in accepting {
             XCTAssertFalse(
@@ -577,6 +577,39 @@ final class LLMHTTPAdapterTests: XCTestCase {
             resolution.unsupportedSettings,
             [.temperature, .topP, .topK, .thinkingMode, .reasoningEffort]
         )
+    }
+
+    func testOpenRouterGatewayGPT56UsesNativeOpenAIParameterPolicy() async throws {
+        var capturedRequest: URLRequest?
+
+        AdapterRequestURLProtocol.handler = { request in
+            capturedRequest = request
+            return (self.okResponse(for: request), self.validOpenAIResponseData())
+        }
+
+        let providerConfig = LLMProviderConfig.openrouter(
+            apiKey: "sk-or-test",
+            model: "openai/gpt-5.6-sol"
+        )
+        let resolution = try PromptInferenceCapabilityResolver.resolve(
+            config: providerConfig,
+            requested: PromptInferenceSettings(temperature: 0.2, maxTokens: 2048)
+        )
+
+        _ = try await openAIAdapter.chatCompletion(
+            messages: goldenMessages,
+            config: providerConfig,
+            options: resolution.options
+        )
+
+        try assertJSONBody(
+            try XCTUnwrap(capturedRequest),
+            equals: """
+                {"max_completion_tokens":2048,"messages":[{"content":"System","role":"system"},{"content":"Hello","role":"user"}],"model":"openai/gpt-5.6-sol","stream":false}
+                """
+        )
+        XCTAssertEqual(resolution.effectiveSettings, PromptInferenceSettings(maxTokens: 2048))
+        XCTAssertEqual(resolution.unsupportedSettings, [.temperature])
     }
 
     func testOpenAICompatibleAdapterEncodesNullableKnowledgeCardOwnerSchema() async throws {

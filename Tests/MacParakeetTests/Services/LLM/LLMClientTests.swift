@@ -587,6 +587,18 @@ final class LLMClientTests: XCTestCase {
         }
     }
 
+    func testGenericContextWordIsNotMappedToContextLimit() {
+        let error = LLMHTTPErrorMapper.mapError(
+            statusCode: 400,
+            data: Data("{\"error\":{\"message\":\"Please provide more context for this request\"}}".utf8)
+        )
+        if case .providerError(let message) = error {
+            XCTAssertTrue(message.contains("more context"), message)
+        } else {
+            XCTFail("Expected providerError, got \(error)")
+        }
+    }
+
     func testServerErrorReturnsProviderError() async {
         MockURLProtocol.handler = { request in
             let response = HTTPURLResponse(
