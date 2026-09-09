@@ -1,0 +1,41 @@
+Sources/MacParakeetCore/STT/STTRuntime.swift
+  s_eb710a214f1b07::t_ed3426400d6a1f 2346-2347
+  s_eb710a214f1b07::t_93fd3d47f12b13 2348-2350
+Sources/MacParakeetCore/STT/ParakeetTDTASRConfig.swift
+  s_eb710a214f1b07::t_6ac93868576eea 1-13,16-17
+  s_eb710a214f1b07::t_6a7cbe61b36f52 14-15
+Tests/MacParakeetTests/STT/ParakeetTDTASRConfigTests.swift
+  s_eb710a214f1b07::t_dcc40d3b81c2e3 1-27
+Sources/MacParakeetCore/STT/README.md
+  s_eb710a214f1b07::t_5f6f03840ccae1 213-224
+docs/research/2026-09-09-issue-997-coreml-long-file-stt/README.md
+  s_eb710a214f1b07::t_718d38259db883 4-15
+  s_eb710a214f1b07::t_285c1e5616e1c9 1-3
+  s_eb710a214f1b07::t_2c4a862a359056 16-18
+spec/06-stt-engine.md
+  s_eb710a214f1b07::t_58708b402bec2b 558-559
+docs/research/2026-09-09-issue-997-coreml-long-file-stt/report.md
+  s_eb710a214f1b07::t_04ca9b1338d802 301-305
+  s_eb710a214f1b07::t_b275c1ffbeefbf 39-40
+  s_eb710a214f1b07::t_e4b71dcd51ca97 7-8
+  s_eb710a214f1b07::t_07684e6181477d 271-290
+  s_eb710a214f1b07::t_1e45d7fc1bdec7 1-6,9-38,41-270,291-300,306-336
+docs/research/2026-09-09-issue-997-coreml-long-file-stt/evidence/d1-queries.md
+  s_eb710a214f1b07::t_9c89d27874e373 1-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "99e696d235d6ce1adf26115e67adc3a10543c4b2",
+  "prompts": {},
+  "sessions": {
+    "s_eb710a214f1b07": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "de4b5d98-0b4e-4a96-9fca-13e9d559188b",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
