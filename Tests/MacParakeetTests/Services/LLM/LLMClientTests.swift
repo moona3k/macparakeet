@@ -1058,7 +1058,7 @@ final class LLMClientTests: XCTestCase {
         XCTAssertEqual(capturedBody?["temperature"] as? Double, 0.7)
     }
 
-    func testOpenAICompatibleProviderDoesNotApplyOpenAISpecificTokenParameters() async throws {
+    func testOpenAICompatibleGPT5AppliesNativeTokenParameters() async throws {
         var capturedBody: [String: Any]?
 
         MockURLProtocol.handler = { request in
@@ -1071,6 +1071,32 @@ final class LLMClientTests: XCTestCase {
         let config = LLMProviderConfig.openaiCompatible(
             apiKey: "sk-test",
             model: "gpt-5.2",
+            baseURL: URL(string: "https://api.example.com/v1")!
+        )
+        _ = try await llmClient.chatCompletion(
+            messages: [ChatMessage(role: .user, content: "Hi")],
+            config: config,
+            options: ChatCompletionOptions(temperature: 0.7, maxTokens: 500)
+        )
+
+        XCTAssertNil(capturedBody?["max_tokens"])
+        XCTAssertEqual(capturedBody?["max_completion_tokens"] as? Int, 500)
+        XCTAssertNil(capturedBody?["temperature"])
+    }
+
+    func testOpenAICompatibleGenericModelKeepsMaxTokensAndTemperature() async throws {
+        var capturedBody: [String: Any]?
+
+        MockURLProtocol.handler = { request in
+            if let body = self.extractBody(from: request) {
+                capturedBody = body
+            }
+            return (self.okResponse(for: request), self.validResponseData())
+        }
+
+        let config = LLMProviderConfig.openaiCompatible(
+            apiKey: "sk-test",
+            model: "llama-3.1-8b-instruct",
             baseURL: URL(string: "https://api.example.com/v1")!
         )
         _ = try await llmClient.chatCompletion(
