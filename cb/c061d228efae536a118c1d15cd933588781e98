@@ -1,0 +1,43 @@
+Sources/CLI/Commands/PromptsCommand.swift
+  s_8408739a4a9fbb::t_0f9f8d8f74c528 1209-1229
+  s_8408739a4a9fbb::t_174f18f686c7fe 31,50-84,86-124,126-231
+  s_8408739a4a9fbb::t_9c5c1fc0edb6f1 479-484,498-505,507-536
+  s_8408739a4a9fbb::t_34335039a5ddc5 85,125,719-722
+  s_8408739a4a9fbb::t_5306fa34bc4b60 610-615,661-663,704,730,762-768,834-838,843,848,852,858
+Sources/CLI/CHANGELOG.md
+  s_8408739a4a9fbb::t_4f2d57eee7f380 92-99,103
+  s_8408739a4a9fbb::t_e4d0186a5da52b 100-102
+Tests/CLITests/PromptsCommandTests.swift
+  s_8408739a4a9fbb::t_0dcdc87217f7d3 172-246,253-290,304-311,325-327
+  s_8408739a4a9fbb::t_f9c09bc996917c 247-252
+  s_8408739a4a9fbb::t_5f1fc8fc959bee 291-303,312-324
+  s_8408739a4a9fbb::t_cb23c6561fd101 351-361
+Sources/CLI/Commands/CLIHelpers.swift
+  s_8408739a4a9fbb::t_77365464214afe 628-630,632-633,635
+  s_8408739a4a9fbb::t_34335039a5ddc5 443-450,631,634
+spec/contracts/cli-json-v1.md
+  s_8408739a4a9fbb::t_77365464214afe 123-126,133-135
+  s_8408739a4a9fbb::t_4f2d57eee7f380 95-96,127-132,166-168,257,260-262
+Sources/CLI/Commands/SpecCommand.swift
+  s_8408739a4a9fbb::t_f9c09bc996917c 596-601,612-617
+  s_8408739a4a9fbb::t_14e70feefdd31f 634-641
+  s_8408739a4a9fbb::t_f5288d2fdb58e6 585-595,602-611,618-633,642-644,684,687,718-719
+Tests/CLITests/SpecCommandTests.swift
+  s_8408739a4a9fbb::t_14e70feefdd31f 5-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "cbc061d228efae536a118c1d15cd933588781e98",
+  "prompts": {},
+  "sessions": {
+    "s_8408739a4a9fbb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ae-f1a3-7481-bf0f-88e289444b74",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
