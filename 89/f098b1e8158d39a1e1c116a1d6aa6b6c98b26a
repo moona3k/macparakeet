@@ -1,0 +1,19 @@
+docs/qa/2026-09-09-release-readiness.md
+  s_8408739a4a9fbb::t_c19ed19bf72661 5-7,101-133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "89f098b1e8158d39a1e1c116a1d6aa6b6c98b26a",
+  "prompts": {},
+  "sessions": {
+    "s_8408739a4a9fbb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ae-f1a3-7481-bf0f-88e289444b74",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
