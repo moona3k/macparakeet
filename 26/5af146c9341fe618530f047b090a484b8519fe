@@ -1,0 +1,37 @@
+Tests/MacParakeetTests/Database/SpeakerProfileRepositoryTests.swift
+  s_9aeb23f6ab9e8f::t_ac62490f6d9f9e 123,251,266,871,880-881,886,894,899,909-910,964
+Tests/MacParakeetTests/Services/Diarization/SpeakerVoiceprintServiceTests.swift
+  s_9aeb23f6ab9e8f::t_93cacc5b2ea0df 43-44,144-145,231-233,274-275,779-781,784,786,791,793,802-813
+Sources/MacParakeetCore/Services/Diarization/SpeakerVoiceprintService.swift
+  s_9aeb23f6ab9e8f::t_b9b3c8cdf7d5fe 75
+Sources/MacParakeetCore/Database/SpeakerProfileRepository.swift
+  s_9aeb23f6ab9e8f::t_40c031bfcb68f2 54,175-178,182,225,240-241,265,273-274,279,325-326,362-365
+Tests/MacParakeetTests/Services/Diarization/SpeakerVoiceprintRetentionTests.swift
+  s_9aeb23f6ab9e8f::t_36456d102f6dba 92-99
+Tests/MacParakeetTests/Services/Diarization/SpeakerVoiceprintExportTests.swift
+  s_9aeb23f6ab9e8f::t_2704d89e1fa1ac 33-38,54-57,69-71
+Tests/MacParakeetTests/Services/Diarization/SpeakerVoiceprintWiringTests.swift
+  s_9aeb23f6ab9e8f::t_a23ff963b43154 183-184,189-190,198-199
+Tests/MacParakeetTests/Services/Diarization/SpeakerVoiceprintDeletionTests.swift
+  s_9aeb23f6ab9e8f::t_482f56a961e864 1-102
+Tests/MacParakeetTests/VoiceProfileFeatureGateTests.swift
+  s_9aeb23f6ab9e8f::t_71ff820a6f9dc9 23-26
+Sources/MacParakeetCore/Services/Diarization/SpeakerVoiceprintMatcher.swift
+  s_9aeb23f6ab9e8f::t_39498628735d9e 251,326-327
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "265af146c9341fe618530f047b090a484b8519fe",
+  "prompts": {},
+  "sessions": {
+    "s_9aeb23f6ab9e8f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08d09-ea04-7710-b6b8-8f300462d27f",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
