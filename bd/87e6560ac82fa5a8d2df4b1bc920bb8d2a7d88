@@ -1,0 +1,46 @@
+spec/contracts/speaker-voiceprints.md
+  s_9aeb23f6ab9e8f::t_17f43851f7b77c 155-162
+  s_9aeb23f6ab9e8f::t_91a57161220abd 105-106
+  s_9aeb23f6ab9e8f::t_530ce0cd0451cd 60-62,102-104,107-110
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_9aeb23f6ab9e8f::t_7fc12daeb05655 1910,3901,3916-3917
+  s_9aeb23f6ab9e8f::t_b4dc26954cc84d 83-151,1894-1909,1911-1942,3887-3900,3902-3915,3918-3921
+  s_9aeb23f6ab9e8f::t_ebaf3b719638af 3922
+Tests/CLITests/ExportCommandTests.swift
+  s_9aeb23f6ab9e8f::t_b4dc26954cc84d 2,192-256
+  s_9aeb23f6ab9e8f::t_231be2331969cd 257-258
+Tests/MacParakeetTests/Database/SpeakerVoiceprintLegacyTranscriptionTests.swift
+  s_9aeb23f6ab9e8f::t_24217bd5329332 1-146
+spec/01-data-model.md
+  s_9aeb23f6ab9e8f::t_530ce0cd0451cd 55-82,1480-1482,1530-1532
+Sources/MacParakeetCore/Database/SpeakerTranscriptionPersistence.swift
+  s_9aeb23f6ab9e8f::t_6c0c3fc63197be 1-35
+Sources/MacParakeetCore/Database/SpeakerEmbeddingCandidateRepository.swift
+  s_9aeb23f6ab9e8f::t_574ee34fbdf0de 44,55,60-62,78-81,96
+Sources/MacParakeetCore/Database/SpeakerMatchJournalRepository.swift
+  s_9aeb23f6ab9e8f::t_1b7924808484be 83-86
+Sources/MacParakeetCore/Database/SpeakerProfileRepository.swift
+  s_9aeb23f6ab9e8f::t_53aabf8b36130d 15-16,75-79,239,305,309-319,330-333,345,348,367-409
+Sources/MacParakeetCore/Services/Diarization/SpeakerVoiceprintService.swift
+  s_9aeb23f6ab9e8f::t_50bb5f022e91b0 120-126,134-139,168,363-364,366-368,566-571,583-585,619
+Tests/MacParakeetTests/Database/SpeakerProfileRepositoryTests.swift
+  s_9aeb23f6ab9e8f::t_949d690bb82aae 951-1000
+Tests/MacParakeetTests/Services/Diarization/SpeakerVoiceprintServiceTests.swift
+  s_9aeb23f6ab9e8f::t_cc4b278a99382c 1122-1243,1369-1373
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bd87e6560ac82fa5a8d2df4b1bc920bb8d2a7d88",
+  "prompts": {},
+  "sessions": {
+    "s_9aeb23f6ab9e8f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08d09-ea04-7710-b6b8-8f300462d27f",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
