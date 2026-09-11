@@ -1,0 +1,24 @@
+Sources/MacParakeetCore/Services/Diarization/SpeakerVoiceprintService.swift
+  s_9aeb23f6ab9e8f::t_9a44671e409593 160-164,167-169,538-539,542
+Tests/MacParakeetTests/Services/Diarization/SpeakerVoiceprintServiceTests.swift
+  s_9aeb23f6ab9e8f::t_0c0257f4121172 167,188-192,538-539,568-590,594-596,637-642
+  s_9aeb23f6ab9e8f::t_8a63967b8a7130 591-593
+Tests/MacParakeetTests/Services/Diarization/SpeakerVoiceprintWiringTests.swift
+  s_9aeb23f6ab9e8f::t_0c0257f4121172 189-196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bb4341b61f73162fce58359f90f670a2d5c5495c",
+  "prompts": {},
+  "sessions": {
+    "s_9aeb23f6ab9e8f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08d09-ea04-7710-b6b8-8f300462d27f",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
