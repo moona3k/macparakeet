@@ -307,16 +307,14 @@ implicit System Default attempt resolves to Bluetooth and times out, the
 platform rebuilds the route snapshot and gives the refreshed implicit default
 one fresh-engine attempt before advancing to the built-in fallback (issue
 #1009). The retry stays implicit, follows a concurrent macOS default-input
-change, and is limited to one per start request: configuration-change recovery
-attempts reuse their own bounded fresh-engine schedule instead of nesting
-another readiness window per attempt. On Bluetooth or unresolved input
-topology, exact-zero PCM does not satisfy readiness; the next route can
-therefore recover issue #541 without imposing an acoustic threshold on
-positively identified USB, built-in, or virtual inputs. For VPIO buffers,
-readiness inspects only microphone channel 0 so render/reference audio cannot
-hide a failed mic; raw multichannel input checks every input channel. System
-Default generation is captured before route resolution, and
-engine-configuration observation begins before `start()`.
+change, and is limited to one per engine configure attempt, including recovery.
+On Bluetooth or unresolved input topology, exact-zero PCM does not satisfy
+readiness; the next route can therefore recover issue #541 without imposing an
+acoustic threshold on positively identified USB, built-in, or virtual inputs.
+For VPIO buffers, readiness inspects only microphone channel 0 so
+render/reference audio cannot hide a failed mic; raw multichannel input checks
+every input channel. System Default generation is captured before route
+resolution, and engine-configuration observation begins before `start()`.
 Each usable buffer is stamped with the configuration generation that produced
 it: a Bluetooth profile-change notification before that buffer is accepted,
 while a change after the last usable buffer still invalidates the stale

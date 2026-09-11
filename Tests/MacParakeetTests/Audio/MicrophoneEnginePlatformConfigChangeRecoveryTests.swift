@@ -1141,11 +1141,10 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
         )
     }
 
-    /// The fresh implicit System Default retry is budgeted once per start
-    /// request. A recovery attempt already rebuilds the route on a fresh engine
-    /// under its own bounded backoff, so it must advance straight to built-in
-    /// instead of spending a second readiness window per attempt.
-    func testRecoveryAttemptDoesNotNestAnotherImplicitBluetoothDefaultRetry() throws {
+    /// Recovery keeps the same one-per-configure Bluetooth retry as initial
+    /// startup. Otherwise a working built-in fallback can end the recovery
+    /// episode before System Default receives its fresh-engine attempt.
+    func testRecoveryRetriesImplicitBluetoothDefaultBeforeBuiltIn() throws {
         let routeBuildCount = OSAllocatedUnfairLock(initialState: 0)
         let invocationCount = OSAllocatedUnfairLock(initialState: 0)
         let explicitlySetDeviceIDs = OSAllocatedUnfairLock(initialState: [AudioDeviceID]())
@@ -1174,8 +1173,9 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
                     return value
                 }
                 engines.withLock { $0.append(engine) }
-                // Invocation 2 is the recovery attempt on the Bluetooth
+                // Invocation 2 is the first recovery attempt on the Bluetooth
                 // implicit default: it starts but never delivers a buffer.
+                // The refreshed implicit attempt (invocation 3) succeeds.
                 if invocation != 2 {
                     tapHandler(buffer.buffer, AVAudioTime(hostTime: UInt64(invocation)))
                 }
@@ -1205,18 +1205,24 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
         XCTAssertEqual(
             invocationCount.withLock { $0 },
             3,
-            "recovery must try the implicit default once, then built-in"
+            "recovery must give the refreshed implicit default a fresh engine"
         )
         XCTAssertEqual(
             routeBuildCount.withLock { $0 },
-            3,
-            "initial start, the signal-policy refresh, then one recovery snapshot — no nested retry snapshot"
+            4,
+            "initial start, signal-policy refresh, recovery snapshot, then retry snapshot"
         )
-        XCTAssertEqual(explicitlySetDeviceIDs.withLock { $0 }, [20])
+        XCTAssertEqual(
+            explicitlySetDeviceIDs.withLock { $0 },
+            [],
+            "the refreshed System Default retry must remain implicit"
+        )
         XCTAssertEqual(
             platform.lastSucceededAttempt,
-            MeetingInputDeviceAttempt(source: .builtIn, deviceID: 20)
+            .implicitSystemDefault(resolvedDeviceID: 10)
         )
+        let capturedEngines = engines.withLock { $0 }
+        XCTAssertFalse(capturedEngines[1] === capturedEngines[2])
     }
 }
 

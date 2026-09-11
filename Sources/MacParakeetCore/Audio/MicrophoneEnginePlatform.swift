@@ -777,8 +777,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         tapHandler: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void,
         startNow: Bool = true,
         attemptsOverride: [MeetingInputDeviceAttempt]? = nil,
-        preserveRouteObservation: Bool = false,
-        allowsImplicitBluetoothDefaultRetry: Bool = true
+        preserveRouteObservation: Bool = false
     ) throws {
         let cancellationGeneration = startupCancellationGeneration.withLock { $0 }
         // Capture before resolving System Default so a route change anywhere
@@ -953,7 +952,6 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                     "shared_mic_engine_input_device_start_failed source=\(attempt.source.logValue) device=\(deviceLabel) transport=\(transport) set_device_ms=\(setDeviceMilliseconds) \(AudioCaptureDiagnostics.errorFields(error))"
                 )
                 if startNow,
-                    allowsImplicitBluetoothDefaultRetry,
                     !retriedImplicitBluetoothDefault,
                     attempt.usesImplicitSystemDefault,
                     resolvedBluetoothState == true,
@@ -1751,8 +1749,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                 vpioEnabled: request.vpioEnabled,
                 bufferSize: request.bufferSize,
                 tapHandler: request.tapHandler,
-                preserveRouteObservation: true,
-                allowsImplicitBluetoothDefaultRetry: false
+                preserveRouteObservation: true
             )
             completeRecoveryLocked(
                 episodeGeneration: episodeGeneration,
