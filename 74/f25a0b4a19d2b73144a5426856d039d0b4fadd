@@ -1,0 +1,24 @@
+spec/05-audio-pipeline.md
+  s_b385528e6bd400::t_0f2f643b3d532b 19
+Sources/MacParakeetCore/Audio/README.md
+  s_b385528e6bd400::t_1ea6b5ba9acf5d 315-316
+  s_b385528e6bd400::t_d392dfa16d13de 317-319
+  s_b385528e6bd400::t_513c8e0d8f11c3 314
+  s_b385528e6bd400::t_1a22c6bf0fd097 308-313
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "74f25a0b4a19d2b73144a5426856d039d0b4fadd",
+  "prompts": {},
+  "sessions": {
+    "s_b385528e6bd400": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "48b71d0f-9a16-46b5-a90a-f9a832af0a4a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
