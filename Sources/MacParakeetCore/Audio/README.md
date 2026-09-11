@@ -302,13 +302,18 @@ A2DP, they can explicitly select the Mac's built-in mic in Settings. The idle
 warm-capture suppression above remains separate and still prevents Instant
 Dictation from holding a Bluetooth input open between active sessions.
 Each active attempt is accepted only after a usable tap buffer arrives. A route
-that starts but produces no callback is torn down after one second and the
-existing chain advances. On Bluetooth or unresolved input topology, exact-zero
-PCM does not satisfy readiness; the next route can therefore recover issue #541
-without imposing an acoustic threshold on positively identified USB, built-in,
-or virtual inputs. For VPIO buffers, readiness inspects only microphone channel
-0 so render/reference audio cannot hide a failed mic; raw multichannel input
-checks every input channel. System Default generation is captured before route
+that starts but produces no usable buffer is torn down after one second. If an
+implicit System Default attempt resolves to Bluetooth and times out, the
+platform rebuilds the route snapshot and gives the refreshed implicit default
+one fresh-engine attempt before advancing to the built-in fallback (issue
+#1009). The retry stays implicit, follows a concurrent macOS default-input
+change, and is limited to one per engine configure attempt, including recovery.
+On Bluetooth or unresolved input topology, exact-zero PCM does not satisfy
+readiness; the next route can therefore recover issue #541 without imposing an
+acoustic threshold on positively identified USB, built-in, or virtual inputs.
+For VPIO buffers, readiness inspects only microphone channel 0 so
+render/reference audio cannot hide a failed mic; raw multichannel input checks
+every input channel. System Default generation is captured before route
 resolution, and engine-configuration observation begins before `start()`.
 Each usable buffer is stamped with the configuration generation that produced
 it: a Bluetooth profile-change notification before that buffer is accepted,

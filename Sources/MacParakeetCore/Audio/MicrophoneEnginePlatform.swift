@@ -613,6 +613,10 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         defaultInputChangeGeneration.withLock { $0 &+= 1 }
     }
 
+    func noteStartupCancellationForTesting() {
+        startupCancellationGeneration.withLock { $0 &+= 1 }
+    }
+
     public var inputFormat: AVAudioFormat? {
         dispatchPrecondition(condition: .notOnQueue(queue))
         return queue.sync {
@@ -845,8 +849,22 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             return
         }
 
+        var pendingAttempts = attempts.map {
+            (attempt: $0, defaultInputGeneration: defaultInputGenerationBeforeRouteSnapshot)
+        }
+        var retriedImplicitBluetoothDefault = false
         var lastError: Error?
-        for attempt in attempts {
+        while !pendingAttempts.isEmpty {
+            let pendingAttempt = pendingAttempts.removeFirst()
+            let attempt = pendingAttempt.attempt
+            guard startupCancellationGeneration.withLock({ $0 }) == cancellationGeneration else {
+                throw AVAudioEngineMicrophonePlatformError.startupCancelled
+            }
+            // Snapshot transport eligibility with the attempt. A Bluetooth
+            // device can disappear while startup is timing out; that route
+            // transition is another reason to rebuild System Default, not a
+            // reason to suppress the one bounded retry.
+            let resolvedBluetoothState = attempt.deviceID.flatMap(bluetoothInputState)
             let transport = AudioCaptureDiagnostics.deviceTransportLabel(attempt.deviceID)
             let deviceLabel = AudioCaptureDiagnostics.deviceLabel(attempt.deviceID)
             var setDeviceMilliseconds = "0.000"
@@ -884,9 +902,9 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                     // transport, or aggregate topology while a route settles.
                     // Keep that uncertain window strict so zero-filled
                     // Bluetooth PCM cannot be mistaken for a ready source.
-                    requiresNonZeroSignal: attempt.deviceID.flatMap(bluetoothInputState) ?? true,
+                    requiresNonZeroSignal: resolvedBluetoothState ?? true,
                     expectedDefaultInputGeneration: startNow && attempt.usesImplicitSystemDefault
-                        ? defaultInputGenerationBeforeRouteSnapshot
+                        ? pendingAttempt.defaultInputGeneration
                         : nil,
                     startupCancellationGeneration: cancellationGeneration
                 )
@@ -933,6 +951,42 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                 AudioCaptureDiagnostics.append(
                     "shared_mic_engine_input_device_start_failed source=\(attempt.source.logValue) device=\(deviceLabel) transport=\(transport) set_device_ms=\(setDeviceMilliseconds) \(AudioCaptureDiagnostics.errorFields(error))"
                 )
+                if startNow,
+                    !retriedImplicitBluetoothDefault,
+                    attempt.usesImplicitSystemDefault,
+                    resolvedBluetoothState == true,
+                    error as? AVAudioEngineMicrophonePlatformError == .initialReadinessTimedOut
+                {
+                    // Starting a Bluetooth input can wake its capture profile
+                    // without attaching this engine's tap to the settled graph.
+                    // Give System Default one fresh implicit attempt before
+                    // abandoning the user's selected macOS route. Resolve it
+                    // again so a concurrent default-input change is followed.
+                    let refreshedDefaultInputGeneration = defaultInputChangeGeneration.withLock { $0 }
+                    let refreshedAttempts = deviceAttemptsBuilder?() ?? []
+                    if let refreshedSystemDefault = refreshedAttempts.first(where: \.usesImplicitSystemDefault) {
+                        retriedImplicitBluetoothDefault = true
+                        pendingAttempts.insert(
+                            (
+                                attempt: refreshedSystemDefault,
+                                defaultInputGeneration: refreshedDefaultInputGeneration
+                            ),
+                            at: 0
+                        )
+                        let refreshedTransport = AudioCaptureDiagnostics.deviceTransportLabel(
+                            refreshedSystemDefault.deviceID
+                        )
+                        let refreshedDeviceLabel = AudioCaptureDiagnostics.deviceLabel(
+                            refreshedSystemDefault.deviceID
+                        )
+                        logger.info(
+                            "shared_mic_engine_input_device_retrying source=system_default transport=\(refreshedTransport, privacy: .public) reason=initial_readiness_timeout"
+                        )
+                        AudioCaptureDiagnostics.append(
+                            "shared_mic_engine_input_device_retrying source=system_default device=\(refreshedDeviceLabel) transport=\(refreshedTransport) reason=initial_readiness_timeout"
+                        )
+                    }
+                }
                 // startConfiguredEngineLocked already replaces the engine on
                 // failure, so nothing more to reset here.
             }
