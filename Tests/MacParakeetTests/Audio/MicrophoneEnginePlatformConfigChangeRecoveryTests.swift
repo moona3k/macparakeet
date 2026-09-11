@@ -1140,6 +1140,84 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
             "a replacement that survived probation must earn a fresh future episode"
         )
     }
+
+    /// The fresh implicit System Default retry is budgeted once per start
+    /// request. A recovery attempt already rebuilds the route on a fresh engine
+    /// under its own bounded backoff, so it must advance straight to built-in
+    /// instead of spending a second readiness window per attempt.
+    func testRecoveryAttemptDoesNotNestAnotherImplicitBluetoothDefaultRetry() throws {
+        let routeBuildCount = OSAllocatedUnfairLock(initialState: 0)
+        let invocationCount = OSAllocatedUnfairLock(initialState: 0)
+        let explicitlySetDeviceIDs = OSAllocatedUnfairLock(initialState: [AudioDeviceID]())
+        let engines = OSAllocatedUnfairLock(initialState: [AVAudioEngine]())
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer(nonZero: true))
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: {
+                routeBuildCount.withLock { $0 += 1 }
+                return [
+                    .implicitSystemDefault(resolvedDeviceID: 10),
+                    MeetingInputDeviceAttempt(source: .builtIn, deviceID: 20),
+                ]
+            },
+            inputDeviceSetter: { deviceID, _ in
+                explicitlySetDeviceIDs.withLock { $0.append(deviceID) }
+                return true
+            },
+            recoveryRetryDelays: [],
+            startupReadinessTimeout: 0,
+            bluetoothInputState: { $0 == 10 },
+            callbackStallCheckInterval: 0,
+            engineStarter: { engine, _, _, tapHandler in
+                let invocation = invocationCount.withLock { value -> Int in
+                    value += 1
+                    return value
+                }
+                engines.withLock { $0.append(engine) }
+                // Invocation 2 is the recovery attempt on the Bluetooth
+                // implicit default: it starts but never delivers a buffer.
+                if invocation != 2 {
+                    tapHandler(buffer.buffer, AVAudioTime(hostTime: UInt64(invocation)))
+                }
+            }
+        )
+        defer { platform.stopEngine() }
+
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+        XCTAssertEqual(invocationCount.withLock { $0 }, 1)
+        XCTAssertEqual(
+            platform.lastSucceededAttempt,
+            .implicitSystemDefault(resolvedDeviceID: 10)
+        )
+
+        let firstEngine = engines.withLock { $0 }[0]
+        NotificationCenter.default.post(
+            name: .AVAudioEngineConfigurationChange,
+            object: firstEngine
+        )
+        _ = platform.isEngineRunning  // flush the queued observer handling
+
+        XCTAssertTrue(platform.isEngineRunning)
+        XCTAssertEqual(
+            invocationCount.withLock { $0 },
+            3,
+            "recovery must try the implicit default once, then built-in"
+        )
+        XCTAssertEqual(
+            routeBuildCount.withLock { $0 },
+            3,
+            "initial start, the signal-policy refresh, then one recovery snapshot — no nested retry snapshot"
+        )
+        XCTAssertEqual(explicitlySetDeviceIDs.withLock { $0 }, [20])
+        XCTAssertEqual(
+            platform.lastSucceededAttempt,
+            MeetingInputDeviceAttempt(source: .builtIn, deviceID: 20)
+        )
+    }
 }
 
 private func makeRecoveryTestBuffer(nonZero: Bool = true) -> AVAudioPCMBuffer {
