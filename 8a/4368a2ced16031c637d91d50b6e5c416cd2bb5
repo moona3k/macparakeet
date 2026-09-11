@@ -1,0 +1,53 @@
+spec/README.md
+  s_9aeb23f6ab9e8f::t_49a95b4512d3c1 35-38,83
+spec/contracts/speaker-voiceprints.md
+  s_9aeb23f6ab9e8f::t_49a95b4512d3c1 1-22,25-83,91-93,100-136,140-146,149-163
+  s_9aeb23f6ab9e8f::t_069f20633415b2 23-24,88-90,94-99,137-139,147-148
+  s_9aeb23f6ab9e8f::t_4f582d37b18f1f 84-87
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_9aeb23f6ab9e8f::t_e4d5b7916aa906 1690
+Tests/MacParakeetTests/VoiceProfileFeatureGateTests.swift
+  s_9aeb23f6ab9e8f::t_491df7aae722e5 1-35
+Tests/MacParakeetTests/Services/Diarization/SpeakerVoiceprintExportTests.swift
+  s_9aeb23f6ab9e8f::t_5023f5f8d8eaba 34,51
+  s_9aeb23f6ab9e8f::t_4f8c123de683fa 1-33,35-50,52-70
+Sources/MacParakeetCore/Database/SpeakerMatchJournalRepository.swift
+  s_9aeb23f6ab9e8f::t_e4d5b7916aa906 6-7,65-66
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_9aeb23f6ab9e8f::t_e4d5b7916aa906 29,106-109
+  s_9aeb23f6ab9e8f::t_05b133e5686d42 443
+Sources/MacParakeetCore/AppFeatures.swift
+  s_9aeb23f6ab9e8f::t_491df7aae722e5 7-23
+Sources/MacParakeetCore/AppRuntimePreferences.swift
+  s_9aeb23f6ab9e8f::t_491df7aae722e5 598-602
+Tests/MacParakeetTests/Services/Diarization/SpeakerVoiceprintRetentionTests.swift
+  s_9aeb23f6ab9e8f::t_4535c4fee0e40f 1-212
+plans/active/2026-07-03-speaker-voiceprints.md
+  s_9aeb23f6ab9e8f::t_069f20633415b2 355-360,530
+  s_9aeb23f6ab9e8f::t_8ebda6f0587276 200,259-261,370,380-381,455-457,459-461
+  s_9aeb23f6ab9e8f::t_1470f868cf0a45 3-5,9-12,25-78,81,152-157,163-165,172,174-176,186-187,196-198,240,265,270-275,287,296-301,305,329-333,369,391-392,398-400,423,429-431,448-450,482-484,492,494-496,511-512
+  s_9aeb23f6ab9e8f::t_deeda0071570b3 86-87,478-481
+  s_9aeb23f6ab9e8f::t_4f582d37b18f1f 352-354,514-515
+Sources/MacParakeetCore/Services/Diarization/SpeakerVoiceprintRetention.swift
+  s_9aeb23f6ab9e8f::t_4535c4fee0e40f 1-58
+Tests/MacParakeetTests/AppRuntimePreferencesTests.swift
+  s_9aeb23f6ab9e8f::t_59c7b37947d836 606-608
+Tests/MacParakeetTests/Services/Diarization/SpeakerVoiceprintWiringTests.swift
+  s_9aeb23f6ab9e8f::t_c9c324696e8195 183-185,188-190,196-198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8a4368a2ced16031c637d91d50b6e5c416cd2bb5",
+  "prompts": {},
+  "sessions": {
+    "s_9aeb23f6ab9e8f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08d09-ea04-7710-b6b8-8f300462d27f",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
