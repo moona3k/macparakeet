@@ -1,0 +1,25 @@
+Sources/MacParakeetCore/Audio/MicrophoneEnginePlatform.swift
+  s_30a5266fbce4d2::t_a0afd875386b03 780,1752
+Sources/MacParakeetCore/Audio/README.md
+  s_30a5266fbce4d2::t_56128f231cc5f1 310-317
+Tests/MacParakeetTests/Audio/MicrophoneEnginePlatformConfigChangeRecoveryTests.swift
+  s_30a5266fbce4d2::t_a0afd875386b03 1144-1147,1176,1178,1208,1212-1218,1222,1224-1225
+spec/05-audio-pipeline.md
+  s_30a5266fbce4d2::t_b359d00506b4ec 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ac31dc054f4e808825eb7b87eb76bc59302116fc",
+  "prompts": {},
+  "sessions": {
+    "s_30a5266fbce4d2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09147-66f1-7881-b25c-2527a43865fd",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
