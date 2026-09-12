@@ -483,7 +483,9 @@ Accessibility note: macOS does not provide a direct denial callback for Accessib
 | Event | Props | Question It Answers |
 |---|---|---|
 | `error_occurred` | `domain`, `code` | What errors are users hitting? |
-| `crash_occurred` | `crash_type`, `signal`, `stack_trace`, `crash_app_ver`, `crash_os_ver` | What crashes are happening? |
+| `crash_occurred` | `crash_type`, `signal`, `stack_trace`, `crash_app_ver`, `crash_os_ver`, `si_code`, `pc`, `fault_addr` | What crashes are happening? |
+
+For fatal signals (`SIGSEGV`, `SIGABRT`, `SIGBUS`, `SIGILL`, `SIGTRAP`, `SIGFPE`), the on-disk report also carries the raw `si_code` (fault subtype), the faulting address (`fault_addr`), and — when the CPU architecture is recognized — the interrupted instruction pointer (`pc`), all written by the C signal handler *before* it attempts the best-effort `backtrace()`. `si_code`, `pc`, and `fault_addr` are optional, bounded numeric/hex fields: `loadPendingReport` validates their format (decimal or `0x`-prefixed hex, length-bounded) and drops any that don't match rather than forwarding arbitrary text from a corrupted report file. Older report files without these keys, and exception-type reports (which don't have them), parse and send normally with the fields simply absent.
 
 ### 10. CLI — "Are agents and scripts succeeding?"
 

@@ -19,6 +19,12 @@ records the September 2026 tightening of privacy and outcome semantics.
 - Retain bounded error categories and safe numeric codes. CoreAudio domain/code
   information may be recovered from the recognized Foundation wrapper format;
   arbitrary numbers, domains and descriptions are not error categories.
+- `crash_occurred`'s optional `si_code`, `pc`, and `fault_addr` fields are
+  narrow signal-context evidence (fault subtype, interrupted instruction
+  pointer, faulting address), not free-form text. The on-disk report parser
+  validates each against a bounded decimal or `0x`-prefixed hex shape before
+  it reaches the typed event factory; a corrupted or oversized value is
+  dropped rather than forwarded.
 - Opt-out clears the queue and invalidates retries and batches waiting behind
   another flush, including batches encoded but not started. Request admission
   and URL task resume share the queue-clear lock. In-flight requests can complete. An explicit final
@@ -104,6 +110,12 @@ diagnostics or claim that the absence of logged failures means successful audio.
 
 - `TelemetryServiceTests` pins payload encoding, omitted free-form error/crash
   fields, and opt-out admission/queue-generation races.
+- `CrashReporterTests` pins old/new/missing/malformed `si_code`/`pc`/`fault_addr`
+  round-tripping through the report-file parser. `CrashReporterSignalProbeTests`
+  runs the production C signal handler in a real subprocess (compiled from the
+  checked-in `MPKCrashSignalHandler.c`) to confirm the on-disk report reflects
+  the actual interrupted instruction pointer and a `SIG_DFL` process exit, not
+  a synthetic value.
 - `TelemetryErrorClassifierTests` pins bounded error categories and recognized
   native CoreAudio status extraction.
 - `CLITelemetryTests` pins successful thrown exits, environment overrides, and
