@@ -1,5 +1,13 @@
 # Saved meeting splitting — issue #895
 
+> **Current direction: Split and transcribe.** Each part is a new saved
+> recording with independent audio, followed by sequential first transcription
+> and normal enabled meeting automation. The original remains untouched.
+> The [revised plan](../../plans/2026-09-11-issue-895-meeting-split-plan.md) and
+> [approved contract](../../../spec/contracts/meeting-splitting.md) supersede
+> transcript-preservation, speaker-baseline and hard word-boundary rules in
+> this historical research and prototype. No feature ships in these docs.
+
 - [Implementation handoff](../../plans/2026-09-11-issue-895-meeting-split-plan.md): scope, code entry points, implementation units, acceptance tests and release gates for a future coding agent. The app feature is not implemented by this research change.
 - [Findings and recommendation](report.md): feasibility, user flow, data rules, current-main citations, architecture and implementation gates.
 - [Architecture and design assessment](report.md#architecture-and-design-assessment): ordinary meeting outputs, a small shared Core interface, three internal responsibilities and native interaction considerations.
