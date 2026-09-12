@@ -1,0 +1,21 @@
+Tests/MacParakeetTests/Services/Telemetry/CrashReporterSignalProbeTests.swift
+  s_8b2a462debd54c::t_d5c0a6aca74709 221-229,326-333
+scripts/dev/tests/crash_signal_probe_harness.c
+  s_8b2a462debd54c::t_7c7639ae003826 200,203-205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "60b9bd1d2be401b5dbf5b965b14515906d8da2db",
+  "prompts": {},
+  "sessions": {
+    "s_8b2a462debd54c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "61419b1c-67ab-437e-bf57-b127570fa41a",
+        "model": "unknown"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
