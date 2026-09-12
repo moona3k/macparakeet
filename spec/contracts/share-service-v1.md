@@ -1,6 +1,7 @@
 # Share Service v1
 
-> Status: **Proposed**
+> Status: **Implemented v1 contract; public enablement pending**
+> Release status and evidence: [implementation handoff](../../docs/share-links-implementation.md)
 
 ## Purpose
 

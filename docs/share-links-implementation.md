@@ -4,6 +4,22 @@ Sharing is implemented but **not publicly enabled**. `AppFeatures.shareLinksEnab
 remains `false`; DEBUG builds can expose the native UI with `--enable-share-links`.
 That switch does not redirect credentials or configure a production service.
 
+## Landed implementation
+
+Both implementations merged on September 12, 2026:
+
+- [App PR #1019](https://github.com/moona3k/macparakeet/pull/1019), merge
+  `9e449e381874d16f507511373bad69e96345c598`.
+- [Website PR #44](https://github.com/moona3k/macparakeet-website/pull/44), merge
+  `d74739b7e9c77c2c9f9d21768ee77af5a0282b35`.
+
+The [public walkthrough](https://macparakeet.com/dev/pr/1019/) is engineering
+documentation, not an enabled sharing service. The website
+[deployment runbook](https://github.com/moona3k/macparakeet-website/blob/main/docs/share-service-deployment.md)
+owns environment setup; this handoff owns the cross-repository release status.
+The original implementation plan and research remain historical context, not
+an instruction to rebuild the feature.
+
 ## Where the behavior lives
 
 - `MacParakeetCore/Services/Sharing`: allowlisted text projection, interoperable
@@ -60,7 +76,17 @@ passed the 390-pixel responsive-layout check. This does not stand in for actual
 Safari/iPhone, recipient in-app browsers or VoiceOver. Staging creation is
 disabled after verification.
 
-Run the normal build and test gates on the exact final commits before merging.
+The final app head `ba1c698fb02d1cb35fbfe0364ca350850e0be085` passed
+[CI](https://github.com/moona3k/macparakeet/actions/runs/34709349737), including
+release build, CLI/bundle smoke checks, concurrency, Swift 6 and the test suite.
+Its last deletion correction also passed 64 focused tests and independent
+Grok/Sonnet reviews; CodeRabbit reported no actionable comments. The website's
+final feature head `10548aa82055954e1fdde3558e4552b68a343eeb` passed 228 Node
+tests and its production build. These are implementation receipts, not launch
+approval. The maintainer accepted direct test/review evidence because the
+implementation controller could not certify post-unit follow-up commits.
+
+For later code changes, run the relevant gates on their exact final commits.
 Do not mistake mock tests, source presence, or Chrome-only QA for a public release.
 The separate release decision still requires:
 

@@ -16,6 +16,7 @@ The clearest user-facing explanation is:
 ## Publisher experience
 
 The Share sheet shows the exact content that will be published before any upload begins.
+Publishing is an explicit confirmation; opening the sheet or changing its options never uploads content.
 Meeting-like items initially select non-empty summaries and notes while leaving the transcript off.
 A transcript-only item initially selects its transcript, and contextual actions may begin with only the selected passage, note, or result.
 
@@ -65,6 +66,7 @@ Revocation cannot erase copies a recipient has already loaded, downloaded, copie
 
 Deleting a local source also requests permanent stop for its active shares.
 If the Mac is offline, local deletion may finish, but the app preserves an opaque durable operation and says the remote stop is pending until the service confirms it.
+A running, sharing-enabled app attempts that stop asynchronously. CLI deletion while the app is closed leaves it pending until the next enabled app startup; local deletion alone is not remote-revocation confirmation.
 Natural expiration also denies access permanently and starts the same bounded ciphertext-cleanup process.
 
 ## Privacy boundary

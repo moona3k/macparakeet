@@ -1,6 +1,6 @@
 # Share Service Privacy and Operations
 
-> Status: **Pre-implementation release contract**
+> Status: **Implemented privacy contract; public-enablement checks remain**
 > Governing decision: [ADR-029](../spec/adr/029-encrypted-shareable-transcript-snapshots.md)
 > Wire contracts: [Share Link and Bundle v1](../spec/contracts/share-link-bundle-v1.md) and [Share Service v1](../spec/contracts/share-service-v1.md)
 
@@ -153,6 +153,10 @@ A suspected viewer compromise requires freezing new publication, preserving ster
 Because the service does not know which recipients viewed a link, it must not claim complete recipient notification.
 
 ## Release evidence
+
+Completed implementation checks and remaining launch work are recorded in the
+[implementation handoff](share-links-implementation.md). The checklist below
+states the release requirements; it is not a claim that every check has passed.
 
 The feature stays behind a default-off flag until all of the following are demonstrated with synthetic data first:
 

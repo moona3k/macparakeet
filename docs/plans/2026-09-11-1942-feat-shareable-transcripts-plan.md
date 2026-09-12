@@ -11,6 +11,13 @@ execution: code
 
 # Shareable Transcript Snapshots - Plan
 
+> Execution complete: app PR #1019 and website PR #44 merged on September 12,
+> 2026. This preserves the approved implementation plan and its decision history.
+> For current behavior and remaining public-release gates, use the
+> [implementation handoff](../share-links-implementation.md) and its governing
+> contracts. The feature remains disabled by default; implementation readiness
+> below is not public-release approval.
+
 ## Goal Capsule
 
 - **Objective:** A MacParakeet user can publish selected transcript-derived text as a private, expiring web page that is easy to send and remains under the publisher's control.
