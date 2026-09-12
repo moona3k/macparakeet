@@ -1,0 +1,21 @@
+.github/workflows/ci.yml
+  s_53c86c470a1866::t_5436af4d781b99 49-57
+Tests/MacParakeetTests/Services/Capture/MeetingEchoSuppressionRuntimeTests.swift
+  s_53c86c470a1866::t_cf17646e69d806 524-529,602
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d34eff2d3cf936bd5a7188b06f35194420197f75",
+  "prompts": {},
+  "sessions": {
+    "s_53c86c470a1866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a096a3-db60-7eb1-8f0a-1eb40bd8e15d",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
