@@ -1,0 +1,52 @@
+Tests/CLITests/MeetingSplitCommandTests.swift
+  s_a873ed00f9edeb::t_2e76e3dc9fa779 487-489
+  s_a873ed00f9edeb::t_5406a852381d97 3-4,331-486,490-508
+  s_53c86c470a1866::t_fb397be66f6399 509
+Sources/CLI/CHANGELOG.md
+  s_a873ed00f9edeb::t_5406a852381d97 101-119
+Tests/MacParakeetTests/Services/MeetingSplit/MeetingSplitServiceTests.swift
+  s_a873ed00f9edeb::t_5406a852381d97 41-42,52,291-321,721-781,849-890,1101-1178
+  s_53c86c470a1866::t_2aeb9ad5af9a0b 1179
+Sources/CLI/Commands/MeetingSplitCommand.swift
+  s_a873ed00f9edeb::t_5406a852381d97 3-4,96-99,175-193,319-323,353-366,388-392,437-465,469-506,636,642-653,665-667
+  s_a873ed00f9edeb::t_992d90f07f9826 466-468
+Tests/MacParakeetTests/Services/MeetingSplit/MeetingSplitChildFolderClaimTests.swift
+  s_a873ed00f9edeb::t_57e746afebfc76 13-14
+  s_a873ed00f9edeb::t_a625b21495eab7 6,141-158,170-179
+  s_a873ed00f9edeb::t_5406a852381d97 1-5,7-12,15-140,159-169,180-255
+integrations/README.md
+  s_a873ed00f9edeb::t_5406a852381d97 641-653
+Sources/MacParakeetCore/Services/MeetingSplit/MeetingSplitService.swift
+  s_a873ed00f9edeb::t_5406a852381d97 302-317,323-325,630-653,656,658-670
+  s_a873ed00f9edeb::t_c06a515954b7a5 48-50,53
+Sources/MacParakeetCore/Services/MeetingSplit/MeetingSplitChildFolderClaim.swift
+  s_a873ed00f9edeb::t_5406a852381d97 21-26,32-33,40-41,44-46,48-52,57,59-69,79,84-86,91-97,100-104,107-110,134-136,138-147,151-156
+  s_a873ed00f9edeb::t_0999816c45f542 47,58,74-77,80-83,87-90,132-133,137
+spec/contracts/meeting-splitting.md
+  s_a873ed00f9edeb::t_5406a852381d97 169-170,172-184,206-212,229-246,252-264
+  s_a873ed00f9edeb::t_a625b21495eab7 171,185-189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e7c4cfee1411efac24dbaa1acf52c16b81b13c14",
+  "prompts": {},
+  "sessions": {
+    "s_53c86c470a1866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a096a3-db60-7eb1-8f0a-1eb40bd8e15d",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_a873ed00f9edeb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0934d-8db0-7702-aa27-19ce08f0c352",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
