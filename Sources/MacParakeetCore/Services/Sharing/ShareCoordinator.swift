@@ -140,11 +140,29 @@ public actor ShareCoordinator {
         var seenCursors: Set<String> = []
         repeat {
             let page = try await remoteClient.listShares(deviceToken: credential.token, cursor: cursor, limit: 50)
+            for resource in page.shares {
+                if let local = try repository.fetch(remoteShareId: resource.id) {
+                    try validateLocatorCommitment(resource, for: local)
+                }
+            }
             resources.append(contentsOf: page.shares)
             cursor = page.nextCursor
             if let cursor, !seenCursors.insert(cursor).inserted { throw ShareClientError.unexpectedResponse }
         } while cursor != nil
         return resources
+    }
+
+    private func validateLocatorCommitment(_ resource: ShareResource, for share: SharePublication) throws {
+        try validateReceiptIdentity(id: resource.id, locatorCommitment: resource.locatorCommitment, for: share)
+    }
+
+    private func validateReceiptIdentity(id: String, locatorCommitment: String, for share: SharePublication) throws {
+        let expected =
+            try share.locator.map { ShareVerifier.locator(try ShareLocator(rawValue: $0)) }
+            ?? share.locatorCommitment
+        guard id == share.remoteShareId, locatorCommitment == expected else {
+            throw ShareClientError.unexpectedResponse
+        }
     }
 
     private static func validExpiry(_ date: Date, after now: Date, maximum: Date) -> Bool {
@@ -778,6 +796,7 @@ public actor ShareCoordinator {
             else {
                 throw ShareCoordinatorError.corruptedOutboxOperation
             }
+            try validateLocatorCommitment(resource, for: share)
             try await repository.confirmOperation(operation, resource: resource)
             return .advanced
         } catch {
@@ -832,6 +851,7 @@ public actor ShareCoordinator {
             else {
                 throw ShareCoordinatorError.corruptedOutboxOperation
             }
+            try validateLocatorCommitment(resource, for: share)
             try await repository.confirmOperation(operation, resource: resource)
             return .advanced
         } catch {
@@ -888,6 +908,7 @@ public actor ShareCoordinator {
             else {
                 throw ShareCoordinatorError.corruptedOutboxOperation
             }
+            try validateReceiptIdentity(id: receipt.id, locatorCommitment: receipt.locatorCommitment, for: share)
             try await repository.confirmDelete(
                 operation, receipt: receipt, nextKey: ShareIdentifiers.generateIdempotencyKey())
             if receipt.deletionState == .complete {
@@ -915,7 +936,12 @@ public actor ShareCoordinator {
         var seenCursors: Set<String> = []
         repeat {
             let page = try await remoteClient.listShares(deviceToken: deviceToken, cursor: cursor, limit: 50)
-            if let match = page.shares.first(where: { $0.id == remoteShareId }) { return match }
+            if let match = page.shares.first(where: { $0.id == remoteShareId }) {
+                if let local = try repository.fetch(remoteShareId: remoteShareId) {
+                    try validateLocatorCommitment(match, for: local)
+                }
+                return match
+            }
             cursor = page.nextCursor
             if let cursor, !seenCursors.insert(cursor).inserted { throw ShareClientError.unexpectedResponse }
         } while cursor != nil

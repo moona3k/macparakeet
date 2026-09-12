@@ -50,10 +50,11 @@ public struct ShareDraftSource: Sendable {
             selection: ShareSelection(
                 includeSummary: !manifest.summaryIDs.isEmpty,
                 includeNotes: manifest.includeNotes, includeTranscript: manifest.includeTranscript,
+                includeMetadata: manifest.includeMetadata,
                 transcriptOptions: TranscriptExportOptions(
                     includeTimestamps: manifest.includeTimestamps,
                     includeSpeakerLabels: manifest.includeSpeakerLabels,
-                    includeMetadata: manifest.includeMetadata)),
+                    includeMetadata: false)),
             title: title, publishedAt: publishedAt
         )
     }

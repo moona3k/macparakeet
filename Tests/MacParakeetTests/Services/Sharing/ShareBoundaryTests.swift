@@ -86,7 +86,9 @@ final class ShareBoundaryTests: XCTestCase {
         )
         let selection = ShareSelection(includeSummary: false, includeNotes: false, includeTranscript: true)
         let bundle = try ShareProjection.project(transcription: source, selection: selection)
-        guard case .transcript(_, let segments) = bundle.sections[0] else { return XCTFail() }
+        guard case .transcript(_, let segments) = bundle.sections[0] else {
+            return XCTFail("Expected transcript section")
+        }
         XCTAssertNil(segments[0].speaker)
     }
 

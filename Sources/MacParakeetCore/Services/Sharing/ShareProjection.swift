@@ -7,17 +7,20 @@ public struct ShareSelection: Sendable, Equatable {
     public var includeSummary: Bool
     public var includeNotes: Bool
     public var includeTranscript: Bool
+    public var includeMetadata: Bool
     public var transcriptOptions: TranscriptExportOptions
 
     public init(
         includeSummary: Bool,
         includeNotes: Bool,
         includeTranscript: Bool,
+        includeMetadata: Bool = false,
         transcriptOptions: TranscriptExportOptions = .default
     ) {
         self.includeSummary = includeSummary
         self.includeNotes = includeNotes
         self.includeTranscript = includeTranscript
+        self.includeMetadata = includeMetadata
         self.transcriptOptions = transcriptOptions
     }
 }
@@ -85,8 +88,8 @@ public enum ShareProjection {
 
         return try ShareBundle(
             publishedAt: publishedAt,
-            title: selection.transcriptOptions.includeMetadata ? normalizedTitle(title) : nil,
-            source: selection.transcriptOptions.includeMetadata ? source(for: transcription) : nil,
+            title: selection.includeMetadata ? normalizedTitle(title) : nil,
+            source: selection.includeMetadata ? source(for: transcription) : nil,
             sections: sections
         )
     }

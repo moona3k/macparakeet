@@ -28,7 +28,7 @@ final class FakeShareRemoteClient: ShareRemoteClientProtocol, @unchecked Sendabl
             throw Unconfigured(method: "configureRecovery")
         }
     var listSharesHandler: (ShareDeviceToken, String?, Int) async throws -> ShareListPage = { _, _, _ in
-        ShareListPage(shares: [], nextCursor: nil)
+        throw Unconfigured(method: "listShares")
     }
     var createShareHandler:
         (ShareDeviceToken, String, String, Int, Date, ShareEnvelope, String) async throws ->

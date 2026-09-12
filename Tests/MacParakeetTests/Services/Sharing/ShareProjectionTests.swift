@@ -47,16 +47,41 @@ final class ShareProjectionTests: XCTestCase {
         XCTAssertTrue(kinds.contains("summary"))
 
         guard case .notes(_, let notesMarkdown) = try XCTUnwrap(bundle.sections.first { sectionKind($0) == "notes" })
-        else { return XCTFail() }
+        else { return XCTFail("Expected notes section") }
         XCTAssertEqual(notesMarkdown, "Selected notes content.")
     }
 
     // MARK: - Privacy allowlist
 
+    func testMetadataRequiresExplicitSelectionIndependentOfTranscriptFormatting() throws {
+        for includeTranscript in [false, true] {
+            for includeMetadata in [false, true] {
+                let selection = ShareSelection(
+                    includeSummary: true, includeNotes: false, includeTranscript: includeTranscript,
+                    includeMetadata: includeMetadata,
+                    transcriptOptions: TranscriptExportOptions(
+                        includeTimestamps: false, includeSpeakerLabels: false, includeMetadata: !includeMetadata))
+                let bundle = try ShareProjection.project(
+                    transcription: makeKitchenSinkMeeting(), summaries: summaries, selection: selection,
+                    title: "Selected title", publishedAt: fixedDate)
+                XCTAssertEqual(bundle.title, includeMetadata ? "Selected title" : nil)
+                XCTAssertEqual(bundle.source != nil, includeMetadata)
+            }
+        }
+
+        let defaultSelection = ShareSelection(includeSummary: true, includeNotes: false, includeTranscript: false)
+        let bundle = try ShareProjection.project(
+            transcription: makeKitchenSinkMeeting(), summaries: summaries, selection: defaultSelection,
+            title: "Unselected title", publishedAt: fixedDate)
+        XCTAssertNil(bundle.title)
+        XCTAssertNil(bundle.source)
+    }
+
     func testProjectionNeverEmitsUnselectedSensitiveFields() throws {
         let transcription = makeKitchenSinkMeeting()
         let selection = ShareSelection(
             includeSummary: true, includeNotes: true, includeTranscript: true,
+            includeMetadata: true,
             transcriptOptions: TranscriptExportOptions(
                 includeTimestamps: true, includeSpeakerLabels: true, includeMetadata: true)
         )
@@ -105,7 +130,9 @@ final class ShareProjectionTests: XCTestCase {
         )
 
         XCTAssertEqual(bundle.sections.count, 1)
-        guard case .transcript(_, let segments) = bundle.sections[0] else { return XCTFail() }
+        guard case .transcript(_, let segments) = bundle.sections[0] else {
+            return XCTFail("Expected transcript section")
+        }
         XCTAssertEqual(segments.count, 2)
         XCTAssertEqual(segments[0].text, "First paragraph of untimed text.")
         XCTAssertEqual(segments[1].text, "Second paragraph, still untimed.")
@@ -137,7 +164,9 @@ final class ShareProjectionTests: XCTestCase {
             transcription: transcription, selection: selection, publishedAt: fixedDate
         )
 
-        guard case .transcript(_, let segments) = bundle.sections[0] else { return XCTFail() }
+        guard case .transcript(_, let segments) = bundle.sections[0] else {
+            return XCTFail("Expected transcript section")
+        }
         XCTAssertEqual(segments.count, 1)
         XCTAssertNil(segments[0].startMs)
         XCTAssertNil(segments[0].endMs)
@@ -153,7 +182,9 @@ final class ShareProjectionTests: XCTestCase {
         )
 
         XCTAssertEqual(bundle.sections.count, 1)
-        guard case .transcript(_, let segments) = bundle.sections[0] else { return XCTFail() }
+        guard case .transcript(_, let segments) = bundle.sections[0] else {
+            return XCTFail("Expected transcript section")
+        }
         XCTAssertEqual(segments.count, 1)
         XCTAssertEqual(segments[0].text, "Only this excerpt.")
         XCTAssertEqual(segments[0].startMs, 1_000)

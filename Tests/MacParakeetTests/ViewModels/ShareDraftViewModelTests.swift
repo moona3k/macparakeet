@@ -40,6 +40,19 @@ final class ShareDraftViewModelTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(model.preview).sections.count, 1)
     }
 
+    func testSummaryOnlyPreviewHonorsExplicitMetadataChoice() async throws {
+        let model = ShareDraftViewModel(source: source(), service: ShareUIServiceStub(), now: { self.now })
+        model.manifest.includeMetadata = true
+        await model.preparePreview()
+        XCTAssertEqual(model.preview?.title, "Visible title")
+        XCTAssertNotNil(model.preview?.source)
+        XCTAssertFalse(model.manifest.includeTranscript)
+        model.manifest.includeMetadata = false
+        await model.preparePreview()
+        XCTAssertNil(model.preview?.title)
+        XCTAssertNil(model.preview?.source)
+    }
+
     func testContextualSummaryAndEmptySelection() async {
         let input = source()
         let model = ShareDraftViewModel(
@@ -170,7 +183,7 @@ actor ShareUIServiceStub: ShareManaging {
         guard let index = rows.firstIndex(where: { $0.id == shareId }) else {
             throw ShareCoordinatorError.shareNotFound
         }
-        rows[index].contentRevision += 1; rows[index].projectionManifest = projectionManifest;
+        rows[index].contentRevision += 1; rows[index].projectionManifest = projectionManifest
         rows[index].contentDigest = contentDigest
         return rows[index]
     }

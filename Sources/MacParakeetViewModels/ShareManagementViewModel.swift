@@ -230,7 +230,7 @@ public final class ShareManagementViewModel {
                 }
             }
         }
-        pending = nextPending; links = nextLinks; titles = nextTitles; staleIDs = nextStale;
+        pending = nextPending; links = nextLinks; titles = nextTitles; staleIDs = nextStale
         availableSourceIDs = nextSources
         recoveryCode = try await service.pendingRecoveryCode()?.rawValue
     }

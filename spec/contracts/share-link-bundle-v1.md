@@ -120,6 +120,7 @@ Stable bundle semantics:
 - Unknown section kinds invalidate the bundle.
 
 The share projection may include only the selected display title, source kind, display date, duration, summary text and display titles, notes, transcript text, timestamps, and current speaker labels.
+The Core projection's `ShareSelection.includeMetadata` defaults to false and independently controls the bundle title and source metadata. Transcript export formatting options do not opt those fields in; the app passes the owner's explicit preview selection.
 It must exclude audio, local record or segment IDs, paths, artifact locations, source URLs, thumbnails, confidence values, model or provider details, prompt instructions, generation receipts, chat, calendar and attendee data, meeting URLs, capture diagnostics, and every unselected field.
 
 ## Non-stable presentation

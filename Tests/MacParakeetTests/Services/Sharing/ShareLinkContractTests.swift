@@ -119,16 +119,8 @@ final class ShareLinkContractTests: XCTestCase {
         // One bit flip in the final, otherwise-unused bits of a correctly
         // sized locator round-trips to a different canonical string, so it
         // must be rejected rather than silently accepted.
-        let link = ShareLink.generate()
-        var mutated = link.locator.rawValue
-        let lastIndex = mutated.index(before: mutated.endIndex)
-        let lastChar = mutated[lastIndex]
-        let replacement: Character = lastChar == "A" ? "B" : "A"
-        mutated.replaceSubrange(lastIndex..<mutated.endIndex, with: String(replacement))
-        // Only assert when the mutation actually changes canonical round-trip
-        // shape (guards against the rare case the swap is a no-op byte-wise).
-        if ShareBase64URL.decode(mutated) == nil {
-            XCTAssertThrowsError(try ShareLocator(rawValue: mutated))
-        }
+        let nonCanonical = "AAAAAAAAAAAAAAAAAAAAAB"
+        XCTAssertNil(ShareBase64URL.decode(nonCanonical))
+        XCTAssertThrowsError(try ShareLocator(rawValue: nonCanonical))
     }
 }

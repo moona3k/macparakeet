@@ -28,10 +28,10 @@ final class ShareCoordinatorTests: XCTestCase {
     private func succeedingCreateHandler()
         -> (ShareDeviceToken, String, String, Int, Date, ShareEnvelope, String) async throws -> ShareResource
     {
-        { _, shareId, _, contentRevision, expiresAt, _, _ in
+        { _, shareId, locator, contentRevision, expiresAt, _, _ in
             makeConfirmedResource(
                 shareId: shareId,
-                locatorCommitment: "commitment-\(shareId)",
+                locatorCommitment: ShareVerifier.locator(try ShareLocator(rawValue: locator)),
                 contentRevision: contentRevision,
                 version: 1,
                 expiresAt: expiresAt,
@@ -83,10 +83,11 @@ final class ShareCoordinatorTests: XCTestCase {
 
     func testDefaultExpiryIsThirtyDaysAndRequestedValueIsSentToTheService() async throws {
         var capturedExpiresAt: Date?
-        remoteClient.createShareHandler = { _, shareId, _, contentRevision, expiresAt, _, _ in
+        remoteClient.createShareHandler = { _, shareId, locator, contentRevision, expiresAt, _, _ in
             capturedExpiresAt = expiresAt
             return makeConfirmedResource(
-                shareId: shareId, locatorCommitment: "c", contentRevision: contentRevision, version: 1,
+                shareId: shareId, locatorCommitment: ShareVerifier.locator(try ShareLocator(rawValue: locator)),
+                contentRevision: contentRevision, version: 1,
                 expiresAt: expiresAt, maxExpiresAt: expiresAt.addingTimeInterval(5_184_000)
             )
         }
@@ -101,10 +102,11 @@ final class ShareCoordinatorTests: XCTestCase {
 
     func testExactNinetyDayExpiryIsAcceptedButOneSecondBeyondIsRejectedLocally() async throws {
         var createCallCount = 0
-        remoteClient.createShareHandler = { _, shareId, _, contentRevision, expiresAt, _, _ in
+        remoteClient.createShareHandler = { _, shareId, locator, contentRevision, expiresAt, _, _ in
             createCallCount += 1
             return makeConfirmedResource(
-                shareId: shareId, locatorCommitment: "c", contentRevision: contentRevision, version: 1,
+                shareId: shareId, locatorCommitment: ShareVerifier.locator(try ShareLocator(rawValue: locator)),
+                contentRevision: contentRevision, version: 1,
                 expiresAt: expiresAt, maxExpiresAt: expiresAt.addingTimeInterval(5_184_000)
             )
         }
@@ -133,13 +135,14 @@ final class ShareCoordinatorTests: XCTestCase {
     func testRestartRetriesAPendingCreateWithTheSameIdempotencyKey() async throws {
         var seenIdempotencyKeys: [String] = []
         var shouldFail = true
-        remoteClient.createShareHandler = { _, shareId, _, contentRevision, expiresAt, _, idempotencyKey in
+        remoteClient.createShareHandler = { _, shareId, locator, contentRevision, expiresAt, _, idempotencyKey in
             seenIdempotencyKeys.append(idempotencyKey)
             if shouldFail {
                 throw ShareClientError.network
             }
             return makeConfirmedResource(
-                shareId: shareId, locatorCommitment: "c", contentRevision: contentRevision, version: 1,
+                shareId: shareId, locatorCommitment: ShareVerifier.locator(try ShareLocator(rawValue: locator)),
+                contentRevision: contentRevision, version: 1,
                 expiresAt: expiresAt, maxExpiresAt: expiresAt.addingTimeInterval(5_184_000)
             )
         }
@@ -165,8 +168,10 @@ final class ShareCoordinatorTests: XCTestCase {
 
     func testVersionConflictOnCreateReconciliesViaOwnerListingInsteadOfCreatingASecondShare() async throws {
         var capturedShareId: String?
-        remoteClient.createShareHandler = { _, shareId, _, _, _, _, _ in
+        var capturedCommitment: String?
+        remoteClient.createShareHandler = { _, shareId, locator, _, _, _, _ in
             capturedShareId = shareId
+            capturedCommitment = ShareVerifier.locator(try ShareLocator(rawValue: locator))
             throw ShareClientError.api(ShareAPIError(code: .versionConflict, retryable: false, requestId: nil))
         }
         remoteClient.listSharesHandler = { _, _, _ in
@@ -175,7 +180,8 @@ final class ShareCoordinatorTests: XCTestCase {
             return ShareListPage(
                 shares: [
                     makeConfirmedResource(
-                        shareId: shareId, locatorCommitment: "reconciled-commitment", contentRevision: 1, version: 1,
+                        shareId: shareId, locatorCommitment: try XCTUnwrap(capturedCommitment), contentRevision: 1,
+                        version: 1,
                         expiresAt: now.addingTimeInterval(2_592_000), maxExpiresAt: now.addingTimeInterval(7_776_000)
                     )
                 ],
@@ -185,11 +191,75 @@ final class ShareCoordinatorTests: XCTestCase {
 
         let result = try await coordinator.publish(bundle: try makeNotesBundle())
         XCTAssertTrue(result.publication.isConfirmed)
-        XCTAssertEqual(result.publication.locatorCommitment, "reconciled-commitment")
+        XCTAssertEqual(result.publication.locatorCommitment, capturedCommitment)
         XCTAssertEqual(try repository.fetchAll().count, 1, "reconciliation must never leave a second row")
     }
 
     // MARK: - Content update eligibility
+
+    func testMismatchedCreateCommitmentPreservesUncertainOutboxAndKey() async throws {
+        remoteClient.createShareHandler = { _, shareId, _, revision, expiresAt, _, _ in
+            makeConfirmedResource(
+                shareId: shareId, locatorCommitment: ShareVerifier.locator(.generate()),
+                contentRevision: revision, version: 1,
+                expiresAt: expiresAt, maxExpiresAt: expiresAt.addingTimeInterval(3600))
+        }
+        let result = try await coordinator.publish(bundle: makeNotesBundle())
+        XCTAssertFalse(result.publication.isConfirmed)
+        XCTAssertNil(result.link)
+        let pending = try XCTUnwrap(repository.fetchPendingOperations(forShareId: result.publication.id).first)
+        XCTAssertEqual(pending.kind, .create)
+        XCTAssertNotNil(try credentialStore.loadContentKey(forRemoteShareId: result.publication.remoteShareId))
+
+        remoteClient.createShareHandler = { _, _, _, _, _, _, _ in
+            throw ShareClientError.api(ShareAPIError(code: .versionConflict, retryable: false, requestId: nil))
+        }
+        remoteClient.listSharesHandler = { _, _, _ in
+            ShareListPage(
+                shares: [
+                    makeConfirmedResource(
+                        shareId: result.publication.remoteShareId,
+                        locatorCommitment: ShareVerifier.locator(.generate()),
+                        contentRevision: 1, version: 1, expiresAt: result.publication.expiresAt,
+                        maxExpiresAt: result.publication.maxExpiresAt)
+                ], nextCursor: nil)
+        }
+        await coordinator.resumePendingWork()
+        let persisted = try XCTUnwrap(repository.fetch(id: result.publication.id))
+        XCTAssertFalse(persisted.isConfirmed)
+        XCTAssertEqual(persisted.locatorCommitment, result.publication.locatorCommitment)
+        let retried = try XCTUnwrap(repository.fetchPendingOperations(forShareId: persisted.id).first)
+        XCTAssertEqual(retried.id, pending.id)
+        XCTAssertEqual(retried.idempotencyKey, pending.idempotencyKey)
+        XCTAssertEqual(retried.requestBody, pending.requestBody)
+
+        remoteClient.createShareHandler = succeedingCreateHandler()
+        await coordinator.resumePendingWork()
+        XCTAssertTrue(try XCTUnwrap(repository.fetch(id: persisted.id)).isConfirmed)
+        XCTAssertTrue(try repository.fetchPendingOperations(forShareId: persisted.id).isEmpty)
+    }
+
+    func testRefreshRejectsMismatchedCommitmentWithoutOverwritingLocalAuthority() async throws {
+        remoteClient.createShareHandler = succeedingCreateHandler()
+        let result = try await coordinator.publish(bundle: makeNotesBundle())
+        remoteClient.listSharesHandler = { _, _, _ in
+            ShareListPage(
+                shares: [
+                    makeConfirmedResource(
+                        shareId: result.publication.remoteShareId,
+                        locatorCommitment: ShareVerifier.locator(.generate()),
+                        contentRevision: 1, version: 2, expiresAt: result.publication.expiresAt,
+                        maxExpiresAt: result.publication.maxExpiresAt)
+                ], nextCursor: nil)
+        }
+        do {
+            _ = try await coordinator.refreshPublications()
+            XCTFail("a mismatched receipt cannot replace local revocation authority")
+        } catch ShareClientError.unexpectedResponse {}
+        let persisted = try XCTUnwrap(repository.fetch(id: result.publication.id))
+        XCTAssertEqual(persisted.locatorCommitment, result.publication.locatorCommitment)
+        XCTAssertEqual(persisted.version, result.publication.version)
+    }
 
     func testContentUpdateIsRejectedLocallyWhenTheGenerationCannotWriteWithoutHittingTheNetwork() async throws {
         remoteClient.createShareHandler = succeedingCreateHandler()
@@ -273,6 +343,43 @@ final class ShareCoordinatorTests: XCTestCase {
         // Never falsely completed: the terminal operation is still queued.
         let ops = try repository.fetchPendingOperations(forShareId: result.publication.id)
         XCTAssertEqual(ops.map(\.kind), [.delete])
+    }
+
+    func testMismatchedCompleteDeleteReceiptPreservesKeyAndOutboxUntilValidRetry() async throws {
+        remoteClient.createShareHandler = succeedingCreateHandler()
+        let result = try await coordinator.publish(bundle: makeNotesBundle())
+        remoteClient.deleteShareHandler = { _, id, _, _ in
+            ShareDeletionReceipt(
+                id: id, locatorCommitment: ShareVerifier.locator(.generate()),
+                accessState: .stopped, deletionState: .complete)
+        }
+        _ = try await coordinator.stop(shareId: result.publication.id)
+        let pending = try XCTUnwrap(repository.fetchPendingOperations(forShareId: result.publication.id).first)
+        XCTAssertEqual(pending.kind, .delete)
+        XCTAssertNotNil(try credentialStore.loadContentKey(forRemoteShareId: result.publication.remoteShareId))
+        let unchanged = try XCTUnwrap(repository.fetch(id: result.publication.id))
+        XCTAssertEqual(unchanged.locatorCommitment, result.publication.locatorCommitment)
+        XCTAssertNotEqual(unchanged.deletionState, .complete)
+
+        remoteClient.deleteShareHandler = { _, _, commitment, _ in
+            ShareDeletionReceipt(
+                id: ShareIdentifiers.generate16ByteIdentifier(), locatorCommitment: commitment,
+                accessState: .stopped, deletionState: .complete)
+        }
+        await coordinator.resumePendingWork()
+        let retried = try XCTUnwrap(repository.fetchPendingOperations(forShareId: result.publication.id).first)
+        XCTAssertEqual(retried.id, pending.id)
+        XCTAssertEqual(retried.idempotencyKey, pending.idempotencyKey)
+        XCTAssertEqual(retried.requestBody, pending.requestBody)
+        XCTAssertNotNil(try credentialStore.loadContentKey(forRemoteShareId: result.publication.remoteShareId))
+
+        remoteClient.deleteShareHandler = { _, id, commitment, _ in
+            ShareDeletionReceipt(id: id, locatorCommitment: commitment, accessState: .stopped, deletionState: .complete)
+        }
+        await coordinator.resumePendingWork()
+        XCTAssertTrue(try repository.fetchPendingOperations(forShareId: result.publication.id).isEmpty)
+        XCTAssertEqual(try repository.fetch(id: result.publication.id)?.deletionState, .complete)
+        XCTAssertNil(try credentialStore.loadContentKey(forRemoteShareId: result.publication.remoteShareId))
     }
 
     // MARK: - Superseded credential stops retrying
@@ -531,7 +638,7 @@ final class ShareCoordinatorTests: XCTestCase {
                 ], nextCursor: nil)
         }
         do {
-            _ = try await coordinator.recoverOwnership(recoveryToken: .generate(ownerId: ShareRandom.bytes(16)));
+            _ = try await coordinator.recoverOwnership(recoveryToken: .generate(ownerId: ShareRandom.bytes(16)))
             XCTFail("must block")
         } catch ShareCoordinatorError.recoverySwitchBlocked {}
         XCTAssertEqual(pages, 2)
@@ -574,6 +681,7 @@ final class ShareCoordinatorTests: XCTestCase {
     }
 
     func testRecoveringADifferentOwnerIsBlockedWhileAShareIsStillNonTerminal() async throws {
+        remoteClient.listSharesHandler = { _, _, _ in ShareListPage(shares: [], nextCursor: nil) }
         remoteClient.createShareHandler = succeedingCreateHandler()
         _ = try await coordinator.publish(bundle: try makeNotesBundle())
 
@@ -620,6 +728,7 @@ final class ShareCoordinatorTests: XCTestCase {
     }
 
     func testEmptyListingRequiresDeleteReceiptForTerminalLocalRecord() async throws {
+        remoteClient.listSharesHandler = { _, _, _ in ShareListPage(shares: [], nextCursor: nil) }
         remoteClient.createShareHandler = succeedingCreateHandler()
         let result = try await coordinator.publish(bundle: makeNotesBundle())
         _ = try await repository.applyDeletionReceipt(
@@ -708,6 +817,7 @@ final class ShareCoordinatorTests: XCTestCase {
     // MARK: - Discard after recovery loss requires terminal shares
 
     func testDiscardCredentialAfterRecoveryLossRequiresEveryShareToBeTerminal() async throws {
+        remoteClient.listSharesHandler = { _, _, _ in ShareListPage(shares: [], nextCursor: nil) }
         remoteClient.createShareHandler = succeedingCreateHandler()
         _ = try await coordinator.publish(bundle: try makeNotesBundle())
 

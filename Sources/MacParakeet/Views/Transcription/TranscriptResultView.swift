@@ -999,7 +999,7 @@ struct TranscriptResultView: View {
             if let sharing = shareManagement, AppFeatures.isShareLinksAvailable() {
                 Button { prepareShare(using: sharing) } label: { Label("Share…", systemImage: "square.and.arrow.up") }
                     .parakeetAction(.secondary)
-                    .disabled(preparingShare || !sharing.isConfigured || editingTranscript || editingTitle)
+                    .disabled(preparingShare || sharing.isBusy || !sharing.isConfigured || editingTranscript || editingTitle)
                     .help("Preview and publish an encrypted, expiring text-only page")
             }
 
@@ -3056,7 +3056,7 @@ struct TranscriptResultView: View {
                             }
                             .parakeetAction(.secondary)
                             .controlSize(.small)
-                            .disabled(preparingShare || !sharing.isConfigured)
+                            .disabled(preparingShare || sharing.isBusy || !sharing.isConfigured)
                         }
 
                         Menu {
@@ -4877,7 +4877,7 @@ struct TranscriptResultView: View {
     // MARK: - Actions
 
     private func prepareShare(using sharing: ShareManagementViewModel, selectedSummaryID: UUID? = nil) {
-        guard !preparingShare else { return }
+        guard !preparingShare, !sharing.isBusy else { return }
         let selectedID = activeTranscription.id
         let notesEditor = savedMeetingNotesViewModel
         preparingShare = true
@@ -4889,6 +4889,10 @@ struct TranscriptResultView: View {
             }
             let prepared = await viewModel.currentTranscriptionForSpeakerOutput()
             guard activeTranscription.id == selectedID else { return }
+            guard !sharing.isBusy else {
+                viewModel.setError(message: "Another sharing operation is in progress. Please try sharing again.")
+                return
+            }
             guard let source = prepared, source.id == selectedID else {
                 viewModel.setError(message: "Couldn't prepare the current speaker changes. Please try sharing again.")
                 return

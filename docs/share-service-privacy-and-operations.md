@@ -64,6 +64,7 @@ When no recovery code is configured, the current device credential may add one l
 Once a recovery code exists, replacing or removing it also requires that current code, so a stolen device credential cannot displace the owner's saved recovery path.
 If the code is lost, the current device can still manage its shares but cannot replace that verifier; after permanently stopping every outstanding share, the app may discard that anonymous owner and enroll a fresh one for future shares.
 Deleting a local source permanently stops its shares and removes their local content keys and content-derived publication metadata once the terminal request is durably queued.
+Before source deletion, a new share's content key lives only in Keychain, including while its create result is uncertain. Confirmed shares retain it for explicit updates. A definitive first-attempt rejection or deletion-complete cleanup attempts to remove it. Keychain errors can delay physical removal; detached-source cleanup retries on refresh.
 
 ## Threat model
 
@@ -106,8 +107,10 @@ Deployment access is narrowly held and audited because viewer-code integrity is 
 
 Local deletion saves stop intent before removing owned files. Failed file
 cleanup does not cancel a stop already requested; the source remains for retry.
-Uncertain creates temporarily retain only the exact encrypted request and opaque
-outbox authority needed to reconcile then stop, never plaintext or a content key.
+After source deletion removes the content key, uncertain creates temporarily retain
+only the exact encrypted request and opaque outbox authority needed to reconcile
+then stop, never plaintext. Ordinary pending creates whose source has not been
+deleted still retain their content key in Keychain, as described above.
 Removing the application bundle alone does not erase Application Support or
 Keychain data and does not revoke remote links.
 

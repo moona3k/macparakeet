@@ -172,7 +172,7 @@ struct ShareRecoveryView: View {
                         HStack {
                             Button("Replace code") {
                                 Task {
-                                    await model.replaceRecovery(proof: proof);
+                                    await model.replaceRecovery(proof: proof)
                                     if model.errorMessage == nil { proof = "" }
                                 }
                             }.parakeetAction(.secondary)
