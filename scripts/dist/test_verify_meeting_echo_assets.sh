@@ -202,20 +202,47 @@ assert_fail_contains \
   env MACPARAKEET_MEETING_ECHO_MIN_MACOS_VERSION=14.2
 echo "PASS: malformed/unparseable dylib version is rejected"
 
-# --- Expected minimum resolution: explicit override wins; Info.plist is the
-# fallback; absent both, verification fails clearly (never silently passes).
+# --- Expected minimum resolution: overrides can tighten the bundle ceiling;
+# absent both, verification fails clearly (never silently passes).
 APP7="$(make_app "Fixture Plist")"
 make_dylib "$APP7/Contents/Frameworks/liblocalvqe.dylib" "arm64:14.2"
 add_fixture_model "$APP7"
 write_info_plist_min_version "$APP7" "14.2"
 assert_pass "expected minimum read from Info.plist LSMinimumSystemVersion" "$APP7" >/dev/null
-write_info_plist_min_version "$APP7" "14.0"
+write_info_plist_min_version "$APP7" "14.2"
 assert_fail_contains \
-  "override takes precedence over a looser Info.plist minimum" \
+  "override tightens a looser Info.plist ceiling" \
   "$APP7" \
   "requires a newer macOS than the app supports" \
   env MACPARAKEET_MEETING_ECHO_MIN_MACOS_VERSION=14.0
-echo "PASS: MACPARAKEET_MEETING_ECHO_MIN_MACOS_VERSION overrides, Info.plist is the fallback"
+# An override may tighten the ceiling, but cannot weaken the bundle contract.
+write_info_plist_min_version "$APP7" "14.0"
+assert_fail_contains \
+  "override cannot raise the ceiling above the advertised minimum" \
+  "$APP7" \
+  "requires a newer macOS than the app supports" \
+  env MACPARAKEET_MEETING_ECHO_MIN_MACOS_VERSION=26.0
+echo "PASS: explicit ceilings cannot weaken the bundle's advertised minimum"
+
+# An explicit ceiling cannot conceal invalid bundle metadata.
+for invalid_min in invalid missing; do
+  write_info_plist_min_version "$APP7" "$invalid_min"
+  if [[ "$invalid_min" == missing ]]; then
+    /usr/libexec/PlistBuddy -c 'Delete :LSMinimumSystemVersion' "$APP7/Contents/Info.plist"
+  fi
+  assert_fail_contains \
+    "override cannot hide an invalid or absent plist minimum" \
+    "$APP7" \
+    "bundle Info.plist must carry a valid LSMinimumSystemVersion" \
+    env MACPARAKEET_MEETING_ECHO_MIN_MACOS_VERSION=26
+done
+write_info_plist_min_version "$APP7" "14.2"
+assert_fail_contains \
+  "invalid override cannot hide behind valid plist minimum" \
+  "$APP7" \
+  "MACPARAKEET_MEETING_ECHO_MIN_MACOS_VERSION must be a valid macOS version" \
+  env MACPARAKEET_MEETING_ECHO_MIN_MACOS_VERSION=invalid
+echo "PASS: existing plist and explicit override must each be valid"
 
 APP8="$(make_app "Fixture No Minimum")"
 make_dylib "$APP8/Contents/Frameworks/liblocalvqe.dylib" "arm64:14.2"
@@ -256,6 +283,36 @@ fi
   exit 1
 }
 echo "PASS: non-strict mode warns and skips when otool/lipo are unavailable"
+
+# --- A symlinked bundled dylib is inspected like a regular file, not skipped
+# by a `find -type f` that only matches literal regular files. --------------
+APP11="$(make_app "Fixture Symlink")"
+make_dylib "$APP11/Contents/Frameworks/liblocalvqe.dylib" "arm64:14.2"
+make_dylib "$TMP_DIR/libggml-symlink-target.dylib" "arm64:15.7"
+ln -s "$TMP_DIR/libggml-symlink-target.dylib" "$APP11/Contents/Frameworks/libggml-symlinked.dylib"
+add_fixture_model "$APP11"
+assert_fail_contains \
+  "a symlinked bundled dylib above app minimum is still inspected and rejected" \
+  "$APP11" \
+  "libggml-symlinked.dylib" \
+  env MACPARAKEET_MEETING_ECHO_MIN_MACOS_VERSION=14.2
+echo "PASS: symlinked bundled dylibs are inspected like regular files"
+
+# A searchable but unreadable directory permits opening known assets while
+# preventing a complete inventory of dependent dylibs.
+if [[ "$EUID" -ne 0 ]]; then
+  chmod 111 "$APP11/Contents/Frameworks"
+  inventory_status=0
+  inventory_output="$(run_verifier "$APP11" env MACPARAKEET_MEETING_ECHO_MIN_MACOS_VERSION=14.2)" || inventory_status=$?
+  chmod 755 "$APP11/Contents/Frameworks"
+  if [[ "$inventory_status" -eq 0 || "$inventory_output" != *"could not enumerate bundled LocalVQE dylibs"* ]]; then
+    printf 'FAIL: unreadable dylib inventory must fail explicitly\n%s\n' "$inventory_output" >&2
+    exit 1
+  fi
+  echo "PASS: unreadable Frameworks inventory cannot silently pass"
+else
+  echo "SKIP: root can enumerate unreadable directories"
+fi
 
 # --- Preserve existing behavior: no assets bundled is still a passthrough --
 APP10="$(make_app "Fixture Passthrough")"

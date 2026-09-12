@@ -121,4 +121,25 @@ if truncated_out="$(macho_minos "$TMP_DIR/truncated.dylib" 2>/dev/null)"; then
 fi
 echo "PASS: macho_minos fails on a truncated/corrupt Mach-O file"
 
+# --- macho_minos: a `lipo -info` report of zero architecture slices must be
+# a hard failure, not a silent success with no output (the pre-fix regression
+# case: an empty $archs made `for arch in $archs` iterate zero times, leaving
+# `status` at its initial 0 and returning success with nothing printed). -----
+FAKE_LIPO_DIR="$TMP_DIR/fake-lipo-empty-archs"
+mkdir -p "$FAKE_LIPO_DIR"
+cat >"$FAKE_LIPO_DIR/lipo" <<'EOF'
+#!/usr/bin/env bash
+if [[ "$1" == "-info" ]]; then
+  echo "Architectures in the fat file: $2 are: "
+  exit 0
+fi
+exit 1
+EOF
+chmod +x "$FAKE_LIPO_DIR/lipo"
+if empty_archs_out="$(PATH="$FAKE_LIPO_DIR:$PATH" macho_minos "$TMP_DIR/thin.dylib" 2>/dev/null)"; then
+  printf 'FAIL: macho_minos should fail when lipo reports zero architecture slices, got: %s\n' "$empty_archs_out" >&2
+  exit 1
+fi
+echo "PASS: macho_minos fails (rather than silently succeeding) when lipo reports zero architecture slices"
+
 echo "test_macho_min_version fixture tests passed"

@@ -67,8 +67,15 @@ macho_minos() {
   local archs arch
   archs="$(macho_archs "$path")" || return 1
 
+  local -a arch_list
+  read -ra arch_list <<<"$archs"
+  if [[ "${#arch_list[@]}" -eq 0 ]]; then
+    echo "Error: 'lipo -info' reported no architecture slices for '$path'." >&2
+    return 1
+  fi
+
   local status=0
-  for arch in $archs; do
+  for arch in "${arch_list[@]}"; do
     local lc_output minos
     if ! lc_output="$(otool -arch "$arch" -l "$path" 2>&1)"; then
       echo "Error: 'otool -l' failed for '$path' (arch $arch): $lc_output" >&2

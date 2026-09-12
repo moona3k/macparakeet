@@ -117,8 +117,14 @@ only under `STRICT_MEETING_ECHO_ASSETS=1` (implied by
 `REQUIRE_MEETING_ECHO_ASSETS=1`) and otherwise a skipped-check warning. When
 run as part of `build_app_bundle.sh`, the expected minimum is the build's
 `MIN_MACOS_VERSION`; run standalone against an already-built bundle, it reads
-`LSMinimumSystemVersion` from the bundle's `Info.plist` unless
-`MACPARAKEET_MEETING_ECHO_MIN_MACOS_VERSION` overrides it.
+`LSMinimumSystemVersion` from the bundle's `Info.plist`.
+`MACPARAKEET_MEETING_ECHO_MIN_MACOS_VERSION` can supply or tighten this: it
+is used on its own if the bundle has no `Info.plist` yet, but once the
+bundle's `Info.plist` exists, it must contain a valid minimum even when an
+override is supplied. The effective ceiling is the lower of the
+override and `LSMinimumSystemVersion` — an override can only make the check
+stricter, never raise it above what the bundle's `Info.plist` actually
+advertises.
 
 Retained purchase activation config (normally unset in current free builds):
 

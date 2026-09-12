@@ -40,15 +40,31 @@ missing_tool() {
 # the expected minimum can be determined; only the availability of otool/lipo
 # themselves is gated by strict mode, consistent with the other checks below.
 verify_deployment_targets() {
-  local expected_min="${MACPARAKEET_MEETING_ECHO_MIN_MACOS_VERSION:-}"
-  if [[ -z "$expected_min" ]]; then
-    local plist="$APP_PATH/Contents/Info.plist"
-    if [[ -f "$plist" ]]; then
-      expected_min="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$plist" 2>/dev/null || true)"
-    fi
+  local override_min="${MACPARAKEET_MEETING_ECHO_MIN_MACOS_VERSION:-}"
+  local plist="$APP_PATH/Contents/Info.plist"
+  local plist_min=""
+  if [[ -f "$plist" ]]; then
+    plist_min="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$plist" 2>/dev/null || true)"
   fi
 
-  if [[ -z "$expected_min" ]] || ! is_macos_version "$expected_min"; then
+  if [[ -n "$override_min" ]] && ! is_macos_version "$override_min"; then
+    echo "Error: MACPARAKEET_MEETING_ECHO_MIN_MACOS_VERSION must be a valid macOS version." >&2
+    exit 1
+  fi
+  if [[ -e "$plist" ]] && ! is_macos_version "$plist_min"; then
+    echo "Error: bundle Info.plist must carry a valid LSMinimumSystemVersion." >&2
+    exit 1
+  fi
+
+  # Before app assembly the override stands alone; afterward it can only
+  # tighten the minimum advertised by the bundle.
+  local expected_min="$plist_min"
+  if [[ -n "$override_min" ]]; then
+    if [[ -z "$expected_min" ]] || version_gt "$expected_min" "$override_min"; then
+      expected_min="$override_min"
+    fi
+  fi
+  if [[ -z "$expected_min" ]]; then
     echo "Error: could not determine a valid app LSMinimumSystemVersion to verify bundled LocalVQE dylib deployment targets against." >&2
     echo "  Set MACPARAKEET_MEETING_ECHO_MIN_MACOS_VERSION, or ensure $APP_PATH/Contents/Info.plist carries a valid LSMinimumSystemVersion." >&2
     exit 1
@@ -65,7 +81,11 @@ verify_deployment_targets() {
 
   local failed=0
   local dylib
-  while IFS= read -r -d '' dylib; do
+  for dylib in "$FRAMEWORKS_DIR"/*.dylib; do
+    if [[ ! -f "$dylib" && ! -L "$dylib" ]]; then
+      echo "Error: could not enumerate bundled LocalVQE dylibs: $FRAMEWORKS_DIR" >&2
+      exit 1
+    fi
     local minos_output
     if ! minos_output="$(macho_minos "$dylib")"; then
       echo "Error: could not determine a minimum OS version for bundled LocalVQE dylib: $dylib" >&2
@@ -85,7 +105,7 @@ verify_deployment_targets() {
         failed=1
       fi
     done <<<"$minos_output"
-  done < <(find "$FRAMEWORKS_DIR" -maxdepth 1 -type f -name '*.dylib' -print0)
+  done
 
   if [[ "$failed" == "1" ]]; then
     exit 1
