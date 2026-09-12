@@ -1,9 +1,151 @@
 import XCTest
-import MacParakeetCore
+@testable import MacParakeetCore
 @testable import MacParakeet
 
 @MainActor
 final class MeetingAudioRetentionSweepCoordinatorTests: XCTestCase {
+    func testSupersededSuccessfulSweepCannotOverwriteReplacementFailure() async throws {
+        try await assertSupersededSweepDoesNotChangeTimestamp(oldSweepFails: false)
+    }
+
+    func testSupersededFailedSweepCannotInvalidateReplacementSuccess() async throws {
+        try await assertSupersededSweepDoesNotChangeTimestamp(oldSweepFails: true)
+    }
+
+    private func assertSupersededSweepDoesNotChangeTimestamp(oldSweepFails: Bool) async throws {
+        let defaults = makeDefaults()
+        let sweepNow = Date(timeIntervalSince1970: 4_000_000)
+        let coordinator = MeetingAudioRetentionSweepCoordinator(defaults: defaults, now: { sweepNow })
+        let (started, signal) = AsyncStream<Void>.makeStream()
+        let release = DispatchSemaphore(value: 0)
+        defer { release.signal() }
+        let oldRepository = RecordingTranscriptionRepository(beforeFetch: {
+            signal.yield(())
+            signal.finish()
+            release.wait()
+            if oldSweepFails { throw SweepTestError.failed }
+        })
+        coordinator.schedulePreferenceChangeSweep(repository: oldRepository, retention: .deleteAfterDays(7))
+        let oldTask = try XCTUnwrap(coordinator.sweepTask)
+        for await _ in started { break }
+
+        let replacement = RecordingTranscriptionRepository(beforeFetch: {
+            if !oldSweepFails { throw SweepTestError.failed }
+        })
+        coordinator.schedulePreferenceChangeSweep(repository: replacement, retention: .deleteAfterDays(7))
+        await coordinator.sweepTask?.value
+        let key = UserDefaultsAppRuntimePreferences.lastMeetingAudioRetentionSweepAtKey
+        let expected: Date? = oldSweepFails ? sweepNow : nil
+        XCTAssertEqual(defaults.object(forKey: key) as? Date, expected)
+
+        release.signal()
+        await oldTask.value
+        XCTAssertEqual(defaults.object(forKey: key) as? Date, expected)
+    }
+
+    func testDisabledRetentionIgnoresCancelledSweepSuccessAndFailure() async throws {
+        for fails in [false, true] {
+            try await assertCancelledSweepDoesNotChangeTimestamp(fails: fails, disableRetention: true)
+        }
+    }
+
+    func testDirectCancellationIgnoresSweepSuccessAndFailure() async throws {
+        for fails in [false, true] {
+            try await assertCancelledSweepDoesNotChangeTimestamp(fails: fails, disableRetention: false)
+        }
+    }
+
+    private func assertCancelledSweepDoesNotChangeTimestamp(fails: Bool, disableRetention: Bool) async throws {
+        let defaults = makeDefaults()
+        let key = UserDefaultsAppRuntimePreferences.lastMeetingAudioRetentionSweepAtKey
+        let previous = Date(timeIntervalSince1970: 1_000_000)
+        defaults.set(previous, forKey: key)
+        let coordinator = MeetingAudioRetentionSweepCoordinator(defaults: defaults)
+        let (started, signal) = AsyncStream<Void>.makeStream()
+        let release = DispatchSemaphore(value: 0)
+        defer { release.signal() }
+        let repository = RecordingTranscriptionRepository(beforeFetch: {
+            signal.yield(())
+            signal.finish()
+            release.wait()
+            if fails { throw SweepTestError.failed }
+        })
+        coordinator.schedulePreferenceChangeSweep(repository: repository, retention: .deleteAfterDays(7))
+        let task = try XCTUnwrap(coordinator.sweepTask)
+        for await _ in started { break }
+        if disableRetention {
+            coordinator.schedulePreferenceChangeSweep(repository: repository, retention: .keepForever)
+            XCTAssertNil(coordinator.sweepTask)
+        } else {
+            task.cancel()
+        }
+        release.signal()
+        await task.value
+        XCTAssertEqual(defaults.object(forKey: key) as? Date, previous)
+    }
+
+    func testHeldMediaLeaseKeepsSweepDueUntilNextForegroundTriggerAfterRelease() async throws {
+        try await assertHeldMediaLeaseKeepsSweepDue(recentSuccessfulSweep: false)
+    }
+
+    func testFailedPreferenceSweepInvalidatesRecentSuccessForForegroundRetry() async throws {
+        try await assertHeldMediaLeaseKeepsSweepDue(recentSuccessfulSweep: true)
+    }
+
+    private func assertHeldMediaLeaseKeepsSweepDue(recentSuccessfulSweep: Bool) async throws {
+        let defaults = makeDefaults()
+        let manager = try DatabaseManager()
+        let repository = TranscriptionRepository(dbQueue: manager.dbQueue)
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("retention-coordinator-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        let folderURL = rootURL.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let audioURL = folderURL.appendingPathComponent("meeting-playback.m4a")
+        try Data("audio".utf8).write(to: audioURL)
+        try Data("{}".utf8).write(to: MeetingRecordingMetadataStore.metadataURL(for: folderURL))
+        let sweepNow = Date(timeIntervalSince1970: 4_000_000)
+        let createdAt = sweepNow.addingTimeInterval(-31 * 24 * 60 * 60)
+        let transcription = Transcription(
+            createdAt: createdAt,
+            fileName: "Meeting",
+            filePath: audioURL.path,
+            status: .completed,
+            sourceType: .meeting,
+            updatedAt: createdAt
+        )
+        try repository.save(transcription)
+        let lastSweepKey = UserDefaultsAppRuntimePreferences.lastMeetingAudioRetentionSweepAtKey
+        let previousSweep = sweepNow.addingTimeInterval(recentSuccessfulSweep ? -60 : -2 * 24 * 60 * 60)
+        defaults.set(previousSweep, forKey: lastSweepKey)
+        let coordinator = MeetingAudioRetentionSweepCoordinator(defaults: defaults, now: { sweepNow })
+        let lease = try MeetingMediaMutationLease.acquire(roots: [rootURL])
+        defer { lease.release() }
+
+        let failedResult = try MeetingAudioRetentionSweeper(repository: repository)
+            .sweep(retention: .deleteAfterDays(7), now: sweepNow)
+        XCTAssertEqual(failedResult.failedCount, 1)
+        if recentSuccessfulSweep {
+            coordinator.schedulePreferenceChangeSweep(repository: repository, retention: .deleteAfterDays(7))
+        } else {
+            coordinator.scheduleForegroundSweepIfDue(repository: repository, retention: .deleteAfterDays(7))
+        }
+        await coordinator.sweepTask?.value
+
+        XCTAssertNil(defaults.object(forKey: lastSweepKey))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: audioURL.path))
+        XCTAssertEqual(try repository.fetch(id: transcription.id)?.filePath, audioURL.path)
+
+        lease.release()
+        coordinator.scheduleForegroundSweepIfDue(repository: repository, retention: .deleteAfterDays(7))
+        await coordinator.sweepTask?.value
+
+        XCTAssertEqual(defaults.object(forKey: lastSweepKey) as? Date, sweepNow)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
+        let retained = try XCTUnwrap(repository.fetch(id: transcription.id))
+        XCTAssertNil(retained.filePath)
+    }
+
     func testLaunchSweepWaitsForRecoveryAndUsesPostRecoveryClock() async {
         let defaults = makeDefaults()
         let repository = RecordingTranscriptionRepository()
@@ -138,9 +280,18 @@ private actor AsyncGate {
     }
 }
 
+private enum SweepTestError: Error {
+    case failed
+}
+
 private final class RecordingTranscriptionRepository: TranscriptionRepositoryProtocol, @unchecked Sendable {
     private let lock = NSLock()
     private var recordedCutoffs: [Date] = []
+    private let beforeFetch: @Sendable () throws -> Void
+
+    init(beforeFetch: @escaping @Sendable () throws -> Void = {}) {
+        self.beforeFetch = beforeFetch
+    }
 
     var cutoffs: [Date] {
         lock.lock()
@@ -149,6 +300,7 @@ private final class RecordingTranscriptionRepository: TranscriptionRepositoryPro
     }
 
     func fetchMeetingAudioRetentionCandidates(createdAtOrBefore cutoff: Date) throws -> [Transcription] {
+        try beforeFetch()
         lock.lock()
         recordedCutoffs.append(cutoff)
         lock.unlock()

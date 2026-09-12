@@ -727,6 +727,11 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         let speechEngine = speechEngineOverride ?? fileSpeechEngineSelection()
         let runDiarizationService = speakerSelection.map(makeDiarizationService(for:))
         var transcription = makeRetranscriptionRecord(from: original)
+        if source == .meeting {
+            // Saved meetings already carry their playable audio duration;
+            // fresh speech timings must not replace it, including silence.
+            transcription.durationMs = original.durationMs
+        }
         transcription.fileSizeBytes = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? Int)
             .flatMap { $0 } ?? original.fileSizeBytes
         let operation = TranscriptionOperationContext(
@@ -1909,7 +1914,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         var lifecycleStage: TelemetryTranscriptionStage = .audioConversion
         let activeDiarizationService = diarizationServiceOverride ?? diarizationService
         let diarizationRequested = activeDiarizationService != nil
-            && (diarizationServiceOverride != nil || shouldDiarize())
+            && (diarizationServiceOverride != nil || (source == .meeting ? shouldDiarizeMeetings() : shouldDiarize()))
         do {
             onProgress?(.converting)
             wavURL = try await audioProcessor.convert(
@@ -1950,7 +1955,8 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
             transcription.language = SpeechEnginePreference.normalizeKnownLanguage(result.language) ?? transcription.language
             transcription.engine = result.engine.rawValue
             transcription.engineVariant = result.engineVariant
-            if let speechDurationMs = words.map(\.endMs).max() {
+            if let speechDurationMs = words.map(\.endMs).max(),
+               source != .meeting || transcription.durationMs == nil {
                 transcription.durationMs = max(transcription.durationMs ?? 0, speechDurationMs)
             }
 

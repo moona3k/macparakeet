@@ -191,6 +191,93 @@ final class MeetingFinalizationReconcilerTests: XCTestCase {
         XCTAssertEqual(try repo.fetch(id: retryableMeeting.id)?.status, .processing)
     }
 
+    func testReconcileSkipsSplitChildActivelyOwnedByLiveOperationLease() async throws {
+        let manager = try DatabaseManager()
+        let repo = TranscriptionRepository(dbQueue: manager.dbQueue)
+        let splitRepo = MeetingSplitRepository(dbQueue: manager.dbQueue)
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MeetingSplitReconcilerActive-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        let operation = try splitRepo.begin(
+            idempotencyKey: "op-active",
+            request: MeetingSplitRequest(
+                sourceId: UUID(),
+                expectedSourceIdentity: "sha256:abc",
+                children: [MeetingSplitChildRequest(title: "Part 1", startMs: 0, endMs: 1_000)],
+                destinationRootPath: rootURL.path
+            )
+        )
+        // Another live caller (e.g. the CLI) currently holds this exact
+        // operation's own lease while processing it.
+        let activeLease = try MeetingSplitOperationLease.acquire(
+            idempotencyKey: operation.idempotencyKey, meetingRecordingsRootURL: rootURL)
+        defer { activeLease.release() }
+
+        let childId = operation.childIds[0]
+        let splitChild = Transcription(
+            id: childId,
+            fileName: "Part 1",
+            status: .processing,
+            sourceType: .meeting,
+            splitProvenance: MeetingSplitProvenance(
+                operationId: operation.id, sourceId: operation.sourceId, sourceTitle: "Standup",
+                approvedStartMs: 0, approvedEndMs: 1_000, ordinal: 0, splitCreatedAt: Date()
+            )
+        )
+        try repo.save(splitChild)
+
+        let reconciledIDs = try await MeetingFinalizationReconciler.reconcileStaleProcessingRows(
+            repository: repo,
+            splitOperationCoordinator: MeetingSplitOperationLeaseReconciliationCoordinator(splitRepo: splitRepo)
+        )
+
+        XCTAssertTrue(reconciledIDs.isEmpty)
+        XCTAssertEqual(try repo.fetch(id: childId)?.status, .processing)
+    }
+
+    func testReconcileMarksAbandonedSplitChildFailedWhenOperationLeaseIsFree() async throws {
+        let manager = try DatabaseManager()
+        let repo = TranscriptionRepository(dbQueue: manager.dbQueue)
+        let splitRepo = MeetingSplitRepository(dbQueue: manager.dbQueue)
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MeetingSplitReconcilerAbandoned-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        let operation = try splitRepo.begin(
+            idempotencyKey: "op-abandoned",
+            request: MeetingSplitRequest(
+                sourceId: UUID(),
+                expectedSourceIdentity: "sha256:abc",
+                children: [MeetingSplitChildRequest(title: "Part 1", startMs: 0, endMs: 1_000)],
+                destinationRootPath: rootURL.path
+            )
+        )
+        // No live process holds this operation's lease: the crash left this
+        // child's row stuck in `.processing` without an active owner.
+
+        let childId = operation.childIds[0]
+        let splitChild = Transcription(
+            id: childId,
+            fileName: "Part 1",
+            status: .processing,
+            sourceType: .meeting,
+            splitProvenance: MeetingSplitProvenance(
+                operationId: operation.id, sourceId: operation.sourceId, sourceTitle: "Standup",
+                approvedStartMs: 0, approvedEndMs: 1_000, ordinal: 0, splitCreatedAt: Date()
+            )
+        )
+        try repo.save(splitChild)
+
+        let reconciledIDs = try await MeetingFinalizationReconciler.reconcileStaleProcessingRows(
+            repository: repo,
+            splitOperationCoordinator: MeetingSplitOperationLeaseReconciliationCoordinator(splitRepo: splitRepo)
+        )
+
+        XCTAssertEqual(reconciledIDs, [childId])
+        let reconciled = try XCTUnwrap(repo.fetch(id: childId))
+        XCTAssertEqual(reconciled.status, .error)
+        XCTAssertEqual(reconciled.errorMessage, MeetingFinalizationReconciler.staleProcessingErrorMessage)
+    }
+
     @MainActor
     func testReconcileSkipsProcessingRowsOwnedByQueue() async throws {
         let manager = try DatabaseManager()

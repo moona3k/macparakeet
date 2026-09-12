@@ -36,6 +36,49 @@ final class ShareDeletionPropagationTests: XCTestCase {
         XCTAssertFalse(try repo.delete(id: source.id))
     }
 
+    func testSplitLeaseBlocksShareDetachmentAndDeletionUntilReleased() throws {
+        let (manager, repo, original, share) = try fixture()
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var source = original
+        source.sourceType = .meeting
+        source.meetingArtifactFolderPath = root.appendingPathComponent("session").path
+        source.filePath = root.appendingPathComponent("session/meeting-playback.m4a").path
+        try repo.save(source)
+        let ledger = SharePublicationRepository(dbQueue: manager.dbQueue)
+        let keys = ShareCredentialStore(store: InMemoryKeyValueStore())
+        try keys.saveContentKey(.generate(), forRemoteShareId: share.remoteShareId)
+        let lease = try MeetingMediaMutationLease.acquire(roots: [root])
+        defer { lease.release() }
+        var removedAssets = false
+        XCTAssertThrowsError(try TranscriptionDeletionCoordinator.delete(
+            source, repository: repo, credentials: keys,
+            removeAssets: { _ in removedAssets = true })) { error in
+            guard case MeetingMediaMutationLease.AcquisitionError.busy = error else {
+                return XCTFail("Expected busy, got \(error)")
+            }
+        }
+        XCTAssertFalse(removedAssets)
+        XCTAssertNotNil(try repo.fetch(id: source.id))
+        XCTAssertNotNil(try keys.loadContentKey(forRemoteShareId: share.remoteShareId))
+        XCTAssertEqual(try ledger.fetch(id: share.id)?.transcriptionId, source.id)
+        XCTAssertNil(try ledger.fetchNextPendingOperation(forShareId: share.id))
+
+        lease.release()
+        XCTAssertTrue(try TranscriptionDeletionCoordinator.delete(
+            source, repository: repo, credentials: keys, removeAssets: { _ in
+                // The same lease remains held after stop intent commits and through file removal.
+                XCTAssertThrowsError(try MeetingMediaMutationLease.acquire(roots: [root]))
+                XCTAssertEqual(try ledger.fetchNextPendingOperation(forShareId: share.id)?.kind, .delete)
+                removedAssets = true
+            }))
+        XCTAssertTrue(removedAssets)
+        XCTAssertNil(try repo.fetch(id: source.id))
+        XCTAssertNil(try keys.loadContentKey(forRemoteShareId: share.remoteShareId))
+        XCTAssertEqual(try ledger.fetchNextPendingOperation(forShareId: share.id)?.kind, .delete)
+    }
+
     func testSingleAndBulkDeletionNotifyOnlyAfterStopIntentCommits() throws {
         for bulk in [false, true] {
             let (manager, _, source, share) = try fixture()

@@ -8,11 +8,17 @@ public enum TranscriptionDeletionCoordinator {
         _ transcription: Transcription,
         repository: TranscriptionRepositoryProtocol,
         credentials: ShareCredentialStoring = ShareCredentialStore(),
-        removeAssets: (Transcription) throws -> Void = { try TranscriptionAssetCleanup.removeOwnedAssets(for: $0) }
+        removeAssets: ((Transcription) throws -> Void)? = nil
     ) throws -> Bool {
-        let shareIds = try repository.prepareForDeletion(id: transcription.id)
-        for id in shareIds { try credentials.removeContentKey(forRemoteShareId: id) }
-        try removeAssets(transcription)
-        return try repository.delete(id: transcription.id)
+        try TranscriptionAssetCleanup.withMeetingMediaMutationLease(for: transcription) {
+            let shareIds = try repository.prepareForDeletion(id: transcription.id)
+            for id in shareIds { try credentials.removeContentKey(forRemoteShareId: id) }
+            if let removeAssets {
+                try removeAssets(transcription)
+            } else {
+                try TranscriptionAssetCleanup.removeOwnedAssetsUnlocked(for: transcription, fileManager: .default)
+            }
+            return try repository.delete(id: transcription.id)
+        }
     }
 }

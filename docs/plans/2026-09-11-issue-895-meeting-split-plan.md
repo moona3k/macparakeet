@@ -79,6 +79,150 @@ Do not promise exactly-once external effects across a crash after a provider acc
 
 ## Delivery order
 
+### Current implementation status — September 12, final integration
+
+Core, CLI and native UI are implemented and committed. The chronological
+checkpoints below record earlier limits, not outstanding implementation work.
+The final source-wide focused gate passed at `a1a47f70`; the native Xcode build
+also passed. Real CLI creation and exact-key retry returned byte-identical
+receipts for three new parts, preserving their 30/15/45-second durations and
+all original artifact hashes. Synthetic silence validates processing and
+recovery, not recognition quality. Recognition accuracy is not this feature's
+acceptance gate.
+
+Integration with the newly merged sharing feature retains its deletion
+coordinator and places sharing stop preparation, key removal, asset removal
+and row deletion under one meeting-media lease. A held split lease prevents
+all those deletion phases; after release, deletion still queues the sharing
+stop. The focused integration gate passed 345 tests with no failures.
+Both additive schema migrations retain their distinct identifiers.
+
+Independent final review, PR publication and reviewer convergence remain
+shipping gates. The full suite ran earlier in the task and is not being
+repeated; subsequent gates are focused. The simplification pass retained the
+safety-specific ownership and receipt boundaries and declined speculative
+caching for the common two/three-part workflow. Formatting lint exits zero
+but emits warnings, including in new files; this is not a warning-free claim.
+
+### Implementation checkpoint — 2026-09-12
+
+The revised brief landed in PR #1016. The implementation branch now contains
+audio export and shared deletion leases, the durable publication receipt,
+shared enabled-prompt completion, and the Core/CLI split coordinator. Native
+UI, app deletion/startup integration, final independent review and shipping
+remain outstanding; this checkpoint is not a release claim.
+
+Host verification caught and corrected cross-process instability in the
+default CLI idempotency key, a lossy preview-identity interchange, cancelled
+parts stuck in processing, and retries following a changed destination
+preference. Preview now avoids processing-service construction and preference
+migration. Canonical-only meeting audio follows the meeting speaker setting.
+The public contract records these boundaries and actual command names.
+
+Use focused tests for remaining gates. A worker already ran the full suite
+before feature completion; do not repeat the full suite for this task.
+Synthetic audio and mocked speech/LLM verification are distinct from native
+UI and real-model acceptance.
+
+### Implementation checkpoint — U3/U4 native integration
+
+Native UI, combined-deletion caller migration, the split-aware finalization
+reconciler adapter, and truthful per-child progress transitions are now
+implemented; see `docs/design/issue-895-meeting-split.md` for the actual
+surfaces and files. Focused ViewModel, Core
+progress and reconciler tests pass alongside the existing Core/CLI suite.
+
+Not done in this pass: real native-app/manual QA (an opt-in DEBUG fixture
+seeder is provided for a host to run this — see
+`Tests/MacParakeetTests/QA/SplitAndTranscribeFixtureSeedTests.swift`),
+real-model acceptance, and an elaborate operation-history UI (explicitly out
+of scope). A child's "View split progress…" action now opens the persisted
+operation by `provenance.operationId`, with Continue processing on that sheet.
+This is separate from creating a new split of the child recording.
+
+The lifecycle checkpoint `93efade8` passed 729 focused tests (one skipped,
+zero failures). A subsequent regression proved retry briefly hid already-saved
+parts; retaining the receipt fixed it, with 26 focused tests passing. Native
+presentation, isolated fixture QA, and final integration remain in progress.
+
+### Hosted review checkpoint — PR #1022
+
+The first hosted review added four bounded safeguards: plaintext CLI preview
+prints the source identity used by `--expected-identity`; the SIGINT test always
+reaps its own child process; obsolete or cancelled retention sweeps cannot
+overwrite the current retry timestamp; and malformed non-NULL split provenance
+fails decoding instead of silently erasing ownership information. Missing
+columns in older schemas and SQL `NULL` remain readable. The design and
+auto-prompt contract now describe the completed implementation and measured QA.
+
+The combined focused gate passed 179 tests, one skipped, zero failures, with
+`MACPARAKEET_SPLIT_SIGINT_TESTS=1`. This includes real SIGINT delivery, plaintext
+preview identity, superseded/cancelled sweep completion, missing-column reads,
+malformed provenance preservation, split services, startup reconciliation, and
+saved-audio prompt completion. No second full-suite run was performed.
+
+### Native runtime checkpoint — September 12
+
+Accessibility-driven QA in an isolated synthetic library created three
+independent saved recordings of 30, 15 and 45 seconds from a 90-second source
+without word timestamps. Original playback and metadata SHA-256 hashes
+remained unchanged. Invalid boundary entry disabled creation. Closing and
+reopening the sheet preserved processing state. Rendered QA prompted clearer
+"Split at" labels and renumbering untouched default titles when adding cuts;
+custom titles remain unchanged. The latter changes passed 19 ViewModel tests.
+
+Stop during cold Parakeet model loading took several minutes, then all three
+parts became cancelled and ready to continue on their existing identities.
+A runtime sample showed CoreML waiting on the Apple Neural Engine daemon;
+an independent Fable review found the existing shared model-load/drain path
+consistent with this behavior, not evidence of a split-specific cancellation
+defect. Keep ownership until the call returns and explain delayed stopping in
+the sheet. Do not introduce another queue or abandon a live runtime task.
+Subsequent ordinary relaunch and Continue reused the same operation and child
+identities. All three parts reached Done through saved-audio processing and
+configured completion; CLI status agreed, with four total recordings still
+present. This is pipeline/recovery evidence, not speech-model accuracy or a
+claim that disabled provider automation ran. The final three-part editor also
+rendered with correct default title numbering and no overlapping labels.
+
+The successful silent run exposed a shared single-file transcription issue:
+known child durations were cleared and then derived only from word timings.
+Preserve the known playable duration for saved meetings; ordinary file behavior
+stays unchanged. Tests cover silence, short word coverage and overshooting
+timestamps, asserting both returned and persisted duration.
+
+The one-hour 16 kHz canonical-audio benchmark exported four parts in 6.079
+seconds with 9,916,284 output bytes. This is export-only synthetic evidence,
+not a bound on multitrack export, model loading or AI processing time.
+
+### Final review follow-up (2026-09-12)
+
+Independent review of `1f13eb40` retained four actionable findings. Both native
+entry buttons now use the standard secondary action style. CLI tests establish
+that partial processing failure exits nonzero, while success and cancellation
+remain distinct. A retention sweep blocked by the media lease stays due for the
+next existing trigger instead of advancing the successful-sweep timestamp.
+
+Deleted unfinished children no longer pin the source to an old operation.
+An idle published receipt offers "Start a new split", retaining its recordings
+and receipt while creating a fresh preview/key. Missing-source and externally
+owned cases are covered. The media lease intentionally remains held through
+processing to protect audio in use; this change does not introduce a new queue
+or lock hierarchy.
+
+The focused review-fix gate passed: 169 tests, one skipped, zero failures,
+including opt-in SIGINT subprocess coverage, native recovery, retention and
+sharing deletion. Command: `MACPARAKEET_SPLIT_SIGINT_TESTS=1 swift test --filter
+'MeetingSplit|MeetingAudioRetentionSweepCoordinatorTests|MeetingAudioRetentionSweeperTests|MeetingMediaMutationLease|ShareDeletionPropagationTests'`.
+An initial test compilation failure was corrected with the Core testable import;
+only the subsequent completed run is counted. The full suite was not repeated.
+
+A bounded follow-up found two edge cases in those fixes: fresh drafts opened
+from history must load playback for the draft's source rather than the history
+child, and failed forced retention sweeps must invalidate even a recent success
+timestamp. Both were corrected. The repeated focused gate passed 170 tests,
+one skipped, zero failures, including the recent-success retention regression.
+
 ### U1. Establish the revised contract
 
 Land this docs-only scope revision first. Mark old research/HTML as historical. Record inspected pipeline behavior and verification limits. No app feature, schema migration or automatic issue closure belongs in this PR.

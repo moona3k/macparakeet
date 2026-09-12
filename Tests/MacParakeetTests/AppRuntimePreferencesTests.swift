@@ -261,6 +261,12 @@ final class AppRuntimePreferencesTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey)
 
+        XCTAssertEqual(
+            UserDefaultsAppRuntimePreferences.meetingAudioRetention(defaults: defaults, persistMigration: false),
+            .deleteImmediately
+        )
+        XCTAssertNil(defaults.object(forKey: UserDefaultsAppRuntimePreferences.meetingAudioRetentionKey))
+
         let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
 
         XCTAssertEqual(preferences.meetingAudioRetention, .deleteImmediately)

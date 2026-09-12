@@ -1,5 +1,12 @@
 # CLI Testing Guide
 
+For saved-meeting splitting, run `swift test --filter 'MeetingSplit|SpecCommandTests'`.
+The tests use synthetic temporary audio and databases, not personal recordings.
+Check `meetings split --help` and `spec --json` for discovery. Preview and
+`create --dry-run` must not initialize models, migrate the database or write
+preferences. A `committed` operation means audio was published; inspect each
+child's progress and exit status for processing success.
+
 > Status: **ACTIVE** - CLI testing guide for core services
 
 Use `macparakeet-cli` for fast, repeatable testing of core transcription and text-processing flows.

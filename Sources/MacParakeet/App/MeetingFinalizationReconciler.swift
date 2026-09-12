@@ -37,7 +37,9 @@ enum MeetingFinalizationReconciler {
         repository: any MeetingFinalizationStatusRepository,
         excludingTranscriptionIDs protectedIDs: Set<UUID> = [],
         ownershipCoordinator: any MeetingFinalizationReconciliationCoordinating =
-            MeetingRecordingLockFileStore()
+            MeetingRecordingLockFileStore(),
+        splitOperationCoordinator: any MeetingSplitOperationReconciliationCoordinating =
+            UnconditionalMeetingSplitOperationReconciliationCoordinator()
     ) async throws -> [UUID] {
         try await Task.detached(priority: .utility) {
             let processingRows = try repository.fetchMeetings(withStatus: .processing)
@@ -55,7 +57,14 @@ enum MeetingFinalizationReconciler {
                         )
                     }
                     let didReconcile: Bool
-                    if let folderPath = row.meetingArtifactFolderPath,
+                    if let provenance = row.splitProvenance {
+                        // A split child never writes a capture `recording.lock`;
+                        // only its own operation lease reflects live ownership.
+                        didReconcile = try splitOperationCoordinator.reconcileIfUnowned(
+                            operationId: provenance.operationId,
+                            transition: transition
+                        )
+                    } else if let folderPath = row.meetingArtifactFolderPath,
                         !folderPath.isEmpty
                     {
                         didReconcile = try ownershipCoordinator.reconcileIfUnowned(

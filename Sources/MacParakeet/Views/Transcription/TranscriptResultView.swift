@@ -471,6 +471,7 @@ struct TranscriptResultView: View {
     @Bindable var promptResultsViewModel: PromptResultsViewModel
     @Bindable var promptsViewModel: PromptsViewModel
     var meetingClassificationViewModel: MeetingClassificationViewModel? = nil
+    var meetingSplitViewModel: MeetingSplitViewModel? = nil
     var onBack: (() -> Void)?
     var onStartNew: (() -> Void)?
     var onRetranscribe: ((Transcription, SpeechEngineSelection?, RetranscriptionSpeakerSelection?) -> Void)?
@@ -561,6 +562,8 @@ struct TranscriptResultView: View {
     @State private var retranscriptionExactSpeakerCount = 2
     @State private var selectedRetranscriptionSpeechEngineOverride: SpeechEngineSelection?
     @State private var pendingDeleteMeetingAudio = false
+    @State private var isPresentingSplitSheet = false
+    @State private var splitOperationId: UUID?
     @State private var showingCancelGenerationAlert: UUID?
     @FocusState private var chatInputFocused: Bool
     @FocusState private var titleFocused: Bool
@@ -1066,6 +1069,28 @@ struct TranscriptResultView: View {
                     artifactAvailable
                         ? "Open or copy the meeting artifact folder path"
                         : "Meeting artifact folder is not available")
+
+                if meetingSplitViewModel != nil, let provenance = activeTranscription.splitProvenance {
+                    Button("View split progress…") {
+                        if playerViewModel.isPlaying { playerViewModel.togglePlayPause() }
+                        splitOperationId = provenance.operationId
+                        isPresentingSplitSheet = true
+                    }
+                    .parakeetAction(.secondary)
+                }
+                if meetingSplitViewModel != nil, MeetingSplitEligibility.isEligible(activeTranscription) {
+                    Button {
+                        if playerViewModel.isPlaying {
+                            playerViewModel.togglePlayPause()
+                        }
+                        splitOperationId = nil
+                        isPresentingSplitSheet = true
+                    } label: {
+                        Label("Split and Transcribe…", systemImage: "square.split.2x1")
+                    }
+                    .parakeetAction(.secondary)
+                    .help("Split this recording into independent parts, each transcribed on its own")
+                }
             }
 
             if onRetranscribe != nil, let filePath = activeTranscription.filePath,
@@ -1190,6 +1215,17 @@ struct TranscriptResultView: View {
         }
         .popover(item: $exportConfirmation, arrowEdge: .top) { confirmation in
             exportConfirmationPopover(confirmation)
+        }
+        .sheet(isPresented: $isPresentingSplitSheet) {
+            if let meetingSplitViewModel {
+                MeetingSplitSheetView(
+                    transcription: activeTranscription,
+                    viewModel: meetingSplitViewModel,
+                    onDismiss: { isPresentingSplitSheet = false },
+                    onOpenRecording: { viewModel.currentTranscription = $0 },
+                    initialOperationId: splitOperationId
+                )
+            }
         }
     }
 

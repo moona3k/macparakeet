@@ -903,6 +903,10 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var lastFormatterPromptTemplate: String?
     var lastFormatterSource: TelemetryFormatterSource?
     var lastFormatterDefaultPromptUsed: Bool?
+    /// Optional per-call sequencing for `generatePromptResultDetailed(...inferenceSettings:)`.
+    /// Consumed FIFO when non-empty; falls back to `summarizeResult`/`errorToThrow`
+    /// when empty so existing single-outcome tests are unaffected.
+    var detailedResultsQueue: [Result<LLMResult, Error>] = []
 
     func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String {
         summarizeCallCount += 1
@@ -942,6 +946,12 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         inferenceSettings: PromptInferenceSettings?
     ) async throws -> LLMResult {
         lastSummaryInferenceSettings = inferenceSettings
+        if !detailedResultsQueue.isEmpty {
+            summarizeCallCount += 1
+            lastSummaryTranscript = transcript
+            lastSummarySystemPrompt = systemPrompt
+            return try detailedResultsQueue.removeFirst().get()
+        }
         let output = try await generatePromptResult(transcript: transcript, systemPrompt: systemPrompt)
         return LLMResult(
             output: output,
