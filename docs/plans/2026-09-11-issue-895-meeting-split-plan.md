@@ -61,6 +61,8 @@ Committed retries return the original IDs even if source/children were deleted; 
 
 Use a small sequential coordinator with existing Core saved-audio transcription methods and shared meeting-completion behavior. Persist enough per-part stage/outcome information to resume unfinished work after restart without resplitting. Distinguish transcription failure from automation failure; a summary failure does not erase a successful transcript.
 
+Do not infer first-transcription completion solely from an ordinary saved row's status: an audio part is already saved before processing starts. The operation's processing state must distinguish that part from a successfully transcribed one. Existing saved-audio failure behavior leaves the row intact; the coordinator owns truthful retry/cancellation presentation.
+
 The current app capture queue is not a generic saved-recording queue: it carries recording generations, finalization leases and settlement. Do not force split children through synthetic capture/recovery state. The normal retranscribe UI intentionally skips auto-prompts; merely calling it does not meet this feature's completion contract.
 
 Extract only the existing completion behavior needed by both products into a narrow reusable Core service or adapter. Preserve prompt selection, provider settings, result persistence and retry semantics. Do not build a second summary pipeline or teach the CLI to call ViewModels.
@@ -68,6 +70,10 @@ Extract only the existing completion behavior needed by both products into a nar
 The user permits pragmatic scope decisions: full meeting treatment is the intended experience, not a mandate to refactor the whole processing system. If one automation requires disproportionate work, report that specific limitation and recommend a bounded adjustment. Existing internal methods named `retranscribe` describe processing already-saved audio, not the child's product lifecycle; use clear saved-audio naming at the new boundary without a global rename.
 
 Ensure canonical-playback-only parts use the existing single-file saved-audio route when aligned raw tracks are absent. An archived meeting with an empty source-alignment list must not be treated as a successful empty transcription.
+
+Retain aligned mic/system tracks when available and supported by the exporter, so normal meeting speaker processing can be reused. For canonical-only audio, configure the existing single-file route deliberately with the meeting's selected processing preferences; do not silently substitute unrelated file defaults. Fresh speaker-label quality may differ when only mixed audio survives.
+
+Normal GUI completion currently mixes useful automation with new-capture audio deletion. Reuse the former without invoking capture-only immediate deletion for historical split audio. The existing presentation method has an explicit retention control; do not blindly call the capture completion callback. Age-based retention still applies normally.
 
 Do not promise exactly-once external effects across a crash after a provider accepted work but before a local receipt was saved. Reuse existing idempotency where available; record ambiguous delivery and expose a deliberate retry rather than silently repeating an uncertain external action. This is distinct from duplicate-free local meeting creation.
 
