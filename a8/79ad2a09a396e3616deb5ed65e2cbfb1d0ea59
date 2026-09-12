@@ -1,0 +1,29 @@
+Tests/MacParakeetTests/Services/Telemetry/CrashReporterTests.swift
+  s_53c86c470a1866::t_113ea227ab48b4 330-344
+Sources/MacParakeetCore/Services/Telemetry/CrashReporter.swift
+  s_53c86c470a1866::t_113ea227ab48b4 285,314-315
+Sources/MacParakeetObjCShims/MPKCrashSignalHandler.c
+  s_53c86c470a1866::t_c57c961b66ac39 199-207,216,265,294
+Sources/MacParakeetObjCShims/include/MPKCrashSignalHandler.h
+  s_53c86c470a1866::t_bf9921202aa597 23-25
+Tests/MacParakeetTests/Services/Telemetry/CrashReporterSignalProbeTests.swift
+  s_53c86c470a1866::t_6bd7bc5aa99d0e 49-65
+scripts/dev/tests/crash_signal_probe_harness.c
+  s_53c86c470a1866::t_9a14b8b85a7158 120-121,134-146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a879ad2a09a396e3616deb5ed65e2cbfb1d0ea59",
+  "prompts": {},
+  "sessions": {
+    "s_53c86c470a1866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a096a3-db60-7eb1-8f0a-1eb40bd8e15d",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
