@@ -1,0 +1,89 @@
+Sources/CLI/Commands/SpecCommand.swift
+  s_a873ed00f9edeb::t_49d231f3454c90 1419-1488
+docs/plans/2026-09-11-issue-895-meeting-split-plan.md
+  s_a873ed00f9edeb::t_85afa76bbef956 82-101
+Sources/MacParakeetCore/Database/MeetingSplitRepository.swift
+  s_a873ed00f9edeb::t_fec549f733d2c6 521-541
+  s_a873ed00f9edeb::t_382131d9f10368 244-249,347-355,400-403,405-406
+  s_a873ed00f9edeb::t_bd3bd727d6d969 502-503
+  s_a873ed00f9edeb::t_9b55c9f1aae58e 33-34,36-39,43
+docs/cli-testing.md
+  s_a873ed00f9edeb::t_191bb4055e75bd 3-9
+Sources/MacParakeetCore/Services/SavedAudioAutoPromptCompletionService.swift
+  s_a873ed00f9edeb::t_382131d9f10368 99,110-111,122,135-137,248-257,259-269
+Sources/MacParakeetCore/AppRuntimePreferences.swift
+  s_a873ed00f9edeb::t_095a0632074b2a 769-771,783-785
+Tests/CLITests/MeetingSplitCommandTests.swift
+  s_a873ed00f9edeb::t_a7cfa6575ed343 85-91
+  s_a873ed00f9edeb::t_382131d9f10368 1-84,92-383
+Tests/MacParakeetTests/Database/MeetingSplitRepositoryTests.swift
+  s_a873ed00f9edeb::t_382131d9f10368 251-296
+Tests/MacParakeetTests/Services/MeetingSplit/MeetingSplitAudioExporterTests.swift
+  s_a873ed00f9edeb::t_382131d9f10368 293-327,344-368,373,375,377-379,381-454,776-797
+Sources/MacParakeetCore/Services/MeetingSplit/MeetingSplitOperationLease.swift
+  s_a873ed00f9edeb::t_382131d9f10368 1-130
+Sources/MacParakeetCore/Services/MeetingSplit/MeetingSplitService.swift
+  s_a873ed00f9edeb::t_945cca723a4816 1,14,54,64,182,253,256,293-295,316,319,326-330,359,385,393-399,401-407,415,426,470-471,496,502,513,527,529-534,550,566,586,649-650,734,755,812-828
+  s_a873ed00f9edeb::t_382131d9f10368 2-13,15-53,55-63,65-181,183-252,254-255,257-272,292,296-303,305-315,317-318,331-358,360-384,386-392,400,408-414,416-425,427-459,461-466,468-469,472-495,497-501,503-512,514-526,535-549,551-565,567-585,587-607,618-648,651-685,687-711,716-733,735-744,752-754,756-760,762-771,778-810,829-831
+  s_a873ed00f9edeb::t_dd02d31641709b 273-291,304,460,467,528,745-751,761,772-777,811
+  s_a873ed00f9edeb::t_935afd5e82161a 320-325,608-617,686,712-715
+Sources/CLI/Commands/HistoryCommand.swift
+  s_a873ed00f9edeb::t_382131d9f10368 337-340
+Tests/MacParakeetTests/Services/MeetingSplit/MeetingSplitServiceTests.swift
+  s_a873ed00f9edeb::t_d7612b920274db 554
+  s_a873ed00f9edeb::t_ebc18b791e6fdc 256-258,276-290
+  s_a873ed00f9edeb::t_382131d9f10368 1-39,42,44-53,55-202,204-245,325-553,555-924
+  s_a873ed00f9edeb::t_a7cfa6575ed343 40-41,43,54,203,246-253,259-275,291-324
+  s_a873ed00f9edeb::t_7eeeaddf167cac 254-255
+spec/contracts/meeting-splitting.md
+  s_a873ed00f9edeb::t_382131d9f10368 3-5,119-132,136,147-154,158-182,187-188,195-202
+  s_a873ed00f9edeb::t_510629a099eeec 81-84,89-91,95,133-135,137-146,155-157,183-186,189-194,203-207
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_a873ed00f9edeb::t_982b35147d36bb 3457-3486
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_a873ed00f9edeb::t_2019661e7cfe49 1912
+spec/contracts/cli-json-v1.md
+  s_a873ed00f9edeb::t_e1c16e2aad20bd 274-296
+Tests/CLITests/SpecCommandTests.swift
+  s_a873ed00f9edeb::t_a7fca392985d06 6-17
+Sources/MacParakeetCore/Services/MeetingSplit/MeetingSplitChildFolderClaim.swift
+  s_a873ed00f9edeb::t_912662ff1fcff3 1,62-64,80,86
+  s_a873ed00f9edeb::t_382131d9f10368 2-61,65-79,81-85,87-124
+Tests/MacParakeetTests/Services/SavedAudioAutoPromptCompletionServiceTests.swift
+  s_a873ed00f9edeb::t_382131d9f10368 31-32,37,257-259,269-303
+integrations/README.md
+  s_a873ed00f9edeb::t_382131d9f10368 615-647
+Sources/CLI/Commands/MeetingSplitCommand.swift
+  s_a873ed00f9edeb::t_382131d9f10368 1-9,11-65,67-114,116-149,151-198,202-441,454-459,462-466,470-481,486-500,512-516,518-527,531-561
+  s_a873ed00f9edeb::t_6a45eca6191639 10,66,150,442-453,467-469,482-485,501-511,517,528-530
+  s_a873ed00f9edeb::t_20328b8da93f16 115,199-201
+  s_a873ed00f9edeb::t_85afa76bbef956 460-461
+Sources/MacParakeetCore/Database/README.md
+  s_a873ed00f9edeb::t_85afa76bbef956 138-142
+Sources/CLI/CHANGELOG.md
+  s_a873ed00f9edeb::t_382131d9f10368 92-102
+Sources/MacParakeetCore/Services/MeetingSplit/MeetingSplitAudioExporter.swift
+  s_a873ed00f9edeb::t_382131d9f10368 72-85,91-94,101-105,112-115,251-254,259-261,264-273,275-278,281-282,293,300-301,307,315-343,359-367,374-378,433-434,445-446,449,455-456,463-464,474-475,629,631,643-651,820
+Sources/MacParakeetViewModels/PromptResultsViewModel.swift
+  s_a873ed00f9edeb::t_382131d9f10368 392,400
+Sources/CLI/Commands/MeetingsCommand.swift
+  s_a873ed00f9edeb::t_382131d9f10368 20
+Tests/MacParakeetTests/AppRuntimePreferencesTests.swift
+  s_a873ed00f9edeb::t_ebc18b791e6fdc 264-269
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "80f1f9609fef6f1347b34382482526090491e1ee",
+  "prompts": {},
+  "sessions": {
+    "s_a873ed00f9edeb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0934d-8db0-7702-aa27-19ce08f0c352",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
