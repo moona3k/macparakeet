@@ -1,9 +1,59 @@
 import XCTest
-import MacParakeetCore
+@testable import MacParakeetCore
 @testable import MacParakeet
 
 @MainActor
 final class MeetingAudioRetentionSweepCoordinatorTests: XCTestCase {
+    func testHeldMediaLeaseKeepsSweepDueUntilNextForegroundTriggerAfterRelease() async throws {
+        let defaults = makeDefaults()
+        let manager = try DatabaseManager()
+        let repository = TranscriptionRepository(dbQueue: manager.dbQueue)
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("retention-coordinator-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        let folderURL = rootURL.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let audioURL = folderURL.appendingPathComponent("meeting-playback.m4a")
+        try Data("audio".utf8).write(to: audioURL)
+        try Data("{}".utf8).write(to: MeetingRecordingMetadataStore.metadataURL(for: folderURL))
+        let sweepNow = Date(timeIntervalSince1970: 4_000_000)
+        let createdAt = sweepNow.addingTimeInterval(-31 * 24 * 60 * 60)
+        let transcription = Transcription(
+            createdAt: createdAt,
+            fileName: "Meeting",
+            filePath: audioURL.path,
+            status: .completed,
+            sourceType: .meeting,
+            updatedAt: createdAt
+        )
+        try repository.save(transcription)
+        let lastSweepKey = UserDefaultsAppRuntimePreferences.lastMeetingAudioRetentionSweepAtKey
+        let previousSweep = sweepNow.addingTimeInterval(-2 * 24 * 60 * 60)
+        defaults.set(previousSweep, forKey: lastSweepKey)
+        let coordinator = MeetingAudioRetentionSweepCoordinator(defaults: defaults, now: { sweepNow })
+        let lease = try MeetingMediaMutationLease.acquire(roots: [rootURL])
+        defer { lease.release() }
+
+        let failedResult = try MeetingAudioRetentionSweeper(repository: repository)
+            .sweep(retention: .deleteAfterDays(7), now: sweepNow)
+        XCTAssertEqual(failedResult.failedCount, 1)
+        coordinator.scheduleForegroundSweepIfDue(repository: repository, retention: .deleteAfterDays(7))
+        await coordinator.sweepTask?.value
+
+        XCTAssertEqual(defaults.object(forKey: lastSweepKey) as? Date, previousSweep)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: audioURL.path))
+        XCTAssertEqual(try repository.fetch(id: transcription.id)?.filePath, audioURL.path)
+
+        lease.release()
+        coordinator.scheduleForegroundSweepIfDue(repository: repository, retention: .deleteAfterDays(7))
+        await coordinator.sweepTask?.value
+
+        XCTAssertEqual(defaults.object(forKey: lastSweepKey) as? Date, sweepNow)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
+        let retained = try XCTUnwrap(repository.fetch(id: transcription.id))
+        XCTAssertNil(retained.filePath)
+    }
+
     func testLaunchSweepWaitsForRecoveryAndUsesPostRecoveryClock() async {
         let defaults = makeDefaults()
         let repository = RecordingTranscriptionRepository()

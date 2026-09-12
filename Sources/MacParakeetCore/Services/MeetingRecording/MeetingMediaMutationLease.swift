@@ -30,7 +30,7 @@ public final class MeetingMediaMutationLease: @unchecked Sendable {
         public var errorDescription: String? {
             switch self {
             case .busy(let root):
-                return "Meeting media at \(root) is being used by another operation. Try again in a moment."
+                return "Meeting media at \(root) is being used by another operation. Let that operation finish or stop it before trying again."
             case .ioFailure(let root, let code):
                 return "Could not lock meeting media at \(root) (errno \(code))."
             case .unexpectedLockFileType(let root):

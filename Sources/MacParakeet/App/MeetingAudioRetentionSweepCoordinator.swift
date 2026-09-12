@@ -12,7 +12,7 @@ final class MeetingAudioRetentionSweepCoordinator {
         category: "MeetingAudioRetention"
     )
 
-    private var sweepTask: Task<Void, Never>?
+    private(set) var sweepTask: Task<Void, Never>?
     private var launchRecoveryTask: Task<Void, Never>?
 
     init(
@@ -110,7 +110,10 @@ final class MeetingAudioRetentionSweepCoordinator {
             do {
                 let result = try MeetingAudioRetentionSweeper(repository: repository)
                     .sweep(retention: retention, now: sweepNow)
-                await self?.markSweepCompleted(at: sweepNow)
+                // Keep failed cleanup due for the next existing sweep trigger.
+                if result.failedCount == 0 {
+                    await self?.markSweepCompleted(at: sweepNow)
+                }
                 await self?.logSweepResult(result)
             } catch {
                 await self?.logSweepFailure(error)

@@ -107,6 +107,69 @@ final class MeetingSplitCommandTests: XCTestCase {
         XCTAssertNotEqual(keyA, keyWithDifferentTitleSplit)
     }
 
+    // MARK: - Processing receipt exit status (no STT)
+
+    func testFailedChildExitsWithFailureEvenWhenAnotherChildCompleted() {
+        for stage: MeetingSplitChildStage in [.transcribing, .automationPending] {
+            let operation = makeProcessingReceipt([
+                (.automationCompleted, .none),
+                (stage, .failed),
+            ])
+
+            XCTAssertThrowsError(try throwIfAnyChildFailed(operation)) { error in
+                XCTAssertEqual(error as? ExitCode, ExitCode.failure)
+            }
+        }
+    }
+
+    func testSuccessfullyCompletedChildrenDoNotFailTheCommand() {
+        let operation = makeProcessingReceipt([
+            (.automationCompleted, .none),
+            (.automationCompleted, .none),
+        ])
+
+        XCTAssertNoThrow(try throwIfAnyChildFailed(operation))
+    }
+
+    func testCancelledChildDoesNotBecomeAFailedChildExit() {
+        // SIGINT has its own exit-130 path; this guard only detects failures.
+        let operation = makeProcessingReceipt([
+            (.automationCompleted, .none),
+            (.transcribing, .cancelled),
+        ])
+
+        XCTAssertNoThrow(try throwIfAnyChildFailed(operation))
+    }
+
+    private func makeProcessingReceipt(
+        _ states: [(MeetingSplitChildStage, MeetingSplitChildOutcome)]
+    ) -> MeetingSplitOperation {
+        let sourceId = UUID()
+        let now = Date()
+        let progress = states.map { stage, outcome in
+            MeetingSplitChildProgress(childId: UUID(), stage: stage, outcome: outcome, updatedAt: now)
+        }
+        return MeetingSplitOperation(
+            id: UUID(),
+            idempotencyKey: "cli-exit-test",
+            sourceId: sourceId,
+            request: MeetingSplitRequest(
+                sourceId: sourceId,
+                expectedSourceIdentity: "cli-exit-test-source",
+                children: states.indices.map { index in
+                    MeetingSplitChildRequest(
+                        title: "Part \(index + 1)", startMs: index * 1_000, endMs: (index + 1) * 1_000
+                    )
+                }
+            ),
+            childIds: progress.map(\.childId),
+            status: .committed,
+            childProgress: progress,
+            createdAt: now,
+            updatedAt: now
+        )
+    }
+
     // MARK: - Preview end-to-end (read-only; no STT)
 
     func testPreviewPrintsJSONRangesForARealCanonicalOnlySource() async throws {

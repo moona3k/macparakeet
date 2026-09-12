@@ -179,6 +179,28 @@ The one-hour 16 kHz canonical-audio benchmark exported four parts in 6.079
 seconds with 9,916,284 output bytes. This is export-only synthetic evidence,
 not a bound on multitrack export, model loading or AI processing time.
 
+### Final review follow-up (2026-09-12)
+
+Independent review of `1f13eb40` retained four actionable findings. Both native
+entry buttons now use the standard secondary action style. CLI tests establish
+that partial processing failure exits nonzero, while success and cancellation
+remain distinct. A retention sweep blocked by the media lease stays due for the
+next existing trigger instead of advancing the successful-sweep timestamp.
+
+Deleted unfinished children no longer pin the source to an old operation.
+An idle published receipt offers "Start a new split", retaining its recordings
+and receipt while creating a fresh preview/key. Missing-source and externally
+owned cases are covered. The media lease intentionally remains held through
+processing to protect audio in use; this change does not introduce a new queue
+or lock hierarchy.
+
+The focused review-fix gate passed: 169 tests, one skipped, zero failures,
+including opt-in SIGINT subprocess coverage, native recovery, retention and
+sharing deletion. Command: `MACPARAKEET_SPLIT_SIGINT_TESTS=1 swift test --filter
+'MeetingSplit|MeetingAudioRetentionSweepCoordinatorTests|MeetingAudioRetentionSweeperTests|MeetingMediaMutationLease|ShareDeletionPropagationTests'`.
+An initial test compilation failure was corrected with the Core testable import;
+only the subsequent completed run is counted. The full suite was not repeated.
+
 ### U1. Establish the revised contract
 
 Land this docs-only scope revision first. Mark old research/HTML as historical. Record inspected pipeline behavior and verification limits. No app feature, schema migration or automatic issue closure belongs in this PR.

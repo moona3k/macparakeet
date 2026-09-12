@@ -537,7 +537,7 @@ private let splitProgressToStderr: @Sendable (MeetingSplitProcessingProgress) ->
 /// be presented as an unqualified success: the operation is still printed in
 /// full above, but the process exits non-zero so an automated caller cannot
 /// mistake this for total success without inspecting every child.
-private func throwIfAnyChildFailed(_ operation: MeetingSplitOperation) throws {
+func throwIfAnyChildFailed(_ operation: MeetingSplitOperation) throws {
     guard operation.childProgress.contains(where: { $0.outcome == .failed }) else { return }
     throw ExitCode.failure
 }

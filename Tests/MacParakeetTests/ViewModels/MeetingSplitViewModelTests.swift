@@ -21,7 +21,8 @@ final class MeetingSplitViewModelTests: XCTestCase {
             hasCleanedMicrophone: false,
             sourceIdentity: "identity-1"
         )
-        viewModel = MeetingSplitViewModel(service: service)
+        let recordings = service.fixtureTranscriptionRepo
+        viewModel = MeetingSplitViewModel(service: service, recordingLookup: { try recordings.fetch(id: $0) })
     }
 
     // MARK: - Present / defaults
@@ -222,6 +223,80 @@ final class MeetingSplitViewModelTests: XCTestCase {
 
     // MARK: - Restart discovery / resume
 
+    func testDeletedUnfinishedChildrenDoNotBlockFreshSplitButHistoryStillOpens() async throws {
+        var operation = try service.makeCommittedOperationWithPendingChild(sourceId: sourceId)
+        operation.childProgress[0].stage = .automationCompleted
+        service.operationsBySourceId[sourceId] = [operation]
+        let survivingId = operation.childIds[0]
+        let recordings = service.fixtureTranscriptionRepo
+        viewModel.configure(service: service, recordingLookup: { id in
+            id == survivingId ? try recordings.fetch(id: id) : nil
+        })
+
+        await viewModel.present(sourceId: sourceId, sourceTitle: "Weekly sync")
+        XCTAssertNil(viewModel.operation)
+        XCTAssertTrue(viewModel.canSubmit)
+
+        await viewModel.present(sourceId: sourceId, sourceTitle: "Weekly sync", operationId: operation.id)
+        XCTAssertEqual(viewModel.operation?.id, operation.id)
+        XCTAssertEqual(viewModel.availableChildIds, [survivingId])
+        XCTAssertFalse(viewModel.canContinue)
+        XCTAssertFalse(viewModel.resume(operationId: operation.id, sourceTitle: "Weekly sync"))
+        XCTAssertTrue(viewModel.canStartNewSplit)
+    }
+
+    func testStartNewSplitKeepsUnfinishedReceiptAndCreatesFreshRequest() async throws {
+        let operation = try service.makeCommittedOperationWithPendingChild(sourceId: sourceId)
+        service.operationsBySourceId[sourceId] = [operation]
+        await viewModel.present(sourceId: sourceId, sourceTitle: "Weekly sync")
+        XCTAssertTrue(viewModel.canContinue)
+        XCTAssertTrue(viewModel.canStartNewSplit)
+
+        await viewModel.startNewSplit()
+        XCTAssertNil(viewModel.operation)
+        XCTAssertTrue(viewModel.canSubmit)
+        XCTAssertEqual(try service.operation(id: operation.id)?.childIds, operation.childIds)
+        XCTAssertEqual(service.createAndProcessCallCount, 0)
+        viewModel.updateCut(at: 0, toMs: 3_000)
+        service.createAndProcessHandler = { key, sid, cuts, titles, _, _ in
+            XCTAssertNotEqual(key, operation.idempotencyKey)
+            XCTAssertEqual(cuts, [3_000])
+            return try self.service.makeCommittedOperation(sourceId: sid, cutPointsMs: cuts, titles: titles)
+        }
+        XCTAssertTrue(viewModel.submit())
+        XCTAssertFalse(viewModel.canStartNewSplit)
+        try await waitUntil { !self.viewModel.isProcessingActive }
+        XCTAssertNotEqual(viewModel.operation?.id, operation.id)
+        XCTAssertEqual(try service.operation(id: operation.id)?.childIds, operation.childIds)
+    }
+
+    func testNewSplitFromMissingSourceFailsWithoutRemovingSavedReceipt() async throws {
+        let operation = try service.makeCommittedOperationWithPendingChild(sourceId: sourceId)
+        service.operationsBySourceId[sourceId] = [operation]
+        await viewModel.present(sourceId: sourceId, sourceTitle: "Weekly sync")
+        service.previewError = MeetingSplitServiceError.sourceNotFound
+        await viewModel.startNewSplit()
+        guard case .failed = viewModel.loadState else { return XCTFail("Expected source failure") }
+        XCTAssertFalse(viewModel.canSubmit)
+        XCTAssertNil(viewModel.editing)
+        XCTAssertNotNil(try service.operation(id: operation.id))
+        await viewModel.present(sourceId: sourceId, sourceTitle: "Weekly sync", operationId: operation.id)
+        XCTAssertEqual(viewModel.operation?.id, operation.id)
+        XCTAssertTrue(viewModel.canContinue)
+    }
+
+    func testExternallyOwnedReceiptCannotStartNewSplit() async throws {
+        let operation = try service.makeCommittedOperationWithPendingChild(sourceId: sourceId)
+        service.operationsBySourceId[sourceId] = [operation]
+        service.ownership = .activelyOwned
+        await viewModel.present(sourceId: sourceId, sourceTitle: "Weekly sync")
+        XCTAssertFalse(viewModel.canContinue)
+        XCTAssertFalse(viewModel.canStartNewSplit)
+        await viewModel.startNewSplit()
+        XCTAssertEqual(viewModel.operation?.id, operation.id)
+        XCTAssertNil(viewModel.editing)
+    }
+
     func testPresentDiscoversIncompleteOperationAsResumable() async throws {
         let committed = try service.makeCommittedOperationWithPendingChild(sourceId: sourceId)
         service.operationsBySourceId[sourceId] = [committed]
@@ -342,6 +417,7 @@ private actor Gate {
 // MARK: - Mock servicing
 
 private final class MockMeetingSplitServicing: MeetingSplitServicing, @unchecked Sendable {
+    var ownership: MeetingSplitOperationOwnership = .notActive
     var previewsBySourceId: [UUID: MeetingSplitPreview] = [:]
     var previewError: Error?
     var operationsBySourceId: [UUID: [MeetingSplitOperation]] = [:]
@@ -398,7 +474,7 @@ private final class MockMeetingSplitServicing: MeetingSplitServicing, @unchecked
     }
 
     func operationOwnership(operationId: UUID) throws -> MeetingSplitOperationOwnership {
-        .notActive
+        ownership
     }
 
     // MARK: fixture builders

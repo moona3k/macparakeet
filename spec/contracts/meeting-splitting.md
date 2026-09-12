@@ -1,8 +1,8 @@
 # Split and transcribe
 
 > Status: Core service, CLI, and native lifecycle state are implemented.
-> Native sheet integration is implemented; rendered acceptance and final
-> integration verification are in progress.
+> Native sheet integration and isolated-library runtime acceptance are complete.
+> Shipping review and final focused regression verification are in progress.
 
 ## Purpose and ownership
 
@@ -71,6 +71,9 @@ split-created time and ordinal are separate. Recheck current age-based expiry
 before audio publication and honor normal retention during later processing.
 Splitting grants no hidden grace period. The existing delete-immediately
 preference remains a new-capture policy, not retroactive historical deletion.
+If a retention sweep cannot acquire the media lease, it leaves the audio
+untouched and remains due for the next existing sweep trigger. A failed sweep
+must not advance the successful-sweep timestamp or defer retry for a day.
 
 Preview performs no writes. It explains independent storage, original
 preservation, processing time, fresh transcripts/speaker labels, enabled
@@ -284,6 +287,12 @@ continues, with direct Open actions. Closing the sheet does not stop processing.
 Stop preserves saved audio and completed work; Continue processing uses the
 same operation, never another split. Interrupted preparation offers Continue
 creation or an explicitly confirmed discard of only that unfinished split.
+Deleted children are not resumable work and do not trap the source in an old
+progress screen. Explicit history still opens their receipt. When a published
+operation is idle and not externally owned, "Start a new split" preserves its
+receipt and recordings while opening a fresh source preview and creation key.
+If the original is unavailable, that new preview fails without removing the
+old receipt; its surviving parts remain independently accessible.
 Adding/removing a cut preserves custom titles and existing boundaries; untouched
 default "Part N" titles are renumbered to match their new positions. Failures
 before any parts are published remain visible in the editor for a safe retry.

@@ -371,6 +371,14 @@ struct MeetingSplitSheetView: View {
 
             Spacer()
 
+            if viewModel.canStartNewSplit {
+                Button("Start a new split") {
+                    Task { await viewModel.startNewSplit() }
+                }
+                .parakeetAction(.secondary)
+                .help("Keep these recordings and unfinished work saved, and choose new split boundaries.")
+            }
+
             if isShowingProcessing {
                 if viewModel.isExternallyOwned {
                     Button("Refresh status") {
@@ -387,8 +395,7 @@ struct MeetingSplitSheetView: View {
                     }
                     .parakeetAction(.destructive)
                     .disabled(viewModel.isStopping)
-                } else if let operation = viewModel.operation, !viewModel.isExternallyOwned,
-                          operation.childProgress.contains(where: { $0.stage != .automationCompleted }) {
+                } else if let operation = viewModel.operation, viewModel.canContinue {
                     Button(operation.status == .preparing ? "Continue creation" : "Continue processing") {
                         _ = viewModel.resume(operationId: operation.id, sourceTitle: viewModel.activeSourceTitle)
                     }

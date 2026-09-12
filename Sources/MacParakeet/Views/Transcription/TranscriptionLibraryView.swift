@@ -495,6 +495,7 @@ struct TranscriptionLibraryView: View {
                 } label: {
                     Label("Split and Transcribe…", systemImage: "square.split.2x1")
                 }
+                .parakeetAction(.secondary)
             }
 
             Divider()

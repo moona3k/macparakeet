@@ -37,6 +37,17 @@ public final class MeetingSplitViewModel {
 
     public var isProcessingActive: Bool { processingTask != nil }
     public var operation: MeetingSplitOperation? { completedOperation ?? resumableOperation }
+    public var canContinue: Bool {
+        guard !isProcessingActive, !isExternallyOwned, let operation else { return false }
+        return operation.status == .preparing || (operation.status == .committed
+            && operation.childProgress.contains {
+                $0.stage != .automationCompleted && availableChildIds.contains($0.childId)
+            })
+    }
+    public var canStartNewSplit: Bool {
+        loadState == .ready && operation?.status == .committed
+            && !isProcessingActive && !isExternallyOwned
+    }
     public var canSubmit: Bool {
         loadState == .ready && editing != nil && validationError == nil
             && !isProcessingActive && operation == nil && !isExternallyOwned
@@ -66,6 +77,17 @@ public final class MeetingSplitViewModel {
     }
 
     public func present(sourceId: UUID, sourceTitle: String, operationId: UUID? = nil) async {
+        await present(sourceId: sourceId, sourceTitle: sourceTitle, operationId: operationId, discoverExisting: true)
+    }
+
+    /// Leaves the receipt and its recordings saved while editing a fresh request.
+    public func startNewSplit() async {
+        guard canStartNewSplit, let operation else { return }
+        await present(sourceId: operation.sourceId, sourceTitle: activeSourceTitle,
+                      operationId: nil, discoverExisting: false)
+    }
+
+    private func present(sourceId: UUID, sourceTitle: String, operationId: UUID?, discoverExisting: Bool) async {
         if isProcessingActive {
             presentationNotice = activeSourceId == sourceId ? nil
                 : "Finish or stop the split for “\(activeSourceTitle)” before starting another."
@@ -87,12 +109,18 @@ public final class MeetingSplitViewModel {
         isExternallyOwned = false
 
         do {
+            let lookup = recordingLookup
             let existing = try await Task.detached {
                 if let operationId { return try service.operation(id: operationId) }
+                guard discoverExisting else { return nil as MeetingSplitOperation? }
                 return try service.operations(sourceId: sourceId)
                     .filter {
-                        $0.status == .preparing || ($0.status == .committed
-                            && $0.childProgress.contains { $0.stage != .automationCompleted })
+                        if $0.status == .preparing { return true }
+                        guard $0.status == .committed else { return false }
+                        return try $0.childProgress.contains {
+                            guard $0.stage != .automationCompleted else { return false }
+                            return try lookup($0.childId) != nil
+                        }
                     }
                     .max { $0.createdAt < $1.createdAt }
             }.value
@@ -232,7 +260,7 @@ public final class MeetingSplitViewModel {
     /// frozen request. Neither path generates another set of meeting IDs.
     @discardableResult
     public func resume(operationId: UUID, sourceTitle: String) -> Bool {
-        guard let service, !isProcessingActive, !isExternallyOwned,
+        guard let service, canContinue,
               let saved = operation, saved.id == operationId, saved.status != .discarded else { return false }
         beginProcessing(sourceId: saved.sourceId, sourceTitle: sourceTitle, key: saved.idempotencyKey) { callback in
             if saved.status == .preparing {

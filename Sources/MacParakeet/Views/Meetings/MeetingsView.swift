@@ -662,11 +662,12 @@ struct MeetingsView: View {
         if meetingSplitViewModel != nil, MeetingSplitEligibility.isEligible(transcription) {
             Divider()
             Button {
-                    splitOperationId = nil
-                    splitTarget = transcription
+                splitOperationId = nil
+                splitTarget = transcription
             } label: {
                 Label("Split and Transcribe…", systemImage: "square.split.2x1")
             }
+            .parakeetAction(.secondary)
         }
 
         Divider()
