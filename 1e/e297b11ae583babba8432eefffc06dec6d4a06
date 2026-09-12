@@ -1,0 +1,38 @@
+docs/research/2026-09-11-shareable-transcripts/report.md
+  s_d236dcbec7210b::t_32f51882de5a20 401,405,407-415,426-430
+spec/contracts/share-service-v1.md
+  s_d236dcbec7210b::t_08f3763ae8d5ec 129
+docs/research/2026-09-11-shareable-transcripts/share-ui-prototype.html
+  s_d236dcbec7210b::t_e1cb4962511b9e 667,680-681,683-688,707-711,715,717-718,720-728,817-827,829-830,832-835
+  s_d236dcbec7210b::t_a113b712fe11b6 1295-1296,1301,1307,1335-1336,1340-1343
+  s_d236dcbec7210b::t_f14e9689220fa8 682,719,831,897
+  s_d236dcbec7210b::t_6705cf03445b42 1088-1089,1092,1104,1112,1259,1264-1265,1273,1275-1280,1282-1283,1310-1314,1330,1382
+  s_d236dcbec7210b::t_2fd99b25f68168 639-641,665,701,704,778-779,872,907
+  s_d236dcbec7210b::t_65fe670496c536 1065,1067-1068,1072-1087,1093-1096,1209,1236,1260,1267,1274,1281,1285
+  s_d236dcbec7210b::t_32f51882de5a20 663,712,716,742-744,751-752,757-761,786-801,807,838,841,898-899,1218,1222,1235,1237,1247
+  s_d236dcbec7210b::t_3802e9ab255f50 1187
+  s_d236dcbec7210b::t_f1d027be3cfe25 610,638,642,658-660,664,668,745-750,762-767,772-776,781,839,900-901,903-906,908,912-914,916-921,923-926,928-929,936,971
+  s_d236dcbec7210b::t_dae03d551b0ae2 886,896,902,909-911,915,922,927,930-935,937
+  s_d236dcbec7210b::t_98e935dbd8346e 1284
+  s_d236dcbec7210b::t_33a94a8ef742b3 1286
+docs/research/2026-09-11-shareable-transcripts/artifact-check.json
+  s_d236dcbec7210b::t_755a711cc2790a 14,25
+docs/research/2026-09-11-shareable-transcripts/index.html
+  s_d236dcbec7210b::t_3cee56bc3fea84 329-337,342-349,352-362,364-370,372-384,389-399,412-428,442-446,448-452,950-966,974-977
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1ee297b11ae583babba8432eefffc06dec6d4a06",
+  "prompts": {},
+  "sessions": {
+    "s_d236dcbec7210b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0929e-d77e-7bb2-8fd3-0401a6a7b54b",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
