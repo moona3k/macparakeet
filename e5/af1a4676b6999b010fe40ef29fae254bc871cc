@@ -1,0 +1,119 @@
+spec/01-data-model.md
+  s_d236dcbec7210b::t_44384520295207 755,786-788,813-819
+  s_d236dcbec7210b::t_380b91a4812b73 741-754,756-785,789-812,820-822,1565
+spec/contracts/share-service-v1.md
+  s_d236dcbec7210b::t_d97f33bb6f20b9 244-256
+Sources/MacParakeetCore/Models/SharePublication.swift
+  s_d236dcbec7210b::t_7019e4aad59f90 35,99,150,207-210,222-224,234-236,252-254
+  s_d236dcbec7210b::t_380b91a4812b73 1-34,36-98,100-149,151-206,211-221,225-233,237-251,255-258
+Tests/MacParakeetTests/Services/Sharing/ShareCoordinatorTests.swift
+  s_d236dcbec7210b::t_2e85e88e84b379 57,60,111,145,153-154
+  s_d236dcbec7210b::t_380b91a4812b73 1-56,58-59,61-110,112-144,146-149,152,155-196,198-299,425-459
+  s_d236dcbec7210b::t_4e132d31b26413 300-336,339-424
+  s_d236dcbec7210b::t_6b580756d7d93c 337-338
+  s_d236dcbec7210b::t_51199da4f6b105 150-151
+  s_d236dcbec7210b::t_ab754cb5545369 197
+Tests/MacParakeetTests/Services/Sharing/ShareRemoteClientTests.swift
+  s_d236dcbec7210b::t_6de84d961dc45f 19
+  s_d236dcbec7210b::t_380b91a4812b73 1-18,20-32,55-230
+  s_d236dcbec7210b::t_7836f0007afaad 33-54
+Sources/MacParakeetViewModels/TranscriptionLibraryViewModel.swift
+  s_d236dcbec7210b::t_2911b5e6e404c7 581-582,913
+Tests/MacParakeetTests/Database/ShareDeletionPropagationTests.swift
+  s_d236dcbec7210b::t_fda821c42a361d 1-72
+Tests/MacParakeetTests/Database/SharePublicationRepositoryTests.swift
+  s_d236dcbec7210b::t_380b91a4812b73 1-36,38-44,46-77,116-257,261-264,266,268-282,286,288,290-292,294-307,310-313,315-330,332-338,340-378
+  s_d236dcbec7210b::t_6de84d961dc45f 259-260,284-285
+  s_d236dcbec7210b::t_6b580756d7d93c 78-115
+  s_d236dcbec7210b::t_ab754cb5545369 258,283,308-309
+  s_d236dcbec7210b::t_25b7757076bc4d 265,267,287,289,293,314
+  s_d236dcbec7210b::t_2e85e88e84b379 37,45,331,339
+Tests/MacParakeetTests/Services/Sharing/ShareCredentialStoreTests.swift
+  s_d236dcbec7210b::t_380b91a4812b73 1-126
+Tests/MacParakeetTests/Services/Sharing/ShareCoordinatorTestSupport.swift
+  s_d236dcbec7210b::t_380b91a4812b73 1-176
+Tests/MacParakeetTests/Services/Sharing/ShareProjectionTests.swift
+  s_d236dcbec7210b::t_7d47b88343467d 7,41,65,104,137,172
+docs/share-service-privacy-and-operations.md
+  s_d236dcbec7210b::t_d97f33bb6f20b9 50-54,104-115
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_d236dcbec7210b::t_51a3cd6f6895f8 3447
+Sources/MacParakeetCore/Services/Sharing/ShareServiceModels.swift
+  s_d236dcbec7210b::t_7019e4aad59f90 14
+  s_d236dcbec7210b::t_380b91a4812b73 1-13,15-78,84-179
+  s_d236dcbec7210b::t_44384520295207 79-83
+Sources/MacParakeetCore/Services/Sharing/TranscriptionDeletionCoordinator.swift
+  s_d236dcbec7210b::t_2911b5e6e404c7 1-18
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_d236dcbec7210b::t_2911b5e6e404c7 1182
+Sources/MacParakeetCore/Database/TranscriptionRepository.swift
+  s_d236dcbec7210b::t_2911b5e6e404c7 29-31,53-55,540-546,549-550,556-558
+Sources/MacParakeetCore/Services/Sharing/ShareOwnerCredentials.swift
+  s_d236dcbec7210b::t_380b91a4812b73 1-153
+Sources/MacParakeetCore/AppFeatures.swift
+  s_d236dcbec7210b::t_cda9056b22287a 7-19
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  s_d236dcbec7210b::t_51a3cd6f6895f8 90-95,103-108
+  s_d236dcbec7210b::t_380b91a4812b73 2119-2130,2132-2169,2173-2190
+  s_d236dcbec7210b::t_7019e4aad59f90 2131,2170-2172
+Sources/MacParakeetCore/Services/Sharing/ShareCoordinator.swift
+  s_d236dcbec7210b::t_7923b68c598cf2 689-693,697,702-710,722-724,726,730,735-754,766-770,778,793,796,798
+  s_d236dcbec7210b::t_380b91a4812b73 1-17,20-21,24-25,31-32,35-37,42-44,47-56,58,60-80,95-100,144-148,152-153,156,158-159,161-173,175-203,207,214-215,217-218,220,223-232,235-243,245-253,258-267,270-276,278-286,289-298,301-315,318-335,338-345,348-359,362-368,372-376,378-387,389-397,401-406,408,412,427-429,433,441,449-456,458,462-463,465-473,487-503,506-518,521-524,531-540,546-688,694-696,698-701,711-721,725,727-729,731-734,755-765,771-777,779-792,794-795,797,799-802
+  s_d236dcbec7210b::t_44384520295207 27-30,38-41,81-94
+  s_d236dcbec7210b::t_ea45d9f45711d6 206,257,336-337,346-347,360-361,369-371,377,388,398-400,407,409-411,413-426,430-432,434-440,442-448,457,459-461,464,474-476,482-486,504-505,519-520,525-530,541-545
+  s_d236dcbec7210b::t_ebfea905ac26ff 18-19,26,33-34,57,59,101-143,149-151,154-155,157,160,174,204-205,208-213,216,219,221-222,233-234,244,254-256,268-269,277,287-288,299-300,316-317
+  s_d236dcbec7210b::t_6de84d961dc45f 22-23,45-46,477-481
+Sources/MacParakeetCore/Database/README.md
+  s_d236dcbec7210b::t_44384520295207 182-190
+  s_d236dcbec7210b::t_380b91a4812b73 42,167-180
+  s_a873ed00f9edeb::t_0932234c441ad8 181
+Sources/MacParakeetCore/Services/Sharing/ShareRemoteClient.swift
+  s_d236dcbec7210b::t_fc713719291ce8 124,191-223,236-254,344-348
+  s_d236dcbec7210b::t_2e85e88e84b379 72-75,79-80
+  s_d236dcbec7210b::t_380b91a4812b73 1-71,76-78,81-123,125-190,224-235,255-343,349-497
+Tests/MacParakeetTests/Services/Sharing/ShareBoundaryTests.swift
+  s_d236dcbec7210b::t_7d47b88343467d 14-29,33-44
+  s_d236dcbec7210b::t_b432b62aa2cf5b 30-32
+  s_d236dcbec7210b::t_51a3cd6f6895f8 5-13
+Sources/CLI/Commands/HistoryCommand.swift
+  s_d236dcbec7210b::t_2911b5e6e404c7 337
+Sources/MacParakeetCore/Services/Sharing/ShareBundle.swift
+  s_d236dcbec7210b::t_54fa8e83a483b6 1,154-158
+  s_d236dcbec7210b::t_3bd7da72742d59 125-129,146,159,209-229
+  s_d236dcbec7210b::t_9d769c3b88a60d 160
+Sources/MacParakeetCore/Services/Sharing/ShareCredentialStore.swift
+  s_d236dcbec7210b::t_ea45d9f45711d6 28-29,31,36-37
+  s_d236dcbec7210b::t_7019e4aad59f90 23,25-27,30,33-35,78-81,83,118,123
+  s_d236dcbec7210b::t_380b91a4812b73 1-22,24,32,38-77,82,84-117,119-122,124-198
+Sources/MacParakeetCore/Database/SharePublicationRepository.swift
+  s_d236dcbec7210b::t_380b91a4812b73 1-13,15-59,65-81,86-240,297,316-319,330,332-351,357-410
+  s_d236dcbec7210b::t_6de84d961dc45f 331
+  s_d236dcbec7210b::t_4692174bc834bf 14,60-62,64,82-85,241-296,298-315
+  s_d236dcbec7210b::t_44384520295207 63,320-329,352-356
+Sources/MacParakeetCore/Services/Sharing/ShareProjection.swift
+  s_d236dcbec7210b::t_54fa8e83a483b6 31-42,45,49,55,62-66,87,100,116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e5af1a4676b6999b010fe40ef29fae254bc871cc",
+  "prompts": {},
+  "sessions": {
+    "s_a873ed00f9edeb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0934d-8db0-7702-aa27-19ce08f0c352",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_d236dcbec7210b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0929e-d77e-7bb2-8fd3-0401a6a7b54b",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
