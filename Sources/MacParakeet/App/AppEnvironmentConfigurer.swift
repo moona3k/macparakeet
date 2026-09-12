@@ -115,7 +115,11 @@ final class AppEnvironmentConfigurer {
             promptResultRepo: env.promptResultRepo,
             promptResultsViewModel: promptResultsViewModel,
             speakerAttributionReader: env.speakerAttributionReader,
-            speakerCorrectionService: env.speakerCorrectionService
+            speakerCorrectionService: env.speakerCorrectionService,
+            // Same gate as the scoring path: with the feature unavailable the
+            // view model holds no voiceprint service and offers nothing.
+            speakerVoiceprints: AppFeatures.isVoiceProfilesAvailable()
+                ? env.speakerVoiceprintService : nil
         )
         historyViewModel.configure(dictationRepo: env.dictationRepo)
         libraryViewModel.configure(

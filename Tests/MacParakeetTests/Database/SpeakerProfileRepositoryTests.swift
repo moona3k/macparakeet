@@ -624,6 +624,86 @@ final class SpeakerProfileRepositoryTests: XCTestCase {
         XCTAssertTrue(try repo.exemplars(profileId: profile.id).isEmpty)
     }
 
+    // MARK: Deleting one sample
+
+    /// Deleting by id alone would let a mismatched id take another profile's
+    /// last sample, which the caller believes it is protecting.
+    func testASampleFromAnotherProfileIsNotDeleted() throws {
+        let sarah = try enrolledProfile(named: "Sarah")
+        let nadia = try enrolledProfile(named: "Nadia")
+        let nadiasOnly = exemplar(profileId: nadia.id, embedding: makeEmbedding(index: 2))
+        try repo.insert(exemplar(profileId: sarah.id, embedding: makeEmbedding(index: 1)))
+        try repo.insert(exemplar(profileId: sarah.id, embedding: makeEmbedding(index: 3)))
+        try repo.insert(nadiasOnly)
+
+        // Sarah has two, so the count check alone would allow this.
+        let deleted = try repo.deleteExemplar(
+            id: nadiasOnly.id, profileId: sarah.id, keepingAtLeastOne: true
+        )
+
+        XCTAssertFalse(deleted)
+        XCTAssertEqual(try repo.exemplars(profileId: nadia.id).count, 1)
+    }
+
+    func testTheLastSampleIsRefusedInTheSameWrite() throws {
+        let profile = try enrolledProfile(named: "Sarah")
+        let only = exemplar(profileId: profile.id, embedding: makeEmbedding(index: 1))
+        try repo.insert(only)
+
+        XCTAssertFalse(
+            try repo.deleteExemplar(id: only.id, profileId: profile.id, keepingAtLeastOne: true)
+        )
+        XCTAssertEqual(try repo.exemplars(profileId: profile.id).count, 1)
+    }
+
+    /// The rule bounds what a profile keeps, so it has to hold when several
+    /// callers delete at once. Counting outside the write cannot do that.
+    func testConcurrentDeletesNeverEmptyAProfile() throws {
+        let profile = try enrolledProfile(named: "Sarah")
+        let samples = (1...6).map { exemplar(profileId: profile.id, embedding: makeEmbedding(index: $0)) }
+        for sample in samples { try repo.insert(sample) }
+        let store = repo!
+
+        DispatchQueue.concurrentPerform(iterations: samples.count) { index in
+            _ = try? store.deleteExemplar(
+                id: samples[index].id, profileId: profile.id, keepingAtLeastOne: true
+            )
+        }
+
+        XCTAssertEqual(try store.exemplars(profileId: profile.id).count, 1)
+    }
+
+    // MARK: Counting recognitions
+
+    /// Links are fingerprint-scoped, so one recording re-diarized and confirmed
+    /// again holds several rows for the same profile. Counting rows would tell
+    /// the user they were recognized in more recordings than exist.
+    func testRecognitionsCountDistinctRecordings() throws {
+        let profile = try enrolledProfile(named: "Sarah")
+        let recording = try savedTranscription()
+        for fingerprint in ["fingerprint-1", "fingerprint-2"] {
+            var confirmed = link(
+                transcriptionId: recording.id, profileId: profile.id, fingerprint: fingerprint
+            )
+            confirmed.status = .confirmed
+            try repo.save(confirmed)
+        }
+
+        XCTAssertEqual(try repo.confirmedLinkCount(profileId: profile.id), 1)
+    }
+
+    func testRecognitionsIgnoreSuggestionsAndRefusals() throws {
+        let profile = try enrolledProfile(named: "Sarah")
+        let suggested = try savedTranscription()
+        let dismissed = try savedTranscription()
+        try repo.save(link(transcriptionId: suggested.id, profileId: profile.id))
+        var refused = link(transcriptionId: dismissed.id, profileId: profile.id)
+        refused.status = .dismissed
+        try repo.save(refused)
+
+        XCTAssertEqual(try repo.confirmedLinkCount(profileId: profile.id), 0)
+    }
+
     // MARK: Claiming a name
 
     /// Two enrollments of one name can both find nothing before either writes,

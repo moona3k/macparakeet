@@ -252,6 +252,23 @@ public struct SpeakerInfo: Codable, Sendable, Equatable {
         self.id = id
         self.label = label
     }
+
+    /// Whether this still carries a generated label rather than a name the user
+    /// typed. Diarization produces "Speaker 1" for files and "Others 1" for the
+    /// system track of a meeting.
+    ///
+    /// Pattern-matched rather than compared against the automatic snapshot,
+    /// which the callers that need this do not hold. Someone who deliberately
+    /// names a person "Speaker 2" reads as unnamed — an acceptable miss, since
+    /// the consequence is only that a prompt is not offered.
+    public var carriesAutomaticLabel: Bool {
+        let trimmed = label.trimmingCharacters(in: .whitespaces)
+        for prefix in ["Speaker ", "Others "] where trimmed.hasPrefix(prefix) {
+            let suffix = trimmed.dropFirst(prefix.count)
+            if !suffix.isEmpty, suffix.allSatisfy(\.isNumber) { return true }
+        }
+        return false
+    }
 }
 
 public struct DiarizationSegmentRecord: Codable, Sendable, Equatable {

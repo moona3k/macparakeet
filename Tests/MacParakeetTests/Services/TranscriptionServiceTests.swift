@@ -135,9 +135,39 @@ private actor MeetingVoiceprintSpy: SpeakerVoiceprintServicing {
     }
 
     func confirm(
-        _ suggestion: SpeakerVoiceprintSuggestion, observation: SpeakerClusterObservation,
+        _ suggestion: SpeakerVoiceprintSuggestion,
         transcriptionId: UUID, fingerprint: TranscriptFingerprint
     ) async throws {
+        throw Failure.unexpectedOperation
+    }
+
+    func pendingSuggestions(
+        transcriptionId: UUID, fingerprint: TranscriptFingerprint
+    ) async throws -> [SpeakerVoiceprintSuggestion] {
+        throw Failure.unexpectedOperation
+    }
+
+    func enrolledVoices() async throws -> [EnrolledVoice] {
+        throw Failure.unexpectedOperation
+    }
+
+    func samples(profileId _: UUID) async throws -> [SpeakerProfileExemplar] {
+        throw Failure.unexpectedOperation
+    }
+
+    func renameProfile(id _: UUID, to _: String) async throws {
+        throw Failure.unexpectedOperation
+    }
+
+    func deleteSample(id _: UUID, profileId _: UUID) async throws -> Bool {
+        throw Failure.unexpectedOperation
+    }
+
+    func forgetVoice(profileId _: UUID) async throws {
+        throw Failure.unexpectedOperation
+    }
+
+    func forgetAllVoices() async throws {
         throw Failure.unexpectedOperation
     }
 

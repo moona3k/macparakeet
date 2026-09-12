@@ -83,6 +83,7 @@ private extension SettingsCaptureWorkflow {
 struct SettingsView: View {
     @Bindable var viewModel: SettingsViewModel
     @Bindable var llmSettingsViewModel: LLMSettingsViewModel
+    @Bindable var voiceProfilesViewModel: VoiceProfilesViewModel
     let updater: SPUUpdater
     let transformHotkeys: [Prompt]
     let requestedTab: SettingsTab?
@@ -112,11 +113,15 @@ struct SettingsView: View {
     @State private var pendingModelDeletion: PendingModelDeletion?
     @State private var pendingMeetingAudioRetention: PendingMeetingAudioRetention?
     @State private var coherePolicyRelaunchInFlight = false
+    @State private var showVoiceProfiles = false
+    /// Owned by this view rather than the app: the sheet is the only consumer,
+    /// and it reloads from the store each time it opens.
     @State private var advancedTranscriptionExpanded = false
 
     init(
         viewModel: SettingsViewModel,
         llmSettingsViewModel: LLMSettingsViewModel,
+        voiceProfilesViewModel: VoiceProfilesViewModel,
         updater: SPUUpdater,
         transformHotkeys: [Prompt] = [],
         requestedTab: SettingsTab? = nil,
@@ -127,6 +132,7 @@ struct SettingsView: View {
     ) {
         self.viewModel = viewModel
         self.llmSettingsViewModel = llmSettingsViewModel
+        self.voiceProfilesViewModel = voiceProfilesViewModel
         self.updater = updater
         self.transformHotkeys = transformHotkeys
         self.requestedTab = requestedTab
@@ -1283,6 +1289,20 @@ struct SettingsView: View {
                     isOn: $viewModel.meetingSpeakerDiarization
                 )
 
+                // The toggle is gated twice over — the feature must be
+                // available, and speaker detection on, since without clusters
+                // there is nothing to remember.
+                if AppFeatures.isVoiceProfilesAvailable(), viewModel.meetingSpeakerDiarization {
+                    rememberSpeakersRow
+                }
+
+                // The management row is gated by neither. A build where the
+                // flag is off can still be sitting on voices enrolled while it
+                // was on — a DEBUG session with `--enable-voice-profiles`, then
+                // a normal launch — and biometric data with no way to delete it
+                // is the one outcome this feature must never produce.
+                voiceProfilesManagementRow
+
                 Divider()
 
                 settingsToggleRow(
@@ -1371,6 +1391,66 @@ struct SettingsView: View {
                     isOn: $viewModel.meetingAutoStopEnabled
                 )
             }
+        }
+    }
+
+    /// The switch reports intent rather than owning the value: turning it on
+    /// has to pass through consent, so the view model decides whether the
+    /// preference actually moves.
+    private var rememberSpeakersRow: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            Divider()
+
+            settingsToggleRow(
+                title: "Remember speakers",
+                detail: "Suggest a name in later meetings once you have named someone. Suggestions always need your confirmation, and voice samples never leave this Mac.",
+                isBeta: true,
+                isOn: Binding(
+                    get: { viewModel.rememberSpeakers },
+                    set: { viewModel.requestRememberSpeakers($0) }
+                )
+            )
+
+            if viewModel.rememberSpeakers, let acknowledgedAt = viewModel.voiceprintConsentAcknowledgedAt {
+                HStack(spacing: DesignSystem.Spacing.sm) {
+                    Text("Permission confirmed \(acknowledgedAt.formatted(date: .abbreviated, time: .shortened)).")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Withdraw") { viewModel.withdrawVoiceprintConsent() }
+                        .parakeetAction(.secondary)
+                }
+            }
+
+        }
+        .sheet(isPresented: $viewModel.isRequestingVoiceprintConsent) {
+            VoiceProfileConsentSheet(viewModel: viewModel)
+        }
+    }
+
+    /// Outside every preference check. Voices stored before the user turned
+    /// anything off are still on disk, and this is the only screen that can
+    /// show or remove one of them.
+    private var voiceProfilesManagementRow: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            Divider()
+
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                rowText(
+                    title: "Voice profiles",
+                    detail: "See and delete the voices saved on this Mac."
+                )
+                Spacer(minLength: DesignSystem.Spacing.md)
+                Button("Manage…") { showVoiceProfiles = true }
+                    .parakeetAction(.secondary)
+            }
+        }
+        // Cleared on dismissal: the view model is shared with the Reset &
+        // Cleanup card, so a rename failure raised inside the sheet would
+        // otherwise reappear under "Delete data", attributed to a destructive
+        // action the user never took.
+        .sheet(isPresented: $showVoiceProfiles, onDismiss: { voiceProfilesViewModel.clearError() }) {
+            VoiceProfilesSheet(viewModel: voiceProfilesViewModel)
         }
     }
 
@@ -1950,6 +2030,15 @@ struct SettingsView: View {
                             .foregroundStyle(DesignSystem.Colors.errorRed)
                     }
 
+                    // The voice-profile row below deletes through its own view
+                    // model, so its failures land in a different property and
+                    // would otherwise be invisible on this card.
+                    if let error = voiceProfilesViewModel.errorMessage {
+                        Text(error)
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(DesignSystem.Colors.errorRed)
+                    }
+
                     resetActionRow(
                         title: "Dictation history",
                         detail: "All dictations and their audio files.",
@@ -1990,6 +2079,26 @@ struct SettingsView: View {
                             confirmationMessage: "This will delete all downloaded video audio files and detach them from existing transcriptions. This cannot be undone.",
                             confirmButtonLabel: "Clear Audio",
                             perform: viewModel.clearDownloadedYouTubeAudio
+                        )
+                    )
+
+                    // In Reset & Cleanup as well as inside the feature block:
+                    // this is where people look for "delete my data", and it
+                    // has to be findable without knowing where voices come
+                    // from. Not gated on the feature flag either: a build with
+                    // it off can still hold voices enrolled while it was on.
+                    Divider()
+
+                    resetActionRow(
+                        title: "Voice profiles",
+                        detail: "Saved voices and any still waiting to be named. Names already applied to transcripts stay.",
+                        action: ResetDestructiveAction(
+                            buttonTitle: "Forget…",
+                            accessibilityLabel: "Forget all voice profiles",
+                            confirmationTitle: "Forget All Voices?",
+                            confirmationMessage: "This deletes every saved voice, its samples, and any voices still waiting to be named. Names already applied to your transcripts stay as they are. This cannot be undone.",
+                            confirmButtonLabel: "Forget All",
+                            perform: { Task { await voiceProfilesViewModel.forgetAll() } }
                         )
                     )
 

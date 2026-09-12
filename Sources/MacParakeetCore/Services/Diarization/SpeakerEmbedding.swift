@@ -7,6 +7,16 @@ public enum SpeakerCaptureDomain: String, Sendable, Codable, CaseIterable {
     case system
     case microphone
     case file
+
+    /// What to show a user. The raw values are storage tokens and reading
+    /// "system" in a list of voice samples explains nothing.
+    public var displayName: String {
+        switch self {
+        case .system: "Meeting audio"
+        case .microphone: "Microphone"
+        case .file: "Imported file"
+        }
+    }
 }
 
 /// Identifies the representation an embedding was produced in.
