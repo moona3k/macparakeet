@@ -27,11 +27,20 @@ int localvqe_free(void) { return 0; }
 EOF
 
 # A full clone of the system PATH (every /usr/bin and /bin executable
-# symlinked in), minus any tool names passed after $dir. Used as a
+# forwarded in), minus any tool names passed after $dir. Used as a
 # stand-alone PATH (not prepended) so specific tools (otool, lipo) can be made
 # truly absent -- not merely shadowed -- to exercise the missing-tool paths
 # without disturbing every other real tool (nm, file, shasum, codesign, bash
 # itself via the script's `#!/usr/bin/env bash` shebang, etc).
+#
+# Each forwarded tool is a small shell wrapper that execs the original tool
+# by its absolute path, rather than a symlink to it. Some system tools (e.g.
+# shasum) are Perl scripts whose interpreter resolves a version-specific
+# sibling next to the path it was invoked as; invoked through a symlink that
+# relocates it to this directory, that sibling lookup fails even though the
+# tool is otherwise fully present. Execing the absolute path keeps the
+# interpreter's view of "where this script lives" pointed at the real
+# directory, sidestepping that lookup entirely.
 make_restricted_path() {
   local dir="$1"
   shift
@@ -47,7 +56,8 @@ make_restricted_path() {
         [[ "$o" == "$base" ]] && skip=1
       done
       [[ "$skip" == "1" ]] && continue
-      ln -sf "$f" "$dir/$base"
+      printf '#!/bin/sh\nexec "%s" "$@"\n' "$f" >"$dir/$base"
+      chmod +x "$dir/$base"
     done
   done
 }
@@ -263,6 +273,15 @@ add_fixture_model "$APP9"
 run_restricted() {
   PATH="$RESTRICTED_BIN" "$@" "$VERIFY_SCRIPT" "$APP9" 2>&1
 }
+# Canary: a tool that is NOT meant to be restricted (shasum, used by the
+# verify script itself before it ever reaches the otool/lipo checks below)
+# must still run under the restricted PATH. If this fails, the assertions
+# below would instead report a misleading "expected a missing-tool error"
+# for a broken test fixture rather than the behavior under test.
+if ! restricted_shasum_out="$(PATH="$RESTRICTED_BIN" shasum -a 256 "$APP9/Contents/Resources/MeetingEchoSuppression/fixture-model.gguf" 2>&1)"; then
+  printf 'FAIL: restricted PATH fixture cannot run shasum, a tool that should not be restricted\n%s\n' "$restricted_shasum_out" >&2
+  exit 1
+fi
 FIXTURE_MODEL_SHA256="$(shasum -a 256 "$APP9/Contents/Resources/MeetingEchoSuppression/fixture-model.gguf" | awk '{print $1}')"
 if out="$(run_restricted env MACPARAKEET_MEETING_ECHO_MIN_MACOS_VERSION=14.2 STRICT_MEETING_ECHO_ASSETS=1 MACPARAKEET_MEETING_ECHO_MODEL_SHA256="$FIXTURE_MODEL_SHA256")"; then
   printf 'FAIL: strict mode should fail when otool/lipo are unavailable\n%s\n' "$out" >&2
