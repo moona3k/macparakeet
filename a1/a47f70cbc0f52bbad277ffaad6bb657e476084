@@ -1,0 +1,26 @@
+docs/plans/2026-09-11-issue-895-meeting-split-plan.md
+  s_a873ed00f9edeb::t_7f6f15d3572261 140-155
+spec/contracts/meeting-splitting.md
+  s_a873ed00f9edeb::t_7f6f15d3572261 24-26
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_a873ed00f9edeb::t_0aa8a4499ec806 3270,3292,3332-3333,3460-3480
+  s_a873ed00f9edeb::t_53089934033901 3481-3482
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_a873ed00f9edeb::t_7f6f15d3572261 730-734,1958-1959
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a1a47f70cbc0f52bbad277ffaad6bb657e476084",
+  "prompts": {},
+  "sessions": {
+    "s_a873ed00f9edeb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0934d-8db0-7702-aa27-19ce08f0c352",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
