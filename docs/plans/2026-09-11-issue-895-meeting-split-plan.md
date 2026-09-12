@@ -77,6 +77,8 @@ Deferred follow-up work: passage-only timing after a separate text-consistency p
 - KTD4. **Derived provenance without destructive parent dependency.** Record operation/source IDs, source fingerprint/revision, source range, ordinal and split-created time. Use the source `createdAt` as the initial retention/date anchor; pause-elided offsets are not exact wall-clock starts. Map speaker corrections to fresh child baselines while retaining automatic word provenance; do not clone undo chains, correction IDs or full-recording embeddings (R5–R7).
 - KTD5. **Durable operation journal plus a shared mutation gate.** Persist intent and fixed child IDs before export, keep staging outside normal recording recovery enumeration, and install validated folders before one GRDB transaction publishes rows, provenance and derived search state. Integrate cross-process ownership with all relevant mutators; a split-specific file nobody checks is not a lock. Revalidate source/corrections/retention at publication (R8).
 
+For KTD5, stage and validate the complete child artifact set, including `transcript.json`, `meeting.md`, `manifest.json` and empty child prompt-result metadata with correct final-path references; never copy parent prompts or notes. After interrupted post-commit settlement, repair only missing derived artifacts for still-existing children from committed state under mutation ownership; never republish rows, recreate deleted children or revive deleted/expired media.
+
 Names and file layout below are starting points, not a framework specification. Reuse existing transaction-level derivation instead of independently committing children through `save`. Do not broaden this work into general recording-service or database refactors.
 
 ### High-Level Technical Design
@@ -166,6 +168,7 @@ U1 decides layout, entry points, boundary controls, keyboard/VoiceOver behavior 
 
 - Inject failures before/after journal, export, folder installation and commit; an ordinary last-row insertion failure publishes no children.
 - Restart after commit but before receipt settlement and return the same child IDs. Reject mismatched payload reuse; deletion of a committed child must not make retry resurrect it.
+- Inject failures at each materialization boundary during staging and post-commit repair. Staging failure publishes nothing; restart repair restores only missing derived artifacts for still-existing children without republishing rows or reviving deleted/expired media.
 - Exercise second-process split/delete/retention/retranscription and correction changes between preview and commit. Prove exclusion or stale rejection without deadlock; an in-memory mock alone is insufficient.
 - Measure the publication transaction on hour-scale, many-part/high-passage-count fixtures while another process writes. Keep derivation outside the write lock where possible and verify normal recording writes do not time out; `DatabaseManager` currently uses a five-second busy timeout. If the single-transaction approach cannot meet that bound, revisit publication internals with an explicit all-or-none visibility proof before exposure, rather than silently publishing children separately.
 - Check pre-publication cancellation versus committed completion, disk-full and missing journal/sidecars; discard only identified operation-owned output after writers stop.
