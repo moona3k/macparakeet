@@ -24,6 +24,7 @@
 | 12 | [Processing Layer](12-processing-layer.md) | Versioned prompts, label routing, and multi-summary contract | Active |
 | 13 | [Agent Workflows](13-agent-workflows.md) | Future actions, workflows, agents, voice control, App Intents | Draft |
 | 14 | [Per-Prompt Inference Settings](14-per-prompt-inference-settings.md) | Version-owned generation settings and effective-setting snapshots | Initial implementation via [PR #968](https://github.com/moona3k/macparakeet/pull/968); versioning and Transform extension in [PR #961](https://github.com/moona3k/macparakeet/pull/961) |
+| 15 | [Shareable Transcript Snapshots](15-shareable-transcripts.md) | Explicit encrypted text sharing, recipient experience, lifecycle, and privacy boundary | Proposed; implementation planned behind a default-off flag |
 
 ## Boundary Contracts
 
@@ -35,6 +36,10 @@ when changing one of those surfaces.
 [Speaker Voiceprints](contracts/speaker-voiceprints.md) defines the experimental
 voice-profile gate, local storage lifecycle and export exclusion. Implementation
 behind that gate is separate from accuracy evaluation and official release.
+
+[Share Link and Bundle v1](contracts/share-link-bundle-v1.md) and
+[Share Service v1](contracts/share-service-v1.md) define the proposed encrypted
+recipient-link, bundle, anonymous owner, lifecycle, and deletion boundaries.
 
 ## Design References
 
@@ -133,6 +138,7 @@ accepted direction is not proof that every phase is implemented or released.
 | [ADR-026](adr/026-asr-engine-strategy.md) | ASR engine and runtime strategy — local-only reaffirmed; two runtimes (FluidAudio primary, WhisperKit fallback); engines grow as variants not new cards; capability registry required before a new engine family; Apple SpeechTranscriber spike-only |
 | [ADR-027](adr/027-product-north-star.md) | Product north star — MacParakeet is the private speech memory of your Mac; Library (search + QA + export) becomes the center of gravity; agent access first-class; ambient capture parked (not rejected); session-based capture stands |
 | [ADR-028](adr/028-meeting-echo-cancellation.md) | Offline meeting echo cancellation via derived cleaned-mic artifact |
+| [ADR-029](adr/029-encrypted-shareable-transcript-snapshots.md) | Explicit encrypted, expiring transcript-derived snapshots as a hosted export rather than Library sync |
 
 ## Version Roadmap
 

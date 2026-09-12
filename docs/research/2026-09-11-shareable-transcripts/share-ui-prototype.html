@@ -1,0 +1,1227 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>MacParakeet Share Link — UI Prototype</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23e86b3b'/%3E%3Cpath d='M18 18h18c9 0 15 5 15 13s-6 13-15 13H28v8H18V18Zm10 9v8h8c3 0 5-1 5-4s-2-4-5-4h-8Z' fill='white'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --canvas: #ececea;
+      --paper: #f9f9f7;
+      --surface: #ffffff;
+      --raised: #f3f3f0;
+      --ink: #1a1a1a;
+      --muted: #6b6b6b;
+      --faint: #92928d;
+      --line: #deded9;
+      --line-strong: #c9c9c3;
+      --coral: #e86b3b;
+      --coral-dark: #bf4c25;
+      --coral-soft: #fff0ea;
+      --green: #2f9f52;
+      --green-soft: #eaf7ed;
+      --amber: #a86b12;
+      --amber-soft: #fff6df;
+      --red: #c83d3d;
+      --red-soft: #fff0ef;
+      --blue: #3976c4;
+      --shadow: 0 28px 80px rgba(36, 35, 31, .17), 0 2px 12px rgba(36, 35, 31, .09);
+      --radius-window: 15px;
+      --radius-control: 8px;
+      --system: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+      --rounded: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { background: var(--canvas); }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 16% -10%, rgba(232, 107, 59, .11), transparent 34rem),
+        var(--canvas);
+      font-family: var(--system);
+      font-size: 15px;
+      line-height: 1.45;
+    }
+
+    button, select, input { font: inherit; }
+    button { color: inherit; }
+
+    button:focus-visible,
+    select:focus-visible,
+    input:focus-visible,
+    [tabindex]:focus-visible {
+      outline: 3px solid rgba(57, 118, 196, .48);
+      outline-offset: 2px;
+    }
+
+    .prototype-header {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 34px 28px 20px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 24px;
+      align-items: end;
+    }
+
+    .prototype-header h1 {
+      margin: 0 0 7px;
+      max-width: 760px;
+      font-family: var(--rounded);
+      font-size: clamp(28px, 4vw, 46px);
+      line-height: 1.06;
+      letter-spacing: -.035em;
+    }
+
+    .prototype-header p {
+      max-width: 720px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .prototype-stamp {
+      padding: 8px 11px;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      background: rgba(255,255,255,.58);
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .governing-notice {
+      grid-column: 1 / -1;
+      padding: 12px 14px;
+      border: 1px solid #efd395;
+      border-radius: 9px;
+      background: var(--amber-soft);
+      color: #71470b;
+      font-size: 13px;
+    }
+
+    .governing-notice a { color: inherit; font-weight: 700; }
+
+    .lab {
+      max-width: 1180px;
+      margin: 0 auto 22px;
+      padding: 0 28px;
+    }
+
+    .state-strip {
+      border: 1px solid var(--line-strong);
+      border-radius: 11px 11px 0 0;
+      background: rgba(255,255,255,.82);
+      overflow: hidden;
+    }
+
+    .state-heading {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: baseline;
+      padding: 12px 15px 10px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .state-heading strong { font-family: var(--rounded); }
+    .state-heading span { color: var(--muted); font-size: 12px; }
+
+    .state-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .state-cell {
+      min-width: 0;
+      padding: 12px 15px 14px;
+      border-right: 1px solid var(--line);
+    }
+    .state-cell:last-child { border-right: 0; }
+    .state-cell dt { margin: 0 0 3px; color: var(--muted); font-size: 11px; }
+    .state-cell dd { margin: 0; font-weight: 610; overflow-wrap: anywhere; }
+    .state-cell dd.warn { color: var(--amber); }
+    .state-cell dd.good { color: #247f41; }
+    .state-cell dd.stop { color: var(--red); }
+
+    .event-line {
+      padding: 10px 15px;
+      border-top: 1px solid var(--line);
+      background: var(--raised);
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .event-line strong { color: var(--ink); }
+
+    .free-play {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 11px 12px;
+      border: 1px solid var(--line-strong);
+      border-top: 0;
+      border-radius: 0 0 11px 11px;
+      background: var(--paper);
+    }
+
+    .free-play-label {
+      align-self: center;
+      margin: 0 5px 0 2px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .small-button,
+    .walkthrough-tab,
+    .step-button {
+      border: 1px solid var(--line-strong);
+      border-radius: 7px;
+      background: var(--surface);
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .small-button:hover, .step-button:hover { background: #f5f5f2; }
+    .small-button[aria-pressed="true"] { border-color: var(--coral); background: var(--coral-soft); }
+
+    .walkthrough {
+      margin-top: 14px;
+      border: 1px solid var(--line-strong);
+      border-radius: 11px;
+      background: rgba(255,255,255,.72);
+      overflow: hidden;
+    }
+
+    .walkthrough-tabs {
+      display: flex;
+      gap: 3px;
+      padding: 8px;
+      overflow-x: auto;
+      border-bottom: 1px solid var(--line);
+      background: var(--raised);
+    }
+
+    .walkthrough-tab {
+      flex: 0 0 auto;
+      border-color: transparent;
+      background: transparent;
+      color: var(--muted);
+      font-weight: 570;
+    }
+    .walkthrough-tab[aria-selected="true"] {
+      background: var(--surface);
+      border-color: var(--line-strong);
+      color: var(--ink);
+    }
+
+    .walkthrough-body {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr);
+      gap: 24px;
+      padding: 14px 15px 15px;
+    }
+    .walkthrough-copy h2 { margin: 0 0 5px; font: 650 14px/1.3 var(--rounded); }
+    .walkthrough-copy p { margin: 0; color: var(--muted); font-size: 13px; }
+    .walkthrough-steps { display: flex; flex-wrap: wrap; gap: 8px; align-content: start; }
+    .step-button { text-align: left; }
+    .step-button::before {
+      content: attr(data-step);
+      display: inline-grid;
+      place-items: center;
+      width: 19px;
+      height: 19px;
+      margin-right: 6px;
+      border-radius: 50%;
+      background: var(--raised);
+      color: var(--muted);
+      font-size: 10px;
+    }
+    .step-button.done { color: var(--muted); text-decoration: line-through; }
+    .step-button.done::before { content: "✓"; color: #247f41; background: var(--green-soft); }
+
+    .stage {
+      min-height: 760px;
+      padding: 20px 28px 54px;
+      overflow: hidden;
+    }
+
+    .mac-window,
+    .browser-window {
+      position: relative;
+      width: min(1180px, 100%);
+      min-height: 720px;
+      margin: 0 auto;
+      overflow: hidden;
+      border: 1px solid #bdbdb8;
+      border-radius: var(--radius-window);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .window-bar {
+      position: relative;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(#fafaf9, #f1f1ef);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .traffic-lights { position: absolute; left: 16px; display: flex; gap: 8px; }
+    .traffic-lights i { display: block; width: 12px; height: 12px; border-radius: 50%; }
+    .traffic-lights i:nth-child(1) { background: #ff5f57; }
+    .traffic-lights i:nth-child(2) { background: #febc2e; }
+    .traffic-lights i:nth-child(3) { background: #28c840; }
+
+    .app-shell { display: grid; grid-template-columns: 206px minmax(0, 1fr); min-height: 671px; }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      padding: 16px 11px 12px;
+      border-right: 1px solid var(--line);
+      background: #f1f0ee;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin: 0 8px 17px;
+      font: 700 15px/1 var(--rounded);
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 8px 8px 8px 3px;
+      background: var(--coral);
+      color: white;
+      font-size: 14px;
+    }
+
+    .side-list { display: grid; gap: 2px; }
+    .side-divider { height: 1px; margin: 10px 8px; background: #d8d7d3; }
+    .side-button {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 7px 9px;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .side-button:hover { background: rgba(0,0,0,.045); }
+    .side-button.active { background: #dad9d5; font-weight: 620; }
+    .side-icon { width: 18px; color: #555; text-align: center; font-size: 15px; }
+    .side-spacer { flex: 1; }
+    .side-note { margin: 10px 9px 3px; color: var(--faint); font-size: 10px; line-height: 1.35; }
+
+    .content-area { min-width: 0; background: var(--paper); }
+    .content-toolbar {
+      min-height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 10px 22px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,.76);
+    }
+    .toolbar-title { min-width: 0; }
+    .toolbar-title strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 650 16px/1.25 var(--rounded); }
+    .toolbar-title span { color: var(--muted); font-size: 11px; }
+    .toolbar-actions { display: flex; gap: 7px; flex: 0 0 auto; }
+
+    .button {
+      min-height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 5px 11px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-control);
+      background: linear-gradient(#fff, #f3f3f1);
+      box-shadow: 0 1px 1px rgba(0,0,0,.04);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 570;
+      text-decoration: none;
+    }
+    .button:hover { background: #f0f0ed; }
+    .button.primary { border-color: var(--coral-dark); background: var(--coral); color: white; }
+    .button.primary:hover { background: #d85e31; }
+    .button.danger { border-color: #e2b5b2; color: var(--red); }
+    .button.subtle { border-color: transparent; background: transparent; box-shadow: none; color: var(--muted); }
+    .button:disabled { opacity: .42; cursor: not-allowed; }
+
+    .detail { max-width: 820px; margin: 0 auto; padding: 30px 34px 64px; }
+    .detail h2 { margin: 0 0 4px; font: 700 27px/1.15 var(--rounded); letter-spacing: -.025em; }
+    .metadata { color: var(--muted); font-size: 12px; }
+    .section-tabs { display: flex; gap: 18px; margin: 28px 0 21px; border-bottom: 1px solid var(--line); }
+    .section-tab { padding: 0 0 9px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); cursor: pointer; }
+    .section-tab.active { border-bottom-color: var(--coral); color: var(--ink); font-weight: 620; }
+    .summary-lead { margin: 0 0 20px; color: #343434; font-size: 18px; line-height: 1.55; }
+    .detail h3 { margin: 26px 0 10px; font: 650 15px/1.3 var(--rounded); }
+    .clean-list { margin: 0; padding: 0; list-style: none; }
+    .clean-list li { position: relative; margin: 0 0 10px; padding-left: 18px; }
+    .clean-list li::before { content: ""; position: absolute; left: 1px; top: .62em; width: 6px; height: 6px; border-radius: 50%; background: var(--coral); }
+    .transcript-line { display: grid; grid-template-columns: 94px minmax(0, 1fr); gap: 15px; padding: 13px 0; border-bottom: 1px solid var(--line); }
+    .speaker { color: var(--blue); font-size: 12px; font-weight: 650; }
+    .speaker time { display: block; margin-top: 3px; color: var(--faint); font-weight: 400; }
+
+    .sheet-scrim {
+      position: absolute;
+      z-index: 5;
+      inset: 48px 0 0;
+      display: grid;
+      place-items: center;
+      padding: 28px;
+      background: rgba(35, 34, 31, .24);
+      backdrop-filter: blur(5px);
+    }
+
+    .sheet {
+      width: min(850px, 96%);
+      max-height: 620px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid #b9b9b4;
+      border-radius: 13px;
+      background: var(--surface);
+      box-shadow: 0 30px 80px rgba(0,0,0,.23);
+    }
+    .sheet.compact { width: min(470px, 95%); }
+    .sheet-head { display: flex; justify-content: space-between; gap: 18px; padding: 18px 20px 13px; border-bottom: 1px solid var(--line); }
+    .sheet-head h2 { margin: 0 0 3px; font: 700 20px/1.2 var(--rounded); }
+    .sheet-head p { margin: 0; color: var(--muted); font-size: 12px; }
+    .sheet-body { min-height: 0; display: grid; grid-template-columns: minmax(0, .88fr) minmax(320px, 1.12fr); overflow: auto; }
+    .choice-pane { padding: 18px 20px; border-right: 1px solid var(--line); }
+    .preview-pane { padding: 18px 20px; background: #f3f3f0; }
+    .pane-title { margin: 0 0 10px; font: 650 12px/1.3 var(--rounded); }
+    .choice-list { border-top: 1px solid var(--line); }
+    .choice-row {
+      display: grid;
+      grid-template-columns: 21px minmax(0, 1fr);
+      gap: 8px;
+      align-items: start;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line);
+      cursor: pointer;
+    }
+    .choice-row.disabled { cursor: default; color: var(--muted); }
+    .choice-row input { width: 15px; height: 15px; margin: 2px 0 0; accent-color: var(--coral); }
+    .choice-row strong { display: block; font-size: 13px; }
+    .choice-row small { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; line-height: 1.35; }
+    .choice-row .never { color: var(--green); }
+
+    .transcript-options { display: grid; gap: 6px; margin: 8px 0 10px 29px; color: var(--muted); font-size: 11px; }
+    .transcript-options label { display: flex; align-items: center; gap: 7px; }
+    .transcript-options input { accent-color: var(--coral); }
+
+    .expiry-row { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-top: 17px; }
+    .expiry-row label { font-weight: 620; font-size: 12px; }
+    .expiry-row select { min-width: 115px; padding: 5px 26px 5px 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: white; }
+    .expiry-custom { display: grid; gap: 5px; margin-top: 9px; }
+    .expiry-custom label { color: var(--muted); font-size: 11px; }
+    .expiry-custom input { padding: 6px 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: white; }
+
+    .recipient-card { min-height: 310px; padding: 24px; border: 1px solid #d4d4cf; border-radius: 8px; background: var(--surface); box-shadow: 0 3px 10px rgba(0,0,0,.05); }
+    .recipient-card .shared-mark { margin-bottom: 16px; color: var(--coral-dark); font-size: 10px; font-weight: 650; }
+    .recipient-card h3 { margin: 0 0 5px; font: 700 19px/1.2 var(--rounded); }
+    .recipient-card .provenance { margin-bottom: 18px; color: var(--muted); font-size: 10px; }
+    .recipient-card h4 { margin: 17px 0 7px; font: 650 11px/1.2 var(--rounded); }
+    .recipient-card p, .recipient-card li { font-size: 11px; line-height: 1.52; }
+    .recipient-card ul { margin: 0; padding-left: 15px; }
+    .empty-preview { display: grid; min-height: 205px; place-items: center; color: var(--muted); text-align: center; font-size: 12px; }
+    .privacy-line { margin: 13px 0 0; padding: 10px 11px; border: 1px solid #f0c9ba; border-radius: 7px; background: var(--coral-soft); font-size: 11px; line-height: 1.4; }
+    .sheet-foot { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 20px; border-top: 1px solid var(--line); background: #fafaf8; }
+    .sheet-foot-note { color: var(--muted); font-size: 11px; }
+    .button-row { display: flex; gap: 8px; justify-content: flex-end; }
+
+    .success-body { padding: 27px 28px 22px; text-align: center; }
+    .success-icon { width: 45px; height: 45px; display: grid; place-items: center; margin: 0 auto 13px; border-radius: 50%; background: var(--green-soft); color: var(--green); font-size: 22px; font-weight: 700; }
+    .success-body h2 { margin: 0 0 7px; font: 700 21px/1.2 var(--rounded); }
+    .success-body > p { margin: 0 auto 17px; max-width: 350px; color: var(--muted); font-size: 12px; }
+    .link-box { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--paper); text-align: left; }
+    .link-box code { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px/1.3 ui-monospace, "SFMono-Regular", Menlo, monospace; }
+    .success-facts { display: grid; grid-template-columns: repeat(3, 1fr); margin: 19px 0 3px; border-block: 1px solid var(--line); }
+    .success-facts div { padding: 11px 5px; border-right: 1px solid var(--line); }
+    .success-facts div:last-child { border-right: 0; }
+    .success-facts strong { display: block; font-size: 11px; }
+    .success-facts span { color: var(--muted); font-size: 10px; }
+
+    .shared-view { padding: 28px 30px 50px; }
+    .shared-head { display: flex; justify-content: space-between; gap: 16px; align-items: end; margin-bottom: 20px; }
+    .shared-head h2 { margin: 0 0 3px; font: 700 25px/1.2 var(--rounded); }
+    .shared-head p { margin: 0; color: var(--muted); font-size: 12px; }
+    .share-table { overflow: hidden; border: 1px solid var(--line); border-radius: 9px; background: white; }
+    .share-row { display: grid; grid-template-columns: minmax(210px, 1.5fr) .8fr .8fr auto; gap: 16px; align-items: center; padding: 14px 16px; }
+    .share-title strong { display: block; margin-bottom: 2px; }
+    .share-title span, .cell-label { color: var(--muted); font-size: 11px; }
+    .status-pill { display: inline-flex; align-items: center; gap: 6px; width: fit-content; padding: 4px 8px; border-radius: 999px; background: var(--green-soft); color: #247f41; font-size: 11px; font-weight: 630; }
+    .status-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .status-pill.warn { background: var(--amber-soft); color: var(--amber); }
+    .status-pill.stop { background: var(--red-soft); color: var(--red); }
+    .share-detail { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(250px, .8fr); gap: 18px; margin-top: 16px; }
+    .share-panel { padding: 16px; border: 1px solid var(--line); border-radius: 9px; background: white; }
+    .share-panel h3 { margin: 0 0 12px; font: 650 14px/1.3 var(--rounded); }
+    .fact-list { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .fact-list div { min-width: 0; }
+    .fact-list dt { color: var(--muted); font-size: 10px; }
+    .fact-list dd { margin: 2px 0 0; overflow-wrap: anywhere; font-size: 12px; font-weight: 580; }
+    .notice { margin-bottom: 14px; padding: 10px 11px; border: 1px solid #efd395; border-radius: 7px; background: var(--amber-soft); color: #71470b; font-size: 11px; }
+    .notice.danger { border-color: #e6b0ac; background: var(--red-soft); color: #8d2929; }
+    .manage-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+
+    .confirm-body { padding: 22px; }
+    .confirm-body h2 { margin: 0 0 7px; font: 700 20px/1.2 var(--rounded); }
+    .confirm-body p { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+    .confirm-caveat { padding: 10px 11px; border: 1px solid var(--line); border-radius: 7px; background: var(--raised); color: var(--ink); font-size: 11px; }
+
+    .browser-window { background: #f4f5f3; }
+    .browser-address { width: min(540px, 62%); padding: 6px 13px; border: 1px solid #d4d4cf; border-radius: 8px; background: white; color: var(--muted); font: 11px/1.2 ui-monospace, "SFMono-Regular", Menlo, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .web-page { max-width: 790px; margin: 0 auto; padding: 58px 34px 90px; }
+    .web-brand { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 50px; color: var(--muted); font-size: 12px; }
+    .web-brand strong { color: var(--coral-dark); font-family: var(--rounded); }
+    .web-actions { display: flex; gap: 7px; }
+    .web-page h1 { max-width: 640px; margin: 0 0 10px; font: 730 clamp(30px, 5vw, 48px)/1.08 var(--rounded); letter-spacing: -.04em; }
+    .web-provenance { margin-bottom: 38px; color: var(--muted); font-size: 12px; }
+    .web-section { margin: 34px 0 0; padding-top: 25px; border-top: 1px solid var(--line); }
+    .web-section h2 { margin: 0 0 13px; font: 680 18px/1.3 var(--rounded); }
+    .web-section p, .web-section li { max-width: 70ch; font-family: ui-serif, "New York", Georgia, serif; font-size: 17px; line-height: 1.7; }
+    .web-section ul { padding-left: 21px; }
+    .web-transcript { display: grid; gap: 19px; }
+    .web-transcript article { display: grid; grid-template-columns: 115px minmax(0, 1fr); gap: 18px; }
+    .web-transcript article.without-labels { grid-template-columns: minmax(0, 1fr); }
+    .web-transcript header { color: var(--blue); font-size: 12px; font-weight: 650; }
+    .web-transcript time { display: block; margin-top: 4px; color: var(--faint); font-weight: 400; }
+    .web-transcript p { margin: 0; }
+    .accuracy-note { margin-top: 45px; padding: 13px 0; border-block: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+    .web-footer { display: flex; justify-content: space-between; gap: 20px; margin-top: 24px; color: var(--muted); font-size: 11px; }
+    .web-footer button { padding: 0; border: 0; background: transparent; color: var(--muted); text-decoration: underline; cursor: pointer; }
+
+    .blocked-page { min-height: 620px; display: grid; place-items: center; padding: 36px; text-align: center; }
+    .blocked-card { max-width: 430px; }
+    .blocked-symbol { width: 48px; height: 48px; display: grid; place-items: center; margin: 0 auto 17px; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--muted); font-size: 22px; }
+    .blocked-card h1 { margin: 0 0 9px; font: 700 25px/1.2 var(--rounded); }
+    .blocked-card p { margin: 0; color: var(--muted); }
+
+    .toast {
+      position: fixed;
+      z-index: 30;
+      left: 50%;
+      bottom: 24px;
+      max-width: min(520px, calc(100% - 32px));
+      transform: translateX(-50%);
+      padding: 10px 14px;
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 9px;
+      background: rgba(28,28,28,.94);
+      color: white;
+      box-shadow: 0 10px 35px rgba(0,0,0,.25);
+      font-size: 12px;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 860px) {
+      .prototype-header { grid-template-columns: 1fr; }
+      .prototype-stamp { width: fit-content; }
+      .state-grid { grid-template-columns: 1fr 1fr; }
+      .state-cell:nth-child(2) { border-right: 0; }
+      .state-cell:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .walkthrough-body { grid-template-columns: 1fr; gap: 12px; }
+      .stage { padding-inline: 12px; }
+      .app-shell { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .sheet-body { grid-template-columns: 1fr; }
+      .choice-pane { border-right: 0; border-bottom: 1px solid var(--line); }
+      .sheet { max-height: 660px; }
+      .share-detail { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 580px) {
+      .prototype-header, .lab { padding-inline: 15px; }
+      .prototype-header { padding-top: 24px; }
+      .state-grid { grid-template-columns: 1fr; }
+      .state-cell { border-right: 0; border-bottom: 1px solid var(--line); }
+      .state-cell:nth-child(2) { border-bottom: 1px solid var(--line); }
+      .state-cell:last-child { border-bottom: 0; }
+      .stage { min-height: 700px; padding-inline: 0; }
+      .mac-window, .browser-window { min-height: 680px; border-inline: 0; border-radius: 0; }
+      .toolbar-actions .button:nth-child(-n+2) { display: none; }
+      .content-toolbar { padding-inline: 15px; }
+      .detail, .shared-view { padding-inline: 18px; }
+      .sheet-scrim { padding: 12px; place-items: start center; }
+      .sheet { width: 100%; max-height: 620px; margin-top: 10px; }
+      .sheet-head, .choice-pane, .preview-pane, .sheet-foot { padding-inline: 15px; }
+      .sheet-foot { align-items: flex-end; flex-wrap: wrap; }
+      .sheet-foot .button-row { flex-wrap: wrap; margin-left: auto; }
+      .sheet-foot-note { max-width: 145px; }
+      .share-row { grid-template-columns: 1fr auto; }
+      .share-row > :nth-child(2), .share-row > :nth-child(3) { display: none; }
+      .fact-list { grid-template-columns: 1fr; }
+      .web-page { padding: 38px 20px 70px; }
+      .web-brand { align-items: flex-start; margin-bottom: 34px; }
+      .web-actions .button:first-child { display: none; }
+      .web-transcript article { grid-template-columns: 1fr; gap: 5px; }
+      .success-facts { grid-template-columns: 1fr; }
+      .success-facts div { border-right: 0; border-bottom: 1px solid var(--line); }
+      .success-facts div:last-child { border-bottom: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header class="prototype-header">
+    <div>
+      <h1>What would sharing feel like?</h1>
+      <p>This throwaway prototype asks whether a person can see exactly what leaves their Mac, publish without an account, and still understand updates and permanent stopping later.</p>
+    </div>
+    <span class="prototype-stamp">Local prototype · synthetic meeting</span>
+    <div class="governing-notice" role="note"><strong>Accepted v1 direction.</strong> This mockup now follows the <a href="../../../spec/15-shareable-transcripts.md">product spec</a> and <a href="../../../spec/adr/029-encrypted-shareable-transcript-snapshots.md">ADR-029</a>. The <a href="../../../spec/contracts/share-link-bundle-v1.md">link contract</a> and <a href="../../../spec/contracts/share-service-v1.md">service contract</a> govern implementation if any exploratory detail here differs.</div>
+  </header>
+
+  <section class="lab" aria-labelledby="state-title">
+    <div class="state-strip">
+      <div class="state-heading">
+        <strong id="state-title">State at a glance</strong>
+        <span>Updates after every action</span>
+      </div>
+      <dl class="state-grid" id="state-grid"></dl>
+      <div class="event-line" id="event-line" aria-live="polite"></div>
+    </div>
+    <div class="free-play" id="free-play" aria-label="Prototype controls"></div>
+
+    <div class="walkthrough">
+      <div class="walkthrough-tabs" id="walkthrough-tabs" role="tablist" aria-label="Guided walkthroughs"></div>
+      <div class="walkthrough-body">
+        <div class="walkthrough-copy" id="walkthrough-copy"></div>
+        <div class="walkthrough-steps" id="walkthrough-steps"></div>
+      </div>
+    </div>
+  </section>
+
+  <main class="stage" id="stage"></main>
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <script>
+    const ShareModel = (() => {
+      const selectedNames = (selection) => [
+        selection.summary && 'Summary',
+        selection.notes && 'Notes',
+        selection.transcript && 'Transcript'
+      ].filter(Boolean);
+
+      const initialState = () => ({
+        surface: 'library',
+        dialog: null,
+        online: true,
+        selection: { summary: true, notes: true, transcript: false },
+        transcriptOptions: { speakers: true, timestamps: true },
+        expiryPreset: '30 days',
+        expiry: '30 days',
+        customExpiry: '2026-09-18T10:00',
+        shareStatus: 'not shared',
+        serverStatus: 'none',
+        version: 0,
+        localChanged: false,
+        linkCopied: false,
+        blocked: false,
+        lastEvent: 'The local meeting has not been shared.'
+      });
+
+      const publishedState = () => ({
+        ...initialState(),
+        shareStatus: 'active',
+        serverStatus: 'active',
+        version: 1,
+        selection: { summary: true, notes: true, transcript: false },
+        lastEvent: 'The encrypted text snapshot is active. The local meeting remains the source of truth.'
+      });
+
+      const reduce = (state, action) => {
+        const next = structuredClone(state);
+        next.blocked = false;
+
+        switch (action.type) {
+          case 'RESET': return initialState();
+          case 'LOAD_PUBLISHED': return publishedState();
+          case 'OPEN_LIBRARY':
+            next.surface = 'library'; next.dialog = null;
+            next.lastEvent = 'Viewing the local meeting.'; return next;
+          case 'OPEN_SHARED':
+            next.surface = 'shared'; next.dialog = null;
+            next.lastEvent = next.version ? 'Viewing shares managed by this Mac.' : 'No shares have been published yet.'; return next;
+          case 'OPEN_CREATE':
+            next.surface = 'library'; next.dialog = 'create';
+            next.lastEvent = 'Summary and Notes are selected. Nothing has left the Mac.'; return next;
+          case 'CLOSE_DIALOG':
+            next.dialog = null;
+            next.lastEvent = 'Sharing was closed. Nothing new was published.'; return next;
+          case 'TOGGLE_BLOCK':
+            next.selection[action.block] = !next.selection[action.block];
+            next.lastEvent = `${action.block[0].toUpperCase() + action.block.slice(1)} ${next.selection[action.block] ? 'will be included' : 'will stay on the Mac'}.`;
+            return next;
+          case 'TOGGLE_TRANSCRIPT_OPTION':
+            next.transcriptOptions[action.option] = !next.transcriptOptions[action.option];
+            next.lastEvent = `${action.option === 'speakers' ? 'Speaker labels' : 'Timestamps'} ${next.transcriptOptions[action.option] ? 'will be included' : 'will be omitted'}.`;
+            return next;
+          case 'CLEAR_SELECTION':
+            next.selection = { summary: false, notes: false, transcript: false };
+            next.dialog = 'create';
+            next.lastEvent = 'Nothing is selected. Publish should be blocked.'; return next;
+          case 'SET_EXPIRY':
+            next.expiryPreset = action.value;
+            next.expiry = action.value === 'Custom…' ? formatCustomExpiry(next.customExpiry) : action.value;
+            next.lastEvent = action.value === 'Custom…' ? `Choose an exact expiration. Current choice: ${next.expiry}.` : `The link will expire after ${action.value}.`; return next;
+          case 'SET_CUSTOM_EXPIRY':
+            next.customExpiry = action.value;
+            next.expiry = formatCustomExpiry(action.value);
+            next.lastEvent = `The exact expiration is ${next.expiry}.`; return next;
+          case 'CREATE_NEW_LINK': {
+            const fresh = initialState();
+            fresh.dialog = 'create';
+            fresh.lastEvent = 'Starting a new link. Summary and Notes are selected; nothing has left the Mac.';
+            return fresh;
+          }
+          case 'PUBLISH': {
+            const chosen = selectedNames(next.selection);
+            if (!chosen.length) {
+              next.blocked = true;
+              next.lastEvent = 'Publish blocked: choose at least one text section.';
+              return next;
+            }
+            if (next.expiryPreset === 'Custom…' && (!next.customExpiry || next.customExpiry < '2026-09-11T20:45' || next.customExpiry > '2026-12-10T20:45')) {
+              next.blocked = true;
+              next.lastEvent = 'Publish blocked: choose an exact expiration within 90 days.';
+              return next;
+            }
+            if (!next.online) {
+              next.blocked = true;
+              next.lastEvent = 'Publish blocked: connect to the internet first. Nothing was queued.';
+              return next;
+            }
+            next.version = Math.max(1, next.version + 1);
+            next.shareStatus = 'active';
+            next.serverStatus = 'active';
+            next.localChanged = false;
+            next.dialog = 'success';
+            next.lastEvent = `Published encrypted snapshot v${next.version}: ${chosen.join(', ')}. Audio stayed on the Mac.`;
+            return next;
+          }
+          case 'COPY_LINK':
+            if (!next.version) {
+              next.blocked = true;
+              next.lastEvent = 'There is no link to copy yet.';
+            } else {
+              next.linkCopied = true;
+              next.lastEvent = 'Full recipient link copied. Anyone with it can read and forward this snapshot.';
+            }
+            return next;
+          case 'NATIVE_SHARE':
+            next.lastEvent = 'The macOS share sheet would open with only the full recipient URL.';
+            return next;
+          case 'RECIPIENT_COPY':
+            next.lastEvent = 'The recipient copied the visible text in their browser. No view event was sent to MacParakeet.';
+            return next;
+          case 'RECIPIENT_DOWNLOAD':
+            next.lastEvent = 'The recipient generated a Markdown download in their browser. No view event was sent to MacParakeet.';
+            return next;
+          case 'REPORT_SHARE':
+            next.lastEvent = 'A report would create a rate-limited review case; it would not automatically take the share down.';
+            return next;
+          case 'VIEW_RECIPIENT':
+            if (!next.version) {
+              next.blocked = true;
+              next.lastEvent = 'There is no recipient page until a share is published.';
+              return next;
+            }
+            next.surface = 'recipient'; next.dialog = null;
+            next.lastEvent = next.serverStatus === 'active'
+              ? `Viewing encrypted snapshot v${next.version} as a recipient.`
+              : 'The recipient can no longer fetch this snapshot.';
+            return next;
+          case 'EDIT_LOCAL':
+            next.localChanged = true;
+            if (next.serverStatus === 'active') next.shareStatus = 'out of date';
+            next.surface = 'library'; next.dialog = null;
+            next.lastEvent = next.version
+              ? 'The local summary changed. The published page did not change.'
+              : 'The local summary changed. Nothing is published.';
+            return next;
+          case 'UPDATE_SHARE':
+            if (!next.version || next.serverStatus !== 'active') {
+              next.blocked = true;
+              next.lastEvent = 'Only an active share can be updated.';
+              return next;
+            }
+            if (!next.online) {
+              next.blocked = true;
+              next.lastEvent = 'Update blocked while offline. The existing snapshot still works.';
+              return next;
+            }
+            next.dialog = 'create';
+            next.lastEvent = 'Review the exact replacement snapshot before publishing it.';
+            return next;
+          case 'REQUEST_STOP':
+            if (!next.version || next.serverStatus === 'stopped') {
+              next.blocked = true;
+              next.lastEvent = next.version ? 'Sharing is already stopped.' : 'There is no share to stop.';
+              return next;
+            }
+            next.dialog = 'stop';
+            next.lastEvent = 'Sharing has not stopped yet. Confirm to continue.';
+            return next;
+          case 'CONFIRM_STOP':
+            next.dialog = null;
+            if (next.online) {
+              next.serverStatus = 'stopped';
+              next.shareStatus = 'stopped';
+              next.lastEvent = 'Sharing stopped permanently. Future fetches fail; copies already saved remain.';
+            } else {
+              next.shareStatus = 'stop pending';
+              next.lastEvent = 'Stop queued on this Mac. The link may still work until the server confirms it.';
+            }
+            return next;
+          case 'TOGGLE_NETWORK':
+            next.online = !next.online;
+            if (next.online && next.shareStatus === 'stop pending') {
+              next.serverStatus = 'stopped';
+              next.shareStatus = 'stopped';
+              next.lastEvent = 'Back online. The queued request reached the server and sharing is now stopped permanently.';
+            } else {
+              next.lastEvent = next.online ? 'This Mac is back online.' : 'This Mac is offline. Recipient access depends on the last server-confirmed state.';
+            }
+            return next;
+          case 'DISMISS_SUCCESS':
+            next.dialog = null; next.surface = 'shared';
+            next.lastEvent = 'The share is active and manageable under Shared by me.'; return next;
+          default: return state;
+        }
+      };
+
+      return { initialState, publishedState, reduce, selectedNames };
+    })();
+
+    const guides = {
+      publish: {
+        label: 'Publish safely',
+        title: 'Create a narrow text snapshot',
+        copy: 'Start with Summary and Notes selected, inspect the exact recipient page, then publish and open it.',
+        preset: 'initial',
+        steps: [
+          ['Open Share link', { type: 'OPEN_CREATE' }],
+          ['Publish link', { type: 'PUBLISH' }],
+          ['Open recipient page', { type: 'VIEW_RECIPIENT' }]
+        ]
+      },
+      correction: {
+        label: 'Edit locally',
+        title: 'A local edit does not silently republish',
+        copy: 'The recipient keeps seeing the old snapshot until the owner explicitly reviews and publishes an update.',
+        preset: 'published',
+        steps: [
+          ['Edit local summary', { type: 'EDIT_LOCAL' }],
+          ['Check recipient page', { type: 'VIEW_RECIPIENT' }],
+          ['Open management', { type: 'OPEN_SHARED' }],
+          ['Review update', { type: 'UPDATE_SHARE' }],
+          ['Publish replacement', { type: 'PUBLISH' }]
+        ]
+      },
+      offline: {
+        label: 'Stop offline',
+        title: 'Pending is different from stopped',
+        copy: 'When the Mac is offline, it queues the request and says the link may still work. Access stops only after a server receipt.',
+        preset: 'published',
+        steps: [
+          ['Go offline', { type: 'TOGGLE_NETWORK' }],
+          ['Open management', { type: 'OPEN_SHARED' }],
+          ['Choose Stop sharing', { type: 'REQUEST_STOP' }],
+          ['Confirm permanent stop', { type: 'CONFIRM_STOP' }],
+          ['View as recipient', { type: 'VIEW_RECIPIENT' }],
+          ['Reconnect Mac', { type: 'TOGGLE_NETWORK' }],
+          ['Retry recipient page', { type: 'VIEW_RECIPIENT' }]
+        ]
+      },
+      blocked: {
+        label: 'Try an invalid action',
+        title: 'Empty or offline publication is blocked',
+        copy: 'A meeting Share link starts with Summary and Notes, but the model still prevents publishing an empty snapshot.',
+        preset: 'initial',
+        steps: [
+          ['Open Share link', { type: 'OPEN_CREATE' }],
+          ['Clear all content', { type: 'CLEAR_SELECTION' }],
+          ['Try to publish', { type: 'PUBLISH' }]
+        ]
+      }
+    };
+
+    let state = ShareModel.initialState();
+    let activeGuide = 'publish';
+    let completedSteps = new Set();
+    let toastTimer;
+
+    const meeting = {
+      title: 'Weekly product sync',
+      summary: 'The team agreed to keep the September launch focused on export reliability. Maya will finalize onboarding copy by Friday, and Daniel will benchmark long recordings before the release candidate.',
+      notes: [
+        'Keep the first release narrow: reliability before new destinations.',
+        'Review onboarding copy Friday morning.',
+        'Run the long-recording benchmark on M1 and M4 hardware.'
+      ],
+      transcript: [
+        ['Maya Chen', '12:08', 'I would rather make the export path completely dependable before we add another destination.'],
+        ['Daniel Ortiz', '12:24', 'I can run the two-hour fixtures tonight and bring the memory profile tomorrow.'],
+        ['Maya Chen', '12:41', 'Great. I will have the new onboarding copy ready for the Friday review.']
+      ]
+    };
+
+    function formatCustomExpiry(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return 'an exact custom time';
+      return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date);
+    }
+
+    function transcriptPrefix(speaker, time) {
+      const labels = [];
+      if (state.transcriptOptions.speakers) labels.push(speaker);
+      if (state.transcriptOptions.timestamps) labels.push(time);
+      return labels.length ? `<strong>${labels.join(' · ')}</strong>: ` : '';
+    }
+
+    function transcriptHeader(speaker, time) {
+      const labels = [];
+      if (state.transcriptOptions.speakers) labels.push(`<span>${speaker}</span>`);
+      if (state.transcriptOptions.timestamps) labels.push(`<time>${time}</time>`);
+      return labels.length ? `<header>${labels.join('')}</header>` : '';
+    }
+
+    function expiryPhrase() {
+      return state.expiryPreset === 'Custom…' ? `Expires ${state.expiry}` : `Expires in ${state.expiry}`;
+    }
+
+    const shareURL = () => `https://share.macparakeet.com/s/8Hm3c7a${state.version || 1}#v1.k8R…2Q`;
+
+    function statusPresentation() {
+      switch (state.shareStatus) {
+        case 'active': return ['Active', 'good'];
+        case 'out of date': return ['Out of date', 'warn'];
+        case 'stop pending': return ['Stop pending', 'warn'];
+        case 'stopped': return ['Stopped', 'stop'];
+        default: return ['Not shared', ''];
+      }
+    }
+
+    function recipientAccess() {
+      if (!state.version) return ['No link', ''];
+      if (state.serverStatus === 'stopped') return ['Stopped', 'stop'];
+      if (state.shareStatus === 'stop pending') return ['May still work', 'warn'];
+      return ['Available', 'good'];
+    }
+
+    function renderState() {
+      const [remote, remoteClass] = statusPresentation();
+      const [access, accessClass] = recipientAccess();
+      const selected = ShareModel.selectedNames(state.selection);
+      document.querySelector('#state-grid').innerHTML = `
+        <div class="state-cell"><dt>Local selection</dt><dd>${selected.length ? selected.join(' + ') : 'Nothing selected'}</dd></div>
+        <div class="state-cell"><dt>Published copy</dt><dd class="${remoteClass}">${remote}${state.version ? ` · v${state.version}` : ''}</dd></div>
+        <div class="state-cell"><dt>This Mac</dt><dd class="${state.online ? 'good' : 'warn'}">${state.online ? 'Online' : 'Offline'}</dd></div>
+        <div class="state-cell"><dt>Recipient access</dt><dd class="${accessClass}">${access}</dd></div>`;
+      document.querySelector('#event-line').innerHTML = `<strong>What changed:</strong> ${state.lastEvent}`;
+
+      document.querySelector('#free-play').innerHTML = `
+        <span class="free-play-label">Free play</span>
+        <button class="small-button" data-action="RESET">Reset</button>
+        <button class="small-button" data-action="OPEN_CREATE">Open Share link</button>
+        <button class="small-button" data-action="OPEN_SHARED">Manage shares</button>
+        <button class="small-button" data-action="EDIT_LOCAL">Simulate local edit</button>
+        <button class="small-button" data-action="VIEW_RECIPIENT">View as recipient</button>
+        <button class="small-button" data-action="TOGGLE_NETWORK" aria-pressed="${!state.online}">${state.online ? 'Go offline' : 'Go online'}</button>`;
+    }
+
+    function renderGuides() {
+      document.querySelector('#walkthrough-tabs').innerHTML = Object.entries(guides).map(([key, guide]) =>
+        `<button class="walkthrough-tab" role="tab" aria-selected="${key === activeGuide}" data-guide="${key}">${guide.label}</button>`
+      ).join('');
+      const guide = guides[activeGuide];
+      document.querySelector('#walkthrough-copy').innerHTML = `<h2>${guide.title}</h2><p>${guide.copy}</p>`;
+      document.querySelector('#walkthrough-steps').innerHTML = guide.steps.map(([label], index) =>
+        `<button class="step-button ${completedSteps.has(index) ? 'done' : ''}" data-guide-step="${index}" data-step="${index + 1}">${label}</button>`
+      ).join('');
+    }
+
+    function appSidebar(active) {
+      const item = (name, icon, action, key) => `<button class="side-button ${active === key ? 'active' : ''}" data-action="${action}"><span class="side-icon" aria-hidden="true">${icon}</span>${name}</button>`;
+      return `<aside class="sidebar">
+        <div class="brand"><span class="brand-mark">P</span>MacParakeet</div>
+        <nav class="side-list" aria-label="MacParakeet sections">
+          ${item('Transcribe', '⌁', 'OPEN_LIBRARY', 'transcribe')}
+          ${item('Library', '▦', 'OPEN_LIBRARY', 'library')}
+          ${item('Dictations', '◴', 'OPEN_LIBRARY', 'dictations')}
+          ${item('Meetings', '♧', 'OPEN_LIBRARY', 'meetings')}
+          <div class="side-divider"></div>
+          ${item('Shared by me', '↗', 'OPEN_SHARED', 'shared')}
+          <div class="side-divider"></div>
+          ${item('Vocabulary', '□', 'OPEN_LIBRARY', 'vocabulary')}
+          ${item('Settings', '⚙︎', 'OPEN_LIBRARY', 'settings')}
+        </nav>
+        <div class="side-spacer"></div>
+        <p class="side-note">Prototype only. No transcript or network service is connected.</p>
+      </aside>`;
+    }
+
+    function transcriptDetail() {
+      return `<section class="content-area">
+        <header class="content-toolbar">
+          <div class="toolbar-title"><strong>${meeting.title}</strong><span>Meeting · Sep 10 · 42 min · 3 speakers</span></div>
+          <div class="toolbar-actions">
+            <button class="button">Copy Meeting</button>
+            <button class="button">Export</button>
+            <button class="button primary" data-action="OPEN_CREATE">↗ Share link</button>
+          </div>
+        </header>
+        <div class="detail">
+          <h2>${meeting.title}</h2>
+          <div class="metadata">Yesterday at 10:00 AM · Captured locally</div>
+          <div class="section-tabs" role="tablist" aria-label="Meeting content">
+            <button class="section-tab active" role="tab" aria-selected="true">Summary</button>
+            <button class="section-tab" role="tab" aria-selected="false">Notes</button>
+            <button class="section-tab" role="tab" aria-selected="false">Transcript</button>
+          </div>
+          ${state.localChanged ? '<div class="notice">Local summary edited. Any existing shared page still contains the previous snapshot.</div>' : ''}
+          <p class="summary-lead">${state.localChanged ? meeting.summary.replace('Friday', 'Thursday') : meeting.summary}</p>
+          <h3>Decisions</h3>
+          <ul class="clean-list">
+            <li>Keep the September scope focused on export reliability.</li>
+            <li>Use long-recording performance as a release gate.</li>
+          </ul>
+          <h3>Next steps</h3>
+          <ul class="clean-list">
+            <li>Maya: finish onboarding copy by ${state.localChanged ? 'Thursday' : 'Friday'}.</li>
+            <li>Daniel: benchmark two-hour recordings on M1 and M4.</li>
+          </ul>
+        </div>
+      </section>`;
+    }
+
+    function selectedPreview() {
+      const chosen = ShareModel.selectedNames(state.selection);
+      if (!chosen.length) return '<div class="empty-preview"><div><strong>Nothing selected</strong><br>Choose at least one text section to publish.</div></div>';
+      return `<div class="recipient-card">
+        <div class="shared-mark">Shared from MacParakeet</div>
+        <h3>${meeting.title}</h3>
+        <div class="provenance">Text snapshot · ${expiryPhrase()} · Audio not uploaded</div>
+        ${state.selection.summary ? `<h4>Summary</h4><p>${state.localChanged ? meeting.summary.replace('Friday', 'Thursday') : meeting.summary}</p>` : ''}
+        ${state.selection.notes ? `<h4>Notes</h4><ul>${meeting.notes.map(note => `<li>${note}</li>`).join('')}</ul>` : ''}
+        ${state.selection.transcript ? `<h4>Transcript excerpt</h4><p>${transcriptPrefix(meeting.transcript[0][0], meeting.transcript[0][1])}${meeting.transcript[0][2]}</p>` : ''}
+      </div>`;
+    }
+
+    function createSheet() {
+      const count = ShareModel.selectedNames(state.selection).length;
+      return `<div class="sheet-scrim">
+        <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="share-sheet-title" tabindex="-1">
+          <header class="sheet-head">
+            <div><h2 id="share-sheet-title">Share link</h2><p>Choose the exact text another person can read.</p></div>
+            <button class="button subtle" data-action="CLOSE_DIALOG" aria-label="Close share sheet">Close</button>
+          </header>
+          <div class="sheet-body">
+            <div class="choice-pane">
+              <h3 class="pane-title">Included in this link</h3>
+              <div class="choice-list">
+                ${choiceRow('summary', 'Summary', 'The section currently open', state.selection.summary)}
+                ${choiceRow('notes', 'Notes', 'Your saved meeting notes', state.selection.notes)}
+                ${choiceRow('transcript', 'Transcript', 'Choose available presentation details below', state.selection.transcript)}
+                ${state.selection.transcript ? `<div class="transcript-options" aria-label="Transcript options"><label><input type="checkbox" data-transcript-option="speakers" ${state.transcriptOptions.speakers ? 'checked' : ''}> Speaker labels</label><label><input type="checkbox" data-transcript-option="timestamps" ${state.transcriptOptions.timestamps ? 'checked' : ''}> Timestamps</label></div>` : ''}
+                <div class="choice-row disabled"><span aria-hidden="true">—</span><span><strong>Audio</strong><small class="never">Never included or uploaded</small></span></div>
+              </div>
+              <div class="expiry-row"><label for="expiry">Link expires</label><select id="expiry" data-expiry><option${state.expiryPreset === '1 hour' ? ' selected' : ''}>1 hour</option><option${state.expiryPreset === '24 hours' ? ' selected' : ''}>24 hours</option><option${state.expiryPreset === '7 days' ? ' selected' : ''}>7 days</option><option${state.expiryPreset === '30 days' ? ' selected' : ''}>30 days</option><option${state.expiryPreset === 'Custom…' ? ' selected' : ''}>Custom…</option></select></div>
+              ${state.expiryPreset === 'Custom…' ? `<div class="expiry-custom"><label for="custom-expiry">Exact date and time, within 90 days</label><input id="custom-expiry" type="datetime-local" min="2026-09-11T20:45" max="2026-12-10T20:45" value="${state.customExpiry}" data-custom-expiry required></div>` : ''}
+              <p class="privacy-line"><strong>This encrypted text copy will leave your Mac.</strong> Anyone with the full link can read and forward it.</p>
+            </div>
+            <div class="preview-pane">
+              <h3 class="pane-title">What the recipient will see</h3>
+              ${selectedPreview()}
+            </div>
+          </div>
+          <footer class="sheet-foot">
+            <span class="sheet-foot-note">${count ? `${count} text section${count === 1 ? '' : 's'} selected` : 'Nothing will be published'}</span>
+            <div class="button-row"><button class="button" data-action="CLOSE_DIALOG">Cancel</button><button class="button primary" data-action="PUBLISH" ${count ? '' : 'aria-describedby="empty-share-note"'}>Publish link</button></div>
+          </footer>
+          <span class="sr-only" id="empty-share-note">At least one text section is required.</span>
+        </section>
+      </div>`;
+    }
+
+    function choiceRow(key, title, detail, checked) {
+      return `<label class="choice-row"><input type="checkbox" data-block="${key}" ${checked ? 'checked' : ''}><span><strong>${title}</strong><small>${detail}</small></span></label>`;
+    }
+
+    function successSheet() {
+      return `<div class="sheet-scrim"><section class="sheet compact" role="dialog" aria-modal="true" aria-labelledby="published-title" tabindex="-1">
+        <div class="success-body">
+          <div class="success-icon" aria-hidden="true">✓</div>
+          <h2 id="published-title">Link published</h2>
+          <p>This is a separate encrypted snapshot. Later edits to your Library item will not appear automatically.</p>
+          <div class="link-box"><code>${shareURL()}</code><button class="button" data-action="COPY_LINK">${state.linkCopied ? 'Copied' : 'Copy'}</button></div>
+          <div class="success-facts"><div><strong>${ShareModel.selectedNames(state.selection).join(' + ')}</strong><span>Included</span></div><div><strong>${state.expiry}</strong><span>Expires</span></div><div><strong>Not uploaded</strong><span>Audio</span></div></div>
+        </div>
+        <footer class="sheet-foot"><button class="button subtle" data-action="DISMISS_SUCCESS">Manage later</button><div class="button-row"><button class="button" data-action="VIEW_RECIPIENT">Open page</button><button class="button" data-action="NATIVE_SHARE">Share…</button><button class="button primary" data-action="COPY_LINK">Copy link</button></div></footer>
+      </section></div>`;
+    }
+
+    function stopSheet() {
+      return `<div class="sheet-scrim"><section class="sheet compact" role="alertdialog" aria-modal="true" aria-labelledby="stop-title" tabindex="-1">
+        <div class="confirm-body"><h2 id="stop-title">Stop sharing permanently?</h2><p>Future recipients will no longer be able to fetch the encrypted snapshot, and this link cannot be reactivated.</p><div class="confirm-caveat">Stopping cannot remove text someone already copied, downloaded, screenshotted, or loaded.</div></div>
+        <footer class="sheet-foot"><span class="sheet-foot-note">${state.online ? 'This Mac is online' : 'Offline: the request will remain pending'}</span><div class="button-row"><button class="button" data-action="CLOSE_DIALOG">Cancel</button><button class="button danger" data-action="CONFIRM_STOP">Stop sharing</button></div></footer>
+      </section></div>`;
+    }
+
+    function sharedView() {
+      if (!state.version) return `<section class="content-area">${emptyShared()}</section>`;
+      const [label, kind] = statusPresentation();
+      return `<section class="content-area">
+        <div class="shared-view">
+          <header class="shared-head"><div><h2>Shared by me</h2><p>Text snapshots published from this Mac.</p></div><button class="button" data-action="OPEN_LIBRARY">Back to Library</button></header>
+          <div class="share-table"><div class="share-row"><div class="share-title"><strong>${meeting.title}</strong><span>Summary + ${state.selection.notes ? 'Notes' : state.selection.transcript ? 'Transcript' : 'selected text'} · 18 KB encrypted</span></div><div><span class="cell-label">Created</span><br><strong>Today</strong></div><div><span class="cell-label">Expires</span><br><strong>${state.expiryPreset === 'Custom…' ? state.expiry : `In ${state.expiry}`}</strong></div><span class="status-pill ${kind}">${label}</span></div></div>
+          <div class="share-detail">
+            <section class="share-panel"><h3>Published snapshot</h3>
+              ${state.shareStatus === 'out of date' ? '<div class="notice">Your local content changed. The public page still shows the previous snapshot.</div>' : ''}
+              ${state.shareStatus === 'stop pending' ? '<div class="notice">Waiting for a server receipt. This link may still work while the Mac is offline.</div>' : ''}
+              ${state.shareStatus === 'stopped' ? '<div class="notice danger">Sharing is stopped permanently. The service will not return this ciphertext again.</div>' : ''}
+              <dl class="fact-list"><div><dt>Version</dt><dd>v${state.version}</dd></div><div><dt>Contents</dt><dd>${ShareModel.selectedNames(state.selection).join(', ')}</dd></div><div><dt>Full link</dt><dd>${shareURL()}</dd></div><div><dt>Audio</dt><dd>Never uploaded</dd></div></dl>
+            </section>
+            <section class="share-panel"><h3>Actions</h3><div class="manage-actions">
+              ${state.shareStatus === 'stopped' ? '<button class="button primary" data-action="CREATE_NEW_LINK">Create new link</button>' : '<button class="button" data-action="VIEW_RECIPIENT">Preview page</button><button class="button" data-action="COPY_LINK">Copy link</button><button class="button" data-action="UPDATE_SHARE">Update shared page</button><button class="button danger" data-action="REQUEST_STOP">Stop sharing</button>'}
+            </div></section>
+          </div>
+        </div>
+      </section>`;
+    }
+
+    function emptyShared() {
+      return `<div class="blocked-page"><div class="blocked-card"><div class="blocked-symbol">↗</div><h1>No shared links</h1><p>When you publish a text snapshot, you can update it, change its expiration, or stop sharing here.</p><p style="margin-top:18px"><button class="button primary" data-action="OPEN_LIBRARY">Open Library</button></p></div></div>`;
+    }
+
+    function renderApp() {
+      let main = state.surface === 'shared' ? sharedView() : transcriptDetail();
+      return `<section class="mac-window" aria-label="MacParakeet application prototype">
+        <div class="window-bar"><span class="traffic-lights" aria-hidden="true"><i></i><i></i><i></i></span>MacParakeet</div>
+        <div class="app-shell">${appSidebar(state.surface === 'shared' ? 'shared' : 'library')}${main}</div>
+        ${state.dialog === 'create' ? createSheet() : state.dialog === 'success' ? successSheet() : state.dialog === 'stop' ? stopSheet() : ''}
+      </section>`;
+    }
+
+    function recipientContent() {
+      if (state.serverStatus !== 'active') return `<div class="blocked-page"><div class="blocked-card"><div class="blocked-symbol">×</div><h1>This shared page is no longer available</h1><p>The owner stopped sharing or the link expired. Ask them for a new link if you still need access.</p></div></div>`;
+      return `<article class="web-page">
+        <header class="web-brand"><strong>MacParakeet</strong><div class="web-actions"><button class="button" data-action="RECIPIENT_DOWNLOAD">Download Markdown</button><button class="button" data-action="RECIPIENT_COPY">Copy text</button></div></header>
+        <h1>${meeting.title}</h1>
+        <p class="web-provenance">Shared today · Snapshot v${state.version} · ${expiryPhrase()}<br>Text only. Audio was not uploaded.</p>
+        ${state.selection.summary ? `<section class="web-section"><h2>Summary</h2><p>${meeting.summary}</p></section>` : ''}
+        ${state.selection.notes ? `<section class="web-section"><h2>Notes</h2><ul>${meeting.notes.map(note => `<li>${note}</li>`).join('')}</ul></section>` : ''}
+        ${state.selection.transcript ? `<section class="web-section"><h2>Transcript</h2><div class="web-transcript">${meeting.transcript.map(([speaker, time, text]) => { const header = transcriptHeader(speaker, time); return `<article class="${header ? '' : 'without-labels'}">${header}<p>${text}</p></article>`; }).join('')}</div></section>` : ''}
+        <p class="accuracy-note">Transcripts and generated summaries can contain errors. Confirm important details with the people involved.</p>
+        <footer class="web-footer"><span>Shared privately from MacParakeet</span><button data-action="REPORT_SHARE">Report this share</button></footer>
+      </article>`;
+    }
+
+    function renderRecipient() {
+      return `<section class="browser-window" aria-label="Recipient browser prototype"><div class="window-bar"><span class="traffic-lights" aria-hidden="true"><i></i><i></i><i></i></span><div class="browser-address">${shareURL()}</div></div>${recipientContent()}</section>`;
+    }
+
+    function render() {
+      renderState();
+      renderGuides();
+      document.querySelector('#stage').innerHTML = state.surface === 'recipient' ? renderRecipient() : renderApp();
+    }
+
+    function showToast(message) {
+      const toast = document.querySelector('#toast');
+      clearTimeout(toastTimer);
+      toast.textContent = message;
+      toast.hidden = false;
+      toastTimer = setTimeout(() => { toast.hidden = true; }, 2600);
+    }
+
+    function dispatch(action, guideStep = null) {
+      if (action.type === 'RESET') {
+        activeGuide = 'publish';
+        completedSteps = new Set();
+      }
+      state = ShareModel.reduce(state, action);
+      if (guideStep !== null) completedSteps.add(guideStep);
+      render();
+      const dialog = document.querySelector('[role="dialog"], [role="alertdialog"]');
+      if (dialog) {
+        dialog.focus({ preventScroll: true });
+        dialog.scrollIntoView({ block: 'center' });
+      } else if (['OPEN_SHARED', 'VIEW_RECIPIENT'].includes(action.type)) {
+        document.querySelector('#stage').scrollIntoView({ block: 'start' });
+      }
+      if (state.blocked || ['COPY_LINK', 'NATIVE_SHARE', 'RECIPIENT_COPY', 'RECIPIENT_DOWNLOAD', 'REPORT_SHARE', 'CONFIRM_STOP'].includes(action.type)) showToast(state.lastEvent);
+    }
+
+    document.addEventListener('click', (event) => {
+      const guideTab = event.target.closest('[data-guide]');
+      if (guideTab) {
+        activeGuide = guideTab.dataset.guide;
+        completedSteps = new Set();
+        state = guides[activeGuide].preset === 'published' ? ShareModel.publishedState() : ShareModel.initialState();
+        state.lastEvent = `Walkthrough ready: ${guides[activeGuide].title}.`;
+        render();
+        return;
+      }
+
+      const step = event.target.closest('[data-guide-step]');
+      if (step) {
+        const index = Number(step.dataset.guideStep);
+        dispatch(guides[activeGuide].steps[index][1], index);
+        return;
+      }
+
+      const control = event.target.closest('[data-action]');
+      if (control) dispatch({ type: control.dataset.action });
+    });
+
+    document.addEventListener('change', (event) => {
+      if (event.target.matches('[data-block]')) dispatch({ type: 'TOGGLE_BLOCK', block: event.target.dataset.block });
+      if (event.target.matches('[data-transcript-option]')) dispatch({ type: 'TOGGLE_TRANSCRIPT_OPTION', option: event.target.dataset.transcriptOption });
+      if (event.target.matches('[data-expiry]')) dispatch({ type: 'SET_EXPIRY', value: event.target.value });
+      if (event.target.matches('[data-custom-expiry]')) dispatch({ type: 'SET_CUSTOM_EXPIRY', value: event.target.value });
+    });
+
+    render();
+  </script>
+</body>
+</html>

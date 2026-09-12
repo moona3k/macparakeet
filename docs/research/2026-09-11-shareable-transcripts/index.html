@@ -1,0 +1,1938 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23176b59'/%3E%3Cpath d='M18 18h18c9 0 15 5 15 13s-6 13-15 13H28v8H18V18Zm10 9v8h8c3 0 5-1 5-4s-2-4-5-4h-8Z' fill='white'/%3E%3C/svg%3E">
+  <title>Shareable Transcripts</title>
+  <style>
+    :root {
+      --paper: #f5f7f6;
+      --surface: #fcfdfc;
+      --ink: #14272b;
+      --muted: #506468;
+      --rule: #c9d4d1;
+      --accent: #176b59;
+      --accent-soft: #dcece7;
+      --caution: #8d4f2e;
+      --max-line: 76ch;
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      background: var(--paper);
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(to right, transparent 0, transparent calc(50% - 1px), rgba(20,39,43,.035) 50%, transparent calc(50% + 1px)),
+        var(--paper);
+      font-family: Charter, "Iowan Old Style", Georgia, serif;
+      font-size: 18px;
+      line-height: 1.68;
+      text-rendering: optimizeLegibility;
+    }
+
+    a {
+      color: var(--accent);
+      text-underline-offset: .17em;
+      text-decoration-thickness: .075em;
+    }
+
+    a:hover { color: #0c4b3e; }
+
+    a:focus-visible {
+      outline: 3px solid #e7a833;
+      outline-offset: 3px;
+      border-radius: 2px;
+    }
+
+    .skip-link {
+      position: fixed;
+      z-index: 20;
+      left: 1rem;
+      top: 1rem;
+      padding: .55rem .8rem;
+      background: var(--ink);
+      color: white;
+      transform: translateY(-180%);
+    }
+
+    .skip-link:focus { transform: translateY(0); }
+
+    .report-mark {
+      position: fixed;
+      z-index: 8;
+      inset: 0 0 auto 0;
+      height: 4px;
+      background: var(--accent);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(220px, 290px) minmax(0, 920px);
+      gap: clamp(2.5rem, 6vw, 7rem);
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: clamp(3.5rem, 8vw, 7.5rem) clamp(1.25rem, 4vw, 4rem) 7rem;
+    }
+
+    .toc-shell {
+      position: sticky;
+      top: 2rem;
+      align-self: start;
+      max-height: calc(100vh - 4rem);
+    }
+
+    .toc-shell > summary { display: none; }
+
+    nav {
+      max-height: inherit;
+      overflow: auto;
+      padding: .2rem 1.25rem 1.5rem 0;
+      border-right: 1px solid var(--rule);
+      font-family: "Avenir Next", Avenir, ui-sans-serif, system-ui, sans-serif;
+      font-size: .82rem;
+      line-height: 1.35;
+    }
+
+    .rail-title {
+      margin: 0 0 1.1rem;
+      color: var(--accent);
+      font-size: .78rem;
+      font-weight: 700;
+      letter-spacing: .025em;
+    }
+
+    nav ul { list-style: none; padding: 0; margin: 0; }
+    nav li { margin: 0; }
+    nav > ul > li > a { display: none; }
+    nav li ul { display: block; }
+    nav a {
+      display: block;
+      padding: .42rem .55rem .42rem .75rem;
+      color: var(--muted);
+      text-decoration: none;
+      border-left: 2px solid transparent;
+    }
+    nav a:hover {
+      color: var(--ink);
+      background: var(--accent-soft);
+      border-left-color: var(--accent);
+    }
+
+    article { min-width: 0; }
+
+    h1, h2, h3, h4 {
+      font-family: "Avenir Next", Avenir, ui-sans-serif, system-ui, sans-serif;
+      color: var(--ink);
+      line-height: 1.12;
+      letter-spacing: -.025em;
+      text-wrap: balance;
+    }
+
+    h1 {
+      margin: 0 0 2.2rem;
+      max-width: 10ch;
+      font-size: clamp(3.5rem, 9vw, 7.4rem);
+      font-weight: 500;
+      letter-spacing: -.065em;
+    }
+
+    h1::after {
+      content: "";
+      display: block;
+      width: 1.4em;
+      height: .11em;
+      margin-top: .23em;
+      background: var(--accent);
+    }
+
+    h2 {
+      margin: 5.3rem 0 1.4rem;
+      padding-top: 1.15rem;
+      border-top: 1px solid var(--rule);
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 550;
+    }
+
+    h3 {
+      margin: 3rem 0 .85rem;
+      font-size: clamp(1.35rem, 2.2vw, 1.72rem);
+      font-weight: 600;
+    }
+
+    h4 { margin: 2.2rem 0 .6rem; font-size: 1.08rem; }
+
+    p, ul, ol, blockquote { max-width: var(--max-line); }
+    p { margin: 0 0 1.15rem; }
+    ul, ol { padding-left: 1.35rem; margin: 0 0 1.45rem; }
+    li { padding-left: .24rem; margin-bottom: .35rem; }
+    li::marker { color: var(--accent); }
+
+    blockquote {
+      margin: 2rem 0 2.3rem;
+      padding: 1.35rem 1.55rem 1.3rem;
+      border: 1px solid var(--accent);
+      border-left-width: 7px;
+      background: var(--surface);
+      box-shadow: 12px 12px 0 var(--accent-soft);
+    }
+
+    blockquote p:last-child { margin-bottom: 0; }
+    blockquote strong { font-family: "Avenir Next", Avenir, ui-sans-serif, system-ui, sans-serif; }
+
+    table {
+      width: 100%;
+      margin: 1.7rem 0 2.4rem;
+      border-collapse: collapse;
+      font-family: "Avenir Next", Avenir, ui-sans-serif, system-ui, sans-serif;
+      font-size: .82rem;
+      line-height: 1.4;
+      background: var(--surface);
+    }
+
+    thead { background: var(--ink); color: white; }
+    th, td {
+      padding: .72rem .75rem;
+      border: 1px solid var(--rule);
+      text-align: left;
+      vertical-align: top;
+    }
+    th { font-weight: 650; }
+    tbody tr:nth-child(even) { background: #edf2f0; }
+
+    code {
+      padding: .09em .26em;
+      border: 1px solid #c7d3d0;
+      background: #eaf0ee;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: .82em;
+    }
+
+    pre {
+      max-width: 100%;
+      overflow: auto;
+      margin: 1.8rem 0 2.3rem;
+      padding: 1.35rem 1.4rem;
+      border: 1px solid var(--rule);
+      border-left: 5px solid var(--accent);
+      background: #edf2f0;
+      color: #17343a;
+      font-size: .78rem;
+      line-height: 1.55;
+    }
+    pre code { padding: 0; border: 0; background: transparent; font-size: inherit; }
+
+    hr { border: 0; border-top: 1px solid var(--rule); margin: 4rem 0; }
+
+    .footnotes {
+      margin-top: 5rem;
+      padding-top: 1rem;
+      border-top: 3px double var(--rule);
+      color: var(--muted);
+      font-size: .82rem;
+    }
+    .footnotes ol { max-width: none; padding-left: 1.4rem; }
+    .footnotes li { margin-bottom: .85rem; }
+
+    @media (max-width: 880px) {
+      body { font-size: 17px; background: var(--paper); }
+      .layout { display: block; padding-top: 3rem; }
+      .toc-shell {
+        position: relative;
+        top: auto;
+        max-height: none;
+        margin-bottom: 3rem;
+        border: 1px solid var(--rule);
+        background: var(--surface);
+        font-family: "Avenir Next", Avenir, ui-sans-serif, system-ui, sans-serif;
+        font-size: .9rem;
+      }
+      .toc-shell > summary {
+        display: list-item;
+        padding: .8rem 1rem;
+        color: var(--accent);
+        cursor: pointer;
+        font-weight: 700;
+      }
+      .toc-shell:not([open]) > nav { display: none; }
+      .toc-shell nav {
+        max-height: none;
+        overflow: visible;
+        padding: 0 .8rem .8rem;
+        border-right: 0;
+      }
+      .toc-shell .rail-title { display: none; }
+      .toc-shell nav a { padding-block: .36rem; }
+      h1 { font-size: clamp(3.3rem, 16vw, 5.6rem); }
+      h2 { margin-top: 4rem; }
+      table { display: block; overflow-x: auto; white-space: normal; }
+    }
+
+    @media (max-width: 540px) {
+      .layout { padding-inline: 1rem; }
+      h1 { font-size: 3.35rem; }
+      blockquote { margin-right: .6rem; padding: 1.05rem; box-shadow: 7px 7px 0 var(--accent-soft); }
+      th, td { min-width: 9rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+    }
+
+    @media print {
+      @page { margin: 18mm 17mm 20mm; }
+      body { color: #000; background: #fff; font-size: 10.5pt; }
+      .layout { display: block; max-width: none; padding: 0; }
+      .toc-shell, .report-mark, .skip-link { display: none; }
+      article { width: 100%; }
+      h1 { font-size: 38pt; }
+      h2 { break-after: avoid; margin-top: 2rem; }
+      h3, h4 { break-after: avoid; }
+      blockquote { box-shadow: none; }
+      table { font-size: 7.5pt; break-inside: avoid; }
+      pre { white-space: pre-wrap; word-break: break-word; }
+      a { color: #000; text-decoration: none; }
+      a[href^="http"]::after { content: " (" attr(href) ")"; font-size: .72em; word-break: break-all; }
+      .footnote-back { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#report">Skip to report</a>
+  <div class="report-mark" aria-hidden="true"></div>
+  <div class="layout">
+    <details class="toc-shell" open>
+      <summary>Report sections</summary>
+      <nav aria-label="Report sections">
+        <p class="rail-title">Shareable transcripts</p>
+        <ul>
+        <li><a href="#shareable-transcripts"
+        id="toc-shareable-transcripts">Shareable Transcripts</a>
+        <ul>
+        <li><a href="#executive-assessment"
+        id="toc-executive-assessment">Executive assessment</a></li>
+        <li><a href="#why-this-belongs-in-macparakeet"
+        id="toc-why-this-belongs-in-macparakeet">Why this belongs in
+        MacParakeet</a></li>
+        <li><a href="#the-product-model-a-shared-snapshot"
+        id="toc-the-product-model-a-shared-snapshot">The product model:
+        a shared snapshot</a></li>
+        <li><a href="#owner-experience" id="toc-owner-experience">Owner
+        experience</a></li>
+        <li><a href="#recipient-experience"
+        id="toc-recipient-experience">Recipient experience</a></li>
+        <li><a href="#direct-answer-do-not-fingerprint-the-mac"
+        id="toc-direct-answer-do-not-fingerprint-the-mac">Direct answer:
+        do not fingerprint the Mac</a></li>
+        <li><a href="#credential-and-recovery-design"
+        id="toc-credential-and-recovery-design">Credential and recovery
+        design</a></li>
+        <li><a href="#content-encryption"
+        id="toc-content-encryption">Content encryption</a></li>
+        <li><a href="#service-architecture"
+        id="toc-service-architecture">Service architecture</a></li>
+        <li><a href="#capacity-and-cost"
+        id="toc-capacity-and-cost">Capacity and cost</a></li>
+        <li><a href="#abuse-privacy-and-legal-operations"
+        id="toc-abuse-privacy-and-legal-operations">Abuse, privacy, and
+        legal operations</a></li>
+        <li><a href="#competitive-synthesis"
+        id="toc-competitive-synthesis">Competitive synthesis</a></li>
+        <li><a href="#collaboration-defer-deliberately"
+        id="toc-collaboration-defer-deliberately">Collaboration: defer
+        deliberately</a></li>
+        <li><a href="#high-value-adjacent-ideas"
+        id="toc-high-value-adjacent-ideas">High-value adjacent
+        ideas</a></li>
+        <li><a href="#anti-goals"
+        id="toc-anti-goals">Anti-goals</a></li>
+        <li><a href="#rollout-and-evidence-gates"
+        id="toc-rollout-and-evidence-gates">Rollout and evidence
+        gates</a></li>
+        <li><a href="#decisions-to-make-before-implementation-planning"
+        id="toc-decisions-to-make-before-implementation-planning">Decisions
+        to make before implementation planning</a></li>
+        <li><a href="#final-recommendation"
+        id="toc-final-recommendation">Final recommendation</a></li>
+        <li><a href="#sources" id="toc-sources">Sources</a></li>
+        </ul></li>
+        </ul>
+      </nav>
+    </details>
+    <article id="report">
+      <h1 id="shareable-transcripts">Shareable Transcripts</h1>
+      <blockquote>
+      <p><strong>Research status:</strong> This page preserves the
+      exploration and alternatives that informed the decision. The accepted
+      direction is governed by <a href="../../../spec/15-shareable-transcripts.md">the
+      product spec</a>, <a
+      href="../../../spec/adr/029-encrypted-shareable-transcript-snapshots.md">ADR-029</a>,
+      and the two <a href="../../../spec/contracts/">sharing contracts</a>.
+      Where this page presents an earlier option, the governing documents
+      supersede it.</p>
+      </blockquote>
+      <blockquote>
+      <p><strong>Decision:</strong> Proceed to a privacy and usability
+      prototype. Build an explicit, text-only shared snapshot under
+      <code>share.macparakeet.com</code>, not a cloud mirror of the
+      Library. Encrypt the selected content on the Mac with a random key
+      carried in the URL fragment. Give the owner a separate anonymous
+      management credential stored in Keychain. Do not use a machine
+      fingerprint, upload audio, enable automatic sharing, collect
+      recipient analytics, or add collaboration in the first
+      release.</p>
+      </blockquote>
+      <h2 id="executive-assessment">Executive assessment</h2>
+      <p>The idea is both feasible and strategically sound. Sharing
+      makes MacParakeet’s local corpus more useful and hands selected
+      speech memory safely to another person, so it passes the product
+      filter in ADR-027.<a href="#fn1" class="footnote-ref" id="fnref1"
+      role="doc-noteref"><sup>1</sup></a> The strongest version of the
+      feature does not imitate a cloud meeting workspace. It turns a
+      local item into a deliberately composed, revocable web
+      artifact.</p>
+      <p>The central product promise should be:</p>
+      <blockquote>
+      <p>Your Library stays on your Mac. A share is a separate encrypted
+      text copy that you choose, preview, publish, expire, update, and
+      revoke. Audio is never part of it.</p>
+      </blockquote>
+      <p>There are four independent design problems that should not be
+      collapsed into one “unique key”:</p>
+      <ol type="1">
+      <li><strong>Owner authority:</strong> how the originating Mac
+      proves it may create and manage shares without an email
+      account.</li>
+      <li><strong>Recipient access:</strong> how anyone holding one URL
+      can read one share without gaining access to anything else.</li>
+      <li><strong>Content confidentiality:</strong> what the hosting
+      service, its database, and its operators can learn.</li>
+      <li><strong>Abuse resistance:</strong> how a free anonymous
+      service limits spam, illegal material, automated account creation,
+      and denial-of-wallet attacks.</li>
+      </ol>
+      <p>A hardware fingerprint solves none of these cleanly. It is an
+      identifier rather than a secret, is difficult to rotate, conflicts
+      with MacParakeet’s current public promise of “no fingerprinting,
+      no persistent IDs,” and still does not prove that a request comes
+      from a legitimate person.<a href="#fn2" class="footnote-ref"
+      id="fnref2" role="doc-noteref"><sup>2</sup></a> A
+      cryptographically random installation credential is safer,
+      simpler, and more honest.</p>
+      <p>The recommended first release is intentionally narrow:</p>
+      <table>
+      <colgroup>
+      <col style="width: 50%" />
+      <col style="width: 50%" />
+      </colgroup>
+      <thead>
+      <tr>
+      <th>Dimension</th>
+      <th>Recommendation</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td>Source</td>
+      <td>One Library transcription: meeting, file, URL/YouTube, or
+      podcast</td>
+      </tr>
+      <tr>
+      <td>Content</td>
+      <td>Owner-selected transcript passages, one or more summaries,
+      and/or notes</td>
+      </tr>
+      <tr>
+      <td>Audio</td>
+      <td>Structurally excluded</td>
+      </tr>
+      <tr>
+      <td>Publication model</td>
+      <td>Explicit snapshot; local edits never auto-publish</td>
+      </tr>
+      <tr>
+      <td>Recipient</td>
+      <td>Anyone with the complete link; no account</td>
+      </tr>
+      <tr>
+      <td>Confidentiality</td>
+      <td>AES-256-GCM in the app; key after <code>#</code> in the
+      URL</td>
+      </tr>
+      <tr>
+      <td>Default lifetime</td>
+      <td>30 days for a beta; 90-day anonymous hard maximum</td>
+      </tr>
+      <tr>
+      <td>Management</td>
+      <td>List, open, copy, update, rotate, expire, revoke, delete</td>
+      </tr>
+      <tr>
+      <td>Analytics</td>
+      <td>None for recipients in v1</td>
+      </tr>
+      <tr>
+      <td>Collaboration</td>
+      <td>Separate future decision; not an extension of v1</td>
+      </tr>
+      </tbody>
+      </table>
+      <h2 id="why-this-belongs-in-macparakeet">Why this belongs in
+      MacParakeet</h2>
+      <p>MacParakeet’s accepted direction is private speech memory:
+      capture stays local, the Library becomes the center of gravity,
+      and export and agent access make the corpus useful.<a href="#fn3"
+      class="footnote-ref" id="fnref3"
+      role="doc-noteref"><sup>3</sup></a> A share link fits that
+      direction if it is treated as a controlled export. It does not fit
+      if it quietly moves the Library into a cloud account or creates a
+      second, server-authoritative copy of every meeting.</p>
+      <p>The current upstream app already has the right user-facing
+      seam. The transcript view provides contextual copy behavior: a
+      meeting copy includes title, notes, and transcript, while a menu
+      offers transcript-only copy. Notes and generated prompt results
+      have their own copy actions, and export supports eight formats.<a
+      href="#fn4" class="footnote-ref" id="fnref4"
+      role="doc-noteref"><sup>4</sup></a> The share action should sit
+      beside these existing actions and reuse their content-projection
+      logic, rather than introduce a parallel interpretation of a
+      transcript.</p>
+      <p>The live product, however, makes unusually strong promises. The
+      website says no account is required, audio never leaves the Mac,
+      transcript content is not collected, and no persistent device
+      identifier or fingerprint exists.<a href="#fn5"
+      class="footnote-ref" id="fnref5"
+      role="doc-noteref"><sup>5</sup></a> A share feature is therefore
+      not “just another endpoint.” Before release it needs a new
+      governing ADR or amendment, a public share-bundle contract,
+      updated privacy and network-surface documentation, and explicit
+      consent copy.</p>
+      <p>This boundary is the differentiation. Cloud-first products
+      already make links. MacParakeet can make the act of disclosure
+      legible.</p>
+      <h2 id="the-product-model-a-shared-snapshot">The product model: a
+      shared snapshot</h2>
+      <p>The local item remains the source of truth. A remote share is a
+      derived, versioned snapshot with its own lifecycle.</p>
+      <pre class="text"><code>LOCAL SOURCE OF TRUTH            ENCRYPTED HOSTING              RECIPIENT
+
+Transcript                       Share metadata                 Browser shell
+Notes                 select     - random locator     fetch     - obtains # key
+Summaries             preview    - expiry/status      ------&gt;   - decrypts locally
+Speaker corrections   encrypt    - ciphertext object            - renders text
+      |                   |              |                             |
+      | local edits       | explicit     | revoke/delete               | copy/export
+      v                   v              v                             v
+  never auto-sync      new version    access stops                 copies remain</code></pre>
+      <p>This separation yields predictable behavior:</p>
+      <ul>
+      <li>Editing speaker names, notes, or summaries locally marks an
+      existing share as out of date; it does not change the public
+      page.</li>
+      <li><strong>Update shared page</strong> shows another exact
+      preview, creates a new encrypted version, and preserves the URL
+      unless the owner chooses <strong>Rotate link</strong>.</li>
+      <li>Revocation blocks future server access. It cannot remove text
+      already copied, downloaded, screenshotted, or loaded in a
+      recipient tab.</li>
+      <li>Deleting a local transcript should default to revoking its
+      active shares, but offline revocation must be shown as pending
+      until confirmed by the server.</li>
+      <li>A queued revocation record must survive deletion of its source
+      transcript.</li>
+      <li>Automatic expiry bounds orphaned content when a Mac and its
+      recovery secret are both lost.</li>
+      </ul>
+      <p>The server never receives access to the rest of the Library.
+      The owner credential may list only the shares already published
+      under that anonymous owner namespace.</p>
+      <h2 id="owner-experience">Owner experience</h2>
+      <h3 id="entry-points">Entry points</h3>
+      <p>Use the plain user-facing name <strong>Share link</strong>. A
+      product-internal name such as “share capsule” can be useful in
+      design discussion, but the interface should not teach a new
+      metaphor.</p>
+      <ul>
+      <li>A top-level <strong>Share link</strong> action sits beside
+      Copy and Export on the transcription detail view.</li>
+      <li>Transcript selection offers <strong>Share selection</strong>
+      and includes exactly the highlighted passages.</li>
+      <li>A summary’s action row offers <strong>Share this
+      result</strong>.</li>
+      <li>Notes offer <strong>Share notes</strong>.</li>
+      <li>Dictation history is out of the first slice. It is a separate
+      model with private-mode semantics, while the initial value is
+      strongest for Library transcriptions.</li>
+      </ul>
+      <h3 id="creation-sheet">Creation sheet</h3>
+      <p>The sheet should answer one question: <em>exactly what will
+      another person be able to read?</em></p>
+      <ol type="1">
+      <li>Select content blocks: summary, notes, chapters, transcript,
+      or selected transcript passages.</li>
+      <li>Independently choose title, source type, date, duration,
+      speaker labels, timestamps, and source attribution.</li>
+      <li>Show audio as a disabled row: <strong>Audio is never
+      included.</strong></li>
+      <li>Preview the actual recipient page, including generic
+      link-preview behavior.</li>
+      <li>Choose expiry: 24 hours, 7 days, 30 days, or 90 days. Use 30
+      days as the beta default and do not offer “Never” to anonymous
+      owners until recovery and abuse operations have proved
+      reliable.</li>
+      <li>Confirm: <strong>This encrypted text copy will leave your Mac.
+      Anyone with the full link can read and forward it.</strong></li>
+      <li>Create, then offer Open, Copy link, the macOS share sheet, and
+      Manage.</li>
+      </ol>
+      <p>Contextual selection is the safest useful default.
+      <strong>Share selection</strong> includes only the highlighted
+      text. A general <strong>Share link</strong> starts empty, or—if
+      usability testing shows that is too inert—preselects only the
+      currently visible section. It should never silently select the
+      full transcript merely because a summary or notes panel was
+      open.</p>
+      <h3 id="shared-by-me">Shared by me</h3>
+      <p>Privacy depends on control after publication, so management is
+      not optional polish. A local <strong>Shared by me</strong> view
+      should reconcile against the server and show:</p>
+      <ul>
+      <li>active, expiring, expired, revocation-pending, revoked,
+      deletion-pending, and deleted states;</li>
+      <li>created, explicitly updated, and expiry dates;</li>
+      <li>encrypted byte size, without server-known titles;</li>
+      <li>open, copy, preview, update, rotate, change expiry, revoke,
+      and delete actions;</li>
+      <li>a warning when local content has changed since the published
+      snapshot;</li>
+      <li>the difference between <strong>access revoked</strong> and
+      <strong>online copy deleted</strong>.</li>
+      </ul>
+      <p>Do not claim success until the relevant server operation has
+      returned a durable receipt. If the Mac is offline, preserve the
+      queued operation and say that the link may still work.</p>
+      <h2 id="recipient-experience">Recipient experience</h2>
+      <p>The recipient should get a quiet, readable document—not a
+      product funnel.</p>
+      <ol type="1">
+      <li>Decrypted title and optional source/date.</li>
+      <li>A provenance line: shared from MacParakeet, snapshot date,
+      last explicit update, expiry, and “text only; audio was not
+      uploaded.”</li>
+      <li>The chosen summaries and notes.</li>
+      <li>Chapters or an outline for a long transcript.</li>
+      <li>Transcript passages with optional speakers and
+      timestamps.</li>
+      <li>In-page search performed only in the browser.</li>
+      <li>Copy and Download Markdown actions performed only in the
+      browser.</li>
+      <li>A restrained MacParakeet attribution and <strong>Report this
+      share</strong>.</li>
+      </ol>
+      <p>The page should carry a brief accuracy note: transcripts and
+      generated summaries can contain errors. It should not show a login
+      prompt, install gate, advertising, trackers, comments, remote
+      images, or a misleading “disable copy” control.</p>
+      <p>Chat and document products illustrate why this restraint
+      matters. Otter lets an anyone-link viewer open a transcript
+      without an account and lets owners revoke conversation links, but
+      its snippet links cannot be restricted or revoked.<a href="#fn6"
+      class="footnote-ref" id="fnref6"
+      role="doc-noteref"><sup>6</sup></a> Fathom combines open, domain,
+      and named-person access, making its effective permission model
+      more complex.<a href="#fn7" class="footnote-ref" id="fnref7"
+      role="doc-noteref"><sup>7</sup></a> Descript’s explicit
+      republish/unpublish model is the closest analogue for snapshot
+      updates.<a href="#fn8" class="footnote-ref" id="fnref8"
+      role="doc-noteref"><sup>8</sup></a> Proton demonstrates that a
+      central management surface, expiry, passwords, and encrypted
+      public links can coexist.<a href="#fn9" class="footnote-ref"
+      id="fnref9" role="doc-noteref"><sup>9</sup></a></p>
+      <h2 id="direct-answer-do-not-fingerprint-the-mac">Direct answer:
+      do not fingerprint the Mac</h2>
+      <p>It is possible to derive or request identifiers associated with
+      a machine, but that is the wrong security primitive.</p>
+      <h3 id="why-a-fingerprint-fails">Why a fingerprint fails</h3>
+      <ul>
+      <li><strong>It is not a secret.</strong> Serial numbers, hardware
+      properties, and composite fingerprints can be read, copied,
+      guessed, or spoofed. They identify a value; they do not prove
+      possession of an uncopyable credential.</li>
+      <li><strong>It is not reliably permanent.</strong> Repairs,
+      virtualization, restore, app reinstall, privacy protections, and
+      platform changes can alter inputs.</li>
+      <li><strong>It is not safely recoverable or rotatable.</strong> A
+      leaked fingerprint cannot be replaced without pretending the
+      machine changed.</li>
+      <li><strong>It creates linkability.</strong> The same stable value
+      connects actions over time, directly contradicting the live “no
+      fingerprinting, no persistent IDs” promise.<a href="#fn10"
+      class="footnote-ref" id="fnref10"
+      role="doc-noteref"><sup>10</sup></a></li>
+      <li><strong>It does not prevent abuse.</strong> An automated
+      client can spoof values or mint fresh ones. Anonymous service
+      abuse is a rate, cost, and reputation problem, not a
+      hardware-uniqueness problem.</li>
+      </ul>
+      <p>RFC 4086 explicitly cautions that hardware-derived values are
+      structured and may offer less uniqueness or unpredictability than
+      assumed.<a href="#fn11" class="footnote-ref" id="fnref11"
+      role="doc-noteref"><sup>11</sup></a></p>
+      <h3 id="what-to-use-instead">What to use instead</h3>
+      <p>On the first Share action, generate:</p>
+      <ul>
+      <li>a public random <code>owner_id</code>;</li>
+      <li>a public random <code>device_id</code> and separate random
+      256-bit <code>device_secret</code>;</li>
+      <li>an independent 256-bit recovery code.</li>
+      </ul>
+      <p>Store the owner secret in the macOS data-protection Keychain
+      with a device-only, non-synchronizing accessibility class. Store
+      only a one-way verifier on the server. Apple describes Keychain as
+      encrypted storage for small secrets and keys; device-only items
+      deliberately do not migrate.<a href="#fn12" class="footnote-ref"
+      id="fnref12" role="doc-noteref"><sup>12</sup></a></p>
+      <p>The key is statistically unique at cryptographic scale, which
+      is what the system needs. It represents an anonymous owner
+      namespace, not a verified person and not an intrinsic property of
+      the Mac.</p>
+      <p>Do not let a person type or configure the authentication key;
+      human-chosen secrets are weaker. Let the person export, print, or
+      save the generated recovery code, with a plain warning that
+      MacParakeet support cannot reconstruct it.</p>
+      <p>A concrete v1 token scheme is deliberately boring:</p>
+      <pre class="text"><code>device token   mpd1.&lt;base64url(device_id)&gt;.&lt;base64url(device_secret)&gt;
+recovery token mpr1.&lt;base64url(owner_id)&gt;.&lt;base64url(recovery_secret)&gt;
+
+server verifier
+  SHA-256(&quot;mp-device-v1\0&quot; || device_id || device_secret)
+  SHA-256(&quot;mp-recovery-v1\0&quot; || owner_id || recovery_secret)</code></pre>
+      <p>All four values are generated locally with a cryptographically
+      secure random number generator. The server stores the public IDs,
+      domain-separated verifiers, credential generation, and lifecycle
+      timestamps. It returns the same error for an unknown ID and an
+      incorrect secret and compares verifiers in constant time. A
+      password KDF is unnecessary for a generated 256-bit token; it
+      becomes necessary if user-chosen passphrases are introduced.</p>
+      <h2 id="credential-and-recovery-design">Credential and recovery
+      design</h2>
+      <h3 id="three-separate-capabilities">Three separate
+      capabilities</h3>
+      <table>
+      <colgroup>
+      <col style="width: 33%" />
+      <col style="width: 33%" />
+      <col style="width: 33%" />
+      </colgroup>
+      <thead>
+      <tr>
+      <th>Capability</th>
+      <th>Where it lives</th>
+      <th>What it can do</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td>Owner credential</td>
+      <td>macOS Keychain; verifier on server</td>
+      <td>Create, list, update, rotate, revoke, and delete this owner’s
+      shares</td>
+      </tr>
+      <tr>
+      <td>Recipient link</td>
+      <td>Share locator in path; content key in fragment</td>
+      <td>Read and decrypt exactly one share</td>
+      </tr>
+      <tr>
+      <td>Recovery code</td>
+      <td>User-controlled offline copy; verifier on server</td>
+      <td>Replace owner credential and invalidate a lost Mac</td>
+      </tr>
+      </tbody>
+      </table>
+      <p>The owner secret must travel only in an HTTPS Authorization
+      header, never in a URL. A useful opaque format is a non-secret
+      selector plus secret value, so the server can locate the verifier
+      without scanning. Store a cryptographic hash of the high-entropy
+      secret and compare in constant time. Authorization headers,
+      recovery values, full URLs, URL fragments, and content must be
+      redacted from app, edge, trace, crash, and support logs.</p>
+      <p>NIST treats saved recovery codes as a valid recovery mechanism
+      and recommends offline storage, protected server-side
+      verification, throttling, and single-use/rotation behavior.<a
+      href="#fn13" class="footnote-ref" id="fnref13"
+      role="doc-noteref"><sup>13</sup></a></p>
+      <p>Recovery is one-time. The replacement Mac generates a new
+      device secret and a new recovery secret. One server transaction
+      validates the old recovery verifier, invalidates the lost device,
+      installs both new verifiers, and increments the credential
+      generation. A lost response is reconciled by trying the new device
+      credential; the server response never contains a secret.</p>
+      <h3 id="recovery-scope">Recovery scope</h3>
+      <p>Recovery creates a real product choice:</p>
+      <ul>
+      <li><strong>Management-only recovery</strong> lets a new Mac list
+      metadata, revoke, delete, and change expiry. It cannot reconstruct
+      an existing full link because the server never had the content
+      key.</li>
+      <li><strong>Full-link recovery</strong> requires each content key
+      to be additionally wrapped by an owner recovery key and stored
+      server-side as ciphertext. This is more convenient but expands the
+      cryptographic protocol and the consequences of losing the recovery
+      code.</li>
+      </ul>
+      <p>Use management-only recovery first. It preserves the most
+      important safety operation—revocation—without building
+      key-wrapping and cross-device sync. A new link can be created from
+      the local source if it still exists. Add passkeys or wrapped keys
+      only after real multi-Mac demand.</p>
+      <h3 id="why-not-secure-enclave-in-v1">Why not Secure Enclave in
+      v1</h3>
+      <p>Apple Silicon supports Secure Enclave P-256 keys, and those
+      private keys cannot be imported or exported.<a href="#fn14"
+      class="footnote-ref" id="fnref14"
+      role="doc-noteref"><sup>14</sup></a> That is useful hardening, but
+      it also forces a custom signed-request and replay-protection
+      protocol and makes recovery mandatory. A random bearer owner
+      secret in Keychain over TLS is a smaller protocol with fewer ways
+      to make a cryptographic mistake.</p>
+      <p>App Attest is more relevant to abuse than to owner identity:
+      Apple documents it as a way for a server to gain confidence that a
+      request came from a legitimate instance of an app. Its current
+      <code>isSupported</code> documentation says the value is false on
+      Mac devices, including iOS/iPadOS apps running on Apple silicon.<a
+      href="#fn15" class="footnote-ref" id="fnref15"
+      role="doc-noteref"><sup>15</sup></a> Do not plan the Mac launch
+      around App Attest. Recheck only if Apple changes the contract and
+      then verify at runtime. Even if support arrives, it would verify
+      app integrity rather than human identity and would exclude
+      differently signed open-source builds if made mandatory.</p>
+      <p>The strongest objection to the bearer design is serious: a
+      token accidentally captured by a proxy, trace, crash dump,
+      endpoint-security product, or support bundle can be replayed until
+      rotation. That makes end-to-end redaction tests a release gate. A
+      signing key or passkey can reduce that exposure later, but only
+      with a complete proof-of-possession protocol covering canonical
+      requests, freshness, nonces, body binding, replay state, and
+      recovery. A partial custom signature scheme is riskier than the
+      small, well-contained bearer protocol.</p>
+      <h2 id="content-encryption">Content encryption</h2>
+      <p>Use one independently random 256-bit AES-GCM key and a fresh
+      nonce for every new share. For an explicit update under the same
+      link, either keep the key and generate a nonce that can never
+      repeat, or rotate both key and URL. The versioned envelope should
+      authenticate schema and context as associated data. Publish
+      cross-platform test vectors that prove CryptoKit encryption and
+      Web Crypto decryption agree.</p>
+      <p>The link shape is:</p>
+      <pre class="text"><code>https://share.macparakeet.com/s/&lt;128-bit-random-locator&gt;#v1.&lt;256-bit-content-key&gt;</code></pre>
+      <p>RFC 3986 specifies that the fragment is separated before a URI
+      is dereferenced, so it is not part of the ordinary HTTP request.<a
+      href="#fn16" class="footnote-ref" id="fnref16"
+      role="doc-noteref"><sup>16</sup></a> Web Crypto provides AES-GCM
+      decryption in modern browsers.<a href="#fn17" class="footnote-ref"
+      id="fnref17" role="doc-noteref"><sup>17</sup></a> The server
+      therefore receives the locator and returns ciphertext, while the
+      browser obtains the key from the fragment and decrypts
+      locally.</p>
+      <h3 id="honest-security-claims">Honest security claims</h3>
+      <p>This model protects against a stolen storage bucket or database
+      containing ciphertext. It keeps the decryption key out of normal
+      HTTP requests and service logs. It does <strong>not</strong>
+      protect against:</p>
+      <ul>
+      <li>anyone who possesses the complete URL;</li>
+      <li>browser history, clipboard sync, extensions, local malware,
+      screenshots, or recipient forwarding;</li>
+      <li>recipient copies after revocation;</li>
+      <li>a malicious or compromised viewer deployment, because
+      first-party JavaScript can read both the fragment and decrypted
+      text.</li>
+      </ul>
+      <p>The correct claim is: <strong>MacParakeet stores the share as
+      encrypted data and the decryption key is in the link, not sent in
+      the normal request.</strong> Do not claim that MacParakeet “can
+      never decrypt” or use an unqualified “zero knowledge” or
+      “end-to-end encrypted” label before an independent threat-model
+      review.</p>
+      <p>Content-specific Open Graph previews are incompatible with this
+      default because the preview crawler does not have a server-visible
+      key. Use generic preview copy. This is a product advantage: names
+      and meeting titles cannot leak into unfurl logs. A real-channel
+      compatibility matrix still has to prove that Messages, Mail,
+      Slack, Teams, Gmail, QR codes, and browser share sheets preserve
+      the fragment.</p>
+      <h3 id="share-bundle">Share bundle</h3>
+      <p>The encrypted bundle should be a public, versioned contract
+      with no local file paths or database identifiers:</p>
+      <div class="sourceCode" id="cb4"><pre
+      class="sourceCode json"><code class="sourceCode json"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;schemaVersion&quot;</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">,</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;publishedAt&quot;</span><span class="fu">:</span> <span class="st">&quot;2026-09-11T22:00:00Z&quot;</span><span class="fu">,</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;title&quot;</span><span class="fu">:</span> <span class="st">&quot;Optional encrypted title&quot;</span><span class="fu">,</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;source&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;meeting&quot;</span><span class="fu">,</span> <span class="dt">&quot;displayDate&quot;</span><span class="fu">:</span> <span class="st">&quot;Optional&quot;</span> <span class="fu">},</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;sections&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span> <span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;summary&quot;</span><span class="fu">,</span> <span class="dt">&quot;title&quot;</span><span class="fu">:</span> <span class="st">&quot;Summary&quot;</span><span class="fu">,</span> <span class="dt">&quot;blocks&quot;</span><span class="fu">:</span> <span class="ot">[]</span> <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span> <span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;notes&quot;</span><span class="fu">,</span> <span class="dt">&quot;title&quot;</span><span class="fu">:</span> <span class="st">&quot;Notes&quot;</span><span class="fu">,</span> <span class="dt">&quot;blocks&quot;</span><span class="fu">:</span> <span class="ot">[]</span> <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span> <span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;transcript&quot;</span><span class="fu">,</span> <span class="dt">&quot;title&quot;</span><span class="fu">:</span> <span class="st">&quot;Transcript&quot;</span><span class="fu">,</span> <span class="dt">&quot;segments&quot;</span><span class="fu">:</span> <span class="ot">[]</span> <span class="fu">}</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+      <p>Include only display-ready fields the owner selected. Omit
+      local transcription UUIDs, file paths, meeting links, calendar
+      attendees, model/provider details, prompts, chat history,
+      confidence values, audio paths, remote thumbnails, and unselected
+      source URLs. Calendar context is explicitly local-only in the
+      current model and should never cross the boundary
+      accidentally.</p>
+      <p>Use structured text blocks rather than arbitrary HTML. Render
+      plain content via <code>textContent</code>. If limited Markdown is
+      added, disable raw HTML, remote images, embeds, and scriptable
+      URLs; sanitize again in the browser and keep a strict Content
+      Security Policy. OWASP recommends both safe DOM sinks and CSP as
+      defense-in-depth.<a href="#fn18" class="footnote-ref" id="fnref18"
+      role="doc-noteref"><sup>18</sup></a></p>
+      <h2 id="service-architecture">Service architecture</h2>
+      <p>The simplest credible deployment is a separate Cloudflare
+      project:</p>
+      <pre class="text"><code>MacParakeet app
+  | HTTPS owner API: auth + idempotency + ciphertext
+  v
+Share Worker at share.macparakeet.com
+  |-- D1: anonymous owner verifiers, share state, expiry, quotas
+  |-- R2 private bucket: versioned ciphertext objects
+  |-- static viewer: local assets only; no analytics or service worker
+  `-- scheduled cleanup: expiry, tombstones, orphan reconciliation
+
+Recipient browser
+  | GET /s/&lt;locator&gt;        -&gt; generic static shell
+  | GET /api/v1/s/&lt;locator&gt; -&gt; active-state check + ciphertext
+  ` decrypts with # key     -&gt; local render/search/copy/download</code></pre>
+      <p>Keep this data plane separate from the existing telemetry
+      Worker, D1 database, and logs. The account and vendor may be
+      shared, but code, bindings, secrets, databases, buckets, domains,
+      deployment credentials, and retention policies should be isolated.
+      A transcript-hosting incident must not become a telemetry
+      incident, or vice versa.</p>
+      <h3 id="why-d1-plus-r2">Why D1 plus R2</h3>
+      <ul>
+      <li>D1 is a good indexed authority for owner/share state and
+      expiry. It should not store the content blob. D1 has a 2 MB row
+      limit, 10 GB per-database paid limit, and single-threaded
+      per-database processing, which are unnecessary constraints for
+      variable transcript payloads.<a href="#fn19" class="footnote-ref"
+      id="fnref19" role="doc-noteref"><sup>19</sup></a></li>
+      <li>R2 is a better content store. Standard storage currently
+      includes 10 GB-month, one million write-class operations, and ten
+      million read-class operations per month; overage is
+      $0.015/GB-month, $4.50/million writes, and $0.36/million reads,
+      with no Internet egress charge.<a href="#fn20"
+      class="footnote-ref" id="fnref20"
+      role="doc-noteref"><sup>20</sup></a></li>
+      <li>Workers Paid currently starts at $5/month and includes ten
+      million requests plus thirty million CPU milliseconds per month.<a
+      href="#fn21" class="footnote-ref" id="fnref21"
+      role="doc-noteref"><sup>21</sup></a></li>
+      <li>D1 Paid includes 25 billion rows read, 50 million rows
+      written, and 5 GB storage before overage.<a href="#fn22"
+      class="footnote-ref" id="fnref22"
+      role="doc-noteref"><sup>22</sup></a></li>
+      </ul>
+      <p>Do not expose the R2 bucket publicly. Every ciphertext read
+      should pass through the Worker, which checks D1 state first. Do
+      not enable read replication for this authorization query in v1:
+      active-state reads go to the D1 primary, and a revoke receipt is
+      returned only after the primary commit succeeds. Primary-path
+      throughput and post-receipt revocation latency are release tests.
+      Cloudflare states R2 deletion is strongly consistent, but also
+      warns that a deleted object can remain available through a
+      cache.<a href="#fn23" class="footnote-ref" id="fnref23"
+      role="doc-noteref"><sup>23</sup></a> Use
+      <code>Cache-Control: no-store</code> for ciphertext, no service
+      worker, and do not rely on cached public R2 URLs. The static
+      viewer shell may be cached separately.</p>
+      <h3 id="suggested-data-model">Suggested data model</h3>
+      <p>Plaintext D1 fields should be limited to operational
+      metadata:</p>
+      <pre class="text"><code>owners
+  owner_id, token_selector, token_verifier, recovery_verifier,
+  created_at, credential_rotated_at, status, quota_class
+
+shares
+  share_id, owner_id, locator_hash, object_key, schema_version,
+  ciphertext_bytes, created_at, updated_at, expires_at,
+  revoked_at, deleted_at, abuse_status, current_revision
+
+idempotency_keys
+  owner_id, key_hash, operation, response_digest, expires_at
+
+abuse_reports
+  report_id, share_id, category, created_at, resolution,
+  optional_reporter_contact</code></pre>
+      <p>Encrypt or omit title, selected-field flags, transcript
+      timestamps, speaker labels, source filename/URL, local meeting ID,
+      and all content. Avoid storing recipient identity, view history,
+      referrers, cookies, or product analytics.</p>
+      <h3 id="api-sketch">API sketch</h3>
+      <table>
+      <colgroup>
+      <col style="width: 25%" />
+      <col style="width: 25%" />
+      <col style="width: 25%" />
+      <col style="width: 25%" />
+      </colgroup>
+      <thead>
+      <tr>
+      <th>Method</th>
+      <th>Path</th>
+      <th>Authority</th>
+      <th>Purpose</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td>POST</td>
+      <td><code>/api/v1/owners</code></td>
+      <td>enrollment + abuse gate</td>
+      <td>Create anonymous owner and verifier</td>
+      </tr>
+      <tr>
+      <td>POST</td>
+      <td><code>/api/v1/owners/recover</code></td>
+      <td>recovery code</td>
+      <td>Rotate owner credential, invalidate old Mac</td>
+      </tr>
+      <tr>
+      <td>GET</td>
+      <td><code>/api/v1/shares</code></td>
+      <td>owner</td>
+      <td>Reconcile remote share states</td>
+      </tr>
+      <tr>
+      <td>POST</td>
+      <td><code>/api/v1/shares</code></td>
+      <td>owner + idempotency key</td>
+      <td>Create metadata and ciphertext</td>
+      </tr>
+      <tr>
+      <td>PUT</td>
+      <td><code>/api/v1/shares/{id}</code></td>
+      <td>owner + <code>If-Match</code></td>
+      <td>Publish an explicit new snapshot</td>
+      </tr>
+      <tr>
+      <td>POST</td>
+      <td><code>/api/v1/shares/{id}/rotate</code></td>
+      <td>owner</td>
+      <td>Replace recipient locator and content key</td>
+      </tr>
+      <tr>
+      <td>POST</td>
+      <td><code>/api/v1/shares/{id}/revoke</code></td>
+      <td>owner</td>
+      <td>Block reads before object deletion</td>
+      </tr>
+      <tr>
+      <td>DELETE</td>
+      <td><code>/api/v1/shares/{id}</code></td>
+      <td>owner</td>
+      <td>Delete active object and minimize metadata</td>
+      </tr>
+      <tr>
+      <td>GET</td>
+      <td><code>/api/v1/s/{locator}</code></td>
+      <td>recipient locator</td>
+      <td>Return ciphertext only when active</td>
+      </tr>
+      <tr>
+      <td>POST</td>
+      <td><code>/api/v1/s/{locator}/report</code></td>
+      <td>rate-limited public</td>
+      <td>Report abuse; never auto-attach decrypted text</td>
+      </tr>
+      </tbody>
+      </table>
+      <p>Create and update must be idempotent. Use compare-and-swap
+      revisions (<code>ETag</code> / <code>If-Match</code>) so retries
+      cannot create duplicate shares or overwrite a later update. D1 and
+      R2 do not share a transaction, so publication ordering is an
+      explicit invariant: write the immutable R2 object first, verify
+      its checksum, then commit the D1 version and current-object
+      pointer. Never expose a D1 pointer before its blob exists. Retries
+      reuse the same object key and idempotency record; an unreferenced
+      object is an orphan for scheduled deletion. Revoke state in D1
+      first, then delete R2 content. A recipient request must consult
+      primary active state rather than relying on object presence
+      alone.</p>
+      <p>Every mutation also carries a random 128-bit
+      <code>Idempotency-Key</code>. Reuse with the same operation and
+      request digest returns the original result; reuse with a different
+      digest returns a conflict. Credential replacement is an atomic
+      compare-and-replace against the credential generation.
+      Authenticated and recovery mutations should not accept replayable
+      TLS 1.3 early data.</p>
+      <p>The local GRDB <code>ShareRecord</code> should contain
+      <code>transcriptionID</code>, remote <code>shareID</code>, full
+      URL or locally protected content key, selection manifest, local
+      content digest, remote revision, status, expiry, and last
+      confirmed operation. Pending revocation/deletion records cannot
+      cascade away with the source transcription. The exact persistent
+      schema needs its own data-retention review because the full URL is
+      itself a credential.</p>
+      <h3 id="repository-fit">Repository fit</h3>
+      <p>Keep the existing dependency direction rather than adding a new
+      package target:</p>
+      <table>
+      <colgroup>
+      <col style="width: 50%" />
+      <col style="width: 50%" />
+      </colgroup>
+      <thead>
+      <tr>
+      <th>Layer</th>
+      <th>Proposed responsibility</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td>SwiftUI app</td>
+      <td>Share actions, exact preview, confirmation, management,
+      pending-state copy</td>
+      </tr>
+      <tr>
+      <td><code>MacParakeetViewModels</code></td>
+      <td><code>ShareDraftViewModel</code>,
+      <code>ShareManagementViewModel</code>, stale guards, retry/error
+      presentation</td>
+      </tr>
+      <tr>
+      <td><code>MacParakeetCore/Services/Sharing</code></td>
+      <td>Allowlisted payload builder, crypto envelope, remote protocol,
+      credential store, deletion coordinator</td>
+      </tr>
+      <tr>
+      <td>GRDB</td>
+      <td>Publication ledger plus durable upload/revoke/delete
+      outbox</td>
+      </tr>
+      <tr>
+      <td>Separate web service</td>
+      <td>Anonymous enrollment, quotas, lifecycle metadata, private
+      ciphertext objects</td>
+      </tr>
+      <tr>
+      <td>Static web viewer</td>
+      <td>Web Crypto decryption, structured safe render, local
+      search/copy/download</td>
+      </tr>
+      </tbody>
+      </table>
+      <p>Do not serialize <code>Transcription</code> or reuse the full
+      meeting artifact renderer. The model carries source paths/URLs,
+      chat, calendar context, notes, capture data, and other fields that
+      are not safe share defaults.<a href="#fn24" class="footnote-ref"
+      id="fnref24" role="doc-noteref"><sup>24</sup></a> Use a dedicated
+      allowlist DTO. Reuse the existing effective-speaker projection and
+      action stale- guard behavior so a share does not publish
+      uncorrected speaker attribution while corrections are still
+      loading.<a href="#fn25" class="footnote-ref" id="fnref25"
+      role="doc-noteref"><sup>25</sup></a></p>
+      <p>Deletion currently has no remote hook, so add one Core
+      coordinator used by detail, library, and bulk deletion flows. Its
+      durable outbox must be committed in the same local transaction as
+      the decision to detach/delete the source. Keep sharing credentials
+      separate from the dormant licensing install identifier and from
+      telemetry. Use release flag, user enablement, and per-share
+      confirmation as three separate gates. Do not add a public CLI
+      command in the first milestone; that would require its own
+      contract and abuse boundary.</p>
+      <h3 id="web-origin-hardening">Web-origin hardening</h3>
+      <p>Use a dedicated origin with host-only/no cookies, no
+      third-party assets, no analytics, no remote fonts, no service
+      worker, no public directory, and no sitemap. At minimum:</p>
+      <pre class="text"><code>Content-Security-Policy:
+  default-src &#39;none&#39;; script-src &#39;self&#39;; style-src &#39;self&#39;;
+  connect-src &#39;self&#39;; img-src &#39;self&#39; data:; font-src &#39;self&#39;;
+  media-src &#39;none&#39;; object-src &#39;none&#39;; base-uri &#39;none&#39;;
+  form-action &#39;none&#39;; frame-ancestors &#39;none&#39;; worker-src &#39;none&#39;
+Referrer-Policy: no-referrer
+Cache-Control: no-store
+X-Content-Type-Options: nosniff
+X-Robots-Tag: noindex, nofollow, noarchive
+Cross-Origin-Resource-Policy: same-origin
+Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()</code></pre>
+      <p><code>noindex</code> is a crawler instruction, not access
+      control.<a href="#fn26" class="footnote-ref" id="fnref26"
+      role="doc-noteref"><sup>26</sup></a> The high-entropy link and
+      content encryption provide the security properties.</p>
+      <h2 id="capacity-and-cost">Capacity and cost</h2>
+      <p>Text storage is unlikely to be the limiting cost. Human abuse
+      operations, privacy/security review, customer support, and
+      incident response dominate.</p>
+      <p>Use a conservative planning workload:</p>
+      <ul>
+      <li>three new shares per active user per month;</li>
+      <li>25 recipient opens per new share;</li>
+      <li>100 KB average ciphertext per snapshot;</li>
+      <li>90 days average retention, giving nine active objects per
+      owner;</li>
+      <li>approximately 83 dynamic Worker requests per active user per
+      month;</li>
+      <li>one R2 write per created share and one R2 read per recipient
+      open.</li>
+      </ul>
+      <table>
+      <colgroup>
+      <col style="width: 20%" />
+      <col style="width: 20%" />
+      <col style="width: 20%" />
+      <col style="width: 20%" />
+      <col style="width: 20%" />
+      </colgroup>
+      <thead>
+      <tr>
+      <th style="text-align: right;">Monthly active owners</th>
+      <th style="text-align: right;">New shares/mo</th>
+      <th style="text-align: right;">Retained ciphertext</th>
+      <th style="text-align: right;">Public reads/mo</th>
+      <th style="text-align: right;">Planning infrastructure
+      cost/mo</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td style="text-align: right;">1,000</td>
+      <td style="text-align: right;">3,000</td>
+      <td style="text-align: right;">0.9 GB</td>
+      <td style="text-align: right;">75,000</td>
+      <td style="text-align: right;">about $5</td>
+      </tr>
+      <tr>
+      <td style="text-align: right;">10,000</td>
+      <td style="text-align: right;">30,000</td>
+      <td style="text-align: right;">9 GB</td>
+      <td style="text-align: right;">750,000</td>
+      <td style="text-align: right;">about $5</td>
+      </tr>
+      <tr>
+      <td style="text-align: right;">100,000</td>
+      <td style="text-align: right;">300,000</td>
+      <td style="text-align: right;">90 GB</td>
+      <td style="text-align: right;">7.5 million</td>
+      <td style="text-align: right;">about $6–10</td>
+      </tr>
+      </tbody>
+      </table>
+      <p>The table is a model, not a quote or capacity test. It does not
+      include taxes, logging, custom-domain fees, support, legal
+      response, security tooling, attacks, unusually viral links, or a
+      second environment. At 100,000 owners, the modeled Worker request
+      count, R2 operations, and D1 row usage stay within current
+      paid-plan inclusions. Roughly 80 GB of R2 storage above the
+      included 10 GB adds about $1.20, while 8.3 million dynamic
+      requests at four milliseconds use 33.2 million CPU milliseconds
+      and add roughly $0.06 above the included 30 million. That yields
+      an estimated Cloudflare subtotal near $6.30 per month before the
+      excluded costs above.<a href="#fn27" class="footnote-ref"
+      id="fnref27" role="doc-noteref"><sup>27</sup></a><a href="#fn28"
+      class="footnote-ref" id="fnref28"
+      role="doc-noteref"><sup>28</sup></a></p>
+      <p>A conventional alternative such as Supabase Pro starts at
+      $25/month and includes Postgres, 100 GB file storage, 250 GB
+      egress, two million Edge Function calls, and 100,000 monthly
+      active users before listed overages.<a href="#fn29"
+      class="footnote-ref" id="fnref29"
+      role="doc-noteref"><sup>29</sup></a> It is a credible escape hatch
+      if team identity, SQL operations, regional deployment, or ordinary
+      account recovery become central. For an accountless encrypted-blob
+      service, Cloudflare is the smaller and cheaper initial shape.
+      Under the same 100,000-owner model, Supabase is roughly $83/month
+      before a custom domain or larger compute: $25 base, about $45 for
+      500 GB of uncached egress above the included 250 GB, and about
+      $12.60 for 6.3 million Edge Function calls above the included two
+      million. That comparison assumes every public read is proxied for
+      immediate revocation; confirm internal storage-to-function billing
+      before commitment.</p>
+      <p>Do not mistake low unit cost for low risk. Put hard global
+      spend/usage ceilings, payload and active-share quotas, an
+      emergency creation kill switch, and a read-only mode in place
+      before public launch.</p>
+      <h2 id="abuse-privacy-and-legal-operations">Abuse, privacy, and
+      legal operations</h2>
+      <h3 id="make-it-a-poor-general-purpose-host">Make it a poor
+      general-purpose host</h3>
+      <ul>
+      <li>Accept structured text only—no audio, arbitrary files, HTML,
+      images, scripts, embeds, custom domains, redirects, or server-side
+      URL fetching.</li>
+      <li>Use a conservative encoded/decoded byte limit. The initial 2
+      MiB suggestion must be calibrated against actual long transcripts;
+      lack of compression keeps limits and denial-of-service behavior
+      legible.</li>
+      <li>Do not make URLs clickable in v1. This reduces phishing value
+      and avoids leaking recipient navigation.</li>
+      <li>Cap anonymous owners at an initial 25 active shares and 10
+      MiB, with creation limits such as 10/hour and 30/day. These are
+      hypotheses to test, not facts.</li>
+      <li>Enforce coarse, short-lived edge IP/ASN limits without
+      building a browser fingerprint or recipient analytics
+      database.</li>
+      <li>Use a browser-mediated adaptive challenge ticket for
+      suspicious create/recovery traffic, not for ordinary recipient
+      reads. It adds friction and cost to automation but is not proof of
+      a unique human and is not Sybil-proof.</li>
+      <li>Put <strong>Report this share</strong> on every page. A public
+      report creates a rate-limited case only; it must not directly
+      disable the share. Quarantine requires an authenticated operator
+      decision or a separately specified, auditable multi-signal rule.
+      Release operations need restoration/appeal, false-report
+      throttling, and quarantine-audit retention.</li>
+      </ul>
+      <p>An install credential proves only “the same installation.”
+      Reinstalling or automating clients can mint new identities. Strong
+      Sybil resistance eventually requires greater friction: a passkey,
+      verified account, paid entitlement, or attestation-backed official
+      build. No machine fingerprint removes that tradeoff.</p>
+      <h3 id="retention-and-deletion">Retention and deletion</h3>
+      <ul>
+      <li>Default to 30 days and enforce a 90-day anonymous maximum
+      during beta.</li>
+      <li>Revoke access synchronously in metadata, then delete
+      ciphertext.</li>
+      <li>Use scheduled expiry plus an R2 lifecycle rule as a safety
+      net. Cloudflare says lifecycle deletion typically happens within
+      24 hours, which is too slow to be the access-control path but
+      useful for orphan cleanup.<a href="#fn30" class="footnote-ref"
+      id="fnref30" role="doc-noteref"><sup>30</sup></a></li>
+      <li>Keep R2 versioning/retention locks off so content can be
+      deleted.</li>
+      <li>Minimize D1 tombstones after an operational window. D1 Time
+      Travel is always on and supports up to 30 days on the paid tier,
+      so policy must distinguish removal from the live service from
+      eventual disappearance of metadata in recovery history.<a
+      href="#fn31" class="footnote-ref" id="fnref31"
+      role="doc-noteref"><sup>31</sup></a></li>
+      <li>Retain no plaintext content and no recipient IPs for product
+      analytics. Use short, documented security-log retention and
+      sterile event shapes.</li>
+      <li>State that server deletion cannot erase recipient copies.</li>
+      </ul>
+      <h3 id="policy-and-compliance-gates">Policy and compliance
+      gates</h3>
+      <p>This is issue-spotting, not legal advice.</p>
+      <ul>
+      <li>Update the privacy policy, network-surface documentation, and
+      website copy before any real transcript upload. Describe encrypted
+      payloads, operational metadata, edge processing, retention,
+      deletion, recovery, and browser trust.</li>
+      <li>Add Terms and an acceptable-use policy. On first share,
+      require confirmation that the owner has authority to disclose the
+      selected text and understands that other participants’ words may
+      be included.</li>
+      <li>Provide privacy access/deletion and incident-response paths.
+      GDPR principles include purpose limitation, data minimization,
+      storage limitation, and integrity/confidentiality; an anonymous ID
+      or encrypted transcript can still relate to people.<a href="#fn32"
+      class="footnote-ref" id="fnref32"
+      role="doc-noteref"><sup>32</sup></a></li>
+      <li>User-hosted transcripts may reproduce copyrighted material,
+      especially from YouTube and other URLs. Assess a DMCA agent,
+      public contact, notice/counter- notice, and repeat-infringer
+      process before public operation. The U.S. Copyright Office states
+      that qualifying providers must publish and register
+      designated-agent information and respond expeditiously to valid
+      notices.<a href="#fn33" class="footnote-ref" id="fnref33"
+      role="doc-noteref"><sup>33</sup></a></li>
+      <li>Establish restricted unlawful-content and emergency-response
+      procedures with counsel. Encryption changes what the operator can
+      inspect; it does not erase duties triggered by an abuse report
+      that supplies actual content.</li>
+      <li>Decide launch geography only after reviewing applicable EU/UK
+      platform and transfer duties. Avoid claims such as HIPAA
+      compliance without the specific contracts and controls.</li>
+      </ul>
+      <h2 id="competitive-synthesis">Competitive synthesis</h2>
+      <p>Current products prove demand but also show MacParakeet’s
+      opening:</p>
+      <table>
+      <colgroup>
+      <col style="width: 33%" />
+      <col style="width: 33%" />
+      <col style="width: 33%" />
+      </colgroup>
+      <thead>
+      <tr>
+      <th>Product</th>
+      <th>Current official behavior</th>
+      <th>Lesson for MacParakeet</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td>Granola</td>
+      <td>A unique web URL can expose summarized notes instead of the
+      full transcript, with private/company/anyone-link controls.<a
+      href="#fn34" class="footnote-ref" id="fnref34"
+      role="doc-noteref"><sup>34</sup></a></td>
+      <td>Summary-first sharing is useful; expose selected passages
+      without normalizing full-transcript disclosure.</td>
+      </tr>
+      <tr>
+      <td>Otter</td>
+      <td>Anyone-link viewers can access transcript/playback without
+      sign-in; exports are owner-controlled; normal links can be
+      revoked, but snippet links cannot.<a href="#fn35"
+      class="footnote-ref" id="fnref35"
+      role="doc-noteref"><sup>35</sup></a></td>
+      <td>Every share and excerpt needs an independently revocable
+      resource.</td>
+      </tr>
+      <tr>
+      <td>Fireflies</td>
+      <td>Offers audience tiers, invites, link passwords, and several
+      expiry choices; public guest behavior varies by plan.<a
+      href="#fn36" class="footnote-ref" id="fnref36"
+      role="doc-noteref"><sup>36</sup></a></td>
+      <td>Expiry is expected, but public-link access should never be the
+      default for every meeting.</td>
+      </tr>
+      <tr>
+      <td>Fathom</td>
+      <td>Supports anyone-link, same-domain, and named-person access and
+      several roles.<a href="#fn37" class="footnote-ref" id="fnref37"
+      role="doc-noteref"><sup>37</sup></a></td>
+      <td>Effective permission becomes hard to explain; start with one
+      capability model.</td>
+      </tr>
+      <tr>
+      <td>Descript</td>
+      <td>Anyone-link pages can exclude search; published content stays
+      at the previous version until explicitly updated and can be
+      unpublished.<a href="#fn38" class="footnote-ref" id="fnref38"
+      role="doc-noteref"><sup>38</sup></a></td>
+      <td>Use explicit snapshot updates and visible version dates.</td>
+      </tr>
+      <tr>
+      <td>Notion</td>
+      <td>Anyone-link reading needs no account; commenting/editing
+      introduces accounts; public sites can live-update, index, and
+      expose contributor metadata.<a href="#fn39" class="footnote-ref"
+      id="fnref39" role="doc-noteref"><sup>39</sup></a></td>
+      <td>Keep indexing, collaboration, and contributor metadata out of
+      v1.</td>
+      </tr>
+      <tr>
+      <td>Dropbox</td>
+      <td>Paid links may add password/expiry/download controls, but
+      disabled downloads do not prevent other forms of saving.<a
+      href="#fn40" class="footnote-ref" id="fnref40"
+      role="doc-noteref"><sup>40</sup></a></td>
+      <td>Never market copy prevention; revocation only stops future
+      service access.</td>
+      </tr>
+      <tr>
+      <td>Proton Drive</td>
+      <td>Accountless public links can use encryption, expiry,
+      passwords, and a central manager.<a href="#fn41"
+      class="footnote-ref" id="fnref41"
+      role="doc-noteref"><sup>41</sup></a></td>
+      <td>Privacy and a usable lifecycle can coexist; management is part
+      of the trust promise.</td>
+      </tr>
+      </tbody>
+      </table>
+      <p>Link sharing is table stakes. The differentiator is the
+      sentence the owner can understand and verify: <strong>only this
+      selected text copy leaves my Mac, it leaves encrypted, and I can
+      see and revoke every copy I published.</strong></p>
+      <h2 id="collaboration-defer-deliberately">Collaboration: defer
+      deliberately</h2>
+      <p>Read-only sharing needs a publisher and a bearer link.
+      Collaboration introduces participant identity, invitations, roles,
+      notifications, version history, conflicts, moderation, retention,
+      and recovery. Anonymous comments invite spam; attributed comments
+      require accounts; encrypted multi-writer state requires a
+      substantially different key and synchronization protocol.</p>
+      <p>ADR-002 currently lists real-time sharing and team features as
+      out of scope.<a href="#fn42" class="footnote-ref" id="fnref42"
+      role="doc-noteref"><sup>42</sup></a> Do not let comments appear as
+      a small follow-on checkbox. If demand emerges, write a separate
+      product decision and start with a precise workflow such as
+      <strong>request a correction</strong> or <strong>acknowledge an
+      action item</strong>, not a generic cloud document editor.</p>
+      <p>A more aligned near-term collaboration model is
+      <strong>owner-approved import</strong>: a recipient opens an
+      encrypted share, then explicitly imports a provenance- preserving
+      local copy into their own MacParakeet. That keeps each person’s
+      Library local and avoids a shared cloud source of truth.</p>
+      <h2 id="high-value-adjacent-ideas">High-value adjacent ideas</h2>
+      <ol type="1">
+      <li><strong>Decision packet.</strong> Share decisions, action
+      items, and only the supporting transcript passages. This is more
+      useful and less revealing than a raw dump.</li>
+      <li><strong>Revocable text clip.</strong> Share one quote or
+      passage with the same expiry and revocation model as a full
+      artifact. Avoid Otter’s irreversible-snippet trap.</li>
+      <li><strong>Evidence-aware summaries.</strong> Let summary bullets
+      link to included transcript anchors so a recipient can verify
+      context without receiving the full meeting.</li>
+      <li><strong>Agent-readable handoff.</strong> Offer local
+      browser-generated Markdown and a structured JSON download. Do not
+      expose a hidden public server API that bypasses encryption or
+      lifecycle controls.</li>
+      <li><strong>Correction-aware republish.</strong> Show which shared
+      sections changed after speaker correction or transcript editing,
+      then require preview and explicit update.</li>
+      <li><strong>Self-hosted share service.</strong> Because
+      MacParakeet is open source, a later documented service contract
+      could let privacy-sensitive teams operate their own compatible
+      host. Avoid premature provider abstraction in the first
+      implementation, but keep the wire contract portable.</li>
+      <li><strong>Native Mac sharing.</strong> Once a URL is created,
+      the macOS share sheet can send it through Messages, Mail, AirDrop,
+      or other installed services without MacParakeet becoming a
+      messaging client.</li>
+      </ol>
+      <h2 id="anti-goals">Anti-goals</h2>
+      <ul>
+      <li>Cloud sync or remote access to the entire Library.</li>
+      <li>Automatic attendee sharing or global share defaults.</li>
+      <li>Audio, video, arbitrary file, image, or HTML hosting.</li>
+      <li>Search-engine publishing, profile pages, custom domains, or a
+      creator CMS.</li>
+      <li>Permanent anonymous storage before recovery and abuse
+      operations are proven.</li>
+      <li>Workspaces, CRM sync, task tracking, comments, notifications,
+      or live editing.</li>
+      <li>Recipient analytics, tracking pixels, read time, unique-view
+      claims, or link previews that disclose content.</li>
+      <li>DRM-like “disable copy” language.</li>
+      <li>A device fingerprint, user-chosen credential, or owner secret
+      stored in preferences/config.</li>
+      <li>Reuse of telemetry consent, endpoints, databases, or event
+      logs as share consent or share infrastructure.</li>
+      </ul>
+      <h2 id="rollout-and-evidence-gates">Rollout and evidence
+      gates</h2>
+      <h3 id="gate-0-decisions-and-contracts">Gate 0: decisions and
+      contracts</h3>
+      <ul>
+      <li>Accept a new ADR for the opt-in encrypted publishing
+      boundary.</li>
+      <li>Define <code>share-bundle-v1</code>, owner API,
+      deletion/retention, error, and telemetry- exclusion
+      contracts.</li>
+      <li>Threat-model the link, viewer supply chain, recovery, abuse
+      response, and cross-origin boundaries.</li>
+      <li>Decide management-only versus full-link recovery.
+      Recommendation: management-only.</li>
+      <li>Decide launch geography and complete privacy/terms/DMCA
+      counsel review.</li>
+      </ul>
+      <h3 id="gate-1-throwaway-interoperability-prototype">Gate 1:
+      throwaway interoperability prototype</h3>
+      <p>Use synthetic transcript fixtures only.</p>
+      <ul>
+      <li>Prove Swift CryptoKit → Web Crypto AES-GCM interoperability
+      with published test vectors and mutation/wrong-key failures.</li>
+      <li>Test fragment survival and generic previews in Messages, Mail,
+      Gmail, Slack, Teams, browser copy/paste, QR, and the macOS share
+      sheet.</li>
+      <li>Measure decryption, render, search, print, copy, and Markdown
+      download for representative and maximum-sized text.</li>
+      <li>Test Safari, Chrome, Firefox, iOS/Android browsers, common
+      in-app webviews, VoiceOver, keyboard navigation, large text,
+      reduced motion, and no-JavaScript failure copy.</li>
+      <li>Capture all browser/app/service traffic and prove no
+      plaintext, fragment, title, speaker name, source URL, or
+      content-derived metadata reaches logs or network
+      destinations.</li>
+      </ul>
+      <p>If important channels strip fragments, supported webviews fail
+      materially, or the trust model cannot be explained accurately,
+      stop and reconsider the content model before storing real
+      transcripts.</p>
+      <h3 id="gate-2-internal-service-alpha">Gate 2: internal service
+      alpha</h3>
+      <ul>
+      <li>Separate Worker, D1, R2, secrets, logs, deployment
+      credentials, and kill switch from telemetry.</li>
+      <li>Test create/update idempotency, revision conflicts, rotate,
+      revoke, deletion, expiry, quota exhaustion, and rollback.</li>
+      <li>Prove revocation while cached, object deletion, scheduled
+      orphan cleanup, and documented D1 recovery-history bounds.</li>
+      <li>Exercise Keychain reset, device loss, stolen token, recovery
+      rotation, and no-recovery expiry.</li>
+      <li>Run abuse-report, takedown, outage, denial-of-wallet, and
+      compromised-viewer drills with synthetic content.</li>
+      </ul>
+      <h3 id="gate-3-feature-flagged-beta">Gate 3: feature-flagged
+      beta</h3>
+      <ul>
+      <li>Default off; explicit local consent; no automatic share
+      creation.</li>
+      <li>Conservative quotas and 90-day hard maximum.</li>
+      <li>No recipient analytics. Collect only sterile aggregate
+      operation outcomes if the governing telemetry contract is
+      deliberately amended.</li>
+      <li>Conduct an 8–12 person mental-model study. Owners and
+      recipients should be able to explain what leaves the Mac, what the
+      server stores, who can read the link, what revocation does, and
+      whether audio uploads.</li>
+      <li>Commission independent security review of crypto envelope,
+      viewer code, API, deployment, and logging.</li>
+      </ul>
+      <h3 id="gate-4-public-release">Gate 4: public release</h3>
+      <p>Release only after current privacy/terms/network docs match
+      runtime behavior, legal/abuse response is staffed, beta deletion
+      receipts are trustworthy, and the compatibility and mental-model
+      gates pass. Keep collaboration, permanent anonymous storage,
+      passwords, passkeys, rich previews, and self-hosting as separately
+      justified increments.</p>
+      <h2
+      id="decisions-to-make-before-implementation-planning">Decisions to
+      make before implementation planning</h2>
+      <table>
+      <colgroup>
+      <col style="width: 33%" />
+      <col style="width: 33%" />
+      <col style="width: 33%" />
+      </colgroup>
+      <thead>
+      <tr>
+      <th>Decision</th>
+      <th>Recommendation</th>
+      <th>Why it matters</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td>Content visibility to operator</td>
+      <td>Fragment-encrypted only</td>
+      <td>Preserves the product’s local-first differentiation;
+      determines previews, support, and moderation</td>
+      </tr>
+      <tr>
+      <td>Owner authentication</td>
+      <td>Random Keychain bearer secret</td>
+      <td>Smallest safe accountless protocol</td>
+      </tr>
+      <tr>
+      <td>Recovery</td>
+      <td>Generated offline code; management-only</td>
+      <td>Ensures lost devices can revoke without building cloud key
+      sync</td>
+      </tr>
+      <tr>
+      <td>Anonymous expiry</td>
+      <td>30-day default; 90-day maximum</td>
+      <td>Bounds orphaned and abusive storage while recovery proves
+      itself</td>
+      </tr>
+      <tr>
+      <td>Selection default</td>
+      <td>Explicit contextual content only</td>
+      <td>Prevents accidental whole-meeting disclosure</td>
+      </tr>
+      <tr>
+      <td>Domain</td>
+      <td><code>share.macparakeet.com</code></td>
+      <td>Clear brand trust plus origin/deployment isolation; no new
+      domain needed</td>
+      </tr>
+      <tr>
+      <td>Recipient analytics</td>
+      <td>None</td>
+      <td>Avoids false “views,” tracking, and privacy-policy
+      expansion</td>
+      </tr>
+      <tr>
+      <td>Collaboration</td>
+      <td>Separate future ADR</td>
+      <td>It changes identity, sync, moderation, and scope
+      fundamentally</td>
+      </tr>
+      <tr>
+      <td>Hosting</td>
+      <td>Separate Cloudflare Worker + D1 + private R2</td>
+      <td>Minimal cost and operational fit; isolate from telemetry</td>
+      </tr>
+      <tr>
+      <td>Public release gate</td>
+      <td>Interop, privacy, recovery, abuse, legal, and mental-model
+      evidence</td>
+      <td>Source presence and a working demo are not release proof</td>
+      </tr>
+      </tbody>
+      </table>
+      <h2 id="final-recommendation">Final recommendation</h2>
+      <p>Proceed—but prototype the trust boundary before building the
+      polished feature. The core idea is not “put transcripts on a
+      website.” It is <strong>let a person cut a precise, temporary,
+      encrypted window into one local speech-memory item.</strong></p>
+      <p>That design gives MacParakeet something cloud meeting tools
+      cannot say with the same credibility: the Library is still local,
+      the disclosure is visible, the host stores ciphertext, audio never
+      uploads, and every published copy has an owner-controlled
+      lifecycle.</p>
+      <p>The machine-key instinct was directionally right: an account is
+      not required. The correction is to generate a revocable secret
+      rather than derive an identity from hardware. Pair it with a
+      separate recovery code, treat the URL as the recipient’s key, and
+      accept the honest limitation that anyone who receives that URL can
+      copy and forward the text.</p>
+      <p>The most valuable next artifact is a synthetic, throwaway
+      cryptographic and recipient-page prototype—not production
+      infrastructure. It should answer three questions cheaply: do links
+      survive real sharing channels, do recipients understand the
+      privacy model, and can MacParakeet operate revocation and abuse
+      response without ever asking to see a transcript?</p>
+      <h2 id="sources">Sources</h2>
+      <section id="footnotes"
+      class="footnotes footnotes-end-of-document" role="doc-endnotes">
+      <hr />
+      <ol>
+      <li id="fn1"><p>MacParakeet, “<a
+      href="https://github.com/moona3k/macparakeet/blob/aaf3dc261536e5fc5158c4b1ca714bd3f4cece19/spec/adr/027-product-north-star.md">ADR-027:
+      Product North Star — Private Speech Memory</a>,” accepted July 3,
+      2026; upstream snapshot accessed September 11, 2026.<a
+      href="#fnref1" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn2"><p>MacParakeet, “<a
+      href="https://macparakeet.com/privacy/">Privacy Policy</a>,”
+      updated July 9, 2026; accessed September 11, 2026.<a
+      href="#fnref2" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn3"><p>MacParakeet, “<a
+      href="https://github.com/moona3k/macparakeet/blob/aaf3dc261536e5fc5158c4b1ca714bd3f4cece19/spec/adr/027-product-north-star.md">ADR-027:
+      Product North Star — Private Speech Memory</a>,” accepted July 3,
+      2026; upstream snapshot accessed September 11, 2026.<a
+      href="#fnref3" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn4"><p>MacParakeet, “<a
+      href="https://github.com/moona3k/macparakeet/blob/aaf3dc261536e5fc5158c4b1ca714bd3f4cece19/Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift#L1187-L1212">TranscriptResultView.swift</a>”
+      and “<a
+      href="https://github.com/moona3k/macparakeet/blob/aaf3dc261536e5fc5158c4b1ca714bd3f4cece19/Sources/MacParakeet/Views/Transcription/TranscriptResultActions.swift#L5-L59">TranscriptResultActions.swift</a>,”
+      upstream snapshot accessed September 11, 2026.<a href="#fnref4"
+      class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+      <li id="fn5"><p>MacParakeet, “<a
+      href="https://macparakeet.com/privacy/">Privacy Policy</a>,”
+      updated July 9, 2026; accessed September 11, 2026.<a
+      href="#fnref5" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn6"><p>Otter, “<a
+      href="https://help.otter.ai/hc/en-us/articles/360048338793-Share-a-conversation">Share
+      a conversation</a>,” updated May 16, 2024; accessed September 11,
+      2026.<a href="#fnref6" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn7"><p>Fathom, “<a
+      href="https://help.fathom.video/en/articles/295616">Sharing Call
+      Recordings</a>,” edited June 4, 2026; accessed September 11,
+      2026.<a href="#fnref7" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn8"><p>Descript, “<a
+      href="https://help.descript.com/hc/en-us/articles/10255817744653-Export-and-publish-content-with-Descript-web-links">Export
+      and publish content with Descript web links</a>,” current help
+      page; accessed September 11, 2026.<a href="#fnref8"
+      class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+      <li id="fn9"><p>Proton, “<a
+      href="https://proton.me/support/drive-shareable-link">How to
+      create a shareable link in Proton Drive</a>,” current help page;
+      accessed September 11, 2026.<a href="#fnref9"
+      class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+      <li id="fn10"><p>MacParakeet, “<a
+      href="https://macparakeet.com/privacy/">Privacy Policy</a>,”
+      updated July 9, 2026; accessed September 11, 2026.<a
+      href="#fnref10" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn11"><p>IETF, “<a
+      href="https://www.rfc-editor.org/rfc/rfc4086.html">RFC 4086:
+      Randomness Requirements for Security</a>,” June 2005.<a
+      href="#fnref11" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn12"><p>Apple, “<a
+      href="https://developer.apple.com/documentation/security/keychain-services/">Keychain
+      services</a>” and “<a
+      href="https://developer.apple.com/documentation/security/restricting-keychain-item-accessibility">Restricting
+      keychain item accessibility</a>,” current developer documentation;
+      accessed September 11, 2026.<a href="#fnref12"
+      class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+      <li id="fn13"><p>NIST, “<a
+      href="https://pages.nist.gov/800-63-4/sp800-63b.html">SP
+      800-63B-4: Authentication and Authenticator Management</a>,”
+      August 26, 2025.<a href="#fnref13" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn14"><p>Apple, “<a
+      href="https://developer.apple.com/documentation/security/protecting-keys-with-the-secure-enclave">Protecting
+      keys with the Secure Enclave</a>,” current developer
+      documentation; accessed September 11, 2026.<a href="#fnref14"
+      class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+      <li id="fn15"><p>Apple, “<a
+      href="https://developer.apple.com/documentation/devicecheck/dcappattestservice/issupported">DCAppAttestService.isSupported</a>,”
+      current developer documentation; accessed September 11, 2026.<a
+      href="#fnref15" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn16"><p>IETF, “<a
+      href="https://www.rfc-editor.org/rfc/rfc3986.html#section-3.5">RFC
+      3986: Uniform Resource Identifier (URI): Generic Syntax</a>,”
+      January 2005.<a href="#fnref16" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn17"><p>W3C, “<a
+      href="https://www.w3.org/TR/WebCryptoAPI/">Web Cryptography Level
+      2</a>,” current specification; accessed September 11, 2026.<a
+      href="#fnref17" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn18"><p>OWASP, “<a
+      href="https://cheatsheetseries.owasp.org/cheatsheets/HTML5_Security_Cheat_Sheet.html">HTML5
+      Security Cheat Sheet</a>” and “<a
+      href="https://cheatsheetseries.owasp.org/cheatsheets/Content_Security_Policy_Cheat_Sheet.html">Content
+      Security Policy Cheat Sheet</a>,” current guidance; accessed
+      September 11, 2026.<a href="#fnref18" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn19"><p>Cloudflare, “<a
+      href="https://developers.cloudflare.com/d1/platform/limits/">D1
+      limits</a>,” updated April 21, 2026; accessed September 11,
+      2026.<a href="#fnref19" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn20"><p>Cloudflare, “<a
+      href="https://developers.cloudflare.com/r2/pricing/">R2
+      pricing</a>,” current pricing; accessed September 11, 2026.<a
+      href="#fnref20" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn21"><p>Cloudflare, “<a
+      href="https://developers.cloudflare.com/workers/platform/pricing/">Workers
+      pricing</a>,” updated August 28, 2026; accessed September 11,
+      2026.<a href="#fnref21" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn22"><p>Cloudflare, “<a
+      href="https://developers.cloudflare.com/d1/platform/pricing/">D1
+      pricing</a>,” updated April 21, 2026; accessed September 11,
+      2026.<a href="#fnref22" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn23"><p>Cloudflare, “<a
+      href="https://developers.cloudflare.com/r2/reference/consistency/">R2
+      consistency model</a>,” current documentation; accessed September
+      11, 2026.<a href="#fnref23" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn24"><p>MacParakeet, “<a
+      href="https://github.com/moona3k/macparakeet/blob/aaf3dc261536e5fc5158c4b1ca714bd3f4cece19/Sources/MacParakeetCore/Models/Transcription.swift#L10-L87">Transcription.swift</a>,”
+      upstream snapshot accessed September 11, 2026.<a href="#fnref24"
+      class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+      <li id="fn25"><p>MacParakeet, “<a
+      href="https://github.com/moona3k/macparakeet/blob/aaf3dc261536e5fc5158c4b1ca714bd3f4cece19/Sources/MacParakeetViewModels/TranscriptionViewModel.swift#L1922-L1942">TranscriptionViewModel.swift</a>”
+      and “<a
+      href="https://github.com/moona3k/macparakeet/blob/aaf3dc261536e5fc5158c4b1ca714bd3f4cece19/Sources/MacParakeetCore/Services/Diarization/SpeakerAttributionReadService.swift#L4-L53">SpeakerAttributionReadService.swift</a>,”
+      upstream snapshot accessed September 11, 2026.<a href="#fnref25"
+      class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+      <li id="fn26"><p>Google Search Central, “<a
+      href="https://developers.google.com/search/docs/crawling-indexing/robots-meta-tag">Robots
+      meta tags specifications</a>,” current documentation; accessed
+      September 11, 2026.<a href="#fnref26" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn27"><p>Cloudflare, “<a
+      href="https://developers.cloudflare.com/r2/pricing/">R2
+      pricing</a>,” current pricing; accessed September 11, 2026.<a
+      href="#fnref27" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn28"><p>Cloudflare, “<a
+      href="https://developers.cloudflare.com/workers/platform/pricing/">Workers
+      pricing</a>,” updated August 28, 2026; accessed September 11,
+      2026.<a href="#fnref28" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn29"><p>Supabase, “<a
+      href="https://supabase.com/pricing">Pricing</a>” and “<a
+      href="https://supabase.com/docs/guides/platform/billing-on-supabase">About
+      billing on Supabase</a>,” current pricing; accessed September 11,
+      2026.<a href="#fnref29" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn30"><p>Cloudflare, “<a
+      href="https://developers.cloudflare.com/r2/buckets/object-lifecycles/">R2
+      object lifecycles</a>,” updated April 21, 2026; accessed September
+      11, 2026.<a href="#fnref30" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn31"><p>Cloudflare, “<a
+      href="https://developers.cloudflare.com/d1/reference/time-travel/">D1
+      Time Travel and backups</a>,” updated April 21, 2026; accessed
+      September 11, 2026.<a href="#fnref31" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn32"><p>European Union, “<a
+      href="https://eur-lex.europa.eu/eli/reg/2016/679/art_5/oj/eng">Regulation
+      (EU) 2016/679, Article 5</a>,” April 27, 2016.<a href="#fnref32"
+      class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+      <li id="fn33"><p>U.S. Copyright Office, “<a
+      href="https://www.copyright.gov/dmca-directory/">DMCA Designated
+      Agent Directory</a>” and “<a
+      href="https://www.copyright.gov/512/">Section 512 resources</a>,”
+      current guidance; accessed September 11, 2026.<a href="#fnref33"
+      class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+      <li id="fn34"><p>Granola, “<a
+      href="https://docs.granola.ai/help-center/sharing/sharing-notes">Sharing
+      notes</a>” and “<a
+      href="https://docs.granola.ai/help-center/consent-security-privacy/sharing-controls">Sharing
+      controls</a>,” current help pages; accessed September 11, 2026.<a
+      href="#fnref34" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn35"><p>Otter, “<a
+      href="https://help.otter.ai/hc/en-us/articles/360048338793-Share-a-conversation">Share
+      a conversation</a>,” updated May 16, 2024; accessed September 11,
+      2026.<a href="#fnref35" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn36"><p>Fireflies, “<a
+      href="https://guide.fireflies.ai/articles/2474667467-share-meeting-recaps-with-teammates-participants-specific-people-user-groups-and-non-fireflies-users">Share
+      Meeting Recaps</a>,” updated July 15, 2026; accessed September 11,
+      2026.<a href="#fnref36" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn37"><p>Fathom, “<a
+      href="https://help.fathom.video/en/articles/295616">Sharing Call
+      Recordings</a>,” edited June 4, 2026; accessed September 11,
+      2026.<a href="#fnref37" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn38"><p>Descript, “<a
+      href="https://help.descript.com/hc/en-us/articles/10255817744653-Export-and-publish-content-with-Descript-web-links">Export
+      and publish content with Descript web links</a>,” current help
+      page; accessed September 11, 2026.<a href="#fnref38"
+      class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+      <li id="fn39"><p>Notion, “<a
+      href="https://www.notion.com/help/sharing-and-permissions">Sharing
+      and permissions</a>” and “<a
+      href="https://www.notion.com/en-gb/help/public-pages-and-web-publishing">Publish
+      a Notion Site</a>,” current help pages; accessed September 11,
+      2026.<a href="#fnref39" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      <li id="fn40"><p>Dropbox, “<a
+      href="https://help.dropbox.com/share/set-link-permissions">How to
+      set or change shared link permissions</a>,” updated February 20,
+      2026; accessed September 11, 2026.<a href="#fnref40"
+      class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+      <li id="fn41"><p>Proton, “<a
+      href="https://proton.me/support/drive-shareable-link">How to
+      create a shareable link in Proton Drive</a>,” current help page;
+      accessed September 11, 2026.<a href="#fnref41"
+      class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+      <li id="fn42"><p>MacParakeet, “<a
+      href="https://github.com/moona3k/macparakeet/blob/aaf3dc261536e5fc5158c4b1ca714bd3f4cece19/spec/adr/002-local-only.md#L125-L131">ADR-002:
+      Local-First Processing</a>,” upstream snapshot accessed September
+      11, 2026.<a href="#fnref42" class="footnote-back"
+      role="doc-backlink">↩︎</a></p></li>
+      </ol>
+      </section>
+    </article>
+  </div>
+  <script>
+    (() => {
+      const toc = document.querySelector('.toc-shell');
+      const narrow = window.matchMedia('(max-width: 880px)');
+      const sync = () => { toc.open = !narrow.matches; };
+      sync();
+      narrow.addEventListener('change', sync);
+    })();
+  </script>
+</body>
+</html>

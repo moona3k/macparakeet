@@ -64,6 +64,12 @@ LLM-powered features (summaries, chat/Meeting Ask, AI Formatter, and Transforms)
   Disabling telemetry does not disable Discover, or vice versa.
 - **Explicit submissions**: Feedback and Discover thoughts send the user's
   submitted content and associated diagnostics; these are not STT uploads.
+- **Encrypted share snapshots (planned)**: [ADR-029](029-encrypted-shareable-transcript-snapshots.md)
+  adds an explicit, text-only publication surface at `share.macparakeet.com`.
+  The user previews the selected snapshot, the Mac encrypts it before upload,
+  the content key stays in the recipient URL fragment, and source audio remains
+  structurally excluded. This is not Library sync and is not implemented merely
+  because the ADR and contracts exist.
 - **Dormant licensing**: Free public builds do not require activation.
   Retained activation/deactivation methods use LemonSqueezy when invoked. App
   setup also refreshes a previously stored activation when the last successful
@@ -128,11 +134,12 @@ Cloud LLM costs are paid directly by the user to their provider (Anthropic, Open
 - **Cloud LLM features require internet**: Summaries, chat/Meeting Ask, AI Formatter, and Transforms won't work offline unless user runs a local provider. Transcription still works offline.
 - **Transcript text exposure**: When using cloud providers or cloud-backed CLI tools, transcript text is sent to third-party services. Must be clear in UI. Users with sensitive content should use Ollama or skip LLM features.
 - **No cloud backup or sync**: User data stays on-device. If the Mac is lost, dictation history is lost. This is intentional.
-- **No collaborative features**: Real-time sharing, team vocabularies, or cross-device sync would require cloud infrastructure. These are out of scope.
+- **No collaborative corpus**: ADR-029 permits a separately encrypted, read-only text snapshot. Real-time collaboration, team vocabularies, comments, and cross-device Library sync remain out of scope.
 
 ## References
 
 - ADR-011: LLM via cloud API keys + optional local providers
+- ADR-029: Explicit encrypted share snapshots
 - ADR-008: Previous local LLM approach (HISTORICAL — removed 2026-02-23)
 - WisprFlow Trustpilot reviews: 2.8/5 average, common complaints about delays and reliability
 - Reddit r/macapps sentiment: strong preference for local processing

@@ -1,0 +1,58 @@
+{
+  "artifact": "MacParakeet shareable transcripts research",
+  "date": "2026-09-11",
+  "source_revision": "aaf3dc261536e5fc5158c4b1ca714bd3f4cece19",
+  "scope": "Research and product architecture only; no app, service, DNS, or deployment changes",
+  "files": {
+    "markdown": "report.md",
+    "html": "index.html",
+    "template": "template.html",
+    "ui_prototype": "share-ui-prototype.html"
+  },
+  "checks": {
+    "markdown": {
+      "words": 7139,
+      "headings": 43,
+      "heading_level_jumps": 0,
+      "footnote_uses": 42,
+      "footnote_definitions": 33,
+      "missing_footnotes": 0,
+      "unused_footnotes": 0
+    },
+    "html_generation": {
+      "pandoc_fail_if_warnings": "pass",
+      "reproducible_from_report_and_template": true,
+      "sha256": "8cf5d5b955ef3c187cbc47425499ea32cdadbf2ddbf95b12aaa570d622744667"
+    },
+    "browser_desktop": {
+      "viewport": "1440x1000",
+      "visible_section_links": 19,
+      "duplicate_ids": 0,
+      "broken_internal_anchors": 0,
+      "root_horizontal_overflow": false,
+      "external_assets": 0,
+      "console_errors": 0,
+      "console_warnings": 0
+    },
+    "browser_mobile": {
+      "viewport": "390x844",
+      "collapsed_toc_height_px": 52,
+      "toc_toggle_visible_links": 19,
+      "duplicate_ids": 0,
+      "broken_internal_anchors": 0,
+      "root_horizontal_overflow": false,
+      "console_errors": 0,
+      "console_warnings": 0
+    },
+    "adversarial_review": {
+      "recommendation_overturned": false,
+      "material_findings_incorporated": 5,
+      "future_release_tests_preserved_as_gates": true
+    }
+  },
+  "not_run": {
+    "swift_build_or_tests": "No Swift or application code changed",
+    "live_share_service_tests": "No share service was implemented or deployed",
+    "browser_capture_files": "Playwright screenshots remain ignored local output and are not part of the committed research package"
+  }
+}
