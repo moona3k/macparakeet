@@ -1,0 +1,19 @@
+docs/planning/2026-09-12-v0.8.0-crash-evidence-review.md
+  s_53c86c470a1866::t_838c7f0f1e1380 1,3,5,7,9-16,18,20,22-29,31,33,35-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a09c3c7f713861b035f89862055b9ca88929fa69",
+  "prompts": {},
+  "sessions": {
+    "s_53c86c470a1866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a096a3-db60-7eb1-8f0a-1eb40bd8e15d",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
