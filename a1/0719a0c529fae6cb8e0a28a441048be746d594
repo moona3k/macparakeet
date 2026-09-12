@@ -1,0 +1,40 @@
+Sources/MacParakeetCore/Services/Sharing/ShareCoordinator.swift
+  s_d236dcbec7210b::t_2d295243bba1b9 793-794,800
+  s_d236dcbec7210b::t_3f119bd0ad76bb 54,63-64,69,119-120,123-125,168-169,172,393,426,439-450,456-459
+  s_d236dcbec7210b::t_db38f31764b7c9 121-122,451-455,792
+  s_d236dcbec7210b::t_e710a12f5cffef 107,289
+  s_d236dcbec7210b::t_14544257be7f81 460-461
+spec/contracts/share-service-v1.md
+  s_d236dcbec7210b::t_5357457d4b2aff 245-250
+Sources/MacParakeetCore/Database/SharePublicationRepository.swift
+  s_d236dcbec7210b::t_2d295243bba1b9 75-77,260,267,269-272
+  s_d236dcbec7210b::t_3f119bd0ad76bb 261-266,268
+  s_d236dcbec7210b::t_a75366557c8492 273-276
+docs/share-links-implementation.md
+  s_d236dcbec7210b::t_63d225182a64df 52-56
+  s_d236dcbec7210b::t_5cf6dd09ff69ec 1-51,57-71
+docs/share-service-privacy-and-operations.md
+  s_d236dcbec7210b::t_5357457d4b2aff 135-142
+Tests/MacParakeetTests/Services/Sharing/ShareCoordinatorTests.swift
+  s_d236dcbec7210b::t_2d295243bba1b9 596,599,602,615-617,619
+  s_d236dcbec7210b::t_db38f31764b7c9 202-203,608-609,612-614,625-630,634-635,657-658,674-676,681-683,702-704
+  s_d236dcbec7210b::t_ac1ed72098a641 646-656,659-660
+  s_d236dcbec7210b::t_e710a12f5cffef 113-114,597-598,600-601,603-607,610-611,618,620-624,631-633,636-645,661-673,677-680,684-701,705-706
+  s_d236dcbec7210b::t_fafb9cb03dd49e 707
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a10719a0c529fae6cb8e0a28a441048be746d594",
+  "prompts": {},
+  "sessions": {
+    "s_d236dcbec7210b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0929e-d77e-7bb2-8fd3-0401a6a7b54b",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
