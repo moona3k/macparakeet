@@ -1,0 +1,21 @@
+docs/plans/2026-09-11-issue-895-meeting-split-plan.md
+  s_a873ed00f9edeb::t_dcb0c3f4683a74 80-81,171
+docs/research/2026-09-11-issue-895-meeting-split/publication-check.json
+  s_a873ed00f9edeb::t_c579ba3592ae40 3,48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a82a64588171f0a94ab30d824ef402ea75a6407a",
+  "prompts": {},
+  "sessions": {
+    "s_a873ed00f9edeb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0934d-8db0-7702-aa27-19ce08f0c352",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
