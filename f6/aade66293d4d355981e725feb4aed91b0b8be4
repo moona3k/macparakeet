@@ -1,0 +1,82 @@
+spec/README.md
+  s_d236dcbec7210b::t_bd70447ecfbf92 27,40-43,141
+docs/share-service-privacy-and-operations.md
+  s_d236dcbec7210b::t_40a545cd70dda3 26,89
+  s_d236dcbec7210b::t_b6f0fc67f26a48 1-25,27-57,59-66,68-74,76-77,79-88,90-113,115-138
+  s_d236dcbec7210b::t_b614c0c25fa4ea 58
+  s_d236dcbec7210b::t_6575731d68d6b8 67,75,78,114
+docs/research/2026-09-11-shareable-transcripts/briefs/architecture.md
+  s_d236dcbec7210b::t_b598990aa2c1d5 1-20
+spec/contracts/share-link-bundle-v1.md
+  s_d236dcbec7210b::t_76710a8da5dc0e 1-137,139,141-144
+  s_d236dcbec7210b::t_6575731d68d6b8 140
+  s_d236dcbec7210b::t_305c4af76cd281 138
+spec/contracts/share-service-v1.md
+  s_d236dcbec7210b::t_ae4570c01c5421 98-109
+  s_d236dcbec7210b::t_4d6abfadccc73d 187-189,202,245
+  s_d236dcbec7210b::t_b614c0c25fa4ea 30,41,89,123,192,197
+  s_d236dcbec7210b::t_76710a8da5dc0e 1-29,31-39,43-71,73-75,77-80,83-88,90-97,138-139,142-161,163-186,190-191,194-196,198-201,203-204,206-244,248-251
+  s_d236dcbec7210b::t_6575731d68d6b8 40,72,82,140-141,193,247
+  s_d236dcbec7210b::t_4bfc48eaa97037 42,81,110-122,124-137
+  s_d236dcbec7210b::t_40a545cd70dda3 76,162,205,246
+spec/contracts/telemetry-v1.md
+  s_d236dcbec7210b::t_bd70447ecfbf92 12-15
+docs/research/2026-09-11-shareable-transcripts/template.html
+  s_d236dcbec7210b::t_f8eb9199ef6ef4 1-333
+docs/research/2026-09-11-shareable-transcripts/briefs/shared.md
+  s_d236dcbec7210b::t_b598990aa2c1d5 1-41
+docs/research/2026-09-11-shareable-transcripts/report.md
+  s_d236dcbec7210b::t_71cf09f51d121e 1-924
+docs/research/2026-09-11-shareable-transcripts/index.html
+  s_d236dcbec7210b::t_0239232af7ec1a 1-1938
+docs/research/2026-09-11-shareable-transcripts/briefs/security.md
+  s_d236dcbec7210b::t_b598990aa2c1d5 1-20
+spec/15-shareable-transcripts.md
+  s_d236dcbec7210b::t_40a545cd70dda3 59,70
+  s_d236dcbec7210b::t_4849c16f4f8f39 81
+  s_d236dcbec7210b::t_325753e39674ca 5
+  s_d236dcbec7210b::t_e094ab242fee37 1-4,6-28,30,33-48,51-58,60-63,65-69,71-80,82-83,86-91
+  s_d236dcbec7210b::t_d6bd4f8b2583a8 31
+  s_d236dcbec7210b::t_6575731d68d6b8 29,32,49-50,64,84-85
+spec/adr/029-encrypted-shareable-transcript-snapshots.md
+  s_d236dcbec7210b::t_40a545cd70dda3 29
+  s_d236dcbec7210b::t_6575731d68d6b8 24,27,31
+  s_d236dcbec7210b::t_e094ab242fee37 1-23,25-26,28,30,32-71
+spec/contracts/README.md
+  s_d236dcbec7210b::t_bd70447ecfbf92 46-47
+docs/research/2026-09-11-shareable-transcripts/share-ui-prototype.html
+  s_d236dcbec7210b::t_fb5348c9ee300f 1-1166
+spec/adr/002-local-only.md
+  s_d236dcbec7210b::t_bd70447ecfbf92 67-72,137,142
+docs/plans/2026-09-11-1942-feat-shareable-transcripts-plan.md
+  s_d236dcbec7210b::t_40a545cd70dda3 88,208,305,375
+  s_d236dcbec7210b::t_b614c0c25fa4ea 420
+  s_d236dcbec7210b::t_b3f10f66c00453 1-6,8-16,18,21-38,40-42,45-73,75-80,82,84-86,89,91-99,101-104,107-125,127-131,133-137,139,146-150,152-154,157-172,174-177,179-196
+  s_d236dcbec7210b::t_4849c16f4f8f39 17,44,132,151,173,413
+  s_d236dcbec7210b::t_2377bac4748b82 155,377
+  s_d236dcbec7210b::t_325753e39674ca 281,407
+  s_d236dcbec7210b::t_834c0420d6717e 43,74,83,87,90,100,105-106,138,140-145,156,178,290,316,319,334,350-351,359,362,365-366,378-380,387,400,405-406,431,456,469
+  s_d236dcbec7210b::t_43c292899c101f 7,19-20,39,81
+  s_d236dcbec7210b::t_32d2138440eb6f 197-207,209-250,269-280,282-289,291-304,306-315,317-318,320-333,335-339,341-347,349,352-358,360-361,363-364,367-374,376,381-386,388-392,394-399,401-402,404,408-412,414-419,421-422,424-430,432-455,457-468,470-475
+  s_d236dcbec7210b::t_4d6abfadccc73d 126,251-268,340,348,393,403,423
+docs/research/2026-09-11-shareable-transcripts/briefs/product.md
+  s_d236dcbec7210b::t_b598990aa2c1d5 1-19
+docs/research/2026-09-11-shareable-transcripts/artifact-check.json
+  s_d236dcbec7210b::t_3c07dc664127e6 1-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f6aade66293d4d355981e725feb4aed91b0b8be4",
+  "prompts": {},
+  "sessions": {
+    "s_d236dcbec7210b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0929e-d77e-7bb2-8fd3-0401a6a7b54b",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
