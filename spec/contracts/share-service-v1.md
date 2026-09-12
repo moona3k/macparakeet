@@ -92,7 +92,7 @@ Every owner resource read or mutation first verifies that the presenting credent
 | Method | Path | Stable semantics |
 |---|---|---|
 | `GET` | `/api/v1/capabilities` | Returns supported envelope/bundle versions and current service limits; it does not encode UI presets. |
-| `POST` | `/api/v1/owners` | Registers client-generated owner, device selector/verifier, and optional recovery verifier; returns no secret. |
+| `POST` | `/api/v1/owners` | Create-only registration of a client-generated owner, device selector/verifier, and optional recovery verifier; returns no secret. |
 | `POST` | `/api/v1/owners/recover` | Authenticates a recovery token, atomically advances the credential generation, installs its device verifier and optional replacement recovery verifier, and invalidates old credentials. |
 | `PUT` | `/api/v1/owners/recovery` | Installs a verifier under an absence precondition, or replaces/removes one with proof of the current recovery token; recovery secrets remain client-generated. |
 | `GET` | `/api/v1/shares?limit=50&cursor=...` | Reconciles owner-visible metadata; returns no ciphertext or content-derived fields. |
@@ -125,6 +125,8 @@ Owner enrollment sends client-generated selectors and verifiers, all encoded as 
   "recoveryVerifier": "optional-32-sha256-bytes"
 }
 ```
+
+Enrollment requires `If-None-Match: *` and an idempotency key. A same-key, same-digest retry within the receipt window returns the original response. Otherwise, the service atomically rejects any existing owner ID or device selector with generic `409 enrollment_conflict` without changing an existing verifier or revealing which value collided.
 
 Recovery uses `Authorization: Recovery <recovery-token>` and supplies a fresh client-generated device selector/verifier plus an optional replacement recovery verifier.
 The service response contains owner metadata and credential scope, never a secret.
@@ -253,7 +255,7 @@ Errors use this envelope; `message` is non-stable display copy and `requestId` i
 }
 ```
 
-Stable codes are `invalid_request` (400), `unauthorized` (401), `not_found` (404 owner API only), `share_unavailable` (404 public API), `locator_conflict` (409), `idempotency_conflict` (409), `payload_too_large` (413), `version_conflict` (412), `precondition_required` (428), `unsupported_version` (422), `invalid_expiry` (422), `quota_exceeded` (429), `rate_limited` (429 with `Retry-After`), `service_unavailable` (503), and `internal_error` (500).
+Stable codes are `invalid_request` (400), `unauthorized` (401), `not_found` (404 owner API only), `share_unavailable` (404 public API), `enrollment_conflict` (409), `locator_conflict` (409), `idempotency_conflict` (409), `payload_too_large` (413), `version_conflict` (412), `precondition_required` (428), `unsupported_version` (422), `invalid_expiry` (422), `quota_exceeded` (429), `rate_limited` (429 with `Retry-After`), `service_unavailable` (503), and `internal_error` (500).
 The service never returns decrypted-content validation errors because it cannot perform that validation.
 
 ## Non-stable behavior
@@ -268,7 +270,7 @@ Removing or changing a stable field, credential authority, state transition, end
 ## Tests that enforce this
 
 Native tests cover credential storage, later recovery setup, recovery replacement and removal proof, expiry arithmetic, ETag and idempotency behavior, outbox ordering and restart recovery, lost responses, local deletion without cascading share state, locator-commitment terminal reconciliation, and receipt-driven UI state.
-Service contract tests cover owner authentication; absence-guarded recovery setup; device-only replacement and removal rejection; proof-backed recovery replacement and removal; credential-generation content-write scope; recovered live-share stop through listed locator commitments; correct-owner, wrong-owner, unknown, and post-tombstone delete responses; public-unavailable equivalence; exact expiry; terminal-operation precedence; permanent locator non-reuse; publication ordering; orphan and revision cleanup; independently anchored tombstone, abuse-case, and operator-audit retention; quotas; abuse-report non-enforcement; and log redaction.
+Service contract tests cover create-only owner enrollment, including idempotent same-request retry and owner-ID or selector collision without verifier mutation; owner authentication; absence-guarded recovery setup; device-only replacement and removal rejection; proof-backed recovery replacement and removal; credential-generation content-write scope; recovered live-share stop through listed locator commitments; correct-owner, wrong-owner, unknown, and post-tombstone delete responses; public-unavailable equivalence; exact expiry; terminal-operation precedence; permanent locator non-reuse; publication ordering; orphan and revision cleanup; independently anchored tombstone, abuse-case, and operator-audit retention; quotas; abuse-report non-enforcement; and log redaction.
 Browser tests cover local decrypt, search, copy, Markdown and text downloads, print, accessibility, strict CSP, generic previews, `no-referrer`, no external requests, wrong-key or unavailable states, and hostile Markdown or segment content rendered without executable HTML, event handlers, or URLs.
 
 ## When this changes

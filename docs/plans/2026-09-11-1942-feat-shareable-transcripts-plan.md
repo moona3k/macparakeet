@@ -343,6 +343,7 @@ The app may merge after it passes against a disposable or staging service, but p
 - **Execution note:** Start with repository and coordinator failure-path tests because deletion and lost-response ordering are the durable safety boundary.
 - **Test scenarios:**
   - A first publish creates one random owner credential without biometric or application-password access flags and stores no secret in GRDB or UserDefaults.
+  - Owner enrollment is create-only: a same-key, same-digest retry returns the original response, while an owner-ID or device-selector collision outside that retry contract fails without changing any device or recovery verifier.
   - A 30-day default succeeds, the exact 90-day boundary succeeds, a later instant fails, and content updates never move `maxExpiresAt`.
   - Retrying create or update with the same idempotency key returns one publication; a stale ETag keeps the prior confirmed revision.
   - A create response lost after server commit reconciles the existing share rather than creating a second link.
@@ -382,6 +383,7 @@ The app may merge after it passes against a disposable or staging service, but p
   - A recovered owner can stop a live listed share using its opaque locator commitment, while correct-owner, wrong-owner, unknown, and post-tombstone deletion requests preserve the contracted response boundaries.
   - A recovered credential cannot replace pre-recovery content but can create and update shares in its new generation.
   - A device token can add recovery only while none exists; it cannot replace or remove a configured verifier without the current recovery token, and a successful replacement or removal consumes that verifier atomically.
+  - Re-enrolling an existing owner ID or device selector returns one generic conflict and leaves every configured verifier unchanged.
   - Recovery tokens have the contracted entropy, verifier-only storage, and bounded guess-rate controls; unknown and incorrect recovery attempts are indistinguishable.
   - Tombstone retention is bounded from confirmed ciphertext deletion, abuse-case retention from case creation, and sterile operator-decision audit retention from the decision; no clock extends another.
   - Script tags, event handlers, executable URLs, malformed structures, and oversized hostile text remain inert, with CSP blocking inline and external execution.
