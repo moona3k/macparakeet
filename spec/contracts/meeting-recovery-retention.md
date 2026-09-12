@@ -241,6 +241,75 @@ not final-transcription completion:
   when missing-lock restoration fails, so a failed release still relinquishes
   the exact lease for a later same-process retry.
 
+## Meeting Media Mutation Lease
+
+`MeetingMediaMutationLease` is a second, independent advisory lock from
+`recording.lock`. It protects a different race: saved-meeting audio
+deletion/bulk cleanup running concurrently with a future split's media
+export/materialize/publish over the same recordings root. It is not a
+capture/finalization ownership mechanism and must not be confused with, or
+substituted for, `recording.lock`.
+
+- One hidden, regular file per recordings root: `.meeting-media-mutation.lock`,
+  written directly in the root (never inside a per-meeting session folder), so
+  the lock's identity is stable even after a meeting's session folder is
+  deleted, and deleting that folder can never take the lock file with it.
+- Acquisition is `flock(LOCK_EX | LOCK_NB)`: nonblocking. A caller is never
+  blocked; it either acquires immediately or observes a clear busy error
+  (`MeetingMediaMutationLease.AcquisitionError.busy`) to surface and retry.
+- The lock file is opened with `O_NOFOLLOW` and then `fstat`-checked as a
+  regular file; a symlink or non-regular file (FIFO, device) planted at the
+  lock path is refused (`ioFailure`/`unexpectedLockFileType`) rather than
+  followed or trusted, so the lease's root identity cannot be redirected.
+- Roots passed to `acquire(roots:)` are canonicalized (symlinks resolved),
+  deduped, and sorted before locking, so multi-root acquisitions (a future
+  split's source and destination roots) always lock in the same order and
+  cannot deadlock each other. A failure partway through releases every
+  descriptor already acquired by that call before the error is thrown.
+- There is deliberately no PID-staleness logic, no reuse of `recording.lock`,
+  and no generic reusable lock framework: `flock` is released by the kernel
+  the instant the holding process exits (including a forced, uncooperative
+  death) or closes the descriptor, so a crashed holder can never leave a root
+  permanently locked, and this lease's scope (media mutation ordering) is
+  narrower than `recording.lock`'s (capture/finalization ownership).
+- Each `acquire()` call opens its own file descriptor. `flock` locks are
+  scoped to the open file description, not the owning process, so two
+  independent acquisitions of the same root conflict even from the same
+  process -- this is intentional: two callers in one process (for example a
+  bulk clear and a per-meeting delete racing on the same root) must still be
+  serialized.
+- `TranscriptionAssetCleanup.deleteTranscription(_:repository:)` and
+  `.clearManagedMeetingAudio(under:repository:)` hold the lease across BOTH
+  the file-removal phase and the repository/DB phase (delete row; detach
+  stored audio paths) so the two phases cannot be observed torn apart by a
+  concurrent split. `detachOwnedMeetingAudio` already held both of its phases
+  together and now acquires this lease around its whole body. The lower-level
+  `removeOwnedAssets` / `removeOwnedMeetingAudio` / `removeManagedMeetingAudioFiles`
+  remain individually safe to call alone (each acquires its own lease
+  internally via private unlocked helpers, not a public bypass flag) for
+  callers that only need the file-removal half.
+- Per-meeting operations acquire the meeting's session folder's *parent*
+  (stable even if that specific session folder is deleted mid-operation);
+  bulk operations acquire the exact recordings-root directory passed in.
+  Non-meeting sources and meeting rows with no resolvable folder have no
+  shared root to protect and run unlocked, matching their existing
+  non-racing removal paths.
+- `recording.lock` barriers are unchanged: `assertMeetingFolderUnlocked` still
+  refuses a locked session folder regardless of this lease's state, and this
+  lease never substitutes for that check.
+- GUI (`SettingsViewModel`, `TranscriptionViewModel`, `TranscriptionLibraryViewModel`,
+  `TranscriptionDeletionCleanup`) and the CLI `HistoryCommand` still call the
+  pre-existing unlocked entry points as of this change; migrating those call
+  sites to `deleteTranscription`/`clearManagedMeetingAudio` so every caller
+  inherits the combined-phase protection is follow-up work for whoever wires
+  the split feature's shared completion/CLI integration, not this foundation.
+- Older MacParakeet builds that predate this lease do not create or respect
+  `.meeting-media-mutation.lock`. A split running only on a build with this
+  lease is protected against *this build's* mutators; it offers no
+  protection against an older, unpatched binary mutating the same root
+  concurrently. This is an accepted limitation, not a bug to route around
+  here.
+
 ## Non-Stable Fields
 
 - PID liveness is process-local and time-sensitive. `kill(pid, 0)` cannot
@@ -274,6 +343,8 @@ retention barrier.
 - `MeetingAudioRetentionPolicyTests`
 - `MeetingAudioRetentionSweeperTests`
 - `MeetingRecordingServiceTests`
+- `MeetingMediaMutationLeaseTests`
+- `TranscriptionAssetCleanupMutationLeaseTests`
 
 Focused coverage pins dead-PID `awaitingTranscription` reads, serialized
 single-owner retry/recovery admission, live-owner processing-row protection
@@ -286,8 +357,28 @@ refusal for missing or non-completed rows, rethrown delete I/O failure
 success/failure lock behavior, and crash-point convergence for awaiting locks
 with no row, processing rows, and completed rows whose lock is still present.
 
+`MeetingMediaMutationLeaseTests` pins nonblocking same-process acquisition
+conflicts (including two independent acquisitions of the same root from one
+process), a real second-process conflicting acquisition over `flock` (a
+Python helper process), release and forced (`SIGKILL`) process-death both
+permitting reacquisition, independent roots never conflicting, alias/symlink
+roots sharing one lock key, a deterministic partial multi-root acquire fully
+unwinding on conflict, and a symlinked or non-regular (FIFO) lock path being
+refused rather than followed or trusted. `TranscriptionAssetCleanupMutationLeaseTests`
+pins that an externally held lease blocks `deleteTranscription`,
+`detachOwnedMeetingAudio`, and `clearManagedMeetingAudio` from starting either
+phase (and that all three succeed once released), that `clearManagedMeetingAudio`
+actually runs both its file and row phases together, that the pre-existing
+`recording.lock` barrier still refuses a locked folder independent of this
+lease, and that a non-meeting delete never needs or touches an unrelated
+meeting root's lease.
+
 ## When this changes
 
 Update this file, ADR-019, `spec/05-audio-pipeline.md`, CLI changelog notes for
 clear-audio behavior, and the focused lock/recovery/retention tests in the same
-PR.
+PR. Changes to `MeetingMediaMutationLease`'s root-key resolution, lock file
+name, or acquisition semantics must also update this file's Meeting Media
+Mutation Lease section and `MeetingMediaMutationLeaseTests`. Migrating a GUI
+or CLI call site to `deleteTranscription`/`clearManagedMeetingAudio` should
+update the call-site bullet above rather than leave it stale.

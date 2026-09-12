@@ -56,16 +56,26 @@ public enum TranscriptionAssetCleanup {
         for transcription: Transcription,
         fileManager: FileManager = .default
     ) throws {
-        switch transcription.sourceType {
-        case .youtube, .podcast:
-            // Both downloaded-media sources store their audio under the shared
-            // app-managed downloads directory; the same prefix guard applies.
-            guard let filePath = transcription.filePath, !filePath.isEmpty else { return }
-            try removeDownloadedMediaFile(at: URL(fileURLWithPath: filePath), fileManager: fileManager)
-        case .meeting:
-            _ = try removeOwnedMeetingAudio(for: transcription, fileManager: fileManager)
-        case .file:
-            return
+        try withMeetingMediaMutationLease(for: transcription) {
+            try removeOwnedAssetsUnlocked(for: transcription, fileManager: fileManager)
+        }
+    }
+
+    /// Removes an owned asset and deletes its transcription row under a
+    /// single meeting-media mutation lease, so a future split preparing or
+    /// publishing media for the same recordings root cannot observe the two
+    /// phases torn apart. Callers that already delete rows and files
+    /// separately should migrate to this entry point rather than
+    /// reintroducing an unlocked two-step sequence.
+    @discardableResult
+    public static func deleteTranscription(
+        _ transcription: Transcription,
+        repository: TranscriptionRepositoryProtocol,
+        fileManager: FileManager = .default
+    ) throws -> Bool {
+        try withMeetingMediaMutationLease(for: transcription) {
+            try removeOwnedAssetsUnlocked(for: transcription, fileManager: fileManager)
+            return try repository.delete(id: transcription.id)
         }
     }
 
@@ -73,6 +83,70 @@ public enum TranscriptionAssetCleanup {
     public static func removeOwnedMeetingAudio(
         for transcription: Transcription,
         fileManager: FileManager = .default
+    ) throws -> Bool {
+        try withMeetingMediaMutationLease(for: transcription) {
+            try removeOwnedMeetingAudioUnlocked(for: transcription, fileManager: fileManager)
+        }
+    }
+
+    @discardableResult
+    public static func detachOwnedMeetingAudio(
+        for transcription: Transcription,
+        repository: TranscriptionRepositoryProtocol,
+        fileManager: FileManager = .default
+    ) throws -> MeetingAudioDetachResult {
+        try withMeetingMediaMutationLease(for: transcription) {
+            try detachOwnedMeetingAudioUnlocked(for: transcription, repository: repository, fileManager: fileManager)
+        }
+    }
+
+    /// Runs `body` under an advisory mutation lease held on the meeting's
+    /// recordings root (the session folder's parent, so the lease's identity
+    /// survives the session folder itself being deleted mid-operation).
+    /// Non-meeting sources and meeting rows with no resolvable folder have no
+    /// shared root to protect against a future split, so `body` runs
+    /// unlocked -- matching their unchanged, non-racing removal paths.
+    private static func withMeetingMediaMutationLease<T>(
+        for transcription: Transcription,
+        _ body: () throws -> T
+    ) throws -> T {
+        guard let rootURL = meetingMutationRootURL(for: transcription) else {
+            return try body()
+        }
+        let lease = try MeetingMediaMutationLease.acquire(roots: [rootURL])
+        defer { lease.release() }
+        return try body()
+    }
+
+    private static func meetingMutationRootURL(for transcription: Transcription) -> URL? {
+        guard transcription.sourceType == .meeting,
+              let folderURL = MeetingArtifactStore.sessionFolderURL(for: transcription) else {
+            return nil
+        }
+        return folderURL.standardizedFileURL.deletingLastPathComponent()
+    }
+
+    private static func removeOwnedAssetsUnlocked(
+        for transcription: Transcription,
+        fileManager: FileManager
+    ) throws {
+        switch transcription.sourceType {
+        case .youtube, .podcast:
+            // Both downloaded-media sources store their audio under the shared
+            // app-managed downloads directory; the same prefix guard applies.
+            guard let filePath = transcription.filePath, !filePath.isEmpty else { return }
+            try removeDownloadedMediaFile(at: URL(fileURLWithPath: filePath), fileManager: fileManager)
+        case .meeting:
+            _ = try removeOwnedMeetingAudioUnlocked(for: transcription, fileManager: fileManager)
+        case .file:
+            return
+        }
+    }
+
+    @discardableResult
+    private static func removeOwnedMeetingAudioUnlocked(
+        for transcription: Transcription,
+        fileManager: FileManager
     ) throws -> Bool {
         guard transcription.sourceType == .meeting,
               let folderURL = MeetingArtifactStore.sessionFolderURL(for: transcription)?.standardizedFileURL else {
@@ -82,11 +156,10 @@ public enum TranscriptionAssetCleanup {
         return try removeMeetingFolder(at: folderURL, fileManager: fileManager)
     }
 
-    @discardableResult
-    public static func detachOwnedMeetingAudio(
+    private static func detachOwnedMeetingAudioUnlocked(
         for transcription: Transcription,
         repository: TranscriptionRepositoryProtocol,
-        fileManager: FileManager = .default
+        fileManager: FileManager
     ) throws -> MeetingAudioDetachResult {
         let hasAudioPath = !(transcription.filePath?.isEmpty ?? true)
         guard hasAudioPath else {
@@ -185,9 +258,41 @@ public enum TranscriptionAssetCleanup {
         return candidates
     }
 
+    /// Clears every managed meeting audio file under `directoryPath` and
+    /// detaches the affected rows' stored audio paths under a single meeting
+    /// media mutation lease held on that exact root, so a future split
+    /// preparing/publishing media anywhere under the root cannot observe the
+    /// file-removal and repository-detach phases torn apart. Callers that
+    /// already do both steps unlocked should migrate to this entry point.
+    @discardableResult
+    public static func clearManagedMeetingAudio(
+        under directoryPath: String,
+        repository: TranscriptionRepositoryProtocol,
+        fileManager: FileManager = .default
+    ) throws -> [UUID] {
+        let rootURL = URL(fileURLWithPath: directoryPath, isDirectory: true)
+        let lease = try MeetingMediaMutationLease.acquire(roots: [rootURL])
+        defer { lease.release() }
+
+        try removeManagedMeetingAudioFilesUnlocked(under: directoryPath, fileManager: fileManager)
+        return try repository.clearStoredAudioPathsForMeetingTranscriptions(under: directoryPath)
+    }
+
     public static func removeManagedMeetingAudioFiles(
         under directoryPath: String,
         fileManager: FileManager = .default
+    ) throws {
+        let rootURL = URL(fileURLWithPath: directoryPath, isDirectory: true).standardizedFileURL
+        guard fileManager.fileExists(atPath: rootURL.path) else { return }
+
+        let lease = try MeetingMediaMutationLease.acquire(roots: [rootURL])
+        defer { lease.release() }
+        try removeManagedMeetingAudioFilesUnlocked(under: directoryPath, fileManager: fileManager)
+    }
+
+    private static func removeManagedMeetingAudioFilesUnlocked(
+        under directoryPath: String,
+        fileManager: FileManager
     ) throws {
         let rootURL = URL(fileURLWithPath: directoryPath, isDirectory: true).standardizedFileURL
         guard fileManager.fileExists(atPath: rootURL.path) else { return }

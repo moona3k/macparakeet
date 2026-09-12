@@ -95,6 +95,39 @@ commit `57c3de5731656378c65108b2b46984fd9c302d99` during pipeline inspection:
 `TranscriptionServiceTests`. All three passed. They establish useful existing
 saved-audio behavior, not split, automation or real-model acceptance.
 
+### Implemented audio/lease foundation (U2a)
+
+The following names are real, tested Core building blocks the split
+operation and CLI will call; nothing below is a persisted field, CLI flag, or
+public DTO, and none of it constitutes the split operation itself:
+
+- `MeetingSplitSourceRange(startMs:endMs:)` is a plain `[startMs, endMs)`
+  audio range with no transcript/speaker meaning.
+  `MeetingSplitGeometry.ranges(durationMs:cutPointsMs:)` turns approved cut
+  points into contiguous, gapless ranges, rejecting zero/terminal/
+  out-of-range/duplicate/unordered cuts. See
+  `Sources/MacParakeetCore/Services/MeetingSplit/MeetingSplitSourceRange.swift`.
+- `MeetingSplitAudioExporter.export(sourceFolderURL:sourceAlignment:children:)`
+  slices canonical playback plus whichever raw mic/system/cleaned-mic tracks
+  are present and overlap each child's range into fresh AAC files at
+  caller-owned destination folders; it never mutates the source, rejects a
+  destination that overlaps the source folder, forwards cancellation into its
+  decode/probe/write tasks, and rejects truncated re-encoded output instead of
+  publishing a silently short file. `inspectSource(sourceFolderURL:)` is a
+  read-only, no-write probe returning whole-timeline duration, on-disk size,
+  and which optional tracks exist. See
+  `Sources/MacParakeetCore/Services/MeetingSplit/MeetingSplitAudioExporter.swift`.
+- `MeetingMediaMutationLease` is the cross-process advisory lock a split's
+  media preparation/publication and saved-meeting audio deletion/retention
+  cleanup both must hold; see its dedicated section in the
+  [recovery/retention contract](meeting-recovery-retention.md#meeting-media-mutation-lease)
+  for the full lock-file, ordering, and call-site contract.
+
+None of this is the split operation, the Core service that will sequence
+audio creation and processing, or CLI/GUI integration; those remain future
+work per the [plan](../../docs/plans/2026-09-11-issue-895-meeting-split-plan.md)'s
+delivery order.
+
 ## When this changes
 
 Update this contract, the [plan](../../docs/plans/2026-09-11-issue-895-meeting-split-plan.md)
