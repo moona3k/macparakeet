@@ -8,6 +8,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 . "$ROOT_DIR/scripts/dist/meeting_echo_asset_defaults.sh"
+. "$ROOT_DIR/scripts/dist/macho_min_version.sh"
 
 DEFAULT_LOCALVQE_REPO_URL="https://github.com/localai-org/LocalVQE.git"
 DEFAULT_LOCALVQE_REF="35b116d5eb059d552fa46fac3ce2963ed13ce153"
@@ -31,6 +32,25 @@ MODEL_URL="${MACPARAKEET_MEETING_ECHO_MODEL_URL:-$DEFAULT_MODEL_URL}"
 MODEL_SHA256="${MACPARAKEET_MEETING_ECHO_MODEL_SHA256:-}"
 UNIVERSAL="${MACPARAKEET_MEETING_ECHO_UNIVERSAL:-${UNIVERSAL:-0}}"
 CMAKE_BUILD_TYPE="${LOCALVQE_CMAKE_BUILD_TYPE:-Release}"
+
+# The app's advertised minimum macOS version is the ceiling: the runtime we
+# build must not require a newer OS than the app itself claims to support.
+APP_MIN_MACOS_VERSION="${MACPARAKEET_MEETING_ECHO_APP_MIN_MACOS_VERSION:-$DEFAULT_MEETING_ECHO_MIN_MACOS_VERSION}"
+LOCALVQE_MIN_MACOS_VERSION="${LOCALVQE_MIN_MACOS_VERSION:-$APP_MIN_MACOS_VERSION}"
+
+if ! is_macos_version "$APP_MIN_MACOS_VERSION"; then
+  echo "Error: MACPARAKEET_MEETING_ECHO_APP_MIN_MACOS_VERSION must be a macOS version like 14.2: '$APP_MIN_MACOS_VERSION'." >&2
+  exit 1
+fi
+if ! is_macos_version "$LOCALVQE_MIN_MACOS_VERSION"; then
+  echo "Error: LOCALVQE_MIN_MACOS_VERSION must be a macOS version like 14.2: '$LOCALVQE_MIN_MACOS_VERSION'." >&2
+  exit 1
+fi
+if version_gt "$LOCALVQE_MIN_MACOS_VERSION" "$APP_MIN_MACOS_VERSION"; then
+  echo "Error: LOCALVQE_MIN_MACOS_VERSION ($LOCALVQE_MIN_MACOS_VERSION) exceeds the app's minimum macOS version ($APP_MIN_MACOS_VERSION)." >&2
+  echo "  A LocalVQE runtime built for a newer minimum than the app claims to support would crash on OS versions the app advertises as supported." >&2
+  exit 1
+fi
 
 require_tool() {
   local tool="$1"
@@ -202,6 +222,7 @@ configure_localvqe_runtime() {
     -DCMAKE_RUNTIME_OUTPUT_DIRECTORY="$BUILD_DIR"
     "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY_${cmake_build_type_upper}=$BUILD_DIR"
     "-DCMAKE_RUNTIME_OUTPUT_DIRECTORY_${cmake_build_type_upper}=$BUILD_DIR"
+    -DCMAKE_OSX_DEPLOYMENT_TARGET="$LOCALVQE_MIN_MACOS_VERSION"
     -DLOCALVQE_BUILD_SHARED=ON
     -DLOCALVQE_VULKAN=OFF
     -DLOCALVQE_CUDA=OFF
@@ -240,6 +261,7 @@ runtime_stamp_value() {
   printf 'ref=%s\n' "$LOCALVQE_REF"
   printf 'build_type=%s\n' "$CMAKE_BUILD_TYPE"
   printf 'universal=%s\n' "$UNIVERSAL"
+  printf 'min_macos_version=%s\n' "$LOCALVQE_MIN_MACOS_VERSION"
 }
 
 runtime_dylib_manifest_value() {

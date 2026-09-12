@@ -63,6 +63,17 @@ LocalVQE source checkout under `.build/`, the prep script discards that generate
 checkout and clones it again. Custom `LOCALVQE_SOURCE_DIR` checkouts are left in
 place and require manual cleanup on lock errors.
 
+`prepare_meeting_echo_assets.sh` passes `CMAKE_OSX_DEPLOYMENT_TARGET` to the
+LocalVQE build, aligned with the app's `MIN_MACOS_VERSION` (default `14.2`) so
+the shipped `liblocalvqe.dylib` never requires a newer macOS than the app
+advertises support for. `build_app_bundle.sh` propagates its own
+`MIN_MACOS_VERSION` into the auto-prepared build automatically. To pin a
+different deployment target for the LocalVQE runtime specifically (still no
+higher than the app's minimum), set `LOCALVQE_MIN_MACOS_VERSION`; a value
+above the app's minimum is a build error. The runtime cache stamp keys on the
+deployment target, so changing it (or picking up this fix over an older
+cached build) forces a rebuild rather than reusing a stale dylib.
+
 For a deliberately serialized release build, set:
 
 ```bash
@@ -95,6 +106,19 @@ if required LocalVQE C symbols are not exported, or if `otool -L` shows
 non-portable dylib references outside `@rpath`, `@loader_path`, `/System/Library`,
 or `/usr/lib`. Without `REQUIRE_MEETING_ECHO_ASSETS=1`, missing assets are
 accepted and the app intentionally runs the meeting echo path as passthrough.
+
+The verifier also inspects every bundled LocalVQE dylib (`liblocalvqe.dylib`
+and any dependency copied into `Contents/Frameworks/`) and every architecture
+slice of each, reading the Mach-O minimum-OS-version load command
+(`LC_BUILD_VERSION minos`, or legacy `LC_VERSION_MIN_MACOSX`) and rejecting
+any slice higher than the app's `LSMinimumSystemVersion`. A missing/malformed
+version is always a hard failure; a missing `otool`/`lipo` is a hard failure
+only under `STRICT_MEETING_ECHO_ASSETS=1` (implied by
+`REQUIRE_MEETING_ECHO_ASSETS=1`) and otherwise a skipped-check warning. When
+run as part of `build_app_bundle.sh`, the expected minimum is the build's
+`MIN_MACOS_VERSION`; run standalone against an already-built bundle, it reads
+`LSMinimumSystemVersion` from the bundle's `Info.plist` unless
+`MACPARAKEET_MEETING_ECHO_MIN_MACOS_VERSION` overrides it.
 
 Retained purchase activation config (normally unset in current free builds):
 
