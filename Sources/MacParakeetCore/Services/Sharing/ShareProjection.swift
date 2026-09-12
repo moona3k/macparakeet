@@ -28,27 +28,42 @@ public enum ShareProjectionError: Error, Sendable, Equatable {
     case nothingSelected
 }
 
+/// Displayed prompt output selected by the owner. Deliberately carries no
+/// prompt instructions, generation receipts, provider metadata, or local IDs.
+public struct ShareSummary: Sendable, Equatable {
+    public let title: String
+    public let markdown: String
+
+    public init(title: String, markdown: String) {
+        self.title = title
+        self.markdown = markdown
+    }
+}
+
 /// Builds an allowlisted `ShareBundle` from local display data. This is the
 /// only place selection turns into wire content, and it never serializes a
-/// `Transcription` or `Card` wholesale: every field it can emit is explicitly
+/// `Transcription` or prompt result wholesale: every field it can emit is explicitly
 /// read out below, so audio paths, local IDs, model/provider details, prompts,
 /// calendar context, and every other unselected field can never leak through.
 public enum ShareProjection {
-    /// Projects a full transcription (and its optional summary card) using
+    /// Projects a full transcription and explicitly selected displayed summaries using
     /// the explicit selection. Meeting-like defaults (summary/notes on,
     /// transcript off) and transcript-only defaults (transcript on) are a
     /// UI-layer concern; this call takes the already-decided selection.
     public static func project(
         transcription: Transcription,
-        card: Card? = nil,
+        summaries: [ShareSummary] = [],
         selection: ShareSelection,
         title: String? = nil,
         publishedAt: Date = Date()
     ) throws -> ShareBundle {
         var sections: [ShareBundle.Section] = []
 
-        if selection.includeSummary, let card {
-            sections.append(contentsOf: summarySections(from: card))
+        if selection.includeSummary {
+            sections.append(contentsOf: summaries.compactMap { summary in
+                guard !summary.markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+                return .summary(title: summary.title, markdown: summary.markdown)
+            })
         }
 
         if selection.includeNotes {
@@ -69,7 +84,7 @@ public enum ShareProjection {
 
         return try ShareBundle(
             publishedAt: publishedAt,
-            title: normalizedTitle(title),
+            title: selection.transcriptOptions.includeMetadata ? normalizedTitle(title) : nil,
             source: selection.transcriptOptions.includeMetadata ? source(for: transcription) : nil,
             sections: sections
         )
@@ -82,7 +97,7 @@ public enum ShareProjection {
         startMs: Int? = nil,
         endMs: Int? = nil,
         speaker: String? = nil,
-        sourceKind: ShareBundle.SourceKind = .other,
+        sourceKind: ShareBundle.SourceKind? = nil,
         displayDate: Date? = nil,
         durationMs: Int? = nil,
         title: String? = nil,
@@ -98,7 +113,7 @@ public enum ShareProjection {
         return try ShareBundle(
             publishedAt: publishedAt,
             title: normalizedTitle(title),
-            source: ShareBundle.Source(kind: sourceKind, displayDate: displayDate, durationMs: durationMs),
+            source: sourceKind.map { ShareBundle.Source(kind: $0, displayDate: displayDate, durationMs: durationMs) },
             sections: [.transcript(title: "Transcript", segments: [segment])]
         )
     }
@@ -120,44 +135,6 @@ public enum ShareProjection {
             displayDate: transcription.createdAt,
             durationMs: transcription.durationMs
         )
-    }
-
-    /// Splits one `Card` into independently reviewable summary sections
-    /// (synopsis/topics, decisions, action items) rather than one opaque blob,
-    /// so a future selection UI can toggle them separately. Sections with no
-    /// content are omitted rather than emitted empty.
-    private static func summarySections(from card: Card) -> [ShareBundle.Section] {
-        var sections: [ShareBundle.Section] = []
-
-        let synopsis = card.synopsis.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !synopsis.isEmpty || !card.topics.isEmpty {
-            var lines: [String] = []
-            if !synopsis.isEmpty { lines.append(synopsis) }
-            if !card.topics.isEmpty {
-                if !lines.isEmpty { lines.append("") }
-                lines.append(contentsOf: card.topics.map { "- \($0)" })
-            }
-            sections.append(.summary(title: "Summary", markdown: lines.joined(separator: "\n")))
-        }
-
-        if !card.decisions.isEmpty {
-            let markdown = card.decisions.map { "- \($0.text)" }.joined(separator: "\n")
-            sections.append(.summary(title: "Decisions", markdown: markdown))
-        }
-
-        if !card.actions.isEmpty {
-            let markdown = card.actions.map { action -> String in
-                guard let owner = action.owner?.trimmingCharacters(in: .whitespacesAndNewlines),
-                    !owner.isEmpty
-                else {
-                    return "- \(action.text)"
-                }
-                return "- \(action.text) (\(owner))"
-            }.joined(separator: "\n")
-            sections.append(.summary(title: "Action items", markdown: markdown))
-        }
-
-        return sections
     }
 
     /// Reads out only display-selected transcript text, optional timing, and

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// Failure reasons that keep an invalid share bundle from ever being encrypted
@@ -121,7 +122,11 @@ public struct ShareBundle: Sendable, Equatable {
         // round trip through JSON exactly equal rather than merely close.
         self.publishedAt = Date(timeIntervalSince1970: publishedAt.timeIntervalSince1970.rounded(.down))
         self.title = (title?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 }
-        self.source = source
+        self.source = source.map {
+            Source(kind: $0.kind,
+                   displayDate: $0.displayDate.map { Date(timeIntervalSince1970: $0.timeIntervalSince1970.rounded(.down)) },
+                   durationMs: $0.durationMs)
+        }
         self.sections = sections
     }
 
@@ -138,11 +143,19 @@ public struct ShareBundle: Sendable, Equatable {
     /// encrypted, enforcing the maximum plaintext size before any I/O.
     public func encodedJSON() throws -> Data {
         let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
         let data = try encoder.encode(self)
         guard data.count <= Self.maxPlaintextBytes else {
             throw ShareBundleError.payloadTooLarge(byteCount: data.count)
         }
         return data
+    }
+
+    /// Staleness compares selected content, never a newly generated publish time.
+    public func contentDigest() throws -> String {
+        let content = try ShareBundle(publishedAt: Date(timeIntervalSince1970: 0), title: title,
+                                      source: source, sections: sections)
+        return SHA256.hash(data: try content.encodedJSON()).map { String(format: "%02x", $0) }.joined()
     }
 
     public static func decodedFromJSON(_ data: Data) throws -> ShareBundle {
@@ -193,7 +206,27 @@ extension ShareBundle: Codable {
     }
 }
 
-extension ShareBundle.Source: Codable {}
+extension ShareBundle.Source: Codable {
+    private enum CodingKeys: String, CodingKey { case kind, displayDate, durationMs }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        kind = try container.decode(ShareBundle.SourceKind.self, forKey: .kind)
+        durationMs = try container.decodeIfPresent(Int.self, forKey: .durationMs)
+        if let text = try container.decodeIfPresent(String.self, forKey: .displayDate) {
+            guard let date = ShareBundle.dateFormatter.date(from: text),
+                  ShareBundle.dateFormatter.string(from: date) == text else { throw ShareBundleError.malformedJSON }
+            displayDate = date
+        } else { displayDate = nil }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(kind, forKey: .kind)
+        try container.encodeIfPresent(displayDate.map { ShareBundle.dateFormatter.string(from: $0) }, forKey: .displayDate)
+        try container.encodeIfPresent(durationMs, forKey: .durationMs)
+    }
+}
 
 extension ShareBundle.TranscriptSegment: Codable {
     private enum CodingKeys: String, CodingKey {

@@ -1,0 +1,459 @@
+import XCTest
+@testable import MacParakeetCore
+
+final class ShareCoordinatorTests: XCTestCase {
+    var manager: DatabaseManager!
+    var repository: SharePublicationRepository!
+    var credentialBacking: InMemoryKeyValueStore!
+    var credentialStore: ShareCredentialStore!
+    var remoteClient: FakeShareRemoteClient!
+    var coordinator: ShareCoordinator!
+
+    override func setUp() async throws {
+        manager = try DatabaseManager()
+        repository = SharePublicationRepository(dbQueue: manager.dbQueue)
+        credentialBacking = InMemoryKeyValueStore()
+        credentialStore = ShareCredentialStore(store: credentialBacking)
+        remoteClient = FakeShareRemoteClient()
+        coordinator = ShareCoordinator(repository: repository, credentialStore: credentialStore, remoteClient: remoteClient)
+
+        // Enrollment succeeds by default; individual tests override only
+        // what they need to script differently.
+        remoteClient.enrollOwnerHandler = { ownerId, _, _, _, _ in
+            ShareOwnerMetadata(ownerId: ownerId, credentialGeneration: 1, recoveryVerifier: nil)
+        }
+    }
+
+    private func succeedingCreateHandler()
+        -> (ShareDeviceToken, String, String, Int, Date, ShareEnvelope, String) async throws -> ShareResource
+    {
+        { _, shareId, _, contentRevision, expiresAt, _, _ in
+            makeConfirmedResource(
+                shareId: shareId,
+                locatorCommitment: "commitment-\(shareId)",
+                contentRevision: contentRevision,
+                version: 1,
+                expiresAt: expiresAt,
+                maxExpiresAt: expiresAt.addingTimeInterval(5_184_000)
+            )
+        }
+    }
+
+    // MARK: - First publish and enrollment
+
+    func testFirstPublishGeneratesOneOwnerCredentialAndStoresNoSecretOutsideKeychainStore() async throws {
+        remoteClient.createShareHandler = succeedingCreateHandler()
+
+        let result = try await coordinator.publish(bundle: try makeNotesBundle())
+
+        XCTAssertTrue(result.publication.isConfirmed)
+        XCTAssertEqual(result.publication.accessState, .active)
+
+        let credential = try XCTUnwrap(credentialStore.loadDeviceCredential())
+        XCTAssertEqual(credential.credentialGeneration, 1)
+
+        // The link's content key must never appear anywhere in the persisted
+        // ledger row — it lives only in the dedicated Keychain-backed store.
+        let contentKeyRaw = try XCTUnwrap(result.link).contentKey.rawValue
+        let persisted = try XCTUnwrap(repository.fetch(id: result.publication.id))
+        XCTAssertFalse(persisted.remoteShareId.contains(contentKeyRaw))
+        XCTAssertFalse(persisted.locator?.contains(contentKeyRaw) ?? false)
+        XCTAssertFalse(persisted.locatorCommitment.contains(contentKeyRaw))
+        XCTAssertFalse(persisted.ownerId.contains(contentKeyRaw))
+    }
+
+    func testEnrollmentConflictOnRetryReconcilesWithOwnerMetadataInsteadOfFailing() async throws {
+        remoteClient.enrollOwnerHandler = { _, _, _, _, _ in
+            throw ShareClientError.api(ShareAPIError(code: .enrollmentConflict, retryable: false, requestId: nil))
+        }
+        remoteClient.fetchOwnerMetadataHandler = { token in
+            ShareOwnerMetadata(ownerId: "reconciled-owner", credentialGeneration: 1, recoveryVerifier: nil)
+        }
+        remoteClient.createShareHandler = succeedingCreateHandler()
+
+        let result = try await coordinator.publish(bundle: try makeNotesBundle())
+        XCTAssertTrue(result.publication.isConfirmed)
+
+        let credential = try XCTUnwrap(credentialStore.loadDeviceCredential())
+        XCTAssertEqual(credential.ownerId, "reconciled-owner")
+    }
+
+    // MARK: - Expiry defaults and boundaries
+
+    func testDefaultExpiryIsThirtyDaysAndRequestedValueIsSentToTheService() async throws {
+        var capturedExpiresAt: Date?
+        remoteClient.createShareHandler = { _, shareId, _, contentRevision, expiresAt, _, _ in
+            capturedExpiresAt = expiresAt
+            return makeConfirmedResource(
+                shareId: shareId, locatorCommitment: "c", contentRevision: contentRevision, version: 1,
+                expiresAt: expiresAt, maxExpiresAt: expiresAt.addingTimeInterval(5_184_000)
+            )
+        }
+
+        let before = Date()
+        _ = try await coordinator.publish(bundle: try makeNotesBundle())
+        let after = Date()
+
+        let expiresAt = try XCTUnwrap(capturedExpiresAt)
+        XCTAssertEqual(expiresAt.timeIntervalSince(before), 2_592_000, accuracy: after.timeIntervalSince(before) + 1)
+    }
+
+    func testExactNinetyDayExpiryIsAcceptedButOneSecondBeyondIsRejectedLocally() async throws {
+        var createCallCount = 0
+        remoteClient.createShareHandler = { _, shareId, _, contentRevision, expiresAt, _, _ in
+            createCallCount += 1
+            return makeConfirmedResource(
+                shareId: shareId, locatorCommitment: "c", contentRevision: contentRevision, version: 1,
+                expiresAt: expiresAt, maxExpiresAt: expiresAt.addingTimeInterval(5_184_000)
+            )
+        }
+
+        let now = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down))
+        let atBoundary = try await coordinator.publish(
+            bundle: try makeNotesBundle(), expiresAt: now.addingTimeInterval(7_776_000)
+        )
+        XCTAssertTrue(atBoundary.publication.isConfirmed)
+        XCTAssertEqual(createCallCount, 1)
+
+        do {
+            _ = try await coordinator.publish(bundle: try makeNotesBundle(), expiresAt: now.addingTimeInterval(7_776_001))
+            XCTFail("expected invalidExpiry")
+        } catch ShareCoordinatorError.invalidExpiry {
+            // expected — rejected before any network call
+        }
+        XCTAssertEqual(createCallCount, 1, "an invalid expiry must never reach the network")
+    }
+
+    // MARK: - Restart resumes a pending create with the same idempotency key
+
+    func testRestartRetriesAPendingCreateWithTheSameIdempotencyKey() async throws {
+        var seenIdempotencyKeys: [String] = []
+        var shouldFail = true
+        remoteClient.createShareHandler = { _, shareId, _, contentRevision, expiresAt, _, idempotencyKey in
+            seenIdempotencyKeys.append(idempotencyKey)
+            if shouldFail {
+                throw ShareClientError.network
+            }
+            return makeConfirmedResource(
+                shareId: shareId, locatorCommitment: "c", contentRevision: contentRevision, version: 1,
+                expiresAt: expiresAt, maxExpiresAt: expiresAt.addingTimeInterval(5_184_000)
+            )
+        }
+
+        let result = try await coordinator.publish(bundle: try makeNotesBundle())
+        XCTAssertFalse(result.publication.isConfirmed, "a network failure must leave the share pending, not thrown")
+        XCTAssertNil(result.link, "unconfirmed creation never exposes a recipient URL")
+
+        shouldFail = false
+        await coordinator.resumePendingWork()
+
+        let publications = try await coordinator.listPublications()
+        let confirmed = try XCTUnwrap(publications.first { $0.id == result.publication.id })
+        XCTAssertTrue(confirmed.isConfirmed)
+        let recoveredLink = try await coordinator.confirmedLink(shareId: confirmed.id)
+        XCTAssertNotNil(recoveredLink)
+        XCTAssertEqual(seenIdempotencyKeys.count, 2)
+        XCTAssertEqual(seenIdempotencyKeys[0], seenIdempotencyKeys[1], "retry must reuse the exact same idempotency key")
+    }
+
+    // MARK: - Lost create response reconciles instead of double-creating
+
+    func testVersionConflictOnCreateReconciliesViaOwnerListingInsteadOfCreatingASecondShare() async throws {
+        var capturedShareId: String?
+        remoteClient.createShareHandler = { _, shareId, _, _, _, _, _ in
+            capturedShareId = shareId
+            throw ShareClientError.api(ShareAPIError(code: .versionConflict, retryable: false, requestId: nil))
+        }
+        remoteClient.listSharesHandler = { _, _, _ in
+            let shareId = capturedShareId ?? ""
+            let now = Date(timeIntervalSince1970: 1_789_084_800)
+            return ShareListPage(
+                shares: [
+                    makeConfirmedResource(
+                        shareId: shareId, locatorCommitment: "reconciled-commitment", contentRevision: 1, version: 1,
+                        expiresAt: now.addingTimeInterval(2_592_000), maxExpiresAt: now.addingTimeInterval(7_776_000)
+                    )
+                ],
+                nextCursor: nil
+            )
+        }
+
+        let result = try await coordinator.publish(bundle: try makeNotesBundle())
+        XCTAssertTrue(result.publication.isConfirmed)
+        XCTAssertEqual(result.publication.locatorCommitment, "reconciled-commitment")
+        XCTAssertEqual(try repository.fetchAll().count, 1, "reconciliation must never leave a second row")
+    }
+
+    // MARK: - Content update eligibility
+
+    func testContentUpdateIsRejectedLocallyWhenTheGenerationCannotWriteWithoutHittingTheNetwork() async throws {
+        remoteClient.createShareHandler = succeedingCreateHandler()
+        let result = try await coordinator.publish(bundle: try makeNotesBundle())
+
+        // Simulate a receipt that marks this share management-only, as a
+        // recovered old-generation share would be.
+        var notWritable = try XCTUnwrap(repository.fetch(id: result.publication.id))
+        notWritable.contentWritable = false
+        try await manager.dbQueue.write { db in try notWritable.update(db) }
+
+        remoteClient.updateShareContentHandler = { _, _, _, _, _, _, _ in
+            XCTFail("must not reach the network for an ineligible update")
+            throw FakeShareRemoteClient.Unconfigured(method: "updateShareContent")
+        }
+
+        do {
+            _ = try await coordinator.updateContent(shareId: result.publication.id, bundle: try makeNotesBundle("v2"))
+            XCTFail("expected contentUpdateNotEligible")
+        } catch ShareCoordinatorError.contentUpdateNotEligible {
+            // expected
+        }
+    }
+
+    // MARK: - Stop / delete lifecycle
+
+    func testStopConfirmsButPendingCleanupRotatesTheIdempotencyKeyForTheNextCheck() async throws {
+        remoteClient.createShareHandler = succeedingCreateHandler()
+        let result = try await coordinator.publish(bundle: try makeNotesBundle())
+
+        var seenKeys: [String] = []
+        remoteClient.deleteShareHandler = { _, shareId, locatorCommitment, idempotencyKey in
+            seenKeys.append(idempotencyKey)
+            return ShareDeletionReceipt(
+                id: shareId, locatorCommitment: locatorCommitment, accessState: .stopped, deletionState: .pending
+            )
+        }
+
+        let stopped = try await coordinator.stop(shareId: result.publication.id)
+        XCTAssertEqual(stopped.accessState, .stopped)
+        XCTAssertEqual(stopped.deletionState, .pending)
+
+        let ops = try repository.fetchPendingOperations(forShareId: result.publication.id)
+        XCTAssertEqual(ops.count, 1)
+        XCTAssertNotEqual(ops.first?.idempotencyKey, seenKeys.first, "a pending cleanup receipt must rotate the key")
+    }
+
+    func testStopCompletionRemovesTheOutboxOperationAndTheContentKey() async throws {
+        remoteClient.createShareHandler = succeedingCreateHandler()
+        let result = try await coordinator.publish(bundle: try makeNotesBundle())
+        XCTAssertNotNil(try credentialStore.loadContentKey(forRemoteShareId: result.publication.remoteShareId))
+
+        remoteClient.deleteShareHandler = { _, shareId, locatorCommitment, _ in
+            ShareDeletionReceipt(
+                id: shareId, locatorCommitment: locatorCommitment, accessState: .stopped, deletionState: .complete
+            )
+        }
+
+        _ = try await coordinator.stop(shareId: result.publication.id)
+
+        XCTAssertTrue(try repository.fetchPendingOperations(forShareId: result.publication.id).isEmpty)
+        XCTAssertNil(try credentialStore.loadContentKey(forRemoteShareId: result.publication.remoteShareId))
+    }
+
+    func testDeleteNeverFalselyFinishesOnAnUnknownLocator() async throws {
+        remoteClient.createShareHandler = succeedingCreateHandler()
+        let result = try await coordinator.publish(bundle: try makeNotesBundle())
+
+        remoteClient.deleteShareHandler = { _, _, _, _ in
+            throw ShareClientError.api(ShareAPIError(code: .notFound, retryable: false, requestId: nil))
+        }
+
+        do {
+            _ = try await coordinator.stop(shareId: result.publication.id)
+            XCTFail("expected the notFound error to surface")
+        } catch ShareClientError.api(let apiError) {
+            XCTAssertEqual(apiError.code, .notFound)
+        }
+
+        // Never falsely completed: the terminal operation is still queued.
+        let ops = try repository.fetchPendingOperations(forShareId: result.publication.id)
+        XCTAssertEqual(ops.map(\.kind), [.delete])
+    }
+
+    // MARK: - Superseded credential stops retrying
+
+    func testUnauthorizedResponseMarksTheCredentialSupersededAndStopsFurtherNetworkCalls() async throws {
+        var createCallCount = 0
+        remoteClient.createShareHandler = { _, _, _, _, _, _, _ in
+            createCallCount += 1
+            throw ShareClientError.api(ShareAPIError(code: .unauthorized, retryable: false, requestId: nil))
+        }
+
+        do {
+            _ = try await coordinator.publish(bundle: try makeNotesBundle())
+            XCTFail("expected deviceCredentialSuperseded")
+        } catch ShareCoordinatorError.deviceCredentialSuperseded {
+            // expected
+        }
+        XCTAssertEqual(createCallCount, 1)
+
+        do {
+            _ = try await coordinator.publish(bundle: try makeNotesBundle())
+            XCTFail("expected deviceCredentialSuperseded without a second network attempt")
+        } catch ShareCoordinatorError.deviceCredentialSuperseded {
+            // expected
+        }
+        XCTAssertEqual(createCallCount, 1, "a superseded credential must halt retries, not loop forever")
+    }
+
+    // MARK: - Recovery switch guard
+
+    func testFractionalExpiryRejectsBeforeEnrollment() async throws {
+        var enrolled = false
+        remoteClient.enrollOwnerHandler = { _, _, _, _, _ in
+            enrolled = true
+            throw ShareClientError.network
+        }
+        do {
+            _ = try await coordinator.publish(bundle: makeNotesBundle(),
+                expiresAt: Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down) + 3600.5))
+            XCTFail("fractional expiry must be rejected")
+        } catch ShareCoordinatorError.invalidExpiry {}
+        XCTAssertFalse(enrolled)
+        XCTAssertNil(try credentialStore.loadDeviceCredential())
+    }
+
+    func testFailedCreateReconciliationPreservesOutboxAndKey() async throws {
+        remoteClient.createShareHandler = { _, _, _, _, _, _, _ in
+            throw ShareClientError.api(ShareAPIError(code: .versionConflict, retryable: false, requestId: nil))
+        }
+        remoteClient.listSharesHandler = { _, _, _ in throw ShareClientError.network }
+        let result = try await coordinator.publish(bundle: makeNotesBundle())
+        XCTAssertNil(result.link)
+        XCTAssertNotNil(try repository.fetch(id: result.publication.id))
+        XCTAssertEqual(try repository.fetchPendingOperations(forShareId: result.publication.id).count, 1)
+        XCTAssertNotNil(try credentialStore.loadContentKey(forRemoteShareId: result.publication.remoteShareId))
+    }
+
+    func testRecoveryCodeSurvivesLostConfigurationResponseAndRestart() async throws {
+        remoteClient.createShareHandler = succeedingCreateHandler()
+        _ = try await coordinator.publish(bundle: makeNotesBundle())
+        var installedVerifier: String?
+        remoteClient.configureRecoveryHandler = { _, verifier, _, _, _ in
+            installedVerifier = verifier
+            throw ShareClientError.network
+        }
+        do { _ = try await coordinator.setUpRecovery(); XCTFail("expected lost response") }
+        catch ShareClientError.network {}
+        let unconfirmedCode = try await coordinator.pendingRecoveryCode()
+        XCTAssertNil(unconfirmedCode)
+        let credential = try XCTUnwrap(credentialStore.loadDeviceCredential())
+        remoteClient.fetchOwnerMetadataHandler = { _ in
+            ShareOwnerMetadata(ownerId: credential.ownerId, credentialGeneration: 1, recoveryVerifier: installedVerifier)
+        }
+        let restarted = ShareCoordinator(repository: repository, credentialStore: credentialStore, remoteClient: remoteClient)
+        _ = try await restarted.reconcileLostRecoveryConfiguration()
+        let code = try await restarted.pendingRecoveryCode()
+        XCTAssertEqual(code?.verifier, installedVerifier)
+        try await restarted.acknowledgeRecoveryCodeSaved()
+        XCTAssertNil(try credentialStore.loadPendingRecoveryConfiguration())
+    }
+
+    func testOverlappingRecoveryConfigurationCannotOverwritePendingSecret() async throws {
+        remoteClient.createShareHandler = succeedingCreateHandler()
+        _ = try await coordinator.publish(bundle: makeNotesBundle())
+        let coordinator = try XCTUnwrap(coordinator)
+        var rejected = false
+        remoteClient.configureRecoveryHandler = { _, _, _, _, _ in
+            do { _ = try await coordinator.setUpRecovery() }
+            catch ShareCoordinatorError.operationInProgress { rejected = true }
+            throw ShareClientError.network
+        }
+        do { _ = try await coordinator.setUpRecovery() } catch ShareClientError.network {}
+        XCTAssertTrue(rejected)
+        XCTAssertNotNil(try credentialStore.loadPendingRecoveryConfiguration()?.generatedToken)
+    }
+
+    func testNegativeRecoveryProbeKeepsPendingDeviceAuthority() async throws {
+        let pending = ShareDeviceCredential(ownerId: ShareIdentifiers.generate16ByteIdentifier(), token: .generate(), credentialGeneration: 0)
+        try credentialStore.savePendingDeviceCredential(pending)
+        remoteClient.fetchOwnerMetadataHandler = { _ in
+            throw ShareClientError.api(ShareAPIError(code: .unauthorized, retryable: false, requestId: nil))
+        }
+        let confirmed = try await coordinator.reconcileLostRecoveryImport()
+        XCTAssertFalse(confirmed)
+        XCTAssertEqual(try credentialStore.loadPendingDeviceCredential(), pending)
+    }
+
+    func testDifferentOwnerSwitchExhaustsRemotePagesBeforeAllowingSwitch() async throws {
+        let old = ShareDeviceCredential(ownerId: ShareIdentifiers.generate16ByteIdentifier(), token: .generate(), credentialGeneration: 1)
+        try credentialStore.saveDeviceCredential(old)
+        var pages = 0
+        remoteClient.listSharesHandler = { _, cursor, _ in
+            pages += 1
+            if cursor == nil { return ShareListPage(shares: [], nextCursor: "page&two") }
+            XCTAssertEqual(cursor, "page&two")
+            return ShareListPage(shares: [makeConfirmedResource(shareId: ShareIdentifiers.generate16ByteIdentifier(),
+                locatorCommitment: ShareIdentifiers.generate16ByteIdentifier(), contentRevision: 1, version: 1,
+                expiresAt: Date().addingTimeInterval(3600), maxExpiresAt: Date().addingTimeInterval(7200))], nextCursor: nil)
+        }
+        do { _ = try await coordinator.recoverOwnership(recoveryToken: .generate(ownerId: ShareRandom.bytes(16))); XCTFail("must block") }
+        catch ShareCoordinatorError.recoverySwitchBlocked {}
+        XCTAssertEqual(pages, 2)
+        XCTAssertEqual(try credentialStore.loadDeviceCredential(), old)
+        let imported = try XCTUnwrap(repository.fetchAll().first)
+        XCTAssertNil(imported.locator)
+        XCTAssertFalse(imported.isContentUpdateEligibleLocally)
+    }
+
+    func testLostUpdateResponseReconcilesRevisionAfterReceiptExpires() async throws {
+        remoteClient.createShareHandler = succeedingCreateHandler()
+        let published = try await coordinator.publish(bundle: makeNotesBundle())
+        var attempts = 0
+        var tags: [String] = []
+        remoteClient.updateShareContentHandler = { _, _, _, _, _, tag, _ in
+            attempts += 1
+            tags.append(tag)
+            if attempts == 1 { throw ShareClientError.network }
+            throw ShareClientError.api(ShareAPIError(code: .versionConflict, retryable: false, requestId: nil))
+        }
+        let updatedBundle = try makeNotesBundle("updated")
+        _ = try await coordinator.updateContent(shareId: published.publication.id, bundle: updatedBundle, projectionManifest: Data("selection".utf8))
+        remoteClient.listSharesHandler = { _, _, _ in
+            ShareListPage(shares: [makeConfirmedResource(shareId: published.publication.remoteShareId,
+                locatorCommitment: published.publication.locatorCommitment, contentRevision: 2, version: 2,
+                expiresAt: published.publication.expiresAt, maxExpiresAt: published.publication.maxExpiresAt)], nextCursor: nil)
+        }
+        await coordinator.resumePendingWork()
+        let updated = try XCTUnwrap(repository.fetch(id: published.publication.id))
+        XCTAssertEqual(updated.contentRevision, 2)
+        XCTAssertEqual(updated.contentDigest, try updatedBundle.contentDigest())
+        XCTAssertEqual(updated.projectionManifest, Data("selection".utf8))
+        XCTAssertEqual(tags, ["\"v1\"", "\"v1\""])
+        XCTAssertTrue(try repository.fetchPendingOperations(forShareId: updated.id).isEmpty)
+    }
+
+    func testRecoveringADifferentOwnerIsBlockedWhileAShareIsStillNonTerminal() async throws {
+        remoteClient.createShareHandler = succeedingCreateHandler()
+        _ = try await coordinator.publish(bundle: try makeNotesBundle())
+
+        var recoverOwnerCalled = false
+        remoteClient.recoverOwnerHandler = { _, _, _, _, _ in
+            recoverOwnerCalled = true
+            return ShareOwnerMetadata(ownerId: "other-owner", credentialGeneration: 1, recoveryVerifier: nil)
+        }
+
+        let foreignToken = ShareRecoveryToken.generate(ownerId: ShareRandom.bytes(16))
+        do {
+            _ = try await coordinator.recoverOwnership(recoveryToken: foreignToken, replacementRecoveryVerifier: nil)
+            XCTFail("expected recoverySwitchBlocked")
+        } catch ShareCoordinatorError.recoverySwitchBlocked {
+            // expected
+        }
+        XCTAssertFalse(recoverOwnerCalled, "the switch guard must reject before any network call")
+    }
+
+    // MARK: - Discard after recovery loss requires terminal shares
+
+    func testDiscardCredentialAfterRecoveryLossRequiresEveryShareToBeTerminal() async throws {
+        remoteClient.createShareHandler = succeedingCreateHandler()
+        _ = try await coordinator.publish(bundle: try makeNotesBundle())
+
+        do {
+            try await coordinator.discardCredentialAfterRecoveryLoss()
+            XCTFail("expected sharesNotTerminal")
+        } catch ShareCoordinatorError.sharesNotTerminal {
+            // expected
+        }
+        XCTAssertNotNil(try credentialStore.loadDeviceCredential(), "a blocked discard must not clear management")
+    }
+}

@@ -26,6 +26,9 @@ public protocol TranscriptionRepositoryProtocol: Sendable {
     func fetchCompletedByVideoID(_ videoID: String) throws -> Transcription?
     func count() throws -> Int
     func search(query: String, limit: Int?) throws -> [Transcription]
+    /// Durably detach shares and queue permanent stop before deleting owned files.
+    /// Returns opaque remote IDs whose local content keys must be removed.
+    func prepareForDeletion(id: UUID) throws -> [String]
     func delete(id: UUID) throws -> Bool
     func deleteAll() throws
     func updateStatus(id: UUID, status: Transcription.TranscriptionStatus, errorMessage: String?) throws
@@ -47,6 +50,9 @@ public protocol TranscriptionRepositoryProtocol: Sendable {
 }
 
 extension TranscriptionRepositoryProtocol {
+    /// Non-SQL adapters with no sharing ledger need no preparation. The concrete
+    /// GRDB repository always implements the transactional sharing invariant.
+    public func prepareForDeletion(id: UUID) throws -> [String] { [] }
     public func savePreservingMeetingClassification(_ transcription: Transcription) throws {
         try save(transcription)
     }
@@ -531,14 +537,25 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
         }
     }
 
+    public func prepareForDeletion(id: UUID) throws -> [String] {
+        try dbQueue.write { db in
+            try SharePublicationRepository.detachAndEnqueueTerminalOperations(transcriptionId: id, in: db)
+                .map(\.remoteShareId)
+        }
+    }
+
     public func delete(id: UUID) throws -> Bool {
         try dbQueue.write { db in
-            try Transcription.deleteOne(db, key: id)
+            _ = try SharePublicationRepository.detachAndEnqueueTerminalOperations(transcriptionId: id, in: db)
+            return try Transcription.deleteOne(db, key: id)
         }
     }
 
     public func deleteAll() throws {
         try dbQueue.write { db in
+            for id in try UUID.fetchAll(db, sql: "SELECT id FROM transcriptions") {
+                _ = try SharePublicationRepository.detachAndEnqueueTerminalOperations(transcriptionId: id, in: db)
+            }
             _ = try Transcription.deleteAll(db)
         }
     }

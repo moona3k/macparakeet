@@ -4,32 +4,7 @@ import XCTest
 final class ShareProjectionTests: XCTestCase {
     private let fixedDate = Date(timeIntervalSince1970: 1_789_084_800)
 
-    private func makeCard(
-        transcriptionId: UUID,
-        synopsis: String = "The team reviewed Q3 goals.",
-        topics: [String] = ["Roadmap", "Budget"],
-        decisions: [CardDecision] = [
-            CardDecision(text: "Ship v2 in October.", seqStart: 0, seqEnd: 1, startMs: nil, endMs: nil)
-        ],
-        actions: [CardAction] = [
-            CardAction(
-                text: "Draft the release notes.", owner: "Alice", seqStart: 0, seqEnd: 1, startMs: nil, endMs: nil)
-        ]
-    ) -> Card {
-        Card(
-            transcriptionId: transcriptionId,
-            cardSchemaVersion: Card.currentSchemaVersion,
-            transcriptHash: "sentinel-transcript-hash",
-            segmenterVersion: 1,
-            promptVersion: Card.currentPromptVersion,
-            model: "sentinel-model-name",
-            generatedAt: fixedDate,
-            synopsis: synopsis,
-            topics: topics,
-            decisions: decisions,
-            actions: actions
-        )
-    }
+    private let summaries = [ShareSummary(title: "Selected result", markdown: "The team reviewed Q3 goals.")]
 
     /// A transcription with every field the projection must never emit set to
     /// a unique, greppable sentinel value.
@@ -60,11 +35,10 @@ final class ShareProjectionTests: XCTestCase {
 
     func testMeetingSelectionProjectsOnlySummaryAndNotes() throws {
         let transcription = makeKitchenSinkMeeting()
-        let card = makeCard(transcriptionId: transcription.id)
         let selection = ShareSelection(includeSummary: true, includeNotes: true, includeTranscript: false)
 
         let bundle = try ShareProjection.project(
-            transcription: transcription, card: card, selection: selection, publishedAt: fixedDate
+            transcription: transcription, summaries: summaries, selection: selection, publishedAt: fixedDate
         )
 
         let kinds = bundle.sections.map(sectionKind)
@@ -81,7 +55,6 @@ final class ShareProjectionTests: XCTestCase {
 
     func testProjectionNeverEmitsUnselectedSensitiveFields() throws {
         let transcription = makeKitchenSinkMeeting()
-        let card = makeCard(transcriptionId: transcription.id)
         let selection = ShareSelection(
             includeSummary: true, includeNotes: true, includeTranscript: true,
             transcriptOptions: TranscriptExportOptions(
@@ -89,7 +62,7 @@ final class ShareProjectionTests: XCTestCase {
         )
 
         let bundle = try ShareProjection.project(
-            transcription: transcription, card: card, selection: selection, publishedAt: fixedDate
+            transcription: transcription, summaries: summaries, selection: selection, publishedAt: fixedDate
         )
         let json = String(data: try bundle.encodedJSON(), encoding: .utf8)!
 
@@ -104,9 +77,6 @@ final class ShareProjectionTests: XCTestCase {
             transcription.engine!,
             transcription.engineVariant!,
             transcription.id.uuidString,
-            card.model,
-            card.transcriptHash,
-            card.promptVersion,
         ]
         for sentinel in excludedSentinels {
             XCTAssertFalse(json.contains(sentinel), "Bundle leaked excluded field: \(sentinel)")
@@ -131,7 +101,7 @@ final class ShareProjectionTests: XCTestCase {
         let selection = ShareSelection(includeSummary: false, includeNotes: false, includeTranscript: true)
 
         let bundle = try ShareProjection.project(
-            transcription: transcription, card: nil, selection: selection, publishedAt: fixedDate
+            transcription: transcription, selection: selection, publishedAt: fixedDate
         )
 
         XCTAssertEqual(bundle.sections.count, 1)
@@ -164,7 +134,7 @@ final class ShareProjectionTests: XCTestCase {
         )
 
         let bundle = try ShareProjection.project(
-            transcription: transcription, card: nil, selection: selection, publishedAt: fixedDate
+            transcription: transcription, selection: selection, publishedAt: fixedDate
         )
 
         guard case .transcript(_, let segments) = bundle.sections[0] else { return XCTFail() }
@@ -199,7 +169,7 @@ final class ShareProjectionTests: XCTestCase {
         let selection = ShareSelection(includeSummary: false, includeNotes: false, includeTranscript: false)
 
         XCTAssertThrowsError(
-            try ShareProjection.project(transcription: transcription, card: nil, selection: selection)
+            try ShareProjection.project(transcription: transcription, selection: selection)
         ) { error in
             XCTAssertEqual(error as? ShareProjectionError, .nothingSelected)
         }

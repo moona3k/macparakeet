@@ -241,6 +241,19 @@ The per-share content key remains in its dedicated Keychain namespace while same
 Deleting a local source must transactionally detach each share record and enqueue its terminal `DELETE` before the source row disappears.
 The share and outbox records must not cascade with the transcription.
 Detachment clears the projection manifest, content digest, and every other content-derived local field, then removes the per-share content key from Keychain as soon as the terminal intent is durable; bounded cleanup retries an interrupted key removal.
+
+An uncertain create is the narrow exception: its already-encrypted request body,
+original preconditions, and idempotency key remain only until exact retry or
+authoritative reconciliation allows permanent stop. This retains no plaintext or
+content key. Receipt application and operation completion are one local database
+transaction; retries never reconstruct a different ETag from newer ledger state.
+
+The concrete transcription repository also enforces detachment when called
+directly. GUI and CLI whole-record deletion first persist stop intent, then
+remove local content keys and owned assets, then delete the source row. If asset
+cleanup fails, the source remains retryable but its stop intent is not undone.
+Audio-only deletion does not revoke a text share. New publication checks that
+its source still exists inside the local intent transaction.
 Offline UI says the remote stop is pending and the link may still work; it may say stopped or deleted only after the corresponding service receipt.
 
 ## Retention and logging

@@ -3444,7 +3444,7 @@ struct SettingsView: View {
     private var privacyCard: some View {
         settingsCard(
             title: "Privacy",
-            subtitle: "Your audio and transcriptions never leave your device.",
+            subtitle: "Speech recognition stays on your Mac. Optional network features use only text you choose.",
             icon: "hand.raised"
         ) {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {

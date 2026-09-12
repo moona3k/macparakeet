@@ -39,6 +39,7 @@ processes own their connections.
   - `TransformHistoryRepository.swift` — local Transform run history (input/output/source app/timings; ADR-022).
   - `AIFormatterProfileRepository.swift` — app/category formatter profiles (normal product exposure remains feature-gated).
   - `LLMRunRepository.swift` — local metadata ledger for persisted LLM runs (provider/model/tokens/latency/status/required source link; no prompt/input/output content).
+  - `SharePublicationRepository.swift` — local ledger + durable ordered outbox for encrypted share snapshots (`spec/contracts/share-service-v1.md`). Owns a transaction-scoped detach-and-enqueue helper for source deletion; never cascaded from `transcriptions`.
 
 ## Cross-references
 
@@ -162,6 +163,30 @@ singleton row (`lifetime_dictation_stats`) that survives history
 deletion. Increments happen in the same transaction as the
 dictation save (issue #124). If you add a stat, add it to that row,
 the migration for the column, and the `resetLifetimeStats()` path.
+
+**The sharing ledger is deliberately not cascaded from its source.**
+`share_publications.transcriptionId` uses `ON DELETE SET NULL`, never
+`CASCADE` — a deleted transcription must never silently drop a share's
+revocation authority. Deleting a source with active shares must go through
+`SharePublicationRepository.detachAndEnqueueTerminalOperations(transcriptionId:in:)`
+inside the same write transaction that deletes the source row: it clears
+every content-derived local field and enqueues exactly one terminal `delete`
+outbox operation per non-complete share, doing no network I/O itself.
+`share_outbox_operations` rows do cascade from `share_publications` — that
+parent is the local ledger row, not the transcription. `ShareCoordinator`
+drives every confirmed-vs-pending distinction from a service receipt, never
+by inferring it locally, and processes each share's outbox in strict
+`sequence` order so a queued terminal delete is never applied ahead of a
+still-uncertain create.
+
+Confirmed receipts and operation completion share one transaction. Outbox
+requests retain their exact encoded bytes and original ETag across restarts.
+Selection manifests and deterministic digests become current only with the
+matching confirmed revision. Detachment clears those fields in pending work
+too; an uncertain create keeps its ciphertext-only request until it can be
+reconciled and stopped. Recovered rows use a nullable locator and cannot
+reconstruct a URL or update content. A source existence check inside publication
+creation prevents a stale draft from publishing after its source was deleted.
 
 ## How to verify a change
 
