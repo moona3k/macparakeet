@@ -79,6 +79,31 @@ Do not promise exactly-once external effects across a crash after a provider acc
 
 ## Delivery order
 
+### Current implementation status — September 12, final integration
+
+Core, CLI and native UI are implemented and committed. The chronological
+checkpoints below record earlier limits, not outstanding implementation work.
+The final source-wide focused gate passed at `a1a47f70`; the native Xcode build
+also passed. Real CLI creation and exact-key retry returned byte-identical
+receipts for three new parts, preserving their 30/15/45-second durations and
+all original artifact hashes. Synthetic silence validates processing and
+recovery, not recognition quality. Recognition accuracy is not this feature's
+acceptance gate.
+
+Integration with the newly merged sharing feature retains its deletion
+coordinator and places sharing stop preparation, key removal, asset removal
+and row deletion under one meeting-media lease. A held split lease prevents
+all those deletion phases; after release, deletion still queues the sharing
+stop. The focused integration gate passed 345 tests with no failures.
+Both additive schema migrations retain their distinct identifiers.
+
+Independent final review, PR publication and reviewer convergence remain
+shipping gates. The full suite ran earlier in the task and is not being
+repeated; subsequent gates are focused. The simplification pass retained the
+safety-specific ownership and receipt boundaries and declined speculative
+caching for the common two/three-part workflow. Formatting lint exits zero
+but emits warnings, including in new files; this is not a warning-free claim.
+
 ### Implementation checkpoint — 2026-09-12
 
 The revised brief landed in PR #1016. The implementation branch now contains

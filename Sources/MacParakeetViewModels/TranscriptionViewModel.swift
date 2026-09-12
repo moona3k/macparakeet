@@ -1179,7 +1179,7 @@ public final class TranscriptionViewModel {
         }
 
         do {
-            let deleted = try TranscriptionAssetCleanup.deleteTranscription(transcription, repository: repo)
+            let deleted = try TranscriptionDeletionCoordinator.delete(transcription, repository: repo)
             guard deleted else { return }
             Telemetry.send(.transcriptionDeleted)
             if currentTranscription?.id == transcription.id {

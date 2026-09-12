@@ -100,6 +100,15 @@ they do not establish real-model or native UI acceptance.
 
 ### Implemented audio/lease foundation (U2a)
 
+Full recording deletion goes through `TranscriptionDeletionCoordinator`.
+For meetings, it holds the same media-mutation lease across sharing stop
+preparation, content-key removal, asset removal and database row deletion.
+A busy split lease leaves the recording and its sharing state untouched.
+Once deletion starts, the existing sharing rule still applies: a later asset
+cleanup failure does not undo the committed stop intent. The asset-cleanup
+convenience deletion method delegates to this coordinator, so it cannot bypass
+sharing cleanup or release the lease between the file and row phases.
+
 The split service uses these focused audio and ownership primitives:
 
 - `MeetingSplitSourceRange(startMs:endMs:)` is a plain `[startMs, endMs)`

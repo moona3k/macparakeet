@@ -11,6 +11,7 @@ import OSLog
 @MainActor
 final class AppEnvironment {
     let databaseManager: DatabaseManager
+    let shareCoordinator: ShareCoordinator?
     let dictationRepo: DictationRepository
     let transcriptionRepo: TranscriptionRepository
     let meetingTypeRepo: MeetingTypeRepository
@@ -82,6 +83,8 @@ final class AppEnvironment {
     init(databaseManager: DatabaseManager) throws {
         SpeechEnginePreference.migrateMaterializedFinalTranscriptionOverrideIfNeeded()
         self.databaseManager = databaseManager
+        shareCoordinator = AppFeatures.isShareLinksAvailable()
+            ? ShareCoordinator(dbQueue: databaseManager.dbQueue, origin: .production) : nil
 
         // Repositories
         dictationRepo = DictationRepository(dbQueue: databaseManager.dbQueue)

@@ -24,6 +24,7 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
     private let meetingsWorkspaceViewModel: MeetingsWorkspaceViewModel
     private let meetingPillViewModel: MeetingRecordingPillViewModel
     private let meetingSplitViewModel: MeetingSplitViewModel
+    private let shareManagementViewModel: ShareManagementViewModel?
     private let updaterController: SPUStandardUpdaterController
     private let onRecordMeeting: () -> Void
     private let onRecordMeetingFromWorkspace: () -> Void
@@ -53,6 +54,7 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
         meetingsWorkspaceViewModel: MeetingsWorkspaceViewModel,
         meetingPillViewModel: MeetingRecordingPillViewModel,
         meetingSplitViewModel: MeetingSplitViewModel,
+        shareManagementViewModel: ShareManagementViewModel? = nil,
         updaterController: SPUStandardUpdaterController,
         onRecordMeeting: @escaping () -> Void,
         onRecordMeetingFromWorkspace: @escaping () -> Void,
@@ -79,6 +81,7 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
         self.meetingsWorkspaceViewModel = meetingsWorkspaceViewModel
         self.meetingPillViewModel = meetingPillViewModel
         self.meetingSplitViewModel = meetingSplitViewModel
+        self.shareManagementViewModel = shareManagementViewModel
         self.updaterController = updaterController
         self.onRecordMeeting = onRecordMeeting
         self.onRecordMeetingFromWorkspace = onRecordMeetingFromWorkspace
@@ -192,6 +195,7 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
             meetingsWorkspaceViewModel: meetingsWorkspaceViewModel,
             meetingPillViewModel: meetingPillViewModel,
             meetingSplitViewModel: meetingSplitViewModel,
+            shareManagementViewModel: shareManagementViewModel,
             updater: updaterController.updater,
             onRecordMeeting: onRecordMeeting,
             onRecordMeetingFromWorkspace: onRecordMeetingFromWorkspace,

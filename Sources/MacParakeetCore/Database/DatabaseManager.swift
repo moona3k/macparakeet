@@ -87,7 +87,12 @@ public final class DatabaseManager: Sendable {
         #if DEBUG
         if sqlTraceEnabled {
             config.prepareDatabase { db in
-                db.trace { print("SQL: \($0)") }
+                db.trace { event in
+                    if case .statement(let statement) = event,
+                       let sql = Self.safeSQLTrace(statement.sql) {
+                        print("SQL: \(sql)")
+                    }
+                }
             }
         }
         #endif
@@ -95,6 +100,12 @@ public final class DatabaseManager: Sendable {
     }
 
     #if DEBUG
+    static func safeSQLTrace(_ sql: String) -> String? {
+        // Never include sharing statements, even in opt-in debug output.
+        // statement.sql is unexpanded; bound parameters remain placeholders.
+        sql.lowercased().contains("share_") ? nil : sql
+    }
+
     private static var sqlTraceEnabled: Bool {
         guard let rawValue = ProcessInfo.processInfo.environment[sqlTraceEnvKey] else {
             return false
@@ -2102,6 +2113,78 @@ public final class DatabaseManager: Sendable {
             try db.execute(sql: """
                 CREATE INDEX idx_speaker_embedding_candidates_expiry
                 ON speaker_embedding_candidates (expiresAt)
+                """)
+        }
+
+        // v0.42 — Local sharing ledger + durable outbox (Share Service v1).
+        // Deliberately not cascaded from `transcriptions`: a source deletion
+        // must detach the row (see `SharePublicationRepository`'s
+        // transaction-scoped helper) rather than silently lose revocation
+        // authority. `share_outbox_operations` is safe to cascade from
+        // `share_publications` — that parent is the ledger row itself, not
+        // the transcription.
+        migrator.registerMigration("v0.42-share-publications") { db in
+            try db.execute(sql: """
+                CREATE TABLE share_publications (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    remoteShareId TEXT NOT NULL UNIQUE,
+                    locator TEXT UNIQUE,
+                    locatorCommitment TEXT NOT NULL UNIQUE,
+                    ownerId TEXT NOT NULL,
+                    createdCredentialGeneration INTEGER NOT NULL,
+                    contentRevision INTEGER NOT NULL,
+                    version INTEGER,
+                    accessState TEXT CHECK (accessState IN ('active', 'expired', 'stopped')),
+                    deletionState TEXT NOT NULL DEFAULT 'retained'
+                        CHECK (deletionState IN ('retained', 'pending', 'complete')),
+                    contentWritable INTEGER NOT NULL DEFAULT 1,
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL,
+                    expiresAt TEXT NOT NULL,
+                    maxExpiresAt TEXT NOT NULL,
+                    terminalAt TEXT,
+                    transcriptionId TEXT REFERENCES transcriptions(id) ON DELETE SET NULL,
+                    projectionManifest BLOB,
+                    contentDigest TEXT,
+                    isDetached INTEGER NOT NULL DEFAULT 0
+                )
+                """)
+            try db.execute(sql: """
+                CREATE INDEX idx_share_publications_transcription_id
+                ON share_publications(transcriptionId)
+                """)
+            try db.execute(sql: """
+                CREATE INDEX idx_share_publications_deletion_state
+                ON share_publications(deletionState)
+                """)
+
+            try db.execute(sql: """
+                CREATE TABLE share_outbox_operations (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    sharePublicationId TEXT NOT NULL
+                        REFERENCES share_publications(id) ON DELETE CASCADE,
+                    sequence INTEGER NOT NULL UNIQUE,
+                    kind TEXT NOT NULL CHECK (kind IN ('create', 'contentUpdate', 'expiryChange', 'delete')),
+                    idempotencyKey TEXT NOT NULL,
+                    requestBody BLOB NOT NULL,
+                    ifMatch TEXT,
+                    projectionManifest BLOB,
+                    contentDigest TEXT,
+                    createdAt TEXT NOT NULL,
+                    lastAttemptAt TEXT
+                )
+                """)
+            try db.execute(sql: """
+                CREATE INDEX idx_share_outbox_operations_share_sequence
+                ON share_outbox_operations(sharePublicationId, sequence)
+                """)
+            // At most one queued terminal delete per share (Share Service v1's
+            // local lifecycle invariant): detach and explicit stop both enqueue
+            // idempotently against this constraint instead of re-checking by hand.
+            try db.execute(sql: """
+                CREATE UNIQUE INDEX idx_share_outbox_operations_one_delete_per_share
+                ON share_outbox_operations(sharePublicationId)
+                WHERE kind = 'delete'
                 """)
         }
 

@@ -46,3 +46,5 @@ Each contract document should include:
 - [Custom Word Deletion](custom-word-deletion.md)
 - [Speaker Correction Submission](speaker-correction-view-model.md)
 - [Telemetry and Diagnostic Evidence](telemetry-v1.md)
+- [Share Link and Bundle v1](share-link-bundle-v1.md)
+- [Share Service v1](share-service-v1.md)

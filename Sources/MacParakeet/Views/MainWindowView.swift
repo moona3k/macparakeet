@@ -6,6 +6,7 @@ import MacParakeetViewModels
 enum SidebarItem: String, CaseIterable, Identifiable {
     case transcribe = "Transcribe"
     case library = "Library"
+    case sharedPages = "Shared pages"
     case dictations = "Dictations"
     case meetings = "Meetings"
     case prompts = "Prompts"
@@ -22,6 +23,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .transcribe: return "waveform"
         case .meetings: return "person.2.wave.2"
         case .library: return "square.grid.2x2"
+        case .sharedPages: return "link"
         case .dictations: return "clock.arrow.circlepath"
         case .prompts: return "text.quote"
         case .transforms: return "wand.and.stars"
@@ -40,6 +42,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         if AppFeatures.meetingRecordingEnabled {
             items.append(.meetings)
         }
+        if AppFeatures.isShareLinksAvailable() { items.append(.sharedPages) }
         return items
     }
 
@@ -79,6 +82,7 @@ struct MainWindowView: View {
     let meetingsWorkspaceViewModel: MeetingsWorkspaceViewModel
     let meetingPillViewModel: MeetingRecordingPillViewModel
     let meetingSplitViewModel: MeetingSplitViewModel
+    let shareManagementViewModel: ShareManagementViewModel?
     let updater: SPUUpdater
     let onRecordMeeting: () -> Void
     let onRecordMeetingFromWorkspace: () -> Void
@@ -199,6 +203,10 @@ struct MainWindowView: View {
                         }
                     case .dictations:
                         DictationHistoryView(viewModel: historyViewModel)
+                    case .sharedPages:
+                        if let sharing = shareManagementViewModel {
+                            SharedSharesView(model: sharing) { state.selectedItem = .library }
+                        }
                     case .prompts:
                         PromptsWorkspaceView(
                             promptsViewModel: promptsViewModel,
@@ -303,6 +311,13 @@ struct MainWindowView: View {
             minWidth: 860,
             minHeight: DesignSystem.Layout.windowMinHeight
         )
+        .environment(\.shareManagement, shareManagementViewModel)
+        .sheet(item: Binding(get: { shareManagementViewModel?.draft }, set: { shareManagementViewModel?.draft = $0 })) { draft in
+            if let sharing = shareManagementViewModel {
+                ShareTranscriptSheet(draft: draft, management: sharing)
+                    .onDisappear { Task { await sharing.refresh() } }
+            }
+        }
         .alert("Cancel All Transcriptions?", isPresented: $showGlobalCancelConfirmation) {
             Button("Cancel All", role: .destructive) {
                 transcriptionViewModel.cancelBatch()

@@ -73,9 +73,8 @@ public enum TranscriptionAssetCleanup {
         repository: TranscriptionRepositoryProtocol,
         fileManager: FileManager = .default
     ) throws -> Bool {
-        try withMeetingMediaMutationLease(for: transcription) {
-            try removeOwnedAssetsUnlocked(for: transcription, fileManager: fileManager)
-            return try repository.delete(id: transcription.id)
+        try TranscriptionDeletionCoordinator.delete(transcription, repository: repository) {
+            try removeOwnedAssetsUnlocked(for: $0, fileManager: fileManager)
         }
     }
 
@@ -106,7 +105,7 @@ public enum TranscriptionAssetCleanup {
     /// Non-meeting sources and meeting rows with no resolvable folder have no
     /// shared root to protect against a future split, so `body` runs
     /// unlocked -- matching their unchanged, non-racing removal paths.
-    private static func withMeetingMediaMutationLease<T>(
+    static func withMeetingMediaMutationLease<T>(
         for transcription: Transcription,
         _ body: () throws -> T
     ) throws -> T {
@@ -126,7 +125,7 @@ public enum TranscriptionAssetCleanup {
         return folderURL.standardizedFileURL.deletingLastPathComponent()
     }
 
-    private static func removeOwnedAssetsUnlocked(
+    static func removeOwnedAssetsUnlocked(
         for transcription: Transcription,
         fileManager: FileManager
     ) throws {

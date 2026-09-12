@@ -5,8 +5,8 @@ import Dispatch
 import Foundation
 import MacParakeetCore
 
-/// CLI surface for Split and transcribe (plan #895 U2). One shared Core
-/// operation (`MeetingSplitService`) serves both this CLI and any future
+/// CLI surface for Split and transcribe. One shared Core
+/// operation (`MeetingSplitService`) serves both this CLI and the
 /// native UI; this file only adapts CLI flags/output to that Core API.
 ///
 /// Uses the app's saved transcription model and enabled completion settings.

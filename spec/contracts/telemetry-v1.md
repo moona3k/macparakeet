@@ -9,6 +9,10 @@ records the September 2026 tightening of privacy and outcome semantics.
 - Preserve random per-launch sessions, event UUID idempotency, and optional
   telemetry. Audio, transcripts, prompts, filenames, device identities and
   persistent user identifiers are excluded.
+- The proposed sharing surface adds no recipient telemetry. Share content,
+  selection details, locators, complete URLs and fragments, owner or recovery
+  credentials, ciphertext, recipient identifiers, and view activity are
+  excluded from this event boundary.
 - Omit `error_detail`, `error_occurred.description`, and crash `reason` from
   serialized events. Retaining factory parameters does not permit transmission.
   The paired website ingestion change drops these fields for older clients.

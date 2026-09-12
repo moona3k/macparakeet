@@ -2,7 +2,7 @@ import MacParakeetCore
 import MacParakeetViewModels
 import SwiftUI
 
-/// Native "Split and transcribe" sheet (issue #895 U3). Presented for a
+/// Native "Split and transcribe" sheet. Presented for a
 /// single saved meeting; the shared `MeetingSplitViewModel` it binds to is
 /// app-owned, so processing started here keeps running after this sheet is
 /// dismissed — see `MeetingSplitViewModel`.
