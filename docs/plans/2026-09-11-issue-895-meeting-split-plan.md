@@ -1,211 +1,109 @@
 ---
-title: Saved Meeting Splitting - Plan
+title: Split and transcribe - Implementation plan
 type: feat
 date: 2026-09-11
 artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
-product_contract_source: issue-895-research
+product_contract_source: user-approved-split-and-transcribe
 execution: code
 origin: docs/research/2026-09-11-issue-895-meeting-split/report.md
 ---
 
-# Saved Meeting Splitting - Plan
+# Split and transcribe
 
-## Goal Capsule
+## Goal and authority
 
-- **Objective:** Users can separate accidentally combined meetings after recording and use each part independently in their local library.
-- **Means:** Manual partitioning into ordinary saved meetings through one shared Core operation (KTD1).
-- **Authority:** The implementing user's current instructions and governing contracts take precedence. This plan carries the research recommendation; the [report](../research/2026-09-11-issue-895-meeting-split/report.md) supplies evidence and rationale. The HTML and provisional investigator notes are not specifications.
-- **Execution:** A future implementation task owns code, tests, native validation and any separately authorized shipping. This documentation change implements no app feature and does not authorize a release or access to personal recordings.
-- **Stop conditions:** Escalate a required change to source preservation, privacy, retention policy or first-release scope. Choose ordinary implementation details and UI/UX within those constraints; document evidence-backed changes to the proposed internals.
+Repair a recording that spans two, three or more meetings. The user chooses manual audio boundaries; each part becomes an independent saved meeting and receives fresh transcription followed by the normal enabled meeting automations, including summaries.
 
-Baseline: `aaf3dc261536e5fc5158c4b1ca714bd3f4cece19`, inspected September 11, 2026. Refresh [issue #895](https://github.com/moona3k/macparakeet/issues/895), affected code and contracts before starting; do not restart work that has since landed.
+This user-approved revision supersedes the earlier transcript-preserving research, the intermediate audio-only proposal, and conflicting HTML behavior. Processing time is an accepted cost. This document specifies the feature; it does not claim the implementation is shipped.
 
----
+The [product contract](../../spec/contracts/meeting-splitting.md) governs behavior. Historical research remains useful for media experiments, not for old eligibility or metadata requirements.
 
-## Product Contract
+## User experience
 
-### Summary
+The action is **Split and transcribe**. Start with one editable cut and two part titles. Allow adding/removing cuts for three or more parts without a four-part cap. Reuse existing playback and time-entry controls; transcript context is an optional navigation aid. No automatic meeting detection, elaborate editor, permanent transcript-editing mode or WebView is required.
 
-Offer a manual post-recording split with a preview of boundaries, titles and resulting durations. Create independent meetings together and retain the original. A user with valid timing but no usable retained audio can explicitly choose text-only results.
+Before creation, show:
 
-### Problem Frame
+- Each part's title, source audio range and duration.
+- The original stays unchanged; parts consume additional storage.
+- Processing happens sequentially and takes time.
+- Each part receives a new transcript and speaker labels, plus enabled meeting automations. Original corrections and derived content are not copied.
+- The existing transcription/automation settings and provider privacy behavior apply; splitting does not silently enable providers or change settings.
+- The original recording date remains the retention anchor; splitting does not renew audio lifetime.
 
-Issue #895 describes leaving recording on across two, three or four successive meetings. Prevention does not repair those existing recordings, and a combined transcript is inconvenient to search, summarize or share by conversation.
+Use native accessible controls and `.parakeetAction(...)`. Show separate audio-preparation and per-part processing progress. After audio publication, cancellation means stop processing, not undo creation. Keep completed and unfinished parts visible with retry actions and links to the original/siblings where they still exist.
 
-### Requirements
+## Settled behavior
 
-**Selection and interaction**
+1. **Audio is authoritative.** Cover the whole validated audio timeline with contiguous parts, retaining pauses. Reject duplicate, unordered, zero, terminal or out-of-range cuts. Crossing a word, missing timestamps or edited transcript text never blocks a valid audio cut. Prefer pauses through user choice, not automatic cut movement.
+2. **Independent ownership.** Preserve the original row and every original artifact. Every part, including the first, is a new recording receiving its first transcription; no part is the original's remaining fragment. New IDs and independently owned media let users delete the original or any sibling without breaking remaining parts. Copying the original transcript, correction history or speaker baseline is unnecessary.
+3. **New meeting processing.** Save all audio parts safely first. Then process each saved ID sequentially through existing speech processing and normal enabled meeting completion automation. Generate new transcripts, speaker labels and results. Do not copy notes, summaries, tasks, prompts, conversations, calendar identity, classification or favorites from the parent.
+4. **Durable retry.** A failed/cancelled transcription or automation leaves audio parts saved. Retry unfinished work on those IDs; never split again or recreate deleted children. Preserve successful transcripts/results instead of redoing them just because a later stage failed. Continue to later parts after an individual failure; user cancellation stops starting further work.
+5. **Retention and privacy.** Initial child recording dates retain the source age. Recheck current age-based expiry before publishing audio; expired/missing source audio cannot be split. The existing delete-immediately preference governs new capture, not retroactive removal of historical retained audio. Do not assert measured per-part capture quality from source aggregate counters.
 
-- R1. Split a completed saved meeting at one or more approved boundaries into contiguous parts covering its full recording timeline. Retain pauses; reject duplicate, zero, end, non-finite and out-of-range cuts. Do not hardcode a four-part limit.
-- R2. Admit the fast path only when displayed text and word timing agree and no conflicting capture, finalization, recovery or source mutation owns the recording. Explain unavailable states; uncertain timing or unmatched text edits must not silently lose content.
-- R3. A boundary must not cross any word interval, including overlapping speakers. An unsafe selection may propose a safe gap, but requires explicit approval before moving the cut.
-- R4. Before creation, show part titles, source ranges, durations, audio/text-only mode, source preservation and additional storage/retention consequences. Provide progress, safe pre-publication cancellation, actionable errors and discoverable original/part relationships. The optimal native presentation is decided during implementation; the HTML is reference only.
+## Small shared implementation
 
-**Content and ownership**
+Core owns the operation; GUI and CLI call the same behavior. Separate audio creation from processing internally, without making callers sequence file/database publication themselves.
 
-- R5. Preserve the original ID, title, text, audio, corrections and citations. Each child has independent identity/artifact ownership, rebased timestamps and fresh passage/search identities; source words appear exactly once across the children. Deleting the source or one child must not damage the others.
-- R6. Preserve effective speaker assignments, including explicit unassigned spans and relevant labels, separately from automatic source provenance. Whole-recording notes, summaries, prompt results, knowledge cards, tasks and Ask conversations remain on the original. Children do not inherit calendar identity, classification or favorite state by default. Carry transcription-engine provenance and inherited capture warnings without asserting measured per-child capture coverage.
-- R7. Preserve the source retention clock and recording-date grouping, with split-created time and part order separate. Reject audio-producing creation at or beyond the source's cutoff; offer explicit text-only creation or an explicit change to the existing retention setting. Never renew old audio's lifetime implicitly.
+### A. Save the audio parts
 
-**Reliability and parity**
+- Inspect/preview without writes, migrations or lock creation. Probe actual media duration and capture source/media identity for creation revalidation.
+- Acquire cross-process media ownership shared with complete deletion/retention mutations, including both their file and database phases. Do not reuse live-recording recovery locks.
+- Persist a small feature-specific operation receipt with the approved request and fixed child IDs before exporting.
+- Prepare positively marked, exclusively owned child folders at final paths, with validated audio and ordinary meeting artifacts. These are absent from the library until publication, not invisible to Finder.
+- Revalidate the source and retention, then fresh-insert all child rows and commit the receipt in one short GRDB transaction. Precompute expensive work outside the write lock. No required post-commit artifact repair.
+- Await writer termination before returning cancellation or releasing ownership. Discard only positively identified unpublished operation output. Unfamiliar folders are conflicts, not cleanup candidates.
 
-- R8. Publish all children together or none. Interrupted operations are retryable without duplicates; conflicting GUI/CLI delete, retention and retranscription operations cannot race publication. No hidden AI/provider calls, recording-completion hooks or voice-profile enrollment/matching result from splitting. GUI and CLI share eligibility, preview and creation semantics.
+Committed retries return the original IDs even if source/children were deleted; different requests under the same key conflict. Interrupted preparation may be retried or explicitly discarded. No broad startup cleanup or general workflow engine is needed.
 
-### Scope Boundaries
+### B. Process the saved IDs
 
-The first release requires trustworthy word timing. Text-only results are included when that timing remains trustworthy, including an explicitly selected text-only split of expired audio. A missing optional track does not imply missing canonical playback; determine capability from validated artifacts.
+Use a small sequential coordinator with existing Core saved-audio transcription methods and shared meeting-completion behavior. Persist enough per-part stage/outcome information to resume unfinished work after restart without resplitting. Distinguish transcription failure from automation failure; a summary failure does not erase a successful transcript.
 
-Deferred follow-up work: passage-only timing after a separate text-consistency proof, edited-text reconciliation, per-part STT for untimed recordings, suggested silence/calendar/semantic boundaries, break exclusion and original archiving. A general editor, redaction guarantee, automatic destructive Undo and voice-profile enrollment are outside this feature.
+The current app capture queue is not a generic saved-recording queue: it carries recording generations, finalization leases and settlement. Do not force split children through synthetic capture/recovery state. The normal retranscribe UI intentionally skips auto-prompts; merely calling it does not meet this feature's completion contract.
 
-### Acceptance Examples
+Extract only the existing completion behavior needed by both products into a narrow reusable Core service or adapter. Preserve prompt selection, provider settings, result persistence and retry semantics. Do not build a second summary pipeline or teach the CLI to call ViewModels.
 
-- A 1:48:00 recording cut at 36:20 and 1:12:10 yields three parts of 36:20, 35:50 and 35:50; content timestamps are child-local and source ranges remain available (R1, R5).
-- A selected boundary crosses the second of two overlapping speakers. Creation remains unavailable until a safe alternative is approved (R3).
-- Audio has been removed but the timed transcript is valid. An explicit text-only preview produces usable transcript-only meetings, with no playback promise (R2, R4).
-- A speaker correction changes after preview, or part three fails to export. Creation reports no published children; the original remains usable (R5, R8).
+The user permits pragmatic scope decisions: full meeting treatment is the intended experience, not a mandate to refactor the whole processing system. If one automation requires disproportionate work, report that specific limitation and recommend a bounded adjustment. Existing internal methods named `retranscribe` describe processing already-saved audio, not the child's product lifecycle; use clear saved-audio naming at the new boundary without a global rename.
 
----
+Ensure canonical-playback-only parts use the existing single-file saved-audio route when aligned raw tracks are absent. An archived meeting with an empty source-alignment list must not be treated as a successful empty transcription.
 
-## Planning Contract
+Do not promise exactly-once external effects across a crash after a provider accepted work but before a local receipt was saved. Reuse existing idempotency where available; record ambiguous delivery and expose a deliberate retry rather than silently repeating an uncertain external action. This is distinct from duplicate-free local meeting creation.
 
-### Key Technical Decisions
+## Delivery order
 
-- KTD1. **One Core operation with three internal responsibilities.** A proposed `MeetingSplitService` owns planning, audio preparation and group persistence. GUI ViewModels and CLI call preview/create; neither sequences persistence. Keep helpers internal unless a demonstrated testing or caller seam warrants exposure (R8).
-- KTD2. **Snapshot, then revalidate.** Snapshot source content identity, effective correction revision, media identity and eligibility. Build the pure plan from supplied values; perform coherent database reads and final revision checks in the service/repository boundary. `updatedAt` alone is insufficient. Reject unresolved attribution or stale previews rather than silently substituting different content (R2, R6, R8).
-- KTD3. **Independent media on one timeline.** Use AVFoundation and shared rational/integer boundary endpoints at each track's sample rate. Intersect each child range with the source track's offset/duration and retain the resulting child-relative offset. Decode/probe outputs; validate cleaned-mic alignment and legacy filename resolution. Passthrough is an optimization to validate, not a promise of decoded-sample equivalence (R5).
-- KTD4. **Derived provenance without destructive parent dependency.** Record operation/source IDs, source fingerprint/revision, source range, ordinal and split-created time. Use the source `createdAt` as the initial retention/date anchor; pause-elided offsets are not exact wall-clock starts. Map speaker corrections to fresh child baselines while retaining automatic word provenance; do not clone undo chains, correction IDs or full-recording embeddings (R5–R7).
-- KTD5. **Durable operation journal plus a shared mutation gate.** Persist intent and fixed child IDs before export, keep staging outside normal recording recovery enumeration, and install validated folders before one GRDB transaction publishes rows, provenance and derived search state. Integrate cross-process ownership with all relevant mutators; a split-specific file nobody checks is not a lock. Revalidate source/corrections/retention at publication (R8).
+### U1. Establish the revised contract
 
-For KTD5, stage and validate the complete child artifact set, including `transcript.json`, `meeting.md`, `manifest.json` and empty child prompt-result metadata with correct final-path references; never copy parent prompts or notes. After interrupted post-commit settlement, repair only missing derived artifacts for still-existing children from committed state under mutation ownership; never republish rows, recreate deleted children or revive deleted/expired media.
+Land this docs-only scope revision first. Mark old research/HTML as historical. Record inspected pipeline behavior and verification limits. No app feature, schema migration or automatic issue closure belongs in this PR.
 
-Names and file layout below are starting points, not a framework specification. Reuse existing transaction-level derivation instead of independently committing children through `save`. Do not broaden this work into general recording-service or database refactors.
+### U2. Deliver Core and CLI end to end
 
-### High-Level Technical Design
+Retain useful audio-export and media-deletion-ownership work. Remove transcript partitioning and split-specific speaker-baseline machinery. Implement the smallest range planner, safe group creation, sequential saved-audio processing and shared completion automation.
 
-```mermaid
-flowchart TB
-  GUI[Native SwiftUI interaction] --> VM[Split ViewModel]
-  VM --> Service[Core split operation]
-  CLI[CLI preview and create] --> Service
-  Service --> Plan[Pure partition planner]
-  Service --> Audio[Background media exporter]
-  Service --> Save[Journal and repository publication]
-```
+Expose CLI preview, Split and transcribe, operation status and retry/cancel/discard semantics through the same Core surface. Use existing CLI JSON/envelope conventions and settings. Update integration documentation, help/spec discovery and contracts with actual names. Start with a synthetic two-part success through saved audio, transcription and enabled summary completion.
 
-```mermaid
-flowchart TB
-  A[Acquire ownership and snapshot] --> B[Journal fixed IDs and stage outputs]
-  B --> C[Validate and install independent folders]
-  C --> D[Revalidate and commit all rows in one transaction]
-  D --> E[Settle journal and return the committed IDs]
-  B --> F[Pre-commit failure: no visible children; retry or explicit discard]
-  C --> F
-  D --> F
-  D --> G[Post-commit interruption: recover the committed operation; no duplicate creation]
-  G --> E
-```
+### U3. Add native interaction and failure coverage
 
-The D-to-F edge represents transaction rollback, not an error after commit. Cancellation after the commit boundary returns the committed result; it cannot promise that nothing was created. Stop writers before releasing ownership or discarding operation-owned files. Recovery must distinguish pre-commit staged files from committed children and must never delete unfamiliar folders. A repeated idempotency key with a different source, boundaries, mode or titles is a conflict, not permission to reuse an unrelated result.
+Use a focused native sheet or equally small interaction, informed but not dictated by HTML. Keep state testable in an observable ViewModel. Verify two/three-part title/range editing, processing progress, keyboard/VoiceOver access, cancellation, retry and independent navigation/deletion.
 
-### Implementation-Time Decisions
+### U4. Verify and deliver
 
-U1 decides layout, entry points, boundary controls, keyboard/VoiceOver behavior and long-transcript navigation. U3 establishes the supported codec/alignment matrix and bounded resource behavior on long recordings. U4 chooses the smallest durable journal/lease representation and migration consistent with existing contracts, including process-death recovery and concurrent mutation coverage. U5 chooses exact CLI naming and result schema. These do not block starting the plan; evidence that would weaken R1–R8 requires a scope decision.
+Commit each meaningful verified milestone. Use one implementation PR unless a genuinely independent change warrants a separate PR. Resolve valid independent review findings, publish a self-contained PR and merge after relevant local verification. Slow CI is not an instruction to skip known failures or claim unrun tests passed. Stable release is separate.
 
----
+## Acceptance tests
 
-## Implementation Units
+- Exact approved audio ranges with independent IDs/files; original row/artifact hashes unchanged.
+- Inside-word boundaries, edited text and absent timing work because original transcript content is not used for eligibility.
+- No original speaker corrections, notes, summaries, tasks or other derived content are copied.
+- Fresh transcription and enabled normal completion automation operate on each child ID, sequentially, with normal provider/privacy settings. Disabled automation stays disabled.
+- Canonical-only and aligned raw-track sources both receive actual STT; no empty-source false success.
+- Last-child export/materialization/insert failure publishes no children. Pre-publication interruption/retry does not duplicate output.
+- Transcription failure/cancellation leaves published audio available. Completed parts and successful stages are not unnecessarily repeated; automation failure can retry without resplitting or rerunning successful transcription.
+- Restart and repeated submission use durable identities; deleted children are never resurrected. Test duplicate processing submissions separately from duplicate audio creation.
+- Concurrent deletion/retention/source changes are excluded or rejected safely; process death releases ownership. Honor retention at publication and before later audio use without a hidden grace period.
+- Deleting any source/sibling does not damage another part. A source deletion after publication does not prevent processing independent children.
+- Preview writes nothing; GUI and CLI use the same outcomes. Explicit external-effect ambiguity is not mislabeled exactly-once success.
+- Use synthetic/approved fixtures, not personal recordings or databases. Measure hour-scale audio time/memory/storage and note minimum-OS runtime limits.
 
-### U1. Choose and validate the native interaction
-
-**Goal:** Resolve R4 without treating the HTML as an approved design. **Dependencies:** none; U2 can proceed independently.
-
-**Files:** Inspect `Sources/MacParakeet/Views/Meetings/MeetingsView.swift`, `Sources/MacParakeet/Views/Transcription/TranscriptionLibraryView.swift`, `Sources/MacParakeet/Views/Transcription/MeetingArtifactActions.swift` and `spec/04-ui-patterns.md`. Proposed decision note: `docs/design/issue-895-meeting-split.md`.
-
-**Approach:** Compare at least two suitable native approaches, such as a focused sheet and an in-detail mode. Choose based on boundary-finding effort, long-transcript navigation, part review and accessibility. Explain the choice briefly; do not add a permanent editor or WebView merely because the prototype resembles one.
-
-**Verification:** Demonstrate two-, three- and four-part review, unsafe-cut confirmation, original/child navigation and text-only/blocked states. Native keyboard focus, VoiceOver labels and cancellation must be validated when wired in U5. Test expectation for this decision-only unit: no runtime test; U5 owns implementation tests.
-
-### U2. Build the pure split planner and content projection
-
-**Goal:** Establish R1–R3 and R5–R6 deterministically under KTD1–KTD4. **Dependencies:** none.
-
-**Files:** Proposed `Sources/MacParakeetCore/Services/MeetingSplit/MeetingSplitPlanner.swift` and `Tests/MacParakeetTests/Services/MeetingSplit/MeetingSplitPlannerTests.swift`. Existing patterns: `Sources/MacParakeetCore/Models/Transcription.swift`, `Sources/MacParakeetCore/Services/Diarization/SpeakerAttributionResolver.swift`, `Sources/MacParakeetCore/Services/Diarization/SpeakerAttributionReadService.swift` and `Sources/MacParakeetCore/Database/SpeakerTranscriptionPersistence.swift`.
-
-**Approach:** Keep partition calculation free of I/O. Define a source snapshot and preview result containing capability/reasons, approved ranges and source identity. Rebuild word-index ranges and language-aware passage text. Preserve automatic provenance separately from the effective correction projection.
-
-**Tests and completion:**
-
-- Partition 2/3/4 parts and randomized valid boundaries; every source word appears exactly once, with correct rebasing and fresh passage IDs.
-- Reject duplicate, zero, terminal, negative, non-finite, out-of-order and inside-word cuts; include overlapping-speaker intervals and zero-duration/malformed input.
-- Preserve punctuation, CJK text, renamed/manual speakers and explicit unassigned spans; reject text/timing mismatch and unresolved correction state.
-- Derive the same preview from identical snapshots; no database, media or voice-profile service access is needed by the planner.
-
-### U3. Export independently owned, aligned media
-
-**Goal:** Prove KTD3 against realistic media, not only container metadata. **Dependencies:** U2 range model.
-
-**Files:** Proposed `Sources/MacParakeetCore/Services/MeetingSplit/MeetingSplitAudioExporter.swift` and `Tests/MacParakeetTests/Services/MeetingSplit/MeetingSplitAudioExporterTests.swift`. Existing references: `Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingMetadata.swift`, `MeetingArtifactAudioFileNames.swift`, `MeetingPlaybackArtifactBuilder.swift` and `MeetingCleanedMicRenderer.swift` in that same directory.
-
-**Approach:** Read the Audio subsystem README. Export canonical playback and available aligned raw/cleaned tracks off MainActor. Preflight storage using actual artifacts plus staging overhead; check read failures/file changes, cancellation and unsupported alignment explicitly. Use APIs compatible with the deployment floor, currently macOS 14.2.
-
-**Tests and completion:**
-
-- Cover asymmetric starts/ends, mixed rates, a track absent from one part, legacy names, cleaned mic and canonical single-source playback.
-- Check decoded sample content around boundaries, durations and offsets; assert the source hash never changes. Do not equate export success with lossless equivalence.
-- Inject disk-full, malformed media, permission/read failures and cancellation; no success with invalid media or continuing writers.
-- Measure duration, memory, disk overhead and UI responsiveness on hour-scale fixtures and minimum supported macOS. Define observed limits before exposure; the eight-second research timing is not the target benchmark.
-
-### U4. Implement durable group publication and lifecycle integration
-
-**Goal:** Enforce R5–R8 under KTD4–KTD5. **Dependencies:** U2 and U3.
-
-**Files:** Proposed `Sources/MacParakeetCore/Services/MeetingSplit/MeetingSplitService.swift`, `MeetingSplitOperationStore.swift` in that directory, and `Tests/MacParakeetTests/Services/MeetingSplit/MeetingSplitRecoveryTests.swift`. Existing integration points: `Sources/MacParakeetCore/Database/DatabaseManager.swift`, `TranscriptionRepository.swift` in that directory; `Sources/MacParakeetCore/Services/MeetingRecording/MeetingAudioRetentionSweeper.swift`, `MeetingRecordingLockFileStore.swift`, `MeetingArtifactStore.swift` in that directory; `Sources/MacParakeetCore/Utilities/TranscriptionAssetCleanup.swift`; `Sources/MacParakeetViewModels/TranscriptionDeletionCleanup.swift`; `Sources/CLI/Commands/MeetingsCommand.swift`; `Sources/MacParakeet/App/MeetingRecoveryCoordinator.swift`.
-
-**Approach:** Read the Database README and trace all source mutation paths, including edits/corrections and retranscription, before choosing the lease integration. Add fresh-insert transaction support and operation identity; no generic upsert replacement. Update `spec/contracts/meeting-artifacts-v1.md` and `spec/contracts/meeting-recovery-retention.md` with the new provenance, ownership, retention and recovery behavior.
-
-**Tests and completion:**
-
-- Inject failures before/after journal, export, folder installation and commit; an ordinary last-row insertion failure publishes no children.
-- Restart after commit but before receipt settlement and return the same child IDs. Reject mismatched payload reuse; deletion of a committed child must not make retry resurrect it.
-- Inject failures at each materialization boundary during staging and post-commit repair. Staging failure publishes nothing; restart repair restores only missing derived artifacts for still-existing children without republishing rows or reviving deleted/expired media.
-- Exercise second-process split/delete/retention/retranscription and correction changes between preview and commit. Prove exclusion or stale rejection without deadlock; an in-memory mock alone is insufficient.
-- Measure the publication transaction on hour-scale, many-part/high-passage-count fixtures while another process writes. Keep derivation outside the write lock where possible and verify normal recording writes do not time out; `DatabaseManager` currently uses a five-second busy timeout. If the single-transaction approach cannot meet that bound, revisit publication internals with an explicit all-or-none visibility proof before exposure, rather than silently publishing children separately.
-- Check pre-publication cancellation versus committed completion, disk-full and missing journal/sidecars; discard only identified operation-owned output after writers stop.
-- Verify source/child independent deletion, FTS and exports, original citations, explicit-unassigned correction baselines, original date grouping, expired-audio rejection and text-only creation.
-- Assert no hook/summary/provider calls or voice-profile reads/writes when disabled; children receive no whole-source derived results or invented capture coverage.
-
-### U5. Connect native state and public CLI to Core
-
-**Goal:** Deliver the U1 interaction and R4/R8 parity without leaking lifecycle ordering into callers. **Dependencies:** U1 and U4.
-
-**Files:** Proposed `Sources/MacParakeetViewModels/MeetingSplitViewModel.swift`, `Sources/MacParakeet/Views/Meetings/MeetingSplitView.swift`, `Tests/MacParakeetTests/ViewModels/MeetingSplitViewModelTests.swift`, `Sources/CLI/Commands/MeetingSplitCommand.swift` and `Tests/CLITests/MeetingSplitCommandTests.swift`. Existing integration: U1 views, `Sources/CLI/Commands/MeetingsCommand.swift`, `Tests/CLITests/MeetingsCommandTests.swift`, `integrations/README.md` and `spec/contracts/cli-json-v1.md`.
-
-**Approach:** Provide CLI preview/dry-run, expected snapshot identity, explicit mode and idempotency key with a documented result/error contract. CLI calls Core directly, not through ViewModels. Update CLI help/spec discovery and changelog. Use testable observable state and `.parakeetAction(...)` for native controls.
-
-**Tests and completion:**
-
-- GUI and CLI produce identical plans/results; preview never writes, and successful create returns the actual committed IDs.
-- Cover title editing, boundary removal/reapproval, stale previews, audio loss/expiry between preview and create, double submission and cancellation races.
-- Validate noninteractive errors, text-only disclosure, original/part links and retention messaging. Exercise source deletion after creation and retry after partial child deletion without recreation.
-- Run native long-transcript and keyboard/VoiceOver QA; verify progress remains responsive and focus/dismissal does not accidentally submit or imply rollback after commit.
-
----
-
-## Verification Contract
-
-Characterize affected persistence/lifecycle behavior before changing it. Run focused `swift test --filter <AreaTests>` checks during implementation, including the proposed split suites and existing speaker attribution, artifact, retention, deletion and CLI regressions. Run the full `swift test` suite at most once as the final code gate, following `AGENTS.md`; do not run competing builds in the owning worktree.
-
-Use `swift build` and the repository's Swift 6 concurrency checks for first-party code, `scripts/dev/run_app.sh` for native launch, and `swift run macparakeet-cli --help` plus split help/spec/JSON checks for discoverability. Follow `docs/pr-review-workflow.md` with independent data-integrity, concurrency and API review for the implementation. Record actual commands, counts, source SHA, macOS versions and fixture characteristics.
-
-The existing evidence covers six exports from an eight-second synthetic mono AAC source, exact requested decoded frame counts after integer-endpoint correction, and unchanged source SHA. It does **not** prove waveform equivalence, real multi-track alignment, hour-scale performance, minimum-OS support, crash recovery or native UI usability. HTML browser checks exercise fictional state only; screenshots are not native acceptance criteria. Use synthetic/approved fixtures, never personal meeting data by assumption.
-
----
-
-## Definition of Done
-
-- All unit completion scenarios and R1–R8 are verified against the implementation, with no unresolved source-loss, partial-publication, retention or mutation-race defects.
-- The chosen native experience is documented and validated independently of HTML fidelity; GUI and CLI use the same Core semantics.
-- Schema, artifacts, recovery/retention, CLI and user-facing documentation reflect actual behavior; proposed names do not masquerade as already shipped APIs.
-- Remove abandoned experimental code and unused abstractions from the implementation diff. Preserve original recordings, databases, lock files and unrelated work.
-- The future implementation handoff distinguishes local verification, merged code and stable release. Keep #895 open for this research PR; close it only when the implemented scope genuinely resolves the request.
+Run focused tests while iterating, build in the owning worktree, and run the full Swift suite at most once at the final code gate. Follow the repository review workflow in proportion to risk. Record exact commands, test counts and unverified behavior. Future implementation owns runtime acceptance, not this documentation PR.
