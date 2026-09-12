@@ -96,6 +96,7 @@ Every owner resource read or mutation first verifies that the presenting credent
 |---|---|---|
 | `GET` | `/api/v1/capabilities` | Returns supported envelope/bundle versions and current service limits; it does not encode UI presets. |
 | `POST` | `/api/v1/owners` | Create-only registration of a client-generated owner, device selector/verifier, and optional recovery verifier; returns no secret. |
+| `GET` | `/api/v1/owners/me` | Returns current owner metadata for authenticated credential and lost-response reconciliation. |
 | `POST` | `/api/v1/owners/recover` | Authenticates a recovery token, atomically advances the credential generation, installs its device verifier and optional replacement recovery verifier, and invalidates old credentials. |
 | `PUT` | `/api/v1/owners/recovery` | Installs a verifier under an absence precondition, or replaces/removes one with proof of the current recovery token; recovery secrets remain client-generated. |
 | `GET` | `/api/v1/shares?limit=50&cursor=...` | Reconciles owner-visible metadata; returns no ciphertext or content-derived fields. |
@@ -131,6 +132,18 @@ Owner enrollment sends client-generated selectors and verifiers, all encoded as 
 
 Enrollment requires `If-None-Match: *` and an idempotency key. The service resolves the idempotency key and request digest before evaluating the precondition or checking owner-ID and device-selector collisions: a same-key, same-digest retry within the receipt window returns the original response, while a same-key, different-digest request returns `409 idempotency_conflict`. Only when no idempotency record exists does the request proceed to the create precondition and collision checks, which atomically reject any existing owner ID or device selector with generic `409 enrollment_conflict` without changing an existing verifier or revealing which value collided.
 
+Enrollment returns `201`; owner reads, recovery and recovery configuration return `200` with the same owner metadata shape:
+
+```json
+{
+  "ownerId": "22-character-owner-id",
+  "credentialGeneration": 1,
+  "recoveryVerifier": null
+}
+```
+
+`recoveryVerifier` is either `null` or the current 43-character verifier, never the recovery secret. It is exposed only to the authenticated owner so a lost recovery-configuration response can be compared with the intended verifier. Generations start at `1`. After a lost recovery response, `GET /owners/me` with the locally retained new device token proves whether replacement succeeded; an invalidated recovery token cannot replay an authenticated response.
+
 Recovery uses `Authorization: Recovery <recovery-token>` and supplies a fresh client-generated device selector/verifier plus an optional replacement recovery verifier.
 The service response contains owner metadata and credential scope, never a secret.
 Recovery configuration uses the normal device `Authorization` header.
@@ -138,6 +151,9 @@ Initial setup requires a non-null `recoveryVerifier` and `If-None-Match: *`; it 
 Replacement or removal additionally sends `Recovery-Authorization: Recovery <current-recovery-token>`; a non-null `recoveryVerifier` replaces the current verifier and `null` removes it.
 The old verifier is invalidated atomically with replacement or removal, and both secret-bearing headers are excluded from every log and diagnostic path.
 Device-only replacement or removal fails without revealing recovery state.
+The recovery request body contains `deviceSelector`, `deviceVerifier`, and optional `recoveryVerifier`; omission of the latter leaves recovery unconfigured in the new generation. Recovery configuration contains only `recoveryVerifier`.
+
+Owner listing returns `{ "shares": [<owner-visible share resource>], "nextCursor": null }`. A non-null cursor is opaque and is passed unchanged to the next request; clients exhaust pagination before treating reconciliation as complete. Create returns `201`, while update and expiry return `200`, each with the full owner-visible share resource and its ETag. An authenticated old-generation content update returns `403 content_not_writable`, not `401`, because listing, expiry and permanent stop remain authorized.
 
 Create and update use this body shape:
 
@@ -210,6 +226,8 @@ It does not claim that a recipient copy, loaded tab, browser history, screenshot
 A deletion-complete receipt means every known current, superseded, and orphan ciphertext object for the share has been confirmed absent from live storage.
 It does not shorten a hosting provider's documented recovery-history bound.
 
+Both responses use the same minimal receipt: `{ "id": "<share-id>", "locatorCommitment": "<commitment>", "accessState": "stopped", "deletionState": "pending" }`. `accessState` may instead be `expired` for an already-expired share, and `deletionState` becomes `complete` only after confirmed cleanup. Post-tombstone terminal absence uses `stopped` and `complete` without recreating historical timestamps or claiming owner history. Clients reconcile pending cleanup with a fresh idempotency key; replaying an earlier pending receipt does not prove current deletion completion.
+
 An authenticated `DELETE` for a share that is already absent returns `200` with a locator-scoped terminal-absence receipt only when the supplied commitment matches an existing retired commitment, even after the idempotency receipt and owner-linked tombstone have expired.
 The receipt confirms only that this locator can never be served or reassigned and lets a long-offline client complete its pending operation; it makes no owner-history claim and does not recreate the share or its tombstone.
 For a live share, ordinary owner authorization and an exact commitment match are both required.
@@ -258,7 +276,7 @@ Errors use this envelope; `message` is non-stable display copy and `requestId` i
 }
 ```
 
-Stable codes are `invalid_request` (400), `unauthorized` (401), `not_found` (404 owner API only), `share_unavailable` (404 public API), `enrollment_conflict` (409), `locator_conflict` (409), `idempotency_conflict` (409), `payload_too_large` (413), `version_conflict` (412), `precondition_required` (428), `unsupported_version` (422), `invalid_expiry` (422), `quota_exceeded` (429), `rate_limited` (429 with `Retry-After`), `service_unavailable` (503), and `internal_error` (500).
+Stable codes are `invalid_request` (400), `unauthorized` (401), `content_not_writable` (403), `not_found` (404 owner API only), `share_unavailable` (404 public API), `enrollment_conflict` (409), `locator_conflict` (409), `idempotency_conflict` (409), `payload_too_large` (413), `version_conflict` (412), `precondition_required` (428), `unsupported_version` (422), `invalid_expiry` (422), `quota_exceeded` (429), `rate_limited` (429 with `Retry-After`), `service_unavailable` (503), and `internal_error` (500).
 The service never returns decrypted-content validation errors because it cannot perform that validation.
 
 ## Non-stable behavior
