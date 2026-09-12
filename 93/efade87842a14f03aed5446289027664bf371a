@@ -1,0 +1,56 @@
+spec/contracts/meeting-splitting.md
+  s_a873ed00f9edeb::t_76d8777ff47b59 208-228
+  s_a873ed00f9edeb::t_0b2d9674b3cd6a 3-4,229
+Tests/MacParakeetTests/ViewModels/MeetingSplitViewModelTests.swift
+  s_a873ed00f9edeb::t_619deae814a823 151,210-244,257-258
+  s_a873ed00f9edeb::t_c32345af3de813 126,129-131
+  s_a873ed00f9edeb::t_361f8150808c3a 1-51,68-125,127-128,132-150,152-209,245-256,259-408
+  s_a873ed00f9edeb::t_332851592bd69a 52-67
+Sources/MacParakeetViewModels/MeetingSplitTimecode.swift
+  s_a873ed00f9edeb::t_f83aa8d1a6f1a4 1-43
+Sources/MacParakeetCore/Services/MeetingSplit/MeetingSplitService.swift
+  s_a873ed00f9edeb::t_6b1a64ff0c9aa7 630-639,642,644-646,663,668,681,691
+  s_a873ed00f9edeb::t_c32345af3de813 80,86-87,640-641
+Tests/MacParakeetTests/App/MeetingFinalizationReconcilerTests.swift
+  s_a873ed00f9edeb::t_6b1a64ff0c9aa7 194-280
+Sources/MacParakeetViewModels/MeetingSplitViewModel.swift
+  s_a873ed00f9edeb::t_4e379e9c7ee9cb 4-5,19,29,34,36-37,40-44,49-54,56,61-62,64,69-74,79-80,82-84,87-111,113,115-124,129,131-133,138,140-148,155-156,164-166,183,190,196-199,207-209,211-213,219-220,223-235,241-242,246,250-252,255,257,259-260,264-270,273,275-276,278-297,301,305,307,309,315-316,318-319,323-327,335,337,339-341
+  s_a873ed00f9edeb::t_2d5a424d3ef6c4 47,55,58,63,66,302,306,310-314
+  s_a873ed00f9edeb::t_f83aa8d1a6f1a4 25,125,150,160,168,172-181,191-194,303-304,308
+  s_a873ed00f9edeb::t_587f65a03c93f5 1-3,6-18,20-24,26-28,30-33,35,38-39,45-46,48,57,59-60,65,67-68,75-78,81,85-86,112,114,126-128,130,134-137,139,149,151-154,157-159,161-163,167,169-171,182,184-189,195,200-206,210,214-218,221-222,236-240,243-245,247-249,253-254,256,258,261-263,271-272,274,277,298-300,317,320-322,328-334,336,338,342-343
+Tests/MacParakeetTests/Services/MeetingSplit/MeetingSplitServiceTests.swift
+  s_a873ed00f9edeb::t_6b1a64ff0c9aa7 99-128,130-139
+  s_a873ed00f9edeb::t_76d8777ff47b59 129
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_a873ed00f9edeb::t_6b1a64ff0c9aa7 434-437
+Sources/MacParakeet/App/MeetingSplitFinalizationReconciliationCoordinator.swift
+  s_a873ed00f9edeb::t_2416c19a1b0b43 1-68
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_a873ed00f9edeb::t_6b1a64ff0c9aa7 1705-1706,1708
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_a873ed00f9edeb::t_6b1a64ff0c9aa7 1182
+Sources/MacParakeet/App/MeetingFinalizationReconciler.swift
+  s_a873ed00f9edeb::t_6b1a64ff0c9aa7 40-42,60-67
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_a873ed00f9edeb::t_6b1a64ff0c9aa7 41-42,122,455-471,473
+  s_a873ed00f9edeb::t_f83aa8d1a6f1a4 472
+  s_a873ed00f9edeb::t_f4e08e0fa3c08e 474-475
+Sources/MacParakeetViewModels/TranscriptionLibraryViewModel.swift
+  s_a873ed00f9edeb::t_6b1a64ff0c9aa7 581-582,913
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "93efade87842a14f03aed5446289027664bf371a",
+  "prompts": {},
+  "sessions": {
+    "s_a873ed00f9edeb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0934d-8db0-7702-aa27-19ce08f0c352",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
