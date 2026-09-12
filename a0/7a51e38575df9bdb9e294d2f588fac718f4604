@@ -1,0 +1,52 @@
+docs/research/2026-09-11-issue-895-meeting-split/README.md
+  s_a873ed00f9edeb::t_d70fc653f0cabb 1-7,9-25
+  s_a873ed00f9edeb::t_0b54e0b5be7768 8
+docs/research/2026-09-11-issue-895-meeting-split/report.md
+  s_a873ed00f9edeb::t_d70fc653f0cabb 1-228
+docs/research/2026-09-11-issue-895-meeting-split/split-recording-prototype.html
+  s_a873ed00f9edeb::t_d70fc653f0cabb 1-742
+docs/research/2026-09-11-issue-895-meeting-split/artifact-check.json
+  s_a873ed00f9edeb::t_0b54e0b5be7768 1-140
+plans/README.md
+  s_a873ed00f9edeb::t_0b54e0b5be7768 37
+docs/research/2026-09-11-issue-895-meeting-split/publication-check.json
+  s_a873ed00f9edeb::t_201188a896190f 1-45
+docs/research/2026-09-11-issue-895-meeting-split/briefs/mockup.md
+  s_a873ed00f9edeb::t_593f5124e0d74a 1-21
+docs/plans/2026-09-11-issue-895-meeting-split-plan.md
+  s_a873ed00f9edeb::t_934ee65d6ed5ba 1-207
+docs/research/2026-09-11-issue-895-meeting-split/audio-range-results-initial.json
+  s_a873ed00f9edeb::t_3583964edb7a3b 1-88
+docs/research/2026-09-11-issue-895-meeting-split/audio-range-results.json
+  s_a873ed00f9edeb::t_074ab8e19fe464 1-88
+docs/research/2026-09-11-issue-895-meeting-split/audio-range-spike.swift
+  s_a873ed00f9edeb::t_cab1c8a5b7f25e 1-102
+docs/research/2026-09-11-issue-895-meeting-split/briefs/review.md
+  s_a873ed00f9edeb::t_ae7e2d1550c6ba 1-9
+docs/research/2026-09-11-issue-895-meeting-split/briefs/storage.md
+  s_a873ed00f9edeb::t_ca2a2eed398621 1-13
+docs/research/2026-09-11-issue-895-meeting-split/briefs/transcript-product.md
+  s_a873ed00f9edeb::t_566e0020466f6d 1-13
+docs/research/2026-09-11-issue-895-meeting-split/recommendation-review.md
+  s_a873ed00f9edeb::t_568bd311184648 1-31
+docs/research/2026-09-11-issue-895-meeting-split/storage-findings.md
+  s_a873ed00f9edeb::t_76ddaa6a277968 1-97
+docs/research/2026-09-11-issue-895-meeting-split/transcript-product-findings.md
+  s_a873ed00f9edeb::t_ef84e7a3b51c52 1-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a07a51e38575df9bdb9e294d2f588fac718f4604",
+  "prompts": {},
+  "sessions": {
+    "s_a873ed00f9edeb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0934d-8db0-7702-aa27-19ce08f0c352",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
