@@ -1,0 +1,25 @@
+docs/share-service-privacy-and-operations.md
+  s_d236dcbec7210b::t_f906b19c269f30 84
+  s_d236dcbec7210b::t_47db2cb9dce596 83,85
+spec/contracts/share-service-v1.md
+  s_d236dcbec7210b::t_47db2cb9dce596 89-90,274
+docs/research/2026-09-11-shareable-transcripts/share-ui-prototype.html
+  s_d236dcbec7210b::t_47db2cb9dce596 638
+  s_d236dcbec7210b::t_f906b19c269f30 639,642
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4b0561d1339d7f5605f46e0dfadeac3ba588ec36",
+  "prompts": {},
+  "sessions": {
+    "s_d236dcbec7210b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0929e-d77e-7bb2-8fd3-0401a6a7b54b",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
