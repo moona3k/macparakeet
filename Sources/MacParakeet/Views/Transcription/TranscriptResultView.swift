@@ -463,6 +463,8 @@ enum TranscriptDetailActionAvailability {
 }
 
 struct TranscriptResultView: View {
+    @Environment(\.shareManagement) private var shareManagement
+    @State private var preparingShare = false
     let transcription: Transcription
     @Bindable var viewModel: TranscriptionViewModel
     var chatViewModel: TranscriptChatViewModel
@@ -992,6 +994,13 @@ struct TranscriptResultView: View {
             .parakeetAction(.secondary)
             .popover(isPresented: $showingExportOptions, arrowEdge: .top) {
                 exportOptionsPopover
+            }
+
+            if let sharing = shareManagement, AppFeatures.isShareLinksAvailable() {
+                Button { prepareShare(using: sharing) } label: { Label("Share…", systemImage: "square.and.arrow.up") }
+                    .parakeetAction(.secondary)
+                    .disabled(preparingShare || !sharing.isConfigured || editingTranscript || editingTitle)
+                    .help("Preview and publish an encrypted, expiring text-only page")
             }
 
             if activeTranscription.sourceType == .meeting {
@@ -3041,6 +3050,15 @@ struct TranscriptResultView: View {
                         .parakeetAction(.secondary)
                         .controlSize(.small)
 
+                        if let sharing = shareManagement, AppFeatures.isShareLinksAvailable() {
+                            Button { prepareShare(using: sharing, selectedSummaryID: promptResult.id) } label: {
+                                Label("Share result…", systemImage: "square.and.arrow.up")
+                            }
+                            .parakeetAction(.secondary)
+                            .controlSize(.small)
+                            .disabled(preparingShare || !sharing.isConfigured)
+                        }
+
                         Menu {
                             Button("Markdown (.md)") {
                                 exportGenerationToDownloads(promptResult: promptResult, format: .md)
@@ -4857,6 +4875,30 @@ struct TranscriptResultView: View {
     }
 
     // MARK: - Actions
+
+    private func prepareShare(using sharing: ShareManagementViewModel, selectedSummaryID: UUID? = nil) {
+        guard !preparingShare else { return }
+        let selectedID = activeTranscription.id
+        let notesEditor = savedMeetingNotesViewModel
+        preparingShare = true
+        Task { @MainActor in
+            defer { preparingShare = false }
+            if notesEditor.meetingID == selectedID, !(await notesEditor.flush()) {
+                viewModel.setError(message: "Save the current notes before preparing a share.")
+                return
+            }
+            let prepared = await viewModel.currentTranscriptionForSpeakerOutput()
+            guard activeTranscription.id == selectedID else { return }
+            guard let source = prepared, source.id == selectedID else {
+                viewModel.setError(message: "Couldn't prepare the current speaker changes. Please try sharing again.")
+                return
+            }
+            let summaries = promptResultsViewModel.promptResults.filter { $0.transcriptionId == selectedID }.map {
+                ShareDraftSource.Summary(id: $0.id, title: $0.promptName, markdown: $0.content)
+            }
+            sharing.presentDraft(source: ShareDraftSource(transcription: source, title: source.effectiveDisplayTitle, summaries: summaries), selectedSummaryID: selectedSummaryID)
+        }
+    }
 
     private func copyMeetingToClipboard() {
         let selectedID = activeTranscription.id
