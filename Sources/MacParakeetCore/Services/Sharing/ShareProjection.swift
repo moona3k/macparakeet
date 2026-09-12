@@ -60,10 +60,11 @@ public enum ShareProjection {
         var sections: [ShareBundle.Section] = []
 
         if selection.includeSummary {
-            sections.append(contentsOf: summaries.compactMap { summary in
-                guard !summary.markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-                return .summary(title: summary.title, markdown: summary.markdown)
-            })
+            sections.append(
+                contentsOf: summaries.compactMap { summary in
+                    guard !summary.markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+                    return .summary(title: summary.title, markdown: summary.markdown)
+                })
         }
 
         if selection.includeNotes {

@@ -13,8 +13,10 @@ public struct ShareDeviceCredential: Sendable, Equatable {
     public var pendingRecoveryIdempotencyKey: String?
     public var pendingRecoveryReplacementVerifier: String?
 
-    public init(ownerId: String, token: ShareDeviceToken, credentialGeneration: Int,
-                pendingRecoveryIdempotencyKey: String? = nil, pendingRecoveryReplacementVerifier: String? = nil) {
+    public init(
+        ownerId: String, token: ShareDeviceToken, credentialGeneration: Int,
+        pendingRecoveryIdempotencyKey: String? = nil, pendingRecoveryReplacementVerifier: String? = nil
+    ) {
         self.ownerId = ownerId
         self.token = token
         self.credentialGeneration = credentialGeneration
@@ -36,7 +38,11 @@ public struct SharePendingRecoveryConfiguration: Codable, Sendable, Equatable {
     public var currentToken: String?
     public var isInitialSetup: Bool
 
-    public init(intendedVerifier: String?, generatedToken: String? = nil, idempotencyKey: String = ShareIdentifiers.generateIdempotencyKey(), isConfirmed: Bool = false, currentToken: String? = nil, isInitialSetup: Bool = true) {
+    public init(
+        intendedVerifier: String?, generatedToken: String? = nil,
+        idempotencyKey: String = ShareIdentifiers.generateIdempotencyKey(), isConfirmed: Bool = false,
+        currentToken: String? = nil, isInitialSetup: Bool = true
+    ) {
         self.intendedVerifier = intendedVerifier
         self.generatedToken = generatedToken
         self.idempotencyKey = idempotencyKey

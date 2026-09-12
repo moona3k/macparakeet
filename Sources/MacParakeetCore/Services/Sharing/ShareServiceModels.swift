@@ -25,7 +25,8 @@ enum ShareServiceJSON {
             let container = try decoder.singleValueContainer()
             let string = try container.decode(String.self)
             guard let date = ShareBundle.dateFormatter.date(from: string) else {
-                throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid RFC 3339 date: \(string)")
+                throw DecodingError.dataCorruptedError(
+                    in: container, debugDescription: "Invalid RFC 3339 date: \(string)")
             }
             return date
         }

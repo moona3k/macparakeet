@@ -6,27 +6,34 @@ final class ShareBoundaryTests: XCTestCase {
         #if DEBUG
         XCTAssertNil(DatabaseManager.safeSQLTrace("INSERT INTO share_outbox_operations VALUES ('private')"))
         XCTAssertNil(DatabaseManager.safeSQLTrace("SELECT * FROM SHARE_PUBLICATIONS WHERE id = ?"))
-        XCTAssertEqual(DatabaseManager.safeSQLTrace("SELECT * FROM transcriptions WHERE id = ?"),
-                       "SELECT * FROM transcriptions WHERE id = ?")
+        XCTAssertEqual(
+            DatabaseManager.safeSQLTrace("SELECT * FROM transcriptions WHERE id = ?"),
+            "SELECT * FROM transcriptions WHERE id = ?")
         #endif
     }
 
     func testSelectedDisplayedResultsPreserveTheirOrderAndExactContent() throws {
         let transcription = Transcription(fileName: "private.wav", status: .completed)
-        let bundle = try ShareProjection.project(transcription: transcription, summaries: [
-            .init(title: "Second visible tab", markdown: "**Only this output.**\n"),
-            .init(title: "First visible tab", markdown: "Different selected output."),
-        ], selection: .init(includeSummary: true, includeNotes: false, includeTranscript: false))
-        XCTAssertEqual(bundle.sections, [
-            .summary(title: "Second visible tab", markdown: "**Only this output.**\n"),
-            .summary(title: "First visible tab", markdown: "Different selected output."),
-        ])
+        let bundle = try ShareProjection.project(
+            transcription: transcription,
+            summaries: [
+                .init(title: "Second visible tab", markdown: "**Only this output.**\n"),
+                .init(title: "First visible tab", markdown: "Different selected output."),
+            ], selection: .init(includeSummary: true, includeNotes: false, includeTranscript: false))
+        XCTAssertEqual(
+            bundle.sections,
+            [
+                .summary(title: "Second visible tab", markdown: "**Only this output.**\n"),
+                .summary(title: "First visible tab", markdown: "Different selected output."),
+            ])
     }
 
     func testContentDigestIgnoresPublishTimeButDetectsSelectedContentChanges() throws {
-        let first = try ShareBundle(publishedAt: Date(timeIntervalSince1970: 100), sections: [.notes(title: "Notes", markdown: "Text")])
+        let first = try ShareBundle(
+            publishedAt: Date(timeIntervalSince1970: 100), sections: [.notes(title: "Notes", markdown: "Text")])
         let later = try ShareBundle(publishedAt: Date(timeIntervalSince1970: 200), sections: first.sections)
-        let changed = try ShareBundle(publishedAt: later.publishedAt, sections: [.notes(title: "Notes", markdown: "Changed")])
+        let changed = try ShareBundle(
+            publishedAt: later.publishedAt, sections: [.notes(title: "Notes", markdown: "Changed")])
         XCTAssertEqual(try first.contentDigest(), try later.contentDigest())
         XCTAssertNotEqual(try first.contentDigest(), try changed.contentDigest())
         XCTAssertEqual(try first.encodedJSON(), try first.encodedJSON())
@@ -34,8 +41,9 @@ final class ShareBoundaryTests: XCTestCase {
 
     func testSourceDateUsesLiteralWholeSecondUTCWireFormat() throws {
         let date = Date(timeIntervalSince1970: 1_800_000_000)
-        let bundle = try ShareBundle(publishedAt: date, source: .init(kind: .meeting, displayDate: date),
-                                     sections: [.notes(title: "Notes", markdown: "Text")])
+        let bundle = try ShareBundle(
+            publishedAt: date, source: .init(kind: .meeting, displayDate: date),
+            sections: [.notes(title: "Notes", markdown: "Text")])
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: bundle.encodedJSON()) as? [String: Any])
         let source = try XCTUnwrap(json["source"] as? [String: Any])
         XCTAssertEqual(source["displayDate"] as? String, "2027-01-15T08:00:00Z")

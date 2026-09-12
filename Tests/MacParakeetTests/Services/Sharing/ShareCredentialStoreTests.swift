@@ -79,7 +79,8 @@ final class ShareCredentialStoreTests: XCTestCase {
     }
 
     func testPendingRecoveryConfigurationCanRepresentAnIntendedInstall() throws {
-        try store.savePendingRecoveryConfiguration(SharePendingRecoveryConfiguration(intendedVerifier: "verifier-value"))
+        try store.savePendingRecoveryConfiguration(
+            SharePendingRecoveryConfiguration(intendedVerifier: "verifier-value"))
         let loaded = try XCTUnwrap(store.loadPendingRecoveryConfiguration())
         XCTAssertEqual(loaded.intendedVerifier, "verifier-value")
     }

@@ -7,8 +7,12 @@ final class ShareDraftViewModelTests: XCTestCase {
     nonisolated private let now = Date(timeIntervalSince1970: 2_000_000_000)
 
     private func source(meeting: Bool = true) -> ShareDraftSource {
-        ShareDraftSource(transcription: Transcription(fileName: "Private file", rawTranscript: "Transcript words", sourceType: meeting ? .meeting : .file, userNotes: meeting ? "My notes" : nil),
-                         title: "Visible title", summaries: meeting ? [.init(id: UUID(), title: "Decisions", markdown: "Actual visible result")] : [])
+        ShareDraftSource(
+            transcription: Transcription(
+                fileName: "Private file", rawTranscript: "Transcript words", sourceType: meeting ? .meeting : .file,
+                userNotes: meeting ? "My notes" : nil),
+            title: "Visible title",
+            summaries: meeting ? [.init(id: UUID(), title: "Decisions", markdown: "Actual visible result")] : [])
     }
 
     func testMeetingDefaultsPreviewActualSummaryAndNotesOnly() async throws {
@@ -25,7 +29,8 @@ final class ShareDraftViewModelTests: XCTestCase {
     }
 
     func testTranscriptOnlyDefaultsAndUnavailableTiming() async throws {
-        let model = ShareDraftViewModel(source: source(meeting: false), service: ShareUIServiceStub(), now: { self.now })
+        let model = ShareDraftViewModel(
+            source: source(meeting: false), service: ShareUIServiceStub(), now: { self.now })
         XCTAssertTrue(model.manifest.includeTranscript)
         model.manifest.includeTimestamps = true
         model.manifest.includeSpeakerLabels = true
@@ -37,7 +42,8 @@ final class ShareDraftViewModelTests: XCTestCase {
 
     func testContextualSummaryAndEmptySelection() async {
         let input = source()
-        let model = ShareDraftViewModel(source: input, service: ShareUIServiceStub(), selectedSummaryID: input.summaries[0].id, now: { self.now })
+        let model = ShareDraftViewModel(
+            source: input, service: ShareUIServiceStub(), selectedSummaryID: input.summaries[0].id, now: { self.now })
         await model.preparePreview()
         XCTAssertEqual(model.preview?.sections.count, 1)
         model.manifest.summaryIDs = []
@@ -127,17 +133,26 @@ actor ShareUIServiceStub: ShareManaging {
     var receivedBundle: ShareBundle?
     let fullLink = ShareLink.generate()
     func setMode(_ value: Mode) { mode = value }
-    func seed(_ row: SharePublication, operations: [ShareOutboxOperation] = []) { rows = [row]; work[row.id] = operations }
+    func seed(_ row: SharePublication, operations: [ShareOutboxOperation] = []) {
+        rows = [row]; work[row.id] = operations
+    }
     static func publication(sourceID: UUID? = nil) -> SharePublication {
-        SharePublication(remoteShareId: "r", locator: "l", locatorCommitment: "c", ownerId: "owner", createdCredentialGeneration: 1,
-                         version: 1, accessState: .active, createdAt: Date(timeIntervalSince1970: 2_000_000_000),
-                         expiresAt: Date(timeIntervalSince1970: 2_002_592_000), maxExpiresAt: Date(timeIntervalSince1970: 2_007_776_000), transcriptionId: sourceID)
+        SharePublication(
+            remoteShareId: "r", locator: "l", locatorCommitment: "c", ownerId: "owner", createdCredentialGeneration: 1,
+            version: 1, accessState: .active, createdAt: Date(timeIntervalSince1970: 2_000_000_000),
+            expiresAt: Date(timeIntervalSince1970: 2_002_592_000),
+            maxExpiresAt: Date(timeIntervalSince1970: 2_007_776_000), transcriptionId: sourceID)
     }
     func listPublications() -> [SharePublication] { rows }
     func refreshPublications() -> [SharePublication] { refreshCalls += 1; return rows }
     func pendingOperations(shareId: UUID) -> [ShareOutboxOperation] { work[shareId] ?? [] }
-    func confirmedLink(shareId: UUID) -> ShareLink? { rows.first(where: { $0.id == shareId && $0.isConfirmed && $0.contentWritable && !$0.isTerminal }) == nil ? nil : fullLink }
-    func publish(bundle: ShareBundle, transcriptionId: UUID?, expiresAt: Date?, projectionManifest: Data?, contentDigest: String?) async throws -> SharePublishResult {
+    func confirmedLink(shareId: UUID) -> ShareLink? {
+        rows.first(where: { $0.id == shareId && $0.isConfirmed && $0.contentWritable && !$0.isTerminal }) == nil
+            ? nil : fullLink
+    }
+    func publish(
+        bundle: ShareBundle, transcriptionId: UUID?, expiresAt: Date?, projectionManifest: Data?, contentDigest: String?
+    ) async throws -> SharePublishResult {
         publishCalls += 1; receivedBundle = bundle
         await Task.yield()
         if mode == .failure { throw ShareClientError.network }
@@ -148,23 +163,36 @@ actor ShareUIServiceStub: ShareManaging {
         if mode == .uncertain { throw ShareClientError.network }
         return SharePublishResult(publication: row, link: fullLink)
     }
-    func updateContent(shareId: UUID, bundle: ShareBundle, projectionManifest: Data?, contentDigest: String?) throws -> SharePublication {
+    func updateContent(shareId: UUID, bundle: ShareBundle, projectionManifest: Data?, contentDigest: String?) throws
+        -> SharePublication
+    {
         updateCalls += 1; receivedBundle = bundle
-        guard let index = rows.firstIndex(where: { $0.id == shareId }) else { throw ShareCoordinatorError.shareNotFound }
-        rows[index].contentRevision += 1; rows[index].projectionManifest = projectionManifest; rows[index].contentDigest = contentDigest
+        guard let index = rows.firstIndex(where: { $0.id == shareId }) else {
+            throw ShareCoordinatorError.shareNotFound
+        }
+        rows[index].contentRevision += 1; rows[index].projectionManifest = projectionManifest;
+        rows[index].contentDigest = contentDigest
         return rows[index]
     }
-    func changeExpiry(shareId: UUID, newExpiresAt: Date) throws -> SharePublication { throw ShareCoordinatorError.shareNotActive }
+    func changeExpiry(shareId: UUID, newExpiresAt: Date) throws -> SharePublication {
+        throw ShareCoordinatorError.shareNotActive
+    }
     func stop(shareId: UUID) throws -> SharePublication { throw ShareClientError.network }
     func resumePendingWork() {}
     func forgetCompletedPublication(shareId: UUID) { rows.removeAll { $0.id == shareId } }
     func setUpRecovery() throws -> ShareRecoverySetupResult { throw ShareCoordinatorError.deviceCredentialMissing }
-    func replaceRecovery(currentRecoveryToken: ShareRecoveryToken) throws -> ShareRecoverySetupResult { throw ShareCoordinatorError.deviceCredentialMissing }
-    func removeRecovery(currentRecoveryToken: ShareRecoveryToken) throws -> ShareOwnerMetadata { throw ShareCoordinatorError.deviceCredentialMissing }
+    func replaceRecovery(currentRecoveryToken: ShareRecoveryToken) throws -> ShareRecoverySetupResult {
+        throw ShareCoordinatorError.deviceCredentialMissing
+    }
+    func removeRecovery(currentRecoveryToken: ShareRecoveryToken) throws -> ShareOwnerMetadata {
+        throw ShareCoordinatorError.deviceCredentialMissing
+    }
     func pendingRecoveryCode() -> ShareRecoveryToken? { nil }
     func acknowledgeRecoveryCodeSaved() {}
     func reconcileLostRecoveryConfiguration() -> ShareOwnerMetadata? { nil }
-    func recoverOwnership(recoveryToken: ShareRecoveryToken, replacementRecoveryVerifier: String?) throws -> ShareOwnerMetadata { throw ShareCoordinatorError.recoverySwitchBlocked }
+    func recoverOwnership(recoveryToken: ShareRecoveryToken, replacementRecoveryVerifier: String?) throws
+        -> ShareOwnerMetadata
+    { throw ShareCoordinatorError.recoverySwitchBlocked }
     func reconcileLostRecoveryImport() -> Bool { false }
     func discardCredentialAfterRecoveryLoss() throws { throw ShareCoordinatorError.sharesNotTerminal }
 }

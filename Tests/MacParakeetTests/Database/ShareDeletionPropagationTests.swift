@@ -9,7 +9,8 @@ final class ShareDeletionPropagationTests: XCTestCase {
         let source = Transcription(fileName: "synthetic.wav", rawTranscript: "Private local text", status: .completed)
         try repo.save(source)
         let now = Date()
-        var share = SharePublication(remoteShareId: ShareIdentifiers.generate16ByteIdentifier(), locator: ShareLocator.generate().rawValue,
+        var share = SharePublication(
+            remoteShareId: ShareIdentifiers.generate16ByteIdentifier(), locator: ShareLocator.generate().rawValue,
             locatorCommitment: ShareVerifier.locator(.generate()), ownerId: ShareIdentifiers.generate16ByteIdentifier(),
             createdCredentialGeneration: 1, createdAt: now, expiresAt: now.addingTimeInterval(86400),
             maxExpiresAt: now.addingTimeInterval(7_776_000), transcriptionId: source.id)
@@ -38,11 +39,17 @@ final class ShareDeletionPropagationTests: XCTestCase {
     func testOutboxFailurePreventsSourceAndAssetDeletion() throws {
         let (manager, repo, source, _) = try fixture()
         try manager.dbQueue.write {
-            try $0.execute(sql: "CREATE TRIGGER reject_share_delete BEFORE INSERT ON share_outbox_operations BEGIN SELECT RAISE(ABORT, 'synthetic failure'); END")
+            try $0.execute(
+                sql:
+                    "CREATE TRIGGER reject_share_delete BEFORE INSERT ON share_outbox_operations BEGIN SELECT RAISE(ABORT, 'synthetic failure'); END"
+            )
         }
         var removedAssets = false
-        XCTAssertThrowsError(try TranscriptionDeletionCoordinator.delete(source, repository: repo,
-            credentials: ShareCredentialStore(store: InMemoryKeyValueStore()), removeAssets: { _ in removedAssets = true }))
+        XCTAssertThrowsError(
+            try TranscriptionDeletionCoordinator.delete(
+                source, repository: repo,
+                credentials: ShareCredentialStore(store: InMemoryKeyValueStore()),
+                removeAssets: { _ in removedAssets = true }))
         XCTAssertFalse(removedAssets)
         XCTAssertNotNil(try repo.fetch(id: source.id))
     }
@@ -52,8 +59,10 @@ final class ShareDeletionPropagationTests: XCTestCase {
         let keys = ShareCredentialStore(store: InMemoryKeyValueStore())
         try keys.saveContentKey(.generate(), forRemoteShareId: share.remoteShareId)
         struct FileFailure: Error {}
-        XCTAssertThrowsError(try TranscriptionDeletionCoordinator.delete(source, repository: repo,
-            credentials: keys, removeAssets: { _ in throw FileFailure() }))
+        XCTAssertThrowsError(
+            try TranscriptionDeletionCoordinator.delete(
+                source, repository: repo,
+                credentials: keys, removeAssets: { _ in throw FileFailure() }))
         XCTAssertNotNil(try repo.fetch(id: source.id))
         XCTAssertNil(try keys.loadContentKey(forRemoteShareId: share.remoteShareId))
         let ledger = SharePublicationRepository(dbQueue: manager.dbQueue)

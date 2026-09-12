@@ -61,8 +61,10 @@ struct ShareTranscriptSheet: View {
                     Text(SharePresentationCopy.disclosure).font(.callout).foregroundStyle(.secondary)
                     if let error = draft.errorMessage { Text(error).foregroundStyle(DesignSystem.Colors.errorRed) }
                     HStack {
-                        Text("Exact preview · \(ByteCountFormatter.string(fromByteCount: Int64(draft.previewBytes), countStyle: .file))")
-                            .font(.caption).foregroundStyle(.secondary)
+                        Text(
+                            "Exact preview · \(ByteCountFormatter.string(fromByteCount: Int64(draft.previewBytes), countStyle: .file))"
+                        )
+                        .font(.caption).foregroundStyle(.secondary)
                         Spacer()
                         if draft.isPublishing { ProgressView().controlSize(.small) }
                         Button(draft.updating == nil ? "Publish link" : "Update shared page") {
@@ -87,17 +89,25 @@ struct ShareTranscriptSheet: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Include").font(DesignSystem.Typography.sectionTitle)
             ForEach(draft.source.summaries) { summary in
-                Toggle(summary.title, isOn: Binding(
-                    get: { draft.manifest.summaryIDs.contains(summary.id) },
-                    set: { selected in
-                        if selected { draft.manifest.summaryIDs.append(summary.id) }
-                        else { draft.manifest.summaryIDs.removeAll { $0 == summary.id } }
-                    }
-                ))
+                Toggle(
+                    summary.title,
+                    isOn: Binding(
+                        get: { draft.manifest.summaryIDs.contains(summary.id) },
+                        set: { selected in
+                            if selected {
+                                draft.manifest.summaryIDs.append(summary.id)
+                            } else {
+                                draft.manifest.summaryIDs.removeAll { $0 == summary.id }
+                            }
+                        }
+                    )
+                )
                 .disabled(summary.markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             Toggle("Notes", isOn: $draft.manifest.includeNotes)
-                .disabled((draft.source.transcription.userNotes ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(
+                    (draft.source.transcription.userNotes ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                )
             Toggle("Transcript", isOn: $draft.manifest.includeTranscript)
             Divider()
             Toggle("Timestamps", isOn: $draft.manifest.includeTimestamps)
@@ -105,8 +115,10 @@ struct ShareTranscriptSheet: View {
             Toggle("Speaker labels", isOn: $draft.manifest.includeSpeakerLabels)
                 .disabled(!draft.manifest.includeTranscript || !draft.canIncludeSpeakerLabels)
             if !draft.canIncludeTimestamps {
-                Text("Timing and speaker options depend on the current transcript. Edited text does not reuse old timing.")
-                    .font(.caption).foregroundStyle(.secondary)
+                Text(
+                    "Timing and speaker options depend on the current transcript. Edited text does not reuse old timing."
+                )
+                .font(.caption).foregroundStyle(.secondary)
             }
             Toggle("Title, date and duration", isOn: $draft.manifest.includeMetadata)
             Divider()
@@ -115,8 +127,10 @@ struct ShareTranscriptSheet: View {
                 HStack(spacing: 6) {
                     lifetime("1h", 3600); lifetime("24h", 86400); lifetime("7d", 604800); lifetime("30d", 2592000)
                 }
-                DatePicker("Custom expiration", selection: $draft.expiresAt, displayedComponents: [.date, .hourAndMinute])
-                    .labelsHidden()
+                DatePicker(
+                    "Custom expiration", selection: $draft.expiresAt, displayedComponents: [.date, .hourAndMinute]
+                )
+                .labelsHidden()
                 Text("Every link expires. Maximum lifetime: 90 days.").font(.caption).foregroundStyle(.secondary)
             } else {
                 Text("This update keeps the same link and expiration. It never publishes automatically.")
@@ -135,15 +149,21 @@ struct ShareTranscriptSheet: View {
 
     private func success(_ publication: SharePublication) -> some View {
         VStack(alignment: .leading, spacing: 20) {
-            Label(draft.link == nil ? "Confirmation pending" : (draft.updating == nil ? "Your link is ready" : "Shared page updated"),
-                  systemImage: draft.link == nil ? "clock" : "checkmark.circle")
-                .font(DesignSystem.Typography.pageTitle)
+            Label(
+                draft.link == nil
+                    ? "Confirmation pending" : (draft.updating == nil ? "Your link is ready" : "Shared page updated"),
+                systemImage: draft.link == nil ? "clock" : "checkmark.circle"
+            )
+            .font(DesignSystem.Typography.pageTitle)
             if let link = draft.link {
                 ShareLinkActions(link: link)
                 Text("Available until \(publication.expiresAt.formatted(date: .complete, time: .standard)).")
             } else {
-                Text(draft.updating == nil ? "The request is kept on this Mac, but there is no confirmed link to send yet. Open Shared pages and refresh to reconcile it."
-                     : "Your update is queued. The last confirmed revision remains shared until the service confirms the new one.")
+                Text(
+                    draft.updating == nil
+                        ? "The request is kept on this Mac, but there is no confirmed link to send yet. Open Shared pages and refresh to reconcile it."
+                        : "Your update is queued. The last confirmed revision remains shared until the service confirms the new one."
+                )
             }
             if let error = draft.errorMessage { Text(error).foregroundStyle(.secondary) }
             Divider()
@@ -185,7 +205,9 @@ private struct ShareBundlePreview: View {
             if let source = bundle.source {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(source.kind.rawValue.capitalized)
-                    if let date = source.displayDate { Text(date, format: .dateTime.year().month().day().hour().minute().second()) }
+                    if let date = source.displayDate {
+                        Text(date, format: .dateTime.year().month().day().hour().minute().second())
+                    }
                     if let duration = source.durationMs { Text("Duration: \(duration) ms") }
                 }.font(.caption).foregroundStyle(.secondary)
             }

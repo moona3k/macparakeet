@@ -32,11 +32,16 @@ final class ShareRemoteClientTests: XCTestCase {
 
     func testPersistedMutationReplaysExactBytesAndPrecondition() async throws {
         let body = Data("{ \"expiresAt\" : \"2026-10-01T00:00:00Z\" }".utf8)
-        let operation = ShareOutboxOperation(sharePublicationId: UUID(), sequence: 1, kind: .expiryChange,
+        let operation = ShareOutboxOperation(
+            sharePublicationId: UUID(), sequence: 1, kind: .expiryChange,
             idempotencyKey: "same-key", requestBody: body, ifMatch: "\"v8\"")
-        transport.nextResponse = .success(try jsonResponse(200, makeConfirmedResource(shareId: "share",
-            locatorCommitment: "commitment", contentRevision: 1, version: 9,
-            expiresAt: Date(timeIntervalSince1970: 1000), maxExpiresAt: Date(timeIntervalSince1970: 2000))))
+        transport.nextResponse = .success(
+            try jsonResponse(
+                200,
+                makeConfirmedResource(
+                    shareId: "share",
+                    locatorCommitment: "commitment", contentRevision: 1, version: 9,
+                    expiresAt: Date(timeIntervalSince1970: 1000), maxExpiresAt: Date(timeIntervalSince1970: 2000))))
         _ = try await client.sendPersistedOperation(operation, shareId: "share", deviceToken: .generate())
         XCTAssertEqual(transport.lastRequest?.body, body)
         XCTAssertEqual(transport.lastRequest?.headers["If-Match"], "\"v8\"")
@@ -54,7 +59,8 @@ final class ShareRemoteClientTests: XCTestCase {
 
     func testEnrollOwnerSendsCreateOnlyPreconditionAndIdempotencyKey() async throws {
         transport.nextResponse = .success(
-            try jsonResponse(201, ShareOwnerMetadata(ownerId: "owner-1", credentialGeneration: 1, recoveryVerifier: nil))
+            try jsonResponse(
+                201, ShareOwnerMetadata(ownerId: "owner-1", credentialGeneration: 1, recoveryVerifier: nil))
         )
 
         let metadata = try await client.enrollOwner(
@@ -141,7 +147,8 @@ final class ShareRemoteClientTests: XCTestCase {
         let token = ShareDeviceToken.generate()
         let currentRecovery = ShareRecoveryToken.generate(ownerId: ShareRandom.bytes(16))
         transport.nextResponse = .success(
-            try jsonResponse(200, ShareOwnerMetadata(ownerId: "owner-1", credentialGeneration: 1, recoveryVerifier: "v2"))
+            try jsonResponse(
+                200, ShareOwnerMetadata(ownerId: "owner-1", credentialGeneration: 1, recoveryVerifier: "v2"))
         )
 
         _ = try await client.configureRecovery(

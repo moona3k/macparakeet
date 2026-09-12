@@ -81,10 +81,12 @@ public final class SharePublicationRepository: SharePublicationRepositoryProtoco
         self.dbQueue = dbQueue
     }
 
-    public func createPublication(_ publication: SharePublication, initialOperation: ShareOutboxOperation) async throws {
+    public func createPublication(_ publication: SharePublication, initialOperation: ShareOutboxOperation) async throws
+    {
         try await dbQueue.write { db in
             if let sourceId = publication.transcriptionId,
-                try Transcription.fetchOne(db, key: sourceId) == nil {
+                try Transcription.fetchOne(db, key: sourceId) == nil
+            {
                 throw SharePublicationRepositoryError.sourceMissing
             }
             try publication.insert(db)
@@ -118,8 +120,7 @@ public final class SharePublicationRepository: SharePublicationRepositoryProtoco
 
     public func fetchShareIdsWithPendingOperations() throws -> [UUID] {
         try dbQueue.read { db in
-            let operations = try ShareOutboxOperation.fetchAll(db)
-            return Array(Set(operations.map(\.sharePublicationId)))
+            try UUID.fetchAll(db, sql: "SELECT DISTINCT sharePublicationId FROM share_outbox_operations")
         }
     }
 
@@ -246,7 +247,8 @@ public final class SharePublicationRepository: SharePublicationRepositoryProtoco
             guard let share = try SharePublication.fetchOne(db, key: id), share.version == nil else {
                 return false
             }
-            let pending = try ShareOutboxOperation.filter(ShareOutboxOperation.Columns.sharePublicationId == id).fetchAll(db)
+            let pending = try ShareOutboxOperation.filter(ShareOutboxOperation.Columns.sharePublicationId == id)
+                .fetchAll(db)
             guard pending.count == 1, pending.first?.kind == .create else { return false }
             return try SharePublication.deleteOne(db, key: share.id)
         }
@@ -270,7 +272,9 @@ public final class SharePublicationRepository: SharePublicationRepositoryProtoco
         }
     }
 
-    public func confirmDelete(_ operation: ShareOutboxOperation, receipt: ShareDeletionReceipt, nextKey: String) async throws {
+    public func confirmDelete(_ operation: ShareOutboxOperation, receipt: ShareDeletionReceipt, nextKey: String)
+        async throws
+    {
         try await dbQueue.write { db in
             guard var share = try SharePublication.fetchOne(db, key: operation.sharePublicationId) else { return }
             share.locatorCommitment = receipt.locatorCommitment
@@ -292,12 +296,16 @@ public final class SharePublicationRepository: SharePublicationRepositoryProtoco
     public func reconcileResources(_ resources: [ShareResource], ownerId: String) async throws {
         try await dbQueue.write { db in
             for resource in resources {
-                let existing = try SharePublication.filter(SharePublication.Columns.remoteShareId == resource.id).fetchOne(db)
+                let existing = try SharePublication.filter(SharePublication.Columns.remoteShareId == resource.id)
+                    .fetchOne(db)
                 // Remote retention tombstones are not new management work.
                 // In particular, refresh must not undo "Remove from this Mac".
                 // Known rows still reconcile their deletion-complete receipt.
                 if existing == nil && resource.deletionState == .complete { continue }
-                var share = existing ?? SharePublication(remoteShareId: resource.id, locator: nil,
+                var share =
+                    existing
+                    ?? SharePublication(
+                        remoteShareId: resource.id, locator: nil,
                         locatorCommitment: resource.locatorCommitment, ownerId: ownerId,
                         createdCredentialGeneration: 0, createdAt: resource.createdAt,
                         expiresAt: resource.expiresAt, maxExpiresAt: resource.maxExpiresAt)
@@ -335,7 +343,9 @@ public final class SharePublicationRepository: SharePublicationRepositoryProtoco
     public func forgetCompletedPublication(id: UUID) async throws {
         try await dbQueue.write { db in
             guard let share = try SharePublication.fetchOne(db, key: id), share.deletionState == .complete,
-                try ShareOutboxOperation.filter(ShareOutboxOperation.Columns.sharePublicationId == id).fetchCount(db) == 0 else {
+                try ShareOutboxOperation.filter(ShareOutboxOperation.Columns.sharePublicationId == id).fetchCount(db)
+                    == 0
+            else {
                 throw SharePublicationRepositoryError.shareIsTerminating
             }
             _ = try SharePublication.deleteOne(db, key: id)
@@ -364,7 +374,9 @@ public final class SharePublicationRepository: SharePublicationRepositoryProtoco
             updated.isDetached = true
             updated.updatedAt = Date()
             try updated.update(db)
-            for var operation in try ShareOutboxOperation.filter(ShareOutboxOperation.Columns.sharePublicationId == updated.id).fetchAll(db) {
+            for var operation in try ShareOutboxOperation.filter(
+                ShareOutboxOperation.Columns.sharePublicationId == updated.id
+            ).fetchAll(db) {
                 operation.projectionManifest = nil
                 operation.contentDigest = nil
                 try operation.update(db)

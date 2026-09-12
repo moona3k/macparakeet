@@ -70,14 +70,16 @@ final class URLSessionShareHTTPTransport: NSObject, ShareHTTPTransport, @uncheck
 
     func send(_ request: ShareHTTPRequest, origin: URL) async throws -> ShareHTTPResponse {
         guard origin.scheme == "https", origin.user == nil, origin.password == nil,
-            origin.query == nil, origin.fragment == nil, origin.path.isEmpty || origin.path == "/" else {
+            origin.query == nil, origin.fragment == nil, origin.path.isEmpty || origin.path == "/"
+        else {
             throw ShareTransportError.unapprovedOrigin
         }
         guard let url = URL(string: request.path, relativeTo: origin) else {
             throw ShareTransportError.unapprovedOrigin
         }
         guard url.scheme == "https", url.host == origin.host, url.port == origin.port,
-            url.user == nil, url.password == nil else {
+            url.user == nil, url.password == nil
+        else {
             throw ShareTransportError.unapprovedOrigin
         }
 
@@ -121,7 +123,8 @@ extension URLSessionShareHTTPTransport: URLSessionTaskDelegate {
 /// recipient fetch and abuse-report resources belong to the viewer, not this
 /// native owner client, and are intentionally not modeled here.
 protocol ShareRemoteClientProtocol: Sendable {
-    func sendPersistedOperation(_ operation: ShareOutboxOperation, shareId: String, deviceToken: ShareDeviceToken) async throws -> ShareOperationResponse
+    func sendPersistedOperation(_ operation: ShareOutboxOperation, shareId: String, deviceToken: ShareDeviceToken)
+        async throws -> ShareOperationResponse
     func capabilities() async throws -> ShareCapabilities
 
     func enrollOwner(
@@ -196,27 +199,39 @@ enum ShareOperationResponse: Sendable {
 // Fakes may implement the typed methods; the production override sends the
 // stored bytes directly, without a decode/encode round trip.
 extension ShareRemoteClientProtocol {
-    func sendPersistedOperation(_ operation: ShareOutboxOperation, shareId: String, deviceToken: ShareDeviceToken) async throws -> ShareOperationResponse {
+    func sendPersistedOperation(_ operation: ShareOutboxOperation, shareId: String, deviceToken: ShareDeviceToken)
+        async throws -> ShareOperationResponse
+    {
         let decoder = ShareServiceJSON.makeDecoder()
         switch operation.kind {
         case .create, .contentUpdate:
             let payload = try decoder.decode(ShareCreateOrUpdateRequestBody.self, from: operation.requestBody)
             if operation.kind == .create, let expiry = payload.expiresAt {
-                return .resource(try await createShare(deviceToken: deviceToken, shareId: shareId, locator: payload.locator,
-                    contentRevision: payload.contentRevision, expiresAt: expiry, envelope: payload.envelope, idempotencyKey: operation.idempotencyKey))
+                return .resource(
+                    try await createShare(
+                        deviceToken: deviceToken, shareId: shareId, locator: payload.locator,
+                        contentRevision: payload.contentRevision, expiresAt: expiry, envelope: payload.envelope,
+                        idempotencyKey: operation.idempotencyKey))
             }
             guard let ifMatch = operation.ifMatch else { throw ShareCoordinatorError.corruptedOutboxOperation }
-            return .resource(try await updateShareContent(deviceToken: deviceToken, shareId: shareId, locator: payload.locator,
-                contentRevision: payload.contentRevision, envelope: payload.envelope, ifMatch: ifMatch, idempotencyKey: operation.idempotencyKey))
+            return .resource(
+                try await updateShareContent(
+                    deviceToken: deviceToken, shareId: shareId, locator: payload.locator,
+                    contentRevision: payload.contentRevision, envelope: payload.envelope, ifMatch: ifMatch,
+                    idempotencyKey: operation.idempotencyKey))
         case .expiryChange:
             let payload = try decoder.decode(ShareExpiryChangeRequestBody.self, from: operation.requestBody)
             guard let ifMatch = operation.ifMatch else { throw ShareCoordinatorError.corruptedOutboxOperation }
-            return .resource(try await changeExpiry(deviceToken: deviceToken, shareId: shareId, expiresAt: payload.expiresAt,
-                ifMatch: ifMatch, idempotencyKey: operation.idempotencyKey))
+            return .resource(
+                try await changeExpiry(
+                    deviceToken: deviceToken, shareId: shareId, expiresAt: payload.expiresAt,
+                    ifMatch: ifMatch, idempotencyKey: operation.idempotencyKey))
         case .delete:
             let payload = try decoder.decode(ShareDeleteRequestBody.self, from: operation.requestBody)
-            return .deletion(try await deleteShare(deviceToken: deviceToken, shareId: shareId,
-                locatorCommitment: payload.locatorCommitment, idempotencyKey: operation.idempotencyKey))
+            return .deletion(
+                try await deleteShare(
+                    deviceToken: deviceToken, shareId: shareId,
+                    locatorCommitment: payload.locatorCommitment, idempotencyKey: operation.idempotencyKey))
         }
     }
 }
@@ -235,8 +250,12 @@ final class ShareRemoteClient: ShareRemoteClientProtocol {
         self.init(origin: origin, transport: URLSessionShareHTTPTransport())
     }
 
-    func sendPersistedOperation(_ operation: ShareOutboxOperation, shareId: String, deviceToken: ShareDeviceToken) async throws -> ShareOperationResponse {
-        var headers = ["Authorization": deviceToken.authorizationHeaderValue, "Idempotency-Key": operation.idempotencyKey]
+    func sendPersistedOperation(_ operation: ShareOutboxOperation, shareId: String, deviceToken: ShareDeviceToken)
+        async throws -> ShareOperationResponse
+    {
+        var headers = [
+            "Authorization": deviceToken.authorizationHeaderValue, "Idempotency-Key": operation.idempotencyKey,
+        ]
         var path = "/api/v1/shares/\(shareId)"
         let method: String
         switch operation.kind {
@@ -249,7 +268,8 @@ final class ShareRemoteClient: ShareRemoteClientProtocol {
             method = operation.kind == .contentUpdate ? "PUT" : "PATCH"
             if operation.kind == .expiryChange { path += "/expiry" }
         case .delete:
-            return .deletion(try await perform(method: "DELETE", path: path, headers: headers, body: operation.requestBody))
+            return .deletion(
+                try await perform(method: "DELETE", path: path, headers: headers, body: operation.requestBody))
         }
         return .resource(try await perform(method: method, path: path, headers: headers, body: operation.requestBody))
     }
@@ -475,7 +495,8 @@ final class ShareRemoteClient: ShareRemoteClientProtocol {
         }
     }
 
-    private func decode<Response: Decodable>(_ type: Response.Type, from response: ShareHTTPResponse) throws -> Response {
+    private func decode<Response: Decodable>(_ type: Response.Type, from response: ShareHTTPResponse) throws -> Response
+    {
         guard (200..<300).contains(response.statusCode) else {
             throw ShareClientError.api(try decodeError(from: response))
         }

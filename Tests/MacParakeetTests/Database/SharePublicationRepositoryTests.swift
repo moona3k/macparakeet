@@ -91,7 +91,8 @@ final class SharePublicationRepositoryTests: XCTestCase {
         operation.projectionManifest = Data("selected".utf8)
         operation.contentDigest = "digest"
         try await repo.createPublication(publication, initialOperation: operation)
-        let receipt = makeConfirmedResource(shareId: publication.remoteShareId, locatorCommitment: publication.locatorCommitment,
+        let receipt = makeConfirmedResource(
+            shareId: publication.remoteShareId, locatorCommitment: publication.locatorCommitment,
             contentRevision: 1, version: 1, expiresAt: publication.expiresAt, maxExpiresAt: publication.maxExpiresAt)
         try await repo.confirmOperation(operation, resource: receipt)
         let confirmed = try XCTUnwrap(repo.fetch(id: publication.id))
@@ -106,7 +107,8 @@ final class SharePublicationRepositoryTests: XCTestCase {
         let operation = try makeCreateOperation(for: publication)
         try await repo.createPublication(publication, initialOperation: operation)
         try await repo.enqueueTerminalDelete(shareId: publication.id)
-        let receipt = makeConfirmedResource(shareId: publication.remoteShareId, locatorCommitment: publication.locatorCommitment,
+        let receipt = makeConfirmedResource(
+            shareId: publication.remoteShareId, locatorCommitment: publication.locatorCommitment,
             contentRevision: 1, version: 1, expiresAt: publication.expiresAt, maxExpiresAt: publication.maxExpiresAt)
         try await repo.confirmOperation(operation, resource: receipt)
         XCTAssertEqual(try repo.fetch(id: publication.id)?.deletionState, .pending)
@@ -286,7 +288,8 @@ final class SharePublicationRepositoryTests: XCTestCase {
         try await manager.dbQueue.write { db in try withManifest.insert(db) }
 
         try await manager.dbQueue.write { db in
-            _ = try SharePublicationRepository.detachAndEnqueueTerminalOperations(transcriptionId: transcriptionId, in: db)
+            _ = try SharePublicationRepository.detachAndEnqueueTerminalOperations(
+                transcriptionId: transcriptionId, in: db)
         }
 
         let detached = try XCTUnwrap(repo.fetch(id: publication.id))
@@ -308,7 +311,8 @@ final class SharePublicationRepositoryTests: XCTestCase {
         try await manager.dbQueue.write { db in try publication.insert(db) }
 
         try await manager.dbQueue.write { db in
-            _ = try SharePublicationRepository.detachAndEnqueueTerminalOperations(transcriptionId: transcriptionId, in: db)
+            _ = try SharePublicationRepository.detachAndEnqueueTerminalOperations(
+                transcriptionId: transcriptionId, in: db)
         }
         // A second detach pass for the same (now-detached) transcriptionId finds nothing to do.
         let secondPass = try await manager.dbQueue.write { db in
@@ -336,7 +340,8 @@ final class SharePublicationRepositoryTests: XCTestCase {
 
         _ = try transcriptionRepo.delete(id: transcription.id)
 
-        let survivor = try XCTUnwrap(repo.fetch(id: publication.id), "share row must survive an un-detached source delete")
+        let survivor = try XCTUnwrap(
+            repo.fetch(id: publication.id), "share row must survive an un-detached source delete")
         XCTAssertNil(survivor.transcriptionId, "ON DELETE SET NULL, never CASCADE")
     }
 

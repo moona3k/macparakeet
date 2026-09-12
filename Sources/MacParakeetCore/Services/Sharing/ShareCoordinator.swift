@@ -102,7 +102,8 @@ public actor ShareCoordinator {
         guard let share = try repository.fetch(id: shareId), share.isConfirmed,
             share.accessState == .active, share.deletionState == .retained,
             !share.isDetached, share.expiresAt > Date(), let rawLocator = share.locator,
-            let key = try credentialStore.loadContentKey(forRemoteShareId: share.remoteShareId) else { return nil }
+            let key = try credentialStore.loadContentKey(forRemoteShareId: share.remoteShareId)
+        else { return nil }
         return ShareLink(locator: try ShareLocator(rawValue: rawLocator), contentKey: key)
     }
 
@@ -216,7 +217,9 @@ public actor ShareCoordinator {
         return SharePublishResult(publication: result, link: try confirmedLink(shareId: publication.id))
     }
 
-    public func updateContent(shareId: UUID, bundle: ShareBundle, projectionManifest: Data? = nil, contentDigest: String? = nil) async throws -> SharePublication {
+    public func updateContent(
+        shareId: UUID, bundle: ShareBundle, projectionManifest: Data? = nil, contentDigest: String? = nil
+    ) async throws -> SharePublication {
         guard !isDeviceCredentialSuperseded else { throw ShareCoordinatorError.deviceCredentialSuperseded }
         try beginMutation()
         defer { mutationInProgress = false }
@@ -230,7 +233,9 @@ public actor ShareCoordinator {
             throw ShareCoordinatorError.contentKeyUnavailable
         }
 
-        guard let rawLocator = share.locator, let version = share.version else { throw ShareCoordinatorError.contentUpdateNotEligible }
+        guard let rawLocator = share.locator, let version = share.version else {
+            throw ShareCoordinatorError.contentUpdateNotEligible
+        }
         let locator = try ShareLocator(rawValue: rawLocator)
         let nextRevision = share.contentRevision + 1
         let plaintext = try bundle.encodedJSON()
@@ -274,7 +279,8 @@ public actor ShareCoordinator {
         guard share.accessState == .active, now < share.expiresAt else {
             throw ShareCoordinatorError.shareNotActive
         }
-        guard let version = share.version, Self.validExpiry(newExpiresAt, after: now, maximum: share.maxExpiresAt) else {
+        guard let version = share.version, Self.validExpiry(newExpiresAt, after: now, maximum: share.maxExpiresAt)
+        else {
             throw ShareCoordinatorError.invalidExpiry
         }
 
@@ -339,7 +345,8 @@ public actor ShareCoordinator {
         guard let credential = try requireConfirmedDeviceCredential() else {
             throw ShareCoordinatorError.deviceCredentialMissing
         }
-        return try await installRecoveryVerifier(credential: credential, isInitialSetup: true, currentRecoveryToken: nil)
+        return try await installRecoveryVerifier(
+            credential: credential, isInitialSetup: true, currentRecoveryToken: nil)
     }
 
     public func replaceRecovery(currentRecoveryToken: ShareRecoveryToken) async throws -> ShareRecoverySetupResult {
@@ -366,8 +373,11 @@ public actor ShareCoordinator {
 
         // Save the intended (absent) verifier before the network call so a
         // lost response can be reconciled against `GET /owners/me`.
-        guard try credentialStore.loadPendingRecoveryConfiguration() == nil else { throw ShareCoordinatorError.recoveryPending }
-        let pending = SharePendingRecoveryConfiguration(intendedVerifier: nil, currentToken: currentRecoveryToken.rawValue, isInitialSetup: false)
+        guard try credentialStore.loadPendingRecoveryConfiguration() == nil else {
+            throw ShareCoordinatorError.recoveryPending
+        }
+        let pending = SharePendingRecoveryConfiguration(
+            intendedVerifier: nil, currentToken: currentRecoveryToken.rawValue, isInitialSetup: false)
         try credentialStore.savePendingRecoveryConfiguration(pending)
         let metadata = try await remoteClient.configureRecovery(
             deviceToken: credential.token,
@@ -385,7 +395,9 @@ public actor ShareCoordinator {
         isInitialSetup: Bool,
         currentRecoveryToken: ShareRecoveryToken?
     ) async throws -> ShareRecoverySetupResult {
-        guard try credentialStore.loadPendingRecoveryConfiguration() == nil else { throw ShareCoordinatorError.recoveryPending }
+        guard try credentialStore.loadPendingRecoveryConfiguration() == nil else {
+            throw ShareCoordinatorError.recoveryPending
+        }
         guard let ownerIdBytes = ShareBase64URL.decode(credential.ownerId) else {
             throw ShareCoordinatorError.deviceCredentialMissing
         }
@@ -395,7 +407,8 @@ public actor ShareCoordinator {
         // Save the intended verifier before the network call so a lost
         // response can be reconciled by comparing it to what
         // `GET /owners/me` actually reports.
-        var pending = SharePendingRecoveryConfiguration(intendedVerifier: verifier, generatedToken: newRecoveryToken.rawValue,
+        var pending = SharePendingRecoveryConfiguration(
+            intendedVerifier: verifier, generatedToken: newRecoveryToken.rawValue,
             currentToken: currentRecoveryToken?.rawValue, isInitialSetup: isInitialSetup)
         try credentialStore.savePendingRecoveryConfiguration(pending)
 
@@ -414,7 +427,8 @@ public actor ShareCoordinator {
 
     public func pendingRecoveryCode() throws -> ShareRecoveryToken? {
         guard let pending = try credentialStore.loadPendingRecoveryConfiguration(), pending.isConfirmed,
-            let raw = pending.generatedToken else { return nil }
+            let raw = pending.generatedToken
+        else { return nil }
         return try ShareRecoveryToken(rawValue: raw)
     }
 
@@ -433,7 +447,8 @@ public actor ShareCoordinator {
         guard let credential = try requireConfirmedDeviceCredential() else { return nil }
         var metadata = try await remoteClient.fetchOwnerMetadata(deviceToken: credential.token)
         if metadata.recoveryVerifier != pending.intendedVerifier {
-            metadata = try await remoteClient.configureRecovery(deviceToken: credential.token,
+            metadata = try await remoteClient.configureRecovery(
+                deviceToken: credential.token,
                 recoveryVerifier: pending.intendedVerifier, isInitialSetup: pending.isInitialSetup,
                 currentRecoveryToken: try pending.currentToken.map(ShareRecoveryToken.init(rawValue:)),
                 idempotencyKey: pending.idempotencyKey)
@@ -462,14 +477,17 @@ public actor ShareCoordinator {
     ) async throws -> ShareOwnerMetadata {
         try beginMutation(allowPendingRecovery: true)
         defer { mutationInProgress = false }
-        guard try credentialStore.loadPendingRecoveryConfiguration() == nil else { throw ShareCoordinatorError.recoveryPending }
+        guard try credentialStore.loadPendingRecoveryConfiguration() == nil else {
+            throw ShareCoordinatorError.recoveryPending
+        }
         let recoveryOwnerId = ShareBase64URL.encode(recoveryToken.ownerId)
         let pending: ShareDeviceCredential
         let isRetry: Bool
         if let existing = try credentialStore.loadPendingDeviceCredential() {
             guard existing.ownerId == recoveryOwnerId,
                 existing.pendingRecoveryReplacementVerifier == replacementRecoveryVerifier,
-                existing.pendingRecoveryIdempotencyKey != nil else {
+                existing.pendingRecoveryIdempotencyKey != nil
+            else {
                 throw ShareCoordinatorError.recoveryPending
             }
             pending = existing
@@ -481,13 +499,16 @@ public actor ShareCoordinator {
             if let current = try credentialStore.loadDeviceCredential(), current.ownerId != recoveryOwnerId {
                 try await requireCurrentOwnerFullyReconciledForSwitch()
             }
-            pending = ShareDeviceCredential(ownerId: recoveryOwnerId, token: .generate(), credentialGeneration: 0,
+            pending = ShareDeviceCredential(
+                ownerId: recoveryOwnerId, token: .generate(), credentialGeneration: 0,
                 pendingRecoveryIdempotencyKey: ShareIdentifiers.generateIdempotencyKey(),
                 pendingRecoveryReplacementVerifier: replacementRecoveryVerifier)
             isRetry = false
             try credentialStore.savePendingDeviceCredential(pending)
         }
-        guard let idempotencyKey = pending.pendingRecoveryIdempotencyKey else { throw ShareCoordinatorError.recoveryPending }
+        guard let idempotencyKey = pending.pendingRecoveryIdempotencyKey else {
+            throw ShareCoordinatorError.recoveryPending
+        }
         do {
             let metadata = try await remoteClient.recoverOwner(
                 recoveryToken: recoveryToken,
@@ -536,8 +557,10 @@ public actor ShareCoordinator {
         guard metadata.ownerId == pending.ownerId, metadata.credentialGeneration > 0 else {
             throw ShareClientError.unexpectedResponse
         }
-        try credentialStore.saveDeviceCredential(ShareDeviceCredential(ownerId: metadata.ownerId,
-            token: pending.token, credentialGeneration: metadata.credentialGeneration))
+        try credentialStore.saveDeviceCredential(
+            ShareDeviceCredential(
+                ownerId: metadata.ownerId,
+                token: pending.token, credentialGeneration: metadata.credentialGeneration))
         try credentialStore.clearPendingDeviceCredential()
         isDeviceCredentialSuperseded = false
     }
@@ -547,7 +570,10 @@ public actor ShareCoordinator {
         let resources = try await allRemoteShares(credential: credential)
         try await repository.reconcileResources(resources, ownerId: credential.ownerId)
         guard resources.allSatisfy({ $0.accessState != .active && $0.deletionState == .complete }),
-            try repository.fetchAll().filter({ $0.ownerId == credential.ownerId }).allSatisfy({ $0.isTerminal && $0.deletionState == .complete }) else {
+            try repository.fetchAll().filter({ $0.ownerId == credential.ownerId }).allSatisfy({
+                $0.isTerminal && $0.deletionState == .complete
+            })
+        else {
             throw ShareCoordinatorError.recoverySwitchBlocked
         }
         guard try repository.fetchShareIdsWithPendingOperations().isEmpty else {
@@ -561,8 +587,8 @@ public actor ShareCoordinator {
     public func discardCredentialAfterRecoveryLoss() async throws {
         try beginMutation()
         defer { mutationInProgress = false }
-        do { try await requireCurrentOwnerFullyReconciledForSwitch() }
-        catch ShareCoordinatorError.recoverySwitchBlocked { throw ShareCoordinatorError.sharesNotTerminal }
+        do { try await requireCurrentOwnerFullyReconciledForSwitch() } catch ShareCoordinatorError.recoverySwitchBlocked
+        { throw ShareCoordinatorError.sharesNotTerminal }
         try credentialStore.clearDeviceCredential()
         try credentialStore.clearPendingDeviceCredential()
         try credentialStore.clearPendingRecoveryConfiguration()
@@ -689,12 +715,14 @@ public actor ShareCoordinator {
             return .stop
         }
         let isFirstAttempt: Bool
-        do { isFirstAttempt = try await repository.recordAttempt(operationId: operation.id) }
-        catch { return .stopAndThrow(error) }
+        do { isFirstAttempt = try await repository.recordAttempt(operationId: operation.id) } catch {
+            return .stopAndThrow(error)
+        }
 
         switch operation.kind {
         case .create:
-            return await executeCreate(operation, share: share, deviceToken: deviceToken, isFirstAttempt: isFirstAttempt)
+            return await executeCreate(
+                operation, share: share, deviceToken: deviceToken, isFirstAttempt: isFirstAttempt)
         case .contentUpdate, .expiryChange:
             return await executeMutation(operation, share: share, deviceToken: deviceToken)
         case .delete:
@@ -709,8 +737,11 @@ public actor ShareCoordinator {
         isFirstAttempt: Bool
     ) async -> ExecutionOutcome {
         do {
-            guard case .resource(let resource) = try await remoteClient.sendPersistedOperation(operation,
-                shareId: share.remoteShareId, deviceToken: deviceToken) else {
+            guard
+                case .resource(let resource) = try await remoteClient.sendPersistedOperation(
+                    operation,
+                    shareId: share.remoteShareId, deviceToken: deviceToken)
+            else {
                 throw ShareCoordinatorError.corruptedOutboxOperation
             }
             try await repository.confirmOperation(operation, resource: resource)
@@ -741,7 +772,9 @@ public actor ShareCoordinator {
                 // receipt expired. A failed/absent listing is not permission
                 // to erase uncertain creation or its queued revocation.
                 do {
-                    if let resource = try await reconcileCreateViaList(remoteShareId: share.remoteShareId, deviceToken: deviceToken) {
+                    if let resource = try await reconcileCreateViaList(
+                        remoteShareId: share.remoteShareId, deviceToken: deviceToken)
+                    {
                         try await repository.confirmOperation(operation, resource: resource)
                         return .advanced
                     }
@@ -757,8 +790,11 @@ public actor ShareCoordinator {
         deviceToken: ShareDeviceToken
     ) async -> ExecutionOutcome {
         do {
-            guard case .resource(let resource) = try await remoteClient.sendPersistedOperation(operation,
-                shareId: share.remoteShareId, deviceToken: deviceToken) else {
+            guard
+                case .resource(let resource) = try await remoteClient.sendPersistedOperation(
+                    operation,
+                    shareId: share.remoteShareId, deviceToken: deviceToken)
+            else {
                 throw ShareCoordinatorError.corruptedOutboxOperation
             }
             try await repository.confirmOperation(operation, resource: resource)
@@ -773,7 +809,10 @@ public actor ShareCoordinator {
                 // Reconcile before dropping a stale request: the original
                 // mutation may have succeeded outside the receipt window.
                 do {
-                    guard let resource = try await reconcileCreateViaList(remoteShareId: share.remoteShareId, deviceToken: deviceToken) else {
+                    guard
+                        let resource = try await reconcileCreateViaList(
+                            remoteShareId: share.remoteShareId, deviceToken: deviceToken)
+                    else {
                         return .stopAndThrow(ShareClientError.api(apiError))
                     }
                     var reconciled = operation
@@ -785,10 +824,16 @@ public actor ShareCoordinator {
                         reconciled.contentDigest = share.contentDigest
                     }
                     try await repository.confirmOperation(reconciled, resource: resource)
-                    if operation.kind == .contentUpdate && resource.contentRevision == expectedRevision { return .advanced }
+                    if operation.kind == .contentUpdate && resource.contentRevision == expectedRevision {
+                        return .advanced
+                    }
                     if operation.kind == .expiryChange,
-                        let requested = try? ShareServiceJSON.makeDecoder().decode(ShareExpiryChangeRequestBody.self, from: operation.requestBody),
-                        requested.expiresAt == resource.expiresAt { return .advanced }
+                        let requested = try? ShareServiceJSON.makeDecoder().decode(
+                            ShareExpiryChangeRequestBody.self, from: operation.requestBody),
+                        requested.expiresAt == resource.expiresAt
+                    {
+                        return .advanced
+                    }
                 } catch { return .stop }
                 return .stopAndThrow(ShareClientError.api(apiError))
             }
@@ -801,11 +846,15 @@ public actor ShareCoordinator {
         deviceToken: ShareDeviceToken
     ) async -> ExecutionOutcome {
         do {
-            guard case .deletion(let receipt) = try await remoteClient.sendPersistedOperation(operation,
-                shareId: share.remoteShareId, deviceToken: deviceToken) else {
+            guard
+                case .deletion(let receipt) = try await remoteClient.sendPersistedOperation(
+                    operation,
+                    shareId: share.remoteShareId, deviceToken: deviceToken)
+            else {
                 throw ShareCoordinatorError.corruptedOutboxOperation
             }
-            try await repository.confirmDelete(operation, receipt: receipt, nextKey: ShareIdentifiers.generateIdempotencyKey())
+            try await repository.confirmDelete(
+                operation, receipt: receipt, nextKey: ShareIdentifiers.generateIdempotencyKey())
             if receipt.deletionState == .complete {
                 try? credentialStore.removeContentKey(forRemoteShareId: share.remoteShareId)
                 return .advanced

@@ -10,16 +10,18 @@ final class FakeShareRemoteClient: ShareRemoteClientProtocol, @unchecked Sendabl
     var capabilitiesHandler: () async throws -> ShareCapabilities = {
         throw Unconfigured(method: "capabilities")
     }
-    var enrollOwnerHandler: (String, String, String, String?, String) async throws -> ShareOwnerMetadata = { _, _, _, _, _ in
+    var enrollOwnerHandler: (String, String, String, String?, String) async throws -> ShareOwnerMetadata = {
+        _, _, _, _, _ in
         throw Unconfigured(method: "enrollOwner")
     }
     var fetchOwnerMetadataHandler: (ShareDeviceToken) async throws -> ShareOwnerMetadata = { _ in
         throw Unconfigured(method: "fetchOwnerMetadata")
     }
-    var recoverOwnerHandler: (ShareRecoveryToken, String, String, String?, String) async throws -> ShareOwnerMetadata = {
-        _, _, _, _, _ in
-        throw Unconfigured(method: "recoverOwner")
-    }
+    var recoverOwnerHandler: (ShareRecoveryToken, String, String, String?, String) async throws -> ShareOwnerMetadata =
+        {
+            _, _, _, _, _ in
+            throw Unconfigured(method: "recoverOwner")
+        }
     var configureRecoveryHandler:
         (ShareDeviceToken, String?, Bool, ShareRecoveryToken?, String) async throws -> ShareOwnerMetadata = {
             _, _, _, _, _ in
@@ -28,10 +30,11 @@ final class FakeShareRemoteClient: ShareRemoteClientProtocol, @unchecked Sendabl
     var listSharesHandler: (ShareDeviceToken, String?, Int) async throws -> ShareListPage = { _, _, _ in
         ShareListPage(shares: [], nextCursor: nil)
     }
-    var createShareHandler: (ShareDeviceToken, String, String, Int, Date, ShareEnvelope, String) async throws ->
-        ShareResource = { _, _, _, _, _, _, _ in
-            throw Unconfigured(method: "createShare")
-        }
+    var createShareHandler:
+        (ShareDeviceToken, String, String, Int, Date, ShareEnvelope, String) async throws ->
+            ShareResource = { _, _, _, _, _, _, _ in
+                throw Unconfigured(method: "createShare")
+            }
     var updateShareContentHandler:
         (ShareDeviceToken, String, String, Int, ShareEnvelope, String, String) async throws -> ShareResource = {
             _, _, _, _, _, _, _ in
@@ -99,7 +102,8 @@ final class FakeShareRemoteClient: ShareRemoteClientProtocol, @unchecked Sendabl
         envelope: ShareEnvelope,
         idempotencyKey: String
     ) async throws -> ShareResource {
-        try await createShareHandler(deviceToken, shareId, locator, contentRevision, expiresAt, envelope, idempotencyKey)
+        try await createShareHandler(
+            deviceToken, shareId, locator, contentRevision, expiresAt, envelope, idempotencyKey)
     }
 
     func updateShareContent(

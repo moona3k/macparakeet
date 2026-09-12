@@ -15,7 +15,8 @@ final class ShareCoordinatorTests: XCTestCase {
         credentialBacking = InMemoryKeyValueStore()
         credentialStore = ShareCredentialStore(store: credentialBacking)
         remoteClient = FakeShareRemoteClient()
-        coordinator = ShareCoordinator(repository: repository, credentialStore: credentialStore, remoteClient: remoteClient)
+        coordinator = ShareCoordinator(
+            repository: repository, credentialStore: credentialStore, remoteClient: remoteClient)
 
         // Enrollment succeeds by default; individual tests override only
         // what they need to script differently.
@@ -116,7 +117,8 @@ final class ShareCoordinatorTests: XCTestCase {
         XCTAssertEqual(createCallCount, 1)
 
         do {
-            _ = try await coordinator.publish(bundle: try makeNotesBundle(), expiresAt: now.addingTimeInterval(7_776_001))
+            _ = try await coordinator.publish(
+                bundle: try makeNotesBundle(), expiresAt: now.addingTimeInterval(7_776_001))
             XCTFail("expected invalidExpiry")
         } catch ShareCoordinatorError.invalidExpiry {
             // expected — rejected before any network call
@@ -153,7 +155,8 @@ final class ShareCoordinatorTests: XCTestCase {
         let recoveredLink = try await coordinator.confirmedLink(shareId: confirmed.id)
         XCTAssertNotNil(recoveredLink)
         XCTAssertEqual(seenIdempotencyKeys.count, 2)
-        XCTAssertEqual(seenIdempotencyKeys[0], seenIdempotencyKeys[1], "retry must reuse the exact same idempotency key")
+        XCTAssertEqual(
+            seenIdempotencyKeys[0], seenIdempotencyKeys[1], "retry must reuse the exact same idempotency key")
     }
 
     // MARK: - Lost create response reconciles instead of double-creating
@@ -300,7 +303,8 @@ final class ShareCoordinatorTests: XCTestCase {
     func testForgottenCompletedShareDoesNotReappearOnRefresh() async throws {
         remoteClient.createShareHandler = succeedingCreateHandler()
         let published = try await coordinator.publish(bundle: makeNotesBundle())
-        var completed = makeConfirmedResource(shareId: published.publication.remoteShareId,
+        var completed = makeConfirmedResource(
+            shareId: published.publication.remoteShareId,
             locatorCommitment: published.publication.locatorCommitment, contentRevision: 1, version: 2,
             expiresAt: published.publication.expiresAt, maxExpiresAt: published.publication.maxExpiresAt)
         completed.accessState = .stopped
@@ -334,7 +338,8 @@ final class ShareCoordinatorTests: XCTestCase {
             throw ShareClientError.network
         }
         do {
-            _ = try await coordinator.publish(bundle: makeNotesBundle(),
+            _ = try await coordinator.publish(
+                bundle: makeNotesBundle(),
                 expiresAt: Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down) + 3600.5))
             XCTFail("fractional expiry must be rejected")
         } catch ShareCoordinatorError.invalidExpiry {}
@@ -362,15 +367,18 @@ final class ShareCoordinatorTests: XCTestCase {
             installedVerifier = verifier
             throw ShareClientError.network
         }
-        do { _ = try await coordinator.setUpRecovery(); XCTFail("expected lost response") }
-        catch ShareClientError.network {}
+        do { _ = try await coordinator.setUpRecovery(); XCTFail("expected lost response") } catch ShareClientError
+            .network
+        {}
         let unconfirmedCode = try await coordinator.pendingRecoveryCode()
         XCTAssertNil(unconfirmedCode)
         let credential = try XCTUnwrap(credentialStore.loadDeviceCredential())
         remoteClient.fetchOwnerMetadataHandler = { _ in
-            ShareOwnerMetadata(ownerId: credential.ownerId, credentialGeneration: 1, recoveryVerifier: installedVerifier)
+            ShareOwnerMetadata(
+                ownerId: credential.ownerId, credentialGeneration: 1, recoveryVerifier: installedVerifier)
         }
-        let restarted = ShareCoordinator(repository: repository, credentialStore: credentialStore, remoteClient: remoteClient)
+        let restarted = ShareCoordinator(
+            repository: repository, credentialStore: credentialStore, remoteClient: remoteClient)
         _ = try await restarted.reconcileLostRecoveryConfiguration()
         let code = try await restarted.pendingRecoveryCode()
         XCTAssertEqual(code?.verifier, installedVerifier)
@@ -384,8 +392,9 @@ final class ShareCoordinatorTests: XCTestCase {
         let coordinator = try XCTUnwrap(coordinator)
         var rejected = false
         remoteClient.configureRecoveryHandler = { _, _, _, _, _ in
-            do { _ = try await coordinator.setUpRecovery() }
-            catch ShareCoordinatorError.operationInProgress { rejected = true }
+            do { _ = try await coordinator.setUpRecovery() } catch ShareCoordinatorError.operationInProgress {
+                rejected = true
+            }
             throw ShareClientError.network
         }
         do { _ = try await coordinator.setUpRecovery() } catch ShareClientError.network {}
@@ -394,7 +403,8 @@ final class ShareCoordinatorTests: XCTestCase {
     }
 
     func testNegativeRecoveryProbeKeepsPendingDeviceAuthority() async throws {
-        let pending = ShareDeviceCredential(ownerId: ShareIdentifiers.generate16ByteIdentifier(), token: .generate(), credentialGeneration: 0)
+        let pending = ShareDeviceCredential(
+            ownerId: ShareIdentifiers.generate16ByteIdentifier(), token: .generate(), credentialGeneration: 0)
         try credentialStore.savePendingDeviceCredential(pending)
         remoteClient.fetchOwnerMetadataHandler = { _ in
             throw ShareClientError.api(ShareAPIError(code: .unauthorized, retryable: false, requestId: nil))
@@ -417,10 +427,12 @@ final class ShareCoordinatorTests: XCTestCase {
         remoteClient.fetchOwnerMetadataHandler = { _ in
             throw ShareClientError.api(ShareAPIError(code: .unauthorized, retryable: false, requestId: nil))
         }
-        do { _ = try await coordinator.recoverOwnership(recoveryToken: code, replacementRecoveryVerifier: replacement) }
-        catch ShareClientError.network {}
+        do {
+            _ = try await coordinator.recoverOwnership(recoveryToken: code, replacementRecoveryVerifier: replacement)
+        } catch ShareClientError.network {}
         let pending = try XCTUnwrap(credentialStore.loadPendingDeviceCredential())
-        let restarted = ShareCoordinator(repository: repository, credentialStore: credentialStore, remoteClient: remoteClient)
+        let restarted = ShareCoordinator(
+            repository: repository, credentialStore: credentialStore, remoteClient: remoteClient)
         _ = try await restarted.recoverOwnership(recoveryToken: code, replacementRecoveryVerifier: replacement)
         XCTAssertEqual(attempts.count, 2)
         XCTAssertEqual(attempts[0].0, attempts[1].0)
@@ -476,8 +488,9 @@ final class ShareCoordinatorTests: XCTestCase {
             shareId = id
             throw ShareClientError.api(ShareAPIError(code: .payloadTooLarge, retryable: false, requestId: nil))
         }
-        do { _ = try await coordinator.publish(bundle: makeNotesBundle()); XCTFail("expected rejection") }
-        catch ShareClientError.api(let error) { XCTAssertEqual(error.code, .payloadTooLarge) }
+        do {
+            _ = try await coordinator.publish(bundle: makeNotesBundle()); XCTFail("expected rejection")
+        } catch ShareClientError.api(let error) { XCTAssertEqual(error.code, .payloadTooLarge) }
         XCTAssertTrue(try repository.fetchAll().isEmpty)
         XCTAssertTrue(try repository.fetchShareIdsWithPendingOperations().isEmpty)
         XCTAssertNil(try credentialStore.loadContentKey(forRemoteShareId: XCTUnwrap(shareId)))
@@ -498,19 +511,26 @@ final class ShareCoordinatorTests: XCTestCase {
     }
 
     func testDifferentOwnerSwitchExhaustsRemotePagesBeforeAllowingSwitch() async throws {
-        let old = ShareDeviceCredential(ownerId: ShareIdentifiers.generate16ByteIdentifier(), token: .generate(), credentialGeneration: 1)
+        let old = ShareDeviceCredential(
+            ownerId: ShareIdentifiers.generate16ByteIdentifier(), token: .generate(), credentialGeneration: 1)
         try credentialStore.saveDeviceCredential(old)
         var pages = 0
         remoteClient.listSharesHandler = { _, cursor, _ in
             pages += 1
             if cursor == nil { return ShareListPage(shares: [], nextCursor: "page&two") }
             XCTAssertEqual(cursor, "page&two")
-            return ShareListPage(shares: [makeConfirmedResource(shareId: ShareIdentifiers.generate16ByteIdentifier(),
-                locatorCommitment: ShareIdentifiers.generate16ByteIdentifier(), contentRevision: 1, version: 1,
-                expiresAt: Date().addingTimeInterval(3600), maxExpiresAt: Date().addingTimeInterval(7200))], nextCursor: nil)
+            return ShareListPage(
+                shares: [
+                    makeConfirmedResource(
+                        shareId: ShareIdentifiers.generate16ByteIdentifier(),
+                        locatorCommitment: ShareIdentifiers.generate16ByteIdentifier(), contentRevision: 1, version: 1,
+                        expiresAt: Date().addingTimeInterval(3600), maxExpiresAt: Date().addingTimeInterval(7200))
+                ], nextCursor: nil)
         }
-        do { _ = try await coordinator.recoverOwnership(recoveryToken: .generate(ownerId: ShareRandom.bytes(16))); XCTFail("must block") }
-        catch ShareCoordinatorError.recoverySwitchBlocked {}
+        do {
+            _ = try await coordinator.recoverOwnership(recoveryToken: .generate(ownerId: ShareRandom.bytes(16)));
+            XCTFail("must block")
+        } catch ShareCoordinatorError.recoverySwitchBlocked {}
         XCTAssertEqual(pages, 2)
         XCTAssertEqual(try credentialStore.loadDeviceCredential(), old)
         let imported = try XCTUnwrap(repository.fetchAll().first)
@@ -530,11 +550,16 @@ final class ShareCoordinatorTests: XCTestCase {
             throw ShareClientError.api(ShareAPIError(code: .versionConflict, retryable: false, requestId: nil))
         }
         let updatedBundle = try makeNotesBundle("updated")
-        _ = try await coordinator.updateContent(shareId: published.publication.id, bundle: updatedBundle, projectionManifest: Data("selection".utf8))
+        _ = try await coordinator.updateContent(
+            shareId: published.publication.id, bundle: updatedBundle, projectionManifest: Data("selection".utf8))
         remoteClient.listSharesHandler = { _, _, _ in
-            ShareListPage(shares: [makeConfirmedResource(shareId: published.publication.remoteShareId,
-                locatorCommitment: published.publication.locatorCommitment, contentRevision: 2, version: 2,
-                expiresAt: published.publication.expiresAt, maxExpiresAt: published.publication.maxExpiresAt)], nextCursor: nil)
+            ShareListPage(
+                shares: [
+                    makeConfirmedResource(
+                        shareId: published.publication.remoteShareId,
+                        locatorCommitment: published.publication.locatorCommitment, contentRevision: 2, version: 2,
+                        expiresAt: published.publication.expiresAt, maxExpiresAt: published.publication.maxExpiresAt)
+                ], nextCursor: nil)
         }
         await coordinator.resumePendingWork()
         let updated = try XCTUnwrap(repository.fetch(id: published.publication.id))

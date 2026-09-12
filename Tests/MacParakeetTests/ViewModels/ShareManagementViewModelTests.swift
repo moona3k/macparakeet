@@ -17,7 +17,8 @@ final class ShareManagementViewModelTests: XCTestCase {
     func testPendingStopNeverClaimsRevocation() async {
         let service = ShareUIServiceStub()
         let row = ShareUIServiceStub.publication()
-        let operation = ShareOutboxOperation(sharePublicationId: row.id, sequence: 0, kind: .delete, idempotencyKey: "key", requestBody: Data())
+        let operation = ShareOutboxOperation(
+            sharePublicationId: row.id, sequence: 0, kind: .delete, idempotencyKey: "key", requestBody: Data())
         await service.seed(row, operations: [operation])
         let model = ShareManagementViewModel()
         model.configure(service: service, sourceLoader: { _ in nil })
@@ -79,9 +80,11 @@ final class ShareManagementViewModelTests: XCTestCase {
         let row = ShareUIServiceStub.publication(sourceID: UUID())
         await service.seed(row)
         let model = ShareManagementViewModel()
-        model.configure(service: service, sourceLoader: { _ in
-            throw NSError(domain: "SyntheticSourceReadFailure", code: 1)
-        })
+        model.configure(
+            service: service,
+            sourceLoader: { _ in
+                throw NSError(domain: "SyntheticSourceReadFailure", code: 1)
+            })
 
         await model.refresh()
 
