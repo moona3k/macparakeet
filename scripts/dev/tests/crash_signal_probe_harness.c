@@ -197,9 +197,12 @@ int main(int argc, char **argv) {
         g_backtrace_fails = 1;
         install_with_app_version(path, "probe-app-ver");
         abort();
-    } else {
+    } else if (strcmp(mode, "abort") == 0) {
         install_with_app_version(path, "probe-app-ver");
         abort();
+    } else {
+        fprintf(stderr, "unknown mode: %s\n", mode);
+        return 2;
     }
 
     return 0;

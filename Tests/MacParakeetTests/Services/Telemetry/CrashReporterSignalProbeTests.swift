@@ -218,6 +218,15 @@ final class CrashReporterSignalProbeTests: XCTestCase {
         XCTAssertTrue(report.stackTrace.isEmpty)
     }
 
+    // MARK: - Unknown mode rejection
+
+    func testSubprocessRejectsUnknownProbeMode() throws {
+        let result = try runProbe(mode: "not_a_real_mode")
+
+        XCTAssertEqual(result.process.terminationReason, .exit)
+        XCTAssertEqual(result.process.terminationStatus, 2)
+    }
+
     // MARK: - Probe compilation and execution
 
     private struct ProbeResult {
@@ -314,7 +323,14 @@ final class CrashReporterSignalProbeTests: XCTestCase {
         let symbols = try addressedSymbols(in: binaryPath)
         let target = "_" + symbol
         guard let index = symbols.firstIndex(where: { $0.name == target }) else {
-            throw XCTSkip("Could not locate symbol \(target) via nm in the probe binary.")
+            throw NSError(
+                domain: "CrashReporterSignalProbeTests",
+                code: 2,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Could not locate symbol \(target) via nm in the probe binary."
+                ]
+            )
         }
         let start = symbols[index].address
         let end = index + 1 < symbols.count ? symbols[index + 1].address : start + 0x1000
