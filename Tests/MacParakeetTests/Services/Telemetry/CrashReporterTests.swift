@@ -288,6 +288,25 @@ final class CrashReporterTests: XCTestCase {
         XCTAssertEqual(report?.pc, "0x1040a84b0")
     }
 
+    func testLoadPendingExceptionReportDropsSignalOnlyContext() {
+        let content = """
+        crash_type: exception
+        signal: 0
+        name: NSInvalidArgumentException
+        timestamp: 1711900000
+        app_ver: 0.8.0
+        si_code: 2
+        fault_addr: 0x0
+        pc: 0x1040a84b0
+        """
+        try! content.write(toFile: testCrashPath, atomically: true, encoding: .utf8)
+        let report = CrashReporter.loadPendingReport(from: testCrashPath)
+        XCTAssertNotNil(report)
+        XCTAssertNil(report?.siCode)
+        XCTAssertNil(report?.pc)
+        XCTAssertNil(report?.faultAddr)
+    }
+
     func testLoadPendingReportDropsMalformedSignalContextFields() {
         let content = """
         crash_type: signal
@@ -306,6 +325,64 @@ final class CrashReporterTests: XCTestCase {
         XCTAssertNil(report?.siCode)
         XCTAssertNil(report?.faultAddr)
         XCTAssertNil(report?.pc)
+    }
+
+    func testLoadPendingReportParsesSiCodeAtInt32Boundaries() {
+        // si_code is a signed 32-bit value; the parser must accept the full
+        // range, including both boundary values, without signed overflow.
+        for boundary in ["-2147483648", "2147483647", "0", "-1"] {
+            let content = """
+            crash_type: signal
+            signal: 11
+            name: SIGSEGV
+            timestamp: 1711900000
+            app_ver: 0.8.0
+            si_code: \(boundary)
+            """
+            try! content.write(toFile: testCrashPath, atomically: true, encoding: .utf8)
+
+            let report = CrashReporter.loadPendingReport(from: testCrashPath)
+            XCTAssertEqual(report?.siCode, boundary, "si_code \(boundary) should round-trip as a valid Int32")
+        }
+    }
+
+    func testLoadPendingReportDropsSiCodeJustOutsideInt32Range() {
+        // One past each Int32 boundary must be dropped, not silently clamped
+        // or wrapped.
+        for outOfRange in ["-2147483649", "2147483648"] {
+            let content = """
+            crash_type: signal
+            signal: 11
+            name: SIGSEGV
+            timestamp: 1711900000
+            app_ver: 0.8.0
+            si_code: \(outOfRange)
+            """
+            try! content.write(toFile: testCrashPath, atomically: true, encoding: .utf8)
+
+            let report = CrashReporter.loadPendingReport(from: testCrashPath)
+            XCTAssertNil(report?.siCode, "si_code \(outOfRange) is outside Int32 range and must be dropped")
+        }
+    }
+
+    func testLoadPendingReportDropsSiCodeWithLeadingPlusOrNonIntegerText() {
+        // Field values are already trimmed of surrounding whitespace by the
+        // key/value line parser, so the interesting rejected shapes here are
+        // a leading `+` (only `-` is a valid sign) and non-integer text.
+        for malformed in ["+2", "1.0", "2a", "--2", "٢", "２", "00000000000"] {
+            let content = """
+            crash_type: signal
+            signal: 11
+            name: SIGSEGV
+            timestamp: 1711900000
+            app_ver: 0.8.0
+            si_code: \(malformed)
+            """
+            try! content.write(toFile: testCrashPath, atomically: true, encoding: .utf8)
+
+            let report = CrashReporter.loadPendingReport(from: testCrashPath)
+            XCTAssertNil(report?.siCode, "si_code \(malformed.debugDescription) must be rejected")
+        }
     }
 
     func testLoadPendingReportDropsOversizedSignalContextFields() {

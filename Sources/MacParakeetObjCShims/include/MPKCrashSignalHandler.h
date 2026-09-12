@@ -22,25 +22,23 @@ typedef struct {
 /// crash report to `crash_file_path` before re-raising for default
 /// (`SIG_DFL`) termination.
 ///
-/// The handler itself performs no allocation and calls no Objective-C/Swift
-/// runtime entry point, `dladdr`, or dyld image enumeration; it uses only
-/// `snprintf`, `open`, `write`, `close`, `backtrace`, `time`, and `raise` —
-/// the async-signal-safe subset documented in Darwin's `sigaction(2)`.
-/// `backtrace()` itself is not strictly async-signal-safe (it can in theory
-/// deadlock on the dyld lock); this is a known, accepted limitation of this
-/// reporter, not a safety guarantee, and other crash reporters (Sentry,
-/// PLCrashReporter) making a similar tradeoff does not make it safe here —
-/// it is why the minimal report below is written and durable on disk
-/// *before* `backtrace()` runs.
+/// The minimum report uses fixed buffers, bounded manual formatting and
+/// async-signal-safe I/O. No Swift/Objective-C runtime, allocating formatter,
+/// or symbol lookup runs before the minimum report's write completes.
+/// Short writes and EINTR are retried; zero writes and other errors stop the
+/// attempt and skip the optional backtrace.
 ///
-/// A single atomic guard ensures only the first crashing thread writes a
-/// report; a second, concurrently crashing thread re-raises immediately so
-/// it terminates via `SIG_DFL` rather than resuming from its own fault site.
-/// There is no recover-and-continue path: the process always terminates via
-/// the signal's default disposition after (or in place of) writing a report.
+/// `backtrace()` remains best effort and is not async-signal-safe: it may
+/// allocate or deadlock. It is called only after the complete minimum report
+/// has been accepted by `write()`. There is no fsync or power-loss guarantee.
+/// A concurrent fatal signal can terminate the process before that write
+/// completes. A single atomic guard prevents competing writers; losing
+/// threads re-raise immediately without waiting. No recovery is attempted.
 ///
-/// Must be called exactly once, from the main thread, before any other
-/// thread starts.
+/// Installs an alternate stack backed by process-lifetime C storage on the
+/// calling thread. Call from the main thread during startup. Other threads
+/// do not receive an alternate stack, so their stack-overflow crashes may
+/// not produce a report. Metadata is copied before handlers are installed.
 ///
 /// - Parameters:
 ///   - crash_file_path: Null-terminated destination path. Copied internally;

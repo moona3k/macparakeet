@@ -22,9 +22,23 @@ records the September 2026 tightening of privacy and outcome semantics.
 - `crash_occurred`'s optional `si_code`, `pc`, and `fault_addr` fields are
   narrow signal-context evidence (fault subtype, interrupted instruction
   pointer, faulting address), not free-form text. The on-disk report parser
-  validates each against a bounded decimal or `0x`-prefixed hex shape before
-  it reaches the typed event factory; a corrupted or oversized value is
-  dropped rather than forwarded.
+  validates each before it reaches the typed event factory — `si_code` must
+  contain at most 10 ASCII digits with an optional minus sign and parse
+  as a signed 32-bit integer (`Int32`), covering the full range
+  including the `-2147483648`/`2147483647` boundaries without signed
+  overflow; `pc`/`fault_addr` must be a bounded `0x`-prefixed hex value — and
+  drops a corrupted or out-of-range value rather than forwarding it. These
+  fields are omitted from non-signal reports, even if present in the file.
+- The C signal handler assembles that on-disk report with bounded manual
+  byte-appending, not `snprintf` or another allocating/locale-aware
+  formatter, and its write path retries on `EINTR` and short writes but gives
+  up (without spinning) as soon as `write` reports `0` bytes accepted or a
+  non-retryable error. Optional backtrace capture runs only after a complete
+  minimum report write; failed writes skip that unsafe step. Persistence of the on-disk report is best-effort:
+  `write`/`close` succeeding means the OS accepted the bytes, not that they
+  survived a power loss, and a second thread crashing concurrently with the
+  first gets no report of its own rather than the handler waiting for the
+  first to finish.
 - Opt-out clears the queue and invalidates retries and batches waiting behind
   another flush, including batches encoded but not started. Request admission
   and URL task resume share the queue-clear lock. In-flight requests can complete. An explicit final
@@ -111,11 +125,17 @@ diagnostics or claim that the absence of logged failures means successful audio.
 - `TelemetryServiceTests` pins payload encoding, omitted free-form error/crash
   fields, and opt-out admission/queue-generation races.
 - `CrashReporterTests` pins old/new/missing/malformed `si_code`/`pc`/`fault_addr`
-  round-tripping through the report-file parser. `CrashReporterSignalProbeTests`
-  runs the production C signal handler in a real subprocess (compiled from the
+  round-tripping through the report-file parser, including both `Int32`
+  boundaries for `si_code`. `CrashReporterSignalProbeTests` runs the
+  production C signal handler in a real subprocess (compiled from the
   checked-in `MPKCrashSignalHandler.c`) to confirm the on-disk report reflects
   the actual interrupted instruction pointer and a `SIG_DFL` process exit, not
-  a synthetic value.
+  a synthetic value. It also links harness-side `write`/`backtrace`
+  overrides ahead of libSystem at compile time (no production test flags) to
+  prove the minimal report still lands under short writes, `EINTR`, and a
+  failed/empty backtrace or abrupt exit from backtrace. A child-owned alarm
+  bounds probe execution. A `write` that always reports 0 bytes
+  accepted stops the write loop and skips backtrace instead of hanging.
 - `TelemetryErrorClassifierTests` pins bounded error categories and recognized
   native CoreAudio status extraction.
 - `CLITelemetryTests` pins successful thrown exits, environment overrides, and

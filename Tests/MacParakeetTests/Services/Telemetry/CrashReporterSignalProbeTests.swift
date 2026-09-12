@@ -117,6 +117,89 @@ final class CrashReporterSignalProbeTests: XCTestCase {
         XCTAssertEqual(report.name, "SIGABRT")
     }
 
+    // MARK: - Write-loop robustness (short writes / EINTR / zero-write)
+    //
+    // These modes link a harness-side `write()` override ahead of libSystem's
+    // (see crash_signal_probe_harness.c) to drive the production write loop
+    // in `MPKCrashSignalHandler.c` through conditions a real crash can hit —
+    // short writes, `EINTR`, and a destination that never accepts a byte —
+    // without needing a real full disk or a real interrupting signal.
+
+    func testSubprocessShortWritesStillProduceCompleteMinimalReport() throws {
+        let result = try runProbe(mode: "short_write_abort")
+
+        XCTAssertEqual(result.process.terminationReason, .uncaughtSignal)
+        XCTAssertEqual(result.process.terminationStatus, SIGABRT)
+
+        let report = try XCTUnwrap(CrashReporter.loadPendingReport(from: result.crashFilePath))
+        XCTAssertEqual(report.crashType, "signal")
+        XCTAssertEqual(report.name, "SIGABRT")
+        XCTAssertEqual(report.appVersion, "probe-app-ver")
+        XCTAssertNotNil(report.siCode)
+        XCTAssertNotNil(report.faultAddr)
+    }
+
+    func testSubprocessEINTRWritesStillProduceCompleteMinimalReport() throws {
+        let result = try runProbe(mode: "eintr_write_abort")
+
+        XCTAssertEqual(result.process.terminationReason, .uncaughtSignal)
+        XCTAssertEqual(result.process.terminationStatus, SIGABRT)
+
+        let report = try XCTUnwrap(CrashReporter.loadPendingReport(from: result.crashFilePath))
+        XCTAssertEqual(report.crashType, "signal")
+        XCTAssertEqual(report.name, "SIGABRT")
+        XCTAssertEqual(report.appVersion, "probe-app-ver")
+        XCTAssertNotNil(report.siCode)
+    }
+
+    func testSubprocessZeroByteWritesDoNotHangAndProcessStillTerminatesViaSignal() throws {
+        let result = try runProbe(mode: "zero_write_abort")
+
+        // The core guarantee under test: a `write()` that always reports 0
+        // bytes accepted must not make the handler spin or block — the
+        // process still terminates via the signal's default disposition
+        // within the bounded runProbe timeout below, and whatever is on disk
+        // is either absent or empty, never a spin-induced hang.
+        XCTAssertEqual(result.process.terminationReason, .uncaughtSignal)
+        XCTAssertEqual(result.process.terminationStatus, SIGABRT)
+
+        if FileManager.default.fileExists(atPath: result.crashFilePath) {
+            let data = try Data(contentsOf: URL(fileURLWithPath: result.crashFilePath))
+            XCTAssertTrue(
+                data.isEmpty,
+                "write() always returning 0 should leave no bytes committed, not a partial report"
+            )
+        }
+    }
+
+    func testSubprocessFailedBacktraceStillLeavesMinimalReport() throws {
+        let result = try runProbe(mode: "backtrace_fails_abort")
+
+        XCTAssertEqual(result.process.terminationReason, .uncaughtSignal)
+        XCTAssertEqual(result.process.terminationStatus, SIGABRT)
+
+        let report = try XCTUnwrap(CrashReporter.loadPendingReport(from: result.crashFilePath))
+        XCTAssertEqual(report.crashType, "signal")
+        XCTAssertEqual(report.name, "SIGABRT")
+        XCTAssertNotNil(report.siCode)
+        XCTAssertTrue(
+            report.stackTrace.isEmpty,
+            "backtrace() reporting 0 frames must not prevent the minimal report from being written"
+        )
+    }
+
+    func testSubprocessAbruptBacktraceExitPreservesAlreadyWrittenMinimum() throws {
+        let result = try runProbe(mode: "backtrace_exits_abort")
+        XCTAssertEqual(result.process.terminationReason, .exit)
+        XCTAssertEqual(result.process.terminationStatus, 73)
+        let report = try XCTUnwrap(CrashReporter.loadPendingReport(from: result.crashFilePath))
+        XCTAssertEqual(report.name, "SIGABRT")
+        XCTAssertNotNil(report.siCode)
+        XCTAssertNotNil(report.pc)
+        XCTAssertNotNil(report.faultAddr)
+        XCTAssertTrue(report.stackTrace.isEmpty)
+    }
+
     // MARK: - Probe compilation and execution
 
     private struct ProbeResult {
@@ -146,10 +229,16 @@ final class CrashReporterSignalProbeTests: XCTestCase {
         compile.standardOutput = compilePipe
         compile.standardError = compilePipe
         try compile.run()
-        compile.waitUntilExit()
+        // Drain the pipe before waiting on exit: if clang's combined
+        // stdout+stderr output ever exceeded the pipe's kernel buffer, reading
+        // only after waitUntilExit() would deadlock (clang blocked writing to
+        // a full pipe, this test blocked waiting for a clang that can't exit).
+        // readDataToEndOfFile() itself blocks until clang closes the pipe by
+        // exiting, so this ordering is also sufficient — no separate wait needed.
         let compileOutput = String(
             data: compilePipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8
         ) ?? ""
+        compile.waitUntilExit()
         XCTAssertEqual(compile.terminationStatus, 0, "clang failed to build the probe harness: \(compileOutput)")
 
         // Test-owned crash file path: unique per probe run, inside this test's
@@ -162,6 +251,10 @@ final class CrashReporterSignalProbeTests: XCTestCase {
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         try process.run()
+
+        // The harness arms a child-owned alarm before triggering any crash.
+        // A hang therefore exits with SIGALRM and fails the expected signal
+        // assertion, without a delayed parent callback targeting a reused PID.
         process.waitUntilExit()
 
         return ProbeResult(crashFilePath: crashFileURL.path, binaryPath: binaryURL.path, process: process)
@@ -182,8 +275,9 @@ final class CrashReporterSignalProbeTests: XCTestCase {
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
         try process.run()
-        process.waitUntilExit()
+        // Same drain-before-wait ordering as the clang compile above.
         let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        process.waitUntilExit()
 
         var symbols = [Symbol]()
         for line in output.split(separator: "\n") {

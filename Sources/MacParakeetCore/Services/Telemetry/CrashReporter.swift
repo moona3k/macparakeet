@@ -21,9 +21,17 @@ import MacParakeetObjCShims
 ///   (can deadlock on dyld lock). This is an accepted, known limitation of this
 ///   reporter, not a safety guarantee — other crash reporters (Sentry,
 ///   PLCrashReporter) making the same tradeoff doesn't make it safe here. It is
-///   why the minimal report is written and durable on disk *before* the
-///   backtrace is attempted: worst case on a hang is a report with metadata,
-///   `si_code`, fault address and PC but no stack.
+///   why backtrace runs only after a complete minimum report write. A hang
+///   can leave metadata, `si_code`, fault address and PC without a stack.
+/// - Persistence is best-effort, not durable: a successful `write`/`close` in
+///   the C handler means the OS accepted the bytes, not that they survived a
+///   power loss (there is no `fsync`). Two threads crashing concurrently is
+///   handled the same way — only the first claims the report; the second
+///   re-raises immediately with no report of its own, rather than sleeping or
+///   spinning to wait its turn.
+/// - `sigaltstack` is installed only on the main thread during startup. A worker thread that overflows its own
+///   stack has no alternate stack to deliver the signal on, so that crash is
+///   not caught by this reporter at all.
 /// - `SIGKILL` (OOM kills) cannot be caught — fundamental OS limitation.
 /// - Swift async backtraces not captured — only physical thread stack.
 /// - Framework crash addresses need their own image slide for full symbolication.
@@ -40,9 +48,6 @@ public final class CrashReporter {
     nonisolated(unsafe) private static var osVersionString = ""
     nonisolated(unsafe) private static var machOUUIDString = ""
     nonisolated(unsafe) private static var aslrSlideString = ""
-
-    /// Alternate signal stack for handling stack overflow crashes.
-    nonisolated(unsafe) private static var altStack = [UInt8](repeating: 0, count: Int(SIGSTKSZ))
 
     /// Previous ObjC exception handler (for chaining).
     nonisolated(unsafe) private static var previousExceptionHandler: (@convention(c) (NSException) -> Void)?
@@ -74,18 +79,13 @@ public final class CrashReporter {
         let slide = _dyld_get_image_vmaddr_slide(0)
         aslrSlideString = String(format: "0x%lx", UInt(bitPattern: slide))
 
-        // 3. Set up alternate signal stack (handles stack overflow crashes)
-        altStack.withUnsafeMutableBufferPointer { buf in
-            var ss = stack_t()
-            ss.ss_sp = UnsafeMutableRawPointer(buf.baseAddress!)
-            ss.ss_size = buf.count
-            ss.ss_flags = 0
-            sigaltstack(&ss, nil)
-        }
-
-        // 4. Install the C fatal-signal handler (MPKCrashSignalHandler.c).
+        // 3. Install the C fatal-signal handler (MPKCrashSignalHandler.c).
         // It copies each C string into its own fixed internal buffer, so
-        // none of these pointers need to outlive this call.
+        // none of these pointers need to outlive this call. It also installs
+        // the alternate signal stack itself, backed by a C static-lifetime
+        // buffer rather than a Swift `Array`, so the stack's storage address
+        // is fixed for the process's lifetime regardless of Swift-side
+        // retain/copy behavior.
         crashReportPath.withCString { pathPtr in
             appVersionString.withCString { appVerPtr in
                 osVersionString.withCString { osVerPtr in
@@ -104,7 +104,7 @@ public final class CrashReporter {
             }
         }
 
-        // 5. Register ObjC uncaught exception handler
+        // 4. Register ObjC uncaught exception handler
         previousExceptionHandler = NSGetUncaughtExceptionHandler()
         NSSetUncaughtExceptionHandler(objcExceptionHandler)
     }
@@ -137,11 +137,14 @@ public final class CrashReporter {
         }
 
         let content = lines.joined(separator: "\n") + "\n"
-        try? content.write(toFile: crashReportPath, atomically: true, encoding: .utf8)
-
-        // Prevent the subsequent SIGABRT (from abort() after uncaught exception)
-        // from overwriting this richer exception report with a generic signal report.
-        MPKMarkCrashHandlerEntered()
+        if (try? content.write(toFile: crashReportPath, atomically: true, encoding: .utf8)) != nil {
+            // Prevent the subsequent SIGABRT (from abort() after uncaught exception)
+            // from overwriting this richer exception report with a generic signal report.
+            // Only claimed after a successful write — if the write failed, leave the
+            // guard unclaimed so the C signal handler's minimal report (still better
+            // than nothing) can be written in its place.
+            MPKMarkCrashHandlerEntered()
+        }
 
         // Chain to previous handler
         previousExceptionHandler?(exception)
@@ -277,22 +280,28 @@ public final class CrashReporter {
                 .replacingOccurrences(of: "\\n", with: "\n")
                 .replacingOccurrences(of: "\\r", with: "\r"),
             stackTrace: stackTrace,
-            siCode: validatedDecimal(fields["si_code"]),
-            pc: validatedHexAddress(fields["pc"]),
-            faultAddr: validatedHexAddress(fields["fault_addr"])
+            siCode: crashType == "signal" ? validatedDecimal(fields["si_code"]) : nil,
+            pc: crashType == "signal" ? validatedHexAddress(fields["pc"]) : nil,
+            faultAddr: crashType == "signal" ? validatedHexAddress(fields["fault_addr"]) : nil)
         )
     }
 
-    /// Accepts only a bounded, optionally negative decimal integer. Corrupt
-    /// or oversized values are dropped (return `nil`) rather than forwarded
+    /// Accepts only a value that is both a bare, optionally `-`-prefixed run
+    /// of ASCII digits *and* parses as a valid `Int32` — i.e. within the
+    /// signed 32-bit range, including the `-2147483648` boundary (`INT32_MIN`,
+    /// which the C handler can legitimately emit for `si_code`). Corrupt or
+    /// out-of-range values are dropped (return `nil`) rather than forwarded
     /// as arbitrary text — this field can come from a report file written by
-    /// a crashing process mid-corruption.
-    private static func validatedDecimal(_ raw: String?, maxDigits: Int = 9) -> String? {
+    /// a crashing process mid-corruption. The explicit character check comes
+    /// first so a leading `+` or stray whitespace is rejected regardless of
+    /// how permissive `Int32.init(_:)` happens to be.
+    private static func validatedDecimal(_ raw: String?) -> String? {
         guard let raw, !raw.isEmpty else { return nil }
         let digits = raw.hasPrefix("-") ? raw.dropFirst() : raw[raw.startIndex...]
-        guard !digits.isEmpty, digits.count <= maxDigits, digits.allSatisfy(\.isNumber) else {
+        guard !digits.isEmpty, digits.count <= 10, digits.allSatisfy({ $0.isASCII && $0.isNumber }) else {
             return nil
         }
+        guard Int32(raw) != nil else { return nil }
         return raw
     }
 
