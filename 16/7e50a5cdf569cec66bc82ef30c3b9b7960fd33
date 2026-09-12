@@ -1,0 +1,50 @@
+Sources/MacParakeetViewModels/ShareManagementViewModel.swift
+  s_d236dcbec7210b::t_7cad2a36483bb3 204-206
+  s_d236dcbec7210b::t_53792eda38c6d1 238
+  s_d236dcbec7210b::t_0ef2b8d8b4d40a 1-203,207-237,239-249
+Sources/MacParakeet/App/AppWindowCoordinator.swift
+  s_d236dcbec7210b::t_0e3496e24efa9b 26,55,81,194
+Sources/MacParakeet/Views/Transcription/SharedSharesView.swift
+  s_d236dcbec7210b::t_08e6c042facbe6 1-119,121-172,176-188
+  s_d236dcbec7210b::t_d93fdd04502b2b 120,173-175
+Sources/MacParakeet/Views/MainWindowView.swift
+  s_d236dcbec7210b::t_0e3496e24efa9b 9,26,45,84,202-205,310-316
+Sources/MacParakeet/AppDelegate.swift
+  s_d236dcbec7210b::t_0e3496e24efa9b 37,210,500,523-537
+Tests/MacParakeetTests/ViewModels/ShareDraftViewModelTests.swift
+  s_d236dcbec7210b::t_d93fdd04502b2b 7
+  s_d236dcbec7210b::t_f1d84d3e0ac1e0 1-6,8-125,127-136,138-170
+  s_d236dcbec7210b::t_7cad2a36483bb3 126,137
+Tests/MacParakeetTests/ViewModels/ShareManagementViewModelTests.swift
+  s_d236dcbec7210b::t_f1d84d3e0ac1e0 1-75,96
+  s_d236dcbec7210b::t_7cad2a36483bb3 76-95
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_d236dcbec7210b::t_0e3496e24efa9b 14,84-85
+Sources/MacParakeet/Views/Transcription/ShareTranscriptSheet.swift
+  s_d236dcbec7210b::t_d93fdd04502b2b 44
+  s_d236dcbec7210b::t_53792eda38c6d1 1-43,45-217
+Sources/MacParakeetViewModels/ShareDraftViewModel.swift
+  s_d236dcbec7210b::t_cda9056b22287a 1-111,114-142,144,146-158,166-168
+  s_d236dcbec7210b::t_53792eda38c6d1 112-113,143,145,159-165
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_d236dcbec7210b::t_5632ebcf9babc3 3053-3061
+  s_d236dcbec7210b::t_0e3496e24efa9b 466-467,999-1005,4879-4890,4896-4901
+  s_d236dcbec7210b::t_d93fdd04502b2b 4891-4895
+  s_d236dcbec7210b::t_916cd5bcb22621 4902
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "167e50a5cdf569cec66bc82ef30c3b9b7960fd33",
+  "prompts": {},
+  "sessions": {
+    "s_d236dcbec7210b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0929e-d77e-7bb2-8fd3-0401a6a7b54b",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
