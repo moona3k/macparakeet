@@ -99,7 +99,7 @@ Every owner resource read or mutation first verifies that the presenting credent
 | `PUT` | `/api/v1/shares/{share-id}` | Creates with `If-None-Match: *` or publishes the next content revision with `If-Match: "vN"`. |
 | `PATCH` | `/api/v1/shares/{share-id}/expiry` | Changes the exact expiration of an active share with `If-Match`; it does not change `contentRevision`. |
 | `DELETE` | `/api/v1/shares/{share-id}` | Permanently stops access, begins ciphertext deletion, and returns the current deletion receipt; it requires the opaque locator commitment and is idempotent and terminal. |
-| `GET` | `/api/v1/s/{locator}` | Returns the current encrypted envelope only for an active, unexpired locator. |
+| `GET` | `/api/v1/s/{locator}` | Returns `contentRevision`, `expiresAt`, and the current encrypted `envelope` only for an active, unexpired locator. |
 | `POST` | `/api/v1/s/{locator}/reports` | Creates a rate-limited, content-free abuse case and always returns a generic receipt; it never triggers automatic quarantine. |
 | `GET` | `/s/{locator}` | Serves a generic static viewer shell without share-specific metadata. |
 

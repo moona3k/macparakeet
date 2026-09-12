@@ -26,7 +26,7 @@ Stopping a link blocks future service access but cannot retrieve copies a recipi
 | One-way retired locator commitment | Yes | Yes | Retained without owner linkage, content, or timestamps solely so a stopped URL can never be reassigned. |
 | Creation, update, expiration, terminal, size, and deletion state | Yes | Yes | Content-free operational metadata. |
 | Owner bearer token | Yes, transiently over HTTPS | Yes during authentication | The secret is never persisted or logged; only a verifier is stored. |
-| Recovery token | Yes only when recovery is used | Yes during authentication | Single-use; restores management of old shares and starts a new publication generation. Only a verifier is stored. |
+| Recovery token | Yes during recovery or recovery-verifier replacement/removal | Yes during authentication | Successful recovery consumes the token. The current token is also required to replace or remove an existing verifier and is invalidated atomically by that change. Only a verifier is stored. |
 | Recipient network metadata | Necessarily processed by the host | The network provider can observe it | The application does not persist raw IPs, referrers, user-agent history, or view history. |
 
 The server never receives the rest of the Library, a fragment key, a complete recipient URL, local paths, hidden record identifiers, model details, prompts, or unselected metadata.
