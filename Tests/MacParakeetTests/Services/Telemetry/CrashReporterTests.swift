@@ -332,6 +332,9 @@ final class CrashReporterTests: XCTestCase {
             let content = """
             crash_type: signal
             signal: 11
+            name: SIGSEGV
+            timestamp: 1711900000
+            app_ver: 0.8.0
             pc: \(malformed)
             fault_addr: \(malformed)
             """

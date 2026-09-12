@@ -415,7 +415,8 @@ private final class FakeScreenCaptureLifecycleSession: ScreenCaptureLifecycleSes
 /// An `NSError` subclass that records whether its `description`, `userInfo`,
 /// or `Mirror` reflection were ever accessed, so a test can assert that
 /// production code touched only `domain`/`code`.
-private final class HostileNSError: NSError, CustomReflectable {
+// Each test observes this error synchronously; it is never shared across tasks.
+private final class HostileNSError: NSError, CustomReflectable, @unchecked Sendable {
     private(set) var descriptionWasAccessed = false
     private(set) var userInfoWasAccessed = false
     private(set) var reflectionWasObserved = false
