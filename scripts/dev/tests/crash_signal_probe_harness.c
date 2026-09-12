@@ -152,7 +152,10 @@ int main(int argc, char **argv) {
         // state or overwrite the first snapshot; the first installation's
         // metadata must be what later fires.
         install_with_app_version(path, "first-install-version");
-        install_with_app_version(path, "second-install-version");
+        char second_path[1024];
+        int length = snprintf(second_path, sizeof(second_path), "%s.second", path);
+        if (length < 0 || (size_t)length >= sizeof(second_path)) return 2;
+        install_with_app_version(second_path, "second-install-version");
         abort();
     } else if (strcmp(mode, "long_meta_abort") == 0) {
         // Output truncation safety: app_version far longer than the

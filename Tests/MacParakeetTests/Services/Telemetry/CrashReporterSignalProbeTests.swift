@@ -113,6 +113,7 @@ final class CrashReporterSignalProbeTests: XCTestCase {
         XCTAssertEqual(report.crashType, "signal")
         XCTAssertEqual(report.name, "SIGABRT")
         XCTAssertEqual(report.appVersion, "first-install-version")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: result.crashFilePath + ".second"))
     }
 
     // MARK: - Output truncation safety
