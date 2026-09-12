@@ -396,66 +396,16 @@ public final class PromptResultsViewModel {
         meetingTypeId: UUID?,
         transcriptionLabelIDs: Set<UUID>
     ) throws -> [ResolvedPrompt] {
-        guard let sourceType else {
-            return prompts.map {
-                ResolvedPrompt(prompt: $0, isAutoRun: $0.isAutoRun, effectiveSortOrder: $0.sortOrder)
-            }
+        try PromptAutoRunSelector.resolve(
+            prompts: prompts,
+            sourceType: sourceType,
+            meetingTypeId: meetingTypeId,
+            transcriptionLabelIDs: transcriptionLabelIDs,
+            promptLabelPolicyRepository: promptLabelPolicyRepository,
+            promptApplicabilityResolver: promptApplicabilityResolver
+        ).map {
+            ResolvedPrompt(prompt: $0.prompt, isAutoRun: $0.isAutoRun, effectiveSortOrder: $0.effectiveSortOrder)
         }
-
-        if let promptLabelPolicyRepository {
-            let policies = try promptLabelPolicyRepository.fetchPolicies(promptIds: Set(prompts.map(\.id)))
-            let policiesByPromptID = Dictionary(grouping: policies, by: \.promptId)
-            return prompts.compactMap { prompt in
-                let resolution = PromptLabelApplicabilityResolver.resolve(
-                    prompt: prompt,
-                    sourceType: sourceType,
-                    transcriptionLabelIDs: transcriptionLabelIDs,
-                    policies: policiesByPromptID[prompt.id] ?? []
-                )
-                guard resolution.isAvailable else { return nil }
-                return ResolvedPrompt(
-                    prompt: prompt,
-                    isAutoRun: resolution.isAutoRun,
-                    effectiveSortOrder: prompt.sortOrder
-                )
-            }.sorted(by: Self.resolvedPromptOrdering)
-        }
-
-        guard sourceType == .meeting, let promptApplicabilityResolver else {
-            return prompts.map {
-                ResolvedPrompt(
-                    prompt: $0,
-                    isAutoRun: $0.autoRuns(for: sourceType),
-                    effectiveSortOrder: $0.sortOrder
-                )
-            }
-        }
-        return try prompts.compactMap { prompt in
-            let resolution = try promptApplicabilityResolver.resolve(
-                prompt: prompt,
-                sourceType: .meeting,
-                meetingTypeId: meetingTypeId
-            )
-            return resolution.isAvailable
-                ? ResolvedPrompt(
-                    prompt: prompt,
-                    isAutoRun: resolution.isAutoRun,
-                    effectiveSortOrder: resolution.effectiveSortOrder
-                )
-                : nil
-        }.sorted(by: Self.resolvedPromptOrdering)
-    }
-
-    nonisolated private static func resolvedPromptOrdering(
-        _ lhs: ResolvedPrompt,
-        _ rhs: ResolvedPrompt
-    ) -> Bool {
-        let lhsOrder = lhs.effectiveSortOrder
-        let rhsOrder = rhs.effectiveSortOrder
-        if lhsOrder != rhsOrder { return lhsOrder < rhsOrder }
-        let nameOrder = lhs.prompt.name.localizedCaseInsensitiveCompare(rhs.prompt.name)
-        if nameOrder != .orderedSame { return nameOrder == .orderedAscending }
-        return lhs.prompt.id.uuidString < rhs.prompt.id.uuidString
     }
 
     public func loadPromptResults(transcriptionId: UUID) {
