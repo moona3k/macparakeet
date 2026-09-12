@@ -46,6 +46,23 @@ final class CrashReporterSignalProbeTests: XCTestCase {
         XCTAssertNotNil(report.faultAddr)
     }
 
+    func testEveryInstalledSignalExitsViaItsOwnDefaultDisposition() throws {
+        // SIGTRAP is essential: Darwin does not reset it with SA_RESETHAND.
+        let signals: [(String, Int32)] = [
+            ("raise_segv", SIGSEGV), ("raise_abrt", SIGABRT),
+            ("raise_bus", SIGBUS), ("raise_ill", SIGILL),
+            ("raise_trap", SIGTRAP), ("raise_fpe", SIGFPE),
+        ]
+        for (mode, signal) in signals {
+            let result = try runProbe(mode: mode)
+            XCTAssertEqual(result.process.terminationReason, .uncaughtSignal, mode)
+            XCTAssertEqual(result.process.terminationStatus, signal, mode)
+            let report = try XCTUnwrap(CrashReporter.loadPendingReport(from: result.crashFilePath))
+            XCTAssertEqual(report.crashType, "signal", mode)
+            XCTAssertEqual(report.signal, String(signal), mode)
+        }
+    }
+
     // MARK: - Fault: interrupted PC must reflect the faulting code, not the handler
 
     func testSubprocessSegfaultPCPointsIntoInterruptedFunctionNotHandler() throws {

@@ -117,7 +117,8 @@ int main(int argc, char **argv) {
         fprintf(stderr,
                 "modes: abort | segv | reinstall_abort | long_meta_abort | "
                 "short_write_abort | eintr_write_abort | zero_write_abort | "
-                "backtrace_fails_abort | backtrace_exits_abort\n");
+                "backtrace_fails_abort | backtrace_exits_abort | "
+                "raise_segv | raise_abrt | raise_bus | raise_ill | raise_trap | raise_fpe\n");
         return 2;
     }
     // Arm only this disposable child; a hung handler fails with SIGALRM.
@@ -129,6 +130,19 @@ int main(int argc, char **argv) {
 
     const char *path = argv[1];
     const char *mode = argv[2];
+
+    static const struct { const char *mode; int signal_number; } raised_signals[] = {
+        { "raise_segv", SIGSEGV }, { "raise_abrt", SIGABRT },
+        { "raise_bus", SIGBUS }, { "raise_ill", SIGILL },
+        { "raise_trap", SIGTRAP }, { "raise_fpe", SIGFPE },
+    };
+    for (size_t i = 0; i < sizeof(raised_signals) / sizeof(raised_signals[0]); i++) {
+        if (strcmp(mode, raised_signals[i].mode) == 0) {
+            install_with_app_version(path, "probe-app-ver");
+            raise(raised_signals[i].signal_number);
+            return 4; // A fatal handler must never return to this call site.
+        }
+    }
 
     if (strcmp(mode, "segv") == 0) {
         install_with_app_version(path, "probe-app-ver");

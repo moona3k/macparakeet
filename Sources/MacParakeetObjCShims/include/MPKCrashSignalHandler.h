@@ -20,7 +20,9 @@ typedef struct {
 /// Installs `SA_SIGINFO` handlers for the fixed diagnostic signal set
 /// (`SIGSEGV`, `SIGABRT`, `SIGBUS`, `SIGILL`, `SIGTRAP`, `SIGFPE`) that write a
 /// crash report to `crash_file_path` before re-raising for default
-/// (`SIG_DFL`) termination.
+/// (`SIG_DFL`) termination. Every fatal exit explicitly restores SIG_DFL;
+/// it does not rely on SA_RESETHAND resetting SIGTRAP on Darwin. If re-raising
+/// unexpectedly returns, _exit terminates without resuming faulting code.
 ///
 /// The minimum report uses fixed buffers, bounded manual formatting and
 /// async-signal-safe I/O. No Swift/Objective-C runtime, allocating formatter,

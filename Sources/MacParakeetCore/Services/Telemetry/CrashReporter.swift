@@ -282,7 +282,7 @@ public final class CrashReporter {
             stackTrace: stackTrace,
             siCode: crashType == "signal" ? validatedDecimal(fields["si_code"]) : nil,
             pc: crashType == "signal" ? validatedHexAddress(fields["pc"]) : nil,
-            faultAddr: crashType == "signal" ? validatedHexAddress(fields["fault_addr"]) : nil)
+            faultAddr: crashType == "signal" ? validatedHexAddress(fields["fault_addr"]) : nil
         )
     }
 
@@ -311,7 +311,8 @@ public final class CrashReporter {
     private static func validatedHexAddress(_ raw: String?, maxHexDigits: Int = 16) -> String? {
         guard let raw, raw.hasPrefix("0x") else { return nil }
         let digits = raw.dropFirst(2)
-        guard !digits.isEmpty, digits.count <= maxHexDigits, digits.allSatisfy(\.isHexDigit) else {
+        guard !digits.isEmpty, digits.count <= maxHexDigits,
+              digits.allSatisfy({ $0.isASCII && $0.isHexDigit }) else {
             return nil
         }
         return raw

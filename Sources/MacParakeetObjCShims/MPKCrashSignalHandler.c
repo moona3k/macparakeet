@@ -196,6 +196,15 @@ static int mpk_write_all(int fd, const char *buf, size_t len) {
     return 1;
 }
 
+// Darwin does not guarantee SA_RESETHAND resets SIGTRAP. Explicitly restore
+// the default disposition for every fatal exit, including guard losers.
+static _Noreturn void mpk_terminate_with_signal(int sig) {
+    signal(sig, SIG_DFL);
+    raise(sig);
+    // If signal delivery unexpectedly returns, never resume faulting code.
+    _exit(128 + sig);
+}
+
 static void mpk_signal_handler(int sig, siginfo_t *info, void *uap) {
     int expected = 0;
     if (!atomic_compare_exchange_strong(&g_handler_entered, &expected, 1)) {
@@ -204,8 +213,7 @@ static void mpk_signal_handler(int sig, siginfo_t *info, void *uap) {
         // This handler makes no attempt to serialize or wait for the first
         // thread's report to finish — best-effort, not a durability
         // guarantee for either thread's evidence.
-        raise(sig);
-        return;
+        mpk_terminate_with_signal(sig);
     }
 
     uint64_t fault_addr = (uint64_t)(uintptr_t)(info != NULL ? info->si_addr : NULL);
@@ -254,8 +262,7 @@ static void mpk_signal_handler(int sig, siginfo_t *info, void *uap) {
         close(fd);
     }
     if (!minimum_written) {
-        raise(sig);
-        return;
+        mpk_terminate_with_signal(sig);
     }
 
     // Best-effort backtrace, appended only after the minimal report above has
@@ -284,10 +291,7 @@ static void mpk_signal_handler(int sig, siginfo_t *info, void *uap) {
         }
     }
 
-    // SA_RESETHAND already restored SIG_DFL for `sig` before this handler was
-    // entered. Re-raise to let the OS default disposition terminate the
-    // process; there is no recover-and-continue path.
-    raise(sig);
+    mpk_terminate_with_signal(sig);
 }
 
 void MPKInstallCrashSignalHandler(const char *crash_file_path, const MPKCrashMetadata *metadata) {

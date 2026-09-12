@@ -327,6 +327,21 @@ final class CrashReporterTests: XCTestCase {
         XCTAssertNil(report?.pc)
     }
 
+    func testLoadPendingReportDropsNonASCIIHexAddresses() throws {
+        for malformed in ["0xＦＦ", "0x１２", "0x1Ａ"] {
+            let content = """
+            crash_type: signal
+            signal: 11
+            pc: \(malformed)
+            fault_addr: \(malformed)
+            """
+            try content.write(toFile: testCrashPath, atomically: true, encoding: .utf8)
+            let report = try XCTUnwrap(CrashReporter.loadPendingReport(from: testCrashPath))
+            XCTAssertNil(report.pc, malformed)
+            XCTAssertNil(report.faultAddr, malformed)
+        }
+    }
+
     func testLoadPendingReportParsesSiCodeAtInt32Boundaries() {
         // si_code is a signed 32-bit value; the parser must accept the full
         // range, including both boundary values, without signed overflow.
