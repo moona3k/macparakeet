@@ -81,6 +81,14 @@ verify_deployment_targets() {
 
   local failed=0
   local dylib
+  # build_app_bundle.sh copies dependent dylibs via `find -name '*.dylib'`,
+  # which (unlike this loop's default bash glob) also matches dot-prefixed
+  # hidden files. Enable dotglob for this enumeration so a hidden dependency
+  # can't bypass the deployment-target check; restore the prior setting
+  # afterward since dotglob is process-wide, not loop-scoped.
+  local dotglob_was_set=0
+  shopt -q dotglob && dotglob_was_set=1
+  shopt -s dotglob
   for dylib in "$FRAMEWORKS_DIR"/*.dylib; do
     if [[ ! -f "$dylib" && ! -L "$dylib" ]]; then
       echo "Error: could not enumerate bundled LocalVQE dylibs: $FRAMEWORKS_DIR" >&2
@@ -106,6 +114,7 @@ verify_deployment_targets() {
       fi
     done <<<"$minos_output"
   done
+  [[ "$dotglob_was_set" == "1" ]] || shopt -u dotglob
 
   if [[ "$failed" == "1" ]]; then
     exit 1

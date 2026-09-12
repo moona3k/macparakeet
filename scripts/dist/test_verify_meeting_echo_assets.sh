@@ -200,6 +200,19 @@ assert_fail_contains \
   env MACPARAKEET_MEETING_ECHO_MIN_MACOS_VERSION=14.2
 echo "PASS: every bundled LocalVQE dylib is inspected, not only liblocalvqe.dylib"
 
+# --- A hidden (dot-prefixed) bundled dependency is inspected too, not
+# skipped by a bash glob that excludes dotfiles by default. ------------------
+APP5b="$(make_app "Fixture Hidden Dependency")"
+make_dylib "$APP5b/Contents/Frameworks/liblocalvqe.dylib" "arm64:14.2"
+make_dylib "$APP5b/Contents/Frameworks/.libggml-hidden.dylib" "arm64:15.7"
+add_fixture_model "$APP5b"
+assert_fail_contains \
+  "a hidden dot-prefixed bundled dependency is also inspected" \
+  "$APP5b" \
+  ".libggml-hidden.dylib" \
+  env MACPARAKEET_MEETING_ECHO_MIN_MACOS_VERSION=14.2
+echo "PASS: hidden dot-prefixed bundled dylibs are inspected, not skipped"
+
 # --- Malformed/corrupt dylib (no parseable version) is rejected ------------
 APP6="$(make_app "Fixture Malformed")"
 make_dylib "$APP6/Contents/Frameworks/liblocalvqe.dylib" "arm64:14.2"
