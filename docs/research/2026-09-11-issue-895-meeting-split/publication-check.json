@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "preparedAt": "2026-09-12T02:46:39.107Z",
+  "preparedAt": "2026-09-12T02:52:29.675Z",
   "baseRevision": "aaf3dc261536e5fc5158c4b1ca714bd3f4cece19",
   "scope": "Research, implementation handoff and fictional HTML reference only; no app implementation or release.",
   "changesSinceResearchVerification": [
@@ -15,6 +15,11 @@
     "jsonParse": "pass",
     "stagedWhitespace": "pass",
     "primaryResearchFilesUnchanged": true
+  },
+  "documentReview": {
+    "requestedCliModel": "claude-sonnet-5",
+    "completedReadOnlyLenses": ["coherence", "feasibility", "design", "security", "scope", "adversarial"],
+    "disposition": "Added a many-part publication-lock benchmark after confirming the five-second database busy timeout. Kept atomic publication as the default pending measurement. Did not mandate safe-gap suggestions, progress layout, separate CLI scheduling or a release flag: these are optional UX, implementation or release choices, not demonstrated blockers. Gate/ownership/lease terminology describes one coordination responsibility, not three required abstractions."
   },
   "evidenceLimits": [
     "The original native experiment and browser flow checks are recorded in artifact-check.json.",
@@ -40,6 +45,6 @@
     "docs/research/2026-09-11-issue-895-meeting-split/screenshots/split-four-desktop.png": "c691025d19fc07e65c734f424877ef32a52d2219b9a49f273b5d66f94cb19ff3",
     "docs/research/2026-09-11-issue-895-meeting-split/screenshots/split-four-mobile.png": "50be2edb8ba793b51997f440b6f590bb1af2466de74002784d2a6a7b567e0f2e",
     "docs/research/2026-09-11-issue-895-meeting-split/screenshots/split-success.png": "a33541b6e0b29b79501112afe8e6b0f3e6648732b3921fee2f7547ffd4e92e99",
-    "docs/plans/2026-09-11-issue-895-meeting-split-plan.md": "a349daf3f31005218ab5c28d556af0221ed092208a2a7b319cb9cee96cc4331e"
+    "docs/plans/2026-09-11-issue-895-meeting-split-plan.md": "128b1b3f46179af5c10ca281d97f40eade021c041dd5ce6a3ee18f924050cdb2"
   }
 }
