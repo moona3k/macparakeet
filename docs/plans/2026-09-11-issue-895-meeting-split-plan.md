@@ -120,6 +120,26 @@ zero failures). A subsequent regression proved retry briefly hid already-saved
 parts; retaining the receipt fixed it, with 26 focused tests passing. Native
 presentation, isolated fixture QA, and final integration remain in progress.
 
+### Native runtime checkpoint — September 12
+
+Accessibility-driven QA in an isolated synthetic library created three
+independent saved recordings of 30, 15 and 45 seconds from a 90-second source
+without word timestamps. Original playback and metadata SHA-256 hashes
+remained unchanged. Invalid boundary entry disabled creation. Closing and
+reopening the sheet preserved processing state. Rendered QA prompted clearer
+"Split at" labels and renumbering untouched default titles when adding cuts;
+custom titles remain unchanged. The latter changes passed 19 ViewModel tests.
+
+Stop during cold Parakeet model loading took several minutes, then all three
+parts became cancelled and ready to continue on their existing identities.
+A runtime sample showed CoreML waiting on the Apple Neural Engine daemon;
+an independent Fable review found the existing shared model-load/drain path
+consistent with this behavior, not evidence of a split-specific cancellation
+defect. Keep ownership until the call returns and explain delayed stopping in
+the sheet. Do not introduce another queue or abandon a live runtime task.
+This verifies saved audio and eventual cancellation, not successful speech
+recognition, automation, restart recovery or warmed-model cancellation.
+
 ### U1. Establish the revised contract
 
 Land this docs-only scope revision first. Mark old research/HTML as historical. Record inspected pipeline behavior and verification limits. No app feature, schema migration or automatic issue closure belongs in this PR.

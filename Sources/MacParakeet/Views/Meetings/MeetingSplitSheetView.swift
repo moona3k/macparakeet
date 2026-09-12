@@ -272,7 +272,9 @@ struct MeetingSplitSheetView: View {
                 Text(navigationError).foregroundStyle(DesignSystem.Colors.errorRed)
             }
             if viewModel.operation?.status == .committed {
-                Text("You can close this window while processing continues. Stopping keeps the saved recordings and completed work.")
+                Text(viewModel.isStopping
+                     ? "Waiting for the current speech step to stop. Model loading can take several minutes to finish. Your saved recordings and completed work will remain available."
+                     : "You can close this window while processing continues. Stopping keeps the saved recordings and completed work, but may wait for model loading or the current speech step to finish.")
                     .font(DesignSystem.Typography.bodySmall)
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
             }

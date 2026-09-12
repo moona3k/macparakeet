@@ -52,6 +52,11 @@ Callers do not sequence filesystem and database mutations themselves.
 - Transcription/automation failure or cancellation leaves published audio
   available for retry on the same IDs. Preserve successful stages. Continue
   after an individual part fails; explicit cancellation stops further starts.
+- Stop is cooperative, not an immediate runtime interruption. The existing
+  speech pipeline may be awaiting a shared, non-cancellable CoreML model
+  load. Keep operation and media ownership until that speech call drains;
+  explain the wait instead of releasing protection while audio is still in
+  use. Cancellation must not start the next part.
 - Retry must not unnecessarily repeat completed automation. Do not promise
   exactly-once external side effects where the existing provider/hook cannot
   establish it. Surface uncertain delivery rather than silently duplicating it.
