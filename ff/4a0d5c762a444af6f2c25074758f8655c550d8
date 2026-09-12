@@ -1,0 +1,23 @@
+docs/plans/2026-09-11-1942-feat-shareable-transcripts-plan.md
+  s_d236dcbec7210b::t_03bdd7087e4b69 346
+  s_d236dcbec7210b::t_0aae3c252481d3 386
+spec/contracts/share-service-v1.md
+  s_d236dcbec7210b::t_0aae3c252481d3 95,130,258
+  s_d236dcbec7210b::t_03bdd7087e4b69 129,273
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ff4a0d5c762a444af6f2c25074758f8655c550d8",
+  "prompts": {},
+  "sessions": {
+    "s_d236dcbec7210b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0929e-d77e-7bb2-8fd3-0401a6a7b54b",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
