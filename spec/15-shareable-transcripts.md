@@ -51,6 +51,7 @@ If a configured code is lost, the device can keep managing its shares but cannot
 The first-share flow explains that without a saved recovery code, losing local management state also loses the ability to stop a still-active page early.
 Using recovery replaces the prior management credential, so an old installation becomes visibly unable to manage those records instead of retrying forever.
 Previously published shares remain management-only after recovery, while the recovered installation can publish and update new shares normally under the same anonymous owner; recovery offers one replacement recovery code.
+If this Mac already manages a different owner, importing recovery first requires its existing shares to be terminal and pending operations to finish. The app never silently abandons existing management authority to switch owners.
 
 ## Lifecycle and deletion
 

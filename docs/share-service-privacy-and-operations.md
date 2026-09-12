@@ -115,14 +115,14 @@ They are not recipient views and cannot be presented to an owner as viewing anal
 ## Abuse and incident response
 
 Abuse controls focus on cost and availability because the operator cannot inspect encrypted content in normal operation.
-The service has per-owner payload and storage quotas, bounded creation rates, report-rate controls, global spend alerts, a creation kill switch, and a mode that preserves existing reads while rejecting new writes.
+The service has per-owner payload and storage quotas, bounded creation rates, report-rate controls, global spend alerts, a creation kill switch, and a mode that preserves existing reads while rejecting enrollment, publication, content updates, and expiration extensions. This mode continues to allow authentication, recovery, permanent owner/operator stop, deletion reconciliation, expiration enforcement, and retention cleanup.
 
 Public reports create cases only.
-Administrative restriction requires a logged operator decision or a documented multi-signal rule; a single anonymous report never stops access automatically.
+Administrative restriction requires a logged operator decision. Reports and automated signals may inform that decision but never permanently stop access automatically.
 The operator control permanently stops the service-side share identifier without revealing plaintext, and records a sterile reason and actor audit entry.
 Legal notices that include plaintext follow a separate counsel-approved process and do not silently expand ordinary logging or retention.
 
-A suspected viewer compromise requires freezing new publication, preserving sterile deployment evidence, rotating deployment credentials, restoring a reviewed static build, and notifying affected owners according to the incident policy.
+A suspected viewer compromise requires freezing new publication, preserving sterile deployment evidence, rotating deployment credentials, restoring a reviewed static build, and publishing a public incident notice. The service holds no owner contact information and cannot promise individual owner notification.
 Because the service does not know which recipients viewed a link, it must not claim complete recipient notification.
 
 ## Release evidence
