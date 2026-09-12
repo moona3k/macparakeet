@@ -1,0 +1,742 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Split a meeting recording — interactive concept (Issue #895)</title>
+<style>
+  :root{
+    --bg:#f5f5f7; --sidebar:#ececef; --surface:#ffffff; --text:#202124; --muted:#62646b;
+    --accent:#E86B3B; --line:#dcdce0; --line-strong:#c9c9cf;
+    --success-bg:#e6f4ea; --success-fg:#1e7d34; --warn-bg:#fdf3d9; --warn-fg:#8a6d1a;
+    --err:#b3261e;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size:14px; line-height:1.5;
+  }
+  button, input{font:inherit; color:inherit;}
+  button:focus-visible, input:focus-visible, a:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+
+  .strip{
+    background:var(--surface); border-bottom:1px solid var(--line);
+    padding:8px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px;
+    flex-wrap:wrap; font-size:12.5px; color:var(--muted);
+  }
+  .strip strong{color:var(--text);}
+  .stage{max-width:1120px; margin:0 auto; padding:20px 16px 24px;}
+  .cta-row{display:flex; justify-content:center; margin-bottom:18px;}
+  .cta{
+    background:var(--accent); color:#202124; border:none; border-radius:8px;
+    padding:10px 18px; font-size:14px; font-weight:600; cursor:pointer;
+  }
+  .cta:hover{filter:brightness(0.95);}
+
+  .window{
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.08); min-height:540px;
+  }
+  .titlebar{
+    height:38px; display:flex; align-items:center; gap:10px; padding:0 14px;
+    background:var(--sidebar); border-bottom:1px solid var(--line);
+  }
+  .dots{display:inline-flex; gap:6px;}
+  .dots i{width:11px; height:11px; border-radius:50%; display:inline-block; opacity:.85;}
+  .dots i:nth-child(1){background:#ff5f57;}
+  .dots i:nth-child(2){background:#febc2e;}
+  .dots i:nth-child(3){background:#28c840;}
+  .wtitle{font-size:12.5px; color:var(--muted); font-weight:600;}
+
+  .body{display:flex; min-height:502px;}
+  .sidebar{width:160px; background:var(--sidebar); border-right:1px solid var(--line); padding:12px 8px; flex-shrink:0;}
+  .side-item{padding:6px 10px; border-radius:6px; color:var(--muted); font-size:13px; margin-bottom:2px;}
+  .side-item.active{background:#fff; color:var(--text); font-weight:600; box-shadow:inset 0 0 0 1px var(--line);}
+  .content{flex:1; padding:22px 24px; overflow:auto; min-width:0;}
+
+  .crumb{font-size:12px; color:var(--muted); margin-bottom:6px;}
+  .title{font-size:20px; margin:0 0 6px;}
+  .meta{font-size:13px; color:var(--muted); margin-bottom:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .excerpt{color:var(--muted); font-style:italic; max-width:60ch; margin:0 0 16px;}
+
+  .badge{border-radius:999px; padding:2px 9px; font-size:11.5px; font-weight:600;}
+  .badge.ok{background:var(--success-bg); color:var(--success-fg);}
+  .badge.warn{background:var(--warn-bg); color:var(--warn-fg);}
+
+  .row{display:flex; align-items:center; gap:10px;}
+  .row.actions{margin-top:18px; flex-wrap:wrap;}
+
+  .btn{
+    background:var(--surface); border:1px solid var(--line-strong); border-radius:7px;
+    padding:7px 13px; font-size:13px; cursor:pointer;
+  }
+  .btn:hover{background:var(--bg);}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#202124; font-weight:600;}
+  .btn.primary:hover{filter:brightness(0.95);}
+  .btn.primary-outline{background:var(--surface); border-color:var(--accent); color:var(--accent); font-weight:600;}
+  .btn[disabled]{opacity:.45; cursor:not-allowed;}
+  .btn[disabled]:hover{background:var(--surface);}
+
+  .link-btn{
+    background:none; border:none; padding:0; font-size:13px; color:var(--text);
+    text-decoration:underline; cursor:pointer;
+  }
+  .link-btn:hover{color:var(--muted);}
+
+  .icon-btn{
+    background:none; border:1px solid var(--line-strong); border-radius:50%;
+    width:22px; height:22px; line-height:1; font-size:14px; cursor:pointer; color:var(--muted);
+  }
+  .icon-btn:hover{background:var(--bg); color:var(--err);}
+
+  .menuWrap{position:relative;}
+  .menu{
+    position:absolute; top:calc(100% + 4px); left:0; background:var(--surface);
+    border:1px solid var(--line); border-radius:8px; box-shadow:0 4px 14px rgba(0,0,0,0.12);
+    min-width:180px; padding:4px; z-index:5;
+  }
+  .menu-item{
+    display:block; width:100%; text-align:left; background:none; border:none;
+    padding:7px 10px; font-size:13px; border-radius:5px; cursor:pointer;
+  }
+  .menu-item:hover{background:var(--bg);}
+
+  .h2{font-size:13px; font-weight:600; color:var(--muted); margin:18px 0 8px;}
+  .split-workspace{display:grid; grid-template-columns:1fr 1fr; gap:24px;}
+  .transcript-pane .passages{max-height:485px; overflow:auto; padding-right:12px;}
+  .split-workspace>div{min-width:0;}
+  .editor h1{font-size:19px; margin:0;}
+  .editor-head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;}
+
+  .notice{
+    background:var(--warn-bg); color:var(--warn-fg); border-radius:8px; padding:10px 12px;
+    font-size:13px; margin:10px 0;
+  }
+  .notice.info{background:var(--bg); color:var(--text); border:1px solid var(--line);}
+  .notice.info p{margin:0 0 8px;}
+
+  .statebox{
+    display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 16px;
+    background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:10px 14px; margin:10px 0 4px;
+  }
+  .srow{display:flex; justify-content:space-between; gap:8px; font-size:12.5px;}
+  .sk{color:var(--muted);}
+  .sv{font-weight:600; text-align:right;}
+
+  .timeline{position:relative; display:flex; height:34px; border-radius:6px; overflow:hidden; border:1px solid var(--line);}
+  .tl-part{height:100%;}
+  .tl-part.a{background:var(--sidebar);}
+  .tl-part.b{background:#f9f9fa;}
+  .tl-tick{
+    position:absolute; top:12px; width:10px; height:10px; border-radius:50%;
+    background:var(--line-strong); border:1px solid var(--surface); transform:translateX(-50%);
+    cursor:pointer; padding:0;
+  }
+  .tl-tick:hover{background:var(--muted);}
+  .tl-cut{position:absolute; top:0; bottom:0; width:2px; background:var(--accent); transform:translateX(-50%);}
+  .tl-labels{display:flex; justify-content:space-between; font-size:11.5px; color:var(--muted); margin-top:4px;}
+
+  .passages{display:flex; flex-direction:column; gap:0;}
+  .passage{padding:8px 0;}
+  .ptime{font-size:11.5px; color:var(--muted); font-variant-numeric:tabular-nums;}
+  .ptext{margin:2px 0 0; max-width:70ch;}
+  .boundary{
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:6px 0;
+    border-top:1px dashed var(--line); border-bottom:1px dashed var(--line); font-size:12.5px;
+  }
+  .conf{color:var(--muted);}
+  .tag{background:var(--bg); border:1px solid var(--line); border-radius:999px; padding:1px 8px; font-size:11.5px;}
+  .tag.done{background:var(--success-bg); color:var(--success-fg); border-color:var(--success-bg);}
+  .preview{background:var(--bg); border-radius:6px; padding:8px 10px; margin:4px 0 8px; font-size:12.5px;}
+
+  .manual label{display:block; font-size:12.5px; color:var(--muted); margin-bottom:6px;}
+  .manual input{
+    border:1px solid var(--line-strong); border-radius:7px; padding:7px 10px; font-size:13px; width:180px;
+  }
+  .status{min-height:18px; font-size:12.5px; margin:8px 0 0;}
+  .status.ok{color:var(--success-fg);}
+  .status.err{color:var(--err);}
+  .muted{color:var(--muted);}
+  .muted.small{font-size:12.5px; max-width:70ch;}
+
+  .splits{display:flex; flex-direction:column; gap:6px;}
+  .split-row{
+    display:flex; align-items:center; gap:10px; background:var(--bg); border:1px solid var(--line);
+    border-radius:7px; padding:6px 10px;
+  }
+  .stime{font-variant-numeric:tabular-nums; font-weight:600; min-width:64px;}
+
+  .preview-table{display:flex; flex-direction:column; gap:6px;}
+  .prow{
+    display:grid; grid-template-columns:1fr auto; gap:4px 10px; align-items:center;
+    background:var(--bg); border:1px solid var(--line); border-radius:7px; padding:6px 10px;
+  }
+  .ptitle{grid-column:1/-1; border:1px solid var(--line-strong); border-radius:6px; padding:5px 8px; font-size:13px; width:100%;}
+  .prange, .pdur{font-size:12.5px; color:var(--muted); font-variant-numeric:tabular-nums;}
+
+  .progress-track{background:var(--bg); border:1px solid var(--line); border-radius:999px; height:10px; overflow:hidden; margin:14px 0 6px;}
+  .progress-fill{background:var(--accent); height:100%; width:58%;}
+
+  .children{display:flex; flex-direction:column; gap:8px; margin:12px 0;}
+  .child-card{
+    display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+    background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:10px 14px;
+  }
+  .child-card.original{border-style:dashed;}
+  .ctitle{font-weight:600;}
+  .crange{font-size:12.5px; color:var(--muted);}
+
+  .scenarios{max-width:960px; margin:0 auto; padding:0 16px 40px;}
+  .scenLabel{font-size:12.5px; color:var(--muted); margin:0 0 8px;}
+  .scenBtns{display:flex; gap:8px; flex-wrap:wrap;}
+  .scenBtns button{
+    background:var(--surface); border:1px solid var(--line-strong); border-radius:7px;
+    padding:7px 13px; font-size:13px; cursor:pointer;
+  }
+  .scenBtns button:hover{background:var(--sidebar);}
+  .scenBtns button[aria-pressed="true"]{border-color:var(--accent); background:#fff1e9;}
+  .guide{font-size:13px; color:var(--muted); margin-top:10px;}
+
+  @media (max-width:850px){
+    .split-workspace{grid-template-columns:1fr; gap:0;}
+    .transcript-pane .passages{max-height:220px;}
+  }
+  @media (max-width:640px){
+    .sidebar{display:none;}
+    .content{padding:16px;}
+    .prow{grid-template-columns:1fr; gap:4px;}
+    .prange,.pdur{text-align:left;}
+    .manual input{width:100%; min-width:0;}
+    .manual .btn{flex-shrink:0;}
+    .statebox{grid-template-columns:1fr;}
+    .editor-head{align-items:flex-start;}
+    .split-row{flex-wrap:wrap;}
+  }
+</style>
+</head>
+<body>
+
+  <div class="strip">
+    <span><strong>UI/UX reference only — Issue #895.</strong> Explore and choose the best native interaction during implementation; this layout is not a specification. Fictional data; no real files or audio playback. <a href="report.md">Read the investigation</a></span>
+    <button id="resetBtn" class="btn">Reset demo</button>
+  </div>
+
+  <div class="stage">
+    <div class="cta-row">
+      <button id="ctaTry" class="cta">Try splitting this recording</button>
+    </div>
+
+    <div class="window" role="region" aria-label="MacParakeet concept">
+      <div class="titlebar">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="wtitle">MacParakeet</span>
+      </div>
+      <div class="body">
+        <nav class="sidebar" aria-hidden="true">
+          <div class="side-item">Transcribe</div>
+          <div class="side-item active">Library</div>
+          <div class="side-item">Dictations</div>
+          <div class="side-item">Meetings</div>
+          <div class="side-item">Settings</div>
+        </nav>
+        <main class="content" id="content"></main>
+      </div>
+    </div>
+  </div>
+
+  <div class="scenarios">
+    <p class="scenLabel">Jump to a guided scenario:</p>
+    <div class="scenBtns">
+      <button data-scenario="two">Two meetings</button>
+      <button data-scenario="four">Four meetings</button>
+      <button data-scenario="audioRemoved">Audio removed</button>
+      <button data-scenario="transcriptEdited">Transcript edited</button>
+    </div>
+    <p id="scenarioGuide" class="guide" aria-live="polite">Choose a scenario to load its split points, then review the parts and create the sample meetings.</p>
+  </div>
+
+<script>
+  // ---------- sample data ----------
+  var TITLE = "Friday morning meetings";
+  var DATE_LABEL = "Sep 11, 2026";
+  var DURATION = 6480; // 1:48:00
+
+  var PASSAGES = [
+    {start:0,    end:605,  text:"Good morning — let's do quick round-robin updates before we get into blockers."},
+    {start:605,  end:1330, text:"Sounds like the API migration is the main blocker. Let's talk through the plan for sprint planning."},
+    {start:1330, end:2180, text:"Sprint planning: we're pulling in the notification revamp and pushing the analytics work to next sprint."},
+    {start:2180, end:3015, text:"Moving into design review — here's the updated flow for the meeting-split screen."},
+    {start:3015, end:3800, text:"Open critique: a few people flagged the confirmation step as unclear, let's simplify the copy."},
+    {start:3800, end:4330, text:"Next steps: revise the copy, add a preview state, and circle back Monday."},
+    {start:4330, end:4900, text:"Customer call: walking through the current onboarding flow and where they're getting stuck."},
+    {start:4900, end:5400, text:"Q&A: they asked about export options and whether a recording can be split after the fact."},
+    {start:5400, end:6100, text:"Retro: what went well this week, what didn't, and what we want to change."},
+    {start:6100, end:6480, text:"Action items: assign owners, confirm deadlines, wrap up."}
+  ];
+
+  var SAFE_BOUNDARIES = [605, 1330, 2180, 3015, 3800, 4330, 4900, 5400, 6100];
+  var SNAP_WINDOW = 20;
+  var SEGMENTS = [
+    {start:0,    end:2180, name:"Standup"},
+    {start:2180, end:4330, name:"Design Review"},
+    {start:4330, end:5400, name:"Customer Call"},
+    {start:5400, end:6480, name:"Retro"}
+  ];
+
+  // ---------- pure helpers ----------
+  function pad2(n){ return String(n).padStart(2,"0"); }
+
+  function formatTime(sec){
+    sec = Math.round(sec);
+    var h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+    return h>0 ? (h+":"+pad2(m)+":"+pad2(s)) : (m+":"+pad2(s));
+  }
+
+  function parseTimeInput(raw){
+    if (typeof raw !== "string") return null;
+    var s = raw.trim();
+    if (!/^\d{1,3}(:\d{1,2}){1,2}$/.test(s)) return null;
+    var parts = s.split(":").map(function(p){ return parseInt(p,10); });
+    if (parts.some(function(p){ return isNaN(p) || p<0; })) return null;
+    var h=0, m=0, sec=0;
+    if (parts.length===2){ m=parts[0]; sec=parts[1]; }
+    else { h=parts[0]; m=parts[1]; sec=parts[2]; }
+    if ((parts.length===3 && m>59) || sec>59) return null;
+    return h*3600 + m*60 + sec;
+  }
+
+  function findSnap(time){
+    var best=null, bestDist=Infinity;
+    SAFE_BOUNDARIES.forEach(function(b){
+      var d = Math.abs(b-time);
+      if (d<bestDist){ bestDist=d; best=b; }
+    });
+    return {boundary:best, distance:bestDist};
+  }
+
+  function validateAndResolve(raw, cuts){
+    var t = parseTimeInput(raw);
+    if (t===null) return {ok:false, msg:"Enter a time like 36:20 or 1:12:10."};
+    if (t<=0) return {ok:false, msg:"Can't split at the very start of the recording."};
+    if (t>=DURATION) return {ok:false, msg:"Can't split at the very end of the recording."};
+    var snap = findSnap(t);
+    if (snap.distance > SNAP_WINDOW){
+      var near = SAFE_BOUNDARIES.slice().sort(function(a,b){
+        return Math.abs(a-t)-Math.abs(b-t);
+      }).slice(0,2).map(formatTime).join(" or ");
+      return {ok:false, msg:"That's mid-sentence, not a safe cut. Try " + near + "."};
+    }
+    if (cuts.indexOf(snap.boundary) !== -1) return {ok:false, msg:"That split point already exists."};
+    return {ok:true, time:snap.boundary, snapped: snap.boundary!==t, original:t};
+  }
+
+  function addCut(cuts, time){
+    return cuts.concat([time]).sort(function(a,b){ return a-b; });
+  }
+  function removeCut(cuts, time){
+    return cuts.filter(function(c){ return c!==time; });
+  }
+  function computeParts(cuts){
+    var bounds = [0].concat(cuts, [DURATION]);
+    var parts = [];
+    for (var i=0;i<bounds.length-1;i++){
+      parts.push({start:bounds[i], end:bounds[i+1], duration:bounds[i+1]-bounds[i]});
+    }
+    return parts;
+  }
+  function defaultTitle(start, end, index){
+    var seg = SEGMENTS.find(function(s){ return s.start===start && s.end===end; });
+    return TITLE + " — Part " + (index+1);
+  }
+  function wordsFrom(text, count, fromEnd){
+    var words = text.split(/\s+/);
+    return fromEnd ? words.slice(-count).join(" ") : words.slice(0,count).join(" ");
+  }
+
+  // ---------- DOM helper ----------
+  function h(tag, attrs){
+    var e = document.createElement(tag);
+    var children = Array.prototype.slice.call(arguments, 2);
+    if (attrs){
+      for (var k in attrs){
+        var v = attrs[k];
+        if (v===false || v===null || v===undefined) continue;
+        if (k==="class"){ e.className = v; continue; }
+        if (k.indexOf("on")===0 && typeof v==="function"){ e.addEventListener(k.slice(2), v); continue; }
+        if (v===true){ e.setAttribute(k, ""); continue; }
+        e.setAttribute(k, v);
+      }
+    }
+    children.forEach(function place(c){
+      if (Array.isArray(c)){ c.forEach(place); return; }
+      if (c===null || c===undefined || c===false) return;
+      e.appendChild((typeof c==="string" || typeof c==="number") ? document.createTextNode(String(c)) : c);
+    });
+    return e;
+  }
+
+  // ---------- state ----------
+  var state;
+  function freshState(){
+    return {
+      view:"detail", scenario:"default", cuts:[], titles:{},
+      audioAvailable:true, transcriptEditedFlag:false,
+      moreMenuOpen:false, inputValue:"", statusMsg:"", statusOk:false,
+      previewOpen:null, regenConfirm:false, pendingSnap:null,
+      pendingParts:null, successChildren:null, activeChildIndex:null, prevView:null
+    };
+  }
+  state = freshState();
+  var lastRenderedView = null;
+
+  // ---------- actions ----------
+  function resetAll(){ state = freshState(); render(); }
+  function cancelEditor(){
+    state.cuts=[]; state.titles={}; state.pendingSnap=null; state.inputValue="";
+    state.statusMsg=""; state.pendingParts=null; state.view="detail"; render();
+  }
+  function toggleMoreMenu(){ state.moreMenuOpen = !state.moreMenuOpen; render(); }
+  function openEditor(){
+    state.moreMenuOpen = false;
+    state.view = state.transcriptEditedFlag ? "blocked" : "editor";
+    render();
+  }
+  function openOriginalFrom(prev){ state.prevView = prev; state.view = "original"; render(); }
+  function closeOriginal(){
+    state.view = state.prevView==="success" ? "success" : state.prevView==="child" ? "childDetail" : "detail";
+    render();
+  }
+  function togglePreview(boundary){ state.previewOpen = (state.previewOpen===boundary) ? null : boundary; render(); }
+  function attemptAdd(raw){
+    var res = validateAndResolve(raw, state.cuts);
+    state.pendingSnap=null;
+    if (!res.ok){ state.statusOk=false; state.statusMsg=res.msg; render(); return; }
+    if (res.snapped){
+      state.pendingSnap=res; state.statusOk=false;
+      state.statusMsg="The nearest safe passage boundary is " + formatTime(res.time) + ". Confirm the change from " + formatTime(res.original) + ".";
+      render(); return;
+    }
+    state.cuts = addCut(state.cuts, res.time);
+    state.statusOk = true;
+    state.statusMsg = res.snapped
+      ? ("Snapped " + formatTime(res.original) + " to the nearest safe boundary at " + formatTime(res.time) + ".")
+      : ("Added a split at " + formatTime(res.time) + ".");
+    state.inputValue = "";
+    render();
+  }
+  function createMeetings(){
+    if (state.cuts.length===0 || state.transcriptEditedFlag || state.pendingSnap) return;
+    state.pendingParts = computeParts(state.cuts).map(function(p, i){
+      var key = p.start + "-" + p.end;
+      return {start:p.start, end:p.end, duration:p.duration, title: (state.titles[key] || "").trim() || defaultTitle(p.start, p.end, i)};
+    });
+    state.view = "progress";
+    render();
+  }
+  function continueDemo(){ state.successChildren = state.pendingParts; state.view = "success"; render(); }
+  function openChild(i){ state.activeChildIndex = i; state.view = "childDetail"; render(); }
+  function setScenario(name){
+    state = freshState();
+    state.scenario = name;
+    if (name==="two"){ state.cuts=[2180]; state.view="editor"; }
+    else if (name==="four"){ state.cuts=[2180,4330,5400]; state.view="editor"; }
+    else if (name==="audioRemoved"){ state.audioAvailable=false; state.cuts=[2180]; state.view="editor"; }
+    else if (name==="transcriptEdited"){ state.transcriptEditedFlag=true; state.view="blocked"; }
+    render();
+  }
+
+  // ---------- shared pieces ----------
+  function renderStateBox(){
+    var n = computeParts(state.cuts).length;
+    var rows = [
+      ["Parts", String(n)],
+      ["Split points", state.cuts.length ? state.cuts.map(formatTime).join(", ") : "None"],
+      ["Original kept", "Yes — unchanged in Library"],
+      ["Audio", state.audioAvailable ? "Available" : "Removed"]
+    ];
+    if (state.transcriptEditedFlag) rows.push(["Transcript", "Edited — no longer matches audio timeline"]);
+    var box = h("div", {class:"statebox"});
+    rows.forEach(function(r){
+      box.appendChild(h("div", {class:"srow"}, h("span", {class:"sk"}, r[0]), h("span", {class:"sv"}, r[1])));
+    });
+    return box;
+  }
+
+  function renderTimeline(){
+    var track = h("div", {class:"timeline", role:"group",
+      "aria-label":"Timeline of a " + formatTime(DURATION) + " recording with " + state.cuts.length + " split point(s)"});
+    computeParts(state.cuts).forEach(function(p, i){
+      var w = (p.duration/DURATION*100).toFixed(3) + "%";
+      track.appendChild(h("div", {class:"tl-part " + (i%2 ? "b" : "a"), style:"width:" + w}));
+    });
+    SAFE_BOUNDARIES.forEach(function(b){
+      var left = (b/DURATION*100).toFixed(3) + "%";
+      if (state.cuts.indexOf(b) !== -1){
+        track.appendChild(h("div", {class:"tl-cut", style:"left:" + left}));
+      } else {
+        track.appendChild(h("button", {class:"tl-tick", style:"left:" + left,
+          "aria-label":"Add split at " + formatTime(b), onclick:function(){ attemptAdd(formatTime(b)); }}));
+      }
+    });
+    return track;
+  }
+
+  function renderPassages(){
+    var list = h("div", {class:"passages"});
+    PASSAGES.forEach(function(p, i){
+      list.appendChild(h("div", {class:"passage"},
+        h("span", {class:"ptime"}, formatTime(p.start) + "–" + formatTime(p.end)),
+        h("p", {class:"ptext"}, p.text)
+      ));
+      if (i < PASSAGES.length-1){
+        var b = p.end;
+        var already = state.cuts.indexOf(b) !== -1;
+        var open = state.previewOpen === b;
+        list.appendChild(h("div", {class:"boundary"},
+          h("span", {class:"conf"}, "Between transcript passages · " + formatTime(b)),
+          h("button", {class:"link-btn", "aria-expanded":String(open), onclick:function(){ togglePreview(b); }},
+            open ? "Hide preview" : "Preview boundary"),
+          already
+            ? h("span", {class:"tag done"}, "Added")
+            : h("button", {class:"link-btn", onclick:function(){ attemptAdd(formatTime(b)); }}, "Split here")
+        ));
+        if (open){
+          var next = PASSAGES[i+1];
+          list.appendChild(h("div", {class:"preview"},
+            h("div", null, h("strong", null, "Before: "), "…" + wordsFrom(p.text, 8, true)),
+            h("div", null, h("strong", null, "After: "), wordsFrom(next.text, 8, false) + "…")
+          ));
+        }
+      }
+    });
+    return list;
+  }
+
+  function renderManualEntry(){
+    var input = h("input", {id:"timeInput", type:"text", placeholder:"e.g. 36:20",
+      value: state.inputValue, "aria-label":"Time to split at, mm:ss or hh:mm:ss",
+      oninput: function(e){ state.inputValue = e.target.value; }});
+    return h("div", {class:"manual"},
+      h("label", {for:"timeInput"}, "Or enter a time (mm:ss or hh:mm:ss)"),
+      h("div", {class:"row"},
+        input,
+        h("button", {class:"btn", onclick:function(){ attemptAdd(input.value); }}, "Add split")
+      ),
+      h("p", {class:"status " + (state.statusMsg ? (state.statusOk ? "ok" : "err") : ""), "aria-live":"polite"}, state.statusMsg),
+      state.pendingSnap ? h("button", {class:"btn", onclick:function(){ attemptAdd(formatTime(state.pendingSnap.time)); }}, "Use " + formatTime(state.pendingSnap.time)) : null
+    );
+  }
+
+  function renderSplitList(){
+    if (!state.cuts.length){
+      return h("p", {class:"muted"}, "No split points yet — add one from the timeline, the transcript, or the field above.");
+    }
+    var wrap = h("div", {class:"splits"});
+    state.cuts.forEach(function(c){
+      wrap.appendChild(h("div", {class:"split-row"},
+        h("span", {class:"stime"}, formatTime(c)),
+        h("span", {class:"tag"}, "Between transcript passages"),
+        h("button", {class:"icon-btn", "aria-label":"Remove split at " + formatTime(c),
+          onclick:function(){ state.cuts = removeCut(state.cuts, c); render(); }}, "×")
+      ));
+    });
+    return wrap;
+  }
+
+  function renderPreview(){
+    var wrap = h("div", {class:"preview-table"});
+    computeParts(state.cuts).forEach(function(p, i){
+      var key = p.start + "-" + p.end;
+      var title = state.titles[key] || defaultTitle(p.start, p.end, i);
+      wrap.appendChild(h("div", {class:"prow"},
+        h("input", {class:"ptitle", type:"text", value:title, "aria-label":"Title for part " + (i+1),
+          oninput:function(e){ state.titles[key] = e.target.value; }}),
+        h("span", {class:"prange"}, formatTime(p.start) + "–" + formatTime(p.end)),
+        h("span", {class:"pdur"}, formatTime(p.duration))
+      ));
+    });
+    return wrap;
+  }
+
+  // ---------- views ----------
+  function viewDetail(){
+    return h("div", {class:"detail"},
+      h("div", {class:"crumb"}, "Library › Meetings"),
+      h("h1", {class:"title"}, TITLE),
+      h("div", {class:"meta"},
+        DATE_LABEL + " · " + formatTime(DURATION),
+        h("span", {class:"badge " + (state.audioAvailable ? "ok" : "warn")}, state.audioAvailable ? "Audio saved" : "Audio removed"),
+        state.transcriptEditedFlag ? h("span", {class:"badge warn"}, "Transcript edited") : null
+      ),
+      h("p", {class:"excerpt"}, "\u201c" + PASSAGES[0].text + "\u201d"),
+      h("div", {class:"row actions"},
+        h("div", {class:"menuWrap"},
+          h("button", {class:"btn", "aria-haspopup":"true", "aria-expanded":String(state.moreMenuOpen), onclick:toggleMoreMenu}, "More ⋯"),
+          state.moreMenuOpen ? h("div", {class:"menu", role:"menu"},
+            h("button", {class:"menu-item", role:"menuitem", onclick:function(){ state.moreMenuOpen=false; openOriginalFrom("detail"); }}, "Open"),
+            h("button", {class:"menu-item", role:"menuitem", onclick:openEditor}, "Split recording…")
+          ) : null
+        )
+      )
+    );
+  }
+
+  function viewEditor(){
+    var n = computeParts(state.cuts).length;
+    var createLabel = (state.audioAvailable ? "Create " : "Create ") + n + (state.audioAvailable ? " meeting" : " text-only meeting") + (n===1 ? "" : "s");
+    return h("div", {class:"editor"},
+      h("div", {class:"editor-head"},
+        h("h1", null, "Split \u201c" + TITLE + "\u201d"),
+        h("button", {class:"btn", onclick:cancelEditor}, "Cancel")
+      ),
+      !state.audioAvailable ? h("p", {class:"notice"}, "Audio was removed from this recording. Parts will keep their transcript text but no audio.") : null,
+      renderStateBox(),
+      h("h2", {class:"h2"}, "Timeline"),
+      renderTimeline(),
+      h("div", {class:"tl-labels"}, h("span", null, "0:00"), h("span", null, formatTime(DURATION))),
+      h("div", {class:"split-workspace"},
+        h("div", {class:"transcript-pane"}, h("h2", {class:"h2"}, "Transcript excerpts"), renderPassages()),
+        h("div", null,
+          h("h2", {class:"h2"}, "Add a split point"), renderManualEntry(),
+          h("h2", {class:"h2"}, "Split points"), renderSplitList(),
+          h("h2", {class:"h2"}, "Preview your meetings"), renderPreview())
+      ),
+      h("p", {class:"muted small"},
+        "The original stays in your Library. All recorded time is kept across the parts. Notes, summaries and Ask history stay with the original. " + (state.audioAvailable ? "Each part gets independent audio and a transcript. Additional storage: about 311 MB for this fictional sample. Audio follows the original retention date." : "Each part gets a transcript only; no audio is created.")),
+      h("div", {class:"row actions"},
+        h("button", {class:"btn primary", disabled: n<2 || !!state.pendingSnap, onclick:createMeetings}, createLabel),
+        h("button", {class:"btn", onclick:cancelEditor}, "Cancel")
+      )
+    );
+  }
+
+  function viewBlocked(){
+    return h("div", {class:"editor"},
+      h("h1", null, "Split \u201c" + TITLE + "\u201d"),
+      h("p", {class:"notice"}, "Timed splitting isn't available: this transcript has been edited, so its text no longer lines up with the recorded audio timeline. Splitting by time could cut a part mid-sentence."),
+      renderStateBox(),
+      h("div", {class:"row actions"},
+        h("button", {class:"btn", onclick:cancelEditor}, "Cancel"),
+        h("button", {class:"btn", onclick:function(){ state.regenConfirm=!state.regenConfirm; render(); }}, "Why is splitting unavailable?")
+      ),
+      state.regenConfirm ? h("div", {class:"notice info"},
+        h("p", null, "Your edits are saved on the original. Running speech recognition again would create a new transcript; it would not automatically align your edits. An explicit way to split from the original timed transcript or reconcile the edits could be added later."),
+        h("button", {class:"btn", onclick:function(){ state.regenConfirm=false; render(); }}, "OK, got it")
+      ) : null,
+      h("p", null, h("button", {class:"link-btn", onclick:function(){ openOriginalFrom("detail"); }}, "Open original recording"))
+    );
+  }
+
+  function viewProgress(){
+    var n = state.pendingParts.length;
+    return h("div", {class:"editor"},
+      h("h1", null, "Creating " + n + " meeting" + (n===1?"":"s") + "…"),
+      h("div", {class:"progress-track"}, h("div", {class:"progress-fill"})),
+      h("p", {class:"muted"}, "Simulated progress — nothing is actually created or changed on disk."),
+      h("button", {class:"btn primary", onclick:continueDemo}, "Continue demo"),
+      h("button", {class:"btn", onclick:function(){ state.pendingParts=null; state.view="editor"; render(); }}, "Cancel creation")
+    );
+  }
+
+  function viewSuccess(){
+    var wrap = h("div", {class:"editor"},
+      h("h1", null, state.successChildren.length + (state.audioAvailable ? " meeting" : " text-only meeting") + (state.successChildren.length===1?"":"s") + " created"),
+      h("p", {class:"muted"}, state.audioAvailable ? "Each part has its own audio and transcript. The original is still available below." : "These parts have transcripts only. The original audio remains removed.")
+    );
+    var list = h("div", {class:"children"});
+    state.successChildren.forEach(function(c, i){
+      list.appendChild(h("div", {class:"child-card"},
+        h("div", null,
+          h("div", {class:"ctitle"}, c.title),
+          h("div", {class:"crange"}, "From " + formatTime(c.start) + "–" + formatTime(c.end) + " of the original (" + formatTime(c.duration) + ")")
+        ),
+        h("button", {class:"btn", onclick:function(){ openChild(i); }}, "Open")
+      ));
+    });
+    wrap.appendChild(list);
+    wrap.appendChild(h("div", {class:"child-card original"},
+      h("div", null,
+        h("div", {class:"ctitle"}, TITLE + " (original)"),
+        h("div", {class:"crange"}, "Unchanged · " + formatTime(DURATION))
+      ),
+      h("button", {class:"btn", onclick:function(){ openOriginalFrom("success"); }}, "Open")
+    ));
+    wrap.appendChild(h("div", {class:"row actions"},
+      h("button", {class:"btn primary", onclick:resetAll}, "Restart demo")
+    ));
+    return wrap;
+  }
+
+  function viewChildDetail(){
+    var c = state.successChildren[state.activeChildIndex];
+    var slice = PASSAGES.filter(function(p){ return p.start>=c.start && p.end<=c.end; });
+    var passages = h("div", {class:"passages"});
+    slice.forEach(function(p){
+      passages.appendChild(h("div", {class:"passage"},
+        h("span", {class:"ptime"}, formatTime(p.start-c.start) + "–" + formatTime(p.end-c.start)),
+        h("p", {class:"ptext"}, p.text)
+      ));
+    });
+    return h("div", {class:"editor"},
+      h("p", null, h("button", {class:"link-btn", onclick:function(){ state.view="success"; render(); }}, "← Back to results")),
+      h("h1", null, c.title),
+      h("p", {class:"muted"}, "Part of \u201c" + TITLE + "\u201d · originally " + formatTime(c.start) + "–" + formatTime(c.end)),
+      !state.audioAvailable ? h("p", {class:"notice"}, "No audio for this part — the original audio was removed.") : null,
+      passages,
+      h("p", null, h("button", {class:"btn", onclick:function(){ openOriginalFrom("child"); }}, "Open original recording"))
+    );
+  }
+
+  function viewOriginal(){
+    var passages = h("div", {class:"passages"});
+    PASSAGES.forEach(function(p){
+      passages.appendChild(h("div", {class:"passage"},
+        h("span", {class:"ptime"}, formatTime(p.start) + "–" + formatTime(p.end)),
+        h("p", {class:"ptext"}, p.text)
+      ));
+    });
+    return h("div", {class:"editor"},
+      h("h1", null, TITLE + " (original)"),
+      h("p", {class:"muted"}, DATE_LABEL + " · " + formatTime(DURATION) + " · unchanged"),
+      passages,
+      h("button", {class:"btn", onclick:closeOriginal}, "Close")
+    );
+  }
+
+  // ---------- render dispatch ----------
+  function render(){
+    var root = document.getElementById("content");
+    root.innerHTML = "";
+    var node;
+    if (state.view==="editor") node = viewEditor();
+    else if (state.view==="blocked") node = viewBlocked();
+    else if (state.view==="progress") node = viewProgress();
+    else if (state.view==="success") node = viewSuccess();
+    else if (state.view==="childDetail") node = viewChildDetail();
+    else if (state.view==="original") node = viewOriginal();
+    else node = viewDetail();
+    root.appendChild(node);
+    var guides={two:"Review two parts, optionally rename them, then choose Create 2 meetings and Continue demo.", four:"Review all four ranges. Open each result to inspect its local timestamps, then open the original.", audioRemoved:"Create text-only meetings. Open a result to see the no-audio notice; the original remains unchanged.", transcriptEdited:"Inspect the explanation, then cancel. Editing cannot silently discard your text changes."};
+    document.getElementById("scenarioGuide").textContent=guides[state.scenario] || "Add split points, name the parts, then create the sample meetings. Reset demo changes fictional data only.";
+    document.querySelectorAll("[data-scenario]").forEach(function(button){ button.setAttribute("aria-pressed", String(button.dataset.scenario===state.scenario)); });
+    if (state.view !== lastRenderedView){
+      var heading = node.querySelector("h1");
+      if (heading){ heading.tabIndex = -1; heading.focus({preventScroll:true}); }
+      lastRenderedView = state.view;
+    }
+  }
+
+  // ---------- wire up static controls ----------
+  document.getElementById("resetBtn").addEventListener("click", resetAll);
+  document.getElementById("ctaTry").addEventListener("click", openEditor);
+  Array.prototype.forEach.call(document.querySelectorAll(".scenBtns button"), function(btn){
+    btn.addEventListener("click", function(){ setScenario(btn.getAttribute("data-scenario")); });
+  });
+
+  render();
+</script>
+</body>
+</html>

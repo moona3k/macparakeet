@@ -1,0 +1,88 @@
+{
+  "experiment": "Synthetic AAC range export; not production validation",
+  "limitations": "Eight-second mono synthetic fixture only. No dual-source alignment, waveform equivalence, long-file performance, crash recovery, or app integration validated.",
+  "operatingSystem": "Version 26.6.2 (Build 25G83)",
+  "outputs": [
+    {
+      "assetSeconds": 2.137,
+      "decodedFrames": 102576,
+      "decodedSampleRate": 48000,
+      "decodedSeconds": 2.137,
+      "durationErrorMs": 0,
+      "exportSeconds": 0.005293011665344238,
+      "mode": "aac_reencode",
+      "nonSilent": true,
+      "part": 1,
+      "requestedSeconds": 2.137,
+      "sourceStartSeconds": 0
+    },
+    {
+      "assetSeconds": 3.282,
+      "decodedFrames": 157536,
+      "decodedSampleRate": 48000,
+      "decodedSeconds": 3.282,
+      "durationErrorMs": 0,
+      "exportSeconds": 0.004019021987915039,
+      "mode": "aac_reencode",
+      "nonSilent": true,
+      "part": 2,
+      "requestedSeconds": 3.282,
+      "sourceStartSeconds": 2.137
+    },
+    {
+      "assetSeconds": 2.581,
+      "decodedFrames": 123888,
+      "decodedSampleRate": 48000,
+      "decodedSeconds": 2.581,
+      "durationErrorMs": 0,
+      "exportSeconds": 0.004210948944091797,
+      "mode": "aac_reencode",
+      "nonSilent": true,
+      "part": 3,
+      "requestedSeconds": 2.581,
+      "sourceStartSeconds": 5.419
+    },
+    {
+      "assetSeconds": 2.137,
+      "decodedFrames": 102576,
+      "decodedSampleRate": 48000,
+      "decodedSeconds": 2.137,
+      "durationErrorMs": 0,
+      "exportSeconds": 0.0041980743408203125,
+      "mode": "passthrough",
+      "nonSilent": true,
+      "part": 1,
+      "requestedSeconds": 2.137,
+      "sourceStartSeconds": 0
+    },
+    {
+      "assetSeconds": 3.282,
+      "decodedFrames": 157536,
+      "decodedSampleRate": 48000,
+      "decodedSeconds": 3.282,
+      "durationErrorMs": 0,
+      "exportSeconds": 0.004063963890075684,
+      "mode": "passthrough",
+      "nonSilent": true,
+      "part": 2,
+      "requestedSeconds": 3.282,
+      "sourceStartSeconds": 2.137
+    },
+    {
+      "assetSeconds": 2.581,
+      "decodedFrames": 123888,
+      "decodedSampleRate": 48000,
+      "decodedSeconds": 2.581,
+      "durationErrorMs": 0,
+      "exportSeconds": 0.0036219358444213867,
+      "mode": "passthrough",
+      "nonSilent": true,
+      "part": 3,
+      "requestedSeconds": 2.581,
+      "sourceStartSeconds": 5.419
+    }
+  ],
+  "sourceSeconds": 8,
+  "sourceSHA256": "b94ef9fb1a9b90b7cbc6c920b30a4e383f3da878c58d5e1664021661c8e41c03",
+  "sourceUnchanged": true
+}
