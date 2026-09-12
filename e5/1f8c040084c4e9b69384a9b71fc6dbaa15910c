@@ -1,0 +1,25 @@
+spec/15-shareable-transcripts.md
+  s_d236dcbec7210b::t_8bac35d6e93f51 54
+spec/contracts/share-service-v1.md
+  s_d236dcbec7210b::t_8bac35d6e93f51 47
+docs/share-service-privacy-and-operations.md
+  s_d236dcbec7210b::t_8bac35d6e93f51 118,121,125
+docs/plans/2026-09-11-1942-feat-shareable-transcripts-plan.md
+  s_d236dcbec7210b::t_8bac35d6e93f51 416,451
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e51f8c040084c4e9b69384a9b71fc6dbaa15910c",
+  "prompts": {},
+  "sessions": {
+    "s_d236dcbec7210b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0929e-d77e-7bb2-8fd3-0401a6a7b54b",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
