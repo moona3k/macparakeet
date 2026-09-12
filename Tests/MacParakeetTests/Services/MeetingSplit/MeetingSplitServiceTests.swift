@@ -96,6 +96,47 @@ final class MeetingSplitServiceTests: XCTestCase {
         XCTAssertEqual(transcribing.retranscribeCallCount, 0)
     }
 
+    /// The caller must observe every real stage transition for each child —
+    /// not just one stale snapshot fired at child entry — so a native
+    /// progress UI can show truthful transcribing/automationPending/completed
+    /// states instead of appearing stuck.
+    func testProgressReportsEveryStageTransitionPerChild() async throws {
+        let source = try makeSourceMeeting(durationMs: 8_000, withRawTracks: true)
+        promptRepo.prompts = [Prompt(name: "Summary", content: "Summarize {{transcript}}", isAutoRun: true)]
+        llm.summarizeResult = "Child summary"
+        let service = makeService()
+
+        final class ProgressBox: @unchecked Sendable {
+            let lock = NSLock()
+            var events: [MeetingSplitProcessingProgress] = []
+            func append(_ event: MeetingSplitProcessingProgress) {
+                lock.lock()
+                defer { lock.unlock() }
+                events.append(event)
+            }
+        }
+        let box = ProgressBox()
+
+        let operation = try await service.createAndProcess(
+            idempotencyKey: "op-progress",
+            sourceId: source.id,
+            cutPointsMs: [4_000],
+            titles: ["Part 1", "Part 2"],
+            onProgress: { box.append($0) }
+        )
+
+        XCTAssertEqual(operation.status, .committed)
+        XCTAssertTrue(box.events.allSatisfy { $0.operationId == operation.id })
+        for childId in operation.childIds {
+            let childStages = box.events.filter { $0.childId == childId }.map(\.stage)
+            XCTAssertEqual(
+                childStages,
+                [.pendingTranscription, .transcribing, .transcribed, .automationPending, .automationCompleted],
+                "expected every real stage transition to be observed in order for child \(childId)"
+            )
+        }
+    }
+
     func testCanonicalOnlySourceUsesSingleFileRouteAndGetsActualSTT() async throws {
         let source = try makeSourceMeeting(durationMs: 5_000, withRawTracks: false)
         promptRepo.prompts = []

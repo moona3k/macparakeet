@@ -578,8 +578,8 @@ public final class TranscriptionLibraryViewModel {
     public func deleteTranscription(_ transcription: Transcription) {
         do {
             errorMessage = nil
-            try TranscriptionDeletionCleanup.removeOwnedAssets(for: transcription)
-            let deleted = try transcriptionRepo?.delete(id: transcription.id) ?? false
+            guard let repo = transcriptionRepo else { return }
+            let deleted = try TranscriptionAssetCleanup.deleteTranscription(transcription, repository: repo)
             guard deleted else { return }
             transcriptions.removeAll { $0.id == transcription.id }
             selectedTranscriptionIDs.remove(transcription.id)
@@ -910,8 +910,7 @@ public final class TranscriptionLibraryViewModel {
 
         for target in targets {
             do {
-                try TranscriptionDeletionCleanup.removeOwnedAssets(for: target)
-                if try repo.delete(id: target.id) {
+                if try TranscriptionAssetCleanup.deleteTranscription(target, repository: repo) {
                     succeededIDs.append(target.id)
                 } else {
                     failedIDs.append(target.id)

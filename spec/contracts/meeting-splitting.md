@@ -1,8 +1,7 @@
 # Split and transcribe
 
-> Status: Core service and CLI implemented (see "Implemented split service,
-> ownership and CLI (U3)" below). Native UI integration is separate, pending
-> follow-up work.
+> Status: Core service, CLI, and native lifecycle state are implemented.
+> Native sheet integration and rendered acceptance are in progress.
 
 ## Purpose and ownership
 
@@ -205,6 +204,28 @@ native UI would call the same one.
   detection, and enabled formatting/title/completion settings. Canonical-only
   audio uses the meeting speaker preference, not the file preference.
   Per-invocation engine/model overrides are not part of the split interface.
+
+### Native task and recovery boundary
+
+`MeetingSplitViewModel` owns one app-wide task, independent of sheet lifetime.
+Each draft gets a stable creation key; an intentionally new split gets a new
+key. Restart recovery uses the saved receipt, including cancelled operations,
+and does not require the original's audio to preview already-published parts.
+Interrupted preparation retries the frozen creation request; published parts
+resume processing only. A second source cannot replace a running task.
+
+`MeetingSplitProcessingProgress` includes both `operationId` and `childId`,
+plus child index/count and the actual persisted stage. Consumers must never
+use a child ID as an operation ID. Stale callbacks cannot replace completed
+or newer presentation state. Editable time text stays separate from validated
+millisecond boundaries, so incomplete input disables creation without being
+silently reformatted or discarded.
+
+At app startup, split children use their operation lease, held across the
+atomic interruption-status update, rather than the capture-only recording
+lock. Deletion and clear callers use the combined file/database mutation
+operation. These are native integration components, not evidence that the
+rendered split UI or a stable release has passed acceptance.
 
 ## When this changes
 

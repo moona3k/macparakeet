@@ -77,12 +77,14 @@ public struct MeetingSplitPreview: Sendable, Equatable, Codable {
 // MARK: - Processing progress
 
 public struct MeetingSplitProcessingProgress: Sendable, Equatable {
+    public let operationId: UUID
     public let childId: UUID
     public let childIndex: Int
     public let childCount: Int
     public let stage: MeetingSplitChildStage
 
-    public init(childId: UUID, childIndex: Int, childCount: Int, stage: MeetingSplitChildStage) {
+    public init(operationId: UUID, childId: UUID, childIndex: Int, childCount: Int, stage: MeetingSplitChildStage) {
+        self.operationId = operationId
         self.childId = childId
         self.childIndex = childIndex
         self.childCount = childCount
@@ -625,11 +627,23 @@ public final class MeetingSplitService: MeetingSplitServicing, @unchecked Sendab
             guard let progress = operation.childProgress.first(where: { $0.childId == childId }) else { continue }
             guard progress.stage != .automationCompleted else { continue }
 
-            onProgress?(
-                MeetingSplitProcessingProgress(
-                    childId: childId, childIndex: index, childCount: operation.childIds.count, stage: progress.stage
+            // Reports the operation's actual current stage for this child
+            // after every persisted transition below, not just once at loop
+            // entry: a caller driving native progress must see the real
+            // transcribing/transcribed/automationPending/automationCompleted
+            // sequence, not one stale snapshot that makes long-running work
+            // look stuck.
+            func emitCurrentStage() {
+                guard let current = operation.childProgress.first(where: { $0.childId == childId }) else { return }
+                onProgress?(
+                    MeetingSplitProcessingProgress(
+                        operationId: operation.id, childId: childId, childIndex: index,
+                        childCount: operation.childIds.count, stage: current.stage
+                    )
                 )
-            )
+            }
+
+            emitCurrentStage()
 
             // A child deleted after publication is skipped, not recreated;
             // its last known progress remains exactly as recorded. Re-fetched
@@ -646,10 +660,12 @@ public final class MeetingSplitService: MeetingSplitServicing, @unchecked Sendab
                 // successful result.
                 if child.rawTranscript == nil {
                     operation = try splitRepo.markChildTranscriptionStarted(operationId: operation.id, childId: childId, now: Date())
+                    emitCurrentStage()
                     let folder = try sessionFolderURL(for: child)
                     child = try await transcribeChild(child, folderURL: folder, rootURL: folder.deletingLastPathComponent())
                 }
                 operation = try splitRepo.markChildTranscriptionSucceeded(operationId: operation.id, childId: childId, now: Date())
+                emitCurrentStage()
             } catch is CancellationError {
                 operation = try splitRepo.markChildCancelled(operationId: operation.id, childId: childId, now: Date())
                 throw CancellationError()
@@ -662,6 +678,7 @@ public final class MeetingSplitService: MeetingSplitServicing, @unchecked Sendab
 
             do {
                 operation = try splitRepo.markChildAutomationStarted(operationId: operation.id, childId: childId, now: Date())
+                emitCurrentStage()
                 let result = try await completionService.completeAutoPrompts(for: child)
                 if result.hasFailures {
                     let message = result.outcomes.compactMap { outcome -> String? in
@@ -671,6 +688,7 @@ public final class MeetingSplitService: MeetingSplitServicing, @unchecked Sendab
                     operation = try splitRepo.markChildFailed(operationId: operation.id, childId: childId, errorMessage: message, now: Date())
                 } else {
                     operation = try splitRepo.markChildAutomationSucceeded(operationId: operation.id, childId: childId, now: Date())
+                    emitCurrentStage()
                 }
             } catch is CancellationError {
                 operation = try splitRepo.markChildCancelled(operationId: operation.id, childId: childId, now: Date())

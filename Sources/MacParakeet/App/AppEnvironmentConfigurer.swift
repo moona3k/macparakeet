@@ -431,7 +431,10 @@ final class AppEnvironmentConfigurer {
                 let reconciled = try await MeetingFinalizationReconciler.reconcileStaleProcessingRows(
                     repository: env.transcriptionRepo,
                     excludingTranscriptionIDs: protectedIDs,
-                    ownershipCoordinator: env.meetingRecordingLockFileStore
+                    ownershipCoordinator: env.meetingRecordingLockFileStore,
+                    splitOperationCoordinator: MeetingSplitOperationLeaseReconciliationCoordinator(
+                        splitRepo: env.meetingSplitRepo
+                    )
                 )
                 guard !reconciled.isEmpty, let self else { return }
                 self.libraryViewModel.loadTranscriptions()
