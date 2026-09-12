@@ -326,24 +326,77 @@
         id="toc-the-product-model-a-shared-snapshot">The product model:
         a shared snapshot</a></li>
         <li><a href="#owner-experience" id="toc-owner-experience">Owner
-        experience</a></li>
+        experience</a>
+        <ul>
+        <li><a href="#entry-points" id="toc-entry-points">Entry
+        points</a></li>
+        <li><a href="#creation-sheet" id="toc-creation-sheet">Creation
+        sheet</a></li>
+        <li><a href="#shared-by-me" id="toc-shared-by-me">Shared by
+        me</a></li>
+        </ul></li>
         <li><a href="#recipient-experience"
         id="toc-recipient-experience">Recipient experience</a></li>
         <li><a href="#direct-answer-do-not-fingerprint-the-mac"
         id="toc-direct-answer-do-not-fingerprint-the-mac">Direct answer:
-        do not fingerprint the Mac</a></li>
+        do not fingerprint the Mac</a>
+        <ul>
+        <li><a href="#why-a-fingerprint-fails"
+        id="toc-why-a-fingerprint-fails">Why a fingerprint
+        fails</a></li>
+        <li><a href="#what-to-use-instead"
+        id="toc-what-to-use-instead">What to use instead</a></li>
+        </ul></li>
         <li><a href="#credential-and-recovery-design"
         id="toc-credential-and-recovery-design">Credential and recovery
-        design</a></li>
+        design</a>
+        <ul>
+        <li><a href="#three-separate-capabilities"
+        id="toc-three-separate-capabilities">Three separate
+        capabilities</a></li>
+        <li><a href="#recovery-scope" id="toc-recovery-scope">Recovery
+        scope</a></li>
+        <li><a href="#why-not-secure-enclave-in-v1"
+        id="toc-why-not-secure-enclave-in-v1">Why not Secure Enclave in
+        v1</a></li>
+        </ul></li>
         <li><a href="#content-encryption"
-        id="toc-content-encryption">Content encryption</a></li>
+        id="toc-content-encryption">Content encryption</a>
+        <ul>
+        <li><a href="#honest-security-claims"
+        id="toc-honest-security-claims">Honest security claims</a></li>
+        <li><a href="#share-bundle" id="toc-share-bundle">Share
+        bundle</a></li>
+        </ul></li>
         <li><a href="#service-architecture"
-        id="toc-service-architecture">Service architecture</a></li>
+        id="toc-service-architecture">Service architecture</a>
+        <ul>
+        <li><a href="#why-d1-plus-r2" id="toc-why-d1-plus-r2">Why D1
+        plus R2</a></li>
+        <li><a href="#suggested-data-model"
+        id="toc-suggested-data-model">Suggested data model</a></li>
+        <li><a href="#api-sketch" id="toc-api-sketch">API
+        sketch</a></li>
+        <li><a href="#repository-fit" id="toc-repository-fit">Repository
+        fit</a></li>
+        <li><a href="#web-origin-hardening"
+        id="toc-web-origin-hardening">Web-origin hardening</a></li>
+        </ul></li>
         <li><a href="#capacity-and-cost"
         id="toc-capacity-and-cost">Capacity and cost</a></li>
         <li><a href="#abuse-privacy-and-legal-operations"
         id="toc-abuse-privacy-and-legal-operations">Abuse, privacy, and
-        legal operations</a></li>
+        legal operations</a>
+        <ul>
+        <li><a href="#make-it-a-poor-general-purpose-host"
+        id="toc-make-it-a-poor-general-purpose-host">Make it a poor
+        general-purpose host</a></li>
+        <li><a href="#retention-and-deletion"
+        id="toc-retention-and-deletion">Retention and deletion</a></li>
+        <li><a href="#policy-and-compliance-gates"
+        id="toc-policy-and-compliance-gates">Policy and compliance
+        gates</a></li>
+        </ul></li>
         <li><a href="#competitive-synthesis"
         id="toc-competitive-synthesis">Competitive synthesis</a></li>
         <li><a href="#collaboration-defer-deliberately"
@@ -356,7 +409,23 @@
         id="toc-anti-goals">Anti-goals</a></li>
         <li><a href="#rollout-and-evidence-gates"
         id="toc-rollout-and-evidence-gates">Rollout and evidence
-        gates</a></li>
+        gates</a>
+        <ul>
+        <li><a href="#gate-0-decisions-and-contracts"
+        id="toc-gate-0-decisions-and-contracts">Gate 0: decisions and
+        contracts</a></li>
+        <li><a href="#gate-1-throwaway-interoperability-prototype"
+        id="toc-gate-1-throwaway-interoperability-prototype">Gate 1:
+        throwaway interoperability prototype</a></li>
+        <li><a href="#gate-2-internal-service-alpha"
+        id="toc-gate-2-internal-service-alpha">Gate 2: internal service
+        alpha</a></li>
+        <li><a href="#gate-3-feature-flagged-beta"
+        id="toc-gate-3-feature-flagged-beta">Gate 3: feature-flagged
+        beta</a></li>
+        <li><a href="#gate-4-public-release"
+        id="toc-gate-4-public-release">Gate 4: public release</a></li>
+        </ul></li>
         <li><a href="#decisions-to-make-before-implementation-planning"
         id="toc-decisions-to-make-before-implementation-planning">Decisions
         to make before implementation planning</a></li>
@@ -370,14 +439,17 @@
     <article id="report">
       <h1 id="shareable-transcripts">Shareable Transcripts</h1>
       <blockquote>
-      <p><strong>Research status:</strong> This page preserves the
-      exploration and alternatives that informed the decision. The accepted
-      direction is governed by <a href="../../../spec/15-shareable-transcripts.md">the
-      product spec</a>, <a
+      <p><strong>Research status:</strong> This report preserves the
+      exploration and alternatives that informed the decision. The
+      accepted direction is governed by <a
+      href="../../../spec/15-shareable-transcripts.md"><code>spec/15-shareable-transcripts.md</code></a>,
+      <a
       href="../../../spec/adr/029-encrypted-shareable-transcript-snapshots.md">ADR-029</a>,
-      and the two <a href="../../../spec/contracts/">sharing contracts</a>.
-      Where this page presents an earlier option, the governing documents
-      supersede it.</p>
+      and the two <a
+      href="../../../spec/contracts/"><code>spec/contracts/</code></a>
+      sharing contracts. Where this report presents an earlier option
+      such as link rotation or a different preset list, the governing
+      documents supersede it.</p>
       </blockquote>
       <blockquote>
       <p><strong>Decision:</strong> Proceed to a privacy and usability
@@ -875,16 +947,23 @@ server verifier
       with no local file paths or database identifiers:</p>
       <div class="sourceCode" id="cb4"><pre
       class="sourceCode json"><code class="sourceCode json"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;schemaVersion&quot;</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">,</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;publishedAt&quot;</span><span class="fu">:</span> <span class="st">&quot;2026-09-11T22:00:00Z&quot;</span><span class="fu">,</span></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;title&quot;</span><span class="fu">:</span> <span class="st">&quot;Optional encrypted title&quot;</span><span class="fu">,</span></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;source&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;meeting&quot;</span><span class="fu">,</span> <span class="dt">&quot;displayDate&quot;</span><span class="fu">:</span> <span class="st">&quot;Optional&quot;</span> <span class="fu">},</span></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;sections&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span> <span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;summary&quot;</span><span class="fu">,</span> <span class="dt">&quot;title&quot;</span><span class="fu">:</span> <span class="st">&quot;Summary&quot;</span><span class="fu">,</span> <span class="dt">&quot;blocks&quot;</span><span class="fu">:</span> <span class="ot">[]</span> <span class="fu">}</span><span class="ot">,</span></span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span> <span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;notes&quot;</span><span class="fu">,</span> <span class="dt">&quot;title&quot;</span><span class="fu">:</span> <span class="st">&quot;Notes&quot;</span><span class="fu">,</span> <span class="dt">&quot;blocks&quot;</span><span class="fu">:</span> <span class="ot">[]</span> <span class="fu">}</span><span class="ot">,</span></span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span> <span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;transcript&quot;</span><span class="fu">,</span> <span class="dt">&quot;title&quot;</span><span class="fu">:</span> <span class="st">&quot;Transcript&quot;</span><span class="fu">,</span> <span class="dt">&quot;segments&quot;</span><span class="fu">:</span> <span class="ot">[]</span> <span class="fu">}</span></span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;schema&quot;</span><span class="fu">:</span> <span class="st">&quot;com.macparakeet.share-bundle&quot;</span><span class="fu">,</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;schemaVersion&quot;</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">,</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;publishedAt&quot;</span><span class="fu">:</span> <span class="st">&quot;2026-09-11T22:00:00Z&quot;</span><span class="fu">,</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;title&quot;</span><span class="fu">:</span> <span class="st">&quot;Optional encrypted title&quot;</span><span class="fu">,</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;source&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;meeting&quot;</span><span class="fu">,</span> <span class="dt">&quot;displayDate&quot;</span><span class="fu">:</span> <span class="st">&quot;2026-09-11T20:00:00Z&quot;</span> <span class="fu">},</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;sections&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span> <span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;summary&quot;</span><span class="fu">,</span> <span class="dt">&quot;title&quot;</span><span class="fu">:</span> <span class="st">&quot;Summary&quot;</span><span class="fu">,</span> <span class="dt">&quot;markdown&quot;</span><span class="fu">:</span> <span class="st">&quot;## Decisions</span><span class="ch">\n\n</span><span class="st">Selected display-ready text.&quot;</span> <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span> <span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;notes&quot;</span><span class="fu">,</span> <span class="dt">&quot;title&quot;</span><span class="fu">:</span> <span class="st">&quot;Notes&quot;</span><span class="fu">,</span> <span class="dt">&quot;markdown&quot;</span><span class="fu">:</span> <span class="st">&quot;Owner-authored notes.&quot;</span> <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;transcript&quot;</span><span class="fu">,</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;title&quot;</span><span class="fu">:</span> <span class="st">&quot;Transcript&quot;</span><span class="fu">,</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;segments&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>        <span class="fu">{</span> <span class="dt">&quot;text&quot;</span><span class="fu">:</span> <span class="st">&quot;Selected transcript text.&quot;</span><span class="fu">,</span> <span class="dt">&quot;startMs&quot;</span><span class="fu">:</span> <span class="dv">12300</span><span class="fu">,</span> <span class="dt">&quot;endMs&quot;</span><span class="fu">:</span> <span class="dv">15800</span><span class="fu">,</span> <span class="dt">&quot;speaker&quot;</span><span class="fu">:</span> <span class="st">&quot;Jordan&quot;</span> <span class="fu">}</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>      <span class="ot">]</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
       <p>Include only display-ready fields the owner selected. Omit
       local transcription UUIDs, file paths, meeting links, calendar
       attendees, model/provider details, prompts, chat history,
@@ -892,10 +971,10 @@ server verifier
       source URLs. Calendar context is explicitly local-only in the
       current model and should never cross the boundary
       accidentally.</p>
-      <p>Use structured text blocks rather than arbitrary HTML. Render
-      plain content via <code>textContent</code>. If limited Markdown is
-      added, disable raw HTML, remote images, embeds, and scriptable
-      URLs; sanitize again in the browser and keep a strict Content
+      <p>Summary and notes use Markdown strings rather than arbitrary
+      HTML. Treat that Markdown as untrusted: disable raw HTML, remote
+      images, embeds, and scriptable URLs; render through safe DOM sinks
+      and a reviewed browser sanitizer, and keep a strict Content
       Security Policy. OWASP recommends both safe DOM sinks and CSP as
       defense-in-depth.<a href="#fn18" class="footnote-ref" id="fnref18"
       role="doc-noteref"><sup>18</sup></a></p>

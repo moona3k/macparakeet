@@ -126,7 +126,7 @@ Owner enrollment sends client-generated selectors and verifiers, all encoded as 
 }
 ```
 
-Enrollment requires `If-None-Match: *` and an idempotency key. A same-key, same-digest retry within the receipt window returns the original response. Otherwise, the service atomically rejects any existing owner ID or device selector with generic `409 enrollment_conflict` without changing an existing verifier or revealing which value collided.
+Enrollment requires `If-None-Match: *` and an idempotency key. The service resolves the idempotency key and request digest before evaluating the precondition or checking owner-ID and device-selector collisions: a same-key, same-digest retry within the receipt window returns the original response, while a same-key, different-digest request returns `409 idempotency_conflict`. Only when no idempotency record exists does the request proceed to the create precondition and collision checks, which atomically reject any existing owner ID or device selector with generic `409 enrollment_conflict` without changing an existing verifier or revealing which value collided.
 
 Recovery uses `Authorization: Recovery <recovery-token>` and supplies a fresh client-generated device selector/verifier plus an optional replacement recovery verifier.
 The service response contains owner metadata and credential scope, never a secret.

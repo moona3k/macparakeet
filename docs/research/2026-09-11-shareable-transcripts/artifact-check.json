@@ -11,7 +11,7 @@
   },
   "checks": {
     "markdown": {
-      "words": 7139,
+      "words": 7160,
       "headings": 43,
       "heading_level_jumps": 0,
       "footnote_uses": 42,
@@ -22,7 +22,7 @@
     "html_generation": {
       "pandoc_fail_if_warnings": "pass",
       "reproducible_from_report_and_template": true,
-      "sha256": "8cf5d5b955ef3c187cbc47425499ea32cdadbf2ddbf95b12aaa570d622744667"
+      "sha256": "0dfeaec6486c99529af50a543eef03c9da0607f0b8e2ed150551a6ce59b785ca"
     },
     "browser_desktop": {
       "viewport": "1440x1000",

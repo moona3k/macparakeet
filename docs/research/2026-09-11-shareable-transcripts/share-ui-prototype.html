@@ -607,7 +607,7 @@
       <p>This throwaway prototype asks whether a person can see exactly what leaves their Mac, publish without an account, and still understand updates and permanent stopping later.</p>
     </div>
     <span class="prototype-stamp">Local prototype · synthetic meeting</span>
-    <div class="governing-notice" role="note"><strong>Accepted v1 direction.</strong> This mockup now follows the <a href="../../../spec/15-shareable-transcripts.md">product spec</a> and <a href="../../../spec/adr/029-encrypted-shareable-transcript-snapshots.md">ADR-029</a>. The <a href="../../../spec/contracts/share-link-bundle-v1.md">link contract</a> and <a href="../../../spec/contracts/share-service-v1.md">service contract</a> govern implementation if any exploratory detail here differs.</div>
+    <div class="governing-notice" role="note"><strong>Accepted v1 direction.</strong> This mockup now follows the <a href="../../../spec/15-shareable-transcripts.md">product spec</a> and <a href="../../../spec/adr/029-encrypted-shareable-transcript-snapshots.md">ADR-029</a>. The <a href="../../../spec/contracts/share-link-bundle-v1.md">link contract</a> and <a href="../../../spec/contracts/share-service-v1.md">service contract</a> govern implementation if any exploratory detail here differs. Optional recovery management is governed by those specs but is intentionally not modeled in this focused prototype.</div>
   </header>
 
   <section class="lab" aria-labelledby="state-title">
@@ -635,6 +635,11 @@
 
   <script>
     const ShareModel = (() => {
+      const firstShareURL = 'https://share.macparakeet.com/s/8Hm3c7aQ9pL2wNx4Vs6KbA#v1.k8R…2Q';
+      const mockShareURL = (generation) => generation === 1
+        ? firstShareURL
+        : `https://share.macparakeet.com/s/R7q2Mv9Ld4Wx6Nc8Ja${String(generation).padStart(4, '0')}#v1.P5s…${String(generation).padStart(2, '0')}`;
+
       const selectedNames = (selection) => [
         selection.summary && 'Summary',
         selection.notes && 'Notes',
@@ -650,9 +655,17 @@
         expiryPreset: '30 days',
         expiry: '30 days',
         customExpiry: '2026-09-18T10:00',
+        expiryDraftPreset: '30 days',
+        expiryDraft: '30 days',
+        expiryDraftCustom: '2026-09-18T10:00',
         shareStatus: 'not shared',
         serverStatus: 'none',
+        publishMode: 'create',
+        completeURL: firstShareURL,
+        linkGeneration: 1,
         version: 0,
+        publishedSnapshot: null,
+        successKind: null,
         localChanged: false,
         linkCopied: false,
         blocked: false,
@@ -664,6 +677,15 @@
         shareStatus: 'active',
         serverStatus: 'active',
         version: 1,
+        publishedSnapshot: {
+          selection: { summary: true, notes: true, transcript: false },
+          transcriptOptions: { speakers: true, timestamps: true },
+          contentVariant: 'original',
+          expiryPreset: '30 days',
+          expiry: '30 days',
+          customExpiry: '2026-09-18T10:00',
+          revisionTimeLabel: 'Shared today at 10:42 AM'
+        },
         selection: { summary: true, notes: true, transcript: false },
         lastEvent: 'The encrypted text snapshot is active. The local meeting remains the source of truth.'
       });
@@ -676,17 +698,34 @@
           case 'RESET': return initialState();
           case 'LOAD_PUBLISHED': return publishedState();
           case 'OPEN_LIBRARY':
-            next.surface = 'library'; next.dialog = null;
+            next.surface = 'library'; next.dialog = null; next.publishMode = 'create';
             next.lastEvent = 'Viewing the local meeting.'; return next;
           case 'OPEN_SHARED':
-            next.surface = 'shared'; next.dialog = null;
+            next.surface = 'shared'; next.dialog = null; next.publishMode = 'create';
             next.lastEvent = next.version ? 'Viewing shares managed by this Mac.' : 'No shares have been published yet.'; return next;
           case 'OPEN_CREATE':
-            next.surface = 'library'; next.dialog = 'create';
+            if (next.version) {
+              next.blocked = true;
+              next.lastEvent = next.serverStatus === 'active' ? 'Use Update shared page to change an active snapshot.' : 'Create a new link from Shared by me.';
+              return next;
+            }
+            next.surface = 'library'; next.dialog = 'create'; next.publishMode = 'create';
             next.lastEvent = 'Summary and Notes are selected. Nothing has left the Mac.'; return next;
           case 'CLOSE_DIALOG':
-            next.dialog = null;
-            next.lastEvent = 'Sharing was closed. Nothing new was published.'; return next;
+            const closedDialog = next.dialog;
+            next.dialog = null; next.publishMode = 'create';
+            if (next.publishedSnapshot) {
+              next.selection = structuredClone(next.publishedSnapshot.selection);
+              next.transcriptOptions = structuredClone(next.publishedSnapshot.transcriptOptions);
+              next.expiryDraftPreset = next.publishedSnapshot.expiryPreset;
+              next.expiryDraft = next.publishedSnapshot.expiry;
+              next.expiryDraftCustom = next.publishedSnapshot.customExpiry;
+            } else {
+              next.expiryDraftPreset = next.expiryPreset;
+              next.expiryDraft = next.expiry;
+              next.expiryDraftCustom = next.customExpiry;
+            }
+            next.lastEvent = closedDialog === 'expiry' ? 'Expiration change canceled. The confirmed value did not change.' : 'Sharing was closed. Nothing new was published.'; return next;
           case 'TOGGLE_BLOCK':
             next.selection[action.block] = !next.selection[action.block];
             next.lastEvent = `${action.block[0].toUpperCase() + action.block.slice(1)} ${next.selection[action.block] ? 'will be included' : 'will stay on the Mac'}.`;
@@ -700,27 +739,72 @@
             next.dialog = 'create';
             next.lastEvent = 'Nothing is selected. Publish should be blocked.'; return next;
           case 'SET_EXPIRY':
+            if (next.publishMode === 'update') {
+              next.blocked = true;
+              next.lastEvent = 'Content updates retain the existing expiration. Change expiration separately from Shared.';
+              return next;
+            }
+            if (next.dialog === 'expiry') {
+              next.expiryDraftPreset = action.value;
+              next.expiryDraft = action.value === 'Custom…' ? formatCustomExpiry(next.expiryDraftCustom) : action.value;
+              next.lastEvent = action.value === 'Custom…' ? `Choose an exact expiration. Current choice: ${next.expiryDraft}.` : `The proposed expiration is ${action.value}.`;
+              return next;
+            }
             next.expiryPreset = action.value;
             next.expiry = action.value === 'Custom…' ? formatCustomExpiry(next.customExpiry) : action.value;
             next.lastEvent = action.value === 'Custom…' ? `Choose an exact expiration. Current choice: ${next.expiry}.` : `The link will expire after ${action.value}.`; return next;
           case 'SET_CUSTOM_EXPIRY':
+            if (next.publishMode === 'update') {
+              next.blocked = true;
+              next.lastEvent = 'Content updates retain the existing expiration. Change expiration separately from Shared.';
+              return next;
+            }
+            if (next.dialog === 'expiry') {
+              next.expiryDraftCustom = action.value;
+              next.expiryDraft = formatCustomExpiry(action.value);
+              next.lastEvent = `The proposed exact expiration is ${next.expiryDraft}.`;
+              return next;
+            }
             next.customExpiry = action.value;
             next.expiry = formatCustomExpiry(action.value);
             next.lastEvent = `The exact expiration is ${next.expiry}.`; return next;
           case 'CREATE_NEW_LINK': {
+            if (next.serverStatus !== 'stopped') {
+              next.blocked = true;
+              next.lastEvent = 'A replacement link is available only after the prior link is permanently stopped.';
+              return next;
+            }
             const fresh = initialState();
+            fresh.linkGeneration = state.linkGeneration + 1;
+            fresh.completeURL = mockShareURL(fresh.linkGeneration);
             fresh.dialog = 'create';
-            fresh.lastEvent = 'Starting a new link. Summary and Notes are selected; nothing has left the Mac.';
+            fresh.lastEvent = 'Starting a new link with a new locator and key. Summary and Notes are selected; nothing has left the Mac.';
             return fresh;
           }
           case 'PUBLISH': {
             const chosen = selectedNames(next.selection);
+            const isUpdate = next.publishMode === 'update';
+            if (next.serverStatus === 'stopped') {
+              next.blocked = true;
+              next.lastEvent = 'A stopped link cannot be reactivated. Create a new link instead.';
+              return next;
+            }
+            if (next.version && !isUpdate) {
+              next.blocked = true;
+              next.lastEvent = 'Use Update shared page to replace an active snapshot explicitly.';
+              return next;
+            }
+            if (isUpdate && (!next.version || next.serverStatus !== 'active' || next.shareStatus === 'stop pending')) {
+              next.blocked = true;
+              next.lastEvent = 'Only an active share with no pending stop can be updated.';
+              return next;
+            }
             if (!chosen.length) {
               next.blocked = true;
               next.lastEvent = 'Publish blocked: choose at least one text section.';
               return next;
             }
-            if (next.expiryPreset === 'Custom…' && (!next.customExpiry || next.customExpiry < '2026-09-11T20:45' || next.customExpiry > '2026-12-10T20:45')) {
+            if (!isUpdate && next.expiryPreset === 'Custom…' && (!next.customExpiry || next.customExpiry < '2026-09-11T20:45' || next.customExpiry > '2026-12-10T20:45')) {
               next.blocked = true;
               next.lastEvent = 'Publish blocked: choose an exact expiration within 90 days.';
               return next;
@@ -730,12 +814,31 @@
               next.lastEvent = 'Publish blocked: connect to the internet first. Nothing was queued.';
               return next;
             }
+            const confirmedExpiry = isUpdate && next.publishedSnapshot
+              ? {
+                  expiryPreset: next.publishedSnapshot.expiryPreset,
+                  expiry: next.publishedSnapshot.expiry,
+                  customExpiry: next.publishedSnapshot.customExpiry
+                }
+              : {
+                  expiryPreset: next.expiryPreset,
+                  expiry: next.expiry,
+                  customExpiry: next.customExpiry
+                };
             next.version = Math.max(1, next.version + 1);
+            next.publishedSnapshot = {
+              selection: structuredClone(next.selection),
+              transcriptOptions: structuredClone(next.transcriptOptions),
+              contentVariant: next.localChanged ? 'corrected' : 'original',
+              ...confirmedExpiry,
+              revisionTimeLabel: isUpdate ? 'Updated today at 11:18 AM' : 'Shared today at 10:42 AM'
+            };
             next.shareStatus = 'active';
             next.serverStatus = 'active';
-            next.localChanged = false;
+            next.publishMode = 'create';
+            next.successKind = isUpdate ? 'update' : 'create';
             next.dialog = 'success';
-            next.lastEvent = `Published encrypted snapshot v${next.version}: ${chosen.join(', ')}. Audio stayed on the Mac.`;
+            next.lastEvent = `${isUpdate ? 'Updated' : 'Published'} encrypted snapshot v${next.version}: ${chosen.join(', ')}. Audio stayed on the Mac.`;
             return next;
           }
           case 'COPY_LINK':
@@ -766,6 +869,7 @@
               return next;
             }
             next.surface = 'recipient'; next.dialog = null;
+            next.publishMode = 'create';
             next.lastEvent = next.serverStatus === 'active'
               ? `Viewing encrypted snapshot v${next.version} as a recipient.`
               : 'The recipient can no longer fetch this snapshot.';
@@ -779,7 +883,7 @@
               : 'The local summary changed. Nothing is published.';
             return next;
           case 'UPDATE_SHARE':
-            if (!next.version || next.serverStatus !== 'active') {
+            if (!next.version || !next.publishedSnapshot || next.serverStatus !== 'active') {
               next.blocked = true;
               next.lastEvent = 'Only an active share can be updated.';
               return next;
@@ -789,8 +893,48 @@
               next.lastEvent = 'Update blocked while offline. The existing snapshot still works.';
               return next;
             }
-            next.dialog = 'create';
-            next.lastEvent = 'Review the exact replacement snapshot before publishing it.';
+            next.selection = structuredClone(next.publishedSnapshot.selection);
+            next.transcriptOptions = structuredClone(next.publishedSnapshot.transcriptOptions);
+            next.dialog = 'create'; next.publishMode = 'update';
+            next.lastEvent = 'Review the exact replacement snapshot. Its existing expiration will not change.';
+            return next;
+          case 'OPEN_EXPIRY':
+            if (!next.version || !next.publishedSnapshot || next.serverStatus !== 'active' || next.shareStatus === 'stop pending') {
+              next.blocked = true;
+              next.lastEvent = 'Expiration can be changed only for an active shared page.';
+              return next;
+            }
+            next.surface = 'shared'; next.publishMode = 'create';
+            next.dialog = 'expiry';
+            next.expiryDraftPreset = next.publishedSnapshot.expiryPreset;
+            next.expiryDraft = next.publishedSnapshot.expiry;
+            next.expiryDraftCustom = next.publishedSnapshot.customExpiry;
+            next.lastEvent = 'Choose a new expiration. The current value stays in effect until the service confirms the change.';
+            return next;
+          case 'SAVE_EXPIRY':
+            if (!next.version || !next.publishedSnapshot || next.serverStatus !== 'active' || next.shareStatus === 'stop pending') {
+              next.blocked = true;
+              next.lastEvent = 'Expiration was not changed because this shared page is unavailable.';
+              return next;
+            }
+            if (next.expiryDraftPreset === 'Custom…' && (!next.expiryDraftCustom || next.expiryDraftCustom < '2026-09-11T20:45' || next.expiryDraftCustom > '2026-12-10T20:45')) {
+              next.blocked = true;
+              next.lastEvent = `Expiration was not changed. ${next.publishedSnapshot.expiry} remains confirmed.`;
+              return next;
+            }
+            if (!next.online) {
+              next.blocked = true;
+              next.lastEvent = `Expiration was not changed while offline. ${next.publishedSnapshot.expiry} remains confirmed.`;
+              return next;
+            }
+            next.publishedSnapshot = {
+              ...next.publishedSnapshot,
+              expiryPreset: next.expiryDraftPreset,
+              expiry: next.expiryDraft,
+              customExpiry: next.expiryDraftCustom
+            };
+            next.dialog = null;
+            next.lastEvent = `Expiration changed to ${next.publishedSnapshot.expiry}. The content revision and link did not change.`;
             return next;
           case 'REQUEST_STOP':
             if (!next.version || next.serverStatus === 'stopped') {
@@ -824,7 +968,7 @@
             return next;
           case 'DISMISS_SUCCESS':
             next.dialog = null; next.surface = 'shared';
-            next.lastEvent = 'The share is active and manageable under Shared by me.'; return next;
+            next.lastEvent = next.successKind === 'update' ? 'The shared page is updated and manageable under Shared by me.' : 'The share is active and manageable under Shared by me.'; return next;
           default: return state;
         }
       };
@@ -918,18 +1062,38 @@
       return labels.length ? `<strong>${labels.join(' · ')}</strong>: ` : '';
     }
 
-    function transcriptHeader(speaker, time) {
+    function transcriptHeader(speaker, time, options = state.transcriptOptions) {
       const labels = [];
-      if (state.transcriptOptions.speakers) labels.push(`<span>${speaker}</span>`);
-      if (state.transcriptOptions.timestamps) labels.push(`<time>${time}</time>`);
+      if (options.speakers) labels.push(`<span>${speaker}</span>`);
+      if (options.timestamps) labels.push(`<time>${time}</time>`);
       return labels.length ? `<header>${labels.join('')}</header>` : '';
     }
 
-    function expiryPhrase() {
-      return state.expiryPreset === 'Custom…' ? `Expires ${state.expiry}` : `Expires in ${state.expiry}`;
+    function expiryPhraseFor(preset, expiry) {
+      return preset === 'Custom…' ? `Expires ${expiry}` : `Expires in ${expiry}`;
     }
 
-    const shareURL = () => 'https://share.macparakeet.com/s/8Hm3c7aQ9pL2wNx4Vs6KbA#v1.k8R…2Q';
+    function draftExpiryPhrase() {
+      const confirmed = state.publishedSnapshot;
+      return state.publishMode === 'update' && confirmed
+        ? expiryPhraseFor(confirmed.expiryPreset, confirmed.expiry)
+        : expiryPhraseFor(state.expiryPreset, state.expiry);
+    }
+
+    function publishedExpiryPhrase() {
+      const confirmed = state.publishedSnapshot;
+      return confirmed ? expiryPhraseFor(confirmed.expiryPreset, confirmed.expiry) : 'Not published';
+    }
+
+    function expiryDraftPhrase() {
+      return state.expiryDraftPreset === 'Custom…' ? state.expiryDraft : `In ${state.expiryDraft}`;
+    }
+
+    const shareURL = () => state.completeURL;
+
+    function publishedSummary(snapshot) {
+      return snapshot.contentVariant === 'corrected' ? meeting.summary.replace('Friday', 'Thursday') : meeting.summary;
+    }
 
     function statusPresentation() {
       switch (state.shareStatus) {
@@ -937,6 +1101,7 @@
         case 'out of date': return ['Out of date', 'warn'];
         case 'stop pending': return ['Stop pending', 'warn'];
         case 'stopped': return ['Stopped', 'stop'];
+        case 'expired': return ['Expired', 'stop'];
         default: return ['Not shared', ''];
       }
     }
@@ -944,6 +1109,7 @@
     function recipientAccess() {
       if (!state.version) return ['No link', ''];
       if (state.serverStatus === 'stopped') return ['Stopped', 'stop'];
+      if (state.serverStatus === 'expired') return ['Expired', 'stop'];
       if (state.shareStatus === 'stop pending') return ['May still work', 'warn'];
       return ['Available', 'good'];
     }
@@ -1018,7 +1184,7 @@
             <button class="section-tab" role="tab" aria-selected="false">Notes</button>
             <button class="section-tab" role="tab" aria-selected="false">Transcript</button>
           </div>
-          ${state.localChanged ? '<div class="notice">Local summary edited. Any existing shared page still contains the previous snapshot.</div>' : ''}
+          ${state.localChanged && state.shareStatus === 'out of date' ? '<div class="notice">Local summary edited. The shared page still contains the previous snapshot.</div>' : ''}
           <p class="summary-lead">${state.localChanged ? meeting.summary.replace('Friday', 'Thursday') : meeting.summary}</p>
           <h3>Decisions</h3>
           <ul class="clean-list">
@@ -1040,7 +1206,7 @@
       return `<div class="recipient-card">
         <div class="shared-mark">Shared from MacParakeet</div>
         <h3>${meeting.title}</h3>
-        <div class="provenance">Text snapshot · ${expiryPhrase()} · Audio not uploaded</div>
+        <div class="provenance">Text snapshot · ${draftExpiryPhrase()} · Audio not uploaded</div>
         ${state.selection.summary ? `<h4>Summary</h4><p>${state.localChanged ? meeting.summary.replace('Friday', 'Thursday') : meeting.summary}</p>` : ''}
         ${state.selection.notes ? `<h4>Notes</h4><ul>${meeting.notes.map(note => `<li>${note}</li>`).join('')}</ul>` : ''}
         ${state.selection.transcript ? `<h4>Transcript excerpt</h4><p>${transcriptPrefix(meeting.transcript[0][0], meeting.transcript[0][1])}${meeting.transcript[0][2]}</p>` : ''}
@@ -1049,10 +1215,11 @@
 
     function createSheet() {
       const count = ShareModel.selectedNames(state.selection).length;
+      const isUpdate = state.publishMode === 'update';
       return `<div class="sheet-scrim">
         <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="share-sheet-title" tabindex="-1">
           <header class="sheet-head">
-            <div><h2 id="share-sheet-title">Share link</h2><p>Choose the exact text another person can read.</p></div>
+            <div><h2 id="share-sheet-title">${isUpdate ? 'Update shared page' : 'Share link'}</h2><p>Choose the exact text another person can read.</p></div>
             <button class="button subtle" data-action="CLOSE_DIALOG" aria-label="Close share sheet">Close</button>
           </header>
           <div class="sheet-body">
@@ -1065,8 +1232,9 @@
                 ${state.selection.transcript ? `<div class="transcript-options" aria-label="Transcript options"><label><input type="checkbox" data-transcript-option="speakers" ${state.transcriptOptions.speakers ? 'checked' : ''}> Speaker labels</label><label><input type="checkbox" data-transcript-option="timestamps" ${state.transcriptOptions.timestamps ? 'checked' : ''}> Timestamps</label></div>` : ''}
                 <div class="choice-row disabled"><span aria-hidden="true">—</span><span><strong>Audio</strong><small class="never">Never included or uploaded</small></span></div>
               </div>
-              <div class="expiry-row"><label for="expiry">Link expires</label><select id="expiry" data-expiry><option${state.expiryPreset === '1 hour' ? ' selected' : ''}>1 hour</option><option${state.expiryPreset === '24 hours' ? ' selected' : ''}>24 hours</option><option${state.expiryPreset === '7 days' ? ' selected' : ''}>7 days</option><option${state.expiryPreset === '30 days' ? ' selected' : ''}>30 days</option><option${state.expiryPreset === 'Custom…' ? ' selected' : ''}>Custom…</option></select></div>
-              ${state.expiryPreset === 'Custom…' ? `<div class="expiry-custom"><label for="custom-expiry">Exact date and time, within 90 days</label><input id="custom-expiry" type="datetime-local" min="2026-09-11T20:45" max="2026-12-10T20:45" value="${state.customExpiry}" data-custom-expiry required></div>` : ''}
+              ${isUpdate
+                ? `<div class="expiry-row"><span>Link expires</span><strong>${publishedExpiryPhrase()}</strong></div><p class="sheet-foot-note">Content updates keep the existing expiration. Change it separately from Shared.</p>`
+                : `<div class="expiry-row"><label for="expiry">Link expires</label><select id="expiry" data-expiry><option${state.expiryPreset === '1 hour' ? ' selected' : ''}>1 hour</option><option${state.expiryPreset === '24 hours' ? ' selected' : ''}>24 hours</option><option${state.expiryPreset === '7 days' ? ' selected' : ''}>7 days</option><option${state.expiryPreset === '30 days' ? ' selected' : ''}>30 days</option><option${state.expiryPreset === 'Custom…' ? ' selected' : ''}>Custom…</option></select></div>${state.expiryPreset === 'Custom…' ? `<div class="expiry-custom"><label for="custom-expiry">Exact date and time, within 90 days</label><input id="custom-expiry" type="datetime-local" min="2026-09-11T20:45" max="2026-12-10T20:45" value="${state.customExpiry}" data-custom-expiry required></div>` : ''}`}
               <p class="privacy-line"><strong>This encrypted text copy will leave your Mac.</strong> Anyone with the full link can read and forward it.</p>
             </div>
             <div class="preview-pane">
@@ -1076,7 +1244,7 @@
           </div>
           <footer class="sheet-foot">
             <span class="sheet-foot-note">${count ? `${count} text section${count === 1 ? '' : 's'} selected` : 'Nothing will be published'}</span>
-            <div class="button-row"><button class="button" data-action="CLOSE_DIALOG">Cancel</button><button class="button primary" data-action="PUBLISH" ${count ? '' : 'aria-describedby="empty-share-note"'}>Publish link</button></div>
+            <div class="button-row"><button class="button" data-action="CLOSE_DIALOG">Cancel</button><button class="button primary" data-action="PUBLISH" ${count ? '' : 'aria-describedby="empty-share-note"'}>${isUpdate ? 'Publish update' : 'Publish link'}</button></div>
           </footer>
           <span class="sr-only" id="empty-share-note">At least one text section is required.</span>
         </section>
@@ -1088,15 +1256,31 @@
     }
 
     function successSheet() {
+      const updated = state.successKind === 'update';
+      const confirmed = state.publishedSnapshot;
       return `<div class="sheet-scrim"><section class="sheet compact" role="dialog" aria-modal="true" aria-labelledby="published-title" tabindex="-1">
         <div class="success-body">
           <div class="success-icon" aria-hidden="true">✓</div>
-          <h2 id="published-title">Link published</h2>
-          <p>This is a separate encrypted snapshot. Later edits to your Library item will not appear automatically.</p>
+          <h2 id="published-title">${updated ? 'Shared page updated' : 'Link published'}</h2>
+          <p>${updated ? `Snapshot v${state.version} is now available at the same link. Its expiration did not change.` : 'This is a separate encrypted snapshot. Later edits to your Library item will not appear automatically.'}</p>
           <div class="link-box"><code>${shareURL()}</code><button class="button" data-action="COPY_LINK">${state.linkCopied ? 'Copied' : 'Copy'}</button></div>
-          <div class="success-facts"><div><strong>${ShareModel.selectedNames(state.selection).join(' + ')}</strong><span>Included</span></div><div><strong>${state.expiry}</strong><span>Expires</span></div><div><strong>Not uploaded</strong><span>Audio</span></div></div>
+          <div class="success-facts"><div><strong>${ShareModel.selectedNames(confirmed.selection).join(' + ')}</strong><span>Included</span></div><div><strong>${confirmed.expiry}</strong><span>Expires</span></div><div><strong>Not uploaded</strong><span>Audio</span></div></div>
         </div>
         <footer class="sheet-foot"><button class="button subtle" data-action="DISMISS_SUCCESS">Manage later</button><div class="button-row"><button class="button" data-action="VIEW_RECIPIENT">Open page</button><button class="button" data-action="NATIVE_SHARE">Share…</button><button class="button primary" data-action="COPY_LINK">Copy link</button></div></footer>
+      </section></div>`;
+    }
+
+    function expirySheet() {
+      const confirmed = state.publishedSnapshot;
+      return `<div class="sheet-scrim"><section class="sheet compact" role="dialog" aria-modal="true" aria-labelledby="expiry-title" tabindex="-1">
+        <div class="confirm-body">
+          <h2 id="expiry-title">Change expiration</h2>
+          <p>The shared text and full link stay the same. The current expiration remains confirmed until this change succeeds.</p>
+          <div class="expiry-row"><label for="managed-expiry">New expiration</label><select id="managed-expiry" data-expiry><option${state.expiryDraftPreset === '1 hour' ? ' selected' : ''}>1 hour</option><option${state.expiryDraftPreset === '24 hours' ? ' selected' : ''}>24 hours</option><option${state.expiryDraftPreset === '7 days' ? ' selected' : ''}>7 days</option><option${state.expiryDraftPreset === '30 days' ? ' selected' : ''}>30 days</option><option${state.expiryDraftPreset === 'Custom…' ? ' selected' : ''}>Custom…</option></select></div>
+          ${state.expiryDraftPreset === 'Custom…' ? `<div class="expiry-custom"><label for="managed-custom-expiry">Exact date and time, within 90 days</label><input id="managed-custom-expiry" type="datetime-local" min="2026-09-11T20:45" max="2026-12-10T20:45" value="${state.expiryDraftCustom}" data-custom-expiry required></div>` : ''}
+          <div class="confirm-caveat">Proposed: ${expiryDraftPhrase()}<br>Currently confirmed: ${confirmed.expiryPreset === 'Custom…' ? confirmed.expiry : `In ${confirmed.expiry}`}</div>
+        </div>
+        <footer class="sheet-foot"><span class="sheet-foot-note">${state.online ? 'Ready to confirm' : 'Offline: the confirmed expiration will be retained'}</span><div class="button-row"><button class="button" data-action="CLOSE_DIALOG">Cancel</button><button class="button primary" data-action="SAVE_EXPIRY">Confirm expiration</button></div></footer>
       </section></div>`;
     }
 
@@ -1108,21 +1292,26 @@
     }
 
     function sharedView() {
-      if (!state.version) return `<section class="content-area">${emptyShared()}</section>`;
+      if (!state.version || !state.publishedSnapshot) return `<section class="content-area">${emptyShared()}</section>`;
+      const confirmed = state.publishedSnapshot;
       const [label, kind] = statusPresentation();
       return `<section class="content-area">
         <div class="shared-view">
           <header class="shared-head"><div><h2>Shared by me</h2><p>Text snapshots published from this Mac.</p></div><button class="button" data-action="OPEN_LIBRARY">Back to Library</button></header>
-          <div class="share-table"><div class="share-row"><div class="share-title"><strong>${meeting.title}</strong><span>Summary + ${state.selection.notes ? 'Notes' : state.selection.transcript ? 'Transcript' : 'selected text'} · 18 KB encrypted</span></div><div><span class="cell-label">Created</span><br><strong>Today</strong></div><div><span class="cell-label">Expires</span><br><strong>${state.expiryPreset === 'Custom…' ? state.expiry : `In ${state.expiry}`}</strong></div><span class="status-pill ${kind}">${label}</span></div></div>
+          <div class="share-table"><div class="share-row"><div class="share-title"><strong>${meeting.title}</strong><span>${ShareModel.selectedNames(confirmed.selection).join(' + ')} · 18 KB encrypted</span></div><div><span class="cell-label">Created</span><br><strong>Today</strong></div><div><span class="cell-label">Expires</span><br><strong>${confirmed.expiryPreset === 'Custom…' ? confirmed.expiry : `In ${confirmed.expiry}`}</strong></div><span class="status-pill ${kind}">${label}</span></div></div>
           <div class="share-detail">
             <section class="share-panel"><h3>Published snapshot</h3>
               ${state.shareStatus === 'out of date' ? '<div class="notice">Your local content changed. The public page still shows the previous snapshot.</div>' : ''}
               ${state.shareStatus === 'stop pending' ? '<div class="notice">Waiting for a server receipt. This link may still work while the Mac is offline.</div>' : ''}
               ${state.shareStatus === 'stopped' ? '<div class="notice danger">Sharing is stopped permanently. The service will not return this ciphertext again.</div>' : ''}
-              <dl class="fact-list"><div><dt>Version</dt><dd>v${state.version}</dd></div><div><dt>Contents</dt><dd>${ShareModel.selectedNames(state.selection).join(', ')}</dd></div><div><dt>Full link</dt><dd>${shareURL()}</dd></div><div><dt>Audio</dt><dd>Never uploaded</dd></div></dl>
+              <dl class="fact-list"><div><dt>Version</dt><dd>v${state.version}</dd></div><div><dt>Contents</dt><dd>${ShareModel.selectedNames(confirmed.selection).join(', ')}</dd></div><div><dt>Full link</dt><dd>${shareURL()}</dd></div><div><dt>Audio</dt><dd>Never uploaded</dd></div></dl>
             </section>
             <section class="share-panel"><h3>Actions</h3><div class="manage-actions">
-              ${state.shareStatus === 'stopped' ? '<button class="button primary" data-action="CREATE_NEW_LINK">Create new link</button>' : '<button class="button" data-action="VIEW_RECIPIENT">Preview page</button><button class="button" data-action="COPY_LINK">Copy link</button><button class="button" data-action="UPDATE_SHARE">Update shared page</button><button class="button danger" data-action="REQUEST_STOP">Stop sharing</button>'}
+              ${state.shareStatus === 'stopped'
+                ? '<button class="button primary" data-action="CREATE_NEW_LINK">Create new link</button>'
+                : state.serverStatus === 'active' && state.shareStatus !== 'stop pending'
+                  ? '<button class="button" data-action="VIEW_RECIPIENT">Preview page</button><button class="button" data-action="COPY_LINK">Copy link</button><button class="button" data-action="UPDATE_SHARE">Update shared page</button><button class="button" data-action="OPEN_EXPIRY">Change expiration</button><button class="button danger" data-action="REQUEST_STOP">Stop sharing</button>'
+                  : '<span class="sheet-foot-note">This shared page is unavailable for changes.</span>'}
             </div></section>
           </div>
         </div>
@@ -1138,19 +1327,20 @@
       return `<section class="mac-window" aria-label="MacParakeet application prototype">
         <div class="window-bar"><span class="traffic-lights" aria-hidden="true"><i></i><i></i><i></i></span>MacParakeet</div>
         <div class="app-shell">${appSidebar(state.surface === 'shared' ? 'shared' : 'library')}${main}</div>
-        ${state.dialog === 'create' ? createSheet() : state.dialog === 'success' ? successSheet() : state.dialog === 'stop' ? stopSheet() : ''}
+        ${state.dialog === 'create' ? createSheet() : state.dialog === 'success' ? successSheet() : state.dialog === 'expiry' ? expirySheet() : state.dialog === 'stop' ? stopSheet() : ''}
       </section>`;
     }
 
     function recipientContent() {
-      if (state.serverStatus !== 'active') return `<div class="blocked-page"><div class="blocked-card"><div class="blocked-symbol">×</div><h1>This shared page is no longer available</h1><p>The owner stopped sharing or the link expired. Ask them for a new link if you still need access.</p></div></div>`;
+      const confirmed = state.publishedSnapshot;
+      if (state.serverStatus !== 'active' || !confirmed) return `<div class="blocked-page"><div class="blocked-card"><div class="blocked-symbol">×</div><h1>This shared page is no longer available</h1><p>The owner stopped sharing or the link expired. Ask them for a new link if you still need access.</p></div></div>`;
       return `<article class="web-page">
         <header class="web-brand"><strong>MacParakeet</strong><div class="web-actions"><button class="button" data-action="RECIPIENT_DOWNLOAD">Download Markdown</button><button class="button" data-action="RECIPIENT_COPY">Copy text</button></div></header>
         <h1>${meeting.title}</h1>
-        <p class="web-provenance">Shared today · Snapshot v${state.version} · ${expiryPhrase()}<br>Text only. Audio was not uploaded.</p>
-        ${state.selection.summary ? `<section class="web-section"><h2>Summary</h2><p>${meeting.summary}</p></section>` : ''}
-        ${state.selection.notes ? `<section class="web-section"><h2>Notes</h2><ul>${meeting.notes.map(note => `<li>${note}</li>`).join('')}</ul></section>` : ''}
-        ${state.selection.transcript ? `<section class="web-section"><h2>Transcript</h2><div class="web-transcript">${meeting.transcript.map(([speaker, time, text]) => { const header = transcriptHeader(speaker, time); return `<article class="${header ? '' : 'without-labels'}">${header}<p>${text}</p></article>`; }).join('')}</div></section>` : ''}
+        <p class="web-provenance">${confirmed.revisionTimeLabel} · Snapshot v${state.version} · ${publishedExpiryPhrase()}<br>Text only. Audio was not uploaded.</p>
+        ${confirmed.selection.summary ? `<section class="web-section"><h2>Summary</h2><p>${publishedSummary(confirmed)}</p></section>` : ''}
+        ${confirmed.selection.notes ? `<section class="web-section"><h2>Notes</h2><ul>${meeting.notes.map(note => `<li>${note}</li>`).join('')}</ul></section>` : ''}
+        ${confirmed.selection.transcript ? `<section class="web-section"><h2>Transcript</h2><div class="web-transcript">${meeting.transcript.map(([speaker, time, text]) => { const header = transcriptHeader(speaker, time, confirmed.transcriptOptions); return `<article class="${header ? '' : 'without-labels'}">${header}<p>${text}</p></article>`; }).join('')}</div></section>` : ''}
         <p class="accuracy-note">Transcripts and generated summaries can contain errors. Confirm important details with the people involved.</p>
         <footer class="web-footer"><span>Shared privately from MacParakeet</span><button data-action="REPORT_SHARE">Report this share</button></footer>
       </article>`;
@@ -1189,7 +1379,7 @@
       } else if (['OPEN_SHARED', 'VIEW_RECIPIENT'].includes(action.type)) {
         document.querySelector('#stage').scrollIntoView({ block: 'start' });
       }
-      if (state.blocked || ['COPY_LINK', 'NATIVE_SHARE', 'RECIPIENT_COPY', 'RECIPIENT_DOWNLOAD', 'REPORT_SHARE', 'CONFIRM_STOP'].includes(action.type)) showToast(state.lastEvent);
+      if (state.blocked || ['COPY_LINK', 'NATIVE_SHARE', 'RECIPIENT_COPY', 'RECIPIENT_DOWNLOAD', 'REPORT_SHARE', 'SAVE_EXPIRY', 'CONFIRM_STOP'].includes(action.type)) showToast(state.lastEvent);
     }
 
     document.addEventListener('click', (event) => {

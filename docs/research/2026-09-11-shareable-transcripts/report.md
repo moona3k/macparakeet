@@ -398,14 +398,21 @@ paths or database identifiers:
 
 ```json
 {
+  "schema": "com.macparakeet.share-bundle",
   "schemaVersion": 1,
   "publishedAt": "2026-09-11T22:00:00Z",
   "title": "Optional encrypted title",
-  "source": { "kind": "meeting", "displayDate": "Optional" },
+  "source": { "kind": "meeting", "displayDate": "2026-09-11T20:00:00Z" },
   "sections": [
-    { "kind": "summary", "title": "Summary", "blocks": [] },
-    { "kind": "notes", "title": "Notes", "blocks": [] },
-    { "kind": "transcript", "title": "Transcript", "segments": [] }
+    { "kind": "summary", "title": "Summary", "markdown": "## Decisions\n\nSelected display-ready text." },
+    { "kind": "notes", "title": "Notes", "markdown": "Owner-authored notes." },
+    {
+      "kind": "transcript",
+      "title": "Transcript",
+      "segments": [
+        { "text": "Selected transcript text.", "startMs": 12300, "endMs": 15800, "speaker": "Jordan" }
+      ]
+    }
   ]
 }
 ```
@@ -416,11 +423,11 @@ prompts, chat history, confidence values, audio paths, remote thumbnails, and
 unselected source URLs. Calendar context is explicitly local-only in the current
 model and should never cross the boundary accidentally.
 
-Use structured text blocks rather than arbitrary HTML. Render plain content via
-`textContent`. If limited Markdown is added, disable raw HTML, remote images,
-embeds, and scriptable URLs; sanitize again in the browser and keep a strict
-Content Security Policy. OWASP recommends both safe DOM sinks and CSP as
-defense-in-depth.[^15]
+Summary and notes use Markdown strings rather than arbitrary HTML. Treat that
+Markdown as untrusted: disable raw HTML, remote images, embeds, and scriptable
+URLs; render through safe DOM sinks and a reviewed browser sanitizer, and keep
+a strict Content Security Policy. OWASP recommends both safe DOM sinks and CSP
+as defense-in-depth.[^15]
 
 ## Service architecture
 
