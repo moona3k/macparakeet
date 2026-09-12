@@ -232,6 +232,7 @@ final class ShareCoordinatorTests: XCTestCase {
         XCTAssertEqual(retried.id, pending.id)
         XCTAssertEqual(retried.idempotencyKey, pending.idempotencyKey)
         XCTAssertEqual(retried.requestBody, pending.requestBody)
+        XCTAssertNotNil(try credentialStore.loadContentKey(forRemoteShareId: persisted.remoteShareId))
 
         remoteClient.createShareHandler = succeedingCreateHandler()
         await coordinator.resumePendingWork()

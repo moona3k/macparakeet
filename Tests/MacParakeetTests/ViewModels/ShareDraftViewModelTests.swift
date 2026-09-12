@@ -49,8 +49,9 @@ final class ShareDraftViewModelTests: XCTestCase {
         XCTAssertFalse(model.manifest.includeTranscript)
         model.manifest.includeMetadata = false
         await model.preparePreview()
-        XCTAssertNil(model.preview?.title)
-        XCTAssertNil(model.preview?.source)
+        let preview = try XCTUnwrap(model.preview)
+        XCTAssertNil(preview.title)
+        XCTAssertNil(preview.source)
     }
 
     func testContextualSummaryAndEmptySelection() async {
