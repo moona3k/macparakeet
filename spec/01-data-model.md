@@ -343,6 +343,7 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
 - `titleOverride` stores a user-authored display title for non-meeting transcription rows. It is app metadata only: it does not rename/move `filePath`, replace the original `fileName`, or participate in meeting artifact naming. Blank titles are normalized to `NULL`. Added in v0.26.
 - `derivedTitle` / `derivedSnippet` cache semantic display copy derived from the completed transcript. Local file rows retain the original `fileName` as their default visible title, but the derived copy remains available for search and preview-related behavior. Added in v0.9 so Library surfaces do not need to recompute derived text on every render.
 - `splitProvenance` is a v0.42 JSON blob set only on child rows created by Split and transcribe (see the dedicated section above and `contracts/meeting-splitting.md`). `NULL` for the source row and every non-split transcription.
+- Missing columns in older read-only schemas and SQL `NULL` decode as absent provenance. Malformed non-NULL provenance fails the row read; it must not silently turn a split child into an ordinary recording or be overwritten as `NULL`.
 - The legacy `summary` column was migrated into `summaries` in v0.7 and dropped in v0.7.6.
 - No FTS on transcriptions in v0.1. Search by filename or scroll the list. Revisit if the list grows large.
 

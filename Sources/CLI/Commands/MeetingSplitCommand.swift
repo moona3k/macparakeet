@@ -655,6 +655,7 @@ func splitMeetingRecordingsRootURL(defaults: UserDefaults) -> URL {
 
 private func printSplitPreview(_ preview: MeetingSplitPreview) {
     print("Split preview for \"\(preview.sourceTitle)\" (\(preview.sourceId))")
+    print("  Source identity: \(preview.sourceIdentity)")
     print("  Total duration: \(preview.totalDurationMs)ms")
     print(
         "  Tracks: playback"

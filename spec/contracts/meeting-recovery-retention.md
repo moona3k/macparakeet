@@ -182,6 +182,12 @@ prove healthy capture; see the
 
 ## Retention Rule
 
+Only the current, uncancelled scheduled sweep may update the last-success
+timestamp. A failed sweep leaves cleanup due for the next existing trigger.
+Replacing a sweep or disabling automatic retention invalidates its completion;
+synchronous cleanup that finishes later must not overwrite newer retry state.
+Its cleanup result is still logged for auditability.
+
 Automatic retention-like deletion must skip a meeting folder whenever
 `recording.lock` exists. That includes:
 

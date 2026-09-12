@@ -426,10 +426,10 @@ extension Transcription: FetchableRecord, PersistableRecord {
         titleOverride = Self.normalizedTitleOverride(from: try container.decodeIfPresent(String.self, forKey: .titleOverride))
         derivedTitle = try container.decodeIfPresent(String.self, forKey: .derivedTitle)
         derivedSnippet = try container.decodeIfPresent(String.self, forKey: .derivedSnippet)
-        splitProvenance = (try? container.decodeIfPresent(
+        splitProvenance = try container.decodeIfPresent(
             MeetingSplitProvenance.self,
             forKey: .splitProvenance
-        )) ?? nil
+        )
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
 }

@@ -198,6 +198,30 @@ final class MeetingSplitCommandTests: XCTestCase {
         XCTAssertFalse(preview.hasRawMicrophone)
     }
 
+    func testPlainTextPreviewPrintsTheSourceIdentityUsedByCreate() async throws {
+        let harness = try makeHarness()
+        defer { harness.cleanup() }
+        let folderURL = try makeSourceFolder(durationMs: 4_000)
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+        let source = Transcription(
+            fileName: "Standup recording",
+            meetingArtifactFolderPath: folderURL.path,
+            durationMs: 4_000,
+            status: .completed,
+            sourceType: .meeting
+        )
+        try harness.transcriptions.save(source)
+        let arguments = [source.id.uuidString, "--cut", "2000", "--database", harness.dbURL.path]
+        let jsonCommand = try MeetingsCommand.SplitSubcommand.PreviewSubcommand.parse(arguments + ["--json"])
+        let json = try await captureStandardOutput { try await jsonCommand.run() }
+        let preview = try Self.cliJSONDecoder.decode(MeetingSplitPreview.self, from: Data(json.utf8))
+        let textCommand = try MeetingsCommand.SplitSubcommand.PreviewSubcommand.parse(arguments)
+        let output = try await captureStandardOutput { try await textCommand.run() }
+
+        XCTAssertFalse(preview.sourceIdentity.isEmpty)
+        XCTAssertTrue(output.components(separatedBy: "\n").contains("  Source identity: \(preview.sourceIdentity)"))
+    }
+
     func testPreviewNeverCreatesAnOperationOrWritesToTheSourceFolder() async throws {
         let harness = try makeHarness()
         defer { harness.cleanup() }
@@ -518,6 +542,12 @@ final class MeetingSplitCommandTests: XCTestCase {
         ]) { _, new in new }
 
         try process.run()
+        defer {
+            if process.isRunning {
+                kill(process.processIdentifier, SIGKILL)
+            }
+            process.waitUntilExit()
+        }
         try await waitForFile(atPath: markerPath)
         // A short buffer after the marker appears: the child writes it
         // immediately before installing the SIGINT handler, so this only

@@ -46,6 +46,33 @@ final class MeetingSplitRepositoryTests: XCTestCase {
         XCTAssertNil(fetched.splitProvenance)
     }
 
+    func testTranscriptionWithoutSplitProvenanceColumnRemainsReadable() throws {
+        let recording = try savedSource()
+        try dbQueue.write { db in
+            // Model the pre-splitting schema used by non-mutating, read-only probes.
+            try db.execute(sql: "ALTER TABLE transcriptions DROP COLUMN splitProvenance")
+        }
+        let fetched = try XCTUnwrap(transcriptions.fetch(id: recording.id))
+        XCTAssertNil(fetched.splitProvenance)
+        XCTAssertEqual(fetched.fileName, recording.fileName)
+        try dbQueue.read { db in
+            XCTAssertFalse(try db.columns(in: "transcriptions").map(\.name).contains("splitProvenance"))
+        }
+    }
+
+    func testMalformedSplitProvenanceThrowsWithoutErasingStoredValue() throws {
+        _ = try savedSource()
+        for malformed in ["not-json", "{}", "{\"operationId\":42}"] {
+            try dbQueue.write { db in
+                try db.execute(sql: "UPDATE transcriptions SET splitProvenance = ?", arguments: [malformed])
+            }
+            try dbQueue.read { db in
+                XCTAssertThrowsError(try Transcription.fetchOne(db))
+                XCTAssertEqual(try String.fetchOne(db, sql: "SELECT splitProvenance FROM transcriptions"), malformed)
+            }
+        }
+    }
+
     // MARK: begin idempotence and conflict
 
     func testBeginWithNewKeyPersistsFixedChildIdsBeforeFiles() throws {

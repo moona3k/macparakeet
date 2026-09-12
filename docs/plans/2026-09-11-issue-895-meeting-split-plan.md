@@ -145,6 +145,22 @@ zero failures). A subsequent regression proved retry briefly hid already-saved
 parts; retaining the receipt fixed it, with 26 focused tests passing. Native
 presentation, isolated fixture QA, and final integration remain in progress.
 
+### Hosted review checkpoint — PR #1022
+
+The first hosted review added four bounded safeguards: plaintext CLI preview
+prints the source identity used by `--expected-identity`; the SIGINT test always
+reaps its own child process; obsolete or cancelled retention sweeps cannot
+overwrite the current retry timestamp; and malformed non-NULL split provenance
+fails decoding instead of silently erasing ownership information. Missing
+columns in older schemas and SQL `NULL` remain readable. The design and
+auto-prompt contract now describe the completed implementation and measured QA.
+
+The combined focused gate passed 179 tests, one skipped, zero failures, with
+`MACPARAKEET_SPLIT_SIGINT_TESTS=1`. This includes real SIGINT delivery, plaintext
+preview identity, superseded/cancelled sweep completion, missing-column reads,
+malformed provenance preservation, split services, startup reconciliation, and
+saved-audio prompt completion. No second full-suite run was performed.
+
 ### Native runtime checkpoint — September 12
 
 Accessibility-driven QA in an isolated synthetic library created three

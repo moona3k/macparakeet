@@ -1,6 +1,6 @@
 # Saved-Audio Auto-Prompt Completion
 
-> Status: ACTIVE — implemented Core helper; not yet wired to a coordinator.
+> Status: ACTIVE — implemented Core helper, used by `MeetingSplitService`.
 
 ## Purpose
 
@@ -27,9 +27,10 @@ retention. Callers own those effects.
 - `PromptResultsViewModel.resolveAvailablePrompts` (GUI prompt picker and
   `autoGeneratePromptResults`) now delegates to `PromptAutoRunSelector`
   instead of keeping a second copy of the same precedence.
-- A future split-and-transcribe processing coordinator (not yet built) is
-  the intended caller of `SavedAudioAutoPromptCompletionService` for each
-  newly saved, newly transcribed child meeting.
+- `MeetingSplitService.processAll` calls `completeAutoPrompts(for:)` after
+  each child's saved-audio transcription succeeds, before moving to the next
+  child. Its durable automation stage supports retry without splitting again
+  or repeating successful transcription.
 
 ## Stable behavior
 

@@ -14,6 +14,7 @@ final class MeetingAudioRetentionSweepCoordinator {
 
     private(set) var sweepTask: Task<Void, Never>?
     private var launchRecoveryTask: Task<Void, Never>?
+    private var sweepGeneration = UUID()
 
     init(
         defaults: UserDefaults = .standard,
@@ -85,6 +86,7 @@ final class MeetingAudioRetentionSweepCoordinator {
     ) {
         guard retention.automaticallyDeletesAudio else {
             if force {
+                sweepGeneration = UUID()
                 sweepTask?.cancel()
                 sweepTask = nil
             }
@@ -93,11 +95,13 @@ final class MeetingAudioRetentionSweepCoordinator {
         guard force || recoveryTask != nil || shouldRunSweep(now: now()) else { return }
 
         sweepTask?.cancel()
+        let generation = UUID()
+        sweepGeneration = generation
         let nowProvider = now
         sweepTask = Task.detached(priority: .utility) { [weak self, repository, retention, nowProvider, recoveryTask] in
             if let recoveryTask {
                 await recoveryTask.value
-                await self?.clearLaunchRecoveryTask()
+                await self?.clearLaunchRecoveryTask(generation: generation)
             }
             guard !Task.isCancelled else { return }
 
@@ -110,16 +114,9 @@ final class MeetingAudioRetentionSweepCoordinator {
             do {
                 let result = try MeetingAudioRetentionSweeper(repository: repository)
                     .sweep(retention: retention, now: sweepNow)
-                // Keep failed cleanup due for the next existing sweep trigger.
-                if result.failedCount == 0 {
-                    await self?.markSweepCompleted(at: sweepNow)
-                } else {
-                    await self?.markSweepDue()
-                }
-                await self?.logSweepResult(result)
+                await self?.finishSweep(result, at: sweepNow, generation: generation)
             } catch {
-                await self?.markSweepDue()
-                await self?.logSweepFailure(error)
+                await self?.failSweep(error, generation: generation)
             }
         }
     }
@@ -133,15 +130,29 @@ final class MeetingAudioRetentionSweepCoordinator {
         return now.timeIntervalSince(lastSweepAt) >= minimumSweepInterval
     }
 
-    private func markSweepCompleted(at date: Date) {
-        defaults.set(date, forKey: UserDefaultsAppRuntimePreferences.lastMeetingAudioRetentionSweepAtKey)
+    private func finishSweep(_ result: MeetingAudioRetentionSweepResult, at date: Date, generation: UUID) {
+        logSweepResult(result)
+        // Synchronous cleanup may finish after cancellation or a replacement sweep.
+        guard generation == sweepGeneration, !Task.isCancelled else { return }
+        if result.failedCount == 0 {
+            defaults.set(date, forKey: UserDefaultsAppRuntimePreferences.lastMeetingAudioRetentionSweepAtKey)
+        } else {
+            markSweepDue()
+        }
+    }
+
+    private func failSweep(_ error: Error, generation: UUID) {
+        logSweepFailure(error)
+        guard generation == sweepGeneration, !Task.isCancelled else { return }
+        markSweepDue()
     }
 
     private func markSweepDue() {
         defaults.removeObject(forKey: UserDefaultsAppRuntimePreferences.lastMeetingAudioRetentionSweepAtKey)
     }
 
-    private func clearLaunchRecoveryTask() {
+    private func clearLaunchRecoveryTask(generation: UUID) {
+        guard generation == sweepGeneration, !Task.isCancelled else { return }
         launchRecoveryTask = nil
     }
 

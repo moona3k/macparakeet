@@ -56,11 +56,12 @@ The lifecycle/recovery milestone is committed as `93efade8`: 729 focused tests,
 one skipped, zero failures. Native sheet/navigation is committed as `9a6ff3d4`.
 Retry receipt visibility and switching to an unavailable source have explicit
 red-to-green regressions; the latest ViewModel gate passed 18 tests and compiled
-the app. The signed Xcode dev bundle built and launched against the isolated
-fixture. Main-window capture succeeded, but interactive sheet QA initially
-hit macOS Accessibility denial and remains pending permission. Final Core/CLI
-failure-path verification is also in progress. This document does not claim
-the feature is merged, released, or accepted with a real STT model.
+the app. These are historical milestones. The signed Xcode dev bundle built
+and launched against the isolated fixture; the initial macOS Accessibility
+denial was resolved, and interactive sheet and cancellation/retry QA completed
+as described below. Subsequent focused Core/CLI gates and a real saved-audio
+pipeline run are recorded in the [implementation plan](../plans/2026-09-11-issue-895-meeting-split-plan.md).
+This evidence does not establish speech-model accuracy, merge, or release status.
 
 A three-lens simplification pass found no reusable equivalent for the precise
 time parser or the small entry-point wiring. It removed a redundant operation-ID
@@ -82,13 +83,15 @@ The actual native action saved three independent audio paths with 30-, 15-, and
 unchanged. The sheet showed "Recordings saved" while part 1 was transcribing;
 closing and reopening retained the same operation and active task.
 
-Cancellation remains under investigation in the cold-model fixture: Stop requests
-cancellation, but the task remained in "Stopping" with part 1 active and later
-parts pending. A process sample showed CoreML waiting in an Apple Neural Engine
-model-load call. The existing STT scheduler waits for active runtime work to drain;
-do not release audio ownership early or claim instantaneous cancellation. This is
-not yet a successful cancellation/retry acceptance result or real-model accuracy
-evidence. No new processing framework has been introduced to mask the wait.
+Stop initially remained in "Stopping" with part 1 active and later parts pending.
+A process sample showed CoreML waiting in an Apple Neural Engine model-load call.
+After several minutes, all three parts became cancelled and ready to continue.
+An ordinary relaunch and Continue reused the same operation and child identities;
+all three parts reached Done, and CLI status agreed with four recordings still
+present. The existing STT scheduler waits for active runtime work to drain: retain
+audio ownership until it returns and do not promise instantaneous cancellation.
+This verifies cancellation/retry through the real pipeline, not recognition
+accuracy on the synthetic audio. No new processing framework masks the wait.
 
 The earlier HTML is a reference only. Native layout follows the existing app's
 type, spacing, colors, and action styles; no custom waveform editor is needed.
