@@ -144,6 +144,12 @@ public final class TranscriptionViewModel {
                 speakerCorrectionsApplied = false
                 canUndoSpeakerCorrection = false
                 canRedoSpeakerCorrection = false
+                // An offer belongs to one version of the diarization, not to a
+                // transcription id: re-transcribing reloads the same row in
+                // place, and `speakerId` is positional, so a surviving offer
+                // could name a different person's voice.
+                dismissVoiceEnrollment()
+                voiceEnrollmentMessage = nil
             }
             if let currentTranscription {
                 loadSpeakerAttribution(for: currentTranscription)
@@ -288,6 +294,7 @@ public final class TranscriptionViewModel {
     private var promptResultRepo: PromptResultRepositoryProtocol?
     private var speakerAttributionReader: SpeakerAttributionReading?
     private var speakerCorrectionService: SpeakerCorrectionServicing?
+    private var speakerVoiceprints: SpeakerVoiceprintServicing?
     private var speakerAttributionLoadToken: UUID?
     private var speakerAttributionTranscriptionID: UUID?
     private var transcriptionTask: Task<Void, Never>?
@@ -369,7 +376,8 @@ public final class TranscriptionViewModel {
         promptResultRepo: PromptResultRepositoryProtocol? = nil,
         promptResultsViewModel: PromptResultsViewModel? = nil,
         speakerAttributionReader: SpeakerAttributionReading? = nil,
-        speakerCorrectionService: SpeakerCorrectionServicing? = nil
+        speakerCorrectionService: SpeakerCorrectionServicing? = nil,
+        speakerVoiceprints: SpeakerVoiceprintServicing? = nil
     ) {
         self.transcriptionService = transcriptionService
         self.audioTrackService =
@@ -381,6 +389,7 @@ public final class TranscriptionViewModel {
         self.promptResultsViewModel = promptResultsViewModel
         self.speakerAttributionReader = speakerAttributionReader
         self.speakerCorrectionService = speakerCorrectionService
+        self.speakerVoiceprints = speakerVoiceprints
         isConfigured = true
         clearError()
         loadTranscriptions()
@@ -1969,6 +1978,11 @@ public final class TranscriptionViewModel {
                 self.speakerCorrectionsApplied = projection.correctionsApplied
                 self.canUndoSpeakerCorrection = projection.canUndo
                 self.canRedoSpeakerCorrection = projection.canRedo
+                // The fingerprint is only known now, and a name applied in an
+                // earlier session left no offer behind.
+                if let current = self.currentTranscription, current.id == transcriptionID {
+                    self.reofferVoiceEnrollment(for: current)
+                }
                 return true
             } catch {
                 guard let self,
@@ -1987,8 +2001,15 @@ public final class TranscriptionViewModel {
     /// Returns `false` when the correction was refused because speaker changes
     /// are still loading or saving, so the caller can keep its pending input
     /// and retry once `isApplyingSpeakerCorrection` clears.
+    ///
+    /// `onCommitted` reports what the scheduled write actually did. The `Bool`
+    /// this returns only says the command was accepted for writing; callers
+    /// whose own work depends on the label landing must wait for the callback.
     @discardableResult
-    public func applySpeakerCorrection(_ command: SpeakerCorrectionCommand) -> Bool {
+    public func applySpeakerCorrection(
+        _ command: SpeakerCorrectionCommand,
+        onCommitted: (@MainActor @Sendable (Bool) -> Void)? = nil
+    ) -> Bool {
         guard let transcriptionID = currentTranscription?.id,
               let speakerCorrectionService
         else { return true }
@@ -2009,8 +2030,10 @@ public final class TranscriptionViewModel {
                 self?.publishSpeakerCorrectionResult(
                     result, transcriptionID: transcriptionID, selectedRevision: selectedRevision
                 )
+                await MainActor.run { onCommitted?(true) }
             } catch {
                 self?.handleSpeakerCorrectionFailure(error, transcriptionID: transcriptionID)
+                await MainActor.run { onCommitted?(false) }
             }
         }
         return true
@@ -2109,6 +2132,194 @@ public final class TranscriptionViewModel {
 
     // MARK: - Speaker Rename
 
+    /// An offer to remember the voice just named. Held only while the user has
+    /// not answered; nothing is stored until they accept.
+    public struct PendingVoiceEnrollment: Sendable, Equatable {
+        public let speakerId: String
+        public let displayName: String
+        public let transcriptionId: UUID
+        public let fingerprint: TranscriptFingerprint
+        let observation: SpeakerClusterObservation
+    }
+
+    /// What the user is being offered, or the outcome of what they accepted.
+    ///
+    /// `internal(set)` so tests can stage a stale offer and prove the
+    /// confirmation guard holds; views only read it.
+    public internal(set) var pendingVoiceEnrollment: PendingVoiceEnrollment?
+    public private(set) var voiceEnrollmentMessage: String?
+    /// A second name already owns this voice, so accepting would merge two
+    /// people. The user has to say which it is.
+    public private(set) var voiceEnrollmentConflict: PendingVoiceEnrollment?
+
+    public func dismissVoiceEnrollment() {
+        pendingVoiceEnrollment = nil
+        voiceEnrollmentConflict = nil
+    }
+
+    public func clearVoiceEnrollmentMessage() {
+        voiceEnrollmentMessage = nil
+    }
+
+    /// Re-offers enrollment when a transcript opens.
+    ///
+    /// Without this the flywheel depends on the user staying in the window that
+    /// follows a rename: a speaker is renamed once, so after a relaunch there
+    /// is no second rename to trigger the offer, and the retained voice expires
+    /// unused. Only speakers the user has actually named are considered, and
+    /// only while a candidate is still available — the same conditions the
+    /// rename path applies.
+    func reofferVoiceEnrollment(for transcription: Transcription) {
+        guard let speakerVoiceprints,
+              pendingVoiceEnrollment == nil,
+              voiceEnrollmentConflict == nil,
+              let fingerprint = speakerAttribution?.fingerprint,
+              let speakers = effectiveCurrentTranscription?.speakers ?? transcription.speakers
+        else { return }
+
+        // A speaker still carrying its positional label was never named, so
+        // there is nothing to remember it as.
+        let named = speakers.filter { !$0.carriesAutomaticLabel }
+        guard !named.isEmpty else { return }
+        let transcriptionId = transcription.id
+
+        Task { [weak self] in
+            for speaker in named {
+                let observation = try? await speakerVoiceprints.enrollmentCandidate(
+                    transcriptionId: transcriptionId,
+                    speakerId: speaker.id,
+                    fingerprint: fingerprint
+                )
+                guard let observation else { continue }
+                let published = await MainActor.run { [weak self] () -> Bool in
+                    guard let self,
+                          self.currentTranscription?.id == transcriptionId,
+                          self.speakerAttribution?.fingerprint == fingerprint,
+                          self.pendingVoiceEnrollment == nil
+                    else { return false }
+                    self.pendingVoiceEnrollment = PendingVoiceEnrollment(
+                        speakerId: speaker.id,
+                        displayName: speaker.label,
+                        transcriptionId: transcriptionId,
+                        fingerprint: fingerprint,
+                        observation: observation
+                    )
+                    return true
+                }
+                // One at a time: several banners at once would be a queue to
+                // clear rather than a question to answer.
+                if published { return }
+            }
+        }
+    }
+
+    /// Offers to remember the voice, but only once the store confirms a
+    /// candidate still exists for this speaker — otherwise the prompt would
+    /// promise something enrollment would then refuse. Silent when the feature
+    /// is off, the window has lapsed, or the speaker spoke too briefly.
+    /// `transcriptionId` and `fingerprint` are the ones the rename was made
+    /// against, passed in rather than read here: the caller may be a callback
+    /// that lands after the user moved on, and reading the current values
+    /// would offer the new transcript.s positional speaker under the old name.
+    private func offerVoiceEnrollment(
+        speakerId: String,
+        displayName: String,
+        transcriptionId: UUID,
+        fingerprint: TranscriptFingerprint
+    ) {
+        guard let speakerVoiceprints,
+              currentTranscription?.id == transcriptionId,
+              speakerAttribution?.fingerprint == fingerprint
+        else { return }
+
+        Task { [weak self] in
+            let observation = try? await speakerVoiceprints.enrollmentCandidate(
+                transcriptionId: transcriptionId,
+                speakerId: speakerId,
+                fingerprint: fingerprint
+            )
+            guard let observation else { return }
+            await MainActor.run {
+                // Both: a same-row re-diarization keeps the id and changes the
+                // fingerprint, and this offer names a positional speaker.
+                guard self?.currentTranscription?.id == transcriptionId,
+                      self?.speakerAttribution?.fingerprint == fingerprint
+                else { return }
+                self?.pendingVoiceEnrollment = PendingVoiceEnrollment(
+                    speakerId: speakerId,
+                    displayName: displayName,
+                    transcriptionId: transcriptionId,
+                    fingerprint: fingerprint,
+                    observation: observation
+                )
+            }
+        }
+    }
+
+    /// Accepts the offer. `allowMerge` is the answer to a name conflict, so it
+    /// is false on the first attempt and true only when the user has said the
+    /// two voices are the same person.
+    public func confirmVoiceEnrollment(allowMerge: Bool = false) {
+        guard let offer = allowMerge ? voiceEnrollmentConflict : pendingVoiceEnrollment,
+              let speakerVoiceprints
+        else { return }
+        // Re-checked here rather than trusted from the offer: this is a public
+        // value an unrelated caller could resubmit, and enrollment is a write
+        // the user cannot take back. The fingerprint, not the transcription id
+        // — the same row re-transcribed keeps its id and changes its speakers.
+        guard currentTranscription?.id == offer.transcriptionId,
+              speakerAttribution?.fingerprint == offer.fingerprint
+        else {
+            dismissVoiceEnrollment()
+            return
+        }
+        pendingVoiceEnrollment = nil
+        voiceEnrollmentConflict = nil
+
+        Task { [weak self] in
+            do {
+                let outcome = try await speakerVoiceprints.enroll(
+                    displayName: offer.displayName,
+                    observation: offer.observation,
+                    transcriptionId: offer.transcriptionId,
+                    fingerprint: offer.fingerprint,
+                    allowMergeIntoExistingName: allowMerge
+                )
+                await MainActor.run { self?.publish(outcome, for: offer) }
+            } catch {
+                await MainActor.run {
+                    self?.voiceEnrollmentMessage = "Could not remember this voice."
+                }
+            }
+        }
+    }
+
+    /// The write already happened; this only decides whether to say so here.
+    /// After navigation or a re-diarization the answer belongs to a transcript
+    /// the user is no longer looking at, and a conflict banner shown there
+    /// would name a speaker that no longer exists.
+    private func publish(_ outcome: SpeakerProfileEnrollment, for offer: PendingVoiceEnrollment) {
+        guard currentTranscription?.id == offer.transcriptionId,
+              speakerAttribution?.fingerprint == offer.fingerprint
+        else { return }
+        switch outcome {
+        case .created, .addedExemplar:
+            voiceEnrollmentMessage = "\(offer.displayName)'s voice will be suggested in later meetings."
+        case .alreadySampled:
+            voiceEnrollmentMessage = "\(offer.displayName) already has a sample from this recording."
+        case .needsDisambiguation:
+            // Deliberately not phrased as an error: the likeliest cause is two
+            // people who share a first name, which is not a mistake.
+            voiceEnrollmentConflict = offer
+        case .rejectedTooShort:
+            voiceEnrollmentMessage = "Not enough speech from \(offer.displayName) to remember their voice."
+        case .rejectedProfileFull:
+            voiceEnrollmentMessage = "\(offer.displayName) already has the maximum number of voice samples."
+        case .rejectedEmptyName:
+            voiceEnrollmentMessage = nil
+        }
+    }
+
     /// Returns `false` only when the rename must be retried later because
     /// speaker corrections are still loading or saving.
     @discardableResult
@@ -2126,7 +2337,30 @@ public final class TranscriptionViewModel {
                 return false
             }
             clearError()
-            return applySpeakerCorrection(.rename(speakerID: speakerId, label: trimmed))
+            // Captured before the write is scheduled, because the callback can
+            // land after the user has moved on: the offer must belong to the
+            // transcript that was renamed, not to whichever one is open when
+            // the write finishes.
+            let renamedTranscriptionId = currentTranscription?.id
+            let renamedFingerprint = speakerAttribution?.fingerprint
+            // Offered only once the label is committed. `applySpeakerCorrection`
+            // returns as soon as the write is scheduled, and that write can
+            // still be refused for a stale revision — an offer accepted after
+            // that would store a voice under a name the transcript never kept.
+            return applySpeakerCorrection(
+                .rename(speakerID: speakerId, label: trimmed)
+            ) { [weak self] committed in
+                guard committed,
+                      let renamedTranscriptionId,
+                      let renamedFingerprint
+                else { return }
+                self?.offerVoiceEnrollment(
+                    speakerId: speakerId,
+                    displayName: trimmed,
+                    transcriptionId: renamedTranscriptionId,
+                    fingerprint: renamedFingerprint
+                )
+            }
         }
         guard var transcription = currentTranscription,
             var speakers = transcription.speakers

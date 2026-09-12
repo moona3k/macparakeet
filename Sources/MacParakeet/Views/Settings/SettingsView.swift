@@ -1283,6 +1283,13 @@ struct SettingsView: View {
                     isOn: $viewModel.meetingSpeakerDiarization
                 )
 
+                // Inside the revealed block on purpose: with speaker detection
+                // off there are no speakers to remember, and a voice store
+                // should not be advertised to someone who never asked for one.
+                if AppFeatures.isVoiceProfilesAvailable(), viewModel.meetingSpeakerDiarization {
+                    rememberSpeakersRow
+                }
+
                 Divider()
 
                 settingsToggleRow(
@@ -1371,6 +1378,39 @@ struct SettingsView: View {
                     isOn: $viewModel.meetingAutoStopEnabled
                 )
             }
+        }
+    }
+
+    /// The switch reports intent rather than owning the value: turning it on
+    /// has to pass through consent, so the view model decides whether the
+    /// preference actually moves.
+    private var rememberSpeakersRow: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            Divider()
+
+            settingsToggleRow(
+                title: "Remember speakers",
+                detail: "Suggest a name in later meetings once you have named someone. Suggestions always need your confirmation, and voice samples never leave this Mac.",
+                isBeta: true,
+                isOn: Binding(
+                    get: { viewModel.rememberSpeakers },
+                    set: { viewModel.requestRememberSpeakers($0) }
+                )
+            )
+
+            if viewModel.rememberSpeakers, let acknowledgedAt = viewModel.voiceprintConsentAcknowledgedAt {
+                HStack(spacing: DesignSystem.Spacing.sm) {
+                    Text("Permission confirmed \(acknowledgedAt.formatted(date: .abbreviated, time: .shortened)).")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Withdraw") { viewModel.withdrawVoiceprintConsent() }
+                        .parakeetAction(.secondary)
+                }
+            }
+        }
+        .sheet(isPresented: $viewModel.isRequestingVoiceprintConsent) {
+            VoiceProfileConsentSheet(viewModel: viewModel)
         }
     }
 
