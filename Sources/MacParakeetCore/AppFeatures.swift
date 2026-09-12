@@ -4,6 +4,19 @@ import Foundation
 /// without touching every call site. Release builds should set these to the
 /// shipping configuration before tagging a version.
 public enum AppFeatures {
+    /// Encrypted text sharing remains opt-in for development until its separate
+    /// privacy, service and interoperability release gates are complete.
+    public static let shareLinksEnabled = false
+    public static let shareLinksDeveloperLaunchArgument = "--enable-share-links"
+
+    public static func isShareLinksAvailable(arguments: [String] = ProcessInfo.processInfo.arguments) -> Bool {
+        #if DEBUG
+        shareLinksEnabled || arguments.contains(shareLinksDeveloperLaunchArgument)
+        #else
+        shareLinksEnabled
+        #endif
+    }
+
     /// Experimental speaker recognition. Release availability requires a
     /// deliberate flag change after held-out meeting evaluation passes.
     public static let voiceProfilesEnabled: Bool = false

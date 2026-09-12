@@ -47,6 +47,11 @@ A malicious or compromised viewer deployment, DNS account, or recipient device c
 
 ## Keychain behavior
 
+Recovery setup retains a newly generated code in the dedicated Keychain before
+sending its verifier. A lost response cannot strand an installed code: after
+reconciliation the same code remains available until the user acknowledges
+saving it. No code is written into the publication database or preferences.
+
 The owner credential is random application state, not a machine fingerprint.
 It uses a sharing-specific generic-password item that is non-synchronizing and accessible only on the device after first unlock, matching the existing Keychain pattern without requesting Touch ID, user presence, or an application password.
 
@@ -59,6 +64,7 @@ When no recovery code is configured, the current device credential may add one l
 Once a recovery code exists, replacing or removing it also requires that current code, so a stolen device credential cannot displace the owner's saved recovery path.
 If the code is lost, the current device can still manage its shares but cannot replace that verifier; after permanently stopping every outstanding share, the app may discard that anonymous owner and enroll a fresh one for future shares.
 Deleting a local source permanently stops its shares and removes their local content keys and content-derived publication metadata once the terminal request is durably queued.
+Before source deletion, a new share's content key lives only in Keychain, including while its create result is uncertain. Confirmed shares retain it for explicit updates. A definitive first-attempt rejection or deletion-complete cleanup attempts to remove it. Keychain errors can delay physical removal; detached-source cleanup retries on refresh.
 
 ## Threat model
 
@@ -99,6 +105,20 @@ Deployment access is narrowly held and audited because viewer-code integrity is 
 - Recipient application request logging is disabled, and raw recipient IPs are not persisted by the application.
 - Hosting-provider backup or recovery-history windows must be documented from the deployed configuration before beta; deleted data is never restored into the live service.
 
+Local deletion saves stop intent before removing owned files. Failed file
+cleanup does not cancel a stop already requested; the source remains for retry.
+After source deletion removes the content key, uncertain creates temporarily retain
+only the exact encrypted request and opaque outbox authority needed to reconcile
+then stop, never plaintext. Ordinary pending creates whose source has not been
+deleted still retain their content key in Keychain, as described above.
+Removing the application bundle alone does not erase Application Support or
+Keychain data and does not revoke remote links.
+
+[Cloudflare D1 Time Travel](https://developers.cloudflare.com/d1/reference/time-travel/) is always enabled, with 7-day recovery history on the
+free plan or 30 days on paid plans. Live row deletion is not immediate deletion
+from that provider history. The launch gate must record the actual plan and
+private R2, logging, and recovery settings; local runtime tests cannot prove them.
+
 An access-stopped receipt and deletion-complete receipt are intentionally different.
 The first proves no later service read succeeds; the second proves live ciphertext removal.
 Neither proves erasure from recipient devices or from a provider recovery system before its disclosed bound.
@@ -115,14 +135,21 @@ They are not recipient views and cannot be presented to an owner as viewing anal
 ## Abuse and incident response
 
 Abuse controls focus on cost and availability because the operator cannot inspect encrypted content in normal operation.
-The service has per-owner payload and storage quotas, bounded creation rates, report-rate controls, global spend alerts, a creation kill switch, and a mode that preserves existing reads while rejecting new writes.
+The implementation provides per-owner payload and storage quotas, bounded creation rates, report-rate controls, a creation kill switch, and a mode that preserves existing reads while rejecting enrollment, publication, content updates, and expiration extensions. Configure and verify provider spend alerts before public release; source-level admission limits are not a provider billing cap. Read-only mode continues to allow authentication, recovery, permanent owner/operator stop, deletion reconciliation, expiration enforcement, and retention cleanup.
+
+Enrollment and recovery apply short-lived per-network admission before the global
+backstop. A dedicated environment secret keys a hash of a coarse network prefix
+and UTC day; the application stores neither raw addresses nor a durable caller
+identifier. These controls may group people behind the same network and must
+never be described as identity, analytics, or proof of a unique device. Keep the
+admission secret separate from content keys, credentials and telemetry.
 
 Public reports create cases only.
-Administrative restriction requires a logged operator decision or a documented multi-signal rule; a single anonymous report never stops access automatically.
+Administrative restriction requires a logged operator decision. Reports and automated signals may inform that decision but never permanently stop access automatically.
 The operator control permanently stops the service-side share identifier without revealing plaintext, and records a sterile reason and actor audit entry.
 Legal notices that include plaintext follow a separate counsel-approved process and do not silently expand ordinary logging or retention.
 
-A suspected viewer compromise requires freezing new publication, preserving sterile deployment evidence, rotating deployment credentials, restoring a reviewed static build, and notifying affected owners according to the incident policy.
+A suspected viewer compromise requires freezing new publication, preserving sterile deployment evidence, rotating deployment credentials, restoring a reviewed static build, and publishing a public incident notice. The service holds no owner contact information and cannot promise individual owner notification.
 Because the service does not know which recipients viewed a link, it must not claim complete recipient notification.
 
 ## Release evidence

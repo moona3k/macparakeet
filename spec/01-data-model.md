@@ -738,6 +738,96 @@ CREATE INDEX idx_llm_runs_transform_history_id ON llm_runs(transformHistoryId);
 
 ---
 
+### `share_publications` + `share_outbox_operations` (v0.42)
+
+The local half of [Share Service v1](contracts/share-service-v1.md)'s "Local
+lifecycle invariant". `share_publications` is the only local record of a
+share's remote identity, locator, and confirmed lifecycle state;
+`share_outbox_operations` is its durable, ordered outbox. Neither table is
+cascaded from `transcriptions` — a source deletion must transactionally
+detach the row via `SharePublicationRepository.detachAndEnqueueTerminalOperations`
+before the source disappears, never rely on a cascade to do it.
+
+```sql
+CREATE TABLE share_publications (
+    id                          TEXT PRIMARY KEY,                 -- local row UUID
+    remoteShareId               TEXT NOT NULL UNIQUE,             -- 22-char client-generated share id
+    locator                     TEXT UNIQUE,                      -- NULL on recovered management-only rows; otherwise local-only 22-char locator
+    locatorCommitment           TEXT NOT NULL UNIQUE,             -- 43-char commitment, precomputed locally before the first request
+    ownerId                     TEXT NOT NULL,
+    createdCredentialGeneration INTEGER NOT NULL,                 -- generation active at creation; gates content-write eligibility
+    contentRevision             INTEGER NOT NULL,
+    version                     INTEGER,                          -- ETag source; NULL until the first confirmed receipt
+    accessState                 TEXT CHECK (accessState IN ('active', 'expired', 'stopped')),  -- NULL until confirmed; never inferred locally
+    deletionState               TEXT NOT NULL DEFAULT 'retained'
+                                     CHECK (deletionState IN ('retained', 'pending', 'complete')),
+    contentWritable              INTEGER NOT NULL DEFAULT 1,       -- last confirmed value only
+    createdAt                    TEXT NOT NULL,                    -- local intent time; never rewritten
+    updatedAt                    TEXT NOT NULL,
+    expiresAt                    TEXT NOT NULL,
+    maxExpiresAt                 TEXT NOT NULL,                    -- fixed at creation; never moved afterward
+    terminalAt                   TEXT,
+    transcriptionId              TEXT REFERENCES transcriptions(id) ON DELETE SET NULL,  -- SET NULL, not CASCADE — see detach helper
+    projectionManifest           BLOB,                              -- content-derived; cleared by detach
+    contentDigest                TEXT,                              -- content-derived staleness hash; cleared by detach
+    isDetached                   INTEGER NOT NULL DEFAULT 0         -- permanent once a source deletion detaches this row
+);
+
+CREATE INDEX idx_share_publications_transcription_id ON share_publications(transcriptionId);
+CREATE INDEX idx_share_publications_deletion_state ON share_publications(deletionState);
+
+CREATE TABLE share_outbox_operations (
+    id                    TEXT PRIMARY KEY,
+    sharePublicationId    TEXT NOT NULL REFERENCES share_publications(id) ON DELETE CASCADE,
+    sequence              INTEGER NOT NULL UNIQUE,                -- global monotonic order; per-share order via filter + sort
+    kind                  TEXT NOT NULL CHECK (kind IN ('create', 'contentUpdate', 'expiryChange', 'delete')),
+    idempotencyKey        TEXT NOT NULL,                          -- stable across every retry of this exact operation
+    requestBody           BLOB NOT NULL,                          -- JSON request body; may hold ciphertext, never plaintext or a content key
+    ifMatch               TEXT,                                   -- immutable request precondition, persisted before first attempt
+    projectionManifest    BLOB,                                   -- pending selection; applied only with confirmed matching revision
+    contentDigest         TEXT,                                   -- pending digest; never sent to service
+    createdAt             TEXT NOT NULL,
+    lastAttemptAt         TEXT
+);
+
+CREATE INDEX idx_share_outbox_operations_share_sequence ON share_outbox_operations(sharePublicationId, sequence);
+
+-- At most one queued terminal delete per share.
+CREATE UNIQUE INDEX idx_share_outbox_operations_one_delete_per_share
+ON share_outbox_operations(sharePublicationId) WHERE kind = 'delete';
+```
+
+**Notes:**
+- `share_outbox_operations` may safely cascade from `share_publications` — that
+  parent is the local ledger row itself, not the transcription. Only the
+  `transcriptionId` link on `share_publications` avoids cascading.
+- `version`/`accessState` are `NULL` until the service confirms a create
+  receipt; the coordinator drives every confirmed-vs-pending distinction from
+  that receipt, never from a guess.
+- The per-share content key lives only in the dedicated sharing Keychain
+  namespace (`ShareCredentialStore`), keyed by `remoteShareId`, never in this
+  table.
+- `isDetached` is distinct from `transcriptionId IS NULL`: a share that never
+  had a source association also has a `NULL` `transcriptionId`, but only a
+  detached share should ever trigger retrying Keychain content-key removal.
+- Receipt application and outbox completion occur in one transaction. Replay
+  sends the stored body, idempotency key, and original `If-Match` unchanged.
+- Detachment clears content-derived fields on the ledger and pending work,
+  including already-cleaned rows. An uncertain create retains only its encrypted
+  request body until reconciliation and permanent stop; it never retains the key.
+- New publication checks an associated source still exists in its intent
+  transaction, so a stale draft cannot recreate sharing after source deletion.
+- `lastAttemptAt` is written before network I/O, with an atomic first-attempt
+  result. A validation rejection of that first attempt can discard a never-
+  accepted create only while it remains unconfirmed and has no queued stop.
+  A rejection after an uncertain response is not equivalent evidence.
+- Pending recovery uses one Keychain record for the generated device secret,
+  replacement-verifier choice, and idempotency key. Resubmitting a same-owner
+  recovery code first probes that device, then retries the identical replacement
+  if needed. It never generates a different device during an unresolved attempt.
+
+---
+
 ### `ai_formatter_profiles` (v0.21)
 
 Local profile table for Dictation AI Formatter prompt routing. Profiles match
@@ -1480,6 +1570,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 // v0.39-speaker-voiceprints — profiles, exemplars and transcript-scoped links
 // v0.40-speaker-match-journal — local expiring decision metadata
 // v0.41-speaker-embedding-candidates — expiring voices awaiting enrollment
+// v0.42-share-publications — local sharing ledger + durable outbox
 ```
 
 ### Migration Rules

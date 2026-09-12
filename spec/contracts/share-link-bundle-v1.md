@@ -114,12 +114,13 @@ Stable bundle semantics:
 - `source.kind` is one of `meeting`, `file`, `web`, `podcast`, or `other`.
 - Summary sections may repeat; notes and transcript occur at most once.
 - Section order defines display, copy, and download order.
-- Summary and notes Markdown is treated as untrusted input. Raw HTML and automatic remote assets are not rendered; the viewer uses safe text sinks and a reviewed sanitizer.
+- Summary and notes Markdown is treated as untrusted input. Raw HTML and automatic remote assets are not rendered. A restricted renderer may construct safe DOM nodes directly; any renderer producing HTML must use a reviewed sanitizer before insertion.
 - Transcript segments contain non-empty `text` and may include the current display speaker label.
 - `startMs` and `endMs` are either both present or both absent, with `0 <= startMs <= endMs`.
 - Unknown section kinds invalidate the bundle.
 
 The share projection may include only the selected display title, source kind, display date, duration, summary text and display titles, notes, transcript text, timestamps, and current speaker labels.
+The Core projection's `ShareSelection.includeMetadata` defaults to false and independently controls the bundle title and source metadata. Transcript export formatting options do not opt those fields in; the app passes the owner's explicit preview selection.
 It must exclude audio, local record or segment IDs, paths, artifact locations, source URLs, thumbnails, confidence values, model or provider details, prompt instructions, generation receipts, chat, calendar and attendee data, meeting URLs, capture diagnostics, and every unselected field.
 
 ## Non-stable presentation
@@ -137,6 +138,7 @@ The service must retain the viewer support needed to open every unexpired versio
 
 - Native `ShareLinkContractTests` cover link grammar, fragment parsing, malformed inputs, and proof that generated HTTP requests omit fragments.
 - Native `ShareCryptoEnvelopeTests` and browser viewer tests consume the implementation-created `spec/contracts/fixtures/share-crypto-v1.json` and cover Swift-to-Web-Crypto interoperability, wrong keys, wrong locators, wrong revisions, mutation, truncation, and nonce freshness.
+- `node scripts/dev/verify_share_crypto.mjs` parses the fixture with JavaScript and independently verifies its authenticated bytes with Web Crypto, including all five negative mutations.
 - Native `ShareBundleV1Tests` cover required fields, revision-time updates, size limits, transcript timing pairs, speaker omission, safe Markdown handling, unknown kinds, and the privacy allowlist.
 - Browser tests cover maximum payload rendering, hostile Markdown and segment content, CSP enforcement, no external asset requests, local copy and downloads, and generic failure behavior.
 

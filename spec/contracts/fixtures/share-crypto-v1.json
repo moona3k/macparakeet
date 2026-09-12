@@ -1,0 +1,22 @@
+{
+  "description": "Deterministic synthetic fixture for Share Link and Bundle v1 (AES-256-GCM). Fixed test-only inputs only; never derived from real user content or production secrets.",
+  "locator": "AAECAwQFBgcICQoLDA0ODw",
+  "contentKey": "ZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1-f4CBgoM",
+  "contentRevision": 1,
+  "plaintext": "{\"schema\":\"com.macparakeet.share-bundle\",\"schemaVersion\":1,\"publishedAt\":\"2026-09-11T22:00:00Z\",\"sections\":[{\"kind\":\"notes\",\"title\":\"Notes\",\"markdown\":\"Fixture notes for share crypto v1.\"}]}",
+  "aad": "com.macparakeet.share-envelope\u0000v1\u0000AAECAwQFBgcICQoLDA0ODw\u00001",
+  "envelope": {
+    "schema": "com.macparakeet.share-envelope",
+    "schemaVersion": 1,
+    "algorithm": "A256GCM",
+    "nonce": "yMnKy8zNzs_Q0dLT",
+    "ciphertext": "F2Dp5jczCBOHg3TFapMMB-ErVMPb0gX94mzXYQQj2KquQl700pHkyAdhNIpsDD9Di8I6XHodxzH1oCErI46r93FOrzuyGte8_AsNnO_-OzDBlLygdvtstwapDIEWO1xPz_3ARutsysXANp2Olwdpfp6eVoNtL4LkiOka4YzrYhKvSH7k7KDDnKd8ErbdhAdBXbP1ad3cs8DyG-tDx6S8G-iF3OIBwjgnE0Fx3Ye3WwoqT_VWtd2p3XvBCFfyzfNHNaFElcHnMc4oMA-cAiM"
+  },
+  "negative": {
+    "wrongContentKey": "__79_Pv6-fj39vX08_Lx8O_u7ezr6uno5-bl5OPi4eA",
+    "wrongLocator": "AAAAAAAAAAAAAAAAAAAAAA",
+    "wrongContentRevision": 2,
+    "truncatedCiphertext": "F2Dp5jczCBOHg3TFapMMB-ErVMPb0gX94mzXYQQj2KquQl700pHkyAdhNIpsDD9Di8I6XHodxzH1oCErI46r93FOrzuyGte8_AsNnO_-OzDBlLygdvtstwapDIEWO1xPz_3ARutsysXANp2Olwdpfp6eVoNtL4LkiOka4YzrYhKvSH7k7KDDnKd8ErbdhAdBXbP1ad3cs8DyG-tDx6S8G-iF3OIBwjgnE0Fx3Ye3WwoqT_VWtd2p3XvBCFfyzQ",
+    "mutatedCiphertext": "F2Dp5jczCBOHg3TFapMMB-ErVMPb0gX94mzXYQQj2KquQl700pHkyAdhNIpsDD9Di8I6XHodxzH1oCErI46r93FOrzuyGte8_AsNnO_-OzDBlLygdvtstwapDIEWO1xPz_3ARutsyjrANp2Olwdpfp6eVoNtL4LkiOka4YzrYhKvSH7k7KDDnKd8ErbdhAdBXbP1ad3cs8DyG-tDx6S8G-iF3OIBwjgnE0Fx3Ye3WwoqT_VWtd2p3XvBCFfyzfNHNaFElcHnMc4oMA-cAiM"
+  }
+}

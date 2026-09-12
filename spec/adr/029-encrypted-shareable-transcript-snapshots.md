@@ -1,6 +1,6 @@
 # ADR-029: Explicit Encrypted Share Snapshots
 
-> Status: **Accepted; implementation planned**
+> Status: **Accepted; implemented behind a default-off release flag**
 > Date: 2026-09-11
 
 ## Context

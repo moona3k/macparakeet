@@ -413,6 +413,7 @@ The app may merge after it passes against a disposable or staging service, but p
   - A detached record remains visible with its pending or terminal lifecycle state after its source-attached controls disappear.
   - Stop confirmation explains permanence and recipient copies; stopped and expired records offer create-new, not resume.
   - Recovery import is available from empty and populated Shared pages states; first-publish success offers a dismissible Save recovery code action, and the UI explains the consequence of declining it.
+  - Importing a different owner's recovery code preserves current management and refuses the switch until current shares are terminal and pending operations, including deletion, are complete. Same-owner recovery remains available. Failed or cancelled import never discards the current credential.
   - Recovery setup is optional, import copy explains that old shares are management-only while new publication still works, a superseded installation becomes visibly unmanageable, and a recovered record without a local key cannot open or update the link.
   - Test and DEBUG configurations can select a disposable origin, while a release configuration cannot be redirected to staging through preferences or launch arguments.
 - **Verification:** View-model tests pin defaults and state transitions, accessibility labels describe disclosure and destructive actions, and the disabled feature adds no visible or network surface.
@@ -447,6 +448,7 @@ The app may merge after it passes against a disposable or staging service, but p
   - Safari, Chrome, Firefox, common mobile browsers, and representative in-app webviews retain the fragment and exercise every recipient action.
   - Provider cache, request-log, object-versioning, D1 recovery, and R2 deletion settings match the documented retention boundaries.
   - A compromised-viewer tabletop exercise, owner-token theft, Keychain loss, creation kill switch, read-only mode, and deletion-backlog alert each follow a documented recovery path.
+  - Read-only service mode rejects new publication while permitting permanent stop and retention cleanup; administrative takedowns require an operator decision, and incident notification uses public notices without promising individual contact.
   - Publishers and recipients in a small comprehension check accurately describe disclosure, bearer forwarding, updates, stop limits, audio exclusion, and recovery limits.
 - **Verification:** Both repositories' contract suites and final gates pass, the deployed staging behavior matches all privacy copy, review findings are resolved or explicitly declined, and public enablement remains a separate flag change backed by recorded evidence.
 

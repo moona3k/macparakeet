@@ -24,7 +24,7 @@
 | 12 | [Processing Layer](12-processing-layer.md) | Versioned prompts, label routing, and multi-summary contract | Active |
 | 13 | [Agent Workflows](13-agent-workflows.md) | Future actions, workflows, agents, voice control, App Intents | Draft |
 | 14 | [Per-Prompt Inference Settings](14-per-prompt-inference-settings.md) | Version-owned generation settings and effective-setting snapshots | Initial implementation via [PR #968](https://github.com/moona3k/macparakeet/pull/968); versioning and Transform extension in [PR #961](https://github.com/moona3k/macparakeet/pull/961) |
-| 15 | [Shareable Transcript Snapshots](15-shareable-transcripts.md) | Explicit encrypted text sharing, recipient experience, lifecycle, and privacy boundary | Proposed; implementation planned behind a default-off flag |
+| 15 | [Shareable Transcript Snapshots](15-shareable-transcripts.md) | Explicit encrypted text sharing, recipient experience, lifecycle, and privacy boundary | Implemented behind a default-off flag; public release pending |
 
 ## Boundary Contracts
 
@@ -38,7 +38,7 @@ voice-profile gate, local storage lifecycle and export exclusion. Implementation
 behind that gate is separate from accuracy evaluation and official release.
 
 [Share Link and Bundle v1](contracts/share-link-bundle-v1.md) and
-[Share Service v1](contracts/share-service-v1.md) define the proposed encrypted
+[Share Service v1](contracts/share-service-v1.md) define the encrypted
 recipient-link, bundle, anonymous owner, lifecycle, and deletion boundaries.
 
 ## Design References
