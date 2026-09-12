@@ -1,0 +1,19 @@
+scripts/dist/test_verify_meeting_echo_assets.sh
+  s_53c86c470a1866::t_83488d57bec009 30,35-43,59-60,276-284
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b9309d8c8e2b23e33690f5360b73b9937613c057",
+  "prompts": {},
+  "sessions": {
+    "s_53c86c470a1866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a096a3-db60-7eb1-8f0a-1eb40bd8e15d",
+        "model": "unknown"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
