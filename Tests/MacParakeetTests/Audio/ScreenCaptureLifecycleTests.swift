@@ -224,6 +224,96 @@ final class ScreenCaptureLifecycleTests: XCTestCase {
         XCTAssertNotNil(lifecycle.beginStart())
     }
 
+    func testScreenCaptureStopErrorSnapshotNeverTouchesHostileErrorDescriptionOrUserInfo() {
+        let hostileError = HostileNSError(
+            domain: SCStreamErrorDomain,
+            code: SCStreamError.Code.userStopped.rawValue
+        )
+
+        let snapshot = ScreenCaptureStopErrorSnapshot(hostileError)
+
+        XCTAssertEqual(snapshot.domain, SCStreamErrorDomain)
+        XCTAssertEqual(snapshot.code, SCStreamError.Code.userStopped.rawValue)
+        XCTAssertEqual(snapshot.disposition, .userStopped)
+        XCTAssertFalse(hostileError.descriptionWasAccessed)
+        XCTAssertFalse(hostileError.userInfoWasAccessed)
+        XCTAssertFalse(hostileError.reflectionWasObserved)
+    }
+
+    func testScreenCaptureStopErrorSnapshotCollapsesUnknownDomainInPublicDiagnostics() {
+        let hostileError = HostileNSError(domain: "com.example.totally-unrecognized", code: 99)
+
+        let snapshot = ScreenCaptureStopErrorSnapshot(hostileError)
+
+        XCTAssertEqual(snapshot.domain, "com.example.totally-unrecognized")
+        XCTAssertEqual(snapshot.publicDomain, "unknown")
+        XCTAssertFalse(snapshot.publicDescription.contains("com.example.totally-unrecognized"))
+        XCTAssertEqual(snapshot.disposition, .unexpected)
+        XCTAssertFalse(hostileError.descriptionWasAccessed)
+        XCTAssertFalse(hostileError.userInfoWasAccessed)
+    }
+
+    func testSimulatedDidStopWithErrorClassifiesUserStopAndNeverTouchesHostileError() {
+        let stream = SystemAudioStream()
+        let hostileError = HostileNSError(
+            domain: SCStreamErrorDomain,
+            code: SCStreamError.Code.userStopped.rawValue
+        )
+        var reportedErrors: [MeetingAudioError] = []
+
+        stream.installStallObserverForTesting { error in
+            reportedErrors.append(error)
+        }
+        stream.simulateDidStopWithError(hostileError)
+
+        XCTAssertEqual(reportedErrors.count, 1)
+        guard case .captureRuntimeFailure(let message) = reportedErrors.first else {
+            XCTFail("Expected captureRuntimeFailure, got \(String(describing: reportedErrors.first))")
+            return
+        }
+        XCTAssertEqual(message, "system audio sharing was stopped by the user")
+        XCTAssertFalse(hostileError.descriptionWasAccessed)
+        XCTAssertFalse(hostileError.userInfoWasAccessed)
+        XCTAssertFalse(hostileError.reflectionWasObserved)
+    }
+
+    func testSimulatedDidStopWithErrorClassifiesUnexpectedStopWithoutLeakingUnknownDomain() {
+        let stream = SystemAudioStream()
+        let hostileError = HostileNSError(domain: "com.example.totally-unrecognized", code: 7)
+        var reportedErrors: [MeetingAudioError] = []
+
+        stream.installStallObserverForTesting { error in
+            reportedErrors.append(error)
+        }
+        stream.simulateDidStopWithError(hostileError)
+
+        XCTAssertEqual(reportedErrors.count, 1)
+        guard case .systemAudioStreamStopped(let reason) = reportedErrors.first else {
+            XCTFail("Expected systemAudioStreamStopped, got \(String(describing: reportedErrors.first))")
+            return
+        }
+        XCTAssertFalse(reason.contains("com.example.totally-unrecognized"))
+        XCTAssertFalse(hostileError.descriptionWasAccessed)
+        XCTAssertFalse(hostileError.userInfoWasAccessed)
+    }
+
+    func testSimulatedDidStopWithErrorReportsAtMostOnce() {
+        let stream = SystemAudioStream()
+        var reportedErrors: [MeetingAudioError] = []
+
+        stream.installStallObserverForTesting { error in
+            reportedErrors.append(error)
+        }
+        stream.simulateDidStopWithError(
+            HostileNSError(domain: SCStreamErrorDomain, code: SCStreamError.Code.internalError.rawValue)
+        )
+        stream.simulateDidStopWithError(
+            HostileNSError(domain: SCStreamErrorDomain, code: SCStreamError.Code.internalError.rawValue)
+        )
+
+        XCTAssertEqual(reportedErrors.count, 1)
+    }
+
     func testStaleFailedStartCannotStopOrSettleReplacementAttempt() throws {
         var lifecycle = SystemAudioStreamLifecycleState()
         let staleAttemptID = try XCTUnwrap(lifecycle.beginStart())
@@ -319,6 +409,30 @@ private final class FakeScreenCaptureLifecycleSession: ScreenCaptureLifecycleSes
     func completeStop(error: Error? = nil) {
         let completion = lock.withLock { stopCompletion }
         completion?(error)
+    }
+}
+
+/// An `NSError` subclass that records whether its `description`, `userInfo`,
+/// or `Mirror` reflection were ever accessed, so a test can assert that
+/// production code touched only `domain`/`code`.
+private final class HostileNSError: NSError, CustomReflectable {
+    private(set) var descriptionWasAccessed = false
+    private(set) var userInfoWasAccessed = false
+    private(set) var reflectionWasObserved = false
+
+    override var description: String {
+        descriptionWasAccessed = true
+        return "hostile error description"
+    }
+
+    override var userInfo: [String: Any] {
+        userInfoWasAccessed = true
+        return [:]
+    }
+
+    var customMirror: Mirror {
+        reflectionWasObserved = true
+        return Mirror(self, children: [])
     }
 }
 
