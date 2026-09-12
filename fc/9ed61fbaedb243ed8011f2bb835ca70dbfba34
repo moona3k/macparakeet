@@ -1,0 +1,21 @@
+scripts/dist/test_verify_meeting_echo_assets.sh
+  s_53c86c470a1866::t_17c02f69ad38c9 203-215
+scripts/dist/verify_meeting_echo_assets.sh
+  s_53c86c470a1866::t_76f6bc1574c0bd 84-91,117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fc9ed61fbaedb243ed8011f2bb835ca70dbfba34",
+  "prompts": {},
+  "sessions": {
+    "s_53c86c470a1866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a096a3-db60-7eb1-8f0a-1eb40bd8e15d",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
