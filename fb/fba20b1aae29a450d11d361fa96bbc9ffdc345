@@ -1,0 +1,21 @@
+Tests/MacParakeetTests/ViewModels/ShareDraftViewModelTests.swift
+  s_d236dcbec7210b::t_5e3183ba377fd5 52-54
+Tests/MacParakeetTests/Services/Sharing/ShareCoordinatorTests.swift
+  s_d236dcbec7210b::t_5e3183ba377fd5 235
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fbfba20b1aae29a450d11d361fa96bbc9ffdc345",
+  "prompts": {},
+  "sessions": {
+    "s_d236dcbec7210b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0929e-d77e-7bb2-8fd3-0401a6a7b54b",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
