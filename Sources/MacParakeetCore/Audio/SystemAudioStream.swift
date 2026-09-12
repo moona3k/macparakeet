@@ -19,6 +19,38 @@ enum SystemAudioStreamStopDisposition: Equatable {
     }
 }
 
+/// A synchronous, reflection-free snapshot of a `didStopWithError` error.
+///
+/// `SCStreamDelegate` hands back a framework `Error` whose concrete type is not
+/// guaranteed and whose `description`/`userInfo`/reflective access is not
+/// trusted: only `NSError.domain`/`.code` are read, and only once, before the
+/// original error is dropped. Only `SCStreamErrorDomain` is echoed verbatim in
+/// logs or user-facing text; every other domain collapses to `"unknown"` so an
+/// unrecognized framework/environment string cannot leak into public
+/// diagnostics.
+struct ScreenCaptureStopErrorSnapshot: Equatable, Sendable {
+    let domain: String
+    let code: Int
+
+    init(_ error: Error) {
+        let nsError = error as NSError
+        domain = nsError.domain
+        code = nsError.code
+    }
+
+    var disposition: SystemAudioStreamStopDisposition {
+        SystemAudioStreamStopDisposition.classify(errorDomain: domain, errorCode: code)
+    }
+
+    var publicDomain: String {
+        domain == SCStreamErrorDomain ? domain : "unknown"
+    }
+
+    var publicDescription: String {
+        "screen capture stream stopped (domain=\(publicDomain) code=\(code))"
+    }
+}
+
 struct SystemAudioStreamLifecycleState {
     enum Phase: Equatable {
         case idle
@@ -590,11 +622,19 @@ extension SystemAudioStream: SCStreamOutput, SCStreamDelegate {
     }
 
     public func stream(_ stream: SCStream, didStopWithError error: Error) {
+        handleStreamStoppedWithError(error)
+    }
+
+    // Shared by the real SCStreamDelegate callback above and by tests that
+    // cannot construct a live SCStream: takes only the reflection-free
+    // snapshot forward, never the original `error`.
+    private func handleStreamStoppedWithError(_ error: Error) {
+        let snapshot = ScreenCaptureStopErrorSnapshot(error)
         logger.error(
-            "system_audio_stream_stopped_with_error error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
+            "system_audio_stream_stopped_with_error error_domain=\(snapshot.publicDomain, privacy: .public) error_code=\(snapshot.code, privacy: .public)"
         )
         AudioCaptureDiagnostics.append(
-            "system_audio_stream_stopped_with_error \(AudioCaptureDiagnostics.errorFields(error))"
+            "system_audio_stream_stopped_with_error error_domain=\(snapshot.publicDomain) error_code=\(snapshot.code)"
         )
         let observer = watchdogLock.withLock { () -> StallObserver? in
             guard !hasReportedStall else { return nil }
@@ -605,11 +645,7 @@ extension SystemAudioStream: SCStreamOutput, SCStreamDelegate {
             heartbeatTimer = nil
             return stallObserver
         }
-        let nsError = error as NSError
-        switch SystemAudioStreamStopDisposition.classify(
-            errorDomain: nsError.domain,
-            errorCode: nsError.code
-        ) {
+        switch snapshot.disposition {
         case .userStopped:
             observer?(
                 .captureRuntimeFailure(
@@ -617,7 +653,27 @@ extension SystemAudioStream: SCStreamOutput, SCStreamDelegate {
                 )
             )
         case .unexpected:
-            observer?(.systemAudioStreamStopped(error.localizedDescription))
+            observer?(.systemAudioStreamStopped(snapshot.publicDescription))
         }
     }
 }
+
+#if DEBUG
+extension SystemAudioStream {
+    /// Test seam only: installs a stall observer and resets the once-only
+    /// report guard, without going through `start()`.
+    func installStallObserverForTesting(_ observer: StallObserver?) {
+        watchdogLock.withLock {
+            stallObserver = observer
+            hasReportedStall = false
+        }
+    }
+
+    /// Test seam only: exercises the `didStopWithError` handling path (stall
+    /// observer wiring, once-only reporting, error-domain classification)
+    /// without constructing a live `SCStream`.
+    func simulateDidStopWithError(_ error: Error) {
+        handleStreamStoppedWithError(error)
+    }
+}
+#endif
