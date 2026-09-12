@@ -1,0 +1,23 @@
+Sources/MacParakeet/App/AppWindowCoordinator.swift
+  s_53c86c470a1866::t_7f2f877eac9063 11-14,25-31,35-43,273
+Tests/MacParakeetTests/App/MainWindowLifecycleTests.swift
+  s_53c86c470a1866::t_1219570058b8fe 2,8,11-12,15,17-21,24,26-36,38-40,43,45-48,50-56,58-61,63-70,73,75-81,83-88,90-93,97,103-104
+docs/planning/2026-09-12-v0.8.0-crash-evidence-review.md
+  s_53c86c470a1866::t_4fb50a41ba30e2 1-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0495d963fa4a24653a18134a812db5f79c247f98",
+  "prompts": {},
+  "sessions": {
+    "s_53c86c470a1866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a096a3-db60-7eb1-8f0a-1eb40bd8e15d",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
