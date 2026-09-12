@@ -635,10 +635,11 @@
 
   <script>
     const ShareModel = (() => {
-      const firstShareURL = 'https://share.macparakeet.com/s/8Hm3c7aQ9pL2wNx4Vs6KbA#v1.k8R…2Q';
+      const firstShareURL = 'https://share.macparakeet.com/s/8Hm3c7aQ9pL2wNx4Vs6KbA#v1.fPt2KSPA4jTfpXbV9xGfZzhyuo0SORr9U1x8YurEw8U';
+      const replacementKeyPrefix = 'bkCF67sfXpUVifVLC-4BHaPJ--8Vs7dftPaNFN';
       const mockShareURL = (generation) => generation === 1
         ? firstShareURL
-        : `https://share.macparakeet.com/s/R7q2Mv9Ld4Wx6Nc8Ja${String(generation).padStart(4, '0')}#v1.P5s…${String(generation).padStart(2, '0')}`;
+        : `https://share.macparakeet.com/s/R7q2Mv9Ld4Wx6Nc8J${String(generation).padStart(4, '0')}A#v1.${replacementKeyPrefix}${String(generation).padStart(4, '0')}A`;
 
       const selectedNames = (selection) => [
         selection.summary && 'Summary',

@@ -86,6 +86,8 @@ One exception to ordinary terminal retention is a permanent, one-way commitment 
 ## HTTP API
 
 All bodies are JSON and times are RFC 3339 UTC at whole-second precision.
+Every service API request uses HTTPS to the build-approved origin; production approves only `https://share.macparakeet.com`.
+Clients reject HTTP, downgrade, cross-origin destinations, and redirects to an unapproved origin. Credential-bearing requests do not automatically follow redirects, and `Authorization` and `Recovery-Authorization` are never forwarded on any redirect.
 Every owner enrollment, recovery, and share mutation requires a 128-bit unpadded-base64url `Idempotency-Key` unless an endpoint states otherwise.
 Every owner resource read or mutation first verifies that the presenting credential owns the target share; a wrong-owner target is indistinguishable from an unknown target and no state is revealed or changed.
 
@@ -269,7 +271,7 @@ Removing or changing a stable field, credential authority, state transition, end
 
 ## Tests that enforce this
 
-Native tests cover credential storage, later recovery setup, recovery replacement and removal proof, expiry arithmetic, ETag and idempotency behavior, outbox ordering and restart recovery, lost responses, local deletion without cascading share state, locator-commitment terminal reconciliation, and receipt-driven UI state.
+Native tests cover credential storage, later recovery setup, recovery replacement and removal proof, approved-origin and redirect enforcement, expiry arithmetic, ETag and idempotency behavior, outbox ordering and restart recovery, lost responses, local deletion without cascading share state, locator-commitment terminal reconciliation, and receipt-driven UI state.
 Service contract tests cover create-only owner enrollment, including idempotent same-request retry and owner-ID or selector collision without verifier mutation; owner authentication; absence-guarded recovery setup; device-only replacement and removal rejection; proof-backed recovery replacement and removal; credential-generation content-write scope; recovered live-share stop through listed locator commitments; correct-owner, wrong-owner, unknown, and post-tombstone delete responses; public-unavailable equivalence; exact expiry; terminal-operation precedence; permanent locator non-reuse; publication ordering; orphan and revision cleanup; independently anchored tombstone, abuse-case, and operator-audit retention; quotas; abuse-report non-enforcement; and log redaction.
 Browser tests cover local decrypt, search, copy, Markdown and text downloads, print, accessibility, strict CSP, generic previews, `no-referrer`, no external requests, wrong-key or unavailable states, and hostile Markdown or segment content rendered without executable HTML, event handlers, or URLs.
 

@@ -80,6 +80,9 @@ It has no analytics, service worker, remote font, advertising, third-party scrip
 Markdown is untrusted input and must be rendered through reviewed sanitization with raw HTML and automatic remote assets disabled.
 The share deployment neither sets nor consumes cookies, strips them from application logging, and verifies that the main site does not set parent-domain cookies that would be sent to `share.macparakeet.com`.
 
+Every service API request uses HTTPS to the build-approved origin, which is `https://share.macparakeet.com` in production.
+Clients reject HTTP, downgrade, cross-origin destinations, and redirects to an unapproved origin; credential-bearing requests do not automatically follow redirects, and `Authorization` or `Recovery-Authorization` headers are never forwarded on any redirect.
+
 Viewer code, DNS, deployment credentials, service secrets, storage, and logs are isolated from telemetry infrastructure even when both systems use the same hosting provider.
 Deployment access is narrowly held and audited because viewer-code integrity is a confidentiality control.
 
