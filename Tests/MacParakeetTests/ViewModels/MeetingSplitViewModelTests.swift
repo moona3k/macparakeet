@@ -260,6 +260,26 @@ final class MeetingSplitViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.completedOperation?.id, committed.id)
     }
 
+    func testRetryKeepsPublishedRecordingsVisibleBeforeNextProgressEvent() async throws {
+        let committed = try service.makeCommittedOperationWithPendingChild(sourceId: sourceId)
+        service.operationsBySourceId[sourceId] = [committed]
+        await viewModel.present(sourceId: sourceId, sourceTitle: "Weekly sync")
+        service.resumeProcessingHandler = { _, _ in committed }
+        XCTAssertTrue(viewModel.resume(operationId: committed.id, sourceTitle: "Weekly sync"))
+        try await waitUntil { !self.viewModel.isProcessingActive }
+        XCTAssertEqual(viewModel.completedOperation?.id, committed.id)
+
+        let gate = Gate()
+        service.resumeProcessingHandler = { _, _ in
+            await gate.wait()
+            return committed
+        }
+        XCTAssertTrue(viewModel.resume(operationId: committed.id, sourceTitle: "Weekly sync"))
+        XCTAssertEqual(viewModel.operation?.id, committed.id, "Retry must not hide already-published recordings")
+        await gate.open()
+        try await waitUntil { !self.viewModel.isProcessingActive }
+    }
+
     // MARK: - helpers
 
     private func waitUntil(
@@ -267,7 +287,7 @@ final class MeetingSplitViewModelTests: XCTestCase {
         predicate: @escaping @MainActor () -> Bool
     ) async throws {
         let startedAt = ContinuousClock.now
-        while await !predicate() {
+        while !predicate() {
             if startedAt.duration(to: .now) > timeout {
                 XCTFail("Timed out waiting for condition")
                 return

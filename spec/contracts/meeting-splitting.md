@@ -1,7 +1,8 @@
 # Split and transcribe
 
 > Status: Core service, CLI, and native lifecycle state are implemented.
-> Native sheet integration and rendered acceptance are in progress.
+> Native sheet integration is implemented; rendered acceptance and final
+> integration verification are in progress.
 
 ## Purpose and ownership
 
@@ -206,6 +207,18 @@ native UI would call the same one.
   Per-invocation engine/model overrides are not part of the split interface.
 
 ### Native task and recovery boundary
+
+The native sheet uses manual time fields and standard playback controls, with
+two parts initially and additional cuts on demand. Incomplete time input stays
+editable and disables creation. Published children are visible while processing
+continues, with direct Open actions. Closing the sheet does not stop processing.
+Stop preserves saved audio and completed work; Continue processing uses the
+same operation, never another split. Interrupted preparation offers Continue
+creation or an explicitly confirmed discard of only that unfinished split.
+
+Child recordings expose "View split progress…" to their provenance operation.
+Their separate "Split and Transcribe…" action starts a new split of that child.
+Neither action requires reopening or modifying the original recording.
 
 `MeetingSplitViewModel` owns one app-wide task, independent of sheet lifetime.
 Each draft gets a stable creation key; an intentionally new split gets a new

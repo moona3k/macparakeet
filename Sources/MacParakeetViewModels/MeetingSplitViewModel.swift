@@ -245,6 +245,7 @@ public final class MeetingSplitViewModel {
         activeSourceTitle = sourceTitle
         activeOperationId = operationId
         progress = nil
+        resumableOperation = operation
         completedOperation = nil
         processingErrorMessage = nil
         isStopping = false

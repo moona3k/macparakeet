@@ -78,6 +78,7 @@ struct MainWindowView: View {
     let libraryViewModel: TranscriptionLibraryViewModel
     let meetingsWorkspaceViewModel: MeetingsWorkspaceViewModel
     let meetingPillViewModel: MeetingRecordingPillViewModel
+    let meetingSplitViewModel: MeetingSplitViewModel
     let updater: SPUUpdater
     let onRecordMeeting: () -> Void
     let onRecordMeetingFromWorkspace: () -> Void
@@ -136,6 +137,7 @@ struct MainWindowView: View {
                     case .meetings:
                         MeetingsView(
                             viewModel: meetingsWorkspaceViewModel,
+                            meetingSplitViewModel: meetingSplitViewModel,
                             onRecordMeeting: {
                                 onRecordMeetingFromWorkspace()
                             },
@@ -163,6 +165,7 @@ struct MainWindowView: View {
                                 promptResultsViewModel: promptResultsViewModel,
                                 promptsViewModel: promptsViewModel,
                                 meetingClassificationViewModel: libraryViewModel.meetingClassificationViewModel,
+                                meetingSplitViewModel: meetingSplitViewModel,
                                 onBack: {
                                     transcriptionViewModel.showInputPortal()
                                 },
@@ -184,6 +187,7 @@ struct MainWindowView: View {
                         } else {
                             TranscriptionLibraryView(
                                 viewModel: libraryViewModel,
+                                meetingSplitViewModel: meetingSplitViewModel,
                                 primaryActionTitle: "New Transcription",
                                 onPrimaryAction: {
                                     transcriptionViewModel.showInputPortal()

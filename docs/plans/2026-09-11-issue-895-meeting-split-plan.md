@@ -99,6 +99,27 @@ before feature completion; do not repeat the full suite for this task.
 Synthetic audio and mocked speech/LLM verification are distinct from native
 UI and real-model acceptance.
 
+### Implementation checkpoint — U3/U4 native integration
+
+Native UI, combined-deletion caller migration, the split-aware finalization
+reconciler adapter, and truthful per-child progress transitions are now
+implemented; see `docs/design/issue-895-meeting-split.md` for the actual
+surfaces and files. Focused ViewModel, Core
+progress and reconciler tests pass alongside the existing Core/CLI suite.
+
+Not done in this pass: real native-app/manual QA (an opt-in DEBUG fixture
+seeder is provided for a host to run this — see
+`Tests/MacParakeetTests/QA/SplitAndTranscribeFixtureSeedTests.swift`),
+real-model acceptance, and an elaborate operation-history UI (explicitly out
+of scope). A child's "View split progress…" action now opens the persisted
+operation by `provenance.operationId`, with Continue processing on that sheet.
+This is separate from creating a new split of the child recording.
+
+The lifecycle checkpoint `93efade8` passed 729 focused tests (one skipped,
+zero failures). A subsequent regression proved retry briefly hid already-saved
+parts; retaining the receipt fixed it, with 26 focused tests passing. Native
+presentation, isolated fixture QA, and final integration remain in progress.
+
 ### U1. Establish the revised contract
 
 Land this docs-only scope revision first. Mark old research/HTML as historical. Record inspected pipeline behavior and verification limits. No app feature, schema migration or automatic issue closure belongs in this PR.

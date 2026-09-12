@@ -5,6 +5,7 @@ import MacParakeetViewModels
 
 struct MeetingsView: View {
     @Bindable var viewModel: MeetingsWorkspaceViewModel
+    var meetingSplitViewModel: MeetingSplitViewModel? = nil
 
     var onRecordMeeting: () -> Void
     var onPauseToggleMeeting: (() -> Void)?
@@ -16,6 +17,8 @@ struct MeetingsView: View {
     @State private var audioSaveErrorMessage: String?
     @State private var pendingDeleteAudio: Transcription?
     @State private var pendingDeleteMeeting: Transcription?
+    @State private var splitTarget: Transcription?
+    @State private var splitOperationId: UUID?
     @State private var classificationTarget: Transcription?
     @State private var showingAskPromptsSheet = false
     @State private var showingPromptLibrary = false
@@ -197,6 +200,17 @@ struct MeetingsView: View {
                     viewModel: viewModel.promptsViewModel,
                     presentation: .meetingAutoNotes
                 )
+            }
+            .sheet(item: $splitTarget) { transcription in
+                if let meetingSplitViewModel {
+                    MeetingSplitSheetView(
+                        transcription: transcription,
+                        viewModel: meetingSplitViewModel,
+                        onDismiss: { splitTarget = nil },
+                        onOpenRecording: onSelectMeeting,
+                        initialOperationId: splitOperationId
+                    )
+                }
             }
     }
 
@@ -634,6 +648,26 @@ struct MeetingsView: View {
         let audioAvailable = audioState == .saved
         let audioRemovable = MeetingAudioFile.isRemovable(for: transcription, state: audioState)
         let artifactAvailable = MeetingArtifactActions.folderURL(for: transcription) != nil
+
+        if meetingSplitViewModel != nil, let provenance = transcription.splitProvenance {
+            Button {
+                splitOperationId = provenance.operationId
+                splitTarget = transcription
+            } label: {
+                Label("View split progress…", systemImage: "list.bullet.clipboard")
+            }
+            .parakeetAction(.secondary)
+        }
+
+        if meetingSplitViewModel != nil, MeetingSplitEligibility.isEligible(transcription) {
+            Divider()
+            Button {
+                    splitOperationId = nil
+                    splitTarget = transcription
+            } label: {
+                Label("Split and Transcribe…", systemImage: "square.split.2x1")
+            }
+        }
 
         Divider()
 

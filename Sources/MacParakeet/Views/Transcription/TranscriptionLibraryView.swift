@@ -10,6 +10,7 @@ private enum LibraryLayoutMode: String {
 
 struct TranscriptionLibraryView: View {
     @Bindable var viewModel: TranscriptionLibraryViewModel
+    var meetingSplitViewModel: MeetingSplitViewModel? = nil
     var title: String = "Library"
     var showsFilterBar: Bool = true
     var primaryActionTitle: String? = nil
@@ -23,6 +24,8 @@ struct TranscriptionLibraryView: View {
     @State private var pendingRename: Transcription?
     @State private var renameTitleDraft = ""
     @State private var pendingDeleteAudio: Transcription?
+    @State private var splitTarget: Transcription?
+    @State private var splitOperationId: UUID?
     @State private var audioSaveErrorMessage: String?
     @State private var showingBulkExportOptions = false
     @AppStorage("com.macparakeet.libraryBulkExportFormat")
@@ -288,6 +291,17 @@ struct TranscriptionLibraryView: View {
             .onDisappear {
                 cancelBulkExport()
             }
+            .sheet(item: $splitTarget) { transcription in
+                if let meetingSplitViewModel {
+                    MeetingSplitSheetView(
+                        transcription: transcription,
+                        viewModel: meetingSplitViewModel,
+                        onDismiss: { splitTarget = nil },
+                        onOpenRecording: onSelect,
+                        initialOperationId: splitOperationId
+                    )
+                }
+            }
     }
 
     private var thumbnailGrid: some View {
@@ -462,6 +476,26 @@ struct TranscriptionLibraryView: View {
                 artifactAvailable
                     ? "Copy the meeting artifact folder path"
                     : "Meeting artifact folder is not available")
+
+            if meetingSplitViewModel != nil, let provenance = transcription.splitProvenance {
+                Button {
+                    splitOperationId = provenance.operationId
+                    splitTarget = transcription
+                } label: {
+                    Label("View split progress…", systemImage: "list.bullet.clipboard")
+                }
+                .parakeetAction(.secondary)
+            }
+
+            if meetingSplitViewModel != nil, MeetingSplitEligibility.isEligible(transcription) {
+                Divider()
+                Button {
+                    splitOperationId = nil
+                    splitTarget = transcription
+                } label: {
+                    Label("Split and Transcribe…", systemImage: "square.split.2x1")
+                }
+            }
 
             Divider()
 

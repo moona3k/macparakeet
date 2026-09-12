@@ -1,0 +1,79 @@
+# Native Split and transcribe (issue #895)
+
+Governing contract: `spec/contracts/meeting-splitting.md`. This note is a
+short index of the implementation in progress and its design; it does not restate the
+contract's normative rules.
+
+## What exists
+
+- **Core/CLI** (prior work): `MeetingSplitService`, `MeetingSplitRepository`,
+  the audio exporter/geometry/leases, and `meetings split
+  preview|create|status|resume|discard`.
+- **Native ViewModel**: `MeetingSplitViewModel`
+  (`Sources/MacParakeetViewModels/MeetingSplitViewModel.swift`). One shared,
+  app-owned instance (created in `AppDelegate`, `configure(service:)`d in
+  `setupEnvironment`) so a running batch survives the sheet closing and is
+  visible from every entry point.
+- **Native sheet**: `MeetingSplitSheetView`
+  (`Sources/MacParakeet/Views/Meetings/MeetingSplitSheetView.swift`).
+  Uses standard playback controls, editable minute/second or hour/minute/second
+  cut times, and titles for each part. Incomplete time input stays visible and
+  disables creation. Two parts are the default; adding a split divides the
+  longest current part without moving existing boundaries.
+  Published parts appear before transcription finishes, with an Open action.
+  Closing the sheet leaves the app-owned task running; Stop processing preserves
+  saved recordings. Continue processing uses the same receipt and child IDs.
+- **Entry points**: `TranscriptResultView`'s action bar, and row menus in
+  `TranscriptionLibraryView` and `MeetingsView`, each gated by
+  `MeetingSplitEligibility.isEligible(_:)`
+  (`Sources/MacParakeetCore/Services/MeetingSplit/MeetingSplitEligibility.swift`).
+- **Startup reconciliation**: `MeetingFinalizationReconciler` branches on
+  `Transcription.splitProvenance` to
+  `MeetingSplitOperationLeaseReconciliationCoordinator`
+  (`Sources/MacParakeet/App/MeetingSplitFinalizationReconciliationCoordinator.swift`)
+  instead of the capture-lock-only path.
+- **Combined deletion migration**: `TranscriptionLibraryViewModel.deleteTranscription`/
+  `deleteTargets`, `TranscriptionViewModel.deleteTranscription`, and
+  `SettingsViewModel.clearMeetingAudio` now call
+  `TranscriptionAssetCleanup.deleteTranscription`/`clearManagedMeetingAudio`
+  (one media lease covering both the file removal and the row mutation)
+  instead of two separately-locked steps.
+- **Truthful progress**: `MeetingSplitService.processAll` reports every real
+  stage transition per child, not one stale snapshot at loop entry.
+
+## Deliberately not built
+
+- A waveform editor, autodetection, transcript partitioner, or a four-part
+  limit — the contract rules these out explicitly.
+- An elaborate split operation-history UI.
+- A second queue or processing framework. A child's "View split progress…"
+  action opens its existing batch; "Split and Transcribe…" means a new split
+  of that recording. These actions must remain distinct.
+
+## Verification status
+
+The lifecycle/recovery milestone is committed as `93efade8`: 729 focused tests,
+one skipped, zero failures. The subsequent editable-control gate compiled the
+app and passed 16 ViewModel tests. Navigation integration, rendered native QA,
+and final failure-path verification are still in progress. This document does
+not claim the feature is merged, released, or accepted with a real STT model.
+
+The earlier HTML is a reference only. Native layout follows the existing app's
+type, spacing, colors, and action styles; no custom waveform editor is needed.
+
+## Host QA fixture
+
+`Tests/MacParakeetTests/QA/SplitAndTranscribeFixtureSeedTests.swift` is an
+opt-in, DEBUG-only XCTest that seeds a synthetic (silent-tone) meeting
+recording with a real transcript into a **fresh temporary** app-state root —
+it refuses to run against an existing directory or one outside the system
+temp root. To inspect the native flow in the real app without personal data:
+
+```sh
+FIXTURE_DIR="$(mktemp -d)/macparakeet-895-fixture"
+MACPARAKEET_DEBUG_APP_STATE_DIR="$FIXTURE_DIR" swift test --filter SplitAndTranscribeFixtureSeedTests
+MACPARAKEET_DEBUG_APP_STATE_DIR="$FIXTURE_DIR" scripts/dev/run_app.sh
+```
+
+Then open Library, select the seeded "Weekly sync — Split QA fixture"
+meeting, and use "Split and Transcribe…" from the action bar or row menu.

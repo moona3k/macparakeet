@@ -70,6 +70,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let feedbackViewModel = FeedbackViewModel()
     private let discoverViewModel = DiscoverViewModel()
     private let libraryViewModel = TranscriptionLibraryViewModel()
+    /// One shared app-owned handle for native Split and transcribe: created
+    /// eagerly (before `AppEnvironment` exists) and `configure`d once it does,
+    /// so a single running batch survives the sheet closing and is reachable
+    /// from every entry point (`TranscriptResultView`, `TranscriptionLibraryView`,
+    /// `MeetingsView`) without duplicating state per view.
+    private let meetingSplitViewModel = MeetingSplitViewModel()
     private let meetingsLibraryViewModel = TranscriptionLibraryViewModel(scope: .meetings)
     private let llmSettingsViewModel = LLMSettingsViewModel()
     private let chatViewModel = TranscriptChatViewModel()
@@ -206,6 +212,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         libraryViewModel: libraryViewModel,
         meetingsWorkspaceViewModel: meetingsWorkspaceViewModel,
         meetingPillViewModel: meetingPillViewModel,
+        meetingSplitViewModel: meetingSplitViewModel,
         updaterController: updaterController,
         onRecordMeeting: { [weak self] in
             self?.toggleMeetingRecording(originatesFromWindow: true)
@@ -520,6 +527,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsViewModel.onAccessibilityGranted = { [weak self] in
             self?.handleAccessibilityGrant()
         }
+        meetingSplitViewModel.configure(
+            service: env.meetingSplitService,
+            recordingLookup: { [repository = env.transcriptionRepo] id in try repository.fetch(id: id) }
+        )
 
         let runtime = environmentConfigurer.configure(
             environment: env,
