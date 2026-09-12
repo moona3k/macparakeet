@@ -67,6 +67,29 @@ time parser or the small entry-point wiring. It removed a redundant operation-ID
 field. Authoritative receipt refreshes remain deliberately simple; optimizing
 them into a separate progress cache is not justified for two or three parts.
 
+### Native fixture observations
+
+With Accessibility enabled, the signed app at `74719dbf` opened the split sheet
+from the fixture's transcript detail. Manual invalid `0:` input remained visible,
+disabled creation, and showed a validation error. Add split produced three parts
+without moving the existing boundary. Visual inspection caught a wrapping label
+and duplicate untouched default titles; the label now reads "Split at", and
+default title numbers follow their positions while custom titles stay unchanged.
+The default-title regression failed before the fix; 19 ViewModel tests then passed.
+
+The actual native action saved three independent audio paths with 30-, 15-, and
+45-second ranges. The original audio and metadata SHA-256 hashes remained
+unchanged. The sheet showed "Recordings saved" while part 1 was transcribing;
+closing and reopening retained the same operation and active task.
+
+Cancellation remains under investigation in the cold-model fixture: Stop requests
+cancellation, but the task remained in "Stopping" with part 1 active and later
+parts pending. A process sample showed CoreML waiting in an Apple Neural Engine
+model-load call. The existing STT scheduler waits for active runtime work to drain;
+do not release audio ownership early or claim instantaneous cancellation. This is
+not yet a successful cancellation/retry acceptance result or real-model accuracy
+evidence. No new processing framework has been introduced to mask the wait.
+
 The earlier HTML is a reference only. Native layout follows the existing app's
 type, spacing, colors, and action styles; no custom waveform editor is needed.
 

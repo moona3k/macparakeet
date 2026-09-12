@@ -104,6 +104,12 @@ struct MeetingSplitSheetView: View {
     @ViewBuilder
     private var editingForm: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
+            if let errorMessage = viewModel.processingErrorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.triangle")
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundStyle(DesignSystem.Colors.errorRed)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             HStack {
                 Button {
                     player.togglePlayPause()
@@ -187,7 +193,7 @@ struct MeetingSplitSheetView: View {
 
     private func boundaryRow(cutIndex: Int, editing: MeetingSplitViewModel.EditingState) -> some View {
         HStack(spacing: DesignSystem.Spacing.sm) {
-            Text("Boundary")
+            Text("Split at")
                 .font(DesignSystem.Typography.bodySmall)
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
                 .frame(width: 56, alignment: .leading)

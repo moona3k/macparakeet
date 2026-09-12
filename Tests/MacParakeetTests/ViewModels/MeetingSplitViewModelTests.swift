@@ -96,6 +96,15 @@ final class MeetingSplitViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.validationError)
     }
 
+    func testAddAndRemoveSplitRenumbersOnlyUntouchedDefaultTitles() async {
+        await viewModel.present(sourceId: sourceId, sourceTitle: "Weekly sync")
+        viewModel.addSplit()
+        XCTAssertEqual(viewModel.editing?.partTitles,
+                       ["Weekly sync — Part 1", "Weekly sync — Part 2", "Weekly sync — Part 3"])
+        viewModel.removeCut(at: 0)
+        XCTAssertEqual(viewModel.editing?.partTitles, ["Weekly sync — Part 1", "Weekly sync — Part 2"])
+    }
+
     func testRemoveCutMergesAdjacentPartsKeepingEarlierTitle() async {
         await viewModel.present(sourceId: sourceId, sourceTitle: "Weekly sync")
         viewModel.updateTitle(at: 0, to: "Intro")

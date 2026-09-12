@@ -215,6 +215,9 @@ continues, with direct Open actions. Closing the sheet does not stop processing.
 Stop preserves saved audio and completed work; Continue processing uses the
 same operation, never another split. Interrupted preparation offers Continue
 creation or an explicitly confirmed discard of only that unfinished split.
+Adding/removing a cut preserves custom titles and existing boundaries; untouched
+default "Part N" titles are renumbered to match their new positions. Failures
+before any parts are published remain visible in the editor for a safe retry.
 
 Child recordings expose "View split progress…" to their provenance operation.
 Their separate "Split and Transcribe…" action starts a new split of that child.

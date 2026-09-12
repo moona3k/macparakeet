@@ -146,6 +146,11 @@ public final class MeetingSplitViewModel {
         } ?? 0
         let span = boundaries[index + 1] - boundaries[index]
         guard span >= 2 else { return }
+        for part in state.partTitles.indices where part > index {
+            if state.partTitles[part] == "\(state.sourceTitle) — Part \(part + 1)" {
+                state.partTitles[part] = "\(state.sourceTitle) — Part \(part + 2)"
+            }
+        }
         state.cutPointsMs.insert(boundaries[index] + span / 2, at: index)
         state.partTitles.insert("\(state.sourceTitle) — Part \(index + 2)", at: index + 1)
         editing = state
@@ -156,6 +161,11 @@ public final class MeetingSplitViewModel {
     public func removeCut(at index: Int) {
         guard var state = editing, !isProcessingActive,
               state.cutPointsMs.count > 1, state.cutPointsMs.indices.contains(index) else { return }
+        for part in state.partTitles.indices where part > index + 1 {
+            if state.partTitles[part] == "\(state.sourceTitle) — Part \(part + 1)" {
+                state.partTitles[part] = "\(state.sourceTitle) — Part \(part)"
+            }
+        }
         state.cutPointsMs.remove(at: index)
         state.partTitles.remove(at: index + 1)
         editing = state
