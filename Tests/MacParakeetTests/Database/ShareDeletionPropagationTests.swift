@@ -36,6 +36,54 @@ final class ShareDeletionPropagationTests: XCTestCase {
         XCTAssertFalse(try repo.delete(id: source.id))
     }
 
+    func testSingleAndBulkDeletionNotifyOnlyAfterStopIntentCommits() throws {
+        for bulk in [false, true] {
+            let (manager, _, source, share) = try fixture()
+            let notified = expectation(description: "committed stop notification")
+            let ledger = SharePublicationRepository(dbQueue: manager.dbQueue)
+            let repo = TranscriptionRepository(dbQueue: manager.dbQueue) {
+                // Reading through a new database access proves notification is outside the transaction.
+                XCTAssertEqual(try? ledger.fetchNextPendingOperation(forShareId: share.id)?.kind, .delete)
+                notified.fulfill()
+            }
+            if bulk { try repo.deleteAll() } else { XCTAssertTrue(try repo.delete(id: source.id)) }
+            wait(for: [notified], timeout: 1)
+        }
+    }
+
+    func testPreparationNotifiesEvenWhenLaterAssetCleanupFails() throws {
+        let (manager, _, source, share) = try fixture()
+        let notified = expectation(description: "stop committed before asset failure")
+        let ledger = SharePublicationRepository(dbQueue: manager.dbQueue)
+        let repo = TranscriptionRepository(dbQueue: manager.dbQueue) {
+            XCTAssertEqual(try? ledger.fetchNextPendingOperation(forShareId: share.id)?.kind, .delete)
+            notified.fulfill()
+        }
+        struct FileFailure: Error {}
+        XCTAssertThrowsError(try TranscriptionDeletionCoordinator.delete(
+            source, repository: repo, credentials: ShareCredentialStore(store: InMemoryKeyValueStore()),
+            removeAssets: { _ in throw FileFailure() }))
+        wait(for: [notified], timeout: 1)
+        XCTAssertNotNil(try repo.fetch(id: source.id))
+    }
+
+    func testNoNotificationForUnsharedSourceOrRolledBackStop() throws {
+        let (manager, _, source, _) = try fixture()
+        let repo = TranscriptionRepository(dbQueue: manager.dbQueue) {
+            XCTFail("uncommitted or absent stop must not notify")
+        }
+        try manager.dbQueue.write {
+            try $0.execute(sql: "CREATE TRIGGER reject_stop BEFORE INSERT ON share_outbox_operations BEGIN SELECT RAISE(ABORT, 'failure'); END")
+        }
+        XCTAssertThrowsError(try repo.prepareForDeletion(id: source.id))
+        XCTAssertThrowsError(try repo.delete(id: source.id))
+        XCTAssertThrowsError(try repo.deleteAll())
+        let unshared = Transcription(fileName: "unshared.wav", status: .completed)
+        try repo.save(unshared)
+        XCTAssertTrue(try repo.prepareForDeletion(id: unshared.id).isEmpty)
+        XCTAssertTrue(try repo.delete(id: unshared.id))
+    }
+
     func testOutboxFailurePreventsSourceAndAssetDeletion() throws {
         let (manager, repo, source, _) = try fixture()
         try manager.dbQueue.write {

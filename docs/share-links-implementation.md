@@ -14,6 +14,11 @@ That switch does not redirect credentials or configure a production service.
 - `TranscriptionDeletionCoordinator`: persist permanent-stop intent before
   removing local keys, owned assets and source records. Audio-only deletion does
   not revoke a text snapshot.
+- Committed source-deletion stop intent sends a payload-free cross-process hint
+  to the running, sharing-enabled app. It drains asynchronously, including after
+  a busy mutation; a failed attempt remains durable without an automatic retry
+  loop. The synchronous CLI does not wait for remote revocation: if the app is
+  closed, the stop waits for its next enabled startup.
 - `ShareDraftViewModel` and `ShareManagementViewModel`: exact preview, explicit
   updates, expiry, pending operations, recovery and persistent Shared pages.
 - The website repository owns a separate Worker, D1 database, private R2 bucket

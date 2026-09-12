@@ -56,6 +56,7 @@ public actor ShareCoordinator {
     private var isDeviceCredentialSuperseded = false
     private var activeShareIds: Set<UUID> = []
     private var mutationInProgress = false
+    private var pendingResumeRequested = false
 
     init(
         repository: SharePublicationRepositoryProtocol,
@@ -89,7 +90,7 @@ public actor ShareCoordinator {
 
     public func forgetCompletedPublication(shareId: UUID) async throws {
         try beginMutation()
-        defer { mutationInProgress = false }
+        defer { finishMutation() }
         guard let share = try repository.fetch(id: shareId), share.deletionState == .complete else {
             throw ShareCoordinatorError.sharesNotTerminal
         }
@@ -112,7 +113,7 @@ public actor ShareCoordinator {
 
     public func refreshPublications() async throws -> [SharePublication] {
         try beginMutation()
-        defer { mutationInProgress = false }
+        defer { finishMutation() }
         guard let credential = try requireConfirmedDeviceCredential() else { return try repository.fetchAll() }
         let resources = try await allRemoteShares(credential: credential)
         try await repository.reconcileResources(resources, ownerId: credential.ownerId)
@@ -132,6 +133,13 @@ public actor ShareCoordinator {
             throw ShareCoordinatorError.recoveryPending
         }
         mutationInProgress = true
+    }
+
+    private func finishMutation() {
+        mutationInProgress = false
+        guard pendingResumeRequested else { return }
+        pendingResumeRequested = false
+        Task { await resumePendingWork() }
     }
 
     private func allRemoteShares(credential: ShareDeviceCredential) async throws -> [ShareResource] {
@@ -181,7 +189,7 @@ public actor ShareCoordinator {
     ) async throws -> SharePublishResult {
         guard !isDeviceCredentialSuperseded else { throw ShareCoordinatorError.deviceCredentialSuperseded }
         try beginMutation()
-        defer { mutationInProgress = false }
+        defer { finishMutation() }
 
         let instant = self.now()
         let now = Date(timeIntervalSince1970: instant.timeIntervalSince1970.rounded(.down))
@@ -251,7 +259,7 @@ public actor ShareCoordinator {
     ) async throws -> SharePublication {
         guard !isDeviceCredentialSuperseded else { throw ShareCoordinatorError.deviceCredentialSuperseded }
         try beginMutation()
-        defer { mutationInProgress = false }
+        defer { finishMutation() }
         guard let share = try repository.fetch(id: shareId) else {
             throw ShareCoordinatorError.shareNotFound
         }
@@ -300,7 +308,7 @@ public actor ShareCoordinator {
     public func changeExpiry(shareId: UUID, newExpiresAt: Date) async throws -> SharePublication {
         guard !isDeviceCredentialSuperseded else { throw ShareCoordinatorError.deviceCredentialSuperseded }
         try beginMutation()
-        defer { mutationInProgress = false }
+        defer { finishMutation() }
         guard let share = try repository.fetch(id: shareId) else {
             throw ShareCoordinatorError.shareNotFound
         }
@@ -332,7 +340,7 @@ public actor ShareCoordinator {
     public func stop(shareId: UUID) async throws -> SharePublication {
         guard !isDeviceCredentialSuperseded else { throw ShareCoordinatorError.deviceCredentialSuperseded }
         try beginMutation()
-        defer { mutationInProgress = false }
+        defer { finishMutation() }
         guard try repository.fetch(id: shareId) != nil else {
             throw ShareCoordinatorError.shareNotFound
         }
@@ -348,8 +356,12 @@ public actor ShareCoordinator {
     /// this is a background sweep, not a direct user action.
     public func resumePendingWork() async {
         guard !isDeviceCredentialSuperseded else { return }
+        if mutationInProgress {
+            pendingResumeRequested = true
+            return
+        }
         do { try beginMutation() } catch { return }
-        defer { mutationInProgress = false }
+        defer { finishMutation() }
         if let shareIds = try? repository.fetchShareIdsWithPendingOperations() {
             for shareId in shareIds {
                 _ = try? await processPendingOperations(forShareId: shareId)
@@ -369,7 +381,7 @@ public actor ShareCoordinator {
 
     public func setUpRecovery() async throws -> ShareRecoverySetupResult {
         try beginMutation()
-        defer { mutationInProgress = false }
+        defer { finishMutation() }
         guard !isDeviceCredentialSuperseded else { throw ShareCoordinatorError.deviceCredentialSuperseded }
         guard let credential = try requireConfirmedDeviceCredential() else {
             throw ShareCoordinatorError.deviceCredentialMissing
@@ -380,7 +392,7 @@ public actor ShareCoordinator {
 
     public func replaceRecovery(currentRecoveryToken: ShareRecoveryToken) async throws -> ShareRecoverySetupResult {
         try beginMutation()
-        defer { mutationInProgress = false }
+        defer { finishMutation() }
         guard !isDeviceCredentialSuperseded else { throw ShareCoordinatorError.deviceCredentialSuperseded }
         guard let credential = try requireConfirmedDeviceCredential() else {
             throw ShareCoordinatorError.deviceCredentialMissing
@@ -394,7 +406,7 @@ public actor ShareCoordinator {
 
     public func removeRecovery(currentRecoveryToken: ShareRecoveryToken) async throws -> ShareOwnerMetadata {
         try beginMutation()
-        defer { mutationInProgress = false }
+        defer { finishMutation() }
         guard !isDeviceCredentialSuperseded else { throw ShareCoordinatorError.deviceCredentialSuperseded }
         guard let credential = try requireConfirmedDeviceCredential() else {
             throw ShareCoordinatorError.deviceCredentialMissing
@@ -494,7 +506,7 @@ public actor ShareCoordinator {
 
     public func reconcileLostRecoveryConfiguration() async throws -> ShareOwnerMetadata? {
         try beginMutation()
-        defer { mutationInProgress = false }
+        defer { finishMutation() }
         guard var pending = try credentialStore.loadPendingRecoveryConfiguration() else { return nil }
         guard let credential = try requireConfirmedDeviceCredential() else { return nil }
         var metadata = try await remoteClient.fetchOwnerMetadata(deviceToken: credential.token)
@@ -528,7 +540,7 @@ public actor ShareCoordinator {
         replacementRecoveryVerifier: String? = nil
     ) async throws -> ShareOwnerMetadata {
         try beginMutation(allowPendingRecovery: true)
-        defer { mutationInProgress = false }
+        defer { finishMutation() }
         guard try credentialStore.loadPendingRecoveryConfiguration() == nil else {
             throw ShareCoordinatorError.recoveryPending
         }
@@ -588,7 +600,7 @@ public actor ShareCoordinator {
     @discardableResult
     public func reconcileLostRecoveryImport() async throws -> Bool {
         try beginMutation(allowPendingRecovery: true)
-        defer { mutationInProgress = false }
+        defer { finishMutation() }
         guard let pending = try credentialStore.loadPendingDeviceCredential() else { return false }
         return try await probePendingRecovery(pending) != nil
     }
@@ -638,7 +650,7 @@ public actor ShareCoordinator {
     /// and does not invalidate a recovery token the user may have saved.
     public func discardCredentialAfterRecoveryLoss() async throws {
         try beginMutation()
-        defer { mutationInProgress = false }
+        defer { finishMutation() }
         do { try await requireCurrentOwnerFullyReconciledForSwitch() } catch ShareCoordinatorError.recoverySwitchBlocked
         { throw ShareCoordinatorError.sharesNotTerminal }
         try credentialStore.clearDeviceCredential()

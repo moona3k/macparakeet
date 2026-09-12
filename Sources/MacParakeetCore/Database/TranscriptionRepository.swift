@@ -179,6 +179,7 @@ extension TranscriptionRepositoryProtocol {
 // advertise Swift Sendable conformance.
 public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @unchecked Sendable {
     private let dbQueue: DatabaseQueue
+    private let notifyShareStopQueued: @Sendable () -> Void
     private static let libraryDisplayTitleExpression = effectiveDisplayTitleExpression()
 
     static func effectiveDisplayTitleExpression(tableAlias: String? = nil) -> String {
@@ -203,6 +204,18 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
 
     public init(dbQueue: DatabaseQueue) {
         self.dbQueue = dbQueue
+        let isInMemory = dbQueue.path == ":memory:" || dbQueue.path.contains("mode=memory")
+        self.notifyShareStopQueued = {
+            // Synthetic in-memory libraries must not wake a running app's outbox.
+            guard !isInMemory else { return }
+            DistributedNotificationCenter.default().postNotificationName(
+                .macParakeetShareStopQueued, object: nil, userInfo: nil, deliverImmediately: true)
+        }
+    }
+
+    init(dbQueue: DatabaseQueue, notifyShareStopQueued: @escaping @Sendable () -> Void) {
+        self.dbQueue = dbQueue
+        self.notifyShareStopQueued = notifyShareStopQueued
     }
 
     public func save(_ transcription: Transcription) throws {
@@ -538,26 +551,34 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
     }
 
     public func prepareForDeletion(id: UUID) throws -> [String] {
-        try dbQueue.write { db in
+        let shareIds = try dbQueue.write { db in
             try SharePublicationRepository.detachAndEnqueueTerminalOperations(transcriptionId: id, in: db)
                 .map(\.remoteShareId)
         }
+        if !shareIds.isEmpty { notifyShareStopQueued() }
+        return shareIds
     }
 
     public func delete(id: UUID) throws -> Bool {
-        try dbQueue.write { db in
-            _ = try SharePublicationRepository.detachAndEnqueueTerminalOperations(transcriptionId: id, in: db)
-            return try Transcription.deleteOne(db, key: id)
+        let (deleted, hasShares) = try dbQueue.write { db in
+            let shares = try SharePublicationRepository.detachAndEnqueueTerminalOperations(transcriptionId: id, in: db)
+            return (try Transcription.deleteOne(db, key: id), !shares.isEmpty)
         }
+        if hasShares { notifyShareStopQueued() }
+        return deleted
     }
 
     public func deleteAll() throws {
-        try dbQueue.write { db in
+        let hasShares = try dbQueue.write { db in
+            var hasShares = false
             for id in try UUID.fetchAll(db, sql: "SELECT id FROM transcriptions") {
-                _ = try SharePublicationRepository.detachAndEnqueueTerminalOperations(transcriptionId: id, in: db)
+                let shares = try SharePublicationRepository.detachAndEnqueueTerminalOperations(transcriptionId: id, in: db)
+                hasShares = hasShares || !shares.isEmpty
             }
             _ = try Transcription.deleteAll(db)
+            return hasShares
         }
+        if hasShares { notifyShareStopQueued() }
     }
 
     public func updateStatus(

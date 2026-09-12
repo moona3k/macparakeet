@@ -258,6 +258,12 @@ The concrete transcription repository also enforces detachment when called
 directly. GUI and CLI whole-record deletion first persist stop intent, then
 remove local content keys and owned assets, then delete the source row. If asset
 cleanup fails, the source remains retryable but its stop intent is not undone.
+After committed stop intent, the repository sends a payload-free local
+cross-process notification. A running app with sharing enabled schedules an
+asynchronous outbox sweep; a request arriving during another share mutation is
+coalesced into a follow-up sweep. Local deletion never waits for this network
+work. CLI deletion while the app is closed retains pending stop until the next
+enabled app startup; it does not promise immediate remote revocation.
 Audio-only deletion does not revoke a text share. New publication checks that
 its source still exists inside the local intent transaction.
 Offline UI says the remote stop is pending and the link may still work; it may say stopped or deleted only after the corresponding service receipt.

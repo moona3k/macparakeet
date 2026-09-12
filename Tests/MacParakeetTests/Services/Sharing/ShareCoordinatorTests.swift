@@ -288,6 +288,27 @@ final class ShareCoordinatorTests: XCTestCase {
 
     // MARK: - Stop / delete lifecycle
 
+    func testResumeRequestedDuringMutationDrainsOnceAfterMutationFinishes() async throws {
+        remoteClient.createShareHandler = succeedingCreateHandler()
+        let result = try await coordinator.publish(bundle: makeNotesBundle())
+        try await repository.enqueueTerminalDelete(shareId: result.publication.id)
+        let drained = expectation(description: "queued stop attempted after refresh")
+        drained.assertForOverFulfill = true
+        remoteClient.deleteShareHandler = { _, _, _, _ in
+            drained.fulfill()
+            throw ShareClientError.network
+        }
+        let service = try XCTUnwrap(coordinator)
+        remoteClient.listSharesHandler = { _, _, _ in
+            await service.resumePendingWork()
+            await service.resumePendingWork()
+            return ShareListPage(shares: [], nextCursor: nil)
+        }
+        _ = try await coordinator.refreshPublications()
+        await fulfillment(of: [drained], timeout: 1)
+        XCTAssertEqual(try repository.fetchPendingOperations(forShareId: result.publication.id).count, 1)
+    }
+
     func testStopConfirmsButPendingCleanupRotatesTheIdempotencyKeyForTheNextCheck() async throws {
         remoteClient.createShareHandler = succeedingCreateHandler()
         let result = try await coordinator.publish(bundle: try makeNotesBundle())
