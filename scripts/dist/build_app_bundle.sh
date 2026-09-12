@@ -41,6 +41,9 @@ set -euo pipefail
 #   MACPARAKEET_MEETING_ECHO_MODEL source GGUF model for meeting echo suppression
 #   MACPARAKEET_MEETING_ECHO_MODEL_NAME optional bundled GGUF filename (default: source basename)
 #   MACPARAKEET_MEETING_ECHO_MODEL_SHA256 optional expected model SHA256
+#   MIN_MACOS_VERSION is the ceiling for the auto-prepared LocalVQE runtime's
+#   CMAKE_OSX_DEPLOYMENT_TARGET; bundled dylib slices with a higher minimum OS
+#   version load command than MIN_MACOS_VERSION fail verification
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
@@ -53,7 +56,7 @@ VERSION="${VERSION:-0.0.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-$(date -u +%Y%m%d%H%M%S)}"
 BUILD_GIT_COMMIT="${BUILD_GIT_COMMIT:-$(git -C "$ROOT_DIR" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)}"
 BUILD_DATE_UTC="${BUILD_DATE_UTC:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
-MIN_MACOS_VERSION="${MIN_MACOS_VERSION:-14.2}"
+MIN_MACOS_VERSION="${MIN_MACOS_VERSION:-$DEFAULT_MEETING_ECHO_MIN_MACOS_VERSION}"
 UNIVERSAL="${UNIVERSAL:-0}"
 SKIP_BUILD="${SKIP_BUILD:-0}"
 BUILD_SYSTEM="${BUILD_SYSTEM:-xcodebuild}"
@@ -459,6 +462,7 @@ bundle_meeting_echo_assets() {
       MACPARAKEET_MEETING_ECHO_MODEL_NAME="$prepared_model_name" \
       MACPARAKEET_MEETING_ECHO_MODEL_SHA256="$prepared_model_sha" \
       MACPARAKEET_MEETING_ECHO_UNIVERSAL="${MACPARAKEET_MEETING_ECHO_UNIVERSAL:-$UNIVERSAL}" \
+      MACPARAKEET_MEETING_ECHO_APP_MIN_MACOS_VERSION="$MIN_MACOS_VERSION" \
       "$ROOT_DIR/scripts/dist/prepare_meeting_echo_assets.sh"
 
     library_src="$prepared_assets_dir/lib/liblocalvqe.dylib"
@@ -530,8 +534,12 @@ bundle_meeting_echo_assets() {
   echo "Bundled meeting echo runtime: $FRAMEWORKS_DIR/liblocalvqe.dylib"
   echo "Bundled meeting echo model: $RESOURCES_DIR/MeetingEchoSuppression/$model_name"
 
+  # Info.plist (and its LSMinimumSystemVersion) is not written until later in
+  # this script, so pass the app minimum explicitly rather than letting the
+  # verifier fall back to reading a not-yet-existing plist.
   MACPARAKEET_MEETING_ECHO_MODEL_NAME="$model_name" \
     MACPARAKEET_MEETING_ECHO_MODEL_SHA256="$expected_model_sha" \
+    MACPARAKEET_MEETING_ECHO_MIN_MACOS_VERSION="$MIN_MACOS_VERSION" \
     "$ROOT_DIR/scripts/dist/verify_meeting_echo_assets.sh" "$APP_DIR"
 }
 
