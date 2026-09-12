@@ -1,0 +1,30 @@
+spec/contracts/README.md
+  s_a873ed00f9edeb::t_69e8c2ceb0f12c 38-39
+spec/contracts/meeting-splitting.md
+  s_a873ed00f9edeb::t_69e8c2ceb0f12c 1-104
+docs/research/2026-09-11-issue-895-meeting-split/README.md
+  s_a873ed00f9edeb::t_aab0327daec950 3-10
+docs/research/2026-09-11-issue-895-meeting-split/report.md
+  s_a873ed00f9edeb::t_aab0327daec950 3-12
+docs/research/2026-09-11-issue-895-meeting-split/split-recording-prototype.html
+  s_a873ed00f9edeb::t_f2a1b61da2566a 223
+docs/plans/2026-09-11-issue-895-meeting-split-plan.md
+  s_a873ed00f9edeb::t_69e8c2ceb0f12c 40,68
+  s_a873ed00f9edeb::t_0fa6de8d5915c1 2,7,12,14,16,18,20,22,24,26,28-33,35,37,39,41-43,45,47,49,51-56,58,60,62,64,66,70,72,74,76,78,80,82,84,86,88,90,92,94,96-107,109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a573e8fdcf29bd77a645f54c9973a3d1e5a9a8e4",
+  "prompts": {},
+  "sessions": {
+    "s_a873ed00f9edeb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0934d-8db0-7702-aa27-19ce08f0c352",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
