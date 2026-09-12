@@ -46,6 +46,15 @@ jobs:
           set -o pipefail
           ./scripts/check-readme-references.sh 2>&1 | tee .ci-logs/check-readme-references.log
 
+      - name: Meeting Echo Packaging Fixtures
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          mkdir -p .ci-logs
+          for fixture in test_macho_min_version test_prepare_meeting_echo_assets test_verify_meeting_echo_assets; do
+            bash "scripts/dist/${fixture}.sh" 2>&1 | tee ".ci-logs/${fixture}.log"
+          done
+
       - name: Swift Format Lint (informational)
         continue-on-error: true
         timeout-minutes: 3
