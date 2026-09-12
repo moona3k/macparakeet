@@ -556,6 +556,63 @@ public final class SettingsViewModel {
             ))
         }
     }
+
+    /// Set through `requestRememberSpeakers` / `acknowledgeVoiceprintConsent`,
+    /// never bound straight to a toggle: turning this on with no consent on
+    /// record would start keeping voices, and the resolver would still read it
+    /// as off, so the switch would look on and do nothing.
+    public private(set) var rememberSpeakers: Bool {
+        didSet {
+            defaults.set(rememberSpeakers, forKey: UserDefaultsAppRuntimePreferences.rememberSpeakersKey)
+            Telemetry.send(.settingChanged(
+                setting: .rememberSpeakers,
+                value: Self.settingValue(rememberSpeakers)
+            ))
+        }
+    }
+
+    /// When the user acknowledged the biometric-consent notice. A date because
+    /// compliance asks *when*, not whether.
+    public private(set) var voiceprintConsentAcknowledgedAt: Date?
+
+    /// True while the consent sheet should be shown. Set by asking to turn the
+    /// preference on without consent on record.
+    public var isRequestingVoiceprintConsent = false
+
+    /// Turning it off is immediate; turning it on needs consent first. Returns
+    /// whether the caller should present the consent sheet.
+    @discardableResult
+    public func requestRememberSpeakers(_ enabled: Bool) -> Bool {
+        guard enabled else {
+            rememberSpeakers = false
+            return false
+        }
+        guard voiceprintConsentAcknowledgedAt == nil else {
+            rememberSpeakers = true
+            return false
+        }
+        isRequestingVoiceprintConsent = true
+        return true
+    }
+
+    /// Accepting both records the date and turns the preference on. Declining
+    /// leaves both untouched, so the switch stays off.
+    public func resolveVoiceprintConsent(accepted: Bool, now: Date = Date()) {
+        isRequestingVoiceprintConsent = false
+        guard accepted else { return }
+        voiceprintConsentAcknowledgedAt = now
+        defaults.set(now, forKey: UserDefaultsAppRuntimePreferences.voiceprintConsentAcknowledgedAtKey)
+        rememberSpeakers = true
+    }
+
+    /// Withdrawing consent also turns the preference off: consent is what makes
+    /// it legal to keep a voice, so the two cannot diverge. Stored voices are
+    /// removed separately, from the profile administration surface.
+    public func withdrawVoiceprintConsent() {
+        rememberSpeakers = false
+        voiceprintConsentAcknowledgedAt = nil
+        defaults.removeObject(forKey: UserDefaultsAppRuntimePreferences.voiceprintConsentAcknowledgedAtKey)
+    }
     public private(set) var pendingMeetingRecoveryCount = 0
     public var onRecoverPendingMeetingRecordings: (() -> Void)?
 
@@ -899,6 +956,13 @@ public final class SettingsViewModel {
         youtubeAudioQuality = YouTubeAudioQuality.current(defaults: defaults)
         speakerDiarization = UserDefaultsAppRuntimePreferences.speakerDiarizationEnabled(defaults: defaults)
         meetingSpeakerDiarization = UserDefaultsAppRuntimePreferences.meetingSpeakerDiarizationEnabled(defaults: defaults)
+        // The stored preference, not the resolved gate: the switch has to show
+        // what the user last chose even while the feature flag is off.
+        rememberSpeakers = defaults.object(
+            forKey: UserDefaultsAppRuntimePreferences.rememberSpeakersKey
+        ) as? Bool ?? UserDefaultsAppRuntimePreferences.defaultRememberSpeakersEnabled
+        voiceprintConsentAcknowledgedAt = UserDefaultsAppRuntimePreferences
+            .voiceprintConsentAcknowledgedAt(defaults: defaults)
         // Ensure auto-save folders are configured before reading paths.
         // Idempotent: existing user-chosen folders are preserved; only
         // unset bookmarks get the default. This guarantees the read

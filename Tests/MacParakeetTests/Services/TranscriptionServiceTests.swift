@@ -135,9 +135,15 @@ private actor MeetingVoiceprintSpy: SpeakerVoiceprintServicing {
     }
 
     func confirm(
-        _ suggestion: SpeakerVoiceprintSuggestion, observation: SpeakerClusterObservation,
+        _ suggestion: SpeakerVoiceprintSuggestion,
         transcriptionId: UUID, fingerprint: TranscriptFingerprint
     ) async throws {
+        throw Failure.unexpectedOperation
+    }
+
+    func pendingSuggestions(
+        transcriptionId: UUID, fingerprint: TranscriptFingerprint
+    ) async throws -> [SpeakerVoiceprintSuggestion] {
         throw Failure.unexpectedOperation
     }
 

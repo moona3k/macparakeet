@@ -28,6 +28,12 @@ public protocol SpeakerVoiceprintServicing: Sendable {
         clusters: [SpeakerClusterObservation]
     ) async throws -> [SpeakerVoiceprintSuggestion]
 
+    /// Offers awaiting an answer for this version of the transcript.
+    func pendingSuggestions(
+        transcriptionId: UUID,
+        fingerprint: TranscriptFingerprint
+    ) async throws -> [SpeakerVoiceprintSuggestion]
+
     /// The voice still available for this speaker, or `nil` when the window has
     /// lapsed, the cluster was too short, or the feature was off at capture.
     /// This is what makes "remember this voice" possible after the fact.
@@ -55,7 +61,6 @@ public protocol SpeakerVoiceprintServicing: Sendable {
     /// lets it learn. The label is written by the correction layer, not here.
     func confirm(
         _ suggestion: SpeakerVoiceprintSuggestion,
-        observation: SpeakerClusterObservation,
         transcriptionId: UUID,
         fingerprint: TranscriptFingerprint
     ) async throws
@@ -173,6 +178,37 @@ public final class SpeakerVoiceprintService: SpeakerVoiceprintServicing, @unchec
 
     /// Gated on the preference like everything else: a candidate captured while
     /// the feature was on must not stay reachable after it is turned off.
+    /// Offers still awaiting an answer for this version of the transcript.
+    ///
+    /// Read back from the store rather than held in memory: scoring happens
+    /// when the meeting finishes, and the user opens the transcript later —
+    /// often after a relaunch.
+    public func pendingSuggestions(
+        transcriptionId: UUID,
+        fingerprint: TranscriptFingerprint
+    ) async throws -> [SpeakerVoiceprintSuggestion] {
+        guard isEnabled() else { return [] }
+        let links = try profiles.links(
+            transcriptionId: transcriptionId, fingerprint: fingerprint.rawValue
+        )
+        .filter { $0.status == .suggested }
+        guard !links.isEmpty else { return [] }
+
+        return try links.compactMap { link in
+            // A profile deleted since scoring leaves its link cascaded away, so
+            // a missing one here means the row is mid-deletion: skip it rather
+            // than offer a name that no longer exists.
+            guard let profile = try profiles.profile(id: link.profileId) else { return nil }
+            return SpeakerVoiceprintSuggestion(
+                speakerId: link.speakerId,
+                profileId: link.profileId,
+                displayName: profile.displayName,
+                distance: link.distance,
+                runnerUpDistance: link.runnerUpDistance
+            )
+        }
+    }
+
     public func enrollmentCandidate(
         transcriptionId: UUID,
         speakerId: String,
@@ -338,12 +374,23 @@ public final class SpeakerVoiceprintService: SpeakerVoiceprintServicing, @unchec
     /// profile that did not learn, rather than a poisoned profile.
     public func confirm(
         _ suggestion: SpeakerVoiceprintSuggestion,
-        observation: SpeakerClusterObservation,
         transcriptionId: UUID,
         fingerprint: TranscriptFingerprint
     ) async throws {
         guard isEnabled() else { throw SpeakerVoiceprintServiceError.disabled }
         guard var profile = try profiles.profile(id: suggestion.profileId) else { return }
+
+        // Resolved here rather than taken from the caller: the vector belongs
+        // to this speaker in this version of the transcript, and a UI holding
+        // the wrong one would teach the profile someone else's voice. `nil`
+        // once the window has lapsed, which records the decision without
+        // learning from it.
+        let observation = try candidates.candidate(
+            transcriptionId: transcriptionId,
+            speakerId: suggestion.speakerId,
+            fingerprint: fingerprint.rawValue,
+            now: now()
+        )?.observation
 
         try profiles.save(
             SpeakerProfileLink(
@@ -364,7 +411,8 @@ public final class SpeakerVoiceprintService: SpeakerVoiceprintServicing, @unchec
         // one-sample-per-recording rule is the store's. A short match can be
         // confirmed, but it cannot bypass the minimum duration for learning.
         let exemplars = try profiles.exemplars(profileId: profile.id)
-        if observation.speechSeconds >= policy.minSpeechSecondsToEnroll,
+        if let observation,
+            observation.speechSeconds >= policy.minSpeechSecondsToEnroll,
             exemplars.filter({ $0.origin == .manualEnrollment }).count >= 2
         {
             switch try addExemplar(

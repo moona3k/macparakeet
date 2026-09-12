@@ -87,7 +87,6 @@ final class SpeakerVoiceprintServiceTests: XCTestCase {
         do {
             try await disabled.confirm(
                 suggestion,
-                observation: cluster("S1", voice: 0, degrees: 14.1),
                 transcriptionId: next.id,
                 fingerprint: fingerprint
             )
@@ -549,7 +548,6 @@ final class SpeakerVoiceprintServiceTests: XCTestCase {
         )
         try await service.confirm(
             try XCTUnwrap(first.first),
-            observation: cluster("S1", voice: 0, degrees: 14.1),
             transcriptionId: next.id,
             fingerprint: fingerprint
         )
@@ -617,7 +615,6 @@ final class SpeakerVoiceprintServiceTests: XCTestCase {
 
         try await service.confirm(
             try XCTUnwrap(first.first),
-            observation: close,
             transcriptionId: next.id,
             fingerprint: fingerprint
         )
@@ -706,7 +703,6 @@ final class SpeakerVoiceprintServiceTests: XCTestCase {
             )
             try await service.confirm(
                 try XCTUnwrap(suggestions.first),
-                observation: cluster("S1", voice: 0, degrees: 14.1),
                 transcriptionId: recording.id,
                 fingerprint: fingerprint
             )
@@ -726,7 +722,6 @@ final class SpeakerVoiceprintServiceTests: XCTestCase {
         )
         try await service.confirm(
             try XCTUnwrap(suggestions.first),
-            observation: cluster("S1", voice: 0, degrees: 14.1),
             transcriptionId: extra.id,
             fingerprint: fingerprint
         )
@@ -1003,7 +998,6 @@ final class SpeakerVoiceprintServiceTests: XCTestCase {
         )
         try await service.confirm(
             try XCTUnwrap(suggestions.first),
-            observation: cluster("S1", voice: 0, degrees: 14.1),
             transcriptionId: third.id,
             fingerprint: fingerprint
         )
@@ -1047,7 +1041,6 @@ final class SpeakerVoiceprintServiceTests: XCTestCase {
         )
         try await service.confirm(
             try XCTUnwrap(suggestions.first),
-            observation: cluster("S1", voice: 0, degrees: 14.1),
             transcriptionId: extra.id,
             fingerprint: fingerprint
         )
@@ -1084,7 +1077,6 @@ final class SpeakerVoiceprintServiceTests: XCTestCase {
         )
         try await service.confirm(
             try XCTUnwrap(suggestions.first),
-            observation: cluster("S1", voice: 0, degrees: 14.1),
             transcriptionId: second.id,
             fingerprint: fingerprint
         )
@@ -1096,6 +1088,127 @@ final class SpeakerVoiceprintServiceTests: XCTestCase {
             )
         )
         XCTAssertEqual(try profiles.exemplars(profileId: try XCTUnwrap(try profiles.profiles().first).id).count, 2)
+    }
+
+    // MARK: Reading offers back
+
+    /// Scoring happens when the meeting ends; the user opens the transcript
+    /// later, often after a relaunch, so offers have to be readable from the
+    /// store rather than held in memory.
+    func testPendingSuggestionsAreReadBackForTheSameFingerprint() async throws {
+        let recording = try savedTranscription()
+        let profile = try await enrolledSarah(transcriptionId: recording.id)
+        let next = try savedTranscription()
+        _ = try await makeService().evaluate(
+            transcriptionId: next.id,
+            fingerprint: fingerprint,
+            clusters: [cluster("S1", voice: 0, degrees: 14.1)]
+        )
+
+        let offers = try await makeService().pendingSuggestions(
+            transcriptionId: next.id, fingerprint: fingerprint
+        )
+
+        XCTAssertEqual(offers.map(\.displayName), ["Sarah"])
+        XCTAssertEqual(offers.first?.profileId, profile.id)
+        XCTAssertEqual(offers.first?.speakerId, "S1")
+    }
+
+    func testAnsweredSuggestionsAreNotReadBack() async throws {
+        let recording = try savedTranscription()
+        _ = try await enrolledSarah(transcriptionId: recording.id)
+        let next = try savedTranscription()
+        let service = makeService()
+        let offers = try await service.evaluate(
+            transcriptionId: next.id,
+            fingerprint: fingerprint,
+            clusters: [cluster("S1", voice: 0, degrees: 14.1)]
+        )
+
+        try await service.dismiss(
+            try XCTUnwrap(offers.first), transcriptionId: next.id, fingerprint: fingerprint
+        )
+
+        let pending = try await service.pendingSuggestions(
+            transcriptionId: next.id, fingerprint: fingerprint
+        )
+        XCTAssertTrue(pending.isEmpty)
+    }
+
+    /// Speaker ids are positional, so offers from an earlier diarization must
+    /// not surface against the current one.
+    func testPendingSuggestionsAreScopedToTheFingerprint() async throws {
+        let recording = try savedTranscription()
+        _ = try await enrolledSarah(transcriptionId: recording.id)
+        let next = try savedTranscription()
+        _ = try await makeService().evaluate(
+            transcriptionId: next.id,
+            fingerprint: fingerprint,
+            clusters: [cluster("S1", voice: 0, degrees: 14.1)]
+        )
+
+        let pending = try await makeService().pendingSuggestions(
+            transcriptionId: next.id,
+            fingerprint: TranscriptFingerprint(rawValue: "fingerprint-2")
+        )
+        XCTAssertTrue(pending.isEmpty)
+    }
+
+    func testPendingSuggestionsAreEmptyWhileTheFeatureIsOff() async throws {
+        let recording = try savedTranscription()
+        _ = try await enrolledSarah(transcriptionId: recording.id)
+        let next = try savedTranscription()
+        _ = try await makeService().evaluate(
+            transcriptionId: next.id,
+            fingerprint: fingerprint,
+            clusters: [cluster("S1", voice: 0, degrees: 14.1)]
+        )
+        enabled = false
+
+        let pending = try await makeService().pendingSuggestions(
+            transcriptionId: next.id, fingerprint: fingerprint
+        )
+        XCTAssertTrue(pending.isEmpty)
+    }
+
+    /// The vector comes from the store, not the caller: a UI holding the wrong
+    /// one would teach the profile someone else's voice. With the window
+    /// lapsed the decision is still recorded — it just teaches nothing.
+    func testConfirmingRecordsTheDecisionEvenWithoutACandidate() async throws {
+        let first = try savedTranscription()
+        let profile = try await enrolledSarah(transcriptionId: first.id)
+        let second = try savedTranscription()
+        let service = makeService()
+        _ = try await service.enroll(
+            displayName: "Sarah",
+            observation: cluster("S1", voice: 0, degrees: 14.1),
+            transcriptionId: second.id,
+            fingerprint: fingerprint,
+            allowMergeIntoExistingName: false
+        )
+
+        let third = try savedTranscription()
+        let offers = try await service.evaluate(
+            transcriptionId: third.id,
+            fingerprint: fingerprint,
+            clusters: [cluster("S1", voice: 0, degrees: 14.1)]
+        )
+        // Drop the candidate the way expiry would.
+        try candidates.deleteAll()
+
+        try await service.confirm(
+            try XCTUnwrap(offers.first), transcriptionId: third.id, fingerprint: fingerprint
+        )
+
+        XCTAssertEqual(
+            try profiles.links(transcriptionId: third.id, fingerprint: fingerprint.rawValue)
+                .map(\.status),
+            [.confirmed]
+        )
+        XCTAssertNotNil(try profiles.profile(id: profile.id)?.lastMatchedAt)
+        // Two manual enrollments anchor it, so only the missing vector stopped
+        // it from learning.
+        XCTAssertEqual(try profiles.exemplars(profileId: profile.id).count, 2)
     }
 
     // MARK: Confirmation
@@ -1114,7 +1227,6 @@ final class SpeakerVoiceprintServiceTests: XCTestCase {
         let observation = cluster("S1", voice: 0, degrees: 14.1)
         try await service.confirm(
             try XCTUnwrap(suggestions.first),
-            observation: observation,
             transcriptionId: next.id,
             fingerprint: fingerprint
         )
@@ -1148,7 +1260,6 @@ final class SpeakerVoiceprintServiceTests: XCTestCase {
         )
         try await service.confirm(
             try XCTUnwrap(suggestions.first),
-            observation: cluster("S1", voice: 0, degrees: 14.1),
             transcriptionId: third.id,
             fingerprint: fingerprint
         )
@@ -1176,7 +1287,7 @@ final class SpeakerVoiceprintServiceTests: XCTestCase {
                 transcriptionId: recording.id, fingerprint: fingerprint, clusters: [observation]
             )
             try await service.confirm(
-                try XCTUnwrap(offers.first), observation: observation,
+                try XCTUnwrap(offers.first),
                 transcriptionId: recording.id, fingerprint: fingerprint
             )
             XCTAssertEqual(
