@@ -1,0 +1,26 @@
+scripts/dist/prepare_meeting_echo_assets.sh
+  s_8fce6ef73418f5::t_4128780480245d 254
+  s_8fce6ef73418f5::t_9a0cc1324a7392 36-37
+  s_8fce6ef73418f5::t_be462db4d4b4d8 215
+scripts/dist/test_prepare_meeting_echo_assets.sh
+  s_8fce6ef73418f5::t_ed4c190979267c 7-8
+  s_8fce6ef73418f5::t_060fb3abd8cdb7 240
+docs/distribution.md
+  s_8fce6ef73418f5::t_38e69c5d1004a1 70-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "00c26f740409f65f8ca96d2725509f9789b26a3b",
+  "prompts": {},
+  "sessions": {
+    "s_8fce6ef73418f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ed338494-e8c7-4420-9017-d276f10da46a",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
