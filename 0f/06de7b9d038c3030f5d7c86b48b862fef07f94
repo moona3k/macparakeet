@@ -1,0 +1,23 @@
+Tests/MacParakeetTests/Services/Telemetry/CrashReporterTests.swift
+  s_53c86c470a1866::t_a9761a923b085f 335-337
+Tests/MacParakeetTests/Audio/ScreenCaptureLifecycleTests.swift
+  s_53c86c470a1866::t_b7cc648f8959c6 418-419
+docs/planning/2026-09-12-v0.8.0-crash-evidence-review.md
+  s_53c86c470a1866::t_bd7cbc1edf3b95 3,26,35,84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0f06de7b9d038c3030f5d7c86b48b862fef07f94",
+  "prompts": {},
+  "sessions": {
+    "s_53c86c470a1866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a096a3-db60-7eb1-8f0a-1eb40bd8e15d",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
