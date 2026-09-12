@@ -1,0 +1,28 @@
+Sources/MacParakeet/Views/Meetings/MeetingSplitSheetView.swift
+  s_a873ed00f9edeb::t_f51ab65fb1a206 39-49
+Tests/MacParakeetTests/App/MeetingAudioRetentionSweepCoordinatorTests.swift
+  s_a873ed00f9edeb::t_f51ab65fb1a206 8-15,39,48-52,55
+docs/plans/2026-09-11-issue-895-meeting-split-plan.md
+  s_a873ed00f9edeb::t_769abb2ab96b28 204-209
+spec/contracts/meeting-splitting.md
+  s_a873ed00f9edeb::t_769abb2ab96b28 77-78
+Sources/MacParakeet/App/MeetingAudioRetentionSweepCoordinator.swift
+  s_a873ed00f9edeb::t_f51ab65fb1a206 116-117,121,140-141
+  s_a873ed00f9edeb::t_37080b0366296c 142-143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b5db250b205bf855d6444e1b4df0ab27335eb0d0",
+  "prompts": {},
+  "sessions": {
+    "s_a873ed00f9edeb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0934d-8db0-7702-aa27-19ce08f0c352",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
