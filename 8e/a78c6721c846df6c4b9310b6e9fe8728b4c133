@@ -1,0 +1,94 @@
+spec/adr/002-local-only.md
+  s_d236dcbec7210b::t_bd70447ecfbf92 67-72,137,142
+spec/15-shareable-transcripts.md
+  s_d236dcbec7210b::t_325753e39674ca 5
+  s_d236dcbec7210b::t_d6bd4f8b2583a8 31
+  s_d236dcbec7210b::t_40a545cd70dda3 60,71
+  s_d236dcbec7210b::t_e094ab242fee37 1-4,6-28,30,33-48,52-59,61-64,66-70,72-81,83-84,87-92
+  s_d236dcbec7210b::t_6575731d68d6b8 29,32,49-50,65,85-86
+  s_d236dcbec7210b::t_c713e440d89493 51
+  s_d236dcbec7210b::t_4849c16f4f8f39 82
+docs/research/2026-09-11-shareable-transcripts/template.html
+  s_d236dcbec7210b::t_f8eb9199ef6ef4 1-333
+docs/research/2026-09-11-shareable-transcripts/report.md
+  s_d236dcbec7210b::t_71cf09f51d121e 1-924
+spec/contracts/share-link-bundle-v1.md
+  s_d236dcbec7210b::t_305c4af76cd281 139
+  s_d236dcbec7210b::t_6575731d68d6b8 141
+  s_d236dcbec7210b::t_c713e440d89493 112,140
+  s_d236dcbec7210b::t_76710a8da5dc0e 1-111,113-138,142-145
+spec/README.md
+  s_d236dcbec7210b::t_bd70447ecfbf92 27,40-43,141
+docs/research/2026-09-11-shareable-transcripts/index.html
+  s_d236dcbec7210b::t_0239232af7ec1a 1-1938
+docs/research/2026-09-11-shareable-transcripts/briefs/security.md
+  s_d236dcbec7210b::t_b598990aa2c1d5 1-20
+spec/contracts/share-service-v1.md
+  s_d236dcbec7210b::t_c713e440d89493 45,203
+  s_d236dcbec7210b::t_0081a917d19500 140-147
+  s_d236dcbec7210b::t_4d6abfadccc73d 200,213,256
+  s_d236dcbec7210b::t_6575731d68d6b8 40,73,83,149-150,204,258
+  s_d236dcbec7210b::t_3712287649c1c0 94,196-199
+  s_d236dcbec7210b::t_b614c0c25fa4ea 30,41,90,124,208
+  s_d236dcbec7210b::t_76710a8da5dc0e 1-29,31-39,43-44,46-72,74-76,78-81,84-89,91-93,95-98,139,148,151-170,172-195,201-202,205-207,209-212,214-215,217-255,259-262
+  s_d236dcbec7210b::t_4bfc48eaa97037 42,82,111-123,125-138
+  s_d236dcbec7210b::t_40a545cd70dda3 77,171,216,257
+  s_d236dcbec7210b::t_ae4570c01c5421 99-110
+spec/contracts/telemetry-v1.md
+  s_d236dcbec7210b::t_bd70447ecfbf92 12-15
+spec/adr/029-encrypted-shareable-transcript-snapshots.md
+  s_d236dcbec7210b::t_e094ab242fee37 1-23,25-26,28,30,32-71
+  s_d236dcbec7210b::t_40a545cd70dda3 29
+  s_d236dcbec7210b::t_6575731d68d6b8 24,27,31
+docs/research/2026-09-11-shareable-transcripts/artifact-check.json
+  s_d236dcbec7210b::t_3c07dc664127e6 1-58
+docs/research/2026-09-11-shareable-transcripts/briefs/architecture.md
+  s_d236dcbec7210b::t_b598990aa2c1d5 1-20
+docs/research/2026-09-11-shareable-transcripts/briefs/product.md
+  s_d236dcbec7210b::t_b598990aa2c1d5 1-19
+docs/plans/2026-09-11-1942-feat-shareable-transcripts-plan.md
+  s_d236dcbec7210b::t_325753e39674ca 281,409
+  s_d236dcbec7210b::t_3712287649c1c0 328,425
+  s_d236dcbec7210b::t_b3f10f66c00453 1-6,8-16,18,21-38,40-42,45-73,75-80,82,84-86,89,91-99,101-104,107-125,127-131,133-137,139,146-150,152-154,157-172,174-177,179-196
+  s_d236dcbec7210b::t_c713e440d89493 206,341,351
+  s_d236dcbec7210b::t_32d2138440eb6f 197-205,207,209-250,269-280,282-289,291-304,306-315,317-318,320-327,329-334,336-340,342-348,350,354-360,362-363,365-366,369-376,378,383-388,390-394,396-401,403-404,406,410-414,416-421,423-424,426-432,434-457,459-470,472-477
+  s_d236dcbec7210b::t_b614c0c25fa4ea 422
+  s_d236dcbec7210b::t_43c292899c101f 7,19-20,39,81
+  s_d236dcbec7210b::t_40a545cd70dda3 88,208,305,377
+  s_d236dcbec7210b::t_834c0420d6717e 43,74,83,87,90,100,105-106,138,140-145,156,178,290,316,319,335,352-353,361,364,367-368,380-382,389,402,407-408,433,458,471
+  s_d236dcbec7210b::t_4d6abfadccc73d 126,251-268,349,395,405
+  s_d236dcbec7210b::t_4849c16f4f8f39 17,44,132,151,173,415
+  s_d236dcbec7210b::t_2377bac4748b82 155,379
+plans/README.md
+  s_d236dcbec7210b::t_c713e440d89493 37
+docs/research/2026-09-11-shareable-transcripts/briefs/shared.md
+  s_d236dcbec7210b::t_b598990aa2c1d5 1-41
+docs/research/2026-09-11-shareable-transcripts/share-ui-prototype.html
+  s_d236dcbec7210b::t_31612dcc77749f 100-111,599,602,640,764-765,767,770-771,773,776-778,780-781,786-789,808,830-831,837-838
+  s_d236dcbec7210b::t_3121399e41e7bf 883-884,891-892,1012,1046-1049,1063-1064,1068,1076,1084,1089,1135
+  s_d236dcbec7210b::t_fb5348c9ee300f 1-99,112-598,600-601,603-639,641-763,766,768-769,772,774-775,779,782-785,790-807,809-829,832-836,839-882,885-890,893-1011,1013-1045,1050-1062,1065-1067,1069-1075,1077-1083,1085-1088,1090-1134,1136-1168
+docs/share-service-privacy-and-operations.md
+  s_d236dcbec7210b::t_6575731d68d6b8 67,75,78,114
+  s_d236dcbec7210b::t_b6f0fc67f26a48 1-25,27-57,59-66,68-74,76-77,79-87,90-113,115-138
+  s_d236dcbec7210b::t_40a545cd70dda3 26,89
+  s_d236dcbec7210b::t_b614c0c25fa4ea 58
+  s_d236dcbec7210b::t_3712287649c1c0 88
+spec/contracts/README.md
+  s_d236dcbec7210b::t_bd70447ecfbf92 46-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8ea78c6721c846df6c4b9310b6e9fe8728b4c133",
+  "prompts": {},
+  "sessions": {
+    "s_d236dcbec7210b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0929e-d77e-7bb2-8fd3-0401a6a7b54b",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
