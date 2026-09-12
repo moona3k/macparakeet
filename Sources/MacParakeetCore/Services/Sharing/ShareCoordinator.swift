@@ -51,6 +51,7 @@ public actor ShareCoordinator {
     private let repository: SharePublicationRepositoryProtocol
     private let credentialStore: ShareCredentialStoring
     private let remoteClient: ShareRemoteClientProtocol
+    private let now: @Sendable () -> Date
 
     private var isDeviceCredentialSuperseded = false
     private var activeShareIds: Set<UUID> = []
@@ -59,11 +60,13 @@ public actor ShareCoordinator {
     init(
         repository: SharePublicationRepositoryProtocol,
         credentialStore: ShareCredentialStoring,
-        remoteClient: ShareRemoteClientProtocol
+        remoteClient: ShareRemoteClientProtocol,
+        now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.repository = repository
         self.credentialStore = credentialStore
         self.remoteClient = remoteClient
+        self.now = now
     }
 
     public init(dbQueue: DatabaseQueue, origin: ShareServiceOrigin) {
@@ -101,7 +104,7 @@ public actor ShareCoordinator {
     public func confirmedLink(shareId: UUID) throws -> ShareLink? {
         guard let share = try repository.fetch(id: shareId), share.isConfirmed,
             share.accessState == .active, share.deletionState == .retained,
-            !share.isDetached, share.expiresAt > Date(), let rawLocator = share.locator,
+            !share.isDetached, share.expiresAt > now(), let rawLocator = share.locator,
             let key = try credentialStore.loadContentKey(forRemoteShareId: share.remoteShareId)
         else { return nil }
         return ShareLink(locator: try ShareLocator(rawValue: rawLocator), contentKey: key)
@@ -113,6 +116,13 @@ public actor ShareCoordinator {
         guard let credential = try requireConfirmedDeviceCredential() else { return try repository.fetchAll() }
         let resources = try await allRemoteShares(credential: credential)
         try await repository.reconcileResources(resources, ownerId: credential.ownerId)
+        for share in try repository.fetchAll()
+        where share.ownerId == credential.ownerId && share.isConfirmed && share.isTerminal
+            && share.deletionState != .complete
+        {
+            try await repository.enqueueTerminalDelete(shareId: share.id)
+            _ = try await processPendingOperations(forShareId: share.id)
+        }
         return try repository.fetchAll()
     }
 
@@ -155,10 +165,11 @@ public actor ShareCoordinator {
         try beginMutation()
         defer { mutationInProgress = false }
 
-        let now = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down))
+        let instant = self.now()
+        let now = Date(timeIntervalSince1970: instant.timeIntervalSince1970.rounded(.down))
         let resolvedExpiresAt = expiresAt ?? now.addingTimeInterval(Self.defaultLifetimeSeconds)
         let maxExpiresAt = now.addingTimeInterval(Self.maxLifetimeSeconds)
-        guard Self.validExpiry(resolvedExpiresAt, after: Date(), maximum: maxExpiresAt) else {
+        guard Self.validExpiry(resolvedExpiresAt, after: instant, maximum: maxExpiresAt) else {
             throw ShareCoordinatorError.invalidExpiry
         }
 
@@ -275,7 +286,7 @@ public actor ShareCoordinator {
         guard let share = try repository.fetch(id: shareId) else {
             throw ShareCoordinatorError.shareNotFound
         }
-        let now = Date()
+        let now = self.now()
         guard share.accessState == .active, now < share.expiresAt else {
             throw ShareCoordinatorError.shareNotActive
         }
@@ -379,7 +390,7 @@ public actor ShareCoordinator {
         let pending = SharePendingRecoveryConfiguration(
             intendedVerifier: nil, currentToken: currentRecoveryToken.rawValue, isInitialSetup: false)
         try credentialStore.savePendingRecoveryConfiguration(pending)
-        let metadata = try await remoteClient.configureRecovery(
+        let metadata = try await sendInitialRecoveryConfiguration(
             deviceToken: credential.token,
             recoveryVerifier: nil,
             isInitialSetup: false,
@@ -412,7 +423,7 @@ public actor ShareCoordinator {
             currentToken: currentRecoveryToken?.rawValue, isInitialSetup: isInitialSetup)
         try credentialStore.savePendingRecoveryConfiguration(pending)
 
-        let metadata = try await remoteClient.configureRecovery(
+        let metadata = try await sendInitialRecoveryConfiguration(
             deviceToken: credential.token,
             recoveryVerifier: verifier,
             isInitialSetup: isInitialSetup,
@@ -423,6 +434,29 @@ public actor ShareCoordinator {
         pending.currentToken = nil
         try credentialStore.savePendingRecoveryConfiguration(pending)
         return ShareRecoverySetupResult(recoveryToken: newRecoveryToken, ownerMetadata: metadata)
+    }
+
+    /// Only the initial call can prove non-acceptance. Reconciliation retries
+    /// retain their durable authority even when a later request is rejected.
+    private func sendInitialRecoveryConfiguration(
+        deviceToken: ShareDeviceToken, recoveryVerifier: String?, isInitialSetup: Bool,
+        currentRecoveryToken: ShareRecoveryToken?, idempotencyKey: String
+    ) async throws -> ShareOwnerMetadata {
+        do {
+            return try await remoteClient.configureRecovery(
+                deviceToken: deviceToken, recoveryVerifier: recoveryVerifier, isInitialSetup: isInitialSetup,
+                currentRecoveryToken: currentRecoveryToken, idempotencyKey: idempotencyKey)
+        } catch {
+            if case ShareClientError.api(let api) = error, !api.retryable,
+                [
+                    .invalidRequest, .unauthorized, .versionConflict, .preconditionRequired,
+                    .unsupportedVersion, .payloadTooLarge,
+                ].contains(api.code)
+            {
+                try credentialStore.clearPendingRecoveryConfiguration()
+            }
+            throw error
+        }
     }
 
     public func pendingRecoveryCode() throws -> ShareRecoveryToken? {
@@ -755,14 +789,15 @@ public actor ShareCoordinator {
             case .definitive(let apiError):
                 // A validation rejection of the very first request proves
                 // this freshly generated share was never accepted. This is
-                // not true after any uncertain attempt or a conflict. The
-                // transaction also refuses to discard a queued terminal stop.
+                // not true after any uncertain attempt or a conflict.
+                // A queued stop then cancels only a never-published intent;
+                // discarding it is not a remote deletion-complete receipt.
                 let rejectsBeforeAcceptance: [ShareServiceErrorCode] = [
                     .invalidRequest, .invalidExpiry, .payloadTooLarge, .unsupportedVersion, .preconditionRequired,
                 ]
                 if isFirstAttempt && rejectsBeforeAcceptance.contains(apiError.code) {
                     do {
-                        if try await repository.deleteUnconfirmedPublication(id: share.id) {
+                        if try await repository.discardRejectedInitialPublication(operation) {
                             try? credentialStore.removeContentKey(forRemoteShareId: share.remoteShareId)
                             return .stopAndThrow(ShareClientError.api(apiError))
                         }

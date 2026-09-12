@@ -110,6 +110,8 @@ final class ShareCoordinatorTests: XCTestCase {
         }
 
         let now = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down))
+        coordinator = ShareCoordinator(
+            repository: repository, credentialStore: credentialStore, remoteClient: remoteClient, now: { now })
         let atBoundary = try await coordinator.publish(
             bundle: try makeNotesBundle(), expiresAt: now.addingTimeInterval(7_776_000)
         )
@@ -197,7 +199,8 @@ final class ShareCoordinatorTests: XCTestCase {
         // recovered old-generation share would be.
         var notWritable = try XCTUnwrap(repository.fetch(id: result.publication.id))
         notWritable.contentWritable = false
-        try await manager.dbQueue.write { db in try notWritable.update(db) }
+        let updatedPublication = notWritable
+        try await manager.dbQueue.write { db in try updatedPublication.update(db) }
 
         remoteClient.updateShareContentHandler = { _, _, _, _, _, _, _ in
             XCTFail("must not reach the network for an ineligible update")
@@ -588,6 +591,118 @@ final class ShareCoordinatorTests: XCTestCase {
             // expected
         }
         XCTAssertFalse(recoverOwnerCalled, "the switch guard must reject before any network call")
+    }
+
+    func testRejectedFirstCreateDiscardsOnlyNeverPublishedIntentAndQueuedCancellation() async throws {
+        let repository = try XCTUnwrap(repository)
+        var deleteCalls = 0
+        var remoteID: String?
+        remoteClient.createShareHandler = { _, _, _, _, _, _, _ in
+            let share = try XCTUnwrap(repository.fetchAll().first)
+            remoteID = share.remoteShareId
+            try await repository.enqueueTerminalDelete(shareId: share.id)
+            throw ShareClientError.api(ShareAPIError(code: .invalidExpiry, retryable: false, requestId: nil))
+        }
+        remoteClient.deleteShareHandler = { _, id, commitment, _ in
+            deleteCalls += 1
+            return ShareDeletionReceipt(
+                id: id, locatorCommitment: commitment,
+                accessState: .stopped, deletionState: deleteCalls == 1 ? .pending : .complete)
+        }
+        do {
+            _ = try await coordinator.publish(bundle: makeNotesBundle()); XCTFail("expected rejection")
+        } catch ShareClientError.api(let error) { XCTAssertEqual(error.code, .invalidExpiry) }
+        XCTAssertTrue(try repository.fetchAll().isEmpty)
+        XCTAssertTrue(try repository.fetchShareIdsWithPendingOperations().isEmpty)
+        XCTAssertNil(try credentialStore.loadContentKey(forRemoteShareId: XCTUnwrap(remoteID)))
+        await coordinator.resumePendingWork()
+        XCTAssertEqual(deleteCalls, 0, "no remote deletion receipt is fabricated for a never-published intent")
+    }
+
+    func testEmptyListingRequiresDeleteReceiptForTerminalLocalRecord() async throws {
+        remoteClient.createShareHandler = succeedingCreateHandler()
+        let result = try await coordinator.publish(bundle: makeNotesBundle())
+        _ = try await repository.applyDeletionReceipt(
+            shareId: result.publication.id,
+            receipt: ShareDeletionReceipt(
+                id: result.publication.remoteShareId,
+                locatorCommitment: result.publication.locatorCommitment, accessState: .expired, deletionState: .pending)
+        )
+        var acceptsDelete = false
+        remoteClient.deleteShareHandler = { _, id, commitment, _ in
+            if !acceptsDelete { throw ShareClientError.network }
+            return ShareDeletionReceipt(
+                id: id, locatorCommitment: commitment, accessState: .stopped, deletionState: .complete)
+        }
+        let pending = try await coordinator.refreshPublications()
+        XCTAssertEqual(pending.first?.deletionState, .pending, "absence never proves cleanup")
+        XCTAssertEqual(try repository.fetchPendingOperations(forShareId: result.publication.id).map(\.kind), [.delete])
+        acceptsDelete = true
+        let complete = try await coordinator.refreshPublications()
+        XCTAssertEqual(complete.first?.deletionState, .complete)
+        XCTAssertTrue(try repository.fetchPendingOperations(forShareId: result.publication.id).isEmpty)
+    }
+
+    func testValidationRejectionAfterUncertainCreatePreservesQueuedStop() async throws {
+        var attempts = 0
+        remoteClient.createShareHandler = { _, _, _, _, _, _, _ in
+            attempts += 1
+            if attempts == 1 { throw ShareClientError.network }
+            throw ShareClientError.api(ShareAPIError(code: .invalidExpiry, retryable: false, requestId: nil))
+        }
+        let result = try await coordinator.publish(bundle: makeNotesBundle())
+        try await repository.enqueueTerminalDelete(shareId: result.publication.id)
+        await coordinator.resumePendingWork()
+        XCTAssertNotNil(try repository.fetch(id: result.publication.id))
+        XCTAssertEqual(
+            try repository.fetchPendingOperations(forShareId: result.publication.id).map(\.kind), [.create, .delete])
+    }
+
+    func testWrongRecoveryProofCanBeCorrectedForReplacementAndRemoval() async throws {
+        remoteClient.createShareHandler = succeedingCreateHandler()
+        _ = try await coordinator.publish(bundle: makeNotesBundle())
+        let credential = try XCTUnwrap(credentialStore.loadDeviceCredential())
+        let ownerBytes = try XCTUnwrap(ShareBase64URL.decode(credential.ownerId))
+        let wrong = ShareRecoveryToken.generate(ownerId: ownerBytes)
+        let correct = ShareRecoveryToken.generate(ownerId: ownerBytes)
+        remoteClient.configureRecoveryHandler = { _, verifier, _, proof, _ in
+            guard proof == correct else {
+                throw ShareClientError.api(ShareAPIError(code: .unauthorized, retryable: false, requestId: nil))
+            }
+            return ShareOwnerMetadata(ownerId: credential.ownerId, credentialGeneration: 1, recoveryVerifier: verifier)
+        }
+        do {
+            _ = try await coordinator.replaceRecovery(currentRecoveryToken: wrong); XCTFail("expected rejection")
+        } catch ShareClientError.api(let error) { XCTAssertEqual(error.code, .unauthorized) }
+        XCTAssertNil(try credentialStore.loadPendingRecoveryConfiguration())
+        _ = try await coordinator.replaceRecovery(currentRecoveryToken: correct)
+        XCTAssertTrue(try XCTUnwrap(credentialStore.loadPendingRecoveryConfiguration()).isConfirmed)
+        try await coordinator.acknowledgeRecoveryCodeSaved()
+        do {
+            _ = try await coordinator.removeRecovery(currentRecoveryToken: wrong); XCTFail("expected rejection")
+        } catch ShareClientError.api(let error) { XCTAssertEqual(error.code, .unauthorized) }
+        XCTAssertNil(try credentialStore.loadPendingRecoveryConfiguration())
+        _ = try await coordinator.removeRecovery(currentRecoveryToken: correct)
+        XCTAssertNil(try credentialStore.loadPendingRecoveryConfiguration())
+    }
+
+    func testRejectedRecoveryReconciliationRetainsEarlierUncertainRequest() async throws {
+        remoteClient.createShareHandler = succeedingCreateHandler()
+        _ = try await coordinator.publish(bundle: makeNotesBundle())
+        let credential = try XCTUnwrap(credentialStore.loadDeviceCredential())
+        remoteClient.configureRecoveryHandler = { _, _, _, _, _ in throw ShareClientError.network }
+        do { _ = try await coordinator.setUpRecovery() } catch ShareClientError.network {}
+        let pending = try XCTUnwrap(credentialStore.loadPendingRecoveryConfiguration())
+        remoteClient.fetchOwnerMetadataHandler = { _ in
+            ShareOwnerMetadata(ownerId: credential.ownerId, credentialGeneration: 1, recoveryVerifier: nil)
+        }
+        remoteClient.configureRecoveryHandler = { _, _, _, _, _ in
+            throw ShareClientError.api(ShareAPIError(code: .versionConflict, retryable: false, requestId: nil))
+        }
+        do {
+            _ = try await coordinator.reconcileLostRecoveryConfiguration(); XCTFail("expected rejection")
+        } catch ShareClientError.api {}
+        XCTAssertEqual(try credentialStore.loadPendingRecoveryConfiguration(), pending)
     }
 
     // MARK: - Discard after recovery loss requires terminal shares

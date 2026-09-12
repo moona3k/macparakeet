@@ -72,6 +72,9 @@ public protocol SharePublicationRepositoryProtocol: Sendable {
     /// a missing version alone is never that evidence.
     @discardableResult
     func deleteUnconfirmedPublication(id: UUID) async throws -> Bool
+    /// Authoritative first-attempt non-acceptance only. Any queued stop cancels
+    /// this never-published intent; discarding it makes no remote deletion claim.
+    func discardRejectedInitialPublication(_ operation: ShareOutboxOperation) async throws -> Bool
 }
 
 public final class SharePublicationRepository: SharePublicationRepositoryProtocol {
@@ -250,6 +253,23 @@ public final class SharePublicationRepository: SharePublicationRepositoryProtoco
             let pending = try ShareOutboxOperation.filter(ShareOutboxOperation.Columns.sharePublicationId == id)
                 .fetchAll(db)
             guard pending.count == 1, pending.first?.kind == .create else { return false }
+            return try SharePublication.deleteOne(db, key: share.id)
+        }
+    }
+
+    public func discardRejectedInitialPublication(_ operation: ShareOutboxOperation) async throws -> Bool {
+        try await dbQueue.write { db in
+            guard operation.kind == .create,
+                let share = try SharePublication.fetchOne(db, key: operation.sharePublicationId),
+                share.version == nil,
+                let pending = try ShareOutboxOperation.fetchOne(db, key: operation.id),
+                pending.kind == .create, pending.requestBody == operation.requestBody,
+                pending.idempotencyKey == operation.idempotencyKey
+            else { return false }
+            let operations =
+                try ShareOutboxOperation
+                .filter(ShareOutboxOperation.Columns.sharePublicationId == share.id).fetchAll(db)
+            guard operations.allSatisfy({ $0.id == operation.id || $0.kind == .delete }) else { return false }
             return try SharePublication.deleteOne(db, key: share.id)
         }
     }

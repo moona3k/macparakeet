@@ -242,6 +242,12 @@ Deleting a local source must transactionally detach each share record and enqueu
 The share and outbox records must not cascade with the transcription.
 Detachment clears the projection manifest, content digest, and every other content-derived local field, then removes the per-share content key from Keychain as soon as the terminal intent is durable; bounded cleanup retries an interrupted key removal.
 
+A first-ever create request that receives a definitive preacceptance validation
+rejection may discard its never-published local record and a concurrently queued
+terminal cancellation atomically. This is not a remote deletion-complete claim:
+no page was accepted and no recipient URL was exposed. A previous uncertain
+attempt, confirmed receipt, or other pending mutation excludes this exception.
+
 An uncertain create is the narrow exception: its already-encrypted request body,
 original preconditions, and idempotency key remain only until exact retry or
 authoritative reconciliation allows permanent stop. This retains no plaintext or

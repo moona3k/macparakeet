@@ -132,7 +132,14 @@ They are not recipient views and cannot be presented to an owner as viewing anal
 ## Abuse and incident response
 
 Abuse controls focus on cost and availability because the operator cannot inspect encrypted content in normal operation.
-The service has per-owner payload and storage quotas, bounded creation rates, report-rate controls, global spend alerts, a creation kill switch, and a mode that preserves existing reads while rejecting enrollment, publication, content updates, and expiration extensions. This mode continues to allow authentication, recovery, permanent owner/operator stop, deletion reconciliation, expiration enforcement, and retention cleanup.
+The implementation provides per-owner payload and storage quotas, bounded creation rates, report-rate controls, a creation kill switch, and a mode that preserves existing reads while rejecting enrollment, publication, content updates, and expiration extensions. Configure and verify provider spend alerts before public release; source-level admission limits are not a provider billing cap. Read-only mode continues to allow authentication, recovery, permanent owner/operator stop, deletion reconciliation, expiration enforcement, and retention cleanup.
+
+Enrollment and recovery apply short-lived per-network admission before the global
+backstop. A dedicated environment secret keys a hash of a coarse network prefix
+and UTC day; the application stores neither raw addresses nor a durable caller
+identifier. These controls may group people behind the same network and must
+never be described as identity, analytics, or proof of a unique device. Keep the
+admission secret separate from content keys, credentials and telemetry.
 
 Public reports create cases only.
 Administrative restriction requires a logged operator decision. Reports and automated signals may inform that decision but never permanently stop access automatically.
