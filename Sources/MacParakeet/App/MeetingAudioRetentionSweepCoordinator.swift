@@ -113,9 +113,12 @@ final class MeetingAudioRetentionSweepCoordinator {
                 // Keep failed cleanup due for the next existing sweep trigger.
                 if result.failedCount == 0 {
                     await self?.markSweepCompleted(at: sweepNow)
+                } else {
+                    await self?.markSweepDue()
                 }
                 await self?.logSweepResult(result)
             } catch {
+                await self?.markSweepDue()
                 await self?.logSweepFailure(error)
             }
         }
@@ -132,6 +135,10 @@ final class MeetingAudioRetentionSweepCoordinator {
 
     private func markSweepCompleted(at date: Date) {
         defaults.set(date, forKey: UserDefaultsAppRuntimePreferences.lastMeetingAudioRetentionSweepAtKey)
+    }
+
+    private func markSweepDue() {
+        defaults.removeObject(forKey: UserDefaultsAppRuntimePreferences.lastMeetingAudioRetentionSweepAtKey)
     }
 
     private func clearLaunchRecoveryTask() {

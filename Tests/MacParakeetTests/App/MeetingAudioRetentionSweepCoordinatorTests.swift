@@ -5,6 +5,14 @@ import XCTest
 @MainActor
 final class MeetingAudioRetentionSweepCoordinatorTests: XCTestCase {
     func testHeldMediaLeaseKeepsSweepDueUntilNextForegroundTriggerAfterRelease() async throws {
+        try await assertHeldMediaLeaseKeepsSweepDue(recentSuccessfulSweep: false)
+    }
+
+    func testFailedPreferenceSweepInvalidatesRecentSuccessForForegroundRetry() async throws {
+        try await assertHeldMediaLeaseKeepsSweepDue(recentSuccessfulSweep: true)
+    }
+
+    private func assertHeldMediaLeaseKeepsSweepDue(recentSuccessfulSweep: Bool) async throws {
         let defaults = makeDefaults()
         let manager = try DatabaseManager()
         let repository = TranscriptionRepository(dbQueue: manager.dbQueue)
@@ -28,7 +36,7 @@ final class MeetingAudioRetentionSweepCoordinatorTests: XCTestCase {
         )
         try repository.save(transcription)
         let lastSweepKey = UserDefaultsAppRuntimePreferences.lastMeetingAudioRetentionSweepAtKey
-        let previousSweep = sweepNow.addingTimeInterval(-2 * 24 * 60 * 60)
+        let previousSweep = sweepNow.addingTimeInterval(recentSuccessfulSweep ? -60 : -2 * 24 * 60 * 60)
         defaults.set(previousSweep, forKey: lastSweepKey)
         let coordinator = MeetingAudioRetentionSweepCoordinator(defaults: defaults, now: { sweepNow })
         let lease = try MeetingMediaMutationLease.acquire(roots: [rootURL])
@@ -37,10 +45,14 @@ final class MeetingAudioRetentionSweepCoordinatorTests: XCTestCase {
         let failedResult = try MeetingAudioRetentionSweeper(repository: repository)
             .sweep(retention: .deleteAfterDays(7), now: sweepNow)
         XCTAssertEqual(failedResult.failedCount, 1)
-        coordinator.scheduleForegroundSweepIfDue(repository: repository, retention: .deleteAfterDays(7))
+        if recentSuccessfulSweep {
+            coordinator.schedulePreferenceChangeSweep(repository: repository, retention: .deleteAfterDays(7))
+        } else {
+            coordinator.scheduleForegroundSweepIfDue(repository: repository, retention: .deleteAfterDays(7))
+        }
         await coordinator.sweepTask?.value
 
-        XCTAssertEqual(defaults.object(forKey: lastSweepKey) as? Date, previousSweep)
+        XCTAssertNil(defaults.object(forKey: lastSweepKey))
         XCTAssertTrue(FileManager.default.fileExists(atPath: audioURL.path))
         XCTAssertEqual(try repository.fetch(id: transcription.id)?.filePath, audioURL.path)
 

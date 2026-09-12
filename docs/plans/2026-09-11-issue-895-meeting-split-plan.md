@@ -201,6 +201,12 @@ sharing deletion. Command: `MACPARAKEET_SPLIT_SIGINT_TESTS=1 swift test --filter
 An initial test compilation failure was corrected with the Core testable import;
 only the subsequent completed run is counted. The full suite was not repeated.
 
+A bounded follow-up found two edge cases in those fixes: fresh drafts opened
+from history must load playback for the draft's source rather than the history
+child, and failed forced retention sweeps must invalidate even a recent success
+timestamp. Both were corrected. The repeated focused gate passed 170 tests,
+one skipped, zero failures, including the recent-success retention regression.
+
 ### U1. Establish the revised contract
 
 Land this docs-only scope revision first. Mark old research/HTML as historical. Record inspected pipeline behavior and verification limits. No app feature, schema migration or automatic issue closure belongs in this PR.

@@ -36,7 +36,17 @@ struct MeetingSplitSheetView: View {
                 sourceTitle: initialOperationId == nil ? transcription.effectiveDisplayTitle : (transcription.splitProvenance?.sourceTitle ?? transcription.effectiveDisplayTitle),
                 operationId: initialOperationId
             )
-            if !isShowingProcessing { await player.load(for: transcription) }
+        }
+        .task(id: viewModel.editing?.sourceId) {
+            player.cleanup()
+            guard let sourceId = viewModel.editing?.sourceId else { return }
+            do {
+                guard let source = try await viewModel.savedRecording(id: sourceId),
+                      !Task.isCancelled else { return }
+                await player.load(for: source)
+            } catch {
+                if !Task.isCancelled { navigationError = error.localizedDescription }
+            }
         }
         .onDisappear { player.cleanup() }
         .confirmationDialog("Discard unfinished split?", isPresented: $isConfirmingDiscard) {

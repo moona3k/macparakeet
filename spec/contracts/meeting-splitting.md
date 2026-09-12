@@ -74,6 +74,8 @@ preference remains a new-capture policy, not retroactive historical deletion.
 If a retention sweep cannot acquire the media lease, it leaves the audio
 untouched and remains due for the next existing sweep trigger. A failed sweep
 must not advance the successful-sweep timestamp or defer retry for a day.
+Invalidate a prior success on failure, including a forced preference-change
+sweep, so its next foreground trigger is not suppressed by that older success.
 
 Preview performs no writes. It explains independent storage, original
 preservation, processing time, fresh transcripts/speaker labels, enabled
