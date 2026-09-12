@@ -21,6 +21,9 @@ Callers do not sequence filesystem and database mutations themselves.
   contiguous, independently owned files and fresh meeting identities.
 - Old transcript timing, speaker assignments and text edits do not determine
   eligibility. Cuts may cross words. Never move a boundary silently.
+- A saved part's duration describes its audio, not speech extent. Subsequent
+  transcription preserves that known duration even for silence, short word
+  timing coverage, or model timestamps beyond the audio end.
 - The original row, audio, transcript, corrections, notes, results and citations
   remain unchanged. Deleting it or a sibling cannot damage another part.
 - Publish all saved audio parts together or none. Capture fixed IDs in a small

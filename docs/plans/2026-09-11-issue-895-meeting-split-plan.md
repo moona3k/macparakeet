@@ -137,8 +137,22 @@ an independent Fable review found the existing shared model-load/drain path
 consistent with this behavior, not evidence of a split-specific cancellation
 defect. Keep ownership until the call returns and explain delayed stopping in
 the sheet. Do not introduce another queue or abandon a live runtime task.
-This verifies saved audio and eventual cancellation, not successful speech
-recognition, automation, restart recovery or warmed-model cancellation.
+Subsequent ordinary relaunch and Continue reused the same operation and child
+identities. All three parts reached Done through saved-audio processing and
+configured completion; CLI status agreed, with four total recordings still
+present. This is pipeline/recovery evidence, not speech-model accuracy or a
+claim that disabled provider automation ran. The final three-part editor also
+rendered with correct default title numbering and no overlapping labels.
+
+The successful silent run exposed a shared single-file transcription issue:
+known child durations were cleared and then derived only from word timings.
+Preserve the known playable duration for saved meetings; ordinary file behavior
+stays unchanged. Tests cover silence, short word coverage and overshooting
+timestamps, asserting both returned and persisted duration.
+
+The one-hour 16 kHz canonical-audio benchmark exported four parts in 6.079
+seconds with 9,916,284 output bytes. This is export-only synthetic evidence,
+not a bound on multitrack export, model loading or AI processing time.
 
 ### U1. Establish the revised contract
 
