@@ -1,0 +1,35 @@
+docs/share-links-implementation.md
+  s_d236dcbec7210b::t_0d879e985c140e 17-21
+Sources/MacParakeetCore/Database/TranscriptionRepository.swift
+  s_d236dcbec7210b::t_856835d08d52ae 207,209-210
+  s_d236dcbec7210b::t_c65d912b3686fa 182,208,211-218,554,558-559,563-565,567-568,572-573,575-576,579,581
+Sources/MacParakeet/AppDelegate.swift
+  s_d236dcbec7210b::t_c65d912b3686fa 37,389-392,528-531,533-537
+Tests/MacParakeetTests/Database/ShareDeletionPropagationTests.swift
+  s_d236dcbec7210b::t_26ecb211b6acc5 39-86
+Sources/MacParakeetCore/Services/Sharing/ShareCoordinator.swift
+  s_d236dcbec7210b::t_b3dea5ec56a557 93,116,192,262,311,343,364,384,395,409,509,543,603,653
+  s_d236dcbec7210b::t_c65d912b3686fa 59,138-144,359-362
+Sources/MacParakeetCore/AppNotifications.swift
+  s_d236dcbec7210b::t_c65d912b3686fa 4-5
+Tests/MacParakeetTests/Services/Sharing/ShareCoordinatorTests.swift
+  s_d236dcbec7210b::t_5dd166d5c42d37 291-311
+spec/contracts/share-service-v1.md
+  s_d236dcbec7210b::t_0d879e985c140e 261-266
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ba1c698fb02d1cb35fbfe0364ca350850e0be085",
+  "prompts": {},
+  "sessions": {
+    "s_d236dcbec7210b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0929e-d77e-7bb2-8fd3-0401a6a7b54b",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
