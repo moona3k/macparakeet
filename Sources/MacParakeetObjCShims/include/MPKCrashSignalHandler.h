@@ -41,6 +41,9 @@ typedef struct {
 /// calling thread. Call from the main thread during startup. Other threads
 /// do not receive an alternate stack, so their stack-overflow crashes may
 /// not produce a report. Metadata is copied before handlers are installed.
+/// A separate atomic guard makes only the first call effective; a later call
+/// (direct or concurrent) returns immediately without touching the metadata
+/// buffers, sigaltstack, or sigaction state the first call installed.
 ///
 /// - Parameters:
 ///   - crash_file_path: Null-terminated destination path. Copied internally;

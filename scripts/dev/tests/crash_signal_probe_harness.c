@@ -149,7 +149,8 @@ int main(int argc, char **argv) {
         mpk_probe_trigger_segv();
     } else if (strcmp(mode, "reinstall_abort") == 0) {
         // Duplicate-install safety: a second install() call must not corrupt
-        // state, and its metadata must be what later fires.
+        // state or overwrite the first snapshot; the first installation's
+        // metadata must be what later fires.
         install_with_app_version(path, "first-install-version");
         install_with_app_version(path, "second-install-version");
         abort();

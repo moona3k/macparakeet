@@ -103,7 +103,7 @@ final class CrashReporterSignalProbeTests: XCTestCase {
 
     // MARK: - Duplicate handler safety
 
-    func testSubprocessReinstallDoesNotCorruptStateAndUsesLatestMetadata() throws {
+    func testSubprocessReinstallDoesNotCorruptStateAndKeepsFirstInstallMetadata() throws {
         let result = try runProbe(mode: "reinstall_abort")
 
         XCTAssertEqual(result.process.terminationReason, .uncaughtSignal)
@@ -112,7 +112,7 @@ final class CrashReporterSignalProbeTests: XCTestCase {
         let report = try XCTUnwrap(CrashReporter.loadPendingReport(from: result.crashFilePath))
         XCTAssertEqual(report.crashType, "signal")
         XCTAssertEqual(report.name, "SIGABRT")
-        XCTAssertEqual(report.appVersion, "second-install-version")
+        XCTAssertEqual(report.appVersion, "first-install-version")
     }
 
     // MARK: - Output truncation safety

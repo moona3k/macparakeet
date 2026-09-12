@@ -43,6 +43,13 @@ static void *g_frames[MPK_FRAME_CAPACITY];
 _Static_assert(ATOMIC_INT_LOCK_FREE == 2, "Crash entry guard must be lock-free");
 static atomic_int g_handler_entered = 0;
 
+/// One-successful-install guard: only the first `MPKInstallCrashSignalHandler`
+/// call snapshots metadata and installs handlers. Later calls (direct or
+/// concurrent) return immediately, so the metadata `mpk_signal_handler` reads
+/// never changes after the first install, matching this file's invariant
+/// that metadata "remains fixed during signal handling."
+static atomic_int g_handler_installed = 0;
+
 static void mpk_copy_bounded(char *dst, size_t dst_size, const char *src) {
     if (src == NULL || dst_size == 0) {
         if (dst_size > 0) {
@@ -295,6 +302,12 @@ static void mpk_signal_handler(int sig, siginfo_t *info, void *uap) {
 }
 
 void MPKInstallCrashSignalHandler(const char *crash_file_path, const MPKCrashMetadata *metadata) {
+    int expected = 0;
+    if (!atomic_compare_exchange_strong(&g_handler_installed, &expected, 1)) {
+        // Already installed: keep the first snapshot and handlers in place.
+        return;
+    }
+
     mpk_copy_bounded(g_crash_file_path, sizeof(g_crash_file_path), crash_file_path);
     mpk_copy_bounded(g_app_version, sizeof(g_app_version), metadata != NULL ? metadata->app_version : NULL);
     mpk_copy_bounded(g_os_version, sizeof(g_os_version), metadata != NULL ? metadata->os_version : NULL);
