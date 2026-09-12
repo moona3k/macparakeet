@@ -5,12 +5,6 @@ import OSLog
 @MainActor
 @Observable
 public final class PromptResultsViewModel {
-    private struct ResolvedPrompt {
-        let prompt: Prompt
-        let isAutoRun: Bool
-        let effectiveSortOrder: Int
-    }
-
     private struct PromptProvenance {
         let promptId: UUID?
         let promptVersionId: UUID?
@@ -395,7 +389,7 @@ public final class PromptResultsViewModel {
         sourceType: Transcription.SourceType?,
         meetingTypeId: UUID?,
         transcriptionLabelIDs: Set<UUID>
-    ) throws -> [ResolvedPrompt] {
+    ) throws -> [PromptAutoRunSelector.Resolved] {
         try PromptAutoRunSelector.resolve(
             prompts: prompts,
             sourceType: sourceType,
@@ -403,9 +397,7 @@ public final class PromptResultsViewModel {
             transcriptionLabelIDs: transcriptionLabelIDs,
             promptLabelPolicyRepository: promptLabelPolicyRepository,
             promptApplicabilityResolver: promptApplicabilityResolver
-        ).map {
-            ResolvedPrompt(prompt: $0.prompt, isAutoRun: $0.isAutoRun, effectiveSortOrder: $0.effectiveSortOrder)
-        }
+        )
     }
 
     public func loadPromptResults(transcriptionId: UUID) {

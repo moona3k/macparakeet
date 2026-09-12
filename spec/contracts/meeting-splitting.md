@@ -1,6 +1,8 @@
 # Split and transcribe
 
-> Status: APPROVED DESIGN — implementation and boundary tests are pending.
+> Status: Core service and CLI implemented (see "Implemented split service,
+> ownership and CLI (U3)" below). Native UI integration is separate, pending
+> follow-up work.
 
 ## Purpose and ownership
 
@@ -76,30 +78,21 @@ the new meetings were removed.
 
 ## Compatibility and verification
 
-No CLI flags, persisted fields, schema migrations or public DTO names are
-frozen by this design-only change. Implementation must document actual names
-and additive compatibility in the relevant contracts. Older binaries cannot
-be assumed to honor newly introduced mutation ownership.
+The additive CLI commands and Core boundary are described below. Operation
+receipts use the v0.42 database migration. Older binaries cannot be assumed
+to honor newly introduced mutation ownership; do not run mixed versions
+against the same library while splitting.
 
 Required tests cover audio ranges, source hashes, independent deletion,
 all-or-none publication, interruption/retry, concurrent cleanup, sequential
 first transcription, enabled/disabled automation, canonical-only audio,
-partial processing success and read-only preview. These tests do not yet
-exist as a completed feature suite.
-
-Three existing Core regression tests were run on implementation worktree
-commit `57c3de5731656378c65108b2b46984fd9c302d99` during pipeline inspection:
-`testRetranscribeDeletedDuringSTTDoesNotReturnOrRecreateRecording`,
-`testRetranscribeExistingFileFailureLeavesOriginalRowIntact`, and
-`testRetranscribePreservesMetadataEditedWhileSTTIsSuspended` in
-`TranscriptionServiceTests`. All three passed. They establish useful existing
-saved-audio behavior, not split, automation or real-model acceptance.
+partial processing success and read-only preview. Focused Core/CLI tests use
+synthetic audio, real temporary databases and mocked speech/LLM providers;
+they do not establish real-model or native UI acceptance.
 
 ### Implemented audio/lease foundation (U2a)
 
-The following names are real, tested Core building blocks the split
-operation and CLI will call; nothing below is a persisted field, CLI flag, or
-public DTO, and none of it constitutes the split operation itself:
+The split service uses these focused audio and ownership primitives:
 
 - `MeetingSplitSourceRange(startMs:endMs:)` is a plain `[startMs, endMs)`
   audio range with no transcript/speaker meaning.
@@ -123,10 +116,95 @@ public DTO, and none of it constitutes the split operation itself:
   [recovery/retention contract](meeting-recovery-retention.md#meeting-media-mutation-lease)
   for the full lock-file, ordering, and call-site contract.
 
-None of this is the split operation, the Core service that will sequence
-audio creation and processing, or CLI/GUI integration; those remain future
-work per the [plan](../../docs/plans/2026-09-11-issue-895-meeting-split-plan.md)'s
-delivery order.
+### Implemented split service, ownership and CLI (U3)
+
+`MeetingSplitService` (`Sources/MacParakeetCore/Services/MeetingSplit/MeetingSplitService.swift`)
+is the one shared Core operation: `preview`, `createAndProcess`,
+`resumeProcessing`, `operation(id:)`/`operations(sourceId:)`, `discard`, and
+`operationOwnership(operationId:)`. The `meetings split
+preview|create|status|resume|discard` CLI subcommands
+(`Sources/CLI/Commands/MeetingSplitCommand.swift`) call exactly this API; a
+native UI would call the same one.
+
+- **Idempotency lookup before touching the source.** `createAndProcess`
+  compares the caller's `sourceId`/`cutPointsMs`/`titles`/
+  `expectedSourceIdentity` against any existing operation for
+  `idempotencyKey` *before* fetching the source at all. A match against an
+  already-`.committed` operation resumes only unfinished processing — this
+  makes a same-key retry work after the original is deleted. Deleted children
+  are skipped, not recreated. A mismatch throws `MeetingSplitServiceError.requestConflict`
+  without requiring the source to exist either.
+- **Opaque source identity.** Preview returns a sorted-JSON SHA-256 fingerprint
+  of source identity and available audio track sizes/modification times.
+  Pass the string unchanged to `expectedSourceIdentity` or CLI
+  `--expected-identity`; no date parsing or lossy round-trip is required.
+  Every creation attempt also revalidates the receipt's frozen fingerprint
+  under the media lease, including retry after interrupted export.
+- **Stable destinations.** The receipt freezes `destinationRootPath`.
+  Resume, ownership and discard use that root even if the configured folder
+  changes. Processing reads each child's persisted path. A destination
+  inside the original is refused before creating any lock or output.
+- **Operation ownership.** `MeetingSplitOperationLease`
+  (`MeetingSplitOperationLease.swift`) is a nonblocking, per-`idempotencyKey`
+  kernel `flock`, entirely separate from `MeetingMediaMutationLease`'s lock
+  file. `createAndProcess`, `resumeProcessing` and `discard` all acquire it
+  for their whole call (resume/discard resolve the key from the durable
+  operation row first, then re-read that row under the lease), so the same
+  operation is never processed by two callers at once; a second caller
+  observes `MeetingSplitOperationLease.AcquisitionError.busy` immediately.
+  Discard acquires both operation and media leases before removing positively
+  owned unpublished output; it marks the receipt discarded only after cleanup
+  succeeds. A busy lease leaves the receipt unchanged.
+  `MeetingSplitOperationLease.isActivelyOwned(idempotencyKey:
+  meetingRecordingsRootURL:)` and `MeetingSplitServicing.operationOwnership(
+  operationId:)` are the ownership seam a later native startup reconciler
+  should use instead of a bare capture-lock check.
+- **Exclusive, positively-verified child folders.**
+  `MeetingSplitChildFolderClaim` (`MeetingSplitChildFolderClaim.swift`) claims
+  each child's destination folder (fresh creation, or reclaiming an
+  interrupted earlier attempt at the *same* operation/child) and writes a
+  small marker file recording that operation/child id. Discard, and any
+  future retry, only ever removes a folder whose marker positively matches;
+  unexpected existing content (a symlink, a folder with no marker or a
+  different one) is left untouched.
+- **Pre-export snapshot, not a re-fetch.** `finishCreating` captures the
+  source's `MeetingSplitSourceSnapshot` once, before export begins, and
+  passes that exact snapshot to `MeetingSplitRepository.publish`; it never
+  re-fetches "now" and compares it to itself. Cancellation is checked, and the
+  source's continued existence reconfirmed, immediately before publication.
+- **Processing.** Sequential per child: a durable `MeetingSplitChildStage`
+  (`pendingTranscription` → `transcribing` → `transcribed` →
+  `automationPending` → `automationCompleted`) plus an `outcome`
+  (`none`/`failed`/`cancelled`) on `MeetingSplitRepository`. A child whose
+  `rawTranscript` is already non-nil (including an empty, successfully-silent
+  string) is never re-transcribed merely because the stage lagged behind a
+  crash. A deleted child is skipped, never recreated. One child's failure
+  does not stop later children; explicit cancellation stops starting further
+  children. Successful work stays intact; unstarted and failed first
+  transcriptions become visibly retryable rather than remaining "processing".
+  A transcript persisted just before interruption remains successful even if
+  the operation's stage update lagged behind it.
+- **CLI specifics.** `create --dry-run` uses the same read-only,
+  non-migrating `DatabaseManager(readOnlyPath:)` as `preview`, for the entire
+  dry-run branch. Preview does not construct STT/LLM services or migrate
+  legacy retention preferences. With no cuts, it returns the inspected whole
+  range for initial UI setup; creation still requires at least one cut.
+  The default idempotency key is a SHA-256 digest of a
+  sorted-key `{sourceId, cuts, titles}` JSON payload, stable across independent
+  processes rather than just within one process. An
+  exact source UUID is accepted directly by `create` and `status --source`
+  without requiring `findMeeting`'s name/prefix lookup (which requires the
+  row to still exist) to succeed — the mechanism a committed-retry or
+  discovery-after-deletion depends on. Phase progress is written to stderr
+  only; stdout carries only the JSON/plain-text result. A completed operation
+  with any child `outcome == .failed` still prints the full operation, then
+  exits non-zero (`ExitCode.failure`) so an automated caller cannot mistake a
+  partial failure for total success without inspecting every child.
+- **Saved settings.** CLI processing reads the app's shared defaults, uses
+  Final Transcription selection and saved model variants, meeting speaker
+  detection, and enabled formatting/title/completion settings. Canonical-only
+  audio uses the meeting speaker preference, not the file preference.
+  Per-invocation engine/model overrides are not part of the split interface.
 
 ## When this changes
 

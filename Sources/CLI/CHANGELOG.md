@@ -89,6 +89,17 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- `meetings split preview|create|status|resume|discard` splits a saved
+  meeting recording into independent parts, each receiving its own first
+  transcription and normal enabled completion automation. `preview` is
+  read-only; `create` supports `--dry-run`, `--key`, `--expected-identity`
+  and idempotent retry (including after the original recording has been
+  deleted, once committed); `status --source` accepts an exact source UUID
+  even after that recording is gone. A completed operation with any failed
+  child still prints its full result, then exits non-zero.
+
 ## [4.0.0] — 2026-09-07
 
 ### Added

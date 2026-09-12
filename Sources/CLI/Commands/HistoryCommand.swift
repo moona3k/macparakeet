@@ -334,8 +334,10 @@ struct DeleteTranscriptionSubcommand: ParsableCommand {
             let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
 
             let transcription = try findTranscription(id: id, repo: repo)
-            try TranscriptionAssetCleanup.removeOwnedAssets(for: transcription)
-            let deleted = try repo.delete(id: transcription.id)
+            // File removal and row deletion under one lease, so a concurrent
+            // split preparing/publishing media for the same recordings root
+            // never observes the two phases torn apart.
+            let deleted = try TranscriptionAssetCleanup.deleteTranscription(transcription, repository: repo)
             guard deleted else {
                 throw CLILookupError.notFound("No transcription matching '\(id)'")
             }

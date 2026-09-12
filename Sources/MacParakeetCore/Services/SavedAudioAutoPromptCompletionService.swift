@@ -96,6 +96,7 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
     /// Reused as-is here — fire-and-forget, best effort, never blocks or
     /// fails prompt completion.
     private let cardGenerator: CardGenerating?
+    private let fileManager: FileManager
 
     public init(
         promptRepo: PromptRepositoryProtocol,
@@ -106,7 +107,8 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
         promptApplicabilityResolver: PromptApplicabilityResolver? = nil,
         speakerAttributionReader: SpeakerAttributionReading? = nil,
         meetingArtifactStore: MeetingArtifactStoring? = nil,
-        cardGenerator: CardGenerating? = nil
+        cardGenerator: CardGenerating? = nil,
+        fileManager: FileManager = .default
     ) {
         self.promptRepo = promptRepo
         self.promptResultRepo = promptResultRepo
@@ -117,6 +119,7 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
         self.speakerAttributionReader = speakerAttributionReader
         self.meetingArtifactStore = meetingArtifactStore
         self.cardGenerator = cardGenerator
+        self.fileManager = fileManager
     }
 
     @discardableResult
@@ -129,6 +132,9 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
             return SavedAudioAutoPromptCompletionResult()
         }
 
+        // A cancelled caller must not still spawn detached card generation:
+        // that work outlives this call and is not itself cancellable by it.
+        try Task.checkCancellation()
         generateKnowledgeCardIfConfigured(transcriptionId: transcription.id)
 
         let labelIDs = try transcriptionLabelRepository?.labelIDs(for: transcription.id) ?? []
@@ -239,8 +245,28 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
         }
     }
 
+    /// Best-effort: a stale artifact is repairable later and must never
+    /// revert an already-saved `PromptResult`. The existence check and the
+    /// materialize call both happen under the same meeting-media mutation
+    /// lease used by deletion (`TranscriptionAssetCleanup`), so a concurrent
+    /// delete can never land between them: `materialize` unconditionally
+    /// recreates its folder (`createDirectory(withIntermediateDirectories:
+    /// true)`), which would otherwise resurrect a folder a delete just
+    /// removed. If the lease is currently held elsewhere (a delete or a split
+    /// export/publish in progress), this refresh is skipped for this call
+    /// rather than waiting — the next successful completion still refreshes.
     private func refreshMeetingArtifactsIfConfigured(transcription: Transcription) async {
-        guard let meetingArtifactStore, transcription.sourceType == .meeting else { return }
+        guard let meetingArtifactStore, transcription.sourceType == .meeting,
+              let folderURL = MeetingArtifactStore.sessionFolderURL(for: transcription)
+        else { return }
+        // Same root identity `TranscriptionAssetCleanup` locks (the session
+        // folder's own parent), not a fixed default, so this always
+        // serializes against whichever root actually owns this folder.
+        let rootURL = folderURL.standardizedFileURL.deletingLastPathComponent()
+        guard let lease = try? MeetingMediaMutationLease.acquire(roots: [rootURL]) else { return }
+        defer { lease.release() }
+        guard fileManager.fileExists(atPath: folderURL.path) else { return }
+
         do {
             let promptResults = try promptResultRepo.fetchAll(transcriptionId: transcription.id)
             if let speakerAttributionReader,

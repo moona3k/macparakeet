@@ -248,6 +248,52 @@ final class MeetingSplitRepositoryTests: XCTestCase {
         }
     }
 
+    // MARK: discovery by source (after receipt loss)
+
+    func testOperationsForSourceReturnsMostRecentFirst() throws {
+        let source = try savedSource()
+        let first = try repo.begin(idempotencyKey: "op-1", request: twoPartRequest(sourceId: source.id), now: epoch)
+        let second = try repo.begin(
+            idempotencyKey: "op-2", request: twoPartRequest(sourceId: source.id), now: epoch.addingTimeInterval(10))
+
+        let operations = try repo.operations(sourceId: source.id)
+        XCTAssertEqual(operations.map(\.id), [second.id, first.id])
+    }
+
+    func testOperationsForSourceIsUsableAfterSourceIsDeleted() throws {
+        let source = try savedSource()
+        let operation = try repo.begin(idempotencyKey: "op-1", request: twoPartRequest(sourceId: source.id), now: epoch)
+
+        _ = try transcriptions.delete(id: source.id)
+
+        XCTAssertEqual(try repo.operations(sourceId: source.id).map(\.id), [operation.id])
+    }
+
+    // MARK: publish — duplicate child id in the prepared set
+
+    /// A caller-supplied duplicate child id must be rejected as
+    /// `childIdentitySetMismatch`, never trap the process building the
+    /// dictionary keyed by child id.
+    func testDuplicateChildIdInPreparedChildrenIsRejectedNotTrapped() throws {
+        let source = try savedSource()
+        let request = twoPartRequest(sourceId: source.id)
+        let operation = try repo.begin(idempotencyKey: "op-1", request: request, now: epoch)
+        let snapshot = try XCTUnwrap(repo.sourceSnapshot(sourceId: source.id))
+
+        let duplicated = [
+            MeetingSplitPreparedChild(childId: operation.childIds[0]),
+            MeetingSplitPreparedChild(childId: operation.childIds[0]),
+        ]
+
+        XCTAssertThrowsError(
+            try repo.publish(operationId: operation.id, preparedChildren: duplicated, expectedSource: snapshot, now: epoch)
+        ) { error in
+            guard case MeetingSplitRepositoryError.childIdentitySetMismatch = error else {
+                return XCTFail("expected childIdentitySetMismatch, got \(error)")
+            }
+        }
+    }
+
     // MARK: durable retry across deletion
 
     func testCommittedOperationLookupReturnsSameIdsAfterSourceAndChildrenDeleted() throws {

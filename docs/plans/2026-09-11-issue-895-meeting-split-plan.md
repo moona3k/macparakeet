@@ -79,6 +79,26 @@ Do not promise exactly-once external effects across a crash after a provider acc
 
 ## Delivery order
 
+### Implementation checkpoint — 2026-09-12
+
+The revised brief landed in PR #1016. The implementation branch now contains
+audio export and shared deletion leases, the durable publication receipt,
+shared enabled-prompt completion, and the Core/CLI split coordinator. Native
+UI, app deletion/startup integration, final independent review and shipping
+remain outstanding; this checkpoint is not a release claim.
+
+Host verification caught and corrected cross-process instability in the
+default CLI idempotency key, a lossy preview-identity interchange, cancelled
+parts stuck in processing, and retries following a changed destination
+preference. Preview now avoids processing-service construction and preference
+migration. Canonical-only meeting audio follows the meeting speaker setting.
+The public contract records these boundaries and actual command names.
+
+Use focused tests for remaining gates. A worker already ran the full suite
+before feature completion; do not repeat the full suite for this task.
+Synthetic audio and mocked speech/LLM verification are distinct from native
+UI and real-model acceptance.
+
 ### U1. Establish the revised contract
 
 Land this docs-only scope revision first. Mark old research/HTML as historical. Record inspected pipeline behavior and verification limits. No app feature, schema migration or automatic issue closure belongs in this PR.

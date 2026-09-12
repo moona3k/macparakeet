@@ -135,9 +135,11 @@ revalidates a small source snapshot, fresh-inserts every child (never
 upsert — a colliding id throws and rolls back the whole batch), and only then
 marks the operation committed. It never writes the source row. Per-child
 `childProgress` (stage + outcome, not a combinatorial enum) lives entirely on
-the operation row, so a failure at automation cannot erase a successful
-transcript, and a child deleted after commit remains describable without
-being reinserted. This repository is the persistence piece only; media
+the operation row. Progress writes also settle an existing child's visible
+processing/error state when first transcription fails or is cancelled. They
+preserve a transcript already saved before interruption and never reinsert a
+deleted child. A failure at automation cannot erase a successful transcript.
+This repository is the persistence piece only; media
 export, actual STT and completion automation belong to other collaborators
 described in `spec/contracts/meeting-splitting.md`.
 

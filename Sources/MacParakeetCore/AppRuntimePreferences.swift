@@ -766,7 +766,9 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
         return true
     }
 
-    public static func meetingAudioRetention(defaults: UserDefaults = .standard) -> MeetingAudioRetention {
+    public static func meetingAudioRetention(
+        defaults: UserDefaults = .standard, persistMigration: Bool = true
+    ) -> MeetingAudioRetention {
         if let raw = defaults.string(forKey: meetingAudioRetentionKey),
            let mode = MeetingAudioRetentionMode(rawValue: raw) {
             return MeetingAudioRetention.make(
@@ -778,7 +780,9 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
         let migrated: MeetingAudioRetention = (defaults.object(forKey: saveMeetingAudioKey) as? Bool ?? true)
             ? .keepForever
             : .deleteImmediately
-        saveMeetingAudioRetention(migrated, defaults: defaults)
+        if persistMigration {
+            saveMeetingAudioRetention(migrated, defaults: defaults)
+        }
         return migrated
     }
 

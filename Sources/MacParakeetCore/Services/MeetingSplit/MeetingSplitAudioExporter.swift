@@ -69,25 +69,50 @@ public struct MeetingSplitChildAudioExport: Sendable, Equatable {
 /// is the authoritative whole-timeline duration callers should validate cut
 /// points against; the `has*` flags describe alignment capability, i.e.
 /// whether that optional track can be exported at all for this source.
-public struct MeetingSplitSourceMediaInspection: Sendable, Equatable {
+public struct MeetingSplitSourceMediaInspection: Sendable, Equatable, Codable {
+    /// One source file's cheap identity (size + modification time), used to
+    /// detect a same-duration/same-size replacement without decoding or
+    /// hashing the file's audio content. See `MeetingSplitSourceIdentity`.
+    public struct FileIdentity: Sendable, Equatable, Codable {
+        public let sizeBytes: Int64
+        public let modifiedAt: Date?
+
+        public init(sizeBytes: Int64, modifiedAt: Date?) {
+            self.sizeBytes = sizeBytes
+            self.modifiedAt = modifiedAt
+        }
+    }
+
     public let durationMs: Int
     public let sizeBytes: Int64
     public let hasRawMicrophone: Bool
     public let hasRawSystem: Bool
     public let hasCleanedMicrophone: Bool
+    public let canonicalIdentity: FileIdentity
+    public let rawMicrophoneIdentity: FileIdentity?
+    public let rawSystemIdentity: FileIdentity?
+    public let cleanedMicrophoneIdentity: FileIdentity?
 
     public init(
         durationMs: Int,
         sizeBytes: Int64,
         hasRawMicrophone: Bool,
         hasRawSystem: Bool,
-        hasCleanedMicrophone: Bool
+        hasCleanedMicrophone: Bool,
+        canonicalIdentity: FileIdentity,
+        rawMicrophoneIdentity: FileIdentity?,
+        rawSystemIdentity: FileIdentity?,
+        cleanedMicrophoneIdentity: FileIdentity?
     ) {
         self.durationMs = durationMs
         self.sizeBytes = sizeBytes
         self.hasRawMicrophone = hasRawMicrophone
         self.hasRawSystem = hasRawSystem
         self.hasCleanedMicrophone = hasCleanedMicrophone
+        self.canonicalIdentity = canonicalIdentity
+        self.rawMicrophoneIdentity = rawMicrophoneIdentity
+        self.rawSystemIdentity = rawSystemIdentity
+        self.cleanedMicrophoneIdentity = cleanedMicrophoneIdentity
     }
 }
 
@@ -223,24 +248,38 @@ public actor MeetingSplitAudioExporter {
         for child in children {
             try Self.validateDestinationSeparation(
                 destinationFolderURL: child.destinationFolderURL, sourceFolderURL: standardizedSourceFolderURL)
+            // Reject a structurally invalid range before any source file is
+            // opened or seeked: a negative start or a reversed/empty range is
+            // a caller bug, not a partial-track or malformed-source case.
+            try Self.validateStructurallySoundRange(child.range, childId: child.childId)
         }
 
         let resolved = try resolveSourceFiles(in: sourceFolderURL)
-        let sourceURLs = resolved.all
-
         let probeHook = testHooks.afterEachProbeChunk
+
+        // Canonical playback must decode; a failure here really does make the
+        // source ineligible for splitting.
         var identities: [URL: SourceIdentity] = [:]
         var extents: [URL: DecodedExtent] = [:]
-        for url in sourceURLs {
+        identities[resolved.playbackURL] = try identity(of: resolved.playbackURL)
+        extents[resolved.playbackURL] = try await Self.runCancellably {
+            try Self.decodedExtent(of: resolved.playbackURL, afterEachChunk: probeHook)
+        }
+        var usableSourceURLs = [resolved.playbackURL]
+
+        // A damaged or unalignable optional raw/cleaned track must not make
+        // otherwise-usable canonical playback ineligible: drop it (never
+        // exported for any child) instead of failing the whole batch.
+        for url in [resolved.rawMicrophoneURL, resolved.rawSystemURL, resolved.cleanedMicrophoneURL].compactMap({ $0 }) {
             try Task.checkCancellation()
-            identities[url] = try identity(of: url)
-            extents[url] = try await Self.runCancellably {
-                try Self.decodedExtent(of: url, afterEachChunk: probeHook)
-            }
+            guard let probed = try await probeOptionalSourceTrack(url: url, afterEachChunk: probeHook) else { continue }
+            identities[url] = probed.identity
+            extents[url] = probed.extent
+            usableSourceURLs.append(url)
         }
 
-        try await preflightStorage(
-            sourceURLs: sourceURLs,
+        try preflightStorage(
+            sourceURLs: usableSourceURLs,
             identities: identities,
             playbackURL: resolved.playbackURL,
             extents: extents,
@@ -251,32 +290,55 @@ public actor MeetingSplitAudioExporter {
         results.reserveCapacity(children.count)
         for child in children {
             try Task.checkCancellation()
-            for url in sourceURLs {
+            for url in usableSourceURLs {
                 guard try identity(of: url) == identities[url] else {
                     throw MeetingSplitAudioExportError.sourceChanged(url.lastPathComponent)
                 }
             }
             let exported = try await exportChild(
                 child: child,
-                playbackURL: resolved.playbackURL,
-                playbackExtent: extents[resolved.playbackURL]!,
-                rawMicURL: resolved.rawMicrophoneURL,
-                rawMicExtent: resolved.rawMicrophoneURL.flatMap { extents[$0] },
-                rawSystemURL: resolved.rawSystemURL,
-                rawSystemExtent: resolved.rawSystemURL.flatMap { extents[$0] },
-                cleanedMicURL: resolved.cleanedMicrophoneURL,
-                cleanedMicExtent: resolved.cleanedMicrophoneURL.flatMap { extents[$0] },
+                resolved: resolved,
+                extents: extents,
                 sourceAlignment: sourceAlignment
             )
             results.append(exported)
         }
 
-        for url in sourceURLs {
+        for url in usableSourceURLs {
             guard try identity(of: url) == identities[url] else {
                 throw MeetingSplitAudioExportError.sourceChanged(url.lastPathComponent)
             }
         }
         return results
+    }
+
+    /// Probes one optional (non-playback) source track. Returns `nil` when
+    /// the track cannot be read or decoded — the caller treats that exactly
+    /// like a missing track, not a batch failure — while still propagating
+    /// cancellation rather than swallowing it.
+    private func probeOptionalSourceTrack(
+        url: URL,
+        afterEachChunk: (@Sendable (Int) -> Void)?
+    ) async throws -> (identity: SourceIdentity, extent: DecodedExtent)? {
+        do {
+            let sourceIdentity = try identity(of: url)
+            let extent = try await Self.runCancellably {
+                try Self.decodedExtent(of: url, afterEachChunk: afterEachChunk)
+            }
+            return (sourceIdentity, extent)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            return nil
+        }
+    }
+
+    /// Rejects a negative start, a reversed/empty range, before any source
+    /// file is opened or seeked.
+    private static func validateStructurallySoundRange(_ range: MeetingSplitSourceRange, childId: UUID) throws {
+        guard range.startMs >= 0, range.endMs > range.startMs else {
+            throw MeetingSplitAudioExportError.emptyRange(childId: childId)
+        }
     }
 
     // MARK: - Read-only source inspection
@@ -294,17 +356,26 @@ public actor MeetingSplitAudioExporter {
         let playbackExtent = try await Self.runCancellably {
             try Self.decodedExtent(of: resolved.playbackURL)
         }
-        var totalSizeBytes: Int64 = 0
-        for url in resolved.all {
-            totalSizeBytes += try identity(of: url).size
-        }
+        let canonicalIdentity = try identity(of: resolved.playbackURL)
+        let rawMicrophoneIdentity = try resolved.rawMicrophoneURL.map { try identity(of: $0) }
+        let rawSystemIdentity = try resolved.rawSystemURL.map { try identity(of: $0) }
+        let cleanedMicrophoneIdentity = try resolved.cleanedMicrophoneURL.map { try identity(of: $0) }
+        let totalSizeBytes =
+            canonicalIdentity.size
+            + (rawMicrophoneIdentity?.size ?? 0)
+            + (rawSystemIdentity?.size ?? 0)
+            + (cleanedMicrophoneIdentity?.size ?? 0)
         let durationMs = Int((Double(playbackExtent.frameCount) / playbackExtent.sampleRate * 1_000).rounded())
         return MeetingSplitSourceMediaInspection(
             durationMs: durationMs,
             sizeBytes: totalSizeBytes,
             hasRawMicrophone: resolved.rawMicrophoneURL != nil,
             hasRawSystem: resolved.rawSystemURL != nil,
-            hasCleanedMicrophone: resolved.cleanedMicrophoneURL != nil
+            hasCleanedMicrophone: resolved.cleanedMicrophoneURL != nil,
+            canonicalIdentity: .init(sizeBytes: canonicalIdentity.size, modifiedAt: canonicalIdentity.modifiedAt),
+            rawMicrophoneIdentity: rawMicrophoneIdentity.map { .init(sizeBytes: $0.size, modifiedAt: $0.modifiedAt) },
+            rawSystemIdentity: rawSystemIdentity.map { .init(sizeBytes: $0.size, modifiedAt: $0.modifiedAt) },
+            cleanedMicrophoneIdentity: cleanedMicrophoneIdentity.map { .init(sizeBytes: $0.size, modifiedAt: $0.modifiedAt) }
         )
     }
 
@@ -359,14 +430,8 @@ public actor MeetingSplitAudioExporter {
 
     private func exportChild(
         child: MeetingSplitAudioChildRequest,
-        playbackURL: URL,
-        playbackExtent: DecodedExtent,
-        rawMicURL: URL?,
-        rawMicExtent: DecodedExtent?,
-        rawSystemURL: URL?,
-        rawSystemExtent: DecodedExtent?,
-        cleanedMicURL: URL?,
-        cleanedMicExtent: DecodedExtent?,
+        resolved: ResolvedSourceFiles,
+        extents: [URL: DecodedExtent],
         sourceAlignment: MeetingSourceAlignment
     ) async throws -> MeetingSplitChildAudioExport {
         guard child.range.endMs > child.range.startMs else {
@@ -377,26 +442,26 @@ public actor MeetingSplitAudioExporter {
 
         let playbackIntersection = try Self.playbackIntersection(
             range: child.range,
-            extent: playbackExtent,
-            fileName: playbackURL.lastPathComponent
+            extent: extents[resolved.playbackURL]!,
+            fileName: resolved.playbackURL.lastPathComponent
         )
         let playback = try await sliceTrack(
-            sourceURL: playbackURL,
+            sourceURL: resolved.playbackURL,
             intersection: playbackIntersection,
             destinationURL: child.destinationFolderURL.appendingPathComponent(MeetingArtifactAudioFileNames.playback)
         )
 
         let rawMicrophone = try await sliceOptionalTrack(
-            sourceURL: rawMicURL,
-            extent: rawMicExtent,
+            sourceURL: resolved.rawMicrophoneURL,
+            extent: resolved.rawMicrophoneURL.flatMap { extents[$0] },
             trackStartOffsetMs: sourceAlignment.microphone?.startOffsetMs,
             range: child.range,
             destinationURL: child.destinationFolderURL.appendingPathComponent(
                 MeetingArtifactAudioFileNames.rawMicrophone)
         )
         let rawSystem = try await sliceOptionalTrack(
-            sourceURL: rawSystemURL,
-            extent: rawSystemExtent,
+            sourceURL: resolved.rawSystemURL,
+            extent: resolved.rawSystemURL.flatMap { extents[$0] },
             trackStartOffsetMs: sourceAlignment.system?.startOffsetMs,
             range: child.range,
             destinationURL: child.destinationFolderURL.appendingPathComponent(
@@ -406,8 +471,8 @@ public actor MeetingSplitAudioExporter {
         // so it shares the raw mic's recorded start offset, but never its assumed
         // length: this exporter probes the cleaned file's own decoded extent.
         let cleanedMicrophone = try await sliceOptionalTrack(
-            sourceURL: cleanedMicURL,
-            extent: cleanedMicExtent,
+            sourceURL: resolved.cleanedMicrophoneURL,
+            extent: resolved.cleanedMicrophoneURL.flatMap { extents[$0] },
             trackStartOffsetMs: sourceAlignment.microphone?.startOffsetMs,
             range: child.range,
             destinationURL: child.destinationFolderURL.appendingPathComponent(
@@ -561,10 +626,9 @@ public actor MeetingSplitAudioExporter {
     }
 
     /// Canonical playback has no start offset: it is already on the shared
-    /// timeline the planner's ranges use. A playback file that decodes to
+    /// timeline ranges are measured against. A playback file that decodes to
     /// less than the requested range is a malformed/mismatched source, not a
-    /// partial-track skip, since transcript timing already assumes full
-    /// coverage of `[0, sourceDurationMs)`.
+    /// partial-track skip.
     private static func playbackIntersection(
         range: MeetingSplitSourceRange,
         extent: DecodedExtent,
@@ -576,7 +640,15 @@ public actor MeetingSplitAudioExporter {
                 "\(fileName) decodes to \(durationMs)ms, short of the requested \(range.endMs)ms")
         }
         let startFrame = msToFrame(range.startMs, sampleRate: extent.sampleRate)
-        let endFrame = min(msToFrame(range.endMs, sampleRate: extent.sampleRate), extent.frameCount)
+        // `durationMs` is rounded from the extent's true fractional duration,
+        // so it can round DOWN below `extent.frameCount`'s exact millisecond
+        // value. The final range's end always equals `durationMs` (ranges
+        // cover exactly `[0, durationMs)`), so use the actual last decoded
+        // frame there instead of re-deriving it from the rounded ms value,
+        // which would silently drop the fractional tail frame.
+        let endFrame = range.endMs >= durationMs
+            ? extent.frameCount
+            : min(msToFrame(range.endMs, sampleRate: extent.sampleRate), extent.frameCount)
         guard endFrame > startFrame else {
             throw MeetingSplitAudioExportError.malformedSource("\(fileName) produced an empty slice")
         }
@@ -745,7 +817,7 @@ public actor MeetingSplitAudioExporter {
         playbackURL: URL,
         extents: [URL: DecodedExtent],
         children: [MeetingSplitAudioChildRequest]
-    ) async throws {
+    ) throws {
         // Estimate proportionally from the actual requested coverage rather
         // than the worst case of every child costing a full source copy:
         // splitting one recording into N contiguous parts costs roughly one

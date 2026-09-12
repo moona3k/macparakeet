@@ -290,7 +290,41 @@ final class MeetingSplitAudioExporterTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: nestedDestination.path))
     }
 
-    func testMalformedSourceFailsBeforeAnyChildIsWritten() async throws {
+    /// Only the canonical playback file is fatal when unreadable: a
+    /// corrupt/unalignable optional raw or cleaned track must instead be
+    /// dropped for every child (see
+    /// `testCorruptOptionalTrackIsDroppedRatherThanFailingTheWholeBatch`).
+    func testMalformedCanonicalPlaybackFailsBeforeAnyChildIsWritten() async throws {
+        let folder = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try Data("not-audio".utf8).write(
+            to: folder.appendingPathComponent(MeetingArtifactAudioFileNames.playback))
+        let destinationRoot = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: destinationRoot) }
+        let childDestination = destinationRoot.appendingPathComponent("A")
+
+        let exporter = MeetingSplitAudioExporter()
+        do {
+            _ = try await exporter.export(
+                sourceFolderURL: folder,
+                sourceAlignment: MeetingSourceAlignment(meetingOriginHostTime: nil, microphone: nil, system: nil),
+                children: [
+                    .init(
+                        childId: UUID(), range: .init(startMs: 0, endMs: 3_000), destinationFolderURL: childDestination)
+                ])
+            XCTFail("expected malformedSource")
+        } catch MeetingSplitAudioExportError.malformedSource {
+            // expected
+        }
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: childDestination.path),
+            "no destination folder should be created before source validation succeeds")
+    }
+
+    /// A damaged or unalignable optional raw/cleaned track must not make
+    /// otherwise-usable canonical playback ineligible for splitting: it is
+    /// dropped (never exported for any child) rather than failing the batch.
+    func testCorruptOptionalTrackIsDroppedRatherThanFailingTheWholeBatch() async throws {
         let folder = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: folder) }
         try writeToneM4A(
@@ -308,21 +342,116 @@ final class MeetingSplitAudioExporterTests: XCTestCase {
                 firstHostTime: nil, lastHostTime: nil, startOffsetMs: 0, writtenFrameCount: 1, sampleRate: 48_000),
             system: nil)
         let exporter = MeetingSplitAudioExporter()
+        let results = try await exporter.export(
+            sourceFolderURL: folder,
+            sourceAlignment: alignment,
+            children: [
+                .init(childId: UUID(), range: .init(startMs: 0, endMs: 3_000), destinationFolderURL: childDestination)
+            ])
+
+        let child = try XCTUnwrap(results.first)
+        try assertTrack(child.playback, offsetMs: 0, durationMs: 3_000, sampleRate: 48_000)
+        XCTAssertNil(child.rawMicrophone, "the corrupt track must be dropped, not exported")
+    }
+
+    // MARK: - Structurally invalid ranges (rejected before any AVAudioFile seek)
+
+    func testNegativeRangeStartIsRejectedBeforeAnySeek() async throws {
+        let folder = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try writeToneM4A(
+            to: folder.appendingPathComponent(MeetingArtifactAudioFileNames.playback),
+            sampleRate: 48_000, durationMs: 3_000)
+        let destination = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: destination) }
+        let childId = UUID()
+
+        let exporter = MeetingSplitAudioExporter()
         do {
             _ = try await exporter.export(
                 sourceFolderURL: folder,
-                sourceAlignment: alignment,
+                sourceAlignment: MeetingSourceAlignment(meetingOriginHostTime: nil, microphone: nil, system: nil),
                 children: [
-                    .init(
-                        childId: UUID(), range: .init(startMs: 0, endMs: 3_000), destinationFolderURL: childDestination)
+                    .init(childId: childId, range: .init(startMs: -100, endMs: 1_000), destinationFolderURL: destination)
                 ])
-            XCTFail("expected malformedSource")
-        } catch MeetingSplitAudioExportError.malformedSource {
-            // expected
+            XCTFail("expected emptyRange for a negative start")
+        } catch MeetingSplitAudioExportError.emptyRange(let rejectedChildId) {
+            XCTAssertEqual(rejectedChildId, childId)
         }
-        XCTAssertFalse(
-            FileManager.default.fileExists(atPath: childDestination.path),
-            "no destination folder should be created before source validation succeeds")
+        XCTAssertEqual(
+            try FileManager.default.contentsOfDirectory(atPath: destination.path), [],
+            "no AVAudioFile seek/write should have happened before structural validation rejected the range")
+    }
+
+    func testReversedRangeIsRejectedBeforeAnySeek() async throws {
+        let folder = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try writeToneM4A(
+            to: folder.appendingPathComponent(MeetingArtifactAudioFileNames.playback),
+            sampleRate: 48_000, durationMs: 3_000)
+        let destination = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: destination) }
+        let childId = UUID()
+
+        let exporter = MeetingSplitAudioExporter()
+        do {
+            _ = try await exporter.export(
+                sourceFolderURL: folder,
+                sourceAlignment: MeetingSourceAlignment(meetingOriginHostTime: nil, microphone: nil, system: nil),
+                children: [
+                    .init(childId: childId, range: .init(startMs: 2_000, endMs: 1_000), destinationFolderURL: destination)
+                ])
+            XCTFail("expected emptyRange for a reversed range")
+        } catch MeetingSplitAudioExportError.emptyRange(let rejectedChildId) {
+            XCTAssertEqual(rejectedChildId, childId)
+        }
+        XCTAssertEqual(
+            try FileManager.default.contentsOfDirectory(atPath: destination.path), [],
+            "no AVAudioFile seek/write should have happened before structural validation rejected the range")
+    }
+
+    // MARK: - Fractional-millisecond final frame (Foundation follow-up)
+
+    /// When the decoded duration's true value rounds DOWN to an integer
+    /// millisecond, the final range's end (which always equals that rounded
+    /// `durationMs`) must still consume the source's actual final decoded
+    /// frame, not `msToFrame(durationMs)` (which would drop the fractional
+    /// tail the rounding already lost once).
+    func testFinalRangeCapturesFractionalTailFrameWhenDurationRoundsDown() async throws {
+        let folder = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let sampleRate = 44_100.0
+        // 88,213 frames at 44.1kHz is exactly ~2000.294ms: rounds DOWN to
+        // 2000ms, while `msToFrame(2000ms)` (round(2000 * 44100 / 1000)) is
+        // only 88,200 frames — 13 frames short of the true decoded extent.
+        let exactFrameCount = 88_213
+        try writeToneM4AExactFrameCount(
+            to: folder.appendingPathComponent(MeetingArtifactAudioFileNames.playback),
+            sampleRate: sampleRate, frameCount: exactFrameCount)
+        let destination = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: destination) }
+
+        let exporter = MeetingSplitAudioExporter()
+        let inspection = try await exporter.inspectSource(sourceFolderURL: folder)
+        XCTAssertEqual(inspection.durationMs, 2_000, "duration must round DOWN from ~2000.294ms")
+
+        let results = try await exporter.export(
+            sourceFolderURL: folder,
+            sourceAlignment: MeetingSourceAlignment(meetingOriginHostTime: nil, microphone: nil, system: nil),
+            children: [
+                .init(
+                    childId: UUID(), range: .init(startMs: 0, endMs: inspection.durationMs),
+                    destinationFolderURL: destination)
+            ])
+
+        let child = try XCTUnwrap(results.first)
+        let outputFrameCount = try AVAudioFile(
+            forReading: destination.appendingPathComponent(MeetingArtifactAudioFileNames.playback)
+        ).length
+        XCTAssertEqual(
+            Int(outputFrameCount), exactFrameCount,
+            "must include the fractional tail frame, not stop at msToFrame(2000ms)")
+        XCTAssertGreaterThan(child.playback.sizeBytes, 0)
     }
 
     func testInsufficientStorageIsRejectedBeforeAnyWrites() async throws {
@@ -644,6 +773,28 @@ final class MeetingSplitAudioExporterTests: XCTestCase {
         let samples = try XCTUnwrap(buffer.floatChannelData?[0])
         for index in 0..<frameCount {
             let globalMs = globalStartMs + Int(Double(index) / sampleRate * 1_000)
+            let frequency = Self.toneFrequency(atGlobalMs: globalMs)
+            samples[index] = Float(0.2 * sin(2 * .pi * frequency * Double(index) / sampleRate))
+        }
+        try writeAAC(buffer: buffer, format: format, sampleRate: sampleRate, channels: 1, to: url)
+    }
+
+    /// Like `writeToneM4A`, but takes an exact frame count directly instead
+    /// of a millisecond duration that gets rounded on the way to a frame
+    /// count — needed to construct a fixture whose true decoded duration is
+    /// deliberately fractional.
+    private func writeToneM4AExactFrameCount(
+        to url: URL,
+        sampleRate: Double,
+        frameCount: Int
+    ) throws {
+        let format = try XCTUnwrap(
+            AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: 1, interleaved: false))
+        let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frameCount)))
+        buffer.frameLength = AVAudioFrameCount(frameCount)
+        let samples = try XCTUnwrap(buffer.floatChannelData?[0])
+        for index in 0..<frameCount {
+            let globalMs = Int(Double(index) / sampleRate * 1_000)
             let frequency = Self.toneFrequency(atGlobalMs: globalMs)
             samples[index] = Float(0.2 * sin(2 * .pi * frequency * Double(index) / sampleRate))
         }

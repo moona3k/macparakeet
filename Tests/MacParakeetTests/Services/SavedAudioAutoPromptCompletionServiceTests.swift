@@ -28,11 +28,13 @@ final class SavedAudioAutoPromptCompletionServiceTests: XCTestCase {
 
     private func makeChild(
         id: UUID = UUID(),
-        cleanTranscript: String = "Hello there from the freshly transcribed child meeting."
+        cleanTranscript: String = "Hello there from the freshly transcribed child meeting.",
+        meetingArtifactFolderPath: String? = nil
     ) -> Transcription {
         Transcription(
             id: id,
             fileName: "Part 2",
+            meetingArtifactFolderPath: meetingArtifactFolderPath,
             cleanTranscript: cleanTranscript,
             status: .completed,
             sourceType: .meeting
@@ -252,7 +254,9 @@ final class SavedAudioAutoPromptCompletionServiceTests: XCTestCase {
     func testInjectedMeetingArtifactStoreIsRefreshedAfterCompletion() async throws {
         let prompt = Prompt(name: "Summary", content: "Summarize", isAutoRun: true)
         promptRepo.prompts = [prompt]
-        let child = makeChild()
+        let folderURL = try makeTemporaryMeetingFolder()
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+        let child = makeChild(meetingArtifactFolderPath: folderURL.path)
         llm.summarizeResult = "Child summary"
         let artifactStore = RecordingMeetingArtifactStore()
         let service = makeService(meetingArtifactStore: artifactStore)
@@ -261,6 +265,41 @@ final class SavedAudioAutoPromptCompletionServiceTests: XCTestCase {
 
         let materializedIDs = await artifactStore.materializedTranscriptionIDs
         XCTAssertEqual(materializedIDs, [child.id])
+    }
+
+    /// The refresh's existence check and the materialize call happen under
+    /// the same meeting-media mutation lease `TranscriptionAssetCleanup` (and
+    /// a concurrent split) also acquire. Deterministic barrier, not a
+    /// delete-before-check race: while another holder has that exact lease,
+    /// the refresh must skip cleanly rather than resurrect/crash, and it must
+    /// proceed normally once the lease is free.
+    func testMeetingArtifactRefreshSkipsWhileMediaMutationLeaseIsHeldElsewhere() async throws {
+        let prompt = Prompt(name: "Summary", content: "Summarize", isAutoRun: true)
+        promptRepo.prompts = [prompt]
+        let folderURL = try makeTemporaryMeetingFolder()
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+        let child = makeChild(meetingArtifactFolderPath: folderURL.path)
+        llm.summarizeResult = "Child summary"
+        let artifactStore = RecordingMeetingArtifactStore()
+        let service = makeService(meetingArtifactStore: artifactStore)
+
+        let root = folderURL.deletingLastPathComponent()
+        let externalLease = try MeetingMediaMutationLease.acquire(roots: [root])
+        defer { externalLease.release() }
+
+        let result = try await service.completeAutoPrompts(for: child)
+
+        XCTAssertEqual(result.outcomes.count, 1, "prompt completion itself must still succeed")
+        let materializedIDs = await artifactStore.materializedTranscriptionIDs
+        XCTAssertTrue(materializedIDs.isEmpty, "refresh must skip, not wait or resurrect, while the lease is held elsewhere")
+    }
+
+    private func makeTemporaryMeetingFolder() throws -> URL {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("saved-audio-completion-tests-\(UUID().uuidString)", isDirectory: true)
+        let folder = root.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
     }
 }
 

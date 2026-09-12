@@ -1909,7 +1909,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         var lifecycleStage: TelemetryTranscriptionStage = .audioConversion
         let activeDiarizationService = diarizationServiceOverride ?? diarizationService
         let diarizationRequested = activeDiarizationService != nil
-            && (diarizationServiceOverride != nil || shouldDiarize())
+            && (diarizationServiceOverride != nil || (source == .meeting ? shouldDiarizeMeetings() : shouldDiarize()))
         do {
             onProgress?(.converting)
             wavURL = try await audioProcessor.convert(

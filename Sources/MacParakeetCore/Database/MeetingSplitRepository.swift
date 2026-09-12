@@ -30,11 +30,17 @@ public struct MeetingSplitRequest: Codable, Sendable, Equatable {
     public var expectedSourceIdentity: String
     /// Ordered cuts, in final part order.
     public var children: [MeetingSplitChildRequest]
+    /// New operations freeze their output location; optional for earlier development receipts.
+    public var destinationRootPath: String?
 
-    public init(sourceId: UUID, expectedSourceIdentity: String, children: [MeetingSplitChildRequest]) {
+    public init(
+        sourceId: UUID, expectedSourceIdentity: String, children: [MeetingSplitChildRequest],
+        destinationRootPath: String? = nil
+    ) {
         self.sourceId = sourceId
         self.expectedSourceIdentity = expectedSourceIdentity
         self.children = children
+        self.destinationRootPath = destinationRootPath
     }
 }
 
@@ -235,6 +241,12 @@ public protocol MeetingSplitRepositoryProtocol: Sendable {
 
     func operation(id: UUID) throws -> MeetingSplitOperation?
     func operation(idempotencyKey: String) throws -> MeetingSplitOperation?
+    /// Every operation recorded against `sourceId`, most recent first. Lets a
+    /// caller that lost an in-memory receipt (for example a process that died
+    /// before returning the operation id to the user) discover prior
+    /// preparing/committed work for a source without inspecting the database
+    /// directly.
+    func operations(sourceId: UUID) throws -> [MeetingSplitOperation]
 
     /// A snapshot of the current source row, for later comparison in
     /// `publish`. `nil` when the source no longer exists.
@@ -332,6 +344,15 @@ public final class MeetingSplitRepository: MeetingSplitRepositoryProtocol, @unch
         }
     }
 
+    public func operations(sourceId: UUID) throws -> [MeetingSplitOperation] {
+        try dbQueue.read { db in
+            try MeetingSplitOperation
+                .filter(MeetingSplitOperation.Columns.sourceId == sourceId)
+                .order(MeetingSplitOperation.Columns.createdAt.desc)
+                .fetchAll(db)
+        }
+    }
+
     public func sourceSnapshot(sourceId: UUID) throws -> MeetingSplitSourceSnapshot? {
         try dbQueue.read { db in
             guard let source = try Transcription.fetchOne(db, key: sourceId) else { return nil }
@@ -376,8 +397,13 @@ public final class MeetingSplitRepository: MeetingSplitRepositoryProtocol, @unch
                 throw MeetingSplitRepositoryError.sourceMissingOrChanged
             }
 
+            // Built with a last-wins merge strategy (never
+            // `uniqueKeysWithValues:`, which traps on a duplicate key) so a
+            // caller-supplied duplicate child id is rejected as a thrown
+            // `childIdentitySetMismatch` below instead of crashing the process.
             let preparedByChildId = Dictionary(
-                uniqueKeysWithValues: preparedChildren.map { ($0.childId, $0) }
+                preparedChildren.map { ($0.childId, $0) },
+                uniquingKeysWith: { _, last in last }
             )
             guard preparedByChildId.count == preparedChildren.count,
                   Set(preparedByChildId.keys) == Set(operation.childIds)
@@ -473,10 +499,8 @@ public final class MeetingSplitRepository: MeetingSplitRepositoryProtocol, @unch
         }
     }
 
-    /// Progress lives entirely inside the operation receipt: this never
-    /// queries `transcriptions`, so a child row deleted after commit remains
-    /// fully describable (last known stage/outcome) instead of being silently
-    /// reinserted or refused.
+    /// Keep the receipt and the Library's first-processing status coherent.
+    /// A deleted child still has a receipt, but is never reinserted.
     private func updateChildProgress(
         operationId: UUID,
         childId: UUID,
@@ -494,6 +518,27 @@ public final class MeetingSplitRepository: MeetingSplitRepositoryProtocol, @unch
                 throw MeetingSplitRepositoryError.unknownChild(childId)
             }
             mutate(&operation.childProgress[index])
+            if var child = try Transcription.fetchOne(db, key: childId) {
+                let progress = operation.childProgress[index]
+                if child.rawTranscript == nil {
+                    if progress.outcome != .none {
+                        child.status = .error
+                        child.errorMessage = progress.errorMessage ?? "Processing stopped. Your audio is saved."
+                        child.updatedAt = max(child.updatedAt, now)
+                        try child.update(db)
+                    } else if progress.stage == .transcribing {
+                        child.status = .processing
+                        child.errorMessage = nil
+                        child.updatedAt = max(child.updatedAt, now)
+                        try child.update(db)
+                    }
+                } else if progress.outcome != .none,
+                          progress.stage == .pendingTranscription || progress.stage == .transcribing {
+                    // Speech may have committed just before cancellation or
+                    // a journal write failed. Keep that successful stage.
+                    operation.childProgress[index].stage = .transcribed
+                }
+            }
             operation.childProgress[index].updatedAt = now
             operation.updatedAt = now
             try operation.update(db)

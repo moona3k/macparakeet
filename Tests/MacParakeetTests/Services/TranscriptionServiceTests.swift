@@ -3454,6 +3454,36 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(result.speakers, [SpeakerInfo(id: "S1", label: "Speaker 1")])
     }
 
+    func testCanonicalMeetingAudioUsesMeetingSpeakerPreference() async throws {
+        for meetingEnabled in [true, false] {
+            let original = Transcription(
+                id: UUID(), fileName: "part.wav", filePath: "/tmp/part.wav",
+                status: .processing, sourceType: .meeting
+            )
+            try transcriptionRepo.save(original)
+            await mockSTT.configure(result: STTResult(
+                text: "Fresh", words: [TimestampedWord(word: "Fresh", startMs: 0, endMs: 200, confidence: 1)]
+            ))
+            let diarization = MockDiarizationService()
+            await diarization.configure(result: MacParakeetDiarizationResult(
+                segments: [], speakerCount: 0, speakers: []
+            ))
+            let configuredService = TranscriptionService(
+                audioProcessor: mockAudio, sttTranscriber: mockSTT,
+                transcriptionRepo: transcriptionRepo,
+                shouldDiarize: { !meetingEnabled },
+                shouldDiarizeMeetings: { meetingEnabled },
+                diarizationService: diarization,
+                meetingArtifactStore: nil, meetingAutomationHookRunner: nil
+            )
+            _ = try await configuredService.retranscribe(
+                existing: original, fileURL: URL(fileURLWithPath: "/tmp/part.wav"), source: .meeting
+            )
+            let called = await diarization.diarizeCalled
+            XCTAssertEqual(called, meetingEnabled, "Meeting audio must not inherit the file speaker setting")
+        }
+    }
+
     func testRetranscribeAutomaticSpeakerCountUsesFreshUnconstrainedService() async throws {
         let original = Transcription(
             id: UUID(),
