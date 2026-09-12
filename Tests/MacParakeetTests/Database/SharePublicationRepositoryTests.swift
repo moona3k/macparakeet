@@ -252,6 +252,27 @@ final class SharePublicationRepositoryTests: XCTestCase {
         XCTAssertTrue(try repo.fetchPendingOperations(forShareId: publication.id).isEmpty)
     }
 
+    func testDiscardNeverCascadesAQueuedTerminalStop() async throws {
+        let publication = makePublication()
+        let operation = try makeCreateOperation(for: publication)
+        try await repo.createPublication(publication, initialOperation: operation)
+        try await repo.enqueueTerminalDelete(shareId: publication.id)
+        let deleted = try await repo.deleteUnconfirmedPublication(id: publication.id)
+        XCTAssertFalse(deleted)
+        XCTAssertEqual(try repo.fetchPendingOperations(forShareId: publication.id).map(\.kind), [.create, .delete])
+    }
+
+    func testFirstAttemptClaimIsDurableAndOnlyTrueOnce() async throws {
+        let publication = makePublication()
+        let operation = try makeCreateOperation(for: publication)
+        try await repo.createPublication(publication, initialOperation: operation)
+        let first = try await repo.recordAttempt(operationId: operation.id)
+        let second = try await repo.recordAttempt(operationId: operation.id)
+        XCTAssertTrue(first)
+        XCTAssertFalse(second)
+        XCTAssertNotNil(try repo.fetchNextPendingOperation(forShareId: publication.id)?.lastAttemptAt)
+    }
+
     // MARK: - Detach does not cascade from the source
 
     func testDetachClearsContentDerivedFieldsAndQueuesExactlyOneTerminalDelete() async throws {

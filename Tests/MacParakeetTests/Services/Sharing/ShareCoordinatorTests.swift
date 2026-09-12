@@ -297,6 +297,36 @@ final class ShareCoordinatorTests: XCTestCase {
 
     // MARK: - Recovery switch guard
 
+    func testForgottenCompletedShareDoesNotReappearOnRefresh() async throws {
+        remoteClient.createShareHandler = succeedingCreateHandler()
+        let published = try await coordinator.publish(bundle: makeNotesBundle())
+        var completed = makeConfirmedResource(shareId: published.publication.remoteShareId,
+            locatorCommitment: published.publication.locatorCommitment, contentRevision: 1, version: 2,
+            expiresAt: published.publication.expiresAt, maxExpiresAt: published.publication.maxExpiresAt)
+        completed.accessState = .stopped
+        completed.deletionState = .complete
+        completed.contentWritable = false
+        completed.terminalAt = Date()
+        let remoteCompleted = completed
+        var listCalls = 0
+        remoteClient.listSharesHandler = { _, _, _ in
+            listCalls += 1
+            return ShareListPage(shares: [remoteCompleted], nextCursor: nil)
+        }
+
+        // Known rows still receive terminal receipts during reconciliation.
+        let reconciled = try await coordinator.refreshPublications()
+        XCTAssertEqual(reconciled.count, 1)
+        XCTAssertEqual(reconciled.first?.version, 2)
+        XCTAssertEqual(reconciled.first?.deletionState, .complete)
+
+        try await coordinator.forgetCompletedPublication(shareId: published.publication.id)
+        let afterRefresh = try await coordinator.refreshPublications()
+        XCTAssertTrue(afterRefresh.isEmpty, "remote retention tombstones must not recreate a forgotten local row")
+        XCTAssertEqual(listCalls, 2)
+        XCTAssertNil(try credentialStore.loadContentKey(forRemoteShareId: published.publication.remoteShareId))
+    }
+
     func testFractionalExpiryRejectsBeforeEnrollment() async throws {
         var enrolled = false
         remoteClient.enrollOwnerHandler = { _, _, _, _, _ in
@@ -372,6 +402,99 @@ final class ShareCoordinatorTests: XCTestCase {
         let confirmed = try await coordinator.reconcileLostRecoveryImport()
         XCTAssertFalse(confirmed)
         XCTAssertEqual(try credentialStore.loadPendingDeviceCredential(), pending)
+    }
+
+    func testNeverSentRecoveryCanRetrySameDurableDeviceAfterRestart() async throws {
+        let code = ShareRecoveryToken.generate(ownerId: ShareRandom.bytes(16))
+        let ownerId = ShareBase64URL.encode(code.ownerId)
+        let replacement = ShareRecoveryToken.generate(ownerId: code.ownerId).verifier
+        var attempts: [(String, String, String?, String)] = []
+        remoteClient.recoverOwnerHandler = { _, selector, verifier, replacement, key in
+            attempts.append((selector, verifier, replacement, key))
+            if attempts.count == 1 { throw ShareClientError.network }
+            return ShareOwnerMetadata(ownerId: ownerId, credentialGeneration: 2, recoveryVerifier: replacement)
+        }
+        remoteClient.fetchOwnerMetadataHandler = { _ in
+            throw ShareClientError.api(ShareAPIError(code: .unauthorized, retryable: false, requestId: nil))
+        }
+        do { _ = try await coordinator.recoverOwnership(recoveryToken: code, replacementRecoveryVerifier: replacement) }
+        catch ShareClientError.network {}
+        let pending = try XCTUnwrap(credentialStore.loadPendingDeviceCredential())
+        let restarted = ShareCoordinator(repository: repository, credentialStore: credentialStore, remoteClient: remoteClient)
+        _ = try await restarted.recoverOwnership(recoveryToken: code, replacementRecoveryVerifier: replacement)
+        XCTAssertEqual(attempts.count, 2)
+        XCTAssertEqual(attempts[0].0, attempts[1].0)
+        XCTAssertEqual(attempts[0].1, attempts[1].1)
+        XCTAssertEqual(attempts[0].2, attempts[1].2)
+        XCTAssertEqual(attempts[0].3, attempts[1].3)
+        XCTAssertEqual(try credentialStore.loadDeviceCredential()?.token, pending.token)
+        XCTAssertNil(try credentialStore.loadPendingDeviceCredential())
+    }
+
+    func testPendingRecoveryRejectsChangedOwnerOrReplacementWithoutChangingAuthority() async throws {
+        let code = ShareRecoveryToken.generate(ownerId: ShareRandom.bytes(16))
+        remoteClient.recoverOwnerHandler = { _, _, _, _, _ in throw ShareClientError.network }
+        do { _ = try await coordinator.recoverOwnership(recoveryToken: code) } catch ShareClientError.network {}
+        let pending = try credentialStore.loadPendingDeviceCredential()
+        do {
+            _ = try await coordinator.recoverOwnership(recoveryToken: code, replacementRecoveryVerifier: "different")
+            XCTFail("replacement changes the pending request")
+        } catch ShareCoordinatorError.recoveryPending {}
+        do {
+            _ = try await coordinator.recoverOwnership(recoveryToken: .generate(ownerId: ShareRandom.bytes(16)))
+            XCTFail("owner changes the pending request")
+        } catch ShareCoordinatorError.recoveryPending {}
+        XCTAssertEqual(try credentialStore.loadPendingDeviceCredential(), pending)
+    }
+
+    func testLateRecoveryCommitDuringRetryIsConfirmedWithOriginalDevice() async throws {
+        let code = ShareRecoveryToken.generate(ownerId: ShareRandom.bytes(16))
+        let ownerId = ShareBase64URL.encode(code.ownerId)
+        var attempts = 0
+        var committed = false
+        remoteClient.recoverOwnerHandler = { _, _, _, _, _ in
+            attempts += 1
+            if attempts == 1 { throw ShareClientError.network }
+            // The first request finishes after the retry's negative probe.
+            committed = true
+            throw ShareClientError.api(ShareAPIError(code: .unauthorized, retryable: false, requestId: nil))
+        }
+        remoteClient.fetchOwnerMetadataHandler = { _ in
+            if committed { return ShareOwnerMetadata(ownerId: ownerId, credentialGeneration: 2, recoveryVerifier: nil) }
+            throw ShareClientError.api(ShareAPIError(code: .unauthorized, retryable: false, requestId: nil))
+        }
+        do { _ = try await coordinator.recoverOwnership(recoveryToken: code) } catch ShareClientError.network {}
+        let pending = try XCTUnwrap(credentialStore.loadPendingDeviceCredential())
+        let result = try await coordinator.recoverOwnership(recoveryToken: code)
+        XCTAssertEqual(result.credentialGeneration, 2)
+        XCTAssertEqual(try credentialStore.loadDeviceCredential()?.token, pending.token)
+    }
+
+    func testDefinitiveFirstCreateRejectionDoesNotLeavePermanentPendingWork() async throws {
+        var shareId: String?
+        remoteClient.createShareHandler = { _, id, _, _, _, _, _ in
+            shareId = id
+            throw ShareClientError.api(ShareAPIError(code: .payloadTooLarge, retryable: false, requestId: nil))
+        }
+        do { _ = try await coordinator.publish(bundle: makeNotesBundle()); XCTFail("expected rejection") }
+        catch ShareClientError.api(let error) { XCTAssertEqual(error.code, .payloadTooLarge) }
+        XCTAssertTrue(try repository.fetchAll().isEmpty)
+        XCTAssertTrue(try repository.fetchShareIdsWithPendingOperations().isEmpty)
+        XCTAssertNil(try credentialStore.loadContentKey(forRemoteShareId: XCTUnwrap(shareId)))
+    }
+
+    func testValidationErrorAfterLostCreateStillPreservesUncertainAuthority() async throws {
+        var attempts = 0
+        remoteClient.createShareHandler = { _, _, _, _, _, _, _ in
+            attempts += 1
+            if attempts == 1 { throw ShareClientError.network }
+            throw ShareClientError.api(ShareAPIError(code: .invalidExpiry, retryable: false, requestId: nil))
+        }
+        let result = try await coordinator.publish(bundle: makeNotesBundle())
+        await coordinator.resumePendingWork()
+        XCTAssertNotNil(try repository.fetch(id: result.publication.id))
+        XCTAssertEqual(try repository.fetchPendingOperations(forShareId: result.publication.id).map(\.kind), [.create])
+        XCTAssertNotNil(try credentialStore.loadContentKey(forRemoteShareId: result.publication.remoteShareId))
     }
 
     func testDifferentOwnerSwitchExhaustsRemotePagesBeforeAllowingSwitch() async throws {

@@ -197,14 +197,14 @@ Payload responses use `Cache-Control: no-store`, and authorization depends on au
 ## Idempotency, concurrency, and publication
 
 - Idempotency scope is owner, method, canonical path, and key.
-- The service stores the request digest and original response for 24 hours.
+- The service stores the request digest and original response for 24 hours. The digest binds exact body bytes and both conditional headers (`If-Match`, `If-None-Match`), distinguishing absent and empty headers; a retry must preserve the original preconditions as well as its body.
 - Reusing a key with the same digest returns the original response; reusing it with a different digest returns `409 idempotency_conflict`.
 - A client-generated share ID plus `If-None-Match: *` prevents duplicate creation after idempotency receipts expire.
 - Creation atomically reserves the locator commitment; an active or retired locator can never be assigned again and returns `409 locator_conflict`.
 - Creation records the current credential generation. A token may replace content only when that generation matches; credential recovery therefore cannot alter pre-recovery snapshots but can publish and update new ones.
 - Content and expiry mutations use ETag compare-and-swap; stale writes return `412 version_conflict` with the current version and ETag.
 - Permanent stop does not require compare-and-swap and wins over racing nonterminal mutations.
-- Recovery is an atomic credential replacement. After a lost response, the client tests the newly generated credential rather than reusing the one-time recovery token.
+- Recovery is an atomic credential replacement. After a lost response, the client first tests the persisted replacement device credential. If it does not authenticate, the user may supply the same recovery code to retry the exact pending request, preserving its device credential, replacement verifier, and idempotency key. Never generate another device credential or overwrite pending authority during this retry. Probe again after a rejected retry to detect a late original commit; successful recovery consumes the old recovery code.
 
 Publishing a revision follows this observable invariant:
 

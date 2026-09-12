@@ -187,6 +187,9 @@ too; an uncertain create keeps its ciphertext-only request until it can be
 reconciled and stopped. Recovered rows use a nullable locator and cannot
 reconstruct a URL or update content. A source existence check inside publication
 creation prevents a stale draft from publishing after its source was deleted.
+An atomic first-attempt marker distinguishes a definitively rejected initial
+create from a retry after an uncertain response; only the former can be
+discarded, and never by cascading a separately queued terminal stop.
 
 ## How to verify a change
 

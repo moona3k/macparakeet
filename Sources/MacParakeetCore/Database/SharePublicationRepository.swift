@@ -48,7 +48,9 @@ public protocol SharePublicationRepositoryProtocol: Sendable {
     func enqueueTerminalDelete(shareId: UUID) async throws
 
     func dequeueOperation(id: UUID) async throws
-    func recordAttempt(operationId: UUID) async throws
+    /// Atomically marks the request attempted; true only for its first attempt.
+    @discardableResult
+    func recordAttempt(operationId: UUID) async throws -> Bool
     func rotateOperationIdempotencyKey(id: UUID, newIdempotencyKey: String) async throws
 
     @discardableResult
@@ -64,8 +66,10 @@ public protocol SharePublicationRepositoryProtocol: Sendable {
 
     /// Removes a share row (and its outbox operations, via cascade) that the
     /// service has definitively never confirmed. Refuses to touch a
-    /// confirmed row (`version != nil`) — reconciliation, not deletion, is
-    /// the only path for an uncertain-but-possibly-succeeded creation.
+    /// confirmed row (`version != nil`) or any row with a queued stop —
+    /// reconciliation, not deletion, is the only path for an uncertain
+    /// creation. Callers must have authoritative non-acceptance evidence;
+    /// a missing version alone is never that evidence.
     @discardableResult
     func deleteUnconfirmedPublication(id: UUID) async throws -> Bool
 }
@@ -179,11 +183,16 @@ public final class SharePublicationRepository: SharePublicationRepositoryProtoco
         }
     }
 
-    public func recordAttempt(operationId: UUID) async throws {
+    @discardableResult
+    public func recordAttempt(operationId: UUID) async throws -> Bool {
         try await dbQueue.write { db in
-            guard var operation = try ShareOutboxOperation.fetchOne(db, key: operationId) else { return }
+            guard var operation = try ShareOutboxOperation.fetchOne(db, key: operationId) else {
+                throw SharePublicationRepositoryError.shareNotFound
+            }
+            let firstAttempt = operation.lastAttemptAt == nil
             operation.lastAttemptAt = Date()
             try operation.update(db)
+            return firstAttempt
         }
     }
 
@@ -237,6 +246,8 @@ public final class SharePublicationRepository: SharePublicationRepositoryProtoco
             guard let share = try SharePublication.fetchOne(db, key: id), share.version == nil else {
                 return false
             }
+            let pending = try ShareOutboxOperation.filter(ShareOutboxOperation.Columns.sharePublicationId == id).fetchAll(db)
+            guard pending.count == 1, pending.first?.kind == .create else { return false }
             return try SharePublication.deleteOne(db, key: share.id)
         }
     }
@@ -281,8 +292,12 @@ public final class SharePublicationRepository: SharePublicationRepositoryProtoco
     public func reconcileResources(_ resources: [ShareResource], ownerId: String) async throws {
         try await dbQueue.write { db in
             for resource in resources {
-                var share = try SharePublication.filter(SharePublication.Columns.remoteShareId == resource.id).fetchOne(db)
-                    ?? SharePublication(remoteShareId: resource.id, locator: nil,
+                let existing = try SharePublication.filter(SharePublication.Columns.remoteShareId == resource.id).fetchOne(db)
+                // Remote retention tombstones are not new management work.
+                // In particular, refresh must not undo "Remove from this Mac".
+                // Known rows still reconcile their deletion-complete receipt.
+                if existing == nil && resource.deletionState == .complete { continue }
+                var share = existing ?? SharePublication(remoteShareId: resource.id, locator: nil,
                         locatorCommitment: resource.locatorCommitment, ownerId: ownerId,
                         createdCredentialGeneration: 0, createdAt: resource.createdAt,
                         expiresAt: resource.expiresAt, maxExpiresAt: resource.maxExpiresAt)

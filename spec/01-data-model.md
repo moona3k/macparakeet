@@ -817,6 +817,14 @@ ON share_outbox_operations(sharePublicationId) WHERE kind = 'delete';
   request body until reconciliation and permanent stop; it never retains the key.
 - New publication checks an associated source still exists in its intent
   transaction, so a stale draft cannot recreate sharing after source deletion.
+- `lastAttemptAt` is written before network I/O, with an atomic first-attempt
+  result. A validation rejection of that first attempt can discard a never-
+  accepted create only while it remains unconfirmed and has no queued stop.
+  A rejection after an uncertain response is not equivalent evidence.
+- Pending recovery uses one Keychain record for the generated device secret,
+  replacement-verifier choice, and idempotency key. Resubmitting a same-owner
+  recovery code first probes that device, then retries the identical replacement
+  if needed. It never generates a different device during an unresolved attempt.
 
 ---
 

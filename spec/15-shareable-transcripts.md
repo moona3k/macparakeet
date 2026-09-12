@@ -1,6 +1,6 @@
 # Shareable Transcript Snapshots
 
-> Status: **Proposed**
+> Status: **Implemented behind a default-off release flag; public release pending**
 > Governing decision: [ADR-029](adr/029-encrypted-shareable-transcript-snapshots.md)
 > Boundary contracts: [Share Link and Bundle v1](contracts/share-link-bundle-v1.md) and [Share Service v1](contracts/share-service-v1.md)
 

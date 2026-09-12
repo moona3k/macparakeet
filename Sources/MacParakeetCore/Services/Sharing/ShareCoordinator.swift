@@ -452,74 +452,94 @@ public actor ShareCoordinator {
 
     // MARK: - Recovery import (this device becomes the owner via a saved code)
 
+    /// Resubmitting the same-owner code resumes a pending import. A retry
+    /// first probes the previously generated device, then sends the exact
+    /// same replacement if it does not yet authenticate. A late first request
+    /// therefore installs a secret that this Mac still holds.
     public func recoverOwnership(
         recoveryToken: ShareRecoveryToken,
         replacementRecoveryVerifier: String? = nil
     ) async throws -> ShareOwnerMetadata {
-        try beginMutation()
+        try beginMutation(allowPendingRecovery: true)
         defer { mutationInProgress = false }
         guard try credentialStore.loadPendingRecoveryConfiguration() == nil else { throw ShareCoordinatorError.recoveryPending }
         let recoveryOwnerId = ShareBase64URL.encode(recoveryToken.ownerId)
-        if let current = try credentialStore.loadDeviceCredential(), current.ownerId != recoveryOwnerId {
-            try await requireCurrentOwnerFullyReconciledForSwitch()
+        let pending: ShareDeviceCredential
+        let isRetry: Bool
+        if let existing = try credentialStore.loadPendingDeviceCredential() {
+            guard existing.ownerId == recoveryOwnerId,
+                existing.pendingRecoveryReplacementVerifier == replacementRecoveryVerifier,
+                existing.pendingRecoveryIdempotencyKey != nil else {
+                throw ShareCoordinatorError.recoveryPending
+            }
+            pending = existing
+            isRetry = true
+            if let metadata = try await probePendingRecovery(existing) {
+                return metadata
+            }
+        } else {
+            if let current = try credentialStore.loadDeviceCredential(), current.ownerId != recoveryOwnerId {
+                try await requireCurrentOwnerFullyReconciledForSwitch()
+            }
+            pending = ShareDeviceCredential(ownerId: recoveryOwnerId, token: .generate(), credentialGeneration: 0,
+                pendingRecoveryIdempotencyKey: ShareIdentifiers.generateIdempotencyKey(),
+                pendingRecoveryReplacementVerifier: replacementRecoveryVerifier)
+            isRetry = false
+            try credentialStore.savePendingDeviceCredential(pending)
         }
-
-        let newToken = ShareDeviceToken.generate()
-        let pendingCredential = ShareDeviceCredential(ownerId: recoveryOwnerId, token: newToken, credentialGeneration: 0)
-        // Durable before the network call, so a lost response can be probed
-        // with this exact token after restart instead of reusing the
-        // one-time recovery token.
-        try credentialStore.savePendingDeviceCredential(pendingCredential)
-
-        let metadata: ShareOwnerMetadata
+        guard let idempotencyKey = pending.pendingRecoveryIdempotencyKey else { throw ShareCoordinatorError.recoveryPending }
         do {
-            metadata = try await remoteClient.recoverOwner(
+            let metadata = try await remoteClient.recoverOwner(
                 recoveryToken: recoveryToken,
-                deviceSelector: newToken.selectorBase64URL,
-                deviceVerifier: newToken.verifier,
-                recoveryVerifier: replacementRecoveryVerifier,
-                idempotencyKey: ShareIdentifiers.generateIdempotencyKey()
+                deviceSelector: pending.token.selectorBase64URL,
+                deviceVerifier: pending.token.verifier,
+                recoveryVerifier: pending.pendingRecoveryReplacementVerifier,
+                idempotencyKey: idempotencyKey
             )
+            try confirmRecovery(pending, metadata: metadata)
+            return metadata
         } catch ShareClientError.api(let error) where !error.retryable {
-            try credentialStore.clearPendingDeviceCredential()
+            if isRetry {
+                // The first request may have committed after our probe.
+                // Never erase its new device merely because the imported
+                // one-time code is now rejected.
+                if let metadata = try await probePendingRecovery(pending) { return metadata }
+            } else {
+                // This first request was explicitly rejected, not lost.
+                try credentialStore.clearPendingDeviceCredential()
+            }
             throw ShareClientError.api(error)
         }
-
-        let confirmed = ShareDeviceCredential(
-            ownerId: metadata.ownerId,
-            token: newToken,
-            credentialGeneration: metadata.credentialGeneration
-        )
-        try credentialStore.saveDeviceCredential(confirmed)
-        try credentialStore.clearPendingDeviceCredential()
-        isDeviceCredentialSuperseded = false
-        return metadata
     }
 
-    /// Resolves a recovery-import request whose response never arrived, by
-    /// probing whether the pending device credential now authenticates.
-    /// Returns `true` only when recovery is confirmed to have succeeded.
     @discardableResult
     public func reconcileLostRecoveryImport() async throws -> Bool {
         try beginMutation(allowPendingRecovery: true)
         defer { mutationInProgress = false }
         guard let pending = try credentialStore.loadPendingDeviceCredential() else { return false }
+        return try await probePendingRecovery(pending) != nil
+    }
+
+    private func probePendingRecovery(_ pending: ShareDeviceCredential) async throws -> ShareOwnerMetadata? {
         do {
             let metadata = try await remoteClient.fetchOwnerMetadata(deviceToken: pending.token)
-            let confirmed = ShareDeviceCredential(
-                ownerId: metadata.ownerId,
-                token: pending.token,
-                credentialGeneration: metadata.credentialGeneration
-            )
-            try credentialStore.saveDeviceCredential(confirmed)
-            try credentialStore.clearPendingDeviceCredential()
-            isDeviceCredentialSuperseded = false
-            return true
-        } catch ShareClientError.api(let apiError) where apiError.code == .unauthorized {
-            // A probe may overtake a still-running server request. Preserve
-            // both credentials; a negative probe cannot prove non-commit.
-            return false
+            try confirmRecovery(pending, metadata: metadata)
+            return metadata
+        } catch ShareClientError.api(let error) where error.code == .unauthorized {
+            // Absence may be transient. Keep pending authority for a later
+            // probe or an exact retry with the user-supplied recovery code.
+            return nil
         }
+    }
+
+    private func confirmRecovery(_ pending: ShareDeviceCredential, metadata: ShareOwnerMetadata) throws {
+        guard metadata.ownerId == pending.ownerId, metadata.credentialGeneration > 0 else {
+            throw ShareClientError.unexpectedResponse
+        }
+        try credentialStore.saveDeviceCredential(ShareDeviceCredential(ownerId: metadata.ownerId,
+            token: pending.token, credentialGeneration: metadata.credentialGeneration))
+        try credentialStore.clearPendingDeviceCredential()
+        isDeviceCredentialSuperseded = false
     }
 
     private func requireCurrentOwnerFullyReconciledForSwitch() async throws {
@@ -668,11 +688,13 @@ public actor ShareCoordinator {
         guard let share = (try? repository.fetch(id: operation.sharePublicationId)) ?? nil else {
             return .stop
         }
-        try? await repository.recordAttempt(operationId: operation.id)
+        let isFirstAttempt: Bool
+        do { isFirstAttempt = try await repository.recordAttempt(operationId: operation.id) }
+        catch { return .stopAndThrow(error) }
 
         switch operation.kind {
         case .create:
-            return await executeCreate(operation, share: share, deviceToken: deviceToken)
+            return await executeCreate(operation, share: share, deviceToken: deviceToken, isFirstAttempt: isFirstAttempt)
         case .contentUpdate, .expiryChange:
             return await executeMutation(operation, share: share, deviceToken: deviceToken)
         case .delete:
@@ -683,7 +705,8 @@ public actor ShareCoordinator {
     private func executeCreate(
         _ operation: ShareOutboxOperation,
         share: SharePublication,
-        deviceToken: ShareDeviceToken
+        deviceToken: ShareDeviceToken,
+        isFirstAttempt: Bool
     ) async -> ExecutionOutcome {
         do {
             guard case .resource(let resource) = try await remoteClient.sendPersistedOperation(operation,
@@ -699,6 +722,21 @@ public actor ShareCoordinator {
                 isDeviceCredentialSuperseded = true
                 return .stopAndThrow(ShareCoordinatorError.deviceCredentialSuperseded)
             case .definitive(let apiError):
+                // A validation rejection of the very first request proves
+                // this freshly generated share was never accepted. This is
+                // not true after any uncertain attempt or a conflict. The
+                // transaction also refuses to discard a queued terminal stop.
+                let rejectsBeforeAcceptance: [ShareServiceErrorCode] = [
+                    .invalidRequest, .invalidExpiry, .payloadTooLarge, .unsupportedVersion, .preconditionRequired,
+                ]
+                if isFirstAttempt && rejectsBeforeAcceptance.contains(apiError.code) {
+                    do {
+                        if try await repository.deleteUnconfirmedPublication(id: share.id) {
+                            try? credentialStore.removeContentKey(forRemoteShareId: share.remoteShareId)
+                            return .stopAndThrow(ShareClientError.api(apiError))
+                        }
+                    } catch { return .stopAndThrow(error) }
+                }
                 // Any conflict can follow an earlier successful request whose
                 // receipt expired. A failed/absent listing is not permission
                 // to erase uncertain creation or its queued revocation.

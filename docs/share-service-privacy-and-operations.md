@@ -101,6 +101,8 @@ Deployment access is narrowly held and audited because viewer-code integrity is 
 - Sterile operator-decision audit records are removed within 30 days after the decision.
 - A one-way, owner-unlinked commitment for each accepted locator remains after tombstone deletion solely to enforce permanent non-reuse; it contains no content, timestamp, or management authority.
 - Idempotency receipts and ephemeral keyed or coarse abuse signals last no more than 24 hours.
+- Recipient application request logging is disabled, and raw recipient IPs are not persisted by the application.
+- Hosting-provider backup or recovery-history windows must be documented from the deployed configuration before beta; deleted data is never restored into the live service.
 
 Local deletion saves stop intent before removing owned files. Failed file
 cleanup does not cancel a stop already requested; the source remains for retry.
@@ -109,12 +111,10 @@ outbox authority needed to reconcile then stop, never plaintext or a content key
 Removing the application bundle alone does not erase Application Support or
 Keychain data and does not revoke remote links.
 
-Cloudflare D1 Time Travel is always enabled, with 7-day recovery history on the
+[Cloudflare D1 Time Travel](https://developers.cloudflare.com/d1/reference/time-travel/) is always enabled, with 7-day recovery history on the
 free plan or 30 days on paid plans. Live row deletion is not immediate deletion
 from that provider history. The launch gate must record the actual plan and
 private R2, logging, and recovery settings; local runtime tests cannot prove them.
-- Recipient application request logging is disabled, and raw recipient IPs are not persisted by the application.
-- Hosting-provider backup or recovery-history windows must be documented from the deployed configuration before beta; deleted data is never restored into the live service.
 
 An access-stopped receipt and deletion-complete receipt are intentionally different.
 The first proves no later service read succeeds; the second proves live ciphertext removal.

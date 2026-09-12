@@ -7,11 +7,19 @@ public struct ShareDeviceCredential: Sendable, Equatable {
     public var ownerId: String
     public var token: ShareDeviceToken
     public var credentialGeneration: Int
+    /// Present only on a pending recovery credential. The complete request
+    /// identity is saved atomically with its secret, so retry cannot rotate
+    /// to a different device after an uncertain response.
+    public var pendingRecoveryIdempotencyKey: String?
+    public var pendingRecoveryReplacementVerifier: String?
 
-    public init(ownerId: String, token: ShareDeviceToken, credentialGeneration: Int) {
+    public init(ownerId: String, token: ShareDeviceToken, credentialGeneration: Int,
+                pendingRecoveryIdempotencyKey: String? = nil, pendingRecoveryReplacementVerifier: String? = nil) {
         self.ownerId = ownerId
         self.token = token
         self.credentialGeneration = credentialGeneration
+        self.pendingRecoveryIdempotencyKey = pendingRecoveryIdempotencyKey
+        self.pendingRecoveryReplacementVerifier = pendingRecoveryReplacementVerifier
     }
 }
 
@@ -158,6 +166,8 @@ public final class ShareCredentialStore: ShareCredentialStoring {
         var selector: String
         var secret: String
         var generation: Int
+        var pendingRecoveryIdempotencyKey: String?
+        var pendingRecoveryReplacementVerifier: String?
     }
 
     private static func stored(from credential: ShareDeviceCredential) -> StoredDeviceCredential {
@@ -165,7 +175,9 @@ public final class ShareCredentialStore: ShareCredentialStoring {
             ownerId: credential.ownerId,
             selector: credential.token.selectorBase64URL,
             secret: credential.token.secretBase64URL,
-            generation: credential.credentialGeneration
+            generation: credential.credentialGeneration,
+            pendingRecoveryIdempotencyKey: credential.pendingRecoveryIdempotencyKey,
+            pendingRecoveryReplacementVerifier: credential.pendingRecoveryReplacementVerifier
         )
     }
 
@@ -179,7 +191,9 @@ public final class ShareCredentialStore: ShareCredentialStoring {
         return ShareDeviceCredential(
             ownerId: stored.ownerId,
             token: ShareDeviceToken(selector: selector, secret: secret),
-            credentialGeneration: stored.generation
+            credentialGeneration: stored.generation,
+            pendingRecoveryIdempotencyKey: stored.pendingRecoveryIdempotencyKey,
+            pendingRecoveryReplacementVerifier: stored.pendingRecoveryReplacementVerifier
         )
     }
 
