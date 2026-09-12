@@ -770,9 +770,9 @@
             next.expiry = formatCustomExpiry(action.value);
             next.lastEvent = `The exact expiration is ${next.expiry}.`; return next;
           case 'CREATE_NEW_LINK': {
-            if (next.serverStatus !== 'stopped') {
+            if (!['stopped', 'expired'].includes(next.serverStatus)) {
               next.blocked = true;
-              next.lastEvent = 'A replacement link is available only after the prior link is permanently stopped.';
+              next.lastEvent = 'A replacement link is available only after the prior link is stopped or expired.';
               return next;
             }
             const fresh = initialState();
@@ -1308,7 +1308,7 @@
               <dl class="fact-list"><div><dt>Version</dt><dd>v${state.version}</dd></div><div><dt>Contents</dt><dd>${ShareModel.selectedNames(confirmed.selection).join(', ')}</dd></div><div><dt>Full link</dt><dd>${shareURL()}</dd></div><div><dt>Audio</dt><dd>Never uploaded</dd></div></dl>
             </section>
             <section class="share-panel"><h3>Actions</h3><div class="manage-actions">
-              ${state.shareStatus === 'stopped'
+              ${['stopped', 'expired'].includes(state.shareStatus)
                 ? '<button class="button primary" data-action="CREATE_NEW_LINK">Create new link</button>'
                 : state.serverStatus === 'active' && state.shareStatus !== 'stop pending'
                   ? '<button class="button" data-action="VIEW_RECIPIENT">Preview page</button><button class="button" data-action="COPY_LINK">Copy link</button><button class="button" data-action="UPDATE_SHARE">Update shared page</button><button class="button" data-action="OPEN_EXPIRY">Change expiration</button><button class="button danger" data-action="REQUEST_STOP">Stop sharing</button>'
