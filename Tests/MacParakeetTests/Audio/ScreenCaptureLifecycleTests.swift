@@ -1,4 +1,5 @@
 import Foundation
+import os
 @preconcurrency import ScreenCaptureKit
 import XCTest
 @testable import MacParakeetCore
@@ -259,16 +260,17 @@ final class ScreenCaptureLifecycleTests: XCTestCase {
             domain: SCStreamErrorDomain,
             code: SCStreamError.Code.userStopped.rawValue
         )
-        var reportedErrors: [MeetingAudioError] = []
+        let reportedErrors = OSAllocatedUnfairLock(initialState: [MeetingAudioError]())
 
         stream.installStallObserverForTesting { error in
-            reportedErrors.append(error)
+            reportedErrors.withLock { $0.append(error) }
         }
         stream.simulateDidStopWithError(hostileError)
+        let errors = reportedErrors.withLock { $0 }
 
-        XCTAssertEqual(reportedErrors.count, 1)
-        guard case .captureRuntimeFailure(let message) = reportedErrors.first else {
-            XCTFail("Expected captureRuntimeFailure, got \(String(describing: reportedErrors.first))")
+        XCTAssertEqual(errors.count, 1)
+        guard case .captureRuntimeFailure(let message) = errors.first else {
+            XCTFail("Expected captureRuntimeFailure, got \(String(describing: errors.first))")
             return
         }
         XCTAssertEqual(message, "system audio sharing was stopped by the user")
@@ -280,16 +282,17 @@ final class ScreenCaptureLifecycleTests: XCTestCase {
     func testSimulatedDidStopWithErrorClassifiesUnexpectedStopWithoutLeakingUnknownDomain() {
         let stream = SystemAudioStream()
         let hostileError = HostileNSError(domain: "com.example.totally-unrecognized", code: 7)
-        var reportedErrors: [MeetingAudioError] = []
+        let reportedErrors = OSAllocatedUnfairLock(initialState: [MeetingAudioError]())
 
         stream.installStallObserverForTesting { error in
-            reportedErrors.append(error)
+            reportedErrors.withLock { $0.append(error) }
         }
         stream.simulateDidStopWithError(hostileError)
+        let errors = reportedErrors.withLock { $0 }
 
-        XCTAssertEqual(reportedErrors.count, 1)
-        guard case .systemAudioStreamStopped(let reason) = reportedErrors.first else {
-            XCTFail("Expected systemAudioStreamStopped, got \(String(describing: reportedErrors.first))")
+        XCTAssertEqual(errors.count, 1)
+        guard case .systemAudioStreamStopped(let reason) = errors.first else {
+            XCTFail("Expected systemAudioStreamStopped, got \(String(describing: errors.first))")
             return
         }
         XCTAssertFalse(reason.contains("com.example.totally-unrecognized"))
@@ -299,10 +302,10 @@ final class ScreenCaptureLifecycleTests: XCTestCase {
 
     func testSimulatedDidStopWithErrorReportsAtMostOnce() {
         let stream = SystemAudioStream()
-        var reportedErrors: [MeetingAudioError] = []
+        let reportedErrors = OSAllocatedUnfairLock(initialState: [MeetingAudioError]())
 
         stream.installStallObserverForTesting { error in
-            reportedErrors.append(error)
+            reportedErrors.withLock { $0.append(error) }
         }
         stream.simulateDidStopWithError(
             HostileNSError(domain: SCStreamErrorDomain, code: SCStreamError.Code.internalError.rawValue)
@@ -311,7 +314,7 @@ final class ScreenCaptureLifecycleTests: XCTestCase {
             HostileNSError(domain: SCStreamErrorDomain, code: SCStreamError.Code.internalError.rawValue)
         )
 
-        XCTAssertEqual(reportedErrors.count, 1)
+        XCTAssertEqual(reportedErrors.withLock { $0.count }, 1)
     }
 
     func testStaleFailedStartCannotStopOrSettleReplacementAttempt() throws {
