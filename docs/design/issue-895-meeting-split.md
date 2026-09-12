@@ -53,10 +53,19 @@ contract's normative rules.
 ## Verification status
 
 The lifecycle/recovery milestone is committed as `93efade8`: 729 focused tests,
-one skipped, zero failures. The subsequent editable-control gate compiled the
-app and passed 16 ViewModel tests. Navigation integration, rendered native QA,
-and final failure-path verification are still in progress. This document does
-not claim the feature is merged, released, or accepted with a real STT model.
+one skipped, zero failures. Native sheet/navigation is committed as `9a6ff3d4`.
+Retry receipt visibility and switching to an unavailable source have explicit
+red-to-green regressions; the latest ViewModel gate passed 18 tests and compiled
+the app. The signed Xcode dev bundle built and launched against the isolated
+fixture. Main-window capture succeeded, but interactive sheet QA initially
+hit macOS Accessibility denial and remains pending permission. Final Core/CLI
+failure-path verification is also in progress. This document does not claim
+the feature is merged, released, or accepted with a real STT model.
+
+A three-lens simplification pass found no reusable equivalent for the precise
+time parser or the small entry-point wiring. It removed a redundant operation-ID
+field. Authoritative receipt refreshes remain deliberately simple; optimizing
+them into a separate progress cache is not justified for two or three parts.
 
 The earlier HTML is a reference only. Native layout follows the existing app's
 type, spacing, colors, and action styles; no custom waveform editor is needed.

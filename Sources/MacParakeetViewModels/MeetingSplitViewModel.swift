@@ -27,7 +27,6 @@ public final class MeetingSplitViewModel {
     public private(set) var resumableOperation: MeetingSplitOperation?
     public private(set) var activeSourceId: UUID?
     public private(set) var activeSourceTitle = ""
-    public private(set) var activeOperationId: UUID?
     public private(set) var progress: MeetingSplitProcessingProgress?
     public private(set) var completedOperation: MeetingSplitOperation?
     public private(set) var processingErrorMessage: String?
@@ -76,6 +75,10 @@ public final class MeetingSplitViewModel {
             loadState = .failed("Split and transcribe is not available right now.")
             return
         }
+        acknowledgeFinishedProcessing()
+        editing = nil
+        boundaryText = []
+        activeSourceTitle = sourceTitle
         let generation = UUID()
         presentationGeneration = generation
         loadState = .loading
@@ -97,7 +100,6 @@ public final class MeetingSplitViewModel {
             if let existing {
                 activeSourceId = existing.sourceId
                 activeSourceTitle = sourceTitle
-                activeOperationId = existing.id
                 completedOperation = nil
                 resumableOperation = existing
                 editing = nil
@@ -222,8 +224,7 @@ public final class MeetingSplitViewModel {
     public func resume(operationId: UUID, sourceTitle: String) -> Bool {
         guard let service, !isProcessingActive, !isExternallyOwned,
               let saved = operation, saved.id == operationId, saved.status != .discarded else { return false }
-        beginProcessing(sourceId: saved.sourceId, sourceTitle: sourceTitle, key: saved.idempotencyKey,
-                        operationId: saved.id) { callback in
+        beginProcessing(sourceId: saved.sourceId, sourceTitle: sourceTitle, key: saved.idempotencyKey) { callback in
             if saved.status == .preparing {
                 return try await service.createAndProcess(
                     idempotencyKey: saved.idempotencyKey, sourceId: saved.sourceId,
@@ -238,12 +239,11 @@ public final class MeetingSplitViewModel {
     }
 
     private func beginProcessing(
-        sourceId: UUID, sourceTitle: String, key: String, operationId: UUID? = nil,
+        sourceId: UUID, sourceTitle: String, key: String,
         run: @escaping @Sendable (@escaping @Sendable (MeetingSplitProcessingProgress) -> Void) async throws -> MeetingSplitOperation
     ) {
         activeSourceId = sourceId
         activeSourceTitle = sourceTitle
-        activeOperationId = operationId
         progress = nil
         resumableOperation = operation
         completedOperation = nil
@@ -257,7 +257,6 @@ public final class MeetingSplitViewModel {
                 Task { @MainActor in
                     guard let self, self.processingGeneration == generation, self.isProcessingActive else { return }
                     self.progress = event
-                    self.activeOperationId = event.operationId
                     await self.refreshReceipt(sourceId: sourceId, key: key)
                 }
             }
@@ -265,7 +264,6 @@ public final class MeetingSplitViewModel {
                 let result = try await run(callback)
                 completedOperation = result
                 resumableOperation = nil
-                activeOperationId = result.id
                 try await refreshAvailability(result)
                 if result.childProgress.contains(where: { $0.outcome == .failed }) {
                     processingErrorMessage = "Some parts need another attempt. Saved audio and completed work are kept."
@@ -292,7 +290,6 @@ public final class MeetingSplitViewModel {
             }.value
             guard processingGeneration == generation, let receipt else { return }
             if completedOperation == nil { resumableOperation = receipt }
-            activeOperationId = receipt.id
             try await refreshAvailability(receipt)
         } catch {
             if processingErrorMessage == nil { processingErrorMessage = error.localizedDescription }
@@ -331,7 +328,6 @@ public final class MeetingSplitViewModel {
     public func acknowledgeFinishedProcessing() {
         guard !isProcessingActive else { return }
         activeSourceId = nil
-        activeOperationId = nil
         completedOperation = nil
         resumableOperation = nil
         processingErrorMessage = nil

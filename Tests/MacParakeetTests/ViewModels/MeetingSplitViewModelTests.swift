@@ -47,6 +47,21 @@ final class MeetingSplitViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.editing)
     }
 
+    func testDifferentSourcePreviewFailureDoesNotDisplayPreviousOperation() async throws {
+        let previous = try service.makeCommittedOperationWithPendingChild(sourceId: sourceId)
+        service.operationsBySourceId[sourceId] = [previous]
+        await viewModel.present(sourceId: sourceId, sourceTitle: "Weekly sync")
+        XCTAssertEqual(viewModel.operation?.id, previous.id)
+
+        service.previewError = MeetingSplitServiceError.sourceNotFound
+        await viewModel.present(sourceId: UUID(), sourceTitle: "Missing recording")
+
+        guard case .failed = viewModel.loadState else { return XCTFail("Expected preview failure") }
+        XCTAssertNil(viewModel.operation, "An unrelated old receipt must not replace the failed source")
+        XCTAssertFalse(viewModel.isExternallyOwned, "A missing source is not an ownership conflict")
+        XCTAssertEqual(viewModel.activeSourceTitle, "Missing recording")
+    }
+
     // MARK: - Geometry editing
 
     func testTimeEntrySupportsHoursAndKeepsIncompleteInputInvalid() async {
@@ -255,7 +270,7 @@ final class MeetingSplitViewModelTests: XCTestCase {
 
         XCTAssertTrue(viewModel.resume(operationId: committed.id, sourceTitle: "Weekly sync"))
         XCTAssertEqual(viewModel.activeSourceId, sourceId, "Resuming must show progress for the original source")
-        XCTAssertEqual(viewModel.activeOperationId, committed.id, "A receipt ID is not a child ID")
+        XCTAssertEqual(viewModel.operation?.id, committed.id, "A receipt ID is not a child ID")
         try await waitUntil { self.viewModel.completedOperation != nil }
         XCTAssertEqual(viewModel.completedOperation?.id, committed.id)
     }

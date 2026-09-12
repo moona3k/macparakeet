@@ -117,7 +117,7 @@ struct MeetingSplitSheetView: View {
                     set: { player.seek(toMs: Int($0)) }
                 ), in: 0...Double(max(1, player.durationMs)))
                 .accessibilityLabel("Recording playback position")
-                Text(MeetingSplitTimecode.format(player.currentTimeMs))
+                Text("\(MeetingSplitTimecode.format(player.currentTimeMs)) / \(MeetingSplitTimecode.format(viewModel.editing?.totalDurationMs ?? player.durationMs))")
                     .monospacedDigit()
             }
 
