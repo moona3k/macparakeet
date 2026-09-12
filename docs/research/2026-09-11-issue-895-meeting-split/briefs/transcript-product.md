@@ -1,0 +1,13 @@
+# Transcript and product feasibility investigation
+
+Goal: Determine how saved transcripts and all meeting-derived state should behave when a user splits one recording into multiple meetings.
+
+Context: Issue https://github.com/moona3k/macparakeet/issues/895 is OPEN with no comments, submitted 2026-08-10 from 0.7.3, asking to split 2, 3, or 4 accidentally combined meetings after recording. Investigation only, no production implementation. Local HEAD 1159dfca8ae53a15ffcc1562b1efb9220f95cd88 has unrelated dirty work; live GitHub main aaf3dc261536e5fc5158c4b1ca714bd3f4cece19. Read AGENTS.md, spec/adr/027-product-north-star.md, spec/04-ui-patterns.md, integrations/README.md, relevant subsystem READMEs. Explore Models/Transcription.swift, timed transcript models/derivers, transcript edits, finalization, transcript/detail player, Library and Meetings menus, summaries/processing results, notes, chat and knowledge cards, export and CLI integration boundaries.
+
+Questions: Do retained segments/word timestamps permit split without retranscribing? Cuts between segments vs inside segments/words; overlapping speakers and cross-boundary utterances; timestamp coordinate rebasing; originalText/text/segments drift after user edits; missing timestamps and old source version; speaker label IDs; notes, summaries, tasks, Ask/chat, calendar identity, search and citations; active finalization/retranscription restrictions; entry point and best 2-4 meeting workflow; optional break exclusions vs keep-all; undo limits; archived-original alternatives; CLI parity. Provide concrete recommended MVP and later enhancements, exact file:line evidence, and verification plan. Identify material decisions and safest defaults; do not pretend future features exist.
+
+Settled: manual cuts first, transcript-assisted with time entry/playback; original retained and accessible; independent child meetings; no automatic AI provider calls or external export hooks triggered by split. Mockup creator and storage investigator are separate workers.
+
+Fences: You are not alone in the codebase. Preserve all existing work. Read-only tools only; return report in final answer and orchestrator will save transcript-product-findings.md using apply_patch. No app changes, tests/builds, private user data, .build*, .claude/, dist/, journal/, diagnostics/, logs/, env/key files, git/network mutations, memory writes, or extra agents.
+
+Done: 1500-2200 word Markdown report with exact evidence, recommended user flow, per-field disposition table, tricky cases, phased recommendation and tests needed. Final reply is the report itself, no outer code fence. Be explicit about what you did not test.
