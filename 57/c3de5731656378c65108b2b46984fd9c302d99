@@ -1,0 +1,30 @@
+spec/contracts/README.md
+  s_a873ed00f9edeb::t_bb5797081240ed 40
+spec/contracts/meeting-splitting.md
+  s_a873ed00f9edeb::t_bb5797081240ed 1-75
+Sources/MacParakeetCore/Services/MeetingSplit/MeetingSplitPlanner.swift
+  s_a873ed00f9edeb::t_fdaf33e6652de1 38,50,65,76,91,110,115-116,139,155,190-191,221,226-228,239-245,257-261,280-282,308,318-319,324,327,333-334,337-340,345-375,408-410,425,430-442,460,544
+  s_a873ed00f9edeb::t_443bb6be07ba81 1-37,39-49,51-64,66-75,77-90,92-109,111-114,117-138,140-154,156-189,192-220,222-225,229-238,246-256,262-279,283-307,309-317,320-323,325-326,328-332,335-336,341-344,376-407,411-424,426-429,443-459,461-543,545-554
+  s_a873ed00f9edeb::t_e014c5f84f998a 555-560
+Tests/MacParakeetTests/Services/MeetingSplit/MeetingSplitPlannerTests.swift
+  s_a873ed00f9edeb::t_8bedd5bb482e3e 484-533,557
+  s_a873ed00f9edeb::t_76d8959ced7bd0 94,100-101,109-112
+  s_a873ed00f9edeb::t_2fc6a1232bec2c 1-93,95-99,102-108,113-483,534-556,558-645
+  s_a873ed00f9edeb::t_51ac6d15b14129 646-654
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "57c3de5731656378c65108b2b46984fd9c302d99",
+  "prompts": {},
+  "sessions": {
+    "s_a873ed00f9edeb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0934d-8db0-7702-aa27-19ce08f0c352",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
