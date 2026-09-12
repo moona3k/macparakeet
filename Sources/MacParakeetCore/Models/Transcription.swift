@@ -84,6 +84,11 @@ public struct Transcription: Codable, Identifiable, Sendable {
     /// completion (substantive sentence in [40, 140] chars, filler-stripped).
     /// `nil` when the transcript is empty or predates v0.9 backfill.
     public var derivedSnippet: String?
+    /// Split and transcribe provenance (`spec/contracts/meeting-splitting.md`).
+    /// Set only on child rows created by that feature; `nil` for every other
+    /// row, including the untouched source recording. See
+    /// `MeetingSplitProvenance` for why this is a snapshot, not a live reference.
+    public var splitProvenance: MeetingSplitProvenance?
     public var updatedAt: Date
 
     public enum TranscriptionStatus: String, Codable, Sendable {
@@ -132,6 +137,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         titleOverride: String? = nil,
         derivedTitle: String? = nil,
         derivedSnippet: String? = nil,
+        splitProvenance: MeetingSplitProvenance? = nil,
         updatedAt: Date = Date()
     ) {
         self.id = id
@@ -172,6 +178,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         self.titleOverride = Self.normalizedTitleOverride(from: titleOverride)
         self.derivedTitle = derivedTitle
         self.derivedSnippet = derivedSnippet
+        self.splitProvenance = splitProvenance
         self.updatedAt = updatedAt
     }
 }
@@ -340,6 +347,7 @@ extension Transcription: FetchableRecord, PersistableRecord {
         case status, errorMessage, exportPath, sourceURL
         case thumbnailURL, channelName, videoDescription, isFavorite, sourceType, meetingTypeId, recoveredFromCrash, isTranscriptEdited, userNotes, meetingStartContext, meetingCaptureReport, engine, engineVariant, titleOverride, derivedTitle, derivedSnippet, updatedAt
         case calendarEventSnapshot
+        case splitProvenance
     }
 
     /// Backward-compatible decoding: `speakers` column may contain old `[String]` JSON
@@ -418,6 +426,10 @@ extension Transcription: FetchableRecord, PersistableRecord {
         titleOverride = Self.normalizedTitleOverride(from: try container.decodeIfPresent(String.self, forKey: .titleOverride))
         derivedTitle = try container.decodeIfPresent(String.self, forKey: .derivedTitle)
         derivedSnippet = try container.decodeIfPresent(String.self, forKey: .derivedSnippet)
+        splitProvenance = (try? container.decodeIfPresent(
+            MeetingSplitProvenance.self,
+            forKey: .splitProvenance
+        )) ?? nil
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
 }

@@ -80,6 +80,76 @@ Automatic speaker rosters and transcript attribution remain on `transcriptions`
 and in the correction layer; profile identity is separate and excluded from
 exports, diagnostics, feedback, telemetry and external AI context.
 
+## Split and transcribe operation receipts (2026-09-11)
+
+`v0.42-meeting-split-operations` adds the persistence for
+[Split and transcribe](contracts/meeting-splitting.md): every part, including
+the first, is a new saved meeting receiving its own first transcription; the
+source recording is never modified.
+
+```sql
+CREATE TABLE meeting_split_operations (
+    id TEXT PRIMARY KEY NOT NULL,
+    idempotencyKey TEXT NOT NULL,               -- unique caller-supplied key
+    sourceId TEXT NOT NULL,                      -- source transcriptions.id (no FK)
+    request TEXT NOT NULL,                       -- JSON MeetingSplitRequest (frozen at begin)
+    childIds TEXT NOT NULL,                      -- JSON [UUID], fixed, same order as request.children
+    status TEXT NOT NULL CHECK (
+        status IN ('preparing', 'committed', 'discarded')
+    ),
+    childProgress TEXT NOT NULL,                 -- JSON [MeetingSplitChildProgress], same order as childIds
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL
+);
+CREATE UNIQUE INDEX idx_meeting_split_operations_key ON meeting_split_operations(idempotencyKey);
+CREATE INDEX idx_meeting_split_operations_source ON meeting_split_operations(sourceId);
+```
+
+**Notes:**
+- `sourceId` and `childIds` deliberately have no foreign key to
+  `transcriptions`. The receipt is a durable audit record and idempotency
+  lookup key, not a live join: it must remain readable, and `begin`/`operation`
+  lookups must keep working, after the source or any child row is deleted.
+  `MeetingSplitRepository` never requires the source to exist to return a
+  previously committed receipt.
+- `request` freezes the caller's ordered cuts/titles and observed source
+  identity string at `begin` time. A second `begin` call with the same
+  `idempotencyKey` returns the existing operation (same fixed `childIds`) only
+  if its `request` is unchanged; a different request under the same key is a
+  conflict, not an overwrite.
+- `childIds` are minted by `begin`, before any audio file exists, so retrying
+  interrupted preparation reuses the same identities instead of creating
+  duplicates. `status` moves `preparing` → `committed` (permanent) or
+  `preparing` → `discarded` (permanent); a committed operation cannot be
+  discarded or resurrected, and repeated lookups keep returning its original
+  `childIds` even after every child row is deleted.
+- `publish` is one transaction: it revalidates a small source-row snapshot
+  (id, `createdAt`, paths, status, display title — not transcript/word/
+  correction content, which is never copied into a child), fresh-`INSERT`s
+  every child row (never upsert, so an id collision throws instead of
+  overwriting), and only then flips `status` to `committed`. Any failure,
+  including on the last child, rolls back the whole transaction; the source
+  row is never saved or updated by this feature.
+- `childProgress` tracks, per fixed child id, the furthest reached
+  `MeetingSplitChildStage` (`pendingTranscription` → `transcribing` →
+  `transcribed` → `automationPending` → `automationCompleted`) plus an
+  `outcome` (`none` / `failed` / `cancelled`) and optional error message. A
+  failure or cancellation only sets `outcome`; it never moves `stage`
+  backward, so an automation (e.g. summary) failure after a successful
+  transcript can retry automation alone without rerunning speech. This column
+  is the only place that distinguishes "audio saved, not yet transcribed"
+  from "first transcription completed" — `Transcription.status` is not
+  repurposed for that distinction. Progress updates never query
+  `transcriptions`, so a child deleted after commit remains fully describable
+  from this row alone instead of being reinserted.
+- `transcriptions.splitProvenance` (also added by this migration) is an
+  optional JSON `MeetingSplitProvenance` column set only on child rows:
+  operation id, source id, a source-title snapshot, the approved
+  start/end-ms cut, the child's ordinal among siblings, and the split
+  creation time. It is plain snapshot data with no foreign key, so it survives
+  deletion of the source or any sibling and needs no join to read. `NULL` for
+  every non-split row; existing readers are unaffected.
+
 ## Relationship Diagram (selected domains)
 
 ```
@@ -225,6 +295,7 @@ CREATE TABLE transcriptions (
     titleOverride TEXT,                                  -- v0.26: User-authored non-meeting display title override
     derivedTitle TEXT,                                   -- v0.9: Display title derived from transcript content
     derivedSnippet TEXT,                                 -- v0.9: Display preview snippet derived from transcript content
+    splitProvenance TEXT,                                -- v0.42: JSON MeetingSplitProvenance, child rows only
     updatedAt TEXT NOT NULL                              -- ISO 8601 timestamp
 );
 
@@ -271,6 +342,7 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
 - `calendarEventSnapshot` is a JSON blob for meeting rows only. It stores `confidence` (`confirmed` for calendar auto-start, `probable` for manual starts matched against the current poll cache), EventKit `eventIdentifier`, optional `externalId`, event title, scheduled start/end, attendee names/emails, organizer name/email, meeting URL/service, and capture timestamp. This is local user data and must not be sent in telemetry, including attendee counts. Added in v0.25.
 - `titleOverride` stores a user-authored display title for non-meeting transcription rows. It is app metadata only: it does not rename/move `filePath`, replace the original `fileName`, or participate in meeting artifact naming. Blank titles are normalized to `NULL`. Added in v0.26.
 - `derivedTitle` / `derivedSnippet` cache semantic display copy derived from the completed transcript. Local file rows retain the original `fileName` as their default visible title, but the derived copy remains available for search and preview-related behavior. Added in v0.9 so Library surfaces do not need to recompute derived text on every render.
+- `splitProvenance` is a v0.42 JSON blob set only on child rows created by Split and transcribe (see the dedicated section above and `contracts/meeting-splitting.md`). `NULL` for the source row and every non-split transcription.
 - The legacy `summary` column was migrated into `summaries` in v0.7 and dropped in v0.7.6.
 - No FTS on transcriptions in v0.1. Search by filename or scroll the list. Revisit if the list grows large.
 

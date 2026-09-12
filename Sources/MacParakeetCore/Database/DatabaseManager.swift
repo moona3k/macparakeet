@@ -2105,6 +2105,43 @@ public final class DatabaseManager: Sendable {
                 """)
         }
 
+        // v0.42 — Split and transcribe (spec/contracts/meeting-splitting.md):
+        // a small durable operation receipt so audio publication is
+        // all-or-none and retryable, plus optional child provenance. No
+        // foreign key references `transcriptions`: the receipt and provenance
+        // are plain snapshots that must survive deletion of the source or any
+        // sibling part, not live joins.
+        migrator.registerMigration("v0.42-meeting-split-operations") { db in
+            try db.execute(sql: """
+                CREATE TABLE meeting_split_operations (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    idempotencyKey TEXT NOT NULL,
+                    sourceId TEXT NOT NULL,
+                    request TEXT NOT NULL,
+                    childIds TEXT NOT NULL,
+                    status TEXT NOT NULL CHECK (
+                        status IN ('preparing', 'committed', 'discarded')
+                    ),
+                    childProgress TEXT NOT NULL,
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL
+                )
+                """)
+            try db.execute(sql: """
+                CREATE UNIQUE INDEX idx_meeting_split_operations_key
+                ON meeting_split_operations (idempotencyKey)
+                """)
+            try db.execute(sql: """
+                CREATE INDEX idx_meeting_split_operations_source
+                ON meeting_split_operations (sourceId)
+                """)
+
+            let columns = try db.columns(in: "transcriptions").map(\.name)
+            if !columns.contains("splitProvenance") {
+                try db.execute(sql: "ALTER TABLE transcriptions ADD COLUMN splitProvenance TEXT")
+            }
+        }
+
         return migrator
     }
 

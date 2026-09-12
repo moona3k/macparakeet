@@ -39,6 +39,7 @@ processes own their connections.
   - `TransformHistoryRepository.swift` — local Transform run history (input/output/source app/timings; ADR-022).
   - `AIFormatterProfileRepository.swift` — app/category formatter profiles (normal product exposure remains feature-gated).
   - `LLMRunRepository.swift` — local metadata ledger for persisted LLM runs (provider/model/tokens/latency/status/required source link; no prompt/input/output content).
+  - `MeetingSplitRepository.swift` — Split and transcribe's operation receipt: idempotent `begin`, one-transaction `publish` of all child rows, and per-child processing progress. Persistence only; media export, STT and completion automation are owned elsewhere (see `spec/contracts/meeting-splitting.md`).
 
 ## Cross-references
 
@@ -123,6 +124,22 @@ hashes use effective attribution; listing avoids building the full timed-display
 projection when no correction head exists. Retranscription publishes replacement
 segments and deletes the old card atomically; list queries suppress any stale
 card that remains after other canonical edits.
+
+**Split-operation receipts intentionally have no foreign key to
+`transcriptions`.** `meeting_split_operations` (v0.42) and
+`transcriptions.splitProvenance` are plain snapshots, not live joins: they
+must stay readable, and `begin`/lookup must keep returning fixed child ids,
+after the source or any child row is deleted. `MeetingSplitRepository.publish`
+is the one place that creates split children: a single transaction that
+revalidates a small source snapshot, fresh-inserts every child (never
+upsert — a colliding id throws and rolls back the whole batch), and only then
+marks the operation committed. It never writes the source row. Per-child
+`childProgress` (stage + outcome, not a combinatorial enum) lives entirely on
+the operation row, so a failure at automation cannot erase a successful
+transcript, and a child deleted after commit remains describable without
+being reinserted. This repository is the persistence piece only; media
+export, actual STT and completion automation belong to other collaborators
+described in `spec/contracts/meeting-splitting.md`.
 
 **Never use raw SQL `WHERE id = ?` with `uuid.uuidString`.**
 GRDB stores UUID values via Codable encoding, which produces a
