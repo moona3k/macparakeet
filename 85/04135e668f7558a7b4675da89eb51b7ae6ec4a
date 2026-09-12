@@ -1,0 +1,33 @@
+Sources/MacParakeetObjCShims/include/MPKCrashSignalHandler.h
+  s_a873ed00f9edeb::t_cb16311ec3ef57 44-46
+Sources/MacParakeetObjCShims/MPKCrashSignalHandler.c
+  s_a873ed00f9edeb::t_1846d0695730b9 46-52,305-310
+Tests/MacParakeetTests/Services/Telemetry/CrashReporterSignalProbeTests.swift
+  s_8b2a462debd54c::t_ef398aa95c8d33 106,115
+scripts/dev/tests/crash_signal_probe_harness.c
+  s_8b2a462debd54c::t_61cbe5721e1aa8 152-153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8504135e668f7558a7b4675da89eb51b7ae6ec4a",
+  "prompts": {},
+  "sessions": {
+    "s_8b2a462debd54c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "61419b1c-67ab-437e-bf57-b127570fa41a",
+        "model": "unknown"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_a873ed00f9edeb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0934d-8db0-7702-aa27-19ce08f0c352",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
