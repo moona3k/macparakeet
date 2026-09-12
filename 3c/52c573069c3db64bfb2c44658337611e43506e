@@ -1,0 +1,54 @@
+docs/share-service-privacy-and-operations.md
+  s_d236dcbec7210b::t_cb5ca0482c5571 110-113
+  s_d236dcbec7210b::t_d83af196d17f13 67
+Sources/MacParakeetCore/Services/Sharing/ShareCoordinator.swift
+  s_d236dcbec7210b::t_96acfc9d7f7ca2 143-147,155,162,799,854,939-944
+  s_d236dcbec7210b::t_ded7a29fc66733 156-161,163-166,911
+  s_d236dcbec7210b::t_29953484aa83c8 167
+Tests/MacParakeetTests/ViewModels/ShareDraftViewModelTests.swift
+  s_d236dcbec7210b::t_86becf10fe3563 43-55,186
+Tests/MacParakeetTests/Services/Sharing/ShareBoundaryTests.swift
+  s_d236dcbec7210b::t_86becf10fe3563 89
+  s_d236dcbec7210b::t_458c9091c08f84 90-91
+Sources/MacParakeetCore/Services/Sharing/ShareProjection.swift
+  s_d236dcbec7210b::t_cb5ca0482c5571 10,17,23,91-92
+Sources/MacParakeet/Views/Transcription/SharedSharesView.swift
+  s_d236dcbec7210b::t_86becf10fe3563 175
+Tests/MacParakeetTests/Services/Sharing/ShareProjectionTests.swift
+  s_d236dcbec7210b::t_86becf10fe3563 50,133
+  s_d236dcbec7210b::t_c53a401f5af5e3 56-79,84,187
+  s_d236dcbec7210b::t_ddd25d81514cdd 134-135,167-169,185-186
+Tests/MacParakeetTests/Services/Sharing/ShareCoordinatorTestSupport.swift
+  s_d236dcbec7210b::t_96acfc9d7f7ca2 31
+Tests/MacParakeetTests/Services/Sharing/ShareCoordinatorTests.swift
+  s_d236dcbec7210b::t_ded7a29fc66733 89-90,108-109,144-145,183-184,218-225,246-253,348-382,820
+  s_d236dcbec7210b::t_75b9b1636f14ee 200-217,226-245,254-263,383,641
+  s_d236dcbec7210b::t_96acfc9d7f7ca2 31,34,86,105,138,171-172,174,194,684,731
+  s_d236dcbec7210b::t_81a22eb34e813d 384
+spec/contracts/share-link-bundle-v1.md
+  s_d236dcbec7210b::t_86becf10fe3563 123
+Sources/MacParakeetViewModels/ShareDraftViewModel.swift
+  s_d236dcbec7210b::t_cb5ca0482c5571 53,57
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_d236dcbec7210b::t_cb5ca0482c5571 1002,3059,4880,4892-4895
+Tests/MacParakeetTests/Services/Sharing/ShareLinkContractTests.swift
+  s_d236dcbec7210b::t_cb5ca0482c5571 122-124
+Sources/MacParakeetViewModels/ShareManagementViewModel.swift
+  s_d236dcbec7210b::t_86becf10fe3563 233
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3c52c573069c3db64bfb2c44658337611e43506e",
+  "prompts": {},
+  "sessions": {
+    "s_d236dcbec7210b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0929e-d77e-7bb2-8fd3-0401a6a7b54b",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
