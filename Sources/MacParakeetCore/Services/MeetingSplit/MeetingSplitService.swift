@@ -45,8 +45,12 @@ public struct MeetingSplitPreview: Sendable, Equatable, Codable {
     public let sourceTitle: String
     public let totalDurationMs: Int
     public let ranges: [MeetingSplitSourceRange]
+    /// Source track availability requires both the file and its alignment.
+    /// Individual parts receive only the overlapping audio. Missing optional
+    /// tracks never block canonical playback splitting.
     public let hasRawMicrophone: Bool
     public let hasRawSystem: Bool
+    /// Uses microphone alignment, but does not require the raw file to remain.
     public let hasCleanedMicrophone: Bool
     /// Caller-observed media/source identity captured at preview time. Pass
     /// this back into `createAndProcess(expectedSourceIdentity:)` to require
@@ -295,14 +299,30 @@ public final class MeetingSplitService: MeetingSplitServicing, @unchecked Sendab
         let ranges = cutPointsMs.isEmpty
             ? [MeetingSplitSourceRange(startMs: 0, endMs: inspection.durationMs)]
             : try MeetingSplitGeometry.ranges(durationMs: inspection.durationMs, cutPointsMs: cutPointsMs)
+        // `inspection.hasRaw*` only proves the file exists; export of that
+        // track additionally requires a usable alignment (`finishCreating`
+        // omits any optional track whose `sourceAlignment` entry is nil, see
+        // `transcribeChild`'s and `sliceOptionalTrack`'s own gating). Missing
+        // or corrupt metadata must never block splitting itself — it only
+        // narrows these capability flags to canonical-only, exactly like the
+        // export path's own `try?` fallback.
+        let sourceAlignment = (try? MeetingRecordingMetadataStore.load(from: folderURL, fileManager: fileManager))?.sourceAlignment
+            ?? MeetingSourceAlignment(meetingOriginHostTime: nil, microphone: nil, system: nil)
+        let hasRawMicrophone = inspection.hasRawMicrophone && sourceAlignment.microphone != nil
+        let hasRawSystem = inspection.hasRawSystem && sourceAlignment.system != nil
+        // The cleaned mic is rendered 1:1 with the raw mic and shares its
+        // alignment (see `finishCreating`'s `alignmentTrack`/`sliceOptionalTrack`
+        // calls for the cleaned file), so its usability gates on the same
+        // microphone alignment entry, not a separate one of its own.
+        let hasCleanedMicrophone = inspection.hasCleanedMicrophone && sourceAlignment.microphone != nil
         return MeetingSplitPreview(
             sourceId: source.id,
             sourceTitle: source.effectiveDisplayTitle,
             totalDurationMs: inspection.durationMs,
             ranges: ranges,
-            hasRawMicrophone: inspection.hasRawMicrophone,
-            hasRawSystem: inspection.hasRawSystem,
-            hasCleanedMicrophone: inspection.hasCleanedMicrophone,
+            hasRawMicrophone: hasRawMicrophone,
+            hasRawSystem: hasRawSystem,
+            hasCleanedMicrophone: hasCleanedMicrophone,
             sourceIdentity: try Self.encodedIdentity(MeetingSplitSourceIdentity(source: source, inspection: inspection))
         )
     }
@@ -607,16 +627,47 @@ public final class MeetingSplitService: MeetingSplitServicing, @unchecked Sendab
             throw MeetingSplitRepositoryError.operationNotCommitted(current: initialOperation.status)
         }
         var operation = initialOperation
-        var finished = false
-        defer {
-            if !finished {
-                for progress in operation.childProgress
-                where progress.stage != .automationCompleted && progress.outcome == .none {
-                    _ = try? splitRepo.markChildCancelled(
-                        operationId: operation.id, childId: progress.childId, now: Date())
+        do {
+            try await runProcessingLoop(operation: &operation, onProgress: onProgress)
+        } catch {
+            // Settle every unfinished sibling truthfully instead of silently
+            // leaving it "processing" forever. A genuine `CancellationError`
+            // (explicit stop; the in-flight child already marked itself
+            // cancelled above before rethrowing) marks the rest `.cancelled`,
+            // still retryable. Anything else — for example a fatal,
+            // non-cancellation repository fault escaping the per-child
+            // handling above (a `markChild*` call itself failing) — marks
+            // them `.failed` with that same error's message instead, so a
+            // real fault is never relabeled as a deliberate stop. Never
+            // touches an already-`.automationCompleted` stage, and never
+            // masks the original error: it is always rethrown below.
+            let isCancellation = error is CancellationError
+            for progress in operation.childProgress
+            where progress.stage != .automationCompleted && progress.outcome == .none {
+                if isCancellation {
+                    _ = try? splitRepo.markChildCancelled(operationId: operation.id, childId: progress.childId, now: Date())
+                } else {
+                    _ = try? splitRepo.markChildFailed(
+                        operationId: operation.id, childId: progress.childId,
+                        errorMessage: error.localizedDescription, now: Date()
+                    )
                 }
             }
+            throw error
         }
+        return operation
+    }
+
+    /// The actual per-child loop, factored out only so `processAll` can wrap
+    /// it in one `do`/`catch` that settles every unfinished sibling on any
+    /// escape (see `processAll`). `operation` is `inout`: Swift's copy-in
+    /// copy-out parameter passing writes it back to the caller on *every*
+    /// exit, including a thrown error, so the catch above always observes
+    /// this loop's most recent persisted state, never a stale snapshot.
+    private func runProcessingLoop(
+        operation: inout MeetingSplitOperation,
+        onProgress: (@Sendable (MeetingSplitProcessingProgress) -> Void)?
+    ) async throws {
         for (index, childId) in operation.childIds.enumerated() {
             // Explicit cancellation stops starting further children; already
             // published audio and any completed stages are left untouched,
@@ -700,9 +751,6 @@ public final class MeetingSplitService: MeetingSplitServicing, @unchecked Sendab
                 continue
             }
         }
-
-        finished = true
-        return operation
     }
 
     /// Reuses the existing saved-audio speech methods, choosing the route by

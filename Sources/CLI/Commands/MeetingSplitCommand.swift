@@ -1,5 +1,7 @@
 import ArgumentParser
 import CryptoKit
+import Darwin
+import Dispatch
 import Foundation
 import MacParakeetCore
 
@@ -91,7 +93,10 @@ extension MeetingsCommand.SplitSubcommand {
                 same audio parts and processing progress are reused, never duplicated. Use \
                 `meetings split resume` after changing nothing but retrying a prior failure. A \
                 committed retry works even after the original recording has been deleted, as long as \
-                --key (or the same default arguments) identify the same operation.
+                --key (or the same default arguments) identify the same operation. A discarded \
+                operation's --key is a permanent tombstone: retry with a fresh --key, not the \
+                original one. Interrupted by Ctrl-C (SIGINT): finishes settling in-flight work \
+                before exiting 130; already-published parts and their completed stages are kept.
                 """
         )
 
@@ -167,14 +172,25 @@ extension MeetingsCommand.SplitSubcommand {
                 let service = makeMeetingSplitService(dbManager: dbManager, transcriptionRepo: transcriptionRepo)
 
                 let idempotencyKey = key ?? Self.defaultIdempotencyKey(sourceId: sourceId, cuts: cut, titles: title)
-                let operation = try await service.createAndProcess(
-                    idempotencyKey: idempotencyKey,
-                    sourceId: sourceId,
-                    cutPointsMs: cut,
-                    titles: title,
-                    expectedSourceIdentity: expectedIdentity,
-                    onProgress: splitProgressToStderr
-                )
+                let operation: MeetingSplitOperation
+                do {
+                    operation = try await withSIGINTCooperativeCancellation {
+                        try await withStandardOutputRedirectedToStandardError {
+                            try await service.createAndProcess(
+                                idempotencyKey: idempotencyKey,
+                                sourceId: sourceId,
+                                cutPointsMs: cut,
+                                titles: title,
+                                expectedSourceIdentity: expectedIdentity,
+                                onProgress: splitProgressToStderr
+                            )
+                        }
+                    }
+                } catch is CancellationError {
+                    throw ExitCode(130)
+                } catch MeetingSplitRepositoryError.operationNotCommitted(.discarded) {
+                    throw MeetingSplitRetryGuidanceError.discardedKeyIsATombstone(idempotencyKey: idempotencyKey)
+                }
 
                 if envelope {
                     try printEnvelope(command: "meetings split create", data: operation)
@@ -300,7 +316,11 @@ extension MeetingsCommand.SplitSubcommand {
             abstract: "Resume processing a committed split operation without recreating audio.",
             discussion: """
                 Retries only unfinished/failed children; completed transcripts and automation are \
-                never repeated. Explicit cancellation of a prior run leaves unstarted parts retryable.
+                never repeated. Explicit cancellation of a prior run leaves unstarted parts retryable. \
+                Only accepts a committed operation: if it never finished creating (still preparing), \
+                rerun `meetings split create` with the original arguments instead, which is safe to \
+                repeat; a discarded operation cannot be resumed at all. Interrupted by Ctrl-C (SIGINT): \
+                finishes settling in-flight work before exiting 130.
                 """
         )
 
@@ -330,7 +350,20 @@ extension MeetingsCommand.SplitSubcommand {
                 let service = makeMeetingSplitService(dbManager: dbManager, transcriptionRepo: transcriptionRepo)
                 let uuid = try parsedOperationId(operationId)
 
-                let operation = try await service.resumeProcessing(operationId: uuid, onProgress: splitProgressToStderr)
+                let operation: MeetingSplitOperation
+                do {
+                    operation = try await withSIGINTCooperativeCancellation {
+                        try await withStandardOutputRedirectedToStandardError {
+                            try await service.resumeProcessing(operationId: uuid, onProgress: splitProgressToStderr)
+                        }
+                    }
+                } catch is CancellationError {
+                    throw ExitCode(130)
+                } catch MeetingSplitRepositoryError.operationNotCommitted(.preparing) {
+                    throw MeetingSplitRetryGuidanceError.stillPreparingRerunCreate(operationId: uuid)
+                } catch MeetingSplitRepositoryError.operationNotCommitted(.discarded) {
+                    throw MeetingSplitRetryGuidanceError.discardedOperationCannotResume(operationId: uuid)
+                }
 
                 if envelope {
                     try printEnvelope(command: "meetings split resume", data: operation)
@@ -352,7 +385,11 @@ extension MeetingsCommand.SplitSubcommand {
         static let configuration = CommandConfiguration(
             commandName: "discard",
             abstract: "Abandon a not-yet-published split operation and remove its unpublished output.",
-            discussion: "Refused once the operation has committed audio parts; committed splits cannot be undone."
+            discussion: """
+                Refused once the operation has committed audio parts; committed splits cannot be \
+                undone. A discarded operation's --key is a permanent tombstone: to retry, rerun \
+                `meetings split create` with a fresh --key (the same original --key will not work).
+                """
         )
 
         @Argument(help: "The split operation UUID.")
@@ -393,6 +430,76 @@ extension MeetingsCommand.SplitSubcommand {
                 }
                 print("Discarded split operation \(operation.id).")
             }
+        }
+    }
+}
+
+// MARK: - Cooperative SIGINT cancellation
+
+/// Installs a SIGINT (Ctrl-C) handler for the duration of `operation`,
+/// cancelling `operation`'s own `Task` instead of letting the default
+/// terminate-on-SIGINT disposition kill the process outright. Cancellation
+/// is cooperative: this only sets the task's cancellation flag and then
+/// awaits it, so a split already mid-write (see
+/// `MeetingSplitService.processAll`) finishes settling — marking the
+/// in-flight child cancelled and leaving every other completed stage intact
+/// — before this function returns. Callers translate the resulting
+/// `CancellationError` into `ExitCode(130)` themselves, mirroring the
+/// existing convention (see `CardsCommand`). Restores whatever SIGINT
+/// disposition was active before this call once `operation` finishes, so it
+/// never leaks past this one command.
+func withSIGINTCooperativeCancellation<T: Sendable>(
+    _ operation: @escaping @Sendable () async throws -> T
+) async throws -> T {
+    let task = Task { try await operation() }
+    let signalSource = DispatchSource.makeSignalSource(signal: SIGINT, queue: .global())
+    // Disable the default terminate-on-SIGINT disposition first: left in
+    // place, the signal's default action can still terminate the process
+    // before the dispatch source below ever gets a chance to fire.
+    let previousDisposition = signal(SIGINT, SIG_IGN)
+    signalSource.setEventHandler { task.cancel() }
+    signalSource.resume()
+    defer {
+        signalSource.cancel()
+        signal(SIGINT, previousDisposition)
+    }
+    let value = try await task.value
+    guard !task.isCancelled else { throw CancellationError() }
+    return value
+}
+
+// MARK: - Retry guidance for a non-committed operation
+
+/// `MeetingSplitRepositoryError.operationNotCommitted` fires identically
+/// whether reached via a `create` retry of a discarded idempotency key or a
+/// `resume` of an operation that never finished creating. This replaces that
+/// generic status message with the one actionable next step, without
+/// changing the underlying repository's terminal/idempotency semantics: a
+/// discarded operation stays permanently discarded, and `resume` still
+/// refuses anything but `.committed`.
+enum MeetingSplitRetryGuidanceError: Error, Equatable, LocalizedError {
+    case discardedKeyIsATombstone(idempotencyKey: String)
+    case discardedOperationCannotResume(operationId: UUID)
+    case stillPreparingRerunCreate(operationId: UUID)
+
+    var errorDescription: String? {
+        switch self {
+        case .discardedKeyIsATombstone(let idempotencyKey):
+            return """
+                Idempotency key '\(idempotencyKey)' was already discarded; a discarded key is a \
+                permanent tombstone. Retry with a fresh --key (the same source/cuts/titles).
+                """
+        case .discardedOperationCannotResume(let operationId):
+            return """
+                Split operation \(operationId) was discarded and cannot be resumed. Retry with \
+                `meetings split create` and a fresh --key instead.
+                """
+        case .stillPreparingRerunCreate(let operationId):
+            return """
+                Split operation \(operationId) never finished creating (still preparing). `resume` \
+                only retries committed operations; rerun `meetings split create` with the original \
+                arguments instead — safe to repeat.
+                """
         }
     }
 }
@@ -526,9 +633,22 @@ private func makeMeetingSplitService(
         splitRepo: splitRepo,
         transcriptionService: transcriptionService,
         completionService: completionService,
+        meetingRecordingsRootURL: { splitMeetingRecordingsRootURL(defaults: defaults) },
         retentionConfig: { UserDefaultsAppRuntimePreferences.meetingAudioRetention(defaults: defaults, persistMigration: false) },
         speechEngineSelection: { SpeechEngineSelection.finalTranscription(defaults: defaults) }
     )
+}
+
+/// The meeting-recordings root this CLI process should create/resume/discard
+/// splits under: the same `meetingArtifactsFolder`/DEBUG-state-dir resolution
+/// `AppPaths.meetingRecordingsDir` uses, but scoped to `defaults` (the CLI's
+/// own resolved preferences domain from `AppPaths.appDefaults()`, not always
+/// `.standard`) so a non-default folder preference set in that domain is
+/// honored here too. Without this, `MeetingSplitService`'s own default falls
+/// back to `.standard`, which is the wrong domain for a standalone CLI
+/// process reading the app's shared suite.
+func splitMeetingRecordingsRootURL(defaults: UserDefaults) -> URL {
+    URL(fileURLWithPath: AppPaths.configuredMeetingRecordingsDir(defaults: defaults), isDirectory: true)
 }
 
 // MARK: - Human-readable printing
@@ -542,6 +662,9 @@ private func printSplitPreview(_ preview: MeetingSplitPreview) {
             + (preview.hasRawSystem ? " + system" : "")
             + (preview.hasCleanedMicrophone ? " + cleaned-microphone" : "")
     )
+    if !preview.hasRawMicrophone && !preview.hasRawSystem && !preview.hasCleanedMicrophone {
+        print("  (canonical playback only: no raw/cleaned track has both its file and usable alignment metadata)")
+    }
     for (index, range) in preview.ranges.enumerated() {
         print("  Part \(index + 1): [\(range.startMs)ms, \(range.endMs)ms) — \(range.durationMs)ms")
     }

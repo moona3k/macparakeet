@@ -98,7 +98,25 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   and idempotent retry (including after the original recording has been
   deleted, once committed); `status --source` accepts an exact source UUID
   even after that recording is gone. A completed operation with any failed
-  child still prints its full result, then exits non-zero.
+  child still prints its full result, then exits non-zero. `create`/`resume`
+  honor Ctrl-C (SIGINT): in-flight work finishes settling before the process
+  exits `130`, per the CLI's existing exit-code contract.
+
+### Fixed
+
+- `meetings split create`/`resume` now resolve the meeting-recordings root
+  from the CLI's own shared app preferences domain instead of always
+  `.standard`, so a non-default `meetingArtifactsFolder` preference is
+  honored.
+- `meetings split preview`'s `hasRawMicrophone`/`hasRawSystem`/
+  `hasCleanedMicrophone` now describe whether that track will actually be
+  exported (file *and* usable alignment metadata), not merely whether the
+  file exists on disk.
+- `meetings split create` retrying an already-discarded idempotency key, and
+  `meetings split resume` of a discarded or still-preparing operation, now
+  surface a specific actionable message (a discarded key/operation needs a
+  fresh `--key`; a still-preparing operation should be retried with `create`)
+  instead of a generic status error.
 
 ## [4.0.0] — 2026-09-07
 

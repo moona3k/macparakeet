@@ -638,10 +638,19 @@ instead. Both `create` and `status --source` accept an exact source UUID even
 after that recording has been deleted, for retrying/discovering a committed
 split. `status --source` finds every split operation recorded for a meeting,
 which matters if a process died before returning an operation id. `resume`
-retries only unfinished/failed parts without recreating audio. `discard`
-abandons a not-yet-published operation and is refused once audio has
-committed. A completed operation with any failed part still prints its full
-result, then exits non-zero. This CLI slice follows the shared saved
+retries only unfinished/failed parts without recreating audio and only
+accepts a committed operation; if it never finished creating, rerun `create`
+with the original arguments instead. `discard` abandons a not-yet-published
+operation and is refused once audio has committed; a discarded operation's
+`--key` is a permanent tombstone, so retrying needs a fresh `--key`. A
+completed operation with any failed part still prints its full result, then
+exits non-zero. Ctrl-C during `create`/`resume` finishes settling in-flight
+work (completed stages are kept) before exiting `130`. Preview's
+`hasRawMicrophone`/`hasRawSystem`/`hasCleanedMicrophone` describe whether
+that track will actually be exported — both the file and usable alignment
+metadata are required — not merely whether the file exists; missing or
+corrupt metadata never blocks splitting, every part still gets full
+canonical playback audio. This CLI slice follows the shared saved
 speech-engine and meeting speaker-detection preferences rather than exposing
 per-invocation engine/model override flags.
 

@@ -166,12 +166,27 @@ native UI would call the same one.
   should use instead of a bare capture-lock check.
 - **Exclusive, positively-verified child folders.**
   `MeetingSplitChildFolderClaim` (`MeetingSplitChildFolderClaim.swift`) claims
-  each child's destination folder (fresh creation, or reclaiming an
-  interrupted earlier attempt at the *same* operation/child) and writes a
-  small marker file recording that operation/child id. Discard, and any
-  future retry, only ever removes a folder whose marker positively matches;
-  unexpected existing content (a symlink, a folder with no marker or a
-  different one) is left untouched.
+  each child's destination folder. It never creates the marker file inside
+  the final destination itself: it first builds a fully marked folder at a
+  fresh, exclusively created sibling scratch path, then publishes it to
+  the final destination with one exclusive atomic rename (`renamex_np` with
+  `RENAME_EXCL`, which fails rather than overwriting an existing destination).
+  This means the final path can never be observed half-claimed — created but
+  not yet marked — after a crash between those two steps: it is either
+  absent, or it is exactly this operation/child's own fully marked folder.
+  When the final path already exists, it is reclaimed (removed and the
+  scratch folder published in its place) only when it positively carries
+  this *same* operation/child's own marker, i.e. an interrupted earlier
+  attempt at this same claim. Discard, and any future retry, only ever
+  removes a folder whose marker positively matches; unexpected existing
+  content (a symlink, a folder with no marker or a different one) is left
+  untouched and the private scratch folder is removed rather than left
+  behind unpublished.
+  Pre-existing scratch content is never removed merely because its name
+  resembles an operation. A process crash before the rename can leave a
+  small scratch directory containing at most the ownership marker, never
+  audio. A fresh attempt uses another scratch name and cannot be blocked by
+  that unmarked residue. There is no name-based cleanup sweep.
 - **Pre-export snapshot, not a re-fetch.** `finishCreating` captures the
   source's `MeetingSplitSourceSnapshot` once, before export begins, and
   passes that exact snapshot to `MeetingSplitRepository.publish`; it never
@@ -188,7 +203,13 @@ native UI would call the same one.
   children. Successful work stays intact; unstarted and failed first
   transcriptions become visibly retryable rather than remaining "processing".
   A transcript persisted just before interruption remains successful even if
-  the operation's stage update lagged behind it.
+  the operation's stage update lagged behind it. If any error escapes this
+  per-child handling (for example a fatal, non-cancellation repository fault),
+  every not-yet-finished sibling is still settled best-effort, but truthfully:
+  a genuine `CancellationError` marks them `.cancelled`, while anything else
+  marks them `.failed` with that same error's message — a real fault is never
+  relabeled as a deliberate stop — and the original error always propagates
+  to the caller regardless.
 - **CLI specifics.** `create --dry-run` uses the same read-only,
   non-migrating `DatabaseManager(readOnlyPath:)` as `preview`, for the entire
   dry-run branch. Preview does not construct STT/LLM services or migrate
@@ -205,11 +226,42 @@ native UI would call the same one.
   with any child `outcome == .failed` still prints the full operation, then
   exits non-zero (`ExitCode.failure`) so an automated caller cannot mistake a
   partial failure for total success without inspecting every child.
+  `create`/`resume` redirect process-wide stdout to stderr for the duration of
+  their own `createAndProcess`/`resumeProcessing` call (mirroring
+  `retranscribe`), so a native model runtime writing diagnostics directly to
+  stdout can never corrupt the CLI's own JSON/plain-text payload; the final
+  `printJSON`/envelope call itself always runs after that redirect is
+  restored. Ctrl-C (SIGINT) during `create`/`resume` cooperatively cancels
+  the in-flight `Task` instead of terminating the process outright: it waits
+  for the split's own cancellation handling to settle (leaving completed
+  stages intact and the in-flight child `.cancelled`) before exiting `130`,
+  the same interrupted-by-SIGINT exit code documented for the rest of the
+  CLI.
+  A `create` retry of an already-`.discarded` idempotency key, and a
+  `resume` of an operation that is `.discarded` or still `.preparing` (never
+  finished creating), all surface a specific actionable message instead of a
+  generic status string: a discarded key/operation is a permanent tombstone
+  requiring a fresh `--key`; a still-`.preparing` operation should be retried
+  with `create` (using the original arguments) rather than `resume`. None of
+  this changes the underlying repository's terminal/idempotency semantics.
 - **Saved settings.** CLI processing reads the app's shared defaults, uses
   Final Transcription selection and saved model variants, meeting speaker
   detection, and enabled formatting/title/completion settings. Canonical-only
   audio uses the meeting speaker preference, not the file preference.
   Per-invocation engine/model overrides are not part of the split interface.
+  The meeting-recordings root used to create/resume/discard splits is
+  resolved from that same shared defaults domain (`AppPaths.appDefaults()`),
+  honoring a non-default `meetingArtifactsFolder` preference and any DEBUG
+  state-dir override exactly like `AppPaths.meetingRecordingsDir` — never
+  `.standard`, which would be the wrong domain for a standalone CLI process.
+- **Preview capability flags describe actual export capability, not just
+  file presence.** `hasRawMicrophone`/`hasRawSystem`/`hasCleanedMicrophone`
+  are `true` only when both the source file exists *and* the source's own
+  recording metadata carries a usable alignment for that track — exactly the
+  same gate `createAndProcess`'s export step itself applies. Missing or
+  corrupt metadata never blocks splitting; it only narrows these flags (and
+  therefore the actual exported tracks) to canonical-only, since every part
+  always gets full canonical playback audio regardless.
 
 ### Native task and recovery boundary
 

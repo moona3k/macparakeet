@@ -1,5 +1,7 @@
 import ArgumentParser
 import AVFoundation
+import Darwin
+import Foundation
 import XCTest
 @testable import CLI
 @testable import MacParakeetCore
@@ -324,6 +326,185 @@ final class MeetingSplitCommandTests: XCTestCase {
         let output = try await captureStandardOutput { try await command.run() }
         let decoded = try Self.cliJSONDecoder.decode([MeetingSplitOperation].self, from: Data(output.utf8))
         XCTAssertEqual(decoded.count, 2)
+    }
+
+    // MARK: - Meeting-recordings root honors the CLI's own resolved defaults domain
+
+    /// The CLI factory must resolve the split destination root from *its
+    /// own* resolved preferences domain (`AppPaths.appDefaults()`), not
+    /// `.standard` — otherwise a non-default `meetingArtifactsFolder`
+    /// preference set in the app's shared suite is silently ignored by a
+    /// standalone CLI process. Uses an isolated `UserDefaults` suite, never
+    /// the real app preferences domain.
+    func testSplitMeetingRecordingsRootURLHonorsACustomAppDefaultsFolderPreference() throws {
+        let suiteName = "meeting-split-root-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let customFolder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("custom-meeting-recordings-\(UUID().uuidString)").path
+        defaults.set(customFolder, forKey: AppPaths.meetingArtifactsFolderKey)
+
+        let rootURL = splitMeetingRecordingsRootURL(defaults: defaults)
+
+        XCTAssertEqual(rootURL.path, customFolder)
+    }
+
+    /// With no folder preference set on this isolated suite, the CLI's root
+    /// must still delegate to the exact same resolution
+    /// `AppPaths.configuredMeetingRecordingsDir(defaults:)` performs (which
+    /// itself owns the default-path/DEBUG-override fallback), never a
+    /// separately reimplemented default.
+    func testSplitMeetingRecordingsRootURLFallsBackToTheSharedDefaultResolution() throws {
+        let suiteName = "meeting-split-root-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let rootURL = splitMeetingRecordingsRootURL(defaults: defaults)
+
+        XCTAssertEqual(rootURL.path, AppPaths.configuredMeetingRecordingsDir(defaults: defaults))
+    }
+
+    // MARK: - Retry guidance messages
+
+    func testRetryGuidanceErrorMessagesNameTheActionableNextCommand() {
+        let key = "cli-split:deadbeef"
+        let operationId = UUID()
+
+        XCTAssertTrue(
+            MeetingSplitRetryGuidanceError.discardedKeyIsATombstone(idempotencyKey: key)
+                .errorDescription!.contains("fresh --key")
+        )
+        XCTAssertTrue(
+            MeetingSplitRetryGuidanceError.discardedOperationCannotResume(operationId: operationId)
+                .errorDescription!.contains("meetings split create")
+        )
+        XCTAssertTrue(
+            MeetingSplitRetryGuidanceError.stillPreparingRerunCreate(operationId: operationId)
+                .errorDescription!.contains("meetings split create")
+        )
+    }
+
+    // MARK: - Cooperative SIGINT / stdout-redirect composition (no STT)
+
+    /// `create`/`resume` compose `withSIGINTCooperativeCancellation` around
+    /// `withStandardOutputRedirectedToStandardError` in that exact nesting
+    /// order; this exercises that same composition directly with a
+    /// lightweight synthetic operation instead of a real STT call, proving
+    /// stdout stays clean while the composed wrapper is active and the
+    /// wrapped value still flows through normally.
+    func testStandardOutputStaysRedirectedWhileTheSIGINTWrapperIsActive() async throws {
+        var sawInnerValue = false
+        let output = try await captureStandardOutput {
+            let value = try await withSIGINTCooperativeCancellation {
+                try await withStandardOutputRedirectedToStandardError {
+                    print("a native model runtime writing straight to stdout must never reach the CLI payload")
+                    return 42
+                }
+            }
+            sawInnerValue = value == 42
+        }
+        XCTAssertTrue(sawInnerValue)
+        XCTAssertTrue(output.isEmpty, "stdout must stay clean for the whole duration of the composed wrapper")
+    }
+
+    func testSIGINTWrapperPropagatesTheWrappedOperationsOwnThrownError() async {
+        struct SentinelError: Error, Equatable {}
+        do {
+            let _: Int = try await withSIGINTCooperativeCancellation {
+                throw SentinelError()
+            }
+            XCTFail("expected the wrapped operation's own error to propagate")
+        } catch {
+            XCTAssertEqual(error as? SentinelError, SentinelError())
+        }
+    }
+
+    // MARK: - Real SIGINT delivery (opt-in; isolated child xctest process)
+
+    private static let sigintChildStartedMarkerEnvironmentKey = "MACPARAKEET_SPLIT_SIGINT_CHILD_MARKER"
+
+    /// Heavy, environment-sensitive end-to-end check: spawns a *separate*
+    /// child `xctest` process running only
+    /// `testSIGINTHelperChildProcessCancelsCooperativelyAndExits130` below,
+    /// waits for it to signal it has installed the SIGINT handler, sends it
+    /// a real `SIGINT`, and asserts *that child process* — never this test
+    /// runner, the host, or any unrelated process — exits `130` rather than
+    /// being abruptly terminated by the default disposition. Opt-in, mirroring
+    /// `MeetingRecordingCrashRecoveryTests`'s own kill-9 integration test. Run
+    /// with: MACPARAKEET_SPLIT_SIGINT_TESTS=1 swift test
+    func testSIGINTCooperativelyCancelsAndExits130InAnIsolatedChildProcess() async throws {
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["MACPARAKEET_SPLIT_SIGINT_TESTS"] == "1",
+            "Set MACPARAKEET_SPLIT_SIGINT_TESTS=1 to run the real-SIGINT integration test."
+        )
+
+        let markerPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("split-sigint-started-\(UUID().uuidString)").path
+        defer { try? FileManager.default.removeItem(atPath: markerPath) }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+        process.arguments = [
+            "xctest",
+            "-XCTest",
+            "CLITests.MeetingSplitCommandTests/testSIGINTHelperChildProcessCancelsCooperativelyAndExits130",
+            Bundle(for: Self.self).bundleURL.path,
+        ]
+        process.environment = ProcessInfo.processInfo.environment.merging([
+            Self.sigintChildStartedMarkerEnvironmentKey: markerPath,
+        ]) { _, new in new }
+
+        try process.run()
+        try await waitForFile(atPath: markerPath)
+        // A short buffer after the marker appears: the child writes it
+        // immediately before installing the SIGINT handler, so this only
+        // guards against the sub-millisecond gap between those two
+        // statements, never a real wait for slow work.
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertEqual(kill(process.processIdentifier, SIGINT), 0)
+        process.waitUntilExit()
+
+        XCTAssertEqual(
+            process.terminationStatus, 130,
+            "SIGINT must cooperatively cancel and exit 130, never the default abrupt termination"
+        )
+    }
+
+    /// Inert (returns immediately) unless invoked as the targeted child
+    /// process above with its marker-path environment variable set. Installs
+    /// the real SIGINT handler via `withSIGINTCooperativeCancellation`
+    /// around a long cooperative loop, mirroring `create`/`resume`'s own
+    /// `catch is CancellationError { throw ExitCode(130) }` — but calls
+    /// `Darwin.exit` directly since this child process is not itself driven
+    /// through the CLI's `main()`/`ArgumentParser` dispatch.
+    func testSIGINTHelperChildProcessCancelsCooperativelyAndExits130() async throws {
+        guard let markerPath = ProcessInfo.processInfo.environment[Self.sigintChildStartedMarkerEnvironmentKey] else {
+            return
+        }
+        FileManager.default.createFile(atPath: markerPath, contents: Data())
+        do {
+            _ = try await withSIGINTCooperativeCancellation { () async throws -> Int in
+                // Even a callee that returns normally after cancellation
+                // drains must not turn Ctrl-C into a successful CLI exit.
+                try? await Task.sleep(for: .seconds(30))
+                return 0
+            }
+        } catch is CancellationError {
+            Darwin.exit(130)
+        }
+        Darwin.exit(1)
+    }
+
+    private struct SIGINTChildTimeoutError: Error {}
+
+    private func waitForFile(atPath path: String, timeoutSeconds: Double = 10) async throws {
+        let startedAt = ContinuousClock.now
+        while !FileManager.default.fileExists(atPath: path) {
+            if startedAt.duration(to: .now) > .seconds(timeoutSeconds) {
+                throw SIGINTChildTimeoutError()
+            }
+            try await Task.sleep(for: .milliseconds(50))
+        }
     }
 
     // MARK: - Helpers

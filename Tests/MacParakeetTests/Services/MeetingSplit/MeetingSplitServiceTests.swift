@@ -38,7 +38,8 @@ final class MeetingSplitServiceTests: XCTestCase {
 
     private func makeService(
         retentionConfig: @escaping @Sendable () -> MeetingAudioRetention = { .make(mode: .keepForever) },
-        destinationRoot: URL? = nil
+        destinationRoot: URL? = nil,
+        splitRepo overrideSplitRepo: MeetingSplitRepositoryProtocol? = nil
     ) -> MeetingSplitService {
         let root = destinationRoot ?? recordingsRoot!
         let completion = SavedAudioAutoPromptCompletionService(
@@ -48,7 +49,7 @@ final class MeetingSplitServiceTests: XCTestCase {
         )
         return MeetingSplitService(
             transcriptionRepo: transcriptions,
-            splitRepo: splitRepo,
+            splitRepo: overrideSplitRepo ?? splitRepo,
             transcriptionService: transcribing,
             completionService: completion,
             meetingRecordingsRootURL: { root },
@@ -285,6 +286,37 @@ final class MeetingSplitServiceTests: XCTestCase {
         XCTAssertEqual(second.outcome, .cancelled)
         XCTAssertNotEqual(second.stage, .automationCompleted)
         XCTAssertEqual(try transcriptions.fetch(id: final.childIds[1])?.status, .error)
+    }
+
+    /// A fatal, non-cancellation repository fault that escapes the per-child
+    /// handling (here: `markChildFailed` itself failing while persisting the
+    /// first child's own ordinary transcription failure) must settle every
+    /// other unfinished sibling as `.failed`, never `.cancelled` — a real
+    /// fault is not a deliberate stop — and the original fault must still
+    /// propagate to the caller, never masked by that settlement.
+    func testFatalNonCancellationRepositoryFaultSettlesSiblingsAsFailedNotCancelledWithoutMaskingTheFault() async throws {
+        let source = try makeSourceMeeting(durationMs: 6_000, withRawTracks: false)
+        transcribing.errorOnCallNumber[1] = LLMError.providerError("boom")
+        let faultyRepo = FaultInjectingSplitRepository(wrapping: splitRepo)
+        let service = makeService(splitRepo: faultyRepo)
+
+        do {
+            _ = try await service.createAndProcess(
+                idempotencyKey: "fatal-repo-fault", sourceId: source.id,
+                cutPointsMs: [2_000, 4_000], titles: ["One", "Two", "Three"]
+            )
+            XCTFail("expected the injected repository fault to propagate")
+        } catch is FaultInjectingSplitRepository.InjectedFault {
+            // Expected: the primary fault is never masked by settlement.
+        }
+
+        let operation = try XCTUnwrap(splitRepo.operation(idempotencyKey: "fatal-repo-fault"))
+        XCTAssertEqual(operation.childProgress.count, 3)
+        XCTAssertTrue(
+            operation.childProgress.allSatisfy { $0.outcome == .failed },
+            "a fatal non-cancellation fault must settle every unfinished sibling as failed"
+        )
+        XCTAssertTrue(operation.childProgress.allSatisfy { $0.outcome != .cancelled })
     }
 
     func testInitialPreviewNeedsNoCutAndCanInspectErroredAudio() async throws {
@@ -686,6 +718,67 @@ final class MeetingSplitServiceTests: XCTestCase {
         XCTAssertEqual(try splitRepo.operations(sourceId: source.id).count, 0, "preview must not create an operation")
     }
 
+    /// The raw files exist on disk, but there is no recording metadata to
+    /// align them: export requires a usable alignment, not merely the file,
+    /// so the capability flags must say so rather than promising a track
+    /// that will never actually be exported.
+    func testPreviewHasRawFlagsAreFalseWhenRawFilesExistButMetadataIsMissing() async throws {
+        let source = try makeSourceMeetingWithRawFilesButUnusableMetadata(durationMs: 6_000, metadataIsCorrupt: false)
+        let service = makeService()
+
+        let preview = try await service.preview(sourceId: source.id, cutPointsMs: [3_000])
+
+        XCTAssertFalse(preview.hasRawMicrophone)
+        XCTAssertFalse(preview.hasRawSystem)
+        XCTAssertFalse(preview.hasCleanedMicrophone)
+    }
+
+    /// A corrupt (unparseable) metadata sidecar must be treated exactly like
+    /// a missing one: canonical-only capability, never a thrown error from
+    /// `preview` itself.
+    func testPreviewHasRawFlagsAreFalseWhenMetadataFileIsCorrupt() async throws {
+        let source = try makeSourceMeetingWithRawFilesButUnusableMetadata(durationMs: 6_000, metadataIsCorrupt: true)
+        let service = makeService()
+
+        let preview = try await service.preview(sourceId: source.id, cutPointsMs: [3_000])
+
+        XCTAssertFalse(preview.hasRawMicrophone)
+        XCTAssertFalse(preview.hasRawSystem)
+        XCTAssertFalse(preview.hasCleanedMicrophone)
+    }
+
+    /// Missing/corrupt metadata must never block splitting itself: every
+    /// part still gets its own successful independent canonical-only export
+    /// and first transcription, even though raw files are physically present
+    /// alongside the source's canonical playback.
+    func testSplitSucceedsCanonicalOnlyWhenRawFilesExistButMetadataIsMissingOrCorrupt() async throws {
+        let source = try makeSourceMeetingWithRawFilesButUnusableMetadata(durationMs: 6_000, metadataIsCorrupt: true)
+        let service = makeService()
+
+        let operation = try await service.createAndProcess(
+            idempotencyKey: "canonical-fallback", sourceId: source.id,
+            cutPointsMs: [3_000], titles: ["One", "Two"]
+        )
+
+        XCTAssertEqual(operation.status, .committed)
+        XCTAssertTrue(operation.childProgress.allSatisfy { $0.stage == .automationCompleted })
+        for childId in operation.childIds {
+            let child = try XCTUnwrap(transcriptions.fetch(id: childId))
+            XCTAssertNotNil(child.rawTranscript, "each part must still receive its own first transcription")
+            let folderURL = try XCTUnwrap(MeetingArtifactStore.sessionFolderURL(for: child))
+            XCTAssertTrue(
+                FileManager.default.fileExists(
+                    atPath: folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.playback).path),
+                "canonical playback must always be exported"
+            )
+            XCTAssertFalse(
+                FileManager.default.fileExists(
+                    atPath: folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.rawMicrophone).path),
+                "no usable alignment means the raw mic track is never exported for any part"
+            )
+        }
+    }
+
     // MARK: - Retention
 
     func testExpiredRetentionRejectsCreation() async throws {
@@ -748,6 +841,48 @@ final class MeetingSplitServiceTests: XCTestCase {
             status: .completed,
             sourceType: .meeting,
             updatedAt: createdAt
+        )
+        try transcriptions.save(transcription)
+        return transcription
+    }
+
+    /// Raw mic/system/cleaned-mic files all physically exist, but the
+    /// recording metadata sidecar that would align them is either entirely
+    /// absent or present-but-unparseable — the two ways a real source can
+    /// end up with no usable alignment despite having raw files on disk.
+    private func makeSourceMeetingWithRawFilesButUnusableMetadata(
+        durationMs: Int, metadataIsCorrupt: Bool
+    ) throws -> Transcription {
+        let folderURL = recordingsRoot.appendingPathComponent("source-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        try writeToneM4A(
+            to: folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.playback),
+            sampleRate: 48_000, durationMs: durationMs
+        )
+        try writeToneM4A(
+            to: folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.rawMicrophone),
+            sampleRate: 48_000, durationMs: durationMs
+        )
+        try writeToneM4A(
+            to: folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.rawSystem),
+            sampleRate: 48_000, durationMs: durationMs
+        )
+        try writeToneM4A(
+            to: folderURL.appendingPathComponent(MeetingArtifactAudioFileNames.cleanedMicrophone),
+            sampleRate: 48_000, durationMs: durationMs
+        )
+        if metadataIsCorrupt {
+            try Data("not valid json".utf8).write(
+                to: folderURL.appendingPathComponent(MeetingRecordingMetadata.fileName))
+        }
+        // else: no metadata sidecar at all.
+
+        let transcription = Transcription(
+            fileName: "Long standup recording",
+            meetingArtifactFolderPath: folderURL.path,
+            durationMs: durationMs,
+            status: .completed,
+            sourceType: .meeting
         )
         try transcriptions.save(transcription)
         return transcription
@@ -961,5 +1096,84 @@ private enum MeetingSplitChildFolderClaimTestSeam {
     static func claim(operationId: UUID, childId: UUID, folderURL: URL, fileManager: FileManager) throws -> URL {
         try MeetingSplitChildFolderClaim.claim(
             operationId: operationId, childId: childId, folderURL: folderURL, fileManager: fileManager)
+    }
+}
+
+/// Wraps a real `MeetingSplitRepositoryProtocol`, injecting one fatal,
+/// non-cancellation fault the Nth time `markChildFailed` is called (default:
+/// the very first call), then delegating every call afterward — including
+/// every later call to `markChildFailed` itself — straight to the wrapped
+/// repository. This reproduces the narrow seam where a real repository fault
+/// can escape `processAll`'s per-child handling: a `markChild*` call made
+/// from *inside* one of its own `catch` blocks throwing, which is not itself
+/// wrapped in a further `do`/`catch`.
+private final class FaultInjectingSplitRepository: MeetingSplitRepositoryProtocol, @unchecked Sendable {
+    struct InjectedFault: Error, Equatable {}
+
+    private let wrapped: MeetingSplitRepositoryProtocol
+    private let failMarkChildFailedOnCallNumber: Int
+    private var markChildFailedCallCount = 0
+
+    init(wrapping wrapped: MeetingSplitRepositoryProtocol, failMarkChildFailedOnCallNumber: Int = 1) {
+        self.wrapped = wrapped
+        self.failMarkChildFailedOnCallNumber = failMarkChildFailedOnCallNumber
+    }
+
+    func begin(idempotencyKey: String, request: MeetingSplitRequest, now: Date) throws -> MeetingSplitOperation {
+        try wrapped.begin(idempotencyKey: idempotencyKey, request: request, now: now)
+    }
+
+    func operation(id: UUID) throws -> MeetingSplitOperation? { try wrapped.operation(id: id) }
+
+    func operation(idempotencyKey: String) throws -> MeetingSplitOperation? {
+        try wrapped.operation(idempotencyKey: idempotencyKey)
+    }
+
+    func operations(sourceId: UUID) throws -> [MeetingSplitOperation] { try wrapped.operations(sourceId: sourceId) }
+
+    func sourceSnapshot(sourceId: UUID) throws -> MeetingSplitSourceSnapshot? {
+        try wrapped.sourceSnapshot(sourceId: sourceId)
+    }
+
+    func discard(operationId: UUID, now: Date) throws -> MeetingSplitOperation {
+        try wrapped.discard(operationId: operationId, now: now)
+    }
+
+    func publish(
+        operationId: UUID, preparedChildren: [MeetingSplitPreparedChild],
+        expectedSource: MeetingSplitSourceSnapshot, now: Date
+    ) throws -> MeetingSplitOperation {
+        try wrapped.publish(
+            operationId: operationId, preparedChildren: preparedChildren, expectedSource: expectedSource, now: now)
+    }
+
+    func markChildTranscriptionStarted(operationId: UUID, childId: UUID, now: Date) throws -> MeetingSplitOperation {
+        try wrapped.markChildTranscriptionStarted(operationId: operationId, childId: childId, now: now)
+    }
+
+    func markChildTranscriptionSucceeded(operationId: UUID, childId: UUID, now: Date) throws -> MeetingSplitOperation {
+        try wrapped.markChildTranscriptionSucceeded(operationId: operationId, childId: childId, now: now)
+    }
+
+    func markChildAutomationStarted(operationId: UUID, childId: UUID, now: Date) throws -> MeetingSplitOperation {
+        try wrapped.markChildAutomationStarted(operationId: operationId, childId: childId, now: now)
+    }
+
+    func markChildAutomationSucceeded(operationId: UUID, childId: UUID, now: Date) throws -> MeetingSplitOperation {
+        try wrapped.markChildAutomationSucceeded(operationId: operationId, childId: childId, now: now)
+    }
+
+    func markChildFailed(
+        operationId: UUID, childId: UUID, errorMessage: String, now: Date
+    ) throws -> MeetingSplitOperation {
+        markChildFailedCallCount += 1
+        if markChildFailedCallCount == failMarkChildFailedOnCallNumber {
+            throw InjectedFault()
+        }
+        return try wrapped.markChildFailed(operationId: operationId, childId: childId, errorMessage: errorMessage, now: now)
+    }
+
+    func markChildCancelled(operationId: UUID, childId: UUID, now: Date) throws -> MeetingSplitOperation {
+        try wrapped.markChildCancelled(operationId: operationId, childId: childId, now: now)
     }
 }
