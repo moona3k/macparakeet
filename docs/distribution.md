@@ -67,12 +67,10 @@ place and require manual cleanup on lock errors.
 LocalVQE build, aligned with the app's `MIN_MACOS_VERSION` (default `14.2`) so
 the shipped `liblocalvqe.dylib` never requires a newer macOS than the app
 advertises support for. `build_app_bundle.sh` propagates its own
-`MIN_MACOS_VERSION` into the auto-prepared build automatically. To pin a
-different deployment target for the LocalVQE runtime specifically (still no
-higher than the app's minimum), set `LOCALVQE_MIN_MACOS_VERSION`; a value
-above the app's minimum is a build error. The runtime cache stamp keys on the
-deployment target, so changing it (or picking up this fix over an older
-cached build) forces a rebuild rather than reusing a stale dylib.
+`MIN_MACOS_VERSION` into the auto-prepared build automatically. The runtime
+cache stamp keys on the deployment target, so changing it (or picking up this
+fix over an older cached build) forces a rebuild rather than reusing a stale
+dylib.
 
 For a deliberately serialized release build, set:
 

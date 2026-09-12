@@ -4,8 +4,8 @@ set -euo pipefail
 # Regression coverage for the LocalVQE deployment-target propagation added to
 # scripts/dist/prepare_meeting_echo_assets.sh: CMAKE_OSX_DEPLOYMENT_TARGET
 # must reach cmake, the runtime cache stamp must key on it so stale (e.g.
-# pre-fix) caches rebuild, and an override above the app's minimum must fail
-# before any tool/network use.
+# pre-fix) caches rebuild, and a malformed app minimum must fail before any
+# tool/network use.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PREPARE_SCRIPT="$ROOT_DIR/scripts/dist/prepare_meeting_echo_assets.sh"
@@ -232,30 +232,11 @@ assert_fail_contains_no_tools() {
 }
 
 assert_fail_contains_no_tools \
-  "override above app minimum is rejected" \
-  "exceeds the app's minimum macOS version" \
-  MACPARAKEET_MEETING_ECHO_APP_MIN_MACOS_VERSION=14.2 LOCALVQE_MIN_MACOS_VERSION=15.0 \
-  MACPARAKEET_MEETING_ECHO_ASSETS_DIR="$TMP_DIR/assets-reject-1" LOCALVQE_SOURCE_DIR="$TMP_DIR/src-reject-1"
-
-# Numeric comparison, not lexical: 14.10 > 14.2.
-assert_fail_contains_no_tools \
-  "numeric override comparison (14.10 > 14.2)" \
-  "exceeds the app's minimum macOS version" \
-  MACPARAKEET_MEETING_ECHO_APP_MIN_MACOS_VERSION=14.2 LOCALVQE_MIN_MACOS_VERSION=14.10 \
-  MACPARAKEET_MEETING_ECHO_ASSETS_DIR="$TMP_DIR/assets-reject-2" LOCALVQE_SOURCE_DIR="$TMP_DIR/src-reject-2"
-
-assert_fail_contains_no_tools \
-  "malformed override is rejected" \
-  "must be a macOS version like 14.2" \
-  LOCALVQE_MIN_MACOS_VERSION=not-a-version \
-  MACPARAKEET_MEETING_ECHO_ASSETS_DIR="$TMP_DIR/assets-reject-3" LOCALVQE_SOURCE_DIR="$TMP_DIR/src-reject-3"
-
-assert_fail_contains_no_tools \
   "malformed app minimum is rejected" \
   "must be a macOS version like 14.2" \
   MACPARAKEET_MEETING_ECHO_APP_MIN_MACOS_VERSION=not-a-version \
   MACPARAKEET_MEETING_ECHO_ASSETS_DIR="$TMP_DIR/assets-reject-4" LOCALVQE_SOURCE_DIR="$TMP_DIR/src-reject-4"
 
-echo "PASS: overrides above the app minimum, and malformed versions, are rejected before tool use"
+echo "PASS: a malformed app minimum is rejected before tool use"
 
 echo "test_prepare_meeting_echo_assets fixture tests passed"
