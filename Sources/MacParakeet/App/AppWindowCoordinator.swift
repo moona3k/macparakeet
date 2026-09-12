@@ -8,10 +8,10 @@ import MacParakeetViewModels
 /// `AppWindowCoordinator`'s large view-model graph so the close/reopen
 /// bookkeeping can be unit tested directly.
 ///
-/// This only decides ownership; it never touches `contentView` or other
-/// window state itself. AppKit is still mid-teardown of a closing window
-/// when `windowWillClose(_:)` runs, so the caller must defer any content
-/// teardown until after that callback returns.
+/// AppKit is still mid-teardown of a closing window when `windowWillClose(_:)`
+/// runs, so this defers the actual `contentView` release until after that
+/// callback returns.
+@MainActor
 struct MainWindowLifecycle {
     private(set) var window: NSWindow?
 
@@ -22,13 +22,25 @@ struct MainWindowLifecycle {
     }
 
     /// Detaches `closingWindow` if it is still the tracked window, so an
-    /// immediate reopen can create a fresh instance. Returns the window whose
-    /// content teardown the caller should defer, or `nil` if `closingWindow`
-    /// is already stale (e.g. a late notification for a window a prior close
-    /// already detached, possibly superseded by a replacement).
+    /// immediate reopen can create a fresh instance, then defers that
+    /// window's content teardown until after AppKit finishes closing it.
+    /// Returns the detached window, or `nil` if `closingWindow` is already
+    /// stale (e.g. a late/duplicate notification for a window a prior close
+    /// already detached, possibly superseded by a replacement) — in which
+    /// case no teardown is scheduled and the replacement is left untouched.
+    @discardableResult
     mutating func windowWillClose(_ closingWindow: NSWindow) -> NSWindow? {
         guard closingWindow === window else { return nil }
         window = nil
+        // Clearing contentView here would tear down the NSHostingView while
+        // AppKit is still walking through this window's own close teardown.
+        // Defer that release until after AppKit finishes. `closingWindow` is
+        // this exact window instance, not a re-read of `window` (which may
+        // already track a replacement from an immediate reopen), so only
+        // this window's content is ever released.
+        DispatchQueue.main.async {
+            closingWindow.contentView = nil
+        }
         return closingWindow
     }
 }
@@ -258,18 +270,8 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow,
-            let closedWindow = mainWindowLifecycle.windowWillClose(window)
+            mainWindowLifecycle.windowWillClose(window) != nil
         else { return }
-        // AppKit is still walking through this window's own close teardown
-        // while this delegate callback runs; clearing contentView here would
-        // tear down the NSHostingView mid-teardown. Defer that release until
-        // after AppKit finishes. `closedWindow` is this exact window instance,
-        // not a re-read of the (possibly already-replaced) tracked window, so
-        // a window created by an immediate reopen is never touched by this
-        // stale cleanup.
-        DispatchQueue.main.async {
-            closedWindow.contentView = nil
-        }
         // Delay slightly so macOS finishes closing the window before we check visibility.
         Task { @MainActor [weak self] in
             self?.hideDockIconIfNeeded()
