@@ -1,0 +1,48 @@
+Sources/MacParakeetCore/Services/Sharing/ShareLink.swift
+  s_d236dcbec7210b::t_0539945d87d8ac 1-154,159-164,168-180
+  s_d236dcbec7210b::t_b63914e63a56a0 155-158,165-167
+  s_d236dcbec7210b::t_760782818268ce 181
+Tests/MacParakeetTests/Services/Sharing/ShareBundleV1Tests.swift
+  s_d236dcbec7210b::t_0539945d87d8ac 1-210
+Tests/MacParakeetTests/Services/Sharing/ShareBoundaryTests.swift
+  s_d236dcbec7210b::t_3668a8650bd560 1-54
+  s_d236dcbec7210b::t_4728c84f8f4f8e 55-58
+spec/contracts/fixtures/share-crypto-v1.json
+  s_d236dcbec7210b::t_0539945d87d8ac 1-22
+Sources/MacParakeetCore/Services/Sharing/ShareBundle.swift
+  s_d236dcbec7210b::t_0539945d87d8ac 1-15,17-59,63-87,92-148,152-262
+  s_d236dcbec7210b::t_b63914e63a56a0 16,60-62,88-91,149-151
+Sources/MacParakeetCore/Services/Sharing/ShareCryptography.swift
+  s_d236dcbec7210b::t_0539945d87d8ac 1-151
+spec/contracts/share-service-v1.md
+  s_d236dcbec7210b::t_666966e5b4956e 99,135-146,154-156,229-230,279
+Tests/MacParakeetTests/Services/Sharing/ShareCryptoEnvelopeTests.swift
+  s_d236dcbec7210b::t_0539945d87d8ac 1-259
+scripts/dev/verify_share_crypto.mjs
+  s_d236dcbec7210b::t_d6175d526894ce 1-29
+spec/contracts/share-link-bundle-v1.md
+  s_d236dcbec7210b::t_a39c02a6152ce7 117,140
+Tests/MacParakeetTests/Services/Sharing/ShareLinkContractTests.swift
+  s_d236dcbec7210b::t_0539945d87d8ac 1-134
+Tests/MacParakeetTests/Services/Sharing/ShareProjectionTests.swift
+  s_d236dcbec7210b::t_0539945d87d8ac 1-223
+Sources/MacParakeetCore/Services/Sharing/ShareProjection.swift
+  s_d236dcbec7210b::t_0539945d87d8ac 1-72,74-218,220-221
+  s_d236dcbec7210b::t_b63914e63a56a0 73,219
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8b61cf7907cca766220e484766354e147c3ed51d",
+  "prompts": {},
+  "sessions": {
+    "s_d236dcbec7210b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0929e-d77e-7bb2-8fd3-0401a6a7b54b",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
