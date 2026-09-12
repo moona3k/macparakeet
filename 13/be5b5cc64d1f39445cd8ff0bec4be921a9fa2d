@@ -1,0 +1,27 @@
+docs/distribution.md
+  s_53c86c470a1866::t_5d0cc5b3af99c7 120-127
+scripts/dist/macho_min_version.sh
+  s_53c86c470a1866::t_d3aa337be0c7ca 70-76,78
+scripts/dist/test_macho_min_version.sh
+  s_53c86c470a1866::t_209e5be877ddb8 124-144
+scripts/dist/test_verify_meeting_echo_assets.sh
+  s_53c86c470a1866::t_b6a3a7d37568aa 205-206,212,214,218-245,287-316
+scripts/dist/verify_meeting_echo_assets.sh
+  s_53c86c470a1866::t_bf3d4b9c294c3a 43-47,50-67,84-88,108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "13be5b5cc64d1f39445cd8ff0bec4be921a9fa2d",
+  "prompts": {},
+  "sessions": {
+    "s_53c86c470a1866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a096a3-db60-7eb1-8f0a-1eb40bd8e15d",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
