@@ -55,6 +55,9 @@ macOS can still show a Keychain authorization dialog in unusual cases such as si
 
 Uninstall or Keychain loss may remove local management and content keys.
 A saved recovery code restores remote management and future publication, not decryption or replacement of pre-recovery content and not lost complete URLs; without it, mandatory expiry is the final bound.
+When no recovery code is configured, the current device credential may add one later.
+Once a recovery code exists, replacing or removing it also requires that current code, so a stolen device credential cannot displace the owner's saved recovery path.
+If the code is lost, the current device can still manage its shares but cannot replace that verifier; after permanently stopping every outstanding share, the app may discard that anonymous owner and enroll a fresh one for future shares.
 Deleting a local source permanently stops its shares and removes their local content keys and content-derived publication metadata once the terminal request is durably queued.
 
 ## Threat model
@@ -64,7 +67,7 @@ Deleting a local source permanently stops its shares and removes their local con
 | Full URL is disclosed | The holder can read and forward the share. Permanent stop limits future fetches; a replacement requires a new share. |
 | Database or object-store dump | The attacker obtains ciphertext and limited operational metadata, not the selected text or fragment key, assuming sound cryptography. |
 | Viewer origin or deployment is compromised | The attacker may exfiltrate fragment keys and plaintext at read time. Harden deployment and state this limitation honestly; CSP cannot make authorized malicious first-party code safe. |
-| Owner token is stolen | The attacker may manage owner shares within its scope but cannot decrypt them without complete URLs. A previously saved recovery token is the only exclusive way to invalidate the stolen token; without one, the owner may race to stop shares but has no guaranteed credential-recovery path. |
+| Owner token is stolen | The attacker may manage owner shares within its scope but cannot decrypt them without complete URLs. If recovery is configured, the device token alone cannot replace or remove its verifier, and the saved recovery token can invalidate the stolen device token. If recovery is absent, the device bearer is full owner compromise and can install its own recovery verifier. |
 | Mac or Keychain state is lost | Saved recovery permits limited management; otherwise links remain accessible only until stop by an operator or mandatory expiry. |
 | Recipient saves a copy | Revocation does not erase it. The UI must never imply digital-rights management or copy prevention. |
 | Anonymous publisher abuses the service | Encrypted text prevents semantic scanning. Enforce text-only schemas, payload and owner quotas, transient rate controls, spend ceilings, a creation kill switch, and read-only service mode. |
@@ -85,7 +88,9 @@ Deployment access is narrowly held and audited because viewer-code integrity is 
 - Public reads stop exactly when authoritative server time reaches `expiresAt` or when a permanent stop commits; cleanup timing never extends access.
 - Superseded, expired, stopped, and unreachable orphan ciphertext is purged from live storage within 24 hours.
 - A deletion-complete receipt is issued only after every known current, prior, and orphan ciphertext object for the share is confirmed absent.
-- Owner-linkable terminal tombstones and content-free audit or abuse cases are removed within 30 days after ciphertext deletion.
+- Owner-linkable terminal tombstones are removed within 30 days after confirmed ciphertext deletion.
+- Content-free abuse cases are removed within 30 days after case creation.
+- Sterile operator-decision audit records are removed within 30 days after the decision.
 - A one-way, owner-unlinked commitment for each accepted locator remains after tombstone deletion solely to enforce permanent non-reuse; it contains no content, timestamp, or management authority.
 - Idempotency receipts and ephemeral keyed or coarse abuse signals last no more than 24 hours.
 - Recipient application request logging is disabled, and raw recipient IPs are not persisted by the application.
@@ -97,7 +102,7 @@ Neither proves erasure from recipient devices or from a provider recovery system
 
 ## Logging and support
 
-Application, edge, APM, crash, diagnostic, and support paths redact or omit complete URLs, locator-bearing paths, fragments, device and recovery credentials, Authorization values, request bodies, ciphertext, decrypted text, source metadata, and recipient identifiers.
+Application, edge, APM, crash, diagnostic, and support paths redact or omit complete URLs, locator-bearing paths, fragments, device and recovery credentials, Authorization and Recovery-Authorization values, request bodies, ciphertext, decrypted text, source metadata, and recipient identifiers.
 Support uses sterile request IDs and lifecycle states.
 No troubleshooting workflow asks a user to paste a full share URL or recovery code.
 

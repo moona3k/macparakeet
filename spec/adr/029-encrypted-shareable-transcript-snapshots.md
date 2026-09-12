@@ -24,6 +24,8 @@ MacParakeet will treat sharing as an explicit encrypted export with its own life
 - The service exposes only active, unexpired ciphertext, begins bounded cleanup on stop or expiry, and enforces a maximum total lifetime of 90 days from original publication.
 - On first use, the app silently creates a random owner bearer credential in a dedicated, non-synchronizing, device-only Keychain namespace.
 - An optional generated recovery code restores management of existing shares and normal publication of new shares; it cannot decrypt or replace pre-recovery content or reconstruct lost links.
+- A device token may configure recovery only while none exists. Replacing or removing an existing verifier also requires the current recovery code, preventing a stolen device token from displacing the saved recovery path.
+- Losing a configured recovery code leaves normal device management intact but permits no in-place reset; after stopping all outstanding shares, the app may enroll a fresh anonymous owner for future shares.
 - Recovery replaces the prior management credential; without a saved recovery code, device-state loss also loses guaranteed early revocation.
 - Stop sharing is permanent and immediately denies future service reads before asynchronous ciphertext cleanup.
 - A stopped or expired locator is never reassigned; after bounded owner-linked retention, only a one-way owner-unlinked reservation remains.

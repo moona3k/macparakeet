@@ -79,8 +79,8 @@ Users need a low-friction way to share only the useful text while preserving Mac
 
 - R14. MacParakeet must generate a random owner credential rather than deriving identity from hardware, network address, or user content.
 - R15. Normal credential storage must not intentionally require biometric, application-password, or onboarding permission access; ordinary signed-app use follows the existing non-synchronizing, device-only Keychain pattern.
-- R16. An optional recovery code may restore management access, but it must not decrypt shared content or reconstruct a lost complete recipient URL.
-- R29. First-share and recovery UI must explain that management is device-bound unless the recovery code is saved. Recovery invalidates prior credentials; a superseded installation stops retrying and marks its records as no longer manageable from that device.
+- R16. An optional recovery code may restore management access, but it must not decrypt shared content or reconstruct a lost complete recipient URL. A device may add recovery only when none exists; replacing or removing it requires proof of the current code.
+- R29. First-share and recovery UI must explain that management is device-bound unless the recovery code is saved. Recovery invalidates prior credentials; a superseded installation stops retrying and marks its records as no longer manageable from that device. Losing a configured code leaves device management intact but provides no in-place recovery reset.
 
 **Revocation and deletion**
 
@@ -203,7 +203,7 @@ Users need a low-friction way to share only the useful text while preserving Mac
 
 - KTD1. **Keep content and service contracts separate.** `share-link-bundle-v1` owns link grammar, authenticated encryption, and the decrypted text shape; `share-service-v1` owns anonymous authority, HTTP resources, lifecycle, and retention. This keeps browser/native interoperability independent from service and UI evolution. (session-settled: user-approved — chosen over one UI-shaped backend contract: the backend must remain lean, flexible, and future-proof.)
 - KTD2. **Use fragment-keyed AES-256-GCM.** The path contains a 128-bit random locator, the fragment contains a 256-bit random content key, and every explicit revision uses a fresh 96-bit nonce with locator and revision bound as authenticated data. This instantiates R5-R8 and R12-R13 without a server-readable key.
-- KTD3. **Separate recipient and owner authority.** A random device bearer token authenticates owner operations, per-share content keys remain in a dedicated device-only Keychain namespace, and optional one-time recovery advances the owner's credential generation. The recovered credential manages all old shares and can publish new ones, but it may replace content only on shares created in its own generation. This instantiates R14-R16 without content escrow, multiple owner contexts, or multiple recovery artifacts.
+- KTD3. **Separate recipient and owner authority.** A random device bearer token authenticates owner operations, per-share content keys remain in a dedicated device-only Keychain namespace, and optional one-time recovery advances the owner's credential generation. Recovery setup is allowed only while absent; replacement or removal also proves and atomically invalidates the current recovery code. The recovered credential manages all old shares and can publish new ones, but it may replace content only on shares created in its own generation. This instantiates R14-R16 without content escrow, multiple simultaneous owner contexts, or multiple recovery artifacts.
 - KTD4. **Persist an ordered local publication ledger and outbox.** GRDB owns remote identity, last confirmed revision, local projection digest, lifecycle receipts, and idempotent pending operations independently from the source row. This is required for R19, R23-R24 and for deletion while offline or during an uncertain create response.
 - KTD5. **Use an isolated Cloudflare share deployment.** A dedicated Worker uses D1 as authoritative lifecycle metadata and private R2 for immutable ciphertext objects; object creation precedes an atomic metadata-pointer update, while stop commits denial before cleanup. A permanent owner-unlinked commitment reserves each accepted locator after ordinary terminal history expires. This follows the existing hosting ecosystem without reusing telemetry consent, storage, credentials, or logs.
 - KTD6. **Serve a small first-party static viewer.** The viewer fetches an active envelope, decrypts and renders locally, and performs all recipient conveniences without third-party assets or telemetry. Deployment integrity remains an explicit trust boundary under R20-R22 and R26-R27.
@@ -338,7 +338,7 @@ The app may merge after it passes against a disposable or staging service, but p
 - **Approach:**
   1. Add non-cascading share and ordered-outbox persistence with the next migration after the implementation branch's current schema.
   2. Wrap the existing Keychain primitive with a dedicated sharing namespace for owner, recovery, and per-share content keys; do not couple sharing to licensing identifiers.
-  3. Implement a transport adapter for capabilities, owner enrollment, later recovery-code setup or replacement, recovery, reconciliation, create, update, expiry, and terminal delete.
+  3. Implement a transport adapter for capabilities, owner enrollment, absence-guarded later recovery-code setup, proof-backed replacement or removal, recovery, reconciliation, create, update, expiry, and terminal delete.
   4. Make the coordinator retain idempotency keys, reconcile uncertain outcomes, serialize operations per share, and expose confirmed versus pending state.
 - **Execution note:** Start with repository and coordinator failure-path tests because deletion and lost-response ordering are the durable safety boundary.
 - **Test scenarios:**
@@ -346,7 +346,9 @@ The app may merge after it passes against a disposable or staging service, but p
   - A 30-day default succeeds, the exact 90-day boundary succeeds, a later instant fails, and content updates never move `maxExpiresAt`.
   - Retrying create or update with the same idempotency key returns one publication; a stale ETag keeps the prior confirmed revision.
   - A create response lost after server commit reconciles the existing share rather than creating a second link.
-  - Recovery can be added, replaced, or removed after first publication without changing recipient links; a lost response reconciles against the intended verifier state.
+  - Recovery can be added after first publication only when none exists; replacing or removing it requires the current recovery token and atomically invalidates that verifier. A lost response reconciles against the intended verifier state.
+  - With recovery configured, a stolen device token cannot displace it; without recovery, device-token possession is full owner compromise and may install a verifier.
+  - A device that loses a configured recovery code retains ordinary management but cannot reset recovery in place; after all shares are terminal it can discard that owner and enroll a fresh one for future shares.
   - Recovery invalidates prior credentials; the new generation permits list, expiry, and stop for old shares while rejecting their content replacement.
   - The same recovered owner can create and update shares in its new credential generation, and a second recovery cycle keeps every older share manageable without creating a second recovery artifact.
   - A superseded installation stops retrying with its invalid credential and reports that management moved; a stolen full owner token has no exclusive invalidation path without a saved recovery code.
@@ -364,7 +366,7 @@ The app may merge after it passes against a disposable or staging service, but p
 - **Files:** `wrangler.share.toml`, `workers/share-service.ts`, `workers/share-service-core.mjs`, `scripts/migrations/2026-09-share-service.sql`, `public/share/index.html`, `public/share/viewer.js`, `public/share/viewer.css`, `scripts/sync-share-fixture.mjs`, `test-fixtures/share-crypto-v1.json`, `test-fixtures/share-crypto-v1.provenance.json`, `tests/share-api-v1.test.mjs`, `tests/share-idempotency-v1.test.mjs`, `tests/share-expiry-retention-v1.test.mjs`, `tests/share-redaction-v1.test.mjs`, `tests/share-viewer-v1.test.mjs`, `package.json`.
 - **Approach:**
   1. Create a deployment isolated from telemetry with dedicated D1, private R2, secrets, routes, logs, quotas, kill switch, and read-only mode.
-  2. Implement the exact owner and public resources, including later recovery configuration, owner/share authorization, immutable object publication order, terminal deletion receipts, bounded cleanup, and content-free abuse cases with operator-only terminal enforcement.
+  2. Implement the exact owner and public resources, including absence-guarded recovery setup, proof-backed replacement or removal, owner/share authorization, immutable object publication order, terminal deletion receipts, bounded cleanup, and content-free abuse cases with operator-only terminal enforcement.
   3. Vendor the canonical synthetic fixture through a digest-checked sync from a pinned app-repository commit; serve a generic viewer shell that parses the fragment locally, renders untrusted content safely, and implements local copy, downloads, search, and print.
   4. Configure CSP, `noindex`, `no-referrer`, generic previews, no payload caching, and no third-party or automatic external requests.
 - **Execution note:** Use synthetic fixtures through staging; do not upload real transcripts during implementation or verification.
@@ -379,7 +381,9 @@ The app may merge after it passes against a disposable or staging service, but p
   - An owner list cannot include another owner's records; a credential for one owner cannot update, expire, stop, or delete another owner's share, and wrong-owner targets are indistinguishable from unknown targets.
   - A recovered owner can stop a live listed share using its opaque locator commitment, while correct-owner, wrong-owner, unknown, and post-tombstone deletion requests preserve the contracted response boundaries.
   - A recovered credential cannot replace pre-recovery content but can create and update shares in its new generation.
+  - A device token can add recovery only while none exists; it cannot replace or remove a configured verifier without the current recovery token, and a successful replacement or removal consumes that verifier atomically.
   - Recovery tokens have the contracted entropy, verifier-only storage, and bounded guess-rate controls; unknown and incorrect recovery attempts are indistinguishable.
+  - Tombstone retention is bounded from confirmed ciphertext deletion, abuse-case retention from case creation, and sterile operator-decision audit retention from the decision; no clock extends another.
   - Script tags, event handlers, executable URLs, malformed structures, and oversized hostile text remain inert, with CSP blocking inline and external execution.
   - Viewer states distinguish loading, retryable network failure, missing fragment, decryption or version failure, generic unavailability, and success without revealing terminal causes.
   - Viewer search, section copy, copy-all, Markdown/text download, print, keyboard navigation, and screen-reader labels operate without network calls beyond the first-party shell and ciphertext fetch.

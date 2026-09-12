@@ -38,11 +38,14 @@ SHA-256("mp-locator-v1\0" || locator-bytes)
 - The owner credential is generated silently on first publication and is required for creation, updates, expiry changes, listing, and permanent stop.
 - A recovery token is optional, generated rather than user-chosen, and displayed only when the owner asks to create or replace one.
 - Its 32-byte random secret provides 256 bits of entropy; recovery attempts are rate-limited per owner and coarse source signal, with unknown and incorrect tokens indistinguishable.
-- The current device token may install, replace, or remove its recovery verifier without rotating recipient links.
+- Initial owner enrollment may include a recovery verifier. Later, the current device token may install one only when no verifier exists, using an explicit absence precondition.
+- Replacing or removing an existing recovery verifier requires both the current device token and proof of the current recovery token; the service verifies and invalidates the old recovery verifier in the same transaction that installs its replacement or records its removal.
 - Recovery atomically installs a client-generated device verifier in a new credential generation and invalidates the prior device and recovery credentials; the new token secret remains local.
 - A recovered device token may list opaque metadata, change an active expiration, permanently stop any owner share, and create new shares. It may replace content only for shares created in its own credential generation; earlier shares remain management-only because recovery does not restore their content keys or complete URLs.
 - Recovery never returns content keys, ciphertext, plaintext, or complete recipient URLs.
 - The owner remains continuous and has at most one current recovery code across credential generations. Recovery invalidates the imported code and offers one replacement; it never creates a second owner context or requires a bundle of recovery artifacts.
+- With no recovery verifier configured, possession of the device bearer is full owner compromise, including authority to install a verifier. With one configured, possession of the device bearer alone cannot replace or remove it.
+- A device that did not configure recovery may add it later. A device that configured recovery but lost the code can continue normal management but has no in-place recovery reset; after every share is terminal, it may discard the local owner credential and enroll a fresh anonymous owner for future shares. That reset does not migrate shares or invalidate a lost recovery token.
 
 ## Resource model
 
@@ -76,7 +79,7 @@ An owner-visible share resource has this stable shape:
 - An active share becomes unavailable when server time is at or after `expiresAt`, even if a cleanup job has not run.
 - Owner-visible resources and reconciliation use `id` and `locatorCommitment`; the plaintext public locator is accepted at creation and retained only on the originating Mac, not returned by listing or recovery.
 
-The service may persist only opaque owner, device, share, and object identifiers; credential and locator verifiers; schema and revision numbers; ciphertext byte count and checksum; lifecycle timestamps; terminal and deletion states; quota counters; idempotency receipts; and sterile abuse-case state.
+The service may persist only opaque owner, device, share, and object identifiers; credential and locator verifiers; schema and revision numbers; ciphertext byte count and checksum; lifecycle timestamps; terminal and deletion states; quota counters; idempotency receipts; sterile abuse-case state; and sterile operator-decision audit records.
 Titles, source details, speaker names, selection flags, local IDs, content-derived values, fragment keys, and plaintext are absent.
 One exception to ordinary terminal retention is a permanent, one-way commitment for each accepted locator, stored without owner linkage, share metadata, or timestamps solely to prevent deliberate locator reuse.
 
@@ -91,7 +94,7 @@ Every owner resource read or mutation first verifies that the presenting credent
 | `GET` | `/api/v1/capabilities` | Returns supported envelope/bundle versions and current service limits; it does not encode UI presets. |
 | `POST` | `/api/v1/owners` | Registers client-generated owner, device selector/verifier, and optional recovery verifier; returns no secret. |
 | `POST` | `/api/v1/owners/recover` | Authenticates a recovery token, atomically advances the credential generation, installs its device verifier and optional replacement recovery verifier, and invalidates old credentials. |
-| `PUT` | `/api/v1/owners/recovery` | The current device token installs, replaces, or removes the optional recovery verifier; the recovery secret remains client-generated. |
+| `PUT` | `/api/v1/owners/recovery` | Installs a verifier under an absence precondition, or replaces/removes one with proof of the current recovery token; recovery secrets remain client-generated. |
 | `GET` | `/api/v1/shares?limit=50&cursor=...` | Reconciles owner-visible metadata; returns no ciphertext or content-derived fields. |
 | `PUT` | `/api/v1/shares/{share-id}` | Creates with `If-None-Match: *` or publishes the next content revision with `If-Match: "vN"`. |
 | `PATCH` | `/api/v1/shares/{share-id}/expiry` | Changes the exact expiration of an active share with `If-Match`; it does not change `contentRevision`. |
@@ -125,7 +128,11 @@ Owner enrollment sends client-generated selectors and verifiers, all encoded as 
 
 Recovery uses `Authorization: Recovery <recovery-token>` and supplies a fresh client-generated device selector/verifier plus an optional replacement recovery verifier.
 The service response contains owner metadata and credential scope, never a secret.
-Recovery configuration uses a normal full owner token and contains `recoveryVerifier`, whose `null` value removes recovery after explicit confirmation.
+Recovery configuration uses the normal device `Authorization` header.
+Initial setup requires a non-null `recoveryVerifier` and `If-None-Match: *`; it succeeds only when no recovery verifier exists.
+Replacement or removal additionally sends `Recovery-Authorization: Recovery <current-recovery-token>`; a non-null `recoveryVerifier` replaces the current verifier and `null` removes it.
+The old verifier is invalidated atomically with replacement or removal, and both secret-bearing headers are excluded from every log and diagnostic path.
+Device-only replacement or removal fails without revealing recovery state.
 
 Create and update use this body shape:
 
@@ -219,11 +226,13 @@ Offline UI says the remote stop is pending and the link may still work; it may s
 - Superseded, expired, stopped, and orphan ciphertext deletion begins immediately and completes within 24 hours.
 - A stopped or expired share retains only an owner-linkable tombstone and operation receipts for at most 30 days after confirmed ciphertext deletion.
 - After that tombstone is removed, only the non-owner-linkable locator commitment remains; it has no content, lifecycle timestamp, or management authority and is retained solely to preserve permanent revocation.
-- Idempotency receipts and content-free abuse cases are retained for at most 24 hours and 30 days respectively.
+- Idempotency receipts are retained for at most 24 hours.
+- Content-free abuse cases are retained for at most 30 days after case creation.
+- Sterile operator-decision audit records are retained for at most 30 days after the decision.
 - Edge abuse controls may process a coarse or keyed network signal for at most 24 hours; application storage never persists a raw recipient IP address.
 - Provider recovery history may retain encrypted operational data for its published window, which must be documented before launch; deleted material must not be restored into the live service.
 - Recipient application request logs are disabled.
-- Application, edge, APM, crash, diagnostic, and support paths exclude Authorization values, recovery tokens, fragments, complete links, locator-bearing paths, request bodies, source metadata, decrypted content, and ciphertext.
+- Application, edge, APM, crash, diagnostic, and support paths exclude Authorization and Recovery-Authorization values, recovery tokens, fragments, complete links, locator-bearing paths, request bodies, source metadata, decrypted content, and ciphertext.
 - The service stores no recipient referrer, cookie, user-agent history, view history, or product analytics.
 
 The hosting provider necessarily processes network metadata such as a request IP to deliver and defend the service.
@@ -258,8 +267,8 @@ Removing or changing a stable field, credential authority, state transition, end
 
 ## Tests that enforce this
 
-Native tests cover credential storage, later recovery setup, expiry arithmetic, ETag and idempotency behavior, outbox ordering and restart recovery, lost responses, local deletion without cascading share state, locator-commitment terminal reconciliation, and receipt-driven UI state.
-Service contract tests cover owner authentication; recovery setup and rotation; credential-generation content-write scope; recovered live-share stop through listed locator commitments; correct-owner, wrong-owner, unknown, and post-tombstone delete responses; public-unavailable equivalence; exact expiry; terminal-operation precedence; permanent locator non-reuse; publication ordering; orphan and revision cleanup; retention; quotas; abuse-report non-enforcement; and log redaction.
+Native tests cover credential storage, later recovery setup, recovery replacement and removal proof, expiry arithmetic, ETag and idempotency behavior, outbox ordering and restart recovery, lost responses, local deletion without cascading share state, locator-commitment terminal reconciliation, and receipt-driven UI state.
+Service contract tests cover owner authentication; absence-guarded recovery setup; device-only replacement and removal rejection; proof-backed recovery replacement and removal; credential-generation content-write scope; recovered live-share stop through listed locator commitments; correct-owner, wrong-owner, unknown, and post-tombstone delete responses; public-unavailable equivalence; exact expiry; terminal-operation precedence; permanent locator non-reuse; publication ordering; orphan and revision cleanup; independently anchored tombstone, abuse-case, and operator-audit retention; quotas; abuse-report non-enforcement; and log redaction.
 Browser tests cover local decrypt, search, copy, Markdown and text downloads, print, accessibility, strict CSP, generic previews, `no-referrer`, no external requests, wrong-key or unavailable states, and hostile Markdown or segment content rendered without executable HTML, event handlers, or URLs.
 
 ## When this changes

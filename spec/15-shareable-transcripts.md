@@ -46,6 +46,8 @@ It is not derived from hardware, an IP address, telemetry, licensing, or user co
 
 An optional generated recovery code restores management authority after a reinstall or device loss.
 Recovery can list opaque share records, change an unexpired expiration, and stop sharing, but it cannot reconstruct a lost complete URL or decrypt content.
+The current device may add recovery while none is configured, but replacing or removing an existing recovery code requires proof of that code.
+If a configured code is lost, the device can keep managing its shares but cannot reset recovery in place; after stopping every outstanding share, it may start a fresh anonymous owner for future shares.
 The first-share flow explains that without a saved recovery code, losing local management state also loses the ability to stop a still-active page early.
 Using recovery replaces the prior management credential, so an old installation becomes visibly unable to manage those records instead of retrying forever.
 Previously published shares remain management-only after recovery, while the recovered installation can publish and update new shares normally under the same anonymous owner; recovery offers one replacement recovery code.
