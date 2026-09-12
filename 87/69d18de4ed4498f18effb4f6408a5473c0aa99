@@ -1,0 +1,48 @@
+Sources/MacParakeetCore/Database/SharePublicationRepository.swift
+  s_d236dcbec7210b::t_6b2ce9997d05a4 69-72
+  s_d236dcbec7210b::t_b30b76a808d17c 295-300
+  s_d236dcbec7210b::t_9101b46b1f7702 51-53,186-187,189-192,195,249-250
+spec/contracts/share-service-v1.md
+  s_d236dcbec7210b::t_81fb2c522bf91c 200
+  s_d236dcbec7210b::t_7175cff363876e 207
+Tests/MacParakeetTests/Services/Sharing/ShareCoordinatorTests.swift
+  s_d236dcbec7210b::t_81ddf4c5bfce10 407-499
+  s_d236dcbec7210b::t_970029b6063140 300-329
+Sources/MacParakeetCore/Database/README.md
+  s_d236dcbec7210b::t_6b2ce9997d05a4 190-192
+docs/share-service-privacy-and-operations.md
+  s_d236dcbec7210b::t_d437ff316c7fdd 104-105,114
+spec/README.md
+  s_d236dcbec7210b::t_4083667456875b 27,41
+spec/15-shareable-transcripts.md
+  s_d236dcbec7210b::t_4083667456875b 3
+spec/adr/029-encrypted-shareable-transcript-snapshots.md
+  s_d236dcbec7210b::t_4083667456875b 3
+Tests/MacParakeetTests/Database/SharePublicationRepositoryTests.swift
+  s_d236dcbec7210b::t_81ddf4c5bfce10 255-275
+Sources/MacParakeetCore/Services/Sharing/ShareCredentialStore.swift
+  s_d236dcbec7210b::t_3b3d32de51ac1c 10-17,21-22,169-170,178-180,194-196
+spec/01-data-model.md
+  s_d236dcbec7210b::t_6b2ce9997d05a4 820-827
+Sources/MacParakeetCore/Services/Sharing/ShareCoordinator.swift
+  s_d236dcbec7210b::t_6b2ce9997d05a4 729
+  s_d236dcbec7210b::t_9950b799a20f31 455-458,463,467-488,490,492,494-497,499-500,502-510,520-523,526-531,535-543
+  s_d236dcbec7210b::t_9101b46b1f7702 691-693,697,708-709,725-728,730-739
+  s_d236dcbec7210b::t_75c07b424e9fe8 544
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8769d18de4ed4498f18effb4f6408a5473c0aa99",
+  "prompts": {},
+  "sessions": {
+    "s_d236dcbec7210b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0929e-d77e-7bb2-8fd3-0401a6a7b54b",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
