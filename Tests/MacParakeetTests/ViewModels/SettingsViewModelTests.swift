@@ -3151,6 +3151,123 @@ final class SettingsViewModelTests: XCTestCase {
                 && recorder.nemotronCalls.first?.1 == nil
         }
     }
+
+    // MARK: Remember speakers
+
+    /// The switch cannot turn itself on. Nothing is stored between the request
+    /// and the answer, so a user who never answers never keeps a voice.
+    func testTurningRememberSpeakersOnAsksForConsentFirst() {
+        XCTAssertTrue(viewModel.requestRememberSpeakers(true))
+
+        XCTAssertTrue(viewModel.isRequestingVoiceprintConsent)
+        XCTAssertFalse(viewModel.rememberSpeakers)
+        XCTAssertNil(viewModel.voiceprintConsentAcknowledgedAt)
+        XCTAssertNil(
+            testDefaults.object(
+                forKey: UserDefaultsAppRuntimePreferences.voiceprintConsentAcknowledgedAtKey
+            )
+        )
+    }
+
+    func testAcceptingConsentRecordsTheDateAndTurnsThePreferenceOn() {
+        let now = Date(timeIntervalSince1970: 1_757_000_000)
+        viewModel.requestRememberSpeakers(true)
+
+        viewModel.resolveVoiceprintConsent(accepted: true, now: now)
+
+        XCTAssertFalse(viewModel.isRequestingVoiceprintConsent)
+        XCTAssertTrue(viewModel.rememberSpeakers)
+        XCTAssertEqual(viewModel.voiceprintConsentAcknowledgedAt, now)
+        XCTAssertEqual(
+            testDefaults.object(
+                forKey: UserDefaultsAppRuntimePreferences.voiceprintConsentAcknowledgedAtKey
+            ) as? Date,
+            now
+        )
+        XCTAssertTrue(
+            testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.rememberSpeakersKey)
+        )
+    }
+
+    func testDecliningConsentLeavesThePreferenceOff() {
+        viewModel.requestRememberSpeakers(true)
+
+        viewModel.resolveVoiceprintConsent(accepted: false)
+
+        XCTAssertFalse(viewModel.isRequestingVoiceprintConsent)
+        XCTAssertFalse(viewModel.rememberSpeakers)
+        XCTAssertNil(viewModel.voiceprintConsentAcknowledgedAt)
+    }
+
+    /// Consent is asked once. Toggling off and back on must not re-prompt, or
+    /// the sheet becomes noise people click through.
+    func testTurningItOnAgainDoesNotReaskOnceConsentIsOnRecord() {
+        viewModel.requestRememberSpeakers(true)
+        viewModel.resolveVoiceprintConsent(accepted: true)
+
+        XCTAssertFalse(viewModel.requestRememberSpeakers(false))
+        XCTAssertFalse(viewModel.rememberSpeakers)
+
+        XCTAssertFalse(viewModel.requestRememberSpeakers(true))
+        XCTAssertFalse(viewModel.isRequestingVoiceprintConsent)
+        XCTAssertTrue(viewModel.rememberSpeakers)
+    }
+
+    /// Consent is what makes keeping a voice lawful, so the two cannot diverge.
+    func testWithdrawingConsentAlsoTurnsThePreferenceOff() {
+        viewModel.requestRememberSpeakers(true)
+        viewModel.resolveVoiceprintConsent(accepted: true)
+
+        viewModel.withdrawVoiceprintConsent()
+
+        XCTAssertFalse(viewModel.rememberSpeakers)
+        XCTAssertNil(viewModel.voiceprintConsentAcknowledgedAt)
+        XCTAssertNil(
+            testDefaults.object(
+                forKey: UserDefaultsAppRuntimePreferences.voiceprintConsentAcknowledgedAtKey
+            )
+        )
+    }
+
+    /// The resolved gate is what the pipeline reads, so it has to be exercised
+    /// with the feature actually available — otherwise the compiled flag
+    /// answers `false` first and the assertion proves nothing.
+    func testTheResolvedGateFollowsConsentWhenTheFeatureIsAvailable() {
+        let available = [AppFeatures.voiceProfilesDeveloperLaunchArgument]
+        testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.meetingSpeakerDiarizationKey)
+        viewModel.requestRememberSpeakers(true)
+        viewModel.resolveVoiceprintConsent(accepted: true)
+
+        #if DEBUG
+        XCTAssertTrue(
+            UserDefaultsAppRuntimePreferences.rememberSpeakersEnabled(
+                defaults: testDefaults, arguments: available
+            )
+        )
+        #endif
+
+        viewModel.withdrawVoiceprintConsent()
+
+        XCTAssertFalse(
+            UserDefaultsAppRuntimePreferences.rememberSpeakersEnabled(
+                defaults: testDefaults, arguments: available
+            )
+        )
+    }
+
+    /// Turning the switch off must not discard consent: the user may want it
+    /// back on next week without re-reading the notice, and dropping the date
+    /// would also lose the record of when permission was given.
+    func testTurningThePreferenceOffKeepsTheConsentDate() {
+        let now = Date(timeIntervalSince1970: 1_757_000_000)
+        viewModel.requestRememberSpeakers(true)
+        viewModel.resolveVoiceprintConsent(accepted: true, now: now)
+
+        viewModel.requestRememberSpeakers(false)
+
+        XCTAssertFalse(viewModel.rememberSpeakers)
+        XCTAssertEqual(viewModel.voiceprintConsentAcknowledgedAt, now)
+    }
 }
 
 private final class NemotronCacheCheckRecorder: @unchecked Sendable {

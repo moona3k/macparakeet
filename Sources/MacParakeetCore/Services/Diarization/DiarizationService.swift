@@ -468,7 +468,7 @@ public actor DiarizationService: DiarizationServiceProtocol {
     private nonisolated static let pipelineRevision = "fluidaudio-0.15.6"
 
     /// Identity of the representation the shipping configuration produces.
-    nonisolated static var defaultModelIdentity: SpeakerModelIdentity {
+    public nonisolated static var defaultModelIdentity: SpeakerModelIdentity {
         modelIdentity(for: highAccuracyConfig)
     }
 

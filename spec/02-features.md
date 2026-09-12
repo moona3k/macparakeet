@@ -1470,6 +1470,71 @@ are unaffected.
 
 ---
 
+### F13a: Voice Profiles (experimental, disabled)
+
+**What:** Remember a named speaker's voice so later meetings suggest the name,
+instead of asking again for every recording. Diarization answers "which parts of
+this recording came from the same speaker?" — its `S1`/`S2` ids belong to that
+recording alone, so today a person named once is anonymous in the next meeting.
+
+**Status:** foundations in `main` behind `AppFeatures.voiceProfilesEnabled`,
+which ships `false`. DEBUG builds may opt in with `--enable-voice-profiles`;
+release builds ignore it. Availability grants no consent — see below. Release
+requires the held-out meeting evaluation described in
+[the plan](../plans/active/2026-07-03-speaker-voiceprints.md).
+
+**Scope:** meetings only, on the isolated system track. File/URL is Phase 2.
+
+**Three gates, in order:**
+1. `AppFeatures.isVoiceProfilesAvailable()` — the build.
+2. Meeting speaker detection — without clusters there is nothing to match.
+3. `rememberSpeakers` **and** an acknowledged consent date, both off until asked.
+
+**Features:**
+- After renaming a speaker, an offer to remember that voice — shown only when a
+  candidate still exists, so it never promises what enrollment would refuse
+- Suggestions in later meetings, always requiring confirmation; a name is never
+  applied on its own, because a wrong automatic name is worse than "Others 1"
+- Voice Profiles screen: what is stored, how often it matched, why one may never
+  match, per-sample and per-profile deletion, and "forget all"
+- A "Forget…" row in Settings → System → Reset & Cleanup
+
+**Two kinds of stored vector, and the difference is the privacy argument:**
+
+| | Exemplar | Candidate |
+|---|---|---|
+| Belongs to | a named person | no one |
+| Created by | explicit enrollment or a confirmed suggestion | the end of a meeting, while enabled |
+| Lifetime | until deleted | 7 days, per-row expiry |
+| Compared against each other | never | never |
+
+Candidates exist because naming happens after the meeting, when the vector the
+pipeline computed has already been discarded. They are never compared with one
+another, which is what keeps recurring-unknown detection (the literal ask in
+[#662](https://github.com/moona3k/macparakeet/issues/662)) out of scope.
+
+**Privacy:** user-facing wording in [`docs/voice-profiles-privacy.md`](../docs/voice-profiles-privacy.md).
+
+- Vectors stay on this Mac. No table involved appears in any export, diagnostic
+  bundle, or the CLI — asserted per table across every outward surface
+- A voice sample is biometric data regulated by BIPA, CUBI and the GDPR, whose
+  requirements differ and whose duties fall on whoever records the meeting. The
+  app cannot resolve that, so the consent sheet is a gate rather than advice:
+  the user states they have permission, and nothing is stored until they do
+- Withdrawing consent turns the preference off; the management screen stays
+  reachable, since a switch that deleted nothing must not hide the deletion path
+- Forgetting a voice never changes names already written to transcripts
+
+**Acceptance:**
+- [x] Nothing is stored before consent is acknowledged
+- [x] Suggestions require confirmation
+- [x] Every stored vector is deletable, individually and in bulk
+- [x] Populated voiceprint tables leave exports byte-identical
+- [x] The feature emits no telemetry beyond the preference state
+- [ ] Held-out meeting evaluation (release gate)
+
+---
+
 ### F14: Non-Blocking Transcription Progress
 
 > Status: **IMPLEMENTED**

@@ -72,6 +72,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let libraryViewModel = TranscriptionLibraryViewModel()
     private let meetingsLibraryViewModel = TranscriptionLibraryViewModel(scope: .meetings)
     private let llmSettingsViewModel = LLMSettingsViewModel()
+    /// Its service arrives from `setupEnvironment`: building it with one here
+    /// would capture whatever `appEnvironment` held at first access, which can
+    /// be nil, leaving a screen that silently reads and deletes nothing.
+    private let voiceProfilesViewModel = VoiceProfilesViewModel()
     private let chatViewModel = TranscriptChatViewModel()
     private let promptResultsViewModel = PromptResultsViewModel()
     private let promptsViewModel = PromptsViewModel()
@@ -194,6 +198,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         historyViewModel: historyViewModel,
         settingsViewModel: settingsViewModel,
         llmSettingsViewModel: llmSettingsViewModel,
+        voiceProfilesViewModel: voiceProfilesViewModel,
         chatViewModel: chatViewModel,
         promptResultsViewModel: promptResultsViewModel,
         promptsViewModel: promptsViewModel,
@@ -517,6 +522,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupEnvironment(_ env: AppEnvironment) {
         appEnvironment = env
+        voiceProfilesViewModel.configure(
+            // Always wired: the management screen must be able to delete
+            // voices that an earlier run stored, whatever this build allows.
+            service: env.speakerVoiceprintService
+        )
         settingsViewModel.onAccessibilityGranted = { [weak self] in
             self?.handleAccessibilityGrant()
         }

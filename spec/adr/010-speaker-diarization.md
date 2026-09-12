@@ -306,7 +306,7 @@ model bundles.
 |--------|-------------------------------|------------|
 | DER | ~15% (VoxConverse) | ~32% (AMI SDM) |
 | Speaker limit | Unlimited | 4 max (hard architectural limit) |
-| Cross-recording recognition | Possible via SpeakerManager | Not supported |
+| Cross-recording recognition | Possible, but not via `SpeakerManager` (see the 2026-09 amendment) | Not supported |
 | Noise robustness | Good | Better |
 | Overlapping speech | Exclusive (overlaps trimmed by default) | Better (models overlap natively) |
 | Quiet/distant speech | Good | Poor (trained to ignore background) |
@@ -365,7 +365,7 @@ Users can correct misattributions by renaming speakers. Missed speech is visible
 
 ### Future possibilities (not committed)
 
-- Cross-file speaker recognition via SpeakerManager enrollment (persist voice embeddings)
+- ~~Cross-file speaker recognition via SpeakerManager enrollment~~ — delivered by a different route, see the 2026-09 amendment below
 - Speaker-aware search ("show me everything Sarah said")
 - Diarization-informed audio player (skip to next speaker)
 - Parallel ASR + diarization for faster processing
@@ -405,3 +405,39 @@ Rejected. Speaker attribution is a core expectation for file transcription. Ever
 - [Best Speaker Diarization Models Compared (2026)](https://brasstranscripts.com/blog/speaker-diarization-models-comparison)
 - [ADR-007: FluidAudio CoreML Migration](./007-fluidaudio-coreml-migration.md)
 - [F13: Speaker Diarization spec](../02-features.md)
+
+## Amendment (2026-09-12): cross-recording recognition ships by another route
+
+Two claims above are now wrong, and this records why.
+
+**`SpeakerManager` is not the route.** It is in-memory only and explicitly
+unsupported with `OfflineDiarizerManager`, the only manager the app instantiates.
+The comparison table's "possible via SpeakerManager" was never actionable for us.
+
+**The route that works is post-hoc matching on `speakerDatabase`.** The offline
+result already carries one 256-d vector per detected speaker, which the adapter
+used to discard. Enrolled voices are stored as exemplars and scored against it
+after the transcript is saved. No new model, no added latency on the meeting
+path, and diarization itself is untouched — a cluster that cannot be matched is
+simply left as `Others N`.
+
+Two facts made this harder than the old line suggests:
+
+- `speakerDatabase` holds the **VBx clustering centroid**, un-normalized, not a
+  mean of per-segment embeddings. A bare dot product scales distance by
+  `‖a‖·‖b‖`, and that bias grows with intra-cluster dispersion — so it penalizes
+  hardest exactly the recordings worth rescuing. Vectors are normalized once, at
+  the adapter boundary.
+- The centroid moves with the clustering configuration, not only with the model.
+  Two identities are stored: `embeddingModelId` (a mismatch makes vectors
+  incomparable) and `aggregationProfileId` (a mismatch stays comparable at a
+  tightened threshold).
+
+Speaker ids remain positional. Nothing here changes that, which is why every
+stored decision is scoped by transcript fingerprint: after re-diarization, `S1`
+can be someone else.
+
+Scope, gating and the release conditions live in
+[F13a](../02-features.md) and
+[the plan](../../plans/active/2026-07-03-speaker-voiceprints.md). The internal
+boundary is [`spec/contracts/speaker-voiceprints.md`](../contracts/speaker-voiceprints.md).
