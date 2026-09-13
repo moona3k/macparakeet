@@ -1,0 +1,31 @@
+Sources/MacParakeetViewModels/MeetingSplitViewModel.swift
+  s_262a6d6f6e8252::t_657499bccb1615 329-331
+  s_262a6d6f6e8252::t_28f496a2a6221e 332-334
+  s_b0bf643cd989b8::t_78d9f3d1007da4 335
+Tests/MacParakeetTests/ViewModels/MeetingSplitViewModelTests.swift
+  s_262a6d6f6e8252::t_657499bccb1615 186-208
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f5af9a407e566983b45665aa37c1855f5009bcb6",
+  "prompts": {},
+  "sessions": {
+    "s_262a6d6f6e8252": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a099f4-a4d1-7af2-8f02-8a3cf11f637a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_b0bf643cd989b8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "562b021a-a7bf-45ef-8306-37abf3fd97f0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
