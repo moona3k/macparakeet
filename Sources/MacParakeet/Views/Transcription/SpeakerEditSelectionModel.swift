@@ -96,7 +96,7 @@ struct SpeakerEditSelectionModel: Equatable {
     }
 }
 
-enum TimedTranscriptMergeDirection: Equatable {
+enum TimedTranscriptMergeDirection: Hashable {
     case previous
     case next
 }
@@ -104,6 +104,21 @@ enum TimedTranscriptMergeDirection: Equatable {
 /// Resolves the only safe line merge offered by the timed transcript UI:
 /// two neighboring effective segments with the same current assignment.
 enum TimedTranscriptMergeModel {
+    static func availability(
+        in segments: [SpeakerEditableSegment]
+    ) -> [SpeakerEditableSegmentID: Set<TimedTranscriptMergeDirection>] {
+        guard segments.count > 1 else { return [:] }
+        var result: [SpeakerEditableSegmentID: Set<TimedTranscriptMergeDirection>] = [:]
+        for (first, second) in zip(segments, segments.dropFirst())
+        where first.assignment == second.assignment
+            && first.wordRange.endIndexExclusive == second.wordRange.startIndex
+        {
+            result[first.id, default: []].insert(.next)
+            result[second.id, default: []].insert(.previous)
+        }
+        return result
+    }
+
     static func pair(
         for segmentID: SpeakerEditableSegmentID,
         direction: TimedTranscriptMergeDirection,

@@ -687,6 +687,7 @@ struct TranscriptResultView: View {
             .sheet(item: $pendingTimedTextSegment) { segment in
                 TimedTranscriptTextEditSheet(
                     segment: segment,
+                    target: correctionTarget(for: segment),
                     viewModel: viewModel,
                     onDismiss: { pendingTimedTextSegment = nil }
                 )
@@ -4106,6 +4107,9 @@ struct TranscriptResultView: View {
             guard case .effective(let id) = highlight.id else { return nil }
             return (id, highlight.range)
         }
+        let mergeAvailability = TimedTranscriptMergeModel.availability(
+            in: attribution?.editableSegments ?? []
+        )
         TranscriptTimestampedContentView(
             hasSpeakers: cachedHasSpeakers,
             identifiedTurnCards: cachedIdentifiedTurnCards,
@@ -4170,7 +4174,7 @@ struct TranscriptResultView: View {
             onSplitSegment: presentSplitPicker,
             onEditSegmentText: { pendingTimedTextSegment = $0 },
             canMergeSegment: { segment, direction in
-                timedMergePair(for: segment, direction: direction) != nil
+                mergeAvailability[segment.id]?.contains(direction) == true
             },
             onMergeSegment: mergeTimedSegment,
             onAssignTurn: assignSpeakerTurn,
@@ -5713,6 +5717,7 @@ struct TranscriptSegmentCachePayload: Sendable {
 
 private struct TimedTranscriptTextEditSheet: View {
     let segment: SpeakerEditableSegment
+    let target: SpeakerCorrectionTarget
     @Bindable var viewModel: TranscriptionViewModel
     let onDismiss: () -> Void
 
@@ -5723,10 +5728,12 @@ private struct TimedTranscriptTextEditSheet: View {
 
     init(
         segment: SpeakerEditableSegment,
+        target: SpeakerCorrectionTarget,
         viewModel: TranscriptionViewModel,
         onDismiss: @escaping () -> Void
     ) {
         self.segment = segment
+        self.target = target
         self.viewModel = viewModel
         self.onDismiss = onDismiss
         _draft = State(initialValue: segment.text)
@@ -5790,10 +5797,6 @@ private struct TimedTranscriptTextEditSheet: View {
         guard canSave else { return }
         isSaving = true
         saveFailed = false
-        let target = SpeakerCorrectionTarget(
-            anchorTranscriptSegmentIDs: segment.anchorTranscriptSegmentIDs,
-            wordRange: segment.wordRange
-        )
         viewModel.applySpeakerCorrection(
             .editText(target: target, text: normalizedDraft)
         ) { succeeded in
@@ -5807,14 +5810,7 @@ private struct TimedTranscriptTextEditSheet: View {
     }
 
     private func timestamp(_ milliseconds: Int) -> String {
-        let totalSeconds = max(0, milliseconds) / 1_000
-        let hours = totalSeconds / 3_600
-        let minutes = (totalSeconds % 3_600) / 60
-        let seconds = totalSeconds % 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
-        }
-        return String(format: "%d:%02d", minutes, seconds)
+        max(0, milliseconds).formattedDuration
     }
 }
 

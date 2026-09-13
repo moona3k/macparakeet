@@ -116,6 +116,11 @@ final class SpeakerEditSelectionModelTests: XCTestCase {
 
     func testTimedMergeRequiresAdjacentSegmentsWithSameEffectiveAssignment() {
         var segments = makeSegments(3)
+        var availability = TimedTranscriptMergeModel.availability(in: segments)
+
+        XCTAssertEqual(availability[segments[0].id], [.next])
+        XCTAssertEqual(availability[segments[1].id], [.previous, .next])
+        XCTAssertEqual(availability[segments[2].id], [.previous])
 
         XCTAssertEqual(
             TimedTranscriptMergeModel.pair(for: segments[1].id, direction: .previous, in: segments)?.map(\.id),
@@ -142,6 +147,9 @@ final class SpeakerEditSelectionModelTests: XCTestCase {
             isManuallySplit: original.isManuallySplit,
             isTextEdited: original.isTextEdited
         )
+        availability = TimedTranscriptMergeModel.availability(in: segments)
+        XCTAssertEqual(availability[segments[1].id], [.previous])
+        XCTAssertNil(availability[segments[2].id])
         XCTAssertNil(
             TimedTranscriptMergeModel.pair(for: segments[1].id, direction: .next, in: segments)
         )

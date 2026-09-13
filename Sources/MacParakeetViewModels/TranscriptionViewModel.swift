@@ -258,18 +258,48 @@ public final class TranscriptionViewModel {
     public private(set) var canUndoSpeakerCorrection = false
     public private(set) var canRedoSpeakerCorrection = false
     public private(set) var isApplyingSpeakerCorrection = false
+
+    private struct EffectiveTranscriptionCacheKey: Equatable {
+        let transcriptionRevision: UInt64
+        let attributionTranscriptionID: UUID?
+        let attributionFingerprint: TranscriptFingerprint?
+        let correctionRevision: Int?
+        let correctionsApplied: Bool
+    }
+
+    @ObservationIgnored
+    private var effectiveTranscriptionCache: (
+        key: EffectiveTranscriptionCacheKey,
+        value: Transcription?
+    )?
+
     public var effectiveCurrentTranscription: Transcription? {
-        guard let currentTranscription,
-              speakerAttributionTranscriptionID == currentTranscription.id,
-              let speakerAttribution
-        else {
-            return currentTranscription
-        }
-        return SpeakerAttributionProjection(
-            automaticTranscription: currentTranscription,
-            attribution: speakerAttribution,
+        let key = EffectiveTranscriptionCacheKey(
+            transcriptionRevision: currentTranscriptionRevision,
+            attributionTranscriptionID: speakerAttributionTranscriptionID,
+            attributionFingerprint: speakerAttribution?.fingerprint,
+            correctionRevision: speakerAttribution?.correctionRevision,
             correctionsApplied: speakerCorrectionsApplied
-        ).effectiveTranscription
+        )
+        if let effectiveTranscriptionCache, effectiveTranscriptionCache.key == key {
+            return effectiveTranscriptionCache.value
+        }
+
+        let value: Transcription?
+        if let currentTranscription,
+           speakerAttributionTranscriptionID == currentTranscription.id,
+           let speakerAttribution
+        {
+            value = SpeakerAttributionProjection(
+                automaticTranscription: currentTranscription,
+                attribution: speakerAttribution,
+                correctionsApplied: speakerCorrectionsApplied
+            ).effectiveTranscription
+        } else {
+            value = currentTranscription
+        }
+        effectiveTranscriptionCache = (key, value)
+        return value
     }
 
     public func handlePromptResultDeleted(_ deletedID: UUID) {

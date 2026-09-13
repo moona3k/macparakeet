@@ -37,10 +37,10 @@ public struct SpeakerAttributionProjection: Sendable {
         let automaticSpeakers = automaticTranscription.speakers ?? []
         let automaticDiarization = automaticTranscription.diarizationSegments ?? []
         guard
-            attribution.words != automaticWords
+            attribution.hasTextCorrections
+                || attribution.words != automaticWords
                 || attribution.speakers != automaticSpeakers
                 || attribution.diarizationSegments != automaticDiarization
-                || attribution.hasTextCorrections
         else {
             return automaticTranscription
         }
