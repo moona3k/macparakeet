@@ -292,10 +292,11 @@ CREATE TABLE transcriptions (
     engine TEXT,                                         -- v0.8: STT engine (`parakeet` / `nemotron` / `cohere` / `whisper`)
     engineVariant TEXT,                                  -- v0.8: Engine-specific model variant
     calendarEventSnapshot TEXT,                          -- v0.25: JSON local calendar context captured at meeting start
-    titleOverride TEXT,                                  -- v0.26: User-authored non-meeting display title override
+    titleOverride TEXT,                                  -- v0.26: User-authored display title / explicit meeting-title intent
     derivedTitle TEXT,                                   -- v0.9: Display title derived from transcript content
     derivedSnippet TEXT,                                 -- v0.9: Display preview snippet derived from transcript content
     splitProvenance TEXT,                                -- v0.42: JSON MeetingSplitProvenance, child rows only
+    audioRetentionStartedAt TEXT,                        -- v0.43: managed-audio retention clock; NULL falls back to createdAt
     updatedAt TEXT NOT NULL                              -- ISO 8601 timestamp
 );
 
@@ -340,7 +341,8 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
   to assembly on `summaries.userNotesSnapshot`. Added in v0.8.
 - `engine` / `engineVariant` record the STT engine attribution for Parakeet, Nemotron Beta, Cohere, and optional WhisperKit paths. Added in v0.8; legacy rows keep `NULL`.
 - `calendarEventSnapshot` is a JSON blob for meeting rows only. It stores `confidence` (`confirmed` for calendar auto-start, `probable` for manual starts matched against the current poll cache), EventKit `eventIdentifier`, optional `externalId`, event title, scheduled start/end, attendee names/emails, organizer name/email, meeting URL/service, and capture timestamp. This is local user data and must not be sent in telemetry, including attendee counts. Added in v0.25.
-- `titleOverride` stores a user-authored display title for non-meeting transcription rows. It is app metadata only: it does not rename/move `filePath`, replace the original `fileName`, or participate in meeting artifact naming. Blank titles are normalized to `NULL`. Added in v0.26.
+- `titleOverride` stores a user-authored display title for file transcriptions and durable explicit-title intent for meetings. File titles do not rename or move the external source or replace its original `fileName`. Meetings still display `fileName`; a meeting rename or explicit import title also sets the normalized override, preventing automatic title generation from replacing it on completion or Retry. Default/generated meeting names leave the override `NULL`. Blank overrides normalize to `NULL`. Added in v0.26; meeting intent applies with external import.
+- `audioRetentionStartedAt` is the nullable v0.43 managed-audio retention clock. Imports set it when the managed copy enters MacParakeet. Retention selection, policy decisions, and split eligibility use `audioRetentionStartedAt ?? createdAt`; existing rows retain their original behavior without backfill. `createdAt` remains the historical chronology for ordering, grouping, retrieval, and attribution. Completion merges preserve the current retention clock and explicit-title marker in the same transaction as other user metadata. See [the import contract](contracts/meeting-import-v1.md).
 - `derivedTitle` / `derivedSnippet` cache semantic display copy derived from the completed transcript. Local file rows retain the original `fileName` as their default visible title, but the derived copy remains available for search and preview-related behavior. Added in v0.9 so Library surfaces do not need to recompute derived text on every render.
 - `splitProvenance` is a v0.42 JSON blob set only on child rows created by Split and transcribe (see the dedicated section above and `contracts/meeting-splitting.md`). `NULL` for the source row and every non-split transcription.
 - Missing columns in older read-only schemas and SQL `NULL` decode as absent provenance. Malformed non-NULL provenance fails the row read; it must not silently turn a split child into an ordinary recording or be overwritten as `NULL`.
@@ -1105,10 +1107,11 @@ struct Transcription: Codable, Identifiable {
     var engine: String?                 // v0.8 — STT engine (`parakeet` / `nemotron` / `whisper`)
     var engineVariant: String?          // v0.8 — Engine-specific model variant
     var calendarEventSnapshot: MeetingCalendarSnapshot? // v0.25 — Local calendar context snapshot
-    var titleOverride: String?          // v0.26 — User-authored non-meeting display title override
+    var titleOverride: String?          // v0.26 — User-authored display title / explicit meeting-title intent
     var derivedTitle: String?           // v0.9 — Semantic title derived from transcript text
     var derivedSnippet: String?         // v0.9 — Display preview snippet derived from transcript text
     var splitProvenance: MeetingSplitProvenance? // v0.42 — Split child provenance; nil otherwise
+    var audioRetentionStartedAt: Date? // v0.43 — managed-audio retention anchor
     var updatedAt: Date
 
     struct WordTimestamp: Codable {
@@ -1645,6 +1648,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 // v0.40-speaker-match-journal — local expiring decision metadata
 // v0.41-speaker-embedding-candidates — expiring voices awaiting enrollment
 // v0.42-share-publications — local sharing ledger + durable outbox
+// v0.43-meeting-audio-retention — optional managed-audio retention clock
 ```
 
 ### Migration Rules
@@ -1668,7 +1672,8 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `transcriptions.transcriptSegments` | v0.23 | Durable meeting transcript segments (JSON) for stable per-transcript-version citations |
 | `transcriptions.meetingStartContext` | v0.24 | Local-only JSON start snapshot for meeting rows: trigger kind, configured source mode, and frontmost app bundle id/name |
 | `transcriptions.calendarEventSnapshot` | v0.25 | Local JSON EventKit context snapshot for meeting recordings |
-| `transcriptions.titleOverride` | v0.26 | User-authored display title override for non-meeting transcription rows; does not rename source files |
+| `transcriptions.titleOverride` | v0.26 | File display title override and explicit meeting-title intent; does not rename external source files |
+| `transcriptions.audioRetentionStartedAt` | v0.43 | Managed meeting-audio retention anchor; nullable with fallback to `createdAt` |
 | `transcriptions.audioTrackOrdinal` | v0.29 | Explicit zero-based audio-stream ordinal reused by local-file retranscription; `NULL` means automatic |
 | `transcriptions.meetingCaptureReport` | v0.30 | Optional finalized meeting frame-coverage JSON; `NULL` means legacy/unknown and quality remains independent of transcription status |
 | `segments` / `segments_fts` | v0.27 | Derived, rebuildable meeting + file/URL retrieval segments and external-content FTS5 index; dictations excluded |

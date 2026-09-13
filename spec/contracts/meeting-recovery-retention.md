@@ -182,6 +182,16 @@ prove healthy capture; see the
 
 ## Retention Rule
 
+Scheduled retention selects completed meetings by
+`COALESCE(audioRetentionStartedAt, createdAt)` and uses the same effective date
+for in-memory policy decisions. Split eligibility uses that clock as well.
+External imports retain their historical `createdAt` while a fresh
+`audioRetentionStartedAt` starts the owned copy's retention window. A nullable
+additive migration leaves legacy rows unchanged. Whole-row completion merges
+preserve the stored clock; retranscription and rename do not restart it.
+The [import contract](meeting-import-v1.md) defines source ownership and
+interrupted-import recovery through this existing lifecycle.
+
 Only the current, uncancelled scheduled sweep may update the last-success
 timestamp. A failed sweep leaves cleanup due for the next existing trigger.
 Replacing a sweep or disabling automatic retention invalidates its completion;

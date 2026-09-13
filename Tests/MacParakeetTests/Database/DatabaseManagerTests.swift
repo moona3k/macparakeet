@@ -19,6 +19,33 @@ final class DatabaseManagerTests: XCTestCase {
         "v0.7-snippet-key-action",
     ]
 
+    func testAudioRetentionMigrationAddsNullableColumn() throws {
+        let manager = try DatabaseManager()
+        try manager.dbQueue.read { db in
+            let column = try XCTUnwrap(db.columns(in: "transcriptions").first { $0.name == "audioRetentionStartedAt" })
+            XCTAssertFalse(column.isNotNull)
+        }
+    }
+
+    func testAudioRetentionMigrationPreservesPreviousRows() throws {
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent("audio_retention_upgrade_\(UUID().uuidString).db").path
+        defer { cleanupDatabaseFiles(atPath: path) }
+        let previous = try DatabaseManager(path: path)
+        let meeting = Transcription(createdAt: Date(timeIntervalSince1970: 100), fileName: "Historical", sourceType: .meeting)
+        try TranscriptionRepository(dbQueue: previous.dbQueue).save(meeting)
+        try previous.dbQueue.write { db in
+            try db.execute(sql: "ALTER TABLE transcriptions DROP COLUMN audioRetentionStartedAt")
+            try db.execute(sql: "DELETE FROM grdb_migrations WHERE identifier = ?",
+                           arguments: ["v0.43-meeting-audio-retention"])
+        }
+        let upgraded = try DatabaseManager(path: path)
+        let saved = try XCTUnwrap(TranscriptionRepository(dbQueue: upgraded.dbQueue).fetch(id: meeting.id))
+        XCTAssertEqual(saved.fileName, meeting.fileName)
+        XCTAssertEqual(saved.createdAt, meeting.createdAt)
+        XCTAssertNil(saved.audioRetentionStartedAt)
+    }
+
     func testInMemoryDatabaseCreates() throws {
         let manager = try DatabaseManager()
         XCTAssertNotNil(manager.dbQueue)

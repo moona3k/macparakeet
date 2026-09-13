@@ -2225,6 +2225,14 @@ public final class DatabaseManager: Sendable {
             }
         }
 
+        // Historical meeting chronology is independent of when managed audio was imported.
+        migrator.registerMigration("v0.43-meeting-audio-retention") { db in
+            let columns = try db.columns(in: "transcriptions").map(\.name)
+            if !columns.contains("audioRetentionStartedAt") {
+                try db.execute(sql: "ALTER TABLE transcriptions ADD COLUMN audioRetentionStartedAt TEXT")
+            }
+        }
+
         return migrator
     }
 

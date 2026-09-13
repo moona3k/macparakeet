@@ -1013,6 +1013,22 @@ final class MeetingSplitServiceTests: XCTestCase {
 
     // MARK: - Retention
 
+    func testHistoricalImportWithFreshRetentionClockCanPreviewAndSplit() async throws {
+        var source = try makeSourceMeeting(
+            durationMs: 4_000, withRawTracks: true, createdAt: Date().addingTimeInterval(-3650 * 86_400)
+        )
+        source.audioRetentionStartedAt = Date()
+        try transcriptions.save(source)
+        let retention = MeetingAudioRetention.deleteAfterDays(30)
+        _ = try await MeetingSplitService.preview(source: source, cutPointsMs: [2_000], retention: retention)
+        let service = makeService(retentionConfig: { retention })
+        let operation = try await service.createAndProcess(
+            idempotencyKey: "historical-import", sourceId: source.id, cutPointsMs: [2_000], titles: ["A", "B"]
+        )
+        XCTAssertEqual(operation.status, .committed)
+        XCTAssertEqual(operation.childIds.count, 2)
+    }
+
     func testExpiredRetentionRejectsCreation() async throws {
         let source = try makeSourceMeeting(
             durationMs: 4_000, withRawTracks: true, createdAt: Date().addingTimeInterval(-90 * 24 * 3_600)

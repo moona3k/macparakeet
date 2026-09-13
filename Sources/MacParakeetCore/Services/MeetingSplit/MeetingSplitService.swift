@@ -944,7 +944,7 @@ public final class MeetingSplitService: MeetingSplitServicing, @unchecked Sendab
             id: source.id,
             hasAudioOnDisk: !(source.filePath?.isEmpty ?? true) || source.meetingArtifactFolderPath != nil,
             isCompleted: source.status == .completed,
-            ageReferenceDate: source.createdAt,
+            ageReferenceDate: source.audioRetentionStartedAt ?? source.createdAt,
             hasRecoveryLock: MeetingAudioFile.isFinalizationInProgress(for: source, fileManager: fileManager)
         )
         guard MeetingAudioRetentionPolicy.sweep([candidate], config: config, now: Date()).isEmpty else {

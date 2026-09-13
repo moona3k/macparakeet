@@ -423,8 +423,11 @@ as `manifest.json`, `transcript.json`, `notes.md`, and prompt-result files.
 Full meeting deletion is the path that removes the session folder.
 
 Scheduled retention only detaches audio for completed meeting rows with stored
-audio paths. It skips any session folder that still has `recording.lock`, live
-or dead PID, because those files are active or recoverable recording input.
+audio paths. Retention age uses `audioRetentionStartedAt ?? createdAt` for both
+database selection and policy evaluation. Imported historical meetings therefore
+receive a fresh managed-audio window without changing their library chronology.
+Split eligibility uses the same clock. Retention skips any session folder that
+still has `recording.lock`, live or dead PID, because those files are active or recoverable recording input.
 Crash-recovered meetings are protected while recovery runs by the claiming
 process PID and finalization lease; once the lock is removed and the recovered
 row is completed, normal retention applies. The same lock guard protects
@@ -433,6 +436,26 @@ manual cleanup: both `TranscriptionAssetCleanup` and the
 `recording.lock` is present, including dead-owner `awaitingTranscription` locks
 whose audio is still queued for background transcription (back-to-back meeting
 recording).
+
+### External recording import
+
+[ADR-030](adr/030-external-meeting-import.md) and the
+[meeting import contract](contracts/meeting-import-v1.md) govern one-file imports.
+The app and CLI normalize a supported local audio/video file into an owned,
+system-only meeting archive: `system-raw.m4a`, zero-offset alignment metadata,
+and canonical `meeting-playback.m4a` bytes through a hard link or copy fallback.
+The external source is never moved, modified, renamed, or deleted.
+
+The verified archive and ordinary recovery lock are published before the meeting
+stub. The stub keeps the chosen historical `createdAt`, fresh
+`audioRetentionStartedAt`, and any explicit title intent. Existing meeting
+finalization supplies STT, configured diarization, text processing, indexing,
+and artifacts; ordinary settlement removes the lock after completed-row
+verification. Cards and enabled after-meeting prompts follow as best-effort
+saved-audio automation. A failure before transcript completion leaves the
+published meeting retryable; a later failure reports a warning and preserves
+the completed transcript. No new capture session or microphone permission is
+required for the import itself.
 
 ### Concurrent Operation with Dictation (ADR-015)
 
