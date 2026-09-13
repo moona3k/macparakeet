@@ -1,0 +1,31 @@
+Tests/MacParakeetTests/Services/YouTubeDownloaderTests.swift
+  s_409cbd8660eb9c::t_40f4922a43bd32 366-382,384,386-418
+  s_409cbd8660eb9c::t_1f19fb35c9de45 383,385
+Sources/MacParakeetCore/Services/YouTubeDownloader.swift
+  s_409cbd8660eb9c::t_781cdf88566ae0 7,16-17
+  s_409cbd8660eb9c::t_34a947afd922d2 720-737,741-757
+  s_409cbd8660eb9c::t_1c1e365987c49d 208
+  s_409cbd8660eb9c::t_a1bfecf0aedf58 359
+  s_409cbd8660eb9c::t_89d5bf09618cd8 738-740
+spec/02-features.md
+  s_409cbd8660eb9c::t_a0883d6c11ce61 1308-1310
+  s_409cbd8660eb9c::t_2b5b8dfc11b7c0 1323
+spec/09-testing.md
+  s_409cbd8660eb9c::t_6683d635685ecf 82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1fd0bae93e3a6eec2e0b09d29440ef9c9aa172dc",
+  "prompts": {},
+  "sessions": {
+    "s_409cbd8660eb9c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "12ca8ede-1bcb-4217-b9a3-dbbfa0c6a0c0",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
