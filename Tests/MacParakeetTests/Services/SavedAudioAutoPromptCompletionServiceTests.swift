@@ -41,6 +41,31 @@ final class SavedAudioAutoPromptCompletionServiceTests: XCTestCase {
         )
     }
 
+    func testCardAndArtifactFailuresRemainVisibleWithoutAutoPrompts() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let service = makeService(cardGenerator: FailingCompletionCardGenerator(), meetingArtifactStore: FailingCompletionArtifactStore())
+        let result = try await service.completeAutoPrompts(for: makeChild(meetingArtifactFolderPath: folder.path))
+        XCTAssertEqual(result.warnings.count, 2)
+        XCTAssertTrue(result.warnings.contains { if case .knowledgeCardFailed = $0 { return true }; return false })
+        XCTAssertTrue(result.warnings.contains { if case .artifactRefreshFailed = $0 { return true }; return false })
+        XCTAssertFalse(result.hasFailures, "Existing split callers only use prompt failures")
+        XCTAssertTrue(result.outcomes.isEmpty)
+    }
+
+    func testArtifactRefreshStillRunsWithoutAutoPrompts() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let artifacts = RecordingMeetingArtifactStore()
+        let child = makeChild(meetingArtifactFolderPath: folder.path)
+        let result = try await makeService(meetingArtifactStore: artifacts).completeAutoPrompts(for: child)
+        let ids = await artifacts.materializedTranscriptionIDs
+        XCTAssertEqual(ids, [child.id])
+        XCTAssertTrue(result.warnings.isEmpty)
+    }
+
     // MARK: - No auto prompts
 
     func testNoAutoRunPromptsProducesNoLLMCallAndNoOutcomes() async throws {
@@ -410,5 +435,17 @@ private actor RecordingMeetingArtifactStore: MeetingArtifactStoring {
             promptResultsDirectoryPath: "/tmp/mock/prompt-results",
             promptResultCount: promptResults.count
         )
+    }
+}
+
+private enum CompletionWarningTestError: Error { case failed }
+private struct FailingCompletionCardGenerator: CardGenerating {
+    func generate(transcriptionId: UUID, force: Bool) async throws -> CardGenerationOutcome {
+        throw CompletionWarningTestError.failed
+    }
+}
+private struct FailingCompletionArtifactStore: MeetingArtifactStoring {
+    func materialize(transcription: Transcription, promptResults: [PromptResult]) async throws -> MeetingArtifactSnapshot {
+        throw CompletionWarningTestError.failed
     }
 }
