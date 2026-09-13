@@ -1,0 +1,58 @@
+README.md
+  s_04b1ae56e392af::t_e408b9ee4d7e76 71,84
+spec/README.md
+  s_04b1ae56e392af::t_e408b9ee4d7e76 293,296
+docs/research/2026-09-13-issues-502-1013-outlook-calendar.md
+  s_04b1ae56e392af::t_5da93c6e179a58 11,44-45,75,94
+  s_04b1ae56e392af::t_a1e616f09b7652 3-4
+  s_04b1ae56e392af::t_4abb1841efaebb 1-2,5-10,12-43,46-74,76-93,95-99
+spec/adr/017-calendar-meeting-auto-start.md
+  s_04b1ae56e392af::t_e408b9ee4d7e76 7,22,92-93,96-98,100,104
+Tests/MacParakeetTests/Calendar/MockCalendarService.swift
+  s_04b1ae56e392af::t_9a10d671255ee6 30-31,49-54,74-77
+  s_04b1ae56e392af::t_3991043f95e81c 78
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_04b1ae56e392af::t_b2f4bb93c69de7 156-159
+Sources/MacParakeet/Views/Settings/CalendarSettingsView.swift
+  s_04b1ae56e392af::t_74da991eaf9c2f 28-35,37-39,44-50,56-71,73-79,81-111
+  s_04b1ae56e392af::t_f4902ec44341f9 372,405-406
+  s_04b1ae56e392af::t_211f603a9396b9 51-55,72,80
+  s_04b1ae56e392af::t_e408b9ee4d7e76 12-13
+  s_04b1ae56e392af::t_be939eb29af0bc 437-440
+  s_04b1ae56e392af::t_b21e75ac675b94 112
+Sources/MacParakeet/Views/Meetings/MeetingsView.swift
+  s_04b1ae56e392af::t_f4902ec44341f9 1106
+  s_04b1ae56e392af::t_d30aca6e87142f 1107
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_04b1ae56e392af::t_3556f7caee7c4e 27-32,702-703,770-771,774,822-824,833-834,1432,1434-1435,1441-1444,1446-1460,1462-1464,1469-1476,1478-1482,1493,1498,1514-1520,1522-1524,1546
+  s_04b1ae56e392af::t_be939eb29af0bc 1433,1438,1521,1525,1538,1541-1544
+  s_04b1ae56e392af::t_211f603a9396b9 704,1436-1437,1439-1440,1445,1461,1465-1468,1477,1483
+docs/plans/2026-09-13-1539-fix-outlook-calendar-discovery-plan.md
+  s_04b1ae56e392af::t_2e9bd43e634cdd 1-7,9-106,109-120,122-145,148-149,154-159,162,164-203,205-221,225-234,236-237
+  s_04b1ae56e392af::t_fe24fda6f9acc5 8,107-108,121,146-147,150-153,160-161,163,204,222-224,235
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_04b1ae56e392af::t_211f603a9396b9 2739-2761
+  s_04b1ae56e392af::t_9a10d671255ee6 2699-2738,2762-2838
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_04b1ae56e392af::t_be939eb29af0bc 194-197
+  s_04b1ae56e392af::t_f4902ec44341f9 198-201
+  s_04b1ae56e392af::t_d24b86d5b80657 202
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_04b1ae56e392af::t_f4902ec44341f9 270-273
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "07aa738c6b9a7d4d6e8456402f0139f1d3ff5c37",
+  "prompts": {},
+  "sessions": {
+    "s_04b1ae56e392af": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09cdd-aab4-76b0-8def-6c10035ea821",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
