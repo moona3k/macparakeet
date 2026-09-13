@@ -1,0 +1,21 @@
+Tests/MacParakeetTests/Services/YouTubeDownloaderTests.swift
+  s_409cbd8660eb9c::t_b8cae80e5354fc 417-424
+Sources/MacParakeetCore/Services/YouTubeDownloader.swift
+  s_409cbd8660eb9c::t_ccf5ea948ce3fb 755-756
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "29baa229ec56294048f36d6158c6090593a8d974",
+  "prompts": {},
+  "sessions": {
+    "s_409cbd8660eb9c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "12ca8ede-1bcb-4217-b9a3-dbbfa0c6a0c0",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
