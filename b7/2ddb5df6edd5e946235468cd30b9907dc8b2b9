@@ -1,0 +1,70 @@
+Sources/MacParakeetViewModels/MeetingImportViewModel.swift
+  s_b917cce38c86a5::t_a99f7215530866 26,28,30,75-77,111,253,255,263-269
+  s_b917cce38c86a5::t_3401d5e4f1000e 164-165,260-261
+  s_b917cce38c86a5::t_601cfec8acfa54 251-252,254
+  s_b917cce38c86a5::t_afe59e5217b251 1-20,22-25,27,31-59,61-69,71-74,78-106,108-110,112-143,145-163,177-178,191-212,214-222,230-235,238-250,256-259,262,270-271
+  s_b917cce38c86a5::t_c33a68e079b9e5 60,70,107,144,166-176,179-190,213,236-237
+  s_b917cce38c86a5::t_b9d96b77e57f0f 21,29,223-229
+  s_b917cce38c86a5::t_7ec2dbac58065d 272-274
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_b917cce38c86a5::t_8a7914d57f609d 44,479-495
+  s_40854eda65ef0b::t_83b532186799ca 496
+Sources/MacParakeet/App/AppWindowCoordinator.swift
+  s_b917cce38c86a5::t_c506ab7d30addd 68,100,128,243
+Sources/MacParakeet/Views/Meetings/MeetingImportSheetView.swift
+  s_b917cce38c86a5::t_3401d5e4f1000e 35,148,187,190-191,197-198,237-241,294-308
+  s_b917cce38c86a5::t_8b002ed513835f 1-28,30-34,36-40,42-136,143-147,149-157,159-169,171-186,200-204,210-236,242-287,291-293,309-313,315-329,332-335
+  s_b917cce38c86a5::t_b9d96b77e57f0f 138,170,188-189,206-209,314
+  s_b917cce38c86a5::t_5626215f852b2d 137,158,288-290,330-331
+  s_b917cce38c86a5::t_c33a68e079b9e5 29,41,139-142,192-196,205
+  s_b917cce38c86a5::t_d8e3d26167a4e6 199
+  s_b917cce38c86a5::t_4551569b8a6e24 336-342
+Sources/MacParakeet/Views/Meetings/MeetingsView.swift
+  s_b917cce38c86a5::t_5626215f852b2d 284-286
+  s_b917cce38c86a5::t_3401d5e4f1000e 243,249-250
+  s_b917cce38c86a5::t_b9d96b77e57f0f 2
+  s_b917cce38c86a5::t_8b002ed513835f 10,27,218-226,242,244-248,251-254,270-283,287-290
+  s_d10e9f532d10f8::t_f2720e287a09d7 291
+Sources/MacParakeet/AppDelegate.swift
+  s_b917cce38c86a5::t_c506ab7d30addd 81,219,572-574
+  s_d10e9f532d10f8::t_f4e5aed815666d 575-578
+Tests/MacParakeetTests/ViewModels/MeetingImportViewModelTests.swift
+  s_b917cce38c86a5::t_97b36be21d1027 132,134
+  s_b917cce38c86a5::t_9ab0d104ac3e69 21
+  s_b917cce38c86a5::t_c33a68e079b9e5 65,82-84,88-128,171-182
+  s_b917cce38c86a5::t_64713003e93314 1-20,22-64,66-81,85-87,129-131,133,135-170,183-184
+Sources/MacParakeet/Views/MainWindowView.swift
+  s_b917cce38c86a5::t_c506ab7d30addd 85,146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b72ddb5df6edd5e946235468cd30b9907dc8b2b9",
+  "prompts": {},
+  "sessions": {
+    "s_40854eda65ef0b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09cc0-83c9-73d2-af78-ce0480aa0477",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_b917cce38c86a5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09cbc-4be8-7390-8404-01e9b48cd014",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_d10e9f532d10f8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09cea-8c9e-7273-b13a-e73d92b9b191",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
