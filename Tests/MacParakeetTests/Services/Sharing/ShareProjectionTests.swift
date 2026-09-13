@@ -173,6 +173,47 @@ final class ShareProjectionTests: XCTestCase {
         XCTAssertNil(segments[0].speaker)
     }
 
+    func testTranscriptSelectionProjectsCorrectedTimedSegments() throws {
+        var transcription = makeKitchenSinkMeeting()
+        transcription.cleanTranscript = "Corrected sentence."
+        transcription.transcriptSegments = [
+            TranscriptSegmentRecord(
+                startMs: 1_000,
+                endMs: 2_500,
+                speakerId: "S1",
+                speakerLabel: "sentinel-speaker-label",
+                text: "Corrected sentence.",
+                wordRange: .init(startIndex: 0, endIndexExclusive: 3),
+                isTextEdited: true
+            )
+        ]
+        let selection = ShareSelection(
+            includeSummary: false,
+            includeNotes: false,
+            includeTranscript: true,
+            transcriptOptions: TranscriptExportOptions(
+                includeTimestamps: true,
+                includeSpeakerLabels: true,
+                includeMetadata: false
+            )
+        )
+
+        let bundle = try ShareProjection.project(
+            transcription: transcription,
+            selection: selection,
+            publishedAt: fixedDate
+        )
+
+        guard case .transcript(_, let segments) = bundle.sections[0] else {
+            return XCTFail("Expected transcript section")
+        }
+        XCTAssertEqual(segments.count, 1)
+        XCTAssertEqual(segments[0].text, "Corrected sentence.")
+        XCTAssertEqual(segments[0].startMs, 1_000)
+        XCTAssertEqual(segments[0].endMs, 2_500)
+        XCTAssertEqual(segments[0].speaker, "sentinel-speaker-label")
+    }
+
     // MARK: - Highlighted passage
 
     func testHighlightedPassageProjectsOnlyThatPassage() throws {

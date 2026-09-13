@@ -751,7 +751,9 @@ private struct MeetingRecord: Encodable {
     let meetingType: MeetingType?
     let meetingLabels: [MeetingLabel]
     let speakerCorrectionsApplied: Bool
+    let textCorrectionsApplied: Bool
     let speakerCorrectionRevision: Int
+    let transcriptTextAlignment: TranscriptTextAlignment
 
     init(
         _ projection: SpeakerAttributionProjection,
@@ -801,7 +803,9 @@ private struct MeetingRecord: Encodable {
         meetingType = classification.meetingType
         meetingLabels = classification.labels
         speakerCorrectionsApplied = projection.correctionsApplied
+        textCorrectionsApplied = projection.attribution.hasTextCorrections
         speakerCorrectionRevision = projection.correctionRevision
+        transcriptTextAlignment = transcription.transcriptTextAlignment
     }
 }
 
@@ -817,7 +821,9 @@ private struct MeetingTranscriptRecord: Encodable {
     let meetingType: MeetingType?
     let meetingLabels: [MeetingLabel]
     let speakerCorrectionsApplied: Bool
+    let textCorrectionsApplied: Bool
     let speakerCorrectionRevision: Int
+    let transcriptTextAlignment: TranscriptTextAlignment
 
     init(
         _ projection: SpeakerAttributionProjection,
@@ -835,7 +841,9 @@ private struct MeetingTranscriptRecord: Encodable {
         meetingType = classification.meetingType
         meetingLabels = classification.labels
         speakerCorrectionsApplied = projection.correctionsApplied
+        textCorrectionsApplied = projection.attribution.hasTextCorrections
         speakerCorrectionRevision = projection.correctionRevision
+        transcriptTextAlignment = transcription.transcriptTextAlignment
     }
 }
 

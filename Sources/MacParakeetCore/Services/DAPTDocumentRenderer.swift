@@ -86,13 +86,7 @@ enum DAPTDocumentRenderer {
     }
 
     private static func alignedCues(for transcription: Transcription) -> [TranscriptCue] {
-        guard !transcription.isTranscriptEdited,
-            let words = transcription.wordTimestamps,
-            !words.isEmpty
-        else {
-            return []
-        }
-        return TranscriptCueBuilder.build(from: words)
+        TranscriptCueBuilder.build(from: transcription)
     }
 
     private static func preferredText(_ transcription: Transcription) -> String {

@@ -179,6 +179,46 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertFalse(text.contains("Automatically cleaned transcript."))
     }
 
+    func testSegmentTimedCorrectionFeedsTextSubtitleAndDAPTExportsWithoutInventingWordTiming() {
+        var transcription = makeExportOptionsTranscription()
+        transcription.cleanTranscript = "Corrected greeting. Goodbye."
+        transcription.transcriptSegments = [
+            TranscriptSegmentRecord(
+                startMs: 0,
+                endMs: 500,
+                speakerId: "S1",
+                speakerLabel: "Alice",
+                text: "Corrected greeting.",
+                wordRange: .init(startIndex: 0, endIndexExclusive: 1),
+                isTextEdited: true
+            ),
+            TranscriptSegmentRecord(
+                startMs: 2_000,
+                endMs: 2_500,
+                speakerId: "S2",
+                speakerLabel: "Bob",
+                text: "Goodbye.",
+                wordRange: .init(startIndex: 1, endIndexExclusive: 2)
+            ),
+        ]
+
+        let plain = exportService.formatPlainText(
+            transcription: transcription,
+            options: .init(includeTimestamps: true, includeSpeakerLabels: true, includeMetadata: false)
+        )
+        XCTAssertEqual(plain, "Alice:\n[0:00] Corrected greeting.\n\nBob:\n[0:02] Goodbye.")
+
+        let srt = exportService.formatSRT(transcription: transcription)
+        XCTAssertTrue(srt.contains("00:00:00,000 --> 00:00:00,500\nAlice: Corrected greeting."))
+        XCTAssertTrue(srt.contains("00:00:02,000 --> 00:00:02,500\nBob: Goodbye."))
+        XCTAssertFalse(srt.contains("Hello."))
+
+        let dapt = exportService.formatDAPT(transcription: transcription)
+        XCTAssertTrue(dapt.contains("begin=\"00:00:00.000\" end=\"00:00:00.500\""))
+        XCTAssertTrue(dapt.contains("<p>Corrected greeting.</p>"))
+        XCTAssertFalse(dapt.contains("<p>Hello.</p>"))
+    }
+
     func testFormatPlainTextCanOmitMetadataTimestampsAndSpeakers() {
         let transcription = makeExportOptionsTranscription(cleanTranscript: "Edited transcript without timing.")
         let options = TranscriptExportOptions(

@@ -161,6 +161,28 @@ public enum ShareProjection {
             return try untimedSegments(from: text)
         }
 
+        if transcription.transcriptTextAlignment == .segment,
+            let segments = transcription.transcriptSegments,
+            !segments.isEmpty
+        {
+            return try segments.compactMap { segment -> ShareBundle.TranscriptSegment? in
+                let text = segment.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else { return nil }
+                let speaker = resolvedOptions.includeSpeakerLabels
+                    ? speakerLabel(for: segment.speakerId, in: transcription.speakers)
+                    : nil
+                if resolvedOptions.includeTimestamps {
+                    return try ShareBundle.TranscriptSegment(
+                        text: text,
+                        startMs: segment.startMs,
+                        endMs: segment.endMs,
+                        speaker: speaker
+                    )
+                }
+                return try ShareBundle.TranscriptSegment(text: text, speaker: speaker)
+            }
+        }
+
         if let words = transcription.wordTimestamps, !words.isEmpty {
             let paragraphs = TranscriptParagraphBuilder.build(from: words)
             return try paragraphs.compactMap { paragraph -> ShareBundle.TranscriptSegment? in

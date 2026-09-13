@@ -43,11 +43,7 @@ public enum TranscriptAIContextFormatter {
             return edited
         }
 
-        guard let words = transcription.wordTimestamps, !words.isEmpty else {
-            return nil
-        }
-
-        let cues = TranscriptCueBuilder.build(from: words)
+        let cues = TranscriptCueBuilder.build(from: transcription)
         guard !cues.isEmpty else { return nil }
 
         return cues.map { cue in

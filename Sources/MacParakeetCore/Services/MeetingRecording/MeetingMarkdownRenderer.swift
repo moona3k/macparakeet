@@ -272,14 +272,12 @@ public struct MeetingMarkdownRenderer: Sendable {
 
     private func renderedTranscript(_ transcription: Transcription) -> (text: String, speakerLabelsIncluded: Bool) {
         guard transcription.hasSpeakerLabeledWords,
-              !transcription.isTranscriptEdited,
-              let words = transcription.wordTimestamps,
-              !words.isEmpty
+              transcription.transcriptTextAlignment != .untimed
         else {
             return (preferredTranscriptText(transcription), false)
         }
 
-        let cues = TranscriptCueBuilder.build(from: words)
+        let cues = TranscriptCueBuilder.build(from: transcription)
         let paragraphs = speakerParagraphs(from: cues, speakers: transcription.speakers)
         guard !paragraphs.isEmpty else {
             return (preferredTranscriptText(transcription), false)

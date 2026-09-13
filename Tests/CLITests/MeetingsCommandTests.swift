@@ -5,6 +5,75 @@ import XCTest
 @testable import MacParakeetCore
 
 final class MeetingsCommandTests: XCTestCase {
+    func testMeetingJSONSurfacesExposeTimedTextCorrectionsWithoutRewritingStoredWords() async throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let db = try DatabaseManager(path: dbURL.path)
+        let repository = TranscriptionRepository(dbQueue: db.dbQueue)
+        let segmentID = UUID()
+        let words = [
+            WordTimestamp(word: "Wrong", startMs: 0, endMs: 200, confidence: 1, speakerId: "S1"),
+            WordTimestamp(word: "words.", startMs: 220, endMs: 500, confidence: 1, speakerId: "S1"),
+        ]
+        let meeting = Transcription(
+            fileName: "Text correction",
+            rawTranscript: "Wrong words.",
+            cleanTranscript: "Wrong words.",
+            wordTimestamps: words,
+            speakers: [SpeakerInfo(id: "S1", label: "Alice")],
+            transcriptSegments: [TranscriptSegmentRecord(
+                id: segmentID,
+                startMs: 0,
+                endMs: 500,
+                speakerId: "S1",
+                speakerLabel: "Alice",
+                text: "Wrong words.",
+                wordRange: .init(startIndex: 0, endIndexExclusive: 2)
+            )],
+            status: .completed,
+            sourceType: .meeting
+        )
+        try repository.save(meeting)
+        let target = SpeakerCorrectionTarget(
+            anchorTranscriptSegmentIDs: [segmentID],
+            wordRange: .init(startIndex: 0, endIndexExclusive: 2)
+        )
+        _ = try await SpeakerCorrectionService(dbQueue: db.dbQueue).apply(
+            transcriptionId: meeting.id,
+            command: .editText(target: target, text: "Corrected words."),
+            expectedFingerprint: SpeakerAttributionResolver.fingerprint(for: meeting),
+            expectedRevision: 0
+        )
+
+        let showCommand = try MeetingsCommand.ShowSubcommand.parse([
+            meeting.id.uuidString, "--json", "--database", dbURL.path,
+        ])
+        let showOutput = try await captureStandardOutput { try await showCommand.run() }
+        let show = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(showOutput.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(show["transcript"] as? String, "Corrected words.")
+        XCTAssertEqual(show["cleanTranscript"] as? String, "Corrected words.")
+        XCTAssertEqual(show["textCorrectionsApplied"] as? Bool, true)
+        XCTAssertEqual(show["transcriptTextAlignment"] as? String, "segment")
+        let showSegments = try XCTUnwrap(show["transcriptSegments"] as? [[String: Any]])
+        XCTAssertEqual(showSegments.first?["text"] as? String, "Corrected words.")
+        XCTAssertEqual(showSegments.first?["isTextEdited"] as? Bool, true)
+
+        let transcriptCommand = try MeetingsCommand.TranscriptSubcommand.parse([
+            meeting.id.uuidString, "--format", "json", "--database", dbURL.path,
+        ])
+        let transcriptOutput = try await captureStandardOutput { try await transcriptCommand.run() }
+        let transcript = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(transcriptOutput.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(transcript["transcript"] as? String, "Corrected words.")
+        XCTAssertEqual(transcript["textCorrectionsApplied"] as? Bool, true)
+        XCTAssertEqual(transcript["transcriptTextAlignment"] as? String, "segment")
+        XCTAssertEqual(try repository.fetch(id: meeting.id)?.wordTimestamps, words)
+        XCTAssertEqual(try repository.fetch(id: meeting.id)?.cleanTranscript, "Wrong words.")
+    }
+
     func testClassifyPreservesCorrectedArtifactSpeakersAndProvenance() async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

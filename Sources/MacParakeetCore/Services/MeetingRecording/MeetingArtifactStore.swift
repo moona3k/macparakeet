@@ -147,6 +147,7 @@ public struct MeetingArtifactSnapshot: Codable, Sendable, Equatable {
     public let promptResultsDirectoryPath: String
     public let promptResultCount: Int
     public let speakerCorrectionsApplied: Bool
+    public let textCorrectionsApplied: Bool
     public let speakerCorrectionRevision: Int
     public let meetingType: MeetingArtifactClassificationSnapshot.Value?
     public let meetingLabels: [MeetingArtifactClassificationSnapshot.Value]?
@@ -172,6 +173,7 @@ public struct MeetingArtifactSnapshot: Codable, Sendable, Equatable {
         case promptResultsDirectoryPath
         case promptResultCount
         case speakerCorrectionsApplied
+        case textCorrectionsApplied
         case speakerCorrectionRevision
         case meetingType
         case meetingLabels
@@ -199,6 +201,7 @@ public struct MeetingArtifactSnapshot: Codable, Sendable, Equatable {
         promptResultsDirectoryPath = try values.decode(String.self, forKey: .promptResultsDirectoryPath)
         promptResultCount = try values.decode(Int.self, forKey: .promptResultCount)
         speakerCorrectionsApplied = try values.decodeIfPresent(Bool.self, forKey: .speakerCorrectionsApplied) ?? false
+        textCorrectionsApplied = try values.decodeIfPresent(Bool.self, forKey: .textCorrectionsApplied) ?? false
         speakerCorrectionRevision = try values.decodeIfPresent(Int.self, forKey: .speakerCorrectionRevision) ?? 0
         meetingType = try values.decodeIfPresent(MeetingArtifactClassificationSnapshot.Value.self, forKey: .meetingType)
         meetingLabels = try values.decodeIfPresent([MeetingArtifactClassificationSnapshot.Value].self, forKey: .meetingLabels)
@@ -225,6 +228,7 @@ public struct MeetingArtifactSnapshot: Codable, Sendable, Equatable {
         promptResultsDirectoryPath: String,
         promptResultCount: Int,
         speakerCorrectionsApplied: Bool = false,
+        textCorrectionsApplied: Bool = false,
         speakerCorrectionRevision: Int = 0,
         meetingType: MeetingArtifactClassificationSnapshot.Value? = nil,
         meetingLabels: [MeetingArtifactClassificationSnapshot.Value]? = nil,
@@ -249,6 +253,7 @@ public struct MeetingArtifactSnapshot: Codable, Sendable, Equatable {
         self.promptResultsDirectoryPath = promptResultsDirectoryPath
         self.promptResultCount = promptResultCount
         self.speakerCorrectionsApplied = speakerCorrectionsApplied
+        self.textCorrectionsApplied = textCorrectionsApplied
         self.speakerCorrectionRevision = speakerCorrectionRevision
         self.meetingType = meetingType
         self.meetingLabels = meetingLabels
@@ -424,6 +429,7 @@ public final class MeetingArtifactStore: MeetingArtifactStoring, @unchecked Send
             promptResultsDirectoryPath: promptResultsDirectoryURL.path,
             promptResultCount: promptResults.count,
             speakerCorrectionsApplied: projection?.correctionsApplied ?? false,
+            textCorrectionsApplied: projection?.attribution.hasTextCorrections ?? false,
             speakerCorrectionRevision: projection?.correctionRevision ?? 0,
             meetingType: effectiveClassification?.meetingType,
             meetingLabels: effectiveClassification?.labels,
@@ -582,6 +588,7 @@ private struct MeetingArtifactMeetingSummary: Codable {
     let meetingCaptureReport: MeetingCaptureReport?
     let recoveredFromCrash: Bool
     let isTranscriptEdited: Bool
+    let transcriptTextAlignment: TranscriptTextAlignment
     let startContext: MeetingStartContext?
     let meetingType: MeetingArtifactClassificationSnapshot.Value?
     let meetingLabels: [MeetingArtifactClassificationSnapshot.Value]?
@@ -603,6 +610,7 @@ private struct MeetingArtifactMeetingSummary: Codable {
         meetingCaptureReport = transcription.meetingCaptureReport
         recoveredFromCrash = transcription.recoveredFromCrash
         isTranscriptEdited = transcription.isTranscriptEdited
+        transcriptTextAlignment = transcription.transcriptTextAlignment
         startContext = transcription.meetingStartContext
         meetingType = classification?.meetingType
         meetingLabels = classification?.labels
@@ -655,7 +663,9 @@ private struct MeetingArtifactTranscript: Codable {
     let diarizationSegments: [DiarizationSegmentRecord]?
     let transcriptSegments: [MeetingArtifactTranscriptSegment]?
     let speakerCorrectionsApplied: Bool
+    let textCorrectionsApplied: Bool
     let speakerCorrectionRevision: Int
+    let transcriptTextAlignment: TranscriptTextAlignment
     let userNotes: String?
     let language: String?
     let engine: String?
@@ -708,7 +718,9 @@ private struct MeetingArtifactTranscript: Codable {
             )
         }
         speakerCorrectionsApplied = projection?.correctionsApplied ?? false
+        textCorrectionsApplied = projection?.attribution.hasTextCorrections ?? false
         speakerCorrectionRevision = projection?.correctionRevision ?? 0
+        transcriptTextAlignment = transcription.transcriptTextAlignment
         userNotes = transcription.userNotes
         language = transcription.language
         engine = transcription.engine
@@ -733,6 +745,7 @@ private struct MeetingArtifactTranscriptSegment: Codable {
     let speakerId: String?
     let speakerLabel: String?
     let wordRange: TranscriptSegmentWordRange
+    let isTextEdited: Bool?
     let speakerSpans: [MeetingArtifactSpeakerSpan]?
 
     init(
@@ -747,6 +760,7 @@ private struct MeetingArtifactTranscriptSegment: Codable {
         speakerId = segment.speakerId
         speakerLabel = segment.speakerLabel
         wordRange = segment.wordRange
+        isTextEdited = segment.isTextEdited
         speakerSpans = speakerRuns?.map {
             MeetingArtifactSpeakerSpan(
                 run: $0,
