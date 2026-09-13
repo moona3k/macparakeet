@@ -1,0 +1,58 @@
+Tests/MacParakeetTests/ViewModels/TranscriptionLibraryViewModelTests.swift
+  s_262a6d6f6e8252::t_9ef0fca9b1d57a 1130,1163,1335,1395
+Sources/CLI/Commands/MeetingSplitCommand.swift
+  s_262a6d6f6e8252::t_989ac241355c61 458-459,461-462
+  s_262a6d6f6e8252::t_25c87f6698fda4 586,632-639
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_262a6d6f6e8252::t_0a964548745d75 1703-1709
+spec/02-features.md
+  s_262a6d6f6e8252::t_e64e2acca39ce4 2016
+Tests/MacParakeetTests/TestSupport/TemporaryManagedMeetingFolder.swift
+  s_262a6d6f6e8252::t_480b019c69109c 1-12,20-25
+  s_262a6d6f6e8252::t_f1d074472c8714 13-19
+docs/design/issue-895-meeting-split.md
+  s_262a6d6f6e8252::t_12bb9117b06407 4
+Sources/MacParakeetViewModels/MeetingSplitViewModel.swift
+  s_262a6d6f6e8252::t_ee1f44c254809d 69,103,340-347
+spec/contracts/meeting-splitting.md
+  s_262a6d6f6e8252::t_f325d401ac4a03 3-4
+  s_262a6d6f6e8252::t_041a27d68a711c 65-69
+  s_262a6d6f6e8252::t_8967a21187e9ab 325-327
+integrations/README.md
+  s_262a6d6f6e8252::t_a0e8dbda108215 617-618
+Tests/MacParakeetTests/Services/MeetingRecording/TranscriptionAssetCleanupMutationLeaseTests.swift
+  s_262a6d6f6e8252::t_480b019c69109c 16
+Tests/MacParakeetTests/ViewModels/TranscriptionDeletionCleanupTests.swift
+  s_262a6d6f6e8252::t_b585ba625e467d 201
+  s_262a6d6f6e8252::t_d7b8982537684b 11,31,60,76,102,131,161,285,318
+spec/README.md
+  s_262a6d6f6e8252::t_e64e2acca39ce4 76
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_262a6d6f6e8252::t_0a964548745d75 1937-1945
+Tests/MacParakeetTests/ViewModels/MeetingSplitViewModelTests.swift
+  s_262a6d6f6e8252::t_ee1f44c254809d 272-274
+Sources/MacParakeetCore/Services/MeetingSplit/MeetingSplitService.swift
+  s_262a6d6f6e8252::t_ed0d55eb67e4f2 730-733
+Tests/MacParakeetTests/ViewModels/TranscriptionViewModelTests.swift
+  s_262a6d6f6e8252::t_f88eec62ca3303 903,1007
+spec/contracts/README.md
+  s_262a6d6f6e8252::t_e64e2acca39ce4 38
+spec/contracts/cli-json-v1.md
+  s_262a6d6f6e8252::t_e64e2acca39ce4 65-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "025204091384215f99dd3a96bee703dc6273ff23",
+  "prompts": {},
+  "sessions": {
+    "s_262a6d6f6e8252": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a099f4-a4d1-7af2-8f02-8a3cf11f637a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
