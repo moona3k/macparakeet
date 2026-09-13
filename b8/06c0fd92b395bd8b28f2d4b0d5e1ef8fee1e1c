@@ -1,0 +1,62 @@
+Tests/MacParakeetTests/Services/MeetingImport/MeetingImportServiceTests.swift
+  s_b917cce38c86a5::t_e319f69cfda839 215-220,222
+spec/contracts/meeting-import-v1.md
+  s_b917cce38c86a5::t_e181034075adfe 81-86
+  s_b917cce38c86a5::t_c9e9277420a33b 76-79
+  s_b917cce38c86a5::t_684203e4327cc5 80
+Sources/CLI/Commands/MeetingImportCommand.swift
+  s_b917cce38c86a5::t_c9e9277420a33b 5-9,43,206-207,283-284,287-289
+  s_b917cce38c86a5::t_a949a2062a247d 83,85,97-98,112-114,231-243
+  s_b917cce38c86a5::t_db2d64313f9615 11-32,87
+  s_b917cce38c86a5::t_4a66f87aad19c8 1-4,10,33-42,44-82,84,86,88-96,99-111,115-205,208-230,244-282,285-286,290-291
+Sources/CLI/CHANGELOG.md
+  s_b917cce38c86a5::t_20ce662dce5a22 99-100
+  s_b917cce38c86a5::t_c9e9277420a33b 101-102
+  s_b917cce38c86a5::t_e181034075adfe 94-98
+Sources/CLI/Commands/SavedMeetingProcessingContext.swift
+  s_b917cce38c86a5::t_702071ec93ead7 1-80
+Sources/CLI/Commands/MeetingsCommand.swift
+  s_b917cce38c86a5::t_4a66f87aad19c8 21
+Tests/CLITests/SpecCommandTests.swift
+  s_b917cce38c86a5::t_e181034075adfe 18-28
+Sources/CLI/README.md
+  s_b917cce38c86a5::t_e181034075adfe 23
+Sources/CLI/Commands/MeetingSplitCommand.swift
+  s_b917cce38c86a5::t_5b9f8d097b422f 175,353,421
+  s_b917cce38c86a5::t_a949a2062a247d 457-468,482
+  s_b917cce38c86a5::t_702071ec93ead7 586,589-590,596-598
+Tests/CLITests/MeetingImportCommandTests.swift
+  s_b917cce38c86a5::t_20ce662dce5a22 32-39,58-59,72-73,80-81,128-135,144-147,164-180
+  s_b917cce38c86a5::t_9c0e31a15dde83 1-6,8-31,40-57,60-71,74-79,82-97,148-163,181-182
+  s_b917cce38c86a5::t_c9e9277420a33b 100-125
+  s_b917cce38c86a5::t_c9fee09cca63f9 7,98-99,126-127,136-143
+Sources/MacParakeetCore/Services/MeetingImport/MeetingImportResult.swift
+  s_b917cce38c86a5::t_e319f69cfda839 18-25
+Sources/CLI/Commands/CLIHelpers.swift
+  s_b917cce38c86a5::t_3bb7fb94f53d73 622-629
+Sources/CLI/Commands/SpecCommand.swift
+  s_b917cce38c86a5::t_c9e9277420a33b 1433
+  s_b917cce38c86a5::t_e181034075adfe 1420-1432,1434
+  s_b917cce38c86a5::t_c7a0a49533789d 1419
+integrations/README.md
+  s_b917cce38c86a5::t_e181034075adfe 615-627
+spec/contracts/cli-json-v1.md
+  s_b917cce38c86a5::t_c9e9277420a33b 248-250
+  s_b917cce38c86a5::t_e181034075adfe 240-247,251
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b806c0fd92b395bd8b28f2d4b0d5e1ef8fee1e1c",
+  "prompts": {},
+  "sessions": {
+    "s_b917cce38c86a5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09cbc-4be8-7390-8404-01e9b48cd014",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
