@@ -72,14 +72,21 @@ else. The decisive test must therefore go through
 ## 3. Capture the baseline before editing anything
 
 The before/after comparison ADR-010 mandates is impossible once the dependency
-is resolved, so build and set aside the 0.15.6 CLI first:
+is resolved, so build and set aside the 0.15.6 CLI first, and name both arms as
+explicit paths:
 
 ```bash
+WORK_DIR=<a directory outside the repo>
 swift build -c release --product macparakeet-cli
-cp .build/arm64-apple-macosx/release/macparakeet-cli <work-dir>/cli-0.15.6
+cp .build/arm64-apple-macosx/release/macparakeet-cli "$WORK_DIR/cli-0.15.6"
+export BASELINE_CLI="$WORK_DIR/cli-0.15.6"
+export CANDIDATE_CLI="$PWD/.build/arm64-apple-macosx/release/macparakeet-cli"
 ```
 
-`<work-dir>` is outside the repo.
+`CANDIDATE_CLI` only becomes the 0.15.7 binary after §4, so rebuild
+`swift build -c release --product macparakeet-cli` before running the candidate
+arm. Never invoke a bare `macparakeet-cli` in either arm: `PATH` resolves to
+whatever release is installed on the machine, which is neither arm.
 
 ## 4. Edits, in this order
 
@@ -112,16 +119,23 @@ Dependency first, so any break surfaces on the first compile.
 | B | three distinct voices, known turn points, >= 3 min | the `--speaker-max` ceiling |
 | C | a single speaker, >= 2 min | no over-segmentation |
 
-Run each cell on both binaries, recording roster size, the speaker ids actually
+Run this block twice, once with `BIN="$BASELINE_CLI"` and once with
+`BIN="$CANDIDATE_CLI"`, recording roster size, the speaker ids actually
 attributed to words, and wall time:
 
 ```bash
-macparakeet-cli transcribe A.wav --speaker-count 1 --format json
-macparakeet-cli transcribe A.wav --format json
-macparakeet-cli transcribe B.wav --speaker-count 2 --format json
-macparakeet-cli transcribe B.wav --speaker-min 1 --speaker-max 2 --format json
-macparakeet-cli transcribe C.wav --speaker-count 1 --format json
+"$BIN" transcribe A.wav --speaker-count 1 --format json
+"$BIN" transcribe A.wav --format json
+"$BIN" transcribe B.wav --speaker-count 2 --format json
+"$BIN" transcribe B.wav --speaker-min 1 --speaker-max 2 --format json
+"$BIN" transcribe B.wav --format json
+"$BIN" transcribe C.wav --speaker-count 1 --format json
+"$BIN" transcribe C.wav --format json
 ```
+
+Every corpus item gets an unconstrained run, because rollback criterion 2 is a
+statement about auto-detected counts across items and is unmeasurable on an item
+that was only ever run constrained.
 
 Pass criteria on the 0.15.7 arm:
 
@@ -152,9 +166,18 @@ measurement trap in §2.
 | `ModelNames` additions | `ParakeetUnifiedEngine` required set | `ModelDeletionTests` green **and** the required-set contents inspected: a silently grown set means re-downloads on upgrade |
 
 Harness: `scripts/dev/benchmark_stt_engines.sh <corpus.tsv>`, cold and warm
-phases, same machine and corpus on both arms. Record `avg_wer`,
-`realtime_factor` and `peak_memory_gb` per engine and sample. WhisperKit is not
-FluidAudio-backed and serves only as an unchanged control.
+phases, same machine and corpus on both arms. It defaults `BIN` to the release
+binary in `.build`, which the candidate build overwrites, so pass each arm
+explicitly and separate their outputs:
+
+```bash
+BIN="$BASELINE_CLI" OUT_DIR="$WORK_DIR/bench-0.15.6" scripts/dev/benchmark_stt_engines.sh <corpus.tsv>
+BIN="$CANDIDATE_CLI" OUT_DIR="$WORK_DIR/bench-0.15.7" scripts/dev/benchmark_stt_engines.sh <corpus.tsv>
+```
+
+Record `avg_wer`, `realtime_factor` and `peak_memory_gb` per engine and
+sample. WhisperKit is not FluidAudio-backed and serves only as an unchanged
+control.
 
 ## 7. Test filters, in order
 
@@ -214,8 +237,14 @@ revision and comments; one `docs(diarization):` for the ADR and spec lines.
    fails anywhere.
 7. `ModelDeletionTests` passes only after loosening an assertion.
 
-For 3, 4 or 5 the remedy is not a revert: it is pinning 0.15.7 and adding an
-explicit ASR override, which is a separate PR and a separate ADR note.
+Criteria 3, 4 and 5 are ASR regressions rather than diarization ones, so a
+revert would also drop the #1023 fix. They are still blocking: the release stays
+pinned to 0.15.6 until a follow-up PR defines the override, names the ASR path
+it overrides, and lands an acceptance test for that path, with an ADR-010 note
+recording the split. Which override is needed is not decidable in advance — 3
+points at the v3 long-form/no-mel path, 4 at the streaming seam, 5 at the CTC
+vocabulary rescorer — so it gets defined when a criterion actually fires, not
+here.
 
 ## 10. Risks worth holding in view
 
