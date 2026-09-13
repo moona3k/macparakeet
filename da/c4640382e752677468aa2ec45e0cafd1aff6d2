@@ -1,0 +1,24 @@
+Tests/MacParakeetTests/ViewModels/MeetingSplitViewModelTests.swift
+  s_262a6d6f6e8252::t_e89caec3e8a8fa 272
+Tests/MacParakeetTests/ViewModels/TranscriptionDeletionCleanupTests.swift
+  s_262a6d6f6e8252::t_8170e1e028dd27 219-226
+  s_262a6d6f6e8252::t_e89caec3e8a8fa 214,216,218
+Tests/MacParakeetTests/Services/MeetingRecording/TranscriptionAssetCleanupMutationLeaseTests.swift
+  s_262a6d6f6e8252::t_b3be2810ba3fb5 16,18,20-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "dac4640382e752677468aa2ec45e0cafd1aff6d2",
+  "prompts": {},
+  "sessions": {
+    "s_262a6d6f6e8252": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a099f4-a4d1-7af2-8f02-8a3cf11f637a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
