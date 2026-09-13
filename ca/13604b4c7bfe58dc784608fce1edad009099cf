@@ -1,0 +1,78 @@
+spec/adr/025-meeting-capture-reliability.md
+  s_d10e9f532d10f8::t_21f7c2144fdd96 56-57,59-78,81,556,559-569,574-576
+  s_d10e9f532d10f8::t_b7791ab47ff425 58
+  s_d10e9f532d10f8::t_3bd725b6506488 79-80
+Tests/MacParakeetTests/Audio/MicrophoneEngineLifecycleDiagnosticsTests.swift
+  s_d10e9f532d10f8::t_19418e6c06ede0 117-186
+  s_d10e9f532d10f8::t_999bf46f7c904a 1-116,187-189
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  s_d10e9f532d10f8::t_a372b26bffdb8c 895-898
+docs/audits/2026-09-13-issue-931-startup-observability.md
+  s_d10e9f532d10f8::t_9c9989ecf349df 1-179
+Sources/MacParakeetViewModels/MeetingRecordingPanelViewModel.swift
+  s_d10e9f532d10f8::t_1bdc5e0eb9c7a1 272
+docs/telemetry.md
+  s_d10e9f532d10f8::t_21f7c2144fdd96 202-207,447-493,495-515
+  s_d10e9f532d10f8::t_3bd725b6506488 34-35,494
+  s_d10e9f532d10f8::t_6861d5323ed1a7 516
+spec/adr/012-telemetry-system.md
+  s_d10e9f532d10f8::t_b7791ab47ff425 65-66
+  s_d10e9f532d10f8::t_21f7c2144fdd96 67-75,98
+Tests/MacParakeetTests/TelemetryServiceTests.swift
+  s_d10e9f532d10f8::t_8aae2657ca26ab 1939-1948
+  s_d10e9f532d10f8::t_ce60aa4ce53e7b 1778-1794,1951
+Sources/MacParakeetCore/Audio/AudioEngineLifecycleDiagnostics.swift
+  s_d10e9f532d10f8::t_673fb3f941f6f1 214
+  s_d10e9f532d10f8::t_5a318540a0cf52 207-208,215-218
+  s_d10e9f532d10f8::t_764a8f083115b0 1-206,209-213,219-324
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_d10e9f532d10f8::t_1bdc5e0eb9c7a1 822
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_d10e9f532d10f8::t_9c9989ecf349df 458-460
+Sources/MacParakeetCore/Audio/MicrophoneEnginePlatform.swift
+  s_d10e9f532d10f8::t_c3990ec454509d 1107,1216,1260-1261,1302-1303,1314,1320,1324,1426,1432,1442,1517,1843-1845,1858-1859,1861
+  s_d10e9f532d10f8::t_4462831af0a3db 401-402,546-548,576-578,584,668,670-671,696-699,720,722-726,728,763,775,779-783,819,838-842,871,902,915-917,920,929-931
+  s_d10e9f532d10f8::t_1bdc5e0eb9c7a1 1124-1126,1333-1335,1451-1453
+  s_d10e9f532d10f8::t_18ea53bca308e3 370-371,392-395
+  s_d10e9f532d10f8::t_5a318540a0cf52 672-673,675-694,1017,1358
+  s_d10e9f532d10f8::t_51cce4ae76c5fd 1092,1095,1101,1111,1149,1152,1164,1169,1206,1221-1225,1245,1278,1292,1401,1421,1474
+spec/contracts/telemetry-v1.md
+  s_d10e9f532d10f8::t_21f7c2144fdd96 80-107,174-178,192-196
+Tests/MacParakeetTests/Audio/AudioEngineLifecycleDiagnosticsTests.swift
+  s_d10e9f532d10f8::t_d4292e77b0212d 167,172-174
+  s_d10e9f532d10f8::t_19418e6c06ede0 137-138,320-349
+  s_d10e9f532d10f8::t_764a8f083115b0 1-136,139-166,168-171,175-181,197-319,350-388
+  s_d10e9f532d10f8::t_673fb3f941f6f1 182-196
+spec/05-audio-pipeline.md
+  s_d10e9f532d10f8::t_21f7c2144fdd96 55-70,73-82,322
+  s_d10e9f532d10f8::t_b7791ab47ff425 71-72
+Tests/MacParakeetTests/ViewModels/MeetingRecordingPanelViewModelTests.swift
+  s_d10e9f532d10f8::t_1bdc5e0eb9c7a1 295
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingService.swift
+  s_d10e9f532d10f8::t_1bdc5e0eb9c7a1 2100
+Sources/MacParakeetCore/Audio/README.md
+  s_d10e9f532d10f8::t_21f7c2144fdd96 103,105-122,405-410
+  s_d10e9f532d10f8::t_3bd725b6506488 411-412
+  s_d10e9f532d10f8::t_b7791ab47ff425 102,104
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_d10e9f532d10f8::t_a372b26bffdb8c 955-957
+  s_d10e9f532d10f8::t_b765fb49aa2693 115,1091,1717-1718,1952-1955
+docs/local-audio-diagnostics-query.md
+  s_d10e9f532d10f8::t_b7e8a3c774e162 66-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ca13604b4c7bfe58dc784608fce1edad009099cf",
+  "prompts": {},
+  "sessions": {
+    "s_d10e9f532d10f8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09cea-8c9e-7273-b13a-e73d92b9b191",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
