@@ -186,7 +186,8 @@ final class TranscriptionSpeakerCorrectionViewModelTests: XCTestCase {
         try await waitUntil { viewModel.speakerAttribution != nil }
 
         let command = SpeakerCorrectionCommand.rename(speakerID: "S1", label: "Alice")
-        viewModel.applySpeakerCorrection(command)
+        var completionResult: Bool?
+        viewModel.applySpeakerCorrection(command) { completionResult = $0 }
 
         try await waitUntil { !viewModel.isApplyingSpeakerCorrection && viewModel.canUndoSpeakerCorrection }
         let calls = await service.applyCalls
@@ -198,6 +199,7 @@ final class TranscriptionSpeakerCorrectionViewModelTests: XCTestCase {
         XCTAssertEqual(call.revision, attribution.correctionRevision)
         XCTAssertTrue(viewModel.speakerCorrectionsApplied)
         XCTAssertFalse(viewModel.canRedoSpeakerCorrection)
+        XCTAssertEqual(completionResult, true)
     }
 
     func testUndoPublishesRedoAvailability() async throws {
@@ -267,13 +269,17 @@ final class TranscriptionSpeakerCorrectionViewModelTests: XCTestCase {
         viewModel.currentTranscription = transcription
         try await waitUntil { reader.requestedIDs.count == 1 && viewModel.speakerAttribution != nil }
 
-        viewModel.applySpeakerCorrection(.rename(speakerID: "S1", label: "Alice"))
+        var completionResult: Bool?
+        viewModel.applySpeakerCorrection(.rename(speakerID: "S1", label: "Alice")) {
+            completionResult = $0
+        }
 
         try await waitUntil { reader.requestedIDs.count == 2 && !viewModel.isApplyingSpeakerCorrection }
         XCTAssertEqual(
             viewModel.errorMessage,
             "Speaker changes were updated elsewhere. Review and try again."
         )
+        XCTAssertEqual(completionResult, false)
     }
 
     func testQueuedMeetingCompletionReloadsAttributionForSameID() async throws {

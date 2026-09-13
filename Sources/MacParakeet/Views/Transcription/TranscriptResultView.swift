@@ -77,7 +77,7 @@ private struct RetranscriptionConfirmation: Identifiable {
             speakerSummary = ""
         }
         let correctionWarning = resetsSpeakerCorrections
-            ? "Your manual speaker corrections will be reset. " : ""
+            ? "Your manual transcript edits will be reset. " : ""
         return speakerSummary + correctionWarning
             + "Replaces this transcript. Prompts and chats are preserved."
     }
@@ -537,6 +537,7 @@ struct TranscriptResultView: View {
     @State private var newSpeakerLabel = ""
     @State private var pendingNewSpeakerSegments: [SpeakerEditableSegment] = []
     @State private var pendingSplitSegment: SpeakerEditableSegment?
+    @State private var pendingTimedTextSegment: SpeakerEditableSegment?
     @State private var showConversationPopover = false
     @State private var hoveredConversationId: UUID?
     @State private var playerViewModel = MediaPlayerViewModel()
@@ -614,6 +615,7 @@ struct TranscriptResultView: View {
                 if let attribution = viewModel.speakerAttribution {
                     speakerSelection.reconcile(with: attribution.editableSegments.map(\.id))
                 }
+                playerViewModel.loadSubtitleCues(from: activeTranscription)
                 if transcriptDisplayMode == .timed {
                     scheduleSegmentCacheRebuild()
                 }
@@ -674,6 +676,13 @@ struct TranscriptResultView: View {
                      ? "Add a speaker to this transcript."
                      : "Add a speaker and assign the selected segments.")
             }
+            .sheet(item: $pendingTimedTextSegment) { segment in
+                TimedTranscriptTextEditSheet(
+                    segment: segment,
+                    viewModel: viewModel,
+                    onDismiss: { pendingTimedTextSegment = nil }
+                )
+            }
             .sheet(item: $pendingSplitSegment) { segment in
                 SpeakerSplitSheet(
                     segment: segment,
@@ -722,9 +731,7 @@ struct TranscriptResultView: View {
             } else {
                 await playerViewModel.prepare(for: transcription)
             }
-            if let words = transcription.wordTimestamps, !words.isEmpty {
-                playerViewModel.loadSubtitleCues(from: words)
-            }
+            playerViewModel.loadSubtitleCues(from: activeTranscription)
         }
         syncTranscriptDisplayMode()
         if transcriptDisplayMode == .timed {
@@ -758,9 +765,7 @@ struct TranscriptResultView: View {
             } else {
                 await playerViewModel.prepare(for: transcription)
             }
-            if let words = transcription.wordTimestamps, !words.isEmpty {
-                playerViewModel.loadSubtitleCues(from: words)
-            }
+            playerViewModel.loadSubtitleCues(from: activeTranscription)
         }
         headerExpanded = false
         classificationTarget = nil
@@ -780,6 +785,7 @@ struct TranscriptResultView: View {
         newSpeakerLabel = ""
         pendingNewSpeakerSegments = []
         pendingSplitSegment = nil
+        pendingTimedTextSegment = nil
         showConversationPopover = false
         hoveredConversationId = nil
         lastScrolledSegmentMs = -1
@@ -1469,6 +1475,10 @@ struct TranscriptResultView: View {
 
     private var hasEditedTranscript: Bool {
         activeTranscription.isTranscriptEdited && hasCleanTranscriptText
+    }
+
+    private var hasTimedTranscriptEdits: Bool {
+        viewModel.speakerAttribution?.hasTextCorrections == true
     }
 
     private var hasCleanTranscriptText: Bool {
@@ -2363,7 +2373,7 @@ struct TranscriptResultView: View {
                 .font(DesignSystem.Typography.sectionTitle)
                 .foregroundStyle(DesignSystem.Colors.textPrimary)
 
-            if hasEditedTranscript {
+            if hasEditedTranscript || hasTimedTranscriptEdits {
                 Label("Edited", systemImage: "checkmark.circle.fill")
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(DesignSystem.Colors.successGreen)
@@ -2427,44 +2437,38 @@ struct TranscriptResultView: View {
                             closeFindBar()
                         }
                     } label: {
-                        Label(editingSpeakers ? "Done" : "Edit speakers", systemImage: "person.2")
+                        Label(editingSpeakers ? "Done" : "Edit transcript", systemImage: "pencil")
                     }
                     .parakeetAction(editingSpeakers ? .primary : .secondary)
                     .disabled(activeTranscription.status == .processing)
                 }
 
-                // Editing operates on the plain text transcript only; the Timed
-                // view is derived from word timestamps and has no editable text.
-                // Disable Edit in Timed mode rather than silently dropping the
-                // user into the raw text view when they click it.
-                Button {
-                    beginTranscriptEdit()
-                } label: {
-                    Label("Edit", systemImage: "pencil")
-                }
-                .parakeetAction(.secondary)
-                .disabled(
-                    transcriptDisplayMode != .text
-                        || !TranscriptDetailActionAvailability.canEdit(
+                if transcriptDisplayMode == .text {
+                    Button {
+                        beginTranscriptEdit()
+                    } label: {
+                        Label("Edit", systemImage: "pencil")
+                    }
+                    .parakeetAction(.secondary)
+                    .disabled(
+                        !TranscriptDetailActionAvailability.canEdit(
                             status: activeTranscription.status
                         )
-                )
-                .help(transcriptEditHelp)
+                    )
+                    .help(transcriptEditHelp)
+                }
             }
         }
     }
 
     private var transcriptEditHelp: String {
-        if transcriptDisplayMode != .text {
-            return "Switch to Text to edit. Edits apply to the text transcript; timestamps are preserved."
-        }
         if activeTranscription.status == .processing {
             return "Editing is available after transcription finishes."
         }
         if transcriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return "Add transcript text manually."
         }
-        return "Edit the transcript text"
+        return "Edit the full transcript. This legacy edit is not aligned to timestamps."
     }
 
     private var speakerEditingAvailable: Bool {
@@ -4138,6 +4142,11 @@ struct TranscriptResultView: View {
                 presentNewSpeaker(for: actionSegments(fallback: segment))
             },
             onSplitSegment: presentSplitPicker,
+            onEditSegmentText: { pendingTimedTextSegment = $0 },
+            canMergeSegment: { segment, direction in
+                timedMergePair(for: segment, direction: direction) != nil
+            },
+            onMergeSegment: mergeTimedSegment,
             onAssignTurn: assignSpeakerTurn,
             onCreateSpeakerForTurn: presentNewSpeaker
         )
@@ -4181,17 +4190,17 @@ struct TranscriptResultView: View {
             Spacer()
 
             Button(action: viewModel.undoSpeakerCorrection) {
-                Label("Undo", systemImage: "arrow.uturn.backward")
+                Label("Undo edit", systemImage: "arrow.uturn.backward")
             }
             .disabled(!viewModel.canUndoSpeakerCorrection || viewModel.isApplyingSpeakerCorrection)
 
             Button(action: viewModel.redoSpeakerCorrection) {
-                Label("Redo", systemImage: "arrow.uturn.forward")
+                Label("Redo edit", systemImage: "arrow.uturn.forward")
             }
             .disabled(!viewModel.canRedoSpeakerCorrection || viewModel.isApplyingSpeakerCorrection)
 
             if viewModel.speakerCorrectionsApplied {
-                Button("Reset") {
+                Button("Reset edits") {
                     viewModel.applySpeakerCorrection(.reset)
                 }
                 .disabled(viewModel.isApplyingSpeakerCorrection)
@@ -4292,8 +4301,31 @@ struct TranscriptResultView: View {
     }
 
     private func presentSplitPicker(_ segment: SpeakerEditableSegment) {
-        guard segment.wordRange.endIndexExclusive - segment.wordRange.startIndex > 1 else { return }
+        guard !segment.isTextEdited,
+              segment.wordRange.endIndexExclusive - segment.wordRange.startIndex > 1
+        else { return }
         pendingSplitSegment = segment
+    }
+
+    private func timedMergePair(
+        for segment: SpeakerEditableSegment,
+        direction: TimedTranscriptMergeDirection
+    ) -> [SpeakerEditableSegment]? {
+        TimedTranscriptMergeModel.pair(
+            for: segment.id,
+            direction: direction,
+            in: viewModel.speakerAttribution?.editableSegments ?? []
+        )
+    }
+
+    private func mergeTimedSegment(
+        _ segment: SpeakerEditableSegment,
+        direction: TimedTranscriptMergeDirection
+    ) {
+        guard let pair = timedMergePair(for: segment, direction: direction) else { return }
+        viewModel.applySpeakerCorrection(
+            .mergeSegments(targets: pair.map(correctionTarget(for:)))
+        )
     }
 
     // MARK: - Speaker Summary Panel
@@ -5650,6 +5682,113 @@ struct TranscriptSegmentCachePayload: Sendable {
             hasSpeakers: hasSpeakers,
             speakerLabelMap: speakerLabelMap
         )
+    }
+}
+
+private struct TimedTranscriptTextEditSheet: View {
+    let segment: SpeakerEditableSegment
+    @Bindable var viewModel: TranscriptionViewModel
+    let onDismiss: () -> Void
+
+    @State private var draft: String
+    @State private var isSaving = false
+    @State private var saveFailed = false
+    @FocusState private var editorFocused: Bool
+
+    init(
+        segment: SpeakerEditableSegment,
+        viewModel: TranscriptionViewModel,
+        onDismiss: @escaping () -> Void
+    ) {
+        self.segment = segment
+        self.viewModel = viewModel
+        self.onDismiss = onDismiss
+        _draft = State(initialValue: segment.text)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            Text("Edit timed line")
+                .font(DesignSystem.Typography.sectionTitle)
+            Text(
+                "This line keeps its existing \(timestamp(segment.startMs))–\(timestamp(segment.endMs)) time range. Original word timing remains unchanged."
+            )
+            .font(DesignSystem.Typography.body)
+            .foregroundStyle(DesignSystem.Colors.textSecondary)
+
+            TextEditor(text: $draft)
+                .font(DesignSystem.Typography.body)
+                .frame(minHeight: 130)
+                .padding(DesignSystem.Spacing.sm)
+                .background(
+                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                        .fill(DesignSystem.Colors.surfaceElevated)
+                )
+                .focused($editorFocused)
+                .disabled(isSaving)
+
+            if saveFailed {
+                Label("Couldn't save. Your draft is still here.", systemImage: "exclamationmark.triangle.fill")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.errorRed)
+            }
+
+            HStack {
+                Spacer()
+                Button("Cancel", action: onDismiss)
+                    .parakeetAction(.secondary)
+                    .disabled(isSaving)
+                Button(isSaving ? "Saving…" : "Save") {
+                    save()
+                }
+                .parakeetAction(.primary)
+                .disabled(!canSave || isSaving)
+            }
+        }
+        .padding(DesignSystem.Spacing.lg)
+        .frame(width: 520)
+        .onAppear { editorFocused = true }
+        .interactiveDismissDisabled(isSaving)
+    }
+
+    private var normalizedDraft: String {
+        draft.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canSave: Bool {
+        !normalizedDraft.isEmpty
+            && normalizedDraft != segment.text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func save() {
+        guard canSave else { return }
+        isSaving = true
+        saveFailed = false
+        let target = SpeakerCorrectionTarget(
+            anchorTranscriptSegmentIDs: segment.anchorTranscriptSegmentIDs,
+            wordRange: segment.wordRange
+        )
+        viewModel.applySpeakerCorrection(
+            .editText(target: target, text: normalizedDraft)
+        ) { succeeded in
+            isSaving = false
+            if succeeded {
+                onDismiss()
+            } else {
+                saveFailed = true
+            }
+        }
+    }
+
+    private func timestamp(_ milliseconds: Int) -> String {
+        let totalSeconds = max(0, milliseconds) / 1_000
+        let hours = totalSeconds / 3_600
+        let minutes = (totalSeconds % 3_600) / 60
+        let seconds = totalSeconds % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
+        return String(format: "%d:%02d", minutes, seconds)
     }
 }
 

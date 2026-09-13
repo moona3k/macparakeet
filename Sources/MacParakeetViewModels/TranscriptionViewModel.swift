@@ -1983,16 +1983,23 @@ public final class TranscriptionViewModel {
         }
     }
 
-    /// Returns `false` when the correction was refused because speaker changes
-    /// are still loading or saving, so the caller can keep its pending input
-    /// and retry once `isApplyingSpeakerCorrection` clears.
+    /// Returns `false` when the correction could not be submitted. The optional
+    /// completion reports the persisted result so editors can retain drafts on
+    /// an asynchronous failure.
     @discardableResult
-    public func applySpeakerCorrection(_ command: SpeakerCorrectionCommand) -> Bool {
+    public func applySpeakerCorrection(
+        _ command: SpeakerCorrectionCommand,
+        completion: (@MainActor (Bool) -> Void)? = nil
+    ) -> Bool {
         guard let transcriptionID = currentTranscription?.id,
               let speakerCorrectionService
-        else { return true }
+        else {
+            completion?(false)
+            return false
+        }
         guard let attribution = speakerAttribution, !isApplyingSpeakerCorrection else {
             setError(message: "Speaker changes are still loading or saving. Please try again.")
+            completion?(false)
             return false
         }
         isApplyingSpeakerCorrection = true
@@ -2008,8 +2015,10 @@ public final class TranscriptionViewModel {
                 self?.publishSpeakerCorrectionResult(
                     result, transcriptionID: transcriptionID, selectedRevision: selectedRevision
                 )
+                completion?(true)
             } catch {
                 self?.handleSpeakerCorrectionFailure(error, transcriptionID: transcriptionID)
+                completion?(false)
             }
         }
         return true
