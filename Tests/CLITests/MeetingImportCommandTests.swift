@@ -1,0 +1,182 @@
+import ArgumentParser
+import Foundation
+import XCTest
+@testable import CLI
+@testable import MacParakeetCore
+
+@MainActor
+final class MeetingImportCommandTests: XCTestCase {
+    private var sourceURL: URL!
+
+    override func setUpWithError() throws {
+        meetingImportRunnerOverride.set(nil)
+        sourceURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-cli-import-\(UUID().uuidString).m4a")
+        try Data().write(to: sourceURL)
+    }
+
+    override func tearDownWithError() throws {
+        meetingImportRunnerOverride.set(nil)
+        try? FileManager.default.removeItem(at: sourceURL)
+    }
+
+    func testParsesOneSourceAndRejectsWhitespaceTitleOrConflictingJSONFlags() throws {
+        let command = try MeetingsCommand.ImportSubcommand.parse([
+            sourceURL.path, "--title", "Planning", "--started-at", "2026-05-14", "--json",
+        ])
+        XCTAssertEqual(command.path, sourceURL.path)
+        XCTAssertEqual(command.title, "Planning")
+        XCTAssertEqual(command.startedAt, "2026-05-14")
+        XCTAssertTrue(command.json)
+
+        XCTAssertThrowsError(
+            try MeetingsCommand.ImportSubcommand.parse([
+                sourceURL.path, "--title", "  ",
+            ]))
+        XCTAssertThrowsError(
+            try MeetingsCommand.ImportSubcommand.parse([
+                sourceURL.path, "--json", "--envelope",
+            ]))
+    }
+
+    func testParsesDateOnlyAtLocalMidnightAndISO8601InstantStrictly() throws {
+        let local = try XCTUnwrap(MeetingsCommand.ImportSubcommand.parseStartedAt("2026-05-14"))
+        XCTAssertEqual(Calendar.current.component(.hour, from: local), 0)
+        XCTAssertEqual(Calendar.current.component(.minute, from: local), 0)
+
+        let instant = try XCTUnwrap(MeetingsCommand.ImportSubcommand.parseStartedAt("2026-05-14T17:30:00Z"))
+        XCTAssertEqual(ISO8601DateFormatter().string(from: instant), "2026-05-14T17:30:00Z")
+        XCTAssertThrowsError(try MeetingsCommand.ImportSubcommand.parseStartedAt("2026-5-14"))
+        XCTAssertThrowsError(try MeetingsCommand.ImportSubcommand.parseStartedAt("2026-05-14 noon"))
+    }
+
+    func testPartialJSONUsesStableCamelCaseRecordAndSafeWarning() async throws {
+        let transcription = meeting(status: .completed)
+        meetingImportRunnerOverride.set { _, progress in
+            progress(.preparingMedia)
+            progress(.published(transcription))
+            return MeetingImportResult(
+                transcription: transcription, warnings: [.artifactRefreshFailed(message: "/private/raw")])
+        }
+        let command = try MeetingsCommand.ImportSubcommand.parse([sourceURL.path, "--json"])
+        let output = try await captureStandardOutput { try await command.run() }
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+
+        XCTAssertEqual(object["id"] as? String, transcription.id.uuidString)
+        XCTAssertEqual(object["completion"] as? String, "partial")
+        XCTAssertEqual(object["status"] as? String, "completed")
+        XCTAssertEqual(object["title"] as? String, transcription.effectiveDisplayTitle)
+        XCTAssertEqual(object["durationMs"] as? Int, 90_000)
+        let warnings = try XCTUnwrap(object["warnings"] as? [[String: Any]])
+        XCTAssertEqual(warnings.first?["kind"] as? String, "artifactRefreshFailed")
+        XCTAssertEqual(
+            warnings.first?["message"] as? String, "Some meeting details could not finish. The transcript is ready.")
+        XCTAssertFalse(output.contains("/private/raw"))
+    }
+
+    func testNeedsRetryPrintsDurableResultBeforeFailureExit() async throws {
+        let transcription = meeting(status: .error)
+        meetingImportRunnerOverride.set { _, _ in
+            MeetingImportResult(
+                transcription: transcription, warnings: [.transcriptionFailed(message: "provider detail")])
+        }
+        let command = try MeetingsCommand.ImportSubcommand.parse([sourceURL.path, "--json"])
+        var caught: Error?
+        let output = try await captureStandardOutput {
+            do {
+                try await command.run()
+            } catch {
+                caught = error
+            }
+        }
+
+        XCTAssertEqual(caught as? ExitCode, .failure)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(object["completion"] as? String, "needsRetry")
+        XCTAssertEqual(object["status"] as? String, "error")
+        XCTAssertFalse(output.contains("provider detail"))
+    }
+
+    func testInterruptedDurableResultPrintsBeforeExit130() async throws {
+        let transcription = meeting(status: .cancelled)
+        meetingImportRunnerOverride.set { _, _ in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return MeetingImportResult(
+                transcription: transcription,
+                warnings: [.transcriptionCancelled]
+            )
+        }
+        let command = try MeetingsCommand.ImportSubcommand.parse([sourceURL.path, "--json"])
+        var caught: Error?
+        let output = try await captureStandardOutput {
+            do {
+                try await command.run()
+            } catch {
+                caught = error
+            }
+        }
+
+        XCTAssertEqual(caught as? ExitCode, ExitCode(130))
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(object["id"] as? String, transcription.id.uuidString)
+        XCTAssertEqual(object["completion"] as? String, "needsRetry")
+        XCTAssertEqual(object["status"] as? String, "cancelled")
+    }
+
+    func testEnvelopeWrapsTheSameStableImportRecord() async throws {
+        let transcription = meeting(status: .completed)
+        let capturedRequest = CapturedImportRequest()
+        meetingImportRunnerOverride.set { request, _ in
+            capturedRequest.set(request)
+            return MeetingImportResult(transcription: transcription)
+        }
+        let command = try MeetingsCommand.ImportSubcommand.parse([
+            sourceURL.path, "--title", "Imported planning", "--started-at", "2026-05-14T17:30:00Z", "--envelope",
+        ])
+        let output = try await captureStandardOutput { try await command.run() }
+        let envelope = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+
+        XCTAssertEqual(envelope["ok"] as? Bool, true)
+        XCTAssertEqual(envelope["command"] as? String, "meetings import")
+        let data = try XCTUnwrap(envelope["data"] as? [String: Any])
+        XCTAssertEqual(data["id"] as? String, transcription.id.uuidString)
+        XCTAssertEqual(data["completion"] as? String, "completed")
+        let request = try XCTUnwrap(capturedRequest.value)
+        XCTAssertEqual(request.sourceURL, sourceURL)
+        XCTAssertEqual(request.titleOverride, "Imported planning")
+        XCTAssertEqual(ISO8601DateFormatter().string(from: try XCTUnwrap(request.startedAt)), "2026-05-14T17:30:00Z")
+    }
+
+    func testImportErrorValidationTaxonomy() {
+        XCTAssertTrue(isCLIValidationMisuse(MeetingImportError.invalidSource))
+        XCTAssertTrue(isCLIValidationMisuse(MeetingImportError.unsupportedFormat))
+        XCTAssertTrue(isCLIValidationMisuse(MeetingImportError.blankTitle))
+        XCTAssertFalse(isCLIValidationMisuse(MeetingImportError.invalidAudio))
+    }
+
+    private func meeting(status: Transcription.TranscriptionStatus) -> Transcription {
+        Transcription(
+            fileName: "Partnership discussion",
+            durationMs: 90_000,
+            status: status,
+            sourceType: .meeting
+        )
+    }
+}
+
+private final class CapturedImportRequest: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedValue: MeetingImportRequest?
+
+    var value: MeetingImportRequest? {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedValue
+    }
+
+    func set(_ request: MeetingImportRequest) {
+        lock.lock()
+        storedValue = request
+        lock.unlock()
+    }
+}

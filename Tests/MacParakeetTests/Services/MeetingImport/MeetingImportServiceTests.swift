@@ -212,8 +212,14 @@ final class MeetingImportServiceTests: XCTestCase {
     func testInvalidSourcesAndBlankExplicitTitlePublishNothing() async throws {
         let unsupported = try source("notes.txt")
         let valid = try source()
+        let missing = directory.appendingPathComponent("missing.wav")
+        XCTAssertThrowsError(try MeetingImportRequest(sourceURL: missing).resolveDefaults()) { error in
+            guard case MeetingImportError.invalidSource = error else {
+                return XCTFail("Expected invalidSource, got \(error)")
+            }
+        }
         for request in [
-            MeetingImportRequest(sourceURL: directory.appendingPathComponent("missing.wav")),
+            MeetingImportRequest(sourceURL: missing),
             MeetingImportRequest(sourceURL: root),
             MeetingImportRequest(sourceURL: unsupported),
             MeetingImportRequest(sourceURL: valid, titleOverride: " \n "),

@@ -15,9 +15,14 @@ public struct MeetingImportRequest: Sendable, Equatable {
     /// invalid; an absent override leaves normal title generation enabled.
     public func resolveDefaults(now: Date = Date()) throws -> MeetingImportDefaults {
         guard sourceURL.isFileURL else { throw MeetingImportError.invalidSource }
-        let values = try sourceURL.resourceValues(forKeys: [
-            .isRegularFileKey, .creationDateKey, .contentModificationDateKey,
-        ])
+        let values: URLResourceValues
+        do {
+            values = try sourceURL.resourceValues(forKeys: [
+                .isRegularFileKey, .creationDateKey, .contentModificationDateKey,
+            ])
+        } catch {
+            throw MeetingImportError.invalidSource
+        }
         guard values.isRegularFile == true else { throw MeetingImportError.invalidSource }
         guard AudioFileConverter.isSupported(extension: sourceURL.pathExtension) else {
             throw MeetingImportError.unsupportedFormat

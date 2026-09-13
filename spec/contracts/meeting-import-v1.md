@@ -73,8 +73,17 @@ Every entry point distinguishes these results:
 A later warning never erases a successful transcript. Progress goes to CLI
 stderr; stdout contains only the final human or JSON result. `--json` and
 `--envelope` preserve the normal CLI output convention. A durable failure prints
-its saved meeting result before exiting nonzero. Partial success exits zero so
-an ordinary command retry does not accidentally import a duplicate.
+its saved meeting result before exiting nonzero. A normal retryable result exits
+one; SIGINT after publication prints the same durable result before exit 130.
+Partial success exits zero so an ordinary command retry does not accidentally
+import a duplicate.
+
+The CLI JSON result is a `MeetingImportRecord` with `id`, `completion`,
+`status`, `title`, `startedAt`, optional `durationMs`, optional
+`managedAudioPath`, and a `warnings` array. Each warning exposes a stable
+`kind` and plain-language `message`; failed prompts additionally carry their
+optional prompt id and name. See the public [CLI JSON contract](cli-json-v1.md)
+for output and exit-code details.
 
 ## App task lifetime
 

@@ -619,6 +619,14 @@ private func rethrowWithOptionalJSONEnvelope(_ error: Error, json: Bool) throws 
 }
 
 func isCLIValidationMisuse(_ error: Error) -> Bool {
+    if let importError = error as? MeetingImportError {
+        switch importError {
+        case .invalidSource, .unsupportedFormat, .blankTitle:
+            return true
+        case .invalidAudio:
+            return false
+        }
+    }
     if error is ValidationError || error is CLIInputError {
         return true
     }

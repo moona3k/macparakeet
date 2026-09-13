@@ -237,6 +237,18 @@ with human progress/status kept off stdout.
   Multiple repeated filters use ANY semantics. `--unclassified` cannot be
   combined with `--type`. Archived types/labels remain resolvable for meetings
   that already use them but are excluded from default vocabulary lists.
+
+- `meetings import <path> --json` returns one camelCase `MeetingImportRecord`:
+  `id`, `completion` (`completed`, `partial`, or `needsRetry`), persisted
+  `status`, `title`, historical `startedAt`, nullable `durationMs`, nullable
+  `managedAudioPath`, and `warnings`. Warning objects contain stable `kind`
+  and plain-language `message`, plus nullable `promptId` and `promptName` for
+  a failed enabled prompt. Progress is stderr-only. Complete and partial
+  records exit 0. A `needsRetry` record is printed first, then the command
+  exits 1 without a failure envelope; if SIGINT caused the stopped result, the
+  same record is printed before exit 130. Callers must open that saved meeting
+  and retry transcription instead of importing the source again. Date-only
+  `--started-at` is local midnight; ISO-8601 timestamps preserve their instant.
 - `meetings show --json` and `meetings export --stdout --format json` may
   include `calendarEventSnapshot` for meeting recordings started from, or
   probably overlapping, a calendar event. The field is additive and local-only;
