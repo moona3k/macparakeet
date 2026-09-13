@@ -1,6 +1,6 @@
 # Timed Transcript Text Editing and Line Merge
 
-> Status: **IN PROGRESS**
+> Status: **IMPLEMENTED ON FEATURE BRANCH**
 > Date: 2026-09-13
 > Issue: [#893](https://github.com/moona3k/macparakeet/issues/893)
 > Governing decision: [ADR-030](../../spec/adr/030-timed-transcript-corrections.md)
@@ -91,3 +91,16 @@ smoke tests, accessibility labels, and a manual app smoke pass.
 - Automatic raw text, word text/timing, and durable anchors remain unchanged.
 - Legacy whole-text edits stay untimed and remain reversible through their
   existing path.
+
+## Completion evidence
+
+- Focused correction-model, migration, service, consumer, CLI, view-model, and
+  presentation suites passed during implementation.
+- `swift run macparakeet-cli --help` passed on the final implementation head.
+- The final `swift test` gate passed 6,494 XCTest cases and 29 Swift Testing
+  cases with zero failures; 24 environment-gated tests were skipped.
+- Two independent architecture/code-review passes found and verified fixes for
+  automatic-boundary replay and competing whole-transcript/timed-line edits.
+
+Merge review and hands-on testing with real saved transcripts remain release
+verification, not implementation blockers.
