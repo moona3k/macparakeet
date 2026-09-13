@@ -1,0 +1,21 @@
+Sources/MacParakeet/Views/Meetings/MeetingSplitSheetView.swift
+  s_262a6d6f6e8252::t_6c7f91cafed93d 373-376
+Tests/CLITests/HistoryCommandTests.swift
+  s_262a6d6f6e8252::t_6c7f91cafed93d 398-403
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9d0c16def47c7d5376ef836ea655fd24a9e863ec",
+  "prompts": {},
+  "sessions": {
+    "s_262a6d6f6e8252": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a099f4-a4d1-7af2-8f02-8a3cf11f637a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
