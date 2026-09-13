@@ -1,0 +1,19 @@
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_a3fccef3b3182e::t_604e573abbde74 932
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "07e968a9e89746c8d58708e2a306409d82eeee0f",
+  "prompts": {},
+  "sessions": {
+    "s_a3fccef3b3182e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f66a3-54eb-7973-a483-b04ace44ce4c",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

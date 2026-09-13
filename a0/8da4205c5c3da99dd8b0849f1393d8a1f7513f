@@ -1,0 +1,16 @@
+docs/qa/2026-09-07-0.8.0/cli-runtime.md
+  h_2ab1f47fea2ced 11-16
+docs/qa/2026-09-07-0.8.0/scripts/verify_cli_contracts.py
+  h_2ab1f47fea2ced 156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "a08da4205c5c3da99dd8b0849f1393d8a1f7513f",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

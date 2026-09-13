@@ -1,0 +1,23 @@
+docs/qa/2026-09-07-0.8.0/package-preflight.md
+  s_8133b9b13b41cc::t_a673fcbe1109df 60
+spec/README.md
+  s_8133b9b13b41cc::t_a673fcbe1109df 67
+README.md
+  s_8133b9b13b41cc::t_a673fcbe1109df 67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "f69e5d1e3321b76d2079f408d57ec75a9d2f531d",
+  "prompts": {},
+  "sessions": {
+    "s_8133b9b13b41cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01100ec0-f49f-4812-bac2-7a18276682ce",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
