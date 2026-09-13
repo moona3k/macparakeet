@@ -219,6 +219,7 @@ struct TranscriptTimestampedContentView<SpeakerLabelContent: View>: View {
     var effectiveTurnCards: [IdentifiedEffectiveSpeakerTurn] = []
     var availableSpeakers: [SpeakerInfo] = []
     var isSpeakerEditing = false
+    var isTimedTextEditingAvailable = true
     var isSpeakerActionDisabled = false
     var selectedSegmentIDs: Set<SpeakerEditableSegmentID> = []
     var effectiveIsSegmentActive: (SpeakerEditableSegment) -> Bool = { _ in false }
@@ -344,6 +345,7 @@ struct TranscriptTimestampedContentView<SpeakerLabelContent: View>: View {
             speakerColorMap: speakerColorMap,
             speakerLabelContent: speakerLabelContent,
             isSpeakerEditing: isSpeakerEditing,
+            isTimedTextEditingAvailable: isTimedTextEditingAvailable,
             isSpeakerActionDisabled: isSpeakerActionDisabled,
             selectedSegmentIDs: selectedSegmentIDs,
             timestampLabel: timestampLabel,
@@ -389,6 +391,7 @@ struct TranscriptTimestampedContentView<SpeakerLabelContent: View>: View {
                 editableSegment: segment,
                 availableSpeakers: availableSpeakers,
                 isSpeakerEditing: isSpeakerEditing,
+                isTimedTextEditingAvailable: isTimedTextEditingAvailable,
                 isSpeakerActionDisabled: isSpeakerActionDisabled,
                 isSelectedForSpeakerEditing: selectedSegmentIDs.contains(segment.id),
                 onSelectForSpeakerEditing: { onSelectSegment(segment.id) },
@@ -428,6 +431,7 @@ private struct EditableTranscriptTurnCardView<SpeakerLabelContent: View>: View {
     let speakerColorMap: [String: Color]
     let speakerLabelContent: (String, String, Color, String, Bool) -> SpeakerLabelContent
     let isSpeakerEditing: Bool
+    let isTimedTextEditingAvailable: Bool
     let isSpeakerActionDisabled: Bool
     let selectedSegmentIDs: Set<SpeakerEditableSegmentID>
     let timestampLabel: (Int) -> String
@@ -539,6 +543,7 @@ private struct EditableTranscriptTurnCardView<SpeakerLabelContent: View>: View {
                             editableSegment: segment,
                             availableSpeakers: availableSpeakers,
                             isSpeakerEditing: isSpeakerEditing,
+                            isTimedTextEditingAvailable: isTimedTextEditingAvailable,
                             isSpeakerActionDisabled: isSpeakerActionDisabled,
                             isSelectedForSpeakerEditing: selectedSegmentIDs.contains(segment.id),
                             onSelectForSpeakerEditing: { onSelectSegment(segment.id) },
@@ -755,6 +760,7 @@ private struct TranscriptSegmentRow: View {
     var editableSegment: SpeakerEditableSegment? = nil
     var availableSpeakers: [SpeakerInfo] = []
     var isSpeakerEditing = false
+    var isTimedTextEditingAvailable = true
     var isSpeakerActionDisabled = false
     var isSelectedForSpeakerEditing = false
     var onSelectForSpeakerEditing: () -> Void = {}
@@ -910,16 +916,18 @@ private struct TranscriptSegmentRow: View {
     @ViewBuilder
     private var segmentEditingMenu: some View {
         if isSpeakerEditing {
-            Button("Edit text…", action: onEditText)
-            if canMergePrevious || canMergeNext {
-                if canMergePrevious {
-                    Button("Merge with previous line", action: onMergePrevious)
+            if isTimedTextEditingAvailable {
+                Button("Edit text…", action: onEditText)
+                if canMergePrevious || canMergeNext {
+                    if canMergePrevious {
+                        Button("Merge with previous line", action: onMergePrevious)
+                    }
+                    if canMergeNext {
+                        Button("Merge with next line", action: onMergeNext)
+                    }
                 }
-                if canMergeNext {
-                    Button("Merge with next line", action: onMergeNext)
-                }
+                Divider()
             }
-            Divider()
             speakerEditingMenu
         } else {
             Button("Edit transcript", action: onBeginSpeakerEditing)

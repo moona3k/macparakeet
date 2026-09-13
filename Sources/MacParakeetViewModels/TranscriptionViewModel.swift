@@ -1858,6 +1858,10 @@ public final class TranscriptionViewModel {
     @discardableResult
     public func updateCurrentTranscriptText(to newText: String) -> Bool {
         guard var transcription = currentTranscription else { return false }
+        guard !transcription.hasWordTimestamps || transcription.isTranscriptEdited else {
+            setError(message: "Edit timed transcripts one line at a time.")
+            return false
+        }
         guard let repo = transcriptionRepo else {
             reportMissingConfiguration("transcriptionRepo", action: "updateCurrentTranscriptText")
             return false

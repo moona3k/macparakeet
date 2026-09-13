@@ -454,6 +454,14 @@ enum TranscriptDetailActionAvailability {
         status != .processing
     }
 
+    static func canEditWholeTranscript(
+        status: Transcription.TranscriptionStatus,
+        hasTimestamps: Bool,
+        isLegacyWholeTextEdit: Bool
+    ) -> Bool {
+        canEdit(status: status) && (!hasTimestamps || isLegacyWholeTextEdit)
+    }
+
     static func canRetranscribe(
         hasRetainedAudio: Bool,
         status: Transcription.TranscriptionStatus
@@ -2437,13 +2445,18 @@ struct TranscriptResultView: View {
                             closeFindBar()
                         }
                     } label: {
-                        Label(editingSpeakers ? "Done" : "Edit transcript", systemImage: "pencil")
+                        Label(
+                            editingSpeakers
+                                ? "Done"
+                                : timedTextEditingAvailable ? "Edit transcript" : "Edit speakers",
+                            systemImage: "pencil"
+                        )
                     }
                     .parakeetAction(editingSpeakers ? .primary : .secondary)
                     .disabled(activeTranscription.status == .processing)
                 }
 
-                if transcriptDisplayMode == .text {
+                if transcriptDisplayMode == .text, wholeTranscriptEditingAvailable {
                     Button {
                         beginTranscriptEdit()
                     } label: {
@@ -2469,6 +2482,18 @@ struct TranscriptResultView: View {
             return "Add transcript text manually."
         }
         return "Edit the full transcript. This legacy edit is not aligned to timestamps."
+    }
+
+    private var wholeTranscriptEditingAvailable: Bool {
+        TranscriptDetailActionAvailability.canEditWholeTranscript(
+            status: activeTranscription.status,
+            hasTimestamps: hasTimestamps,
+            isLegacyWholeTextEdit: activeTranscription.isTranscriptEdited
+        )
+    }
+
+    private var timedTextEditingAvailable: Bool {
+        activeTranscription.transcriptTextAlignment != .untimed
     }
 
     private var speakerEditingAvailable: Bool {
@@ -4121,6 +4146,7 @@ struct TranscriptResultView: View {
                 ? [] : identifiedEffectiveSpeakerTurnCards(attribution?.turns ?? []),
             availableSpeakers: attribution?.speakers ?? [],
             isSpeakerEditing: editingSpeakers,
+            isTimedTextEditingAvailable: timedTextEditingAvailable,
             isSpeakerActionDisabled: viewModel.isApplyingSpeakerCorrection,
             selectedSegmentIDs: speakerSelection.selectedIDs,
             effectiveIsSegmentActive: { segment in

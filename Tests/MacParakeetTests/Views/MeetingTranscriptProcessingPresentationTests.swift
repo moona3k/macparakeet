@@ -56,4 +56,25 @@ final class MeetingTranscriptProcessingPresentationTests: XCTestCase {
                 status: .completed
             ))
     }
+
+    func testWholeTranscriptEditingIsLimitedToUntimedOrLegacyEdits() {
+        XCTAssertTrue(
+            TranscriptDetailActionAvailability.canEditWholeTranscript(
+                status: .completed,
+                hasTimestamps: false,
+                isLegacyWholeTextEdit: false
+            ))
+        XCTAssertTrue(
+            TranscriptDetailActionAvailability.canEditWholeTranscript(
+                status: .completed,
+                hasTimestamps: true,
+                isLegacyWholeTextEdit: true
+            ))
+        XCTAssertFalse(
+            TranscriptDetailActionAvailability.canEditWholeTranscript(
+                status: .completed,
+                hasTimestamps: true,
+                isLegacyWholeTextEdit: false
+            ))
+    }
 }
