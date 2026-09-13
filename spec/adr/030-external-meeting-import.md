@@ -43,8 +43,9 @@ a shipped stable release or physical/runtime verification.
 
 The managed copy consumes storage independently of its external source. Users
 may delete or retain each independently. Retention and deletion only operate
-on MacParakeet-owned artifacts. Import does not change local STT or explicitly
-configured AI-provider boundaries.
+on MacParakeet-owned artifacts. Delete-immediately is applied after a successful
+import; retryable imports keep managed audio until Retry can finish. Import does
+not change local STT or explicitly configured AI-provider boundaries.
 
 App-owned task state permits sheet dismissal without losing progress or a
 terminal result. The CLI reports durable partial completion with warnings and

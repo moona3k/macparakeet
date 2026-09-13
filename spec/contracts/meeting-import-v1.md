@@ -28,6 +28,12 @@ Meeting renames set that same marker; filename defaults and generated names
 remain eligible for automatic generation. Repository completion saves preserve
 the durable retention clock and title intent.
 
+The current meeting-audio retention setting applies to the managed copy. Timed
+retention starts at `audioRetentionStartedAt`; keep-forever retains it; and
+delete-immediately removes managed audio only after successful transcription
+and automation. Retryable imports retain audio regardless of that setting so
+Retry can finish the same meeting. A cleanup failure is a partial-result warning.
+
 ## Managed publication and ownership
 
 Normalize into an importer-owned hidden staging folder under the configured
@@ -80,7 +86,8 @@ import a duplicate.
 
 The CLI JSON result is a `MeetingImportRecord` with `id`, `completion`,
 `status`, `title`, `startedAt`, optional `durationMs`, optional
-`managedAudioPath`, and a `warnings` array. Each warning exposes a stable
+`managedAudioPath`, and a `warnings` array. `managedAudioPath` is absent after
+delete-immediately retention removes audio. Each warning exposes a stable
 `kind` and plain-language `message`; failed prompts additionally carry their
 optional prompt id and name. See the public [CLI JSON contract](cli-json-v1.md)
 for output and exit-code details.

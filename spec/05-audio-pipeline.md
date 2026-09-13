@@ -457,6 +457,10 @@ published meeting retryable; a later failure reports a warning and preserves
 the completed transcript. No new capture session or microphone permission is
 required for the import itself.
 
+The active meeting-audio retention preference applies to the managed copy.
+Delete-immediately detaches audio after successful transcription and automation;
+an unfinished retryable import keeps audio so Retry can complete the same row.
+
 ### Concurrent Operation with Dictation (ADR-015)
 
 Meeting recording and dictation share one process-wide microphone engine. Both flows subscribe to the same `SharedMicrophoneStream`, and the stream fans every captured buffer out to all subscribers:

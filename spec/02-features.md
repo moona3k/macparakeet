@@ -1715,6 +1715,28 @@ fallback. A live Cohere route therefore shows no meeting preview, while Cohere
 as only the recordings/files override can coexist with another engine's preview; Cohere
 final transcripts remain plain text without word timestamps or speaker labels.
 
+### External meeting recording import
+
+> Status: **IMPLEMENTED IN DEVELOPMENT SOURCE** — release availability follows
+> the normal channel process.
+
+Meetings can import one existing local audio or video recording through a
+native picker or `macparakeet-cli meetings import`. MacParakeet makes a private
+managed audio copy, leaves the external source unchanged, and runs the same
+final meeting transcription, configured speaker detection, indexing, artifacts,
+knowledge-card, and enabled prompt flow used by saved meetings. The chosen
+historical date controls library chronology; the managed copy receives its own
+fresh retention clock. Closing the import sheet leaves app-owned processing
+running, while an explicit Stop preserves any already-published meeting for
+ordinary Retry. See [ADR-030](adr/030-external-meeting-import.md) and the
+[meeting import contract](contracts/meeting-import-v1.md).
+
+- [x] Native one-file picker with editable title and historical date
+- [x] Public CLI command with stable JSON/envelope output and durable-result exit semantics
+- [x] Source-preserving normalization into ordinary meeting artifacts and recovery
+- [x] Historical chronology separated from managed-audio retention age
+- [x] Complete, partial, and retryable results remain distinct across Core, app, and CLI
+
 ### F36: Live Meeting Notepad
 
 > Status: **IMPLEMENTED**
