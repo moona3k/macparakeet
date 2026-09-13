@@ -1,0 +1,107 @@
+spec/contracts/meeting-splitting.md
+  s_262a6d6f6e8252::t_6ee08e9bf3c9b2 48-50,160-162
+  s_262a6d6f6e8252::t_319f4c0b2fa912 69-74,181-186,248-251
+  s_262a6d6f6e8252::t_279ada001933a6 252-258
+  s_262a6d6f6e8252::t_20f80f5ee586a0 163
+Sources/CLI/Commands/HistoryCommand.swift
+  s_262a6d6f6e8252::t_f64d1df8ae169a 442-446
+spec/contracts/meeting-recovery-retention.md
+  s_262a6d6f6e8252::t_279ada001933a6 390-393
+  s_262a6d6f6e8252::t_319f4c0b2fa912 306-319,389
+spec/01-data-model.md
+  s_262a6d6f6e8252::t_30d16e3efa4e6b 1111
+Tests/CLITests/HistoryCommandTests.swift
+  s_262a6d6f6e8252::t_cb3b9a4a7af6d9 371-402
+Sources/MacParakeet/AppDelegate.swift
+  s_262a6d6f6e8252::t_022c4c91b701c2 566
+  s_262a6d6f6e8252::t_0e415c8badbf45 564-565,567-568
+Sources/MacParakeet/Views/Meetings/MeetingSplitSheetView.swift
+  s_262a6d6f6e8252::t_0e415c8badbf45 189
+Sources/MacParakeetCore/Services/SavedAudioAutoPromptCompletionService.swift
+  s_262a6d6f6e8252::t_16843d570fa5dd 96-98
+  s_262a6d6f6e8252::t_9b9ea364128a99 137-141,244,246-252
+Tests/CLITests/MeetingSplitCommandTests.swift
+  s_262a6d6f6e8252::t_cb3b9a4a7af6d9 35-44
+Tests/MacParakeetTests/ViewModels/MeetingSplitViewModelTests.swift
+  s_262a6d6f6e8252::t_5172000246e176 124,131,136,140,443-450
+  s_262a6d6f6e8252::t_4605976897bd1b 105,109,116,123,125-130,132-135,137-139
+  s_262a6d6f6e8252::t_798aa4d705a88a 186-217
+  s_262a6d6f6e8252::t_1eee9dbb061daa 273-280,467-469
+  s_262a6d6f6e8252::t_0dceb42e26a9d2 141
+  s_262a6d6f6e8252::t_dd0674d7418865 451
+  s_262a6d6f6e8252::t_fb2fbf86e158e4 470-471
+Sources/MacParakeetCore/Services/MeetingSplit/MeetingSplitAudioExporter.swift
+  s_262a6d6f6e8252::t_35a08d4198243b 349-350,361-363,366-368,373-375,377-385,389-411
+  s_262a6d6f6e8252::t_b2c8de023573ba 412
+Tests/MacParakeetTests/Services/MeetingSplit/MeetingSplitAudioExporterTests.swift
+  s_262a6d6f6e8252::t_35a08d4198243b 198-200,206-224
+  s_262a6d6f6e8252::t_71d09efe3ed3ce 225-226
+Sources/CLI/CHANGELOG.md
+  s_262a6d6f6e8252::t_6ee08e9bf3c9b2 118-120
+  s_262a6d6f6e8252::t_cc856e37d54d72 107-109
+Sources/CLI/Commands/MeetingSplitCommand.swift
+  s_262a6d6f6e8252::t_022c4c91b701c2 144-146
+Sources/MacParakeetCore/Services/MeetingSplit/MeetingSplitChildProcessingLease.swift
+  s_262a6d6f6e8252::t_f64d1df8ae169a 1-85
+Sources/MacParakeetViewModels/MeetingSplitViewModel.swift
+  s_262a6d6f6e8252::t_e04c7120c0587a 69,312,319-321,349-351,370-371
+  s_262a6d6f6e8252::t_cea7b2e0c42428 372
+  s_262a6d6f6e8252::t_30d16e3efa4e6b 9
+  s_262a6d6f6e8252::t_0e415c8badbf45 28-30,44-45,53,81,86,101,200-202,204-206,211-213,215,387-388
+  s_262a6d6f6e8252::t_5a99414b1b76a6 57-58
+  s_262a6d6f6e8252::t_cbd52f4d657a70 64,82
+  s_262a6d6f6e8252::t_9f44a5cefc6549 373-374
+Tests/MacParakeetTests/Services/MeetingSplit/MeetingSplitServiceTests.swift
+  s_262a6d6f6e8252::t_29e12566f6f9a8 599-614
+  s_262a6d6f6e8252::t_13fc0862940c96 743,980,1299-1368,1403-1404,1406,1408,1410-1421,1424-1489
+  s_262a6d6f6e8252::t_9f04ce251de38e 685-686,688,1402,1405,1407,1409,1422-1423
+  s_262a6d6f6e8252::t_cb3b9a4a7af6d9 1369-1399
+  s_262a6d6f6e8252::t_4361795950cfd1 555-598,660-664,682-684,687,938-975,978-979
+  s_262a6d6f6e8252::t_b58fc75935053b 976-977
+  s_262a6d6f6e8252::t_a3dc18dd893c30 689,693,699-710,712-720,722-725,1400-1401
+  s_262a6d6f6e8252::t_ff1fe0cf6eb9c0 512-554,665-681,690-692,694-698,711,721,726-742
+  s_262a6d6f6e8252::t_724eb9d8e8caf4 744
+  s_262a6d6f6e8252::t_5367ede34a4894 981
+Tests/MacParakeetTests/Services/MeetingSplit/MeetingSplitChildProcessingLeaseTests.swift
+  s_262a6d6f6e8252::t_16843d570fa5dd 1,63-135
+  s_262a6d6f6e8252::t_3666d003d4aa24 2-62,136-137
+Sources/MacParakeetCore/Services/Sharing/TranscriptionDeletionCoordinator.swift
+  s_262a6d6f6e8252::t_f64d1df8ae169a 14-16,27-28,34-46
+  s_262a6d6f6e8252::t_2dc8a0796618f3 29-33
+  s_262a6d6f6e8252::t_c6d4e3d2ae04a8 47
+Tests/MacParakeetTests/Services/SavedAudioAutoPromptCompletionServiceTests.swift
+  s_262a6d6f6e8252::t_9b9ea364128a99 264-283
+  s_262a6d6f6e8252::t_9e8333fc5d4c10 236,244,248-250,253,255-256,260-262,381-390
+  s_262a6d6f6e8252::t_16843d570fa5dd 240-243,245-247,251-252,254,257-259,354-379
+  s_262a6d6f6e8252::t_e4103939a6ef75 263
+  s_262a6d6f6e8252::t_0d2c91b287d443 380
+  s_262a6d6f6e8252::t_22af5cce9f112d 391
+spec/contracts/saved-audio-auto-prompt-completion.md
+  s_262a6d6f6e8252::t_442687ceeee416 116-117
+  s_262a6d6f6e8252::t_279ada001933a6 67-69,100-101
+integrations/README.md
+  s_262a6d6f6e8252::t_6ee08e9bf3c9b2 637-638
+Sources/MacParakeetCore/Services/MeetingSplit/MeetingSplitService.swift
+  s_262a6d6f6e8252::t_f64d1df8ae169a 387,405,420,422,424-425,588,814-825,985-986
+  s_262a6d6f6e8252::t_022c4c91b701c2 318-327,332-336,349-357,987
+  s_262a6d6f6e8252::t_dd472f601a753f 521-524,530,544,559-578
+  s_262a6d6f6e8252::t_b58fc75935053b 120,137-138,540-543
+  s_262a6d6f6e8252::t_dc739d549f7263 241-244,386,388,391-404,406-419,421,423
+  s_262a6d6f6e8252::t_5e9f0e068fe3b7 988
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b07815b170c1798591bd8ef908a629044e23922e",
+  "prompts": {},
+  "sessions": {
+    "s_262a6d6f6e8252": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a099f4-a4d1-7af2-8f02-8a3cf11f637a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
