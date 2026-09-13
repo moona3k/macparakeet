@@ -422,6 +422,13 @@ final class YouTubeDownloaderTests: XCTestCase {
             return XCTFail("Expected downloadFailed for non-YouTube cookie advice, got \(nonYouTubeCookieAdvice)")
         }
         XCTAssertTrue(cookieReason.contains("cookies-from-browser"))
+
+        let youtubeURLWithoutExtractor = YouTubeDownloader.classifiedDownloadError(
+            fromYtDlpOutput: "ERROR: [generic] Use --cookies-from-browser. See https://www.youtube.com/watch?v=abc"
+        )
+        guard case .downloadFailed = youtubeURLWithoutExtractor else {
+            return XCTFail("Expected downloadFailed when only a YouTube URL is present, got \(youtubeURLWithoutExtractor)")
+        }
     }
 
     private func formatSelector(in args: [String]) -> String? {

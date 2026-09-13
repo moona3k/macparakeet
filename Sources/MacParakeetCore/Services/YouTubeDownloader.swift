@@ -752,7 +752,7 @@ public actor YouTubeDownloader {
     }
 
     private nonisolated static func isYouTubeAntiBotMessage(_ folded: String) -> Bool {
-        guard folded.contains("youtube") else { return false }
+        guard folded.contains("[youtube]") else { return false }
         return folded.contains("not a bot") || folded.contains("cookies-from-browser")
     }
 
