@@ -161,6 +161,7 @@ raw-audio filenames.
 - `calendarEventSnapshot`
 - `meetingCaptureReport`
 - `speakerCorrectionsApplied`
+- `textCorrectionsApplied`
 - `speakerCorrectionRevision`
 
 `manifest.json` keeps:
@@ -172,7 +173,10 @@ raw-audio filenames.
 - `files`
 - `promptResults`
 
-`manifest.meeting.meetingType` is optional; absence means unclassified.
+`manifest.meeting.transcriptTextAlignment` is `automatic`, `segment`, or
+`untimed`. `segment` means effective rewritten text is aligned only to its
+segment envelopes. `manifest.meeting.meetingType` is optional; absence means
+unclassified.
 `manifest.meeting.meetingLabels` is the complete assigned-label array and may
 be empty. Type and label snapshots carry stable UUID and display name plus
 optional presentation metadata. Archived values remain materialized while a
@@ -268,14 +272,18 @@ available, `speakerLabelsIncluded`, `speakerCorrectionsApplied`,
 order is: title, optional notes, transcript, optional prompt results, and
 artifact paths.
 
-Legacy v1 `MeetingArtifactSnapshot` JSON without speaker correction keys decodes
-with `speakerCorrectionsApplied = false` and `speakerCorrectionRevision = 0`.
+Legacy v1 `MeetingArtifactSnapshot` JSON without correction keys decodes with
+`speakerCorrectionsApplied = false`, `textCorrectionsApplied = false`, and
+`speakerCorrectionRevision = 0`.
 Metadata and speaker refreshes in the transcription view model share a queue
 per meeting and read the current DB row after earlier materializations finish.
 
-`transcript.json` publishes the effective speaker projection and includes
-`speakerCorrectionsApplied` plus `speakerCorrectionRevision`. Each durable
-`transcriptSegments` item may additionally include `speakerSpans`. A span has
+`transcript.json` publishes the effective transcript projection and includes
+`speakerCorrectionsApplied`, `textCorrectionsApplied`,
+`speakerCorrectionRevision`, and `transcriptTextAlignment`. Each durable
+`transcriptSegments` item may additionally include `isTextEdited: true` and
+`speakerSpans`. Omitted `isTextEdited` means the line retains automatic text and
+boundaries. A span has
 `wordRange`, nullable `speakerId`, and `speakerLabel`; multiple spans preserve
 manual splits that cannot be represented by the segment's legacy single
 speaker fields. GUI correction refreshes preserve the resolved projection and
@@ -300,8 +308,12 @@ manifest.
 meeting has durable segments. Each segment keeps `id`, `startMs`, `endMs`,
 `speakerId`, `speakerLabel`, `text`, and a half-open `wordRange`
 (`startIndex`, `endIndexExclusive`) into the same transcript's
-`wordTimestamps` array. Segment IDs are stable for that transcript version;
-meeting retranscription may replace the array with newly minted segment IDs.
+`wordTimestamps` array. Effective text or boundary corrections are represented
+by `isTextEdited: true` and retain only the segment's start/end timing claim.
+The word array preserves the automatic recognized text and timing; it is not a
+per-word alignment for a corrected line. Segment IDs are stable for that
+transcript version; meeting retranscription may replace the array with newly
+minted segment IDs.
 
 `startContext`, when present, keeps the recording-start snapshot:
 

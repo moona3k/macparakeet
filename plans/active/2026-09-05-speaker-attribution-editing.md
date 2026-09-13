@@ -6,6 +6,11 @@
 > hardening are implemented on main, not yet a stable release claim. The broader
 > artifact-retry UI, dedicated remove-split UI, and replay work below remain
 > follow-ups; this plan is not a claim that all proposed phases shipped.
+> **Timed-text follow-up:** The text-editing and line-merge portion of issue
+> #893 is governed by [ADR-030](../../spec/adr/030-timed-transcript-corrections.md)
+> and its [implementation plan](2026-09-13-timed-transcript-editing.md). Those
+> decisions extend this journal without changing the historical speaker scope
+> recorded below.
 > **Priority:** P1
 > **Date:** 2026-09-05
 > **Tracks:** [#542](https://github.com/moona3k/macparakeet/issues/542),

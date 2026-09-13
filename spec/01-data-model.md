@@ -287,7 +287,7 @@ CREATE TABLE transcriptions (
     isFavorite INTEGER NOT NULL DEFAULT 0,              -- v0.5: User favorite marker
     sourceType TEXT NOT NULL DEFAULT 'file',            -- v0.6: 'file', 'youtube', 'meeting'; 'podcast' added 2026-06
     recoveredFromCrash INTEGER NOT NULL DEFAULT 0,       -- v0.7.5: recovered interrupted meeting flag
-    isTranscriptEdited INTEGER NOT NULL DEFAULT 0,       -- v0.7.7: user-edited transcript flag
+    isTranscriptEdited INTEGER NOT NULL DEFAULT 0,       -- v0.7.7: legacy whole-text edit; timing is no longer aligned
     userNotes TEXT,                                      -- v0.8: meeting notes used to steer prompt results
     engine TEXT,                                         -- v0.8: STT engine (`parakeet` / `nemotron` / `cohere` / `whisper`)
     engineVariant TEXT,                                  -- v0.8: Engine-specific model variant
@@ -307,7 +307,7 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
 
 **Notes:**
 - `wordTimestamps` is a JSON text column, not a separate table. One transcription = one blob of timestamps. GRDB can decode this via `Codable`.
-- `transcriptSegments` is a JSON text column populated for finalized meeting, file, and URL recordings when timings exist. Each segment has a UUID, start/end times, speaker/source label, text, and a half-open `wordRange` (`startIndex`, `endIndexExclusive`) into the persisted `wordTimestamps` array. Segment IDs are stable for that transcript version; retranscription replaces the transcript version and may mint new segment IDs. Legacy and no-timing rows may leave this `NULL` and use deterministic derived pseudo-segments instead.
+- `transcriptSegments` is a JSON text column populated for finalized meeting, file, and URL recordings when timings exist. Each automatic segment has a UUID, start/end times, speaker/source label, text, and a half-open `wordRange` (`startIndex`, `endIndexExclusive`) into the persisted `wordTimestamps` array. Segment IDs are stable for that transcript version; retranscription replaces the transcript version and may mint new segment IDs. The correction read projection may return recomposed segments with additive `isTextEdited: true`; that marker and the corrected text are derived from the journal and are not written back into the automatic segment blob. Legacy and no-timing rows may leave this `NULL` and use deterministic derived pseudo-segments instead.
 - `language` stores the normalized detected/specified STT language code when available. New transcription service rows start unknown and are filled from the STT result; legacy/default rows may still contain `en`.
 - `speakerCount` and `speakers` are nullable, populated only when diarization is available (v0.4).
 - `filePath` is nullable because the original file may be moved or deleted after transcription.
@@ -333,7 +333,7 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
 - `isFavorite` enables user-marked favorites with filtered library view. Added in v0.5.
 - `sourceType` distinguishes the origin of a transcription: `'file'` (drag-drop), `'youtube'` (URL), `'podcast'` (Apple Podcasts URL or freetext search), or `'meeting'` (meeting recording). `sourceType` added in v0.6; `'podcast'` added 2026-06. Default `'file'` for backward compatibility. Existing rows with `sourceURL IS NOT NULL` are backfilled to `'youtube'`.
 - `recoveredFromCrash` marks meeting recordings recovered from an interrupted session. Added in v0.7.5.
-- `isTranscriptEdited` marks transcript text changed by the user after automatic processing. Added in v0.7.7.
+- `isTranscriptEdited` marks the legacy whole-transcript replacement path. Its text has no safe mapping to the automatic words and therefore has `untimed` alignment. Timed line corrections do not set this flag; they are journal commands projected through `transcriptSegments`. Added in v0.7.7.
 - `userNotes` stores the canonical free-form meeting notes. Live capture writes
   it at finalize; the saved-meeting Notes tab autosaves to the same field. Prompt
   generation snapshots the exact effective notes sent
@@ -357,11 +357,13 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
 
 ---
 
-### `speaker_corrections` + `speaker_correction_states` (v0.32)
+### `speaker_corrections` + `speaker_correction_states` (v0.32, extended v0.43)
 
-Speaker attribution edits are an append-only correction layer over the
-automatic diarization fields on `transcriptions`. The automatic word/source
-attribution and raw diarization ranges remain unchanged.
+Speaker attribution and timed-line text edits are one append-only correction
+layer over the automatic transcript. The automatic word text/timing, durable
+segment anchors, source attribution, and raw diarization ranges remain
+unchanged. The historical table and Swift type names are retained for storage
+compatibility.
 
 ```sql
 CREATE TABLE speaker_corrections (
@@ -371,7 +373,10 @@ CREATE TABLE speaker_corrections (
     sequence INTEGER NOT NULL CHECK (sequence > 0),
     transcriptFingerprint TEXT NOT NULL,
     operation TEXT NOT NULL CHECK (
-        operation IN ('rename', 'add', 'assign', 'split', 'unsplit', 'merge', 'remove', 'reset')
+        operation IN (
+            'rename', 'add', 'assign', 'split', 'unsplit', 'merge', 'remove',
+            'editText', 'mergeSegments', 'reset'
+        )
     ),
     payload TEXT NOT NULL,
     branchState TEXT NOT NULL CHECK (branchState IN ('current', 'redo', 'abandoned')),
@@ -404,6 +409,19 @@ Undo, Redo, Reset, and transcript-version resets. A new command after Undo
 marks the retained redo branch `abandoned` rather than deleting history.
 `transcriptFingerprint` binds every edit to the exact automatic transcript
 version so retranscription cannot silently replay stale ranges.
+
+`editText` replaces one current non-empty displayed line while retaining its
+segment time envelope. `mergeSegments` suppresses boundaries between adjacent
+current ranges with one effective speaker assignment. Both commands use the
+same cursor as speaker changes. Their effective projection derives
+`transcriptTextAlignment` as `segment`; an unchanged automatic projection is
+`automatic`, and a legacy whole-text edit is `untimed`. Segment-aligned outputs
+may claim the line envelope but never reuse the automatic timestamps as timing
+for rewritten words.
+
+Migration `v0.43-timed-transcript-corrections` rebuilds both tables to widen
+the SQLite operation constraint, then copies all correction rows, parent links,
+and durable cursors before recreating the replay index.
 
 The state is deliberately not stored on `transcriptions`: whole-row saves of
 older `Transcription` values must not be able to overwrite correction history.
@@ -1100,7 +1118,7 @@ struct Transcription: Codable, Identifiable {
     var videoDescription: String?       // v0.5 — YouTube video description
     var isFavorite: Bool                // v0.5 — User favorite marker
     var recoveredFromCrash: Bool        // v0.7.5 — Recovered interrupted meeting
-    var isTranscriptEdited: Bool        // v0.7.7 — User edited transcript text
+    var isTranscriptEdited: Bool        // v0.7.7 — Legacy whole-text edit; untimed
     var userNotes: String?              // v0.8 — Free-form meeting notes
     var engine: String?                 // v0.8 — STT engine (`parakeet` / `nemotron` / `whisper`)
     var engineVariant: String?          // v0.8 — Engine-specific model variant
@@ -1645,6 +1663,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 // v0.40-speaker-match-journal — local expiring decision metadata
 // v0.41-speaker-embedding-candidates — expiring voices awaiting enrollment
 // v0.42-share-publications — local sharing ledger + durable outbox
+// v0.43-timed-transcript-corrections — widen correction operations without discarding history
 ```
 
 ### Migration Rules
@@ -1691,7 +1710,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `summaries` | v0.7 | Prompt results per transcription (FK → transcriptions, cascade delete; Swift model `PromptResult`) |
 | `prompts.inferenceSettings` | v0.31 | Nullable JSON requested settings for custom result prompts; `NULL` inherits MacParakeet defaults |
 | `summaries.inferenceSettingsSnapshot` | v0.31 | Nullable JSON receipt of effective settings sent after provider/model filtering |
-| `speaker_corrections` / `speaker_correction_states` | v0.32-speaker-corrections | Append-only attribution journal, replay index and persistent transcript-scoped undo/redo cursor |
+| `speaker_corrections` / `speaker_correction_states` | v0.32-speaker-corrections; extended by v0.43-timed-transcript-corrections | Append-only speaker and timed-text correction journal, replay index and persistent transcript-scoped undo/redo cursor |
 | `speaker_profiles` / `speaker_profile_exemplars` / `speaker_profile_links` | v0.39-speaker-voiceprints | Experimental local identity memory, samples and fingerprint-scoped decisions; release flag off |
 | `speaker_match_journal` | v0.40-speaker-match-journal | Local decision metadata with 90-day expiry; no vectors |
 | `speaker_embedding_candidates` | v0.41-speaker-embedding-candidates | Consent-gated temporary vectors with per-row seven-day expiry |
@@ -1700,7 +1719,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `lifetime_dictation_stats` | v0.7.4 | Singleton lifetime voice-stat counters |
 | `daily_dictation_stats` | v0.11 | Per-day rollup powering Stats-tab heatmap + daily streaks |
 | `transcriptions.recoveredFromCrash` | v0.7.5 | Interrupted meeting recovery marker |
-| `transcriptions.isTranscriptEdited` | v0.7.7 | User-edited transcript marker |
+| `transcriptions.isTranscriptEdited` | v0.7.7 | Legacy whole-transcript edit marker; effective alignment is untimed |
 | `transcriptions.userNotes` | v0.8 | Canonical free-form notes for a meeting; editable during recording and from saved-meeting detail |
 | `summaries.userNotesSnapshot` | v0.8 | Exact bounded notes value supplied to prompt assembly for that generation |
 | `dictations.engine` | v0.8 | STT engine that produced the dictation; `NULL` for legacy rows |

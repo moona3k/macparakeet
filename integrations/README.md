@@ -244,9 +244,11 @@ macparakeet-cli transcribe /path/to/interview.mp3 --format dapt --output-dir .
 A single input without `--output-dir` prints the selected document to stdout,
 so you can also redirect it:
 `macparakeet-cli transcribe interview.mp3 --format dapt > interview.dapt.xml`.
-DAPT preserves word timing and speaker attribution when they are aligned with
-the transcript. Current display labels become character aliases; if the
-optional label roster is incomplete, stored anonymous IDs such as `S2` remain
+DAPT preserves automatic word timing and speaker attribution when they are
+aligned with the transcript. A corrected or merged timed line is emitted once
+for its preserved segment envelope; its rewritten words are not assigned the
+automatic per-word timestamps. Current display labels become character aliases.
+If the optional label roster is incomplete, stored anonymous IDs such as `S2` remain
 anonymous aliases. If diarization is off or unavailable, DAPT omits character
 agents; if word timing is unavailable, it emits a valid untimed original
 transcript rather than inventing timing or attribution.
@@ -611,6 +613,13 @@ macparakeet-cli meetings results add <id> \
   --json
 macparakeet-cli meetings export <id> --format md --stdout
 ```
+
+The two meeting transcript JSON views expose the effective corrected text and
+segments. `transcriptTextAlignment` is `automatic`, `segment`, or `untimed`, and
+`textCorrectionsApplied` tells an agent whether timed text/boundary corrections
+are active. A segment may include `isTextEdited: true`. Keep treating the
+separate `wordTimestamps` array as automatic recognition evidence: under
+`segment` alignment it is not a word-by-word timing map for corrected text.
 
 Split a saved recording that spans multiple meetings. Every resulting part,
 including the first, is a brand-new saved meeting that receives its own first

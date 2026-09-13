@@ -39,12 +39,16 @@ stale alignment metadata is omitted rather than invented.
   language becomes `xml:lang="und"` with no `daptm:langSrc`.
 - Each emitted script-event `div` has a unique generated `xml:id` and
   `daptm:represents="audio.dialogue"`.
-- Aligned, unedited word timestamps are grouped through
+- Automatic, unedited word timestamps are grouped through
   `TranscriptCueBuilder`. Their script events contain clock-time `begin` and
   `end` attributes.
-- A transcript without aligned words, including manually edited transcript
-  text, uses one untimed script event. File duration is not substituted for
-  missing word alignment.
+- In a segment-aligned corrected transcript, each text-edited or merged line is
+  one timed event spanning its preserved segment envelope. Untouched lines keep
+  automatic word-derived cue grouping. Corrected text is never divided across
+  or assigned the original per-word timestamps.
+- A transcript without honest automatic or segment alignment, including a
+  legacy whole-transcript text replacement, uses one untimed script event. File
+  duration is not substituted for missing alignment.
 - Referenced speaker IDs become generated `ttm:agent type="character"`
   declarations with current speaker labels as aliases. When the optional label
   map is missing or incomplete, the stored anonymous ID itself is the alias;
@@ -97,9 +101,9 @@ media, and proprietary extensions are outside v1.
 - `TranscribeCommandTests` DAPT parsing, renderer-parity, and file tests
 - `SpecCommandTests.testTranscribeSpecDocumentsCurrentTranscribeSurface`
 
-Representative timed-speaker, timed-no-speaker, and untimed files are also
-checked during release/review against the current W3C DAPT XSD validator and
-the BBC TTML Validator's DAPT rules.
+Representative automatic timed-speaker, corrected segment-timed, timed-no-speaker,
+and untimed files are also checked during release/review against the current
+W3C DAPT XSD validator and the BBC TTML Validator's DAPT rules.
 
 ## When This Changes
 

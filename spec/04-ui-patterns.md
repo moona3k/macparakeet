@@ -928,6 +928,33 @@ update keeping it alive. Rules that follow from it:
   keeps re-running; hover itself cannot be simulated offscreen and stays a
   manual check.
 
+### Timed Transcript Editing
+
+A completed transcript with word timing exposes `Edit transcript` in the Timed
+view. Editing mode keeps the existing speaker tools and adds line-owned text
+and boundary actions:
+
+- Each line's action menu offers `Edit text…`. The sheet shows the preserved
+  start/end range, accepts a non-empty replacement, and keeps the draft open
+  with an inline error when persistence fails.
+- `Merge with previous` and `Merge with next` appear only for adjacent current
+  lines with the same effective speaker assignment. A merge spans the first
+  line's start through the last line's end.
+- `Split segment` is unavailable for a text-edited line. The user can undo the
+  text edit, split at an automatic word boundary, and edit the new lines.
+- The header actions are the shared `Undo edit`, `Redo edit`, and `Reset edits`
+  history for both speaker and timed-text corrections.
+- During playback, untouched text follows automatic word cues. A corrected or
+  merged line highlights as one unit only while playback is inside its preserved
+  time envelope; no word-level highlight is implied.
+- The Text view and Timed view render the same effective corrected words. The
+  legacy whole-transcript editor remains available only from Text view for
+  content without safe timing and explains that its replacement is untimed.
+
+Retranscribing changes the automatic transcript fingerprint and resets manual
+transcript edits rather than replaying stale ranges. The complete storage and
+alignment decision is [ADR-030](adr/030-timed-transcript-corrections.md).
+
 ### Transcript AI Context Lifecycle
 
 The release-readiness candidate prepares rich AI context off the main actor

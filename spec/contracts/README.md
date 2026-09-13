@@ -44,7 +44,7 @@ Each contract document should include:
 - [DAPT Export v1](dapt-export-v1.md)
 - [File Transcription Audio Tracks](file-transcription-audio-tracks.md)
 - [Custom Word Deletion](custom-word-deletion.md)
-- [Speaker Correction Submission](speaker-correction-view-model.md)
+- [Transcript Correction Submission](speaker-correction-view-model.md)
 - [Telemetry and Diagnostic Evidence](telemetry-v1.md)
 - [Share Link and Bundle v1](share-link-bundle-v1.md)
 - [Share Service v1](share-service-v1.md)

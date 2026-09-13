@@ -198,8 +198,10 @@ with human progress/status kept off stdout.
   `transcriptSegments` when the meeting row has durable segments. Each segment
   contains `id`, `startMs`, `endMs`, `speakerId`, `speakerLabel`, `text`, and
   `wordRange.startIndex` / `wordRange.endIndexExclusive` into the same payload's
-  `wordTimestamps` array. Callers that need stable citations should prefer
-  these persisted segments over re-segmenting words.
+  `wordTimestamps` array. Effective corrected segments may additionally contain
+  `isTextEdited: true`; omission means no text/boundary correction is claimed
+  for that segment. Callers that need stable citations should prefer these
+  segments over re-segmenting words.
 - Since CLI 4.0.0, `export --stdout --format txt` uses the same formatted output as TXT file
   export, with default metadata, timestamps, and speaker labels. JSON transcript
   text fields remain available for callers needing bare stored text. TXT/Markdown
@@ -207,13 +209,20 @@ with human progress/status kept off stdout.
   paragraphs may be headed `Unassigned`. CLI 3.x returned bare stored text on
   this path; callers needing that content can select `cleanTranscript` with a
   `rawTranscript` fallback from JSON. This does not change JSON schema version 1.
-- `prompts run` sends rich timestamped speaker context when timings exist;
-  edited transcripts and untimed recordings use the stored-text fallback.
+- `prompts run` sends rich timestamped speaker context when honest automatic or
+  segment timing exists. A corrected line uses its complete segment envelope;
+  legacy whole-text edits and untimed recordings use the stored-text fallback.
 - `export --format json`, `meetings show --json`, `meetings transcript
   --format json`, and `meetings export --stdout --format json` expose the
   effective speaker attribution. They include additive
   `speakerCorrectionsApplied` and `speakerCorrectionRevision` fields; revision
   `0` with `false` means the automatic baseline is active.
+- `meetings show --json` and `meetings transcript --format json` additionally
+  include `textCorrectionsApplied` and `transcriptTextAlignment`. Alignment is
+  `automatic`, `segment`, or `untimed`; `segment` means rewritten text is timed
+  only to segment envelopes. The same payload's `wordTimestamps` retain the
+  automatic recognized text and timing as immutable evidence, so consumers
+  must not substitute them for corrected-word timing.
 - `meetings show --json` meeting objects can include optional `startContext`
   for meeting rows. When present it contains `triggerKind`, `sourceMode`, and
   optional `frontmostApplication` (`bundleIdentifier`, `localizedName`).

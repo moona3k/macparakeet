@@ -118,6 +118,10 @@ Stable bundle semantics:
 - Summary and notes Markdown is treated as untrusted input. Raw HTML and automatic remote assets are not rendered. A restricted renderer may construct safe DOM nodes directly; any renderer producing HTML must use a reviewed sanitizer before insertion.
 - Transcript segments contain non-empty `text` and may include the current display speaker label.
 - `startMs` and `endMs` are either both present or both absent, with `0 <= startMs <= endMs`.
+- A segment-timed correction is shared as the effective corrected line with its
+  preserved segment start/end pair. The bundle never represents the automatic
+  word timestamps as alignment for rewritten words. Legacy whole-transcript
+  replacements remain untimed.
 - Unknown section kinds invalidate the bundle.
 
 The share projection may include only the selected display title, source kind, display date, duration, summary text and display titles, notes, transcript text, timestamps, and current speaker labels.

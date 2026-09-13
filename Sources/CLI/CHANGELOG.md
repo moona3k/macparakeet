@@ -91,6 +91,10 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Added
 
+- `meetings show --json` and `meetings transcript --format json` expose
+  additive `textCorrectionsApplied` and `transcriptTextAlignment` fields.
+  Effective transcript segments may include `isTextEdited: true`; automatic
+  word text and timing remain available as original evidence.
 - `meetings split preview|create|status|resume|discard` splits a saved
   meeting recording into independent parts, each receiving its own first
   transcription and normal enabled completion automation. `preview` is
@@ -104,6 +108,10 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Changed
 
+- Meeting JSON, prompt context, and exports use the effective timed-text
+  correction projection. Corrected lines retain segment-envelope timing and
+  are never represented as word-aligned; legacy whole-text edits remain
+  untimed.
 - `transcribe` and `retranscribe` still use the same `--speaker-count` /
   `--speaker-min` / `--speaker-max` flags and JSON speaker fields. The engines
   now run FluidAudio 0.15.7. Exact / max caps are held against both cluster

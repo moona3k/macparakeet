@@ -1,6 +1,6 @@
 # ADR-030: Segment-Timed Transcript Corrections
 
-> Status: **Accepted; implementation in progress**
+> Status: **Accepted; implemented in development source**
 > Date: 2026-09-13
 > Related: [ADR-010](010-speaker-diarization.md),
 > [ADR-027](027-product-north-star.md),
@@ -112,6 +112,18 @@ word attribution, and diarization are unchanged.
 
 Retranscription produces a new fingerprint. Previous history remains available
 for audit but is neither replayed nor undoable on the new automatic transcript.
+
+### Implemented surfaces
+
+The development implementation includes correction replay and migration,
+effective search/card derivation, Timed and Text views, playback highlighting,
+SRT/VTT/TXT/Markdown/PDF/DOCX and DAPT exports, AI context, encrypted-share
+projection, meeting artifacts, and CLI meeting JSON. Public JSON and artifact
+fields are additive; automatic word evidence stays present for inspection.
+
+Focused model, database, view-model, UI-layout, export, sharing, artifact, and
+CLI tests cover the projection and compatibility rules. Stable-DMG availability
+and hardware interaction remain release evidence, not consequences of this ADR.
 
 ## Consequences
 

@@ -315,6 +315,13 @@ model bundles.
 > `plans/active/2026-09-05-speaker-attribution-editing.md` and
 > `spec/01-data-model.md` for the command and persistence contracts.
 
+> **Amendment (2026-09-13):** [ADR-030](030-timed-transcript-corrections.md)
+> extends the same correction journal and Undo/Redo cursor with timed-line text
+> replacement and adjacent same-speaker line merge. Corrected text is aligned
+> only to its effective segment envelope. Automatic word text/timing and raw
+> diarization evidence remain unchanged, so this does not alter the diarization
+> model or claim per-word timing for rewritten text.
+
 ## Rationale
 
 ### Why the offline pipeline, not Sortformer

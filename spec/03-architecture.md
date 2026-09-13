@@ -251,8 +251,10 @@ pinned `SwiftStreamingMarkdown` dependency. They preserve the original Markdown
 for copy/export. Rich rendering is presentation, not transcript mutation;
 [UI patterns](04-ui-patterns.md#llm-markdown-content) owns interaction details.
 `ExportService` supports TXT, Markdown, SRT, VTT, DAPT, DOCX, PDF and JSON; timing
-and speaker behavior depend on available alignment and effective attribution.
-The [DAPT contract](contracts/dapt-export-v1.md) defines its untimed fallback.
+and speaker behavior depend on the effective transcript projection. Automatic
+text can use word timing, a corrected line can use only its segment envelope,
+and a legacy whole-text replacement is untimed. The
+[DAPT contract](contracts/dapt-export-v1.md) defines the same alignment boundary.
 
 ## Storage and external boundaries
 

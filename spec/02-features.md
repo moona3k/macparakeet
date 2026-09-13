@@ -1374,8 +1374,11 @@ new scheduling architecture.
 
 **Acceptance criteria:**
 - [ ] All supported formats generate correctly
-- [ ] SRT/VTT contain properly timed segments from word-level timestamps
-- [x] DAPT preserves aligned timing and available speaker labels, with an untimed fallback when alignment is absent or stale
+- [ ] SRT/VTT contain properly timed segments from word-level timestamps; a
+  corrected line uses its preserved segment envelope instead of fabricated
+  per-word timing
+- [x] DAPT preserves honest automatic or segment timing and available speaker
+  labels, with an untimed fallback when alignment is absent or stale
 - [ ] DOCX opens correctly in Word/Pages/Google Docs
 - [ ] PDF is well-formatted and print-ready
 - [ ] JSON includes all word-level data with confidence scores
@@ -1471,6 +1474,28 @@ are unaffected.
 - [x] Progress shows "Identifying speakers..." headline
 - [x] Settings toggles for file/URL and meeting speaker detection (on by default where supported; explicit off is preserved)
 - [x] CLI: `macparakeet-cli transcribe` follows the saved file/URL speaker-detection preference; meeting retranscription follows the saved meeting speaker-detection preference when app-default; `--speaker-detection off` / `--no-diarize` force off per run, and speaker-count constraints force on
+
+**Timed transcript corrections (development source):**
+
+- A completed timed transcript exposes one `Edit transcript` mode for text,
+  line boundaries, and speaker attribution. Editing replaces one non-empty
+  displayed line; merging is available only for adjacent current lines with
+  the same effective speaker assignment.
+- Line edits and merges use the persistent transcript-scoped correction history
+  and shared Undo/Redo/Reset actions. They do not rewrite automatic word text,
+  word timing, durable anchors, or diarization evidence.
+- Text, Timed, playback, search, AI context, shares, exports, meeting artifacts,
+  and CLI JSON consume the same effective projection. Edited words are timed
+  only to the complete line envelope. Untouched lines retain automatic cue
+  grouping.
+- A split cannot cross an edited range because the app cannot infer where the
+  replacement sentence belongs among the original words. Undo the edit, split,
+  then edit the resulting lines instead.
+- The older whole-transcript editor remains the fallback for transcripts without
+  usable timing. Its replacement is explicitly untimed and is never silently
+  aligned to automatic words.
+
+The governing behavior is [ADR-030](adr/030-timed-transcript-corrections.md).
 
 ---
 
@@ -2011,12 +2036,12 @@ These are implemented in source; release availability follows the
 | Surface | Current behavior | Governing reference |
 |---|---|---|
 | Saved meeting notes | Debounced editing, explicit save/flush boundaries and optional inclusion in result prompts; historical results retain the notes actually sent. | [ADR-020](adr/020-live-meeting-notepad-and-memo-summaries.md) |
-| Speaker corrections | Transcript-scoped add, rename, assign, split, merge, remove, reset and Undo/Redo; effective attribution flows into retrieval, AI and exported artifacts without rewriting recognized words. | [ADR-010](adr/010-speaker-diarization.md), [data model](01-data-model.md) |
+| Transcript corrections | Transcript-scoped line text edits, adjacent same-speaker line merges, speaker attribution changes, reset and Undo/Redo; one effective projection flows into playback, retrieval, AI, shares, exports and artifacts without rewriting recognized words or timing. | [ADR-030](adr/030-timed-transcript-corrections.md), [ADR-010](adr/010-speaker-diarization.md), [data model](01-data-model.md) |
 | Result generation settings | Per-prompt settings with validation, provider capability handling and effective-request snapshots. | [Spec 14](14-per-prompt-inference-settings.md) |
 | Rich AI output | Shared static/streaming Markdown rendering for results/chat while preserving source Markdown for copy and export. | [UI patterns](04-ui-patterns.md#llm-markdown-content) |
 | Local retrieval | Segment FTS search, bounded cited context and validated knowledge cards for file/URL/meeting transcripts; dictation history search remains separate. | [Integration guide](../integrations/README.md) |
 | Vocabulary cleanup | Confirmed deletion of selected rules, including all search matches, without rewriting existing transcripts. | [Deletion contract](contracts/custom-word-deletion.md) |
-| DAPT export | Timed speaker-attributed events when aligned; untimed fallback otherwise. | [DAPT contract](contracts/dapt-export-v1.md) |
+| DAPT export | Timed speaker-attributed events at automatic word or corrected segment alignment; untimed fallback otherwise. | [DAPT contract](contracts/dapt-export-v1.md) |
 | Split and transcribe | User-approved cuts create independently owned saved meetings while preserving the original; sequential transcription and enabled completion can continue or resume from durable receipts in the app and public CLI. | [Split contract](contracts/meeting-splitting.md) |
 
 These do not enable activity-based meeting detection, app-aware AI Formatter
