@@ -1,0 +1,67 @@
+.github/workflows/ci.yml
+  s_262a6d6f6e8252::t_0fb54899d860b3 49-57
+Sources/MacParakeet/App/AppWindowCoordinator.swift
+  s_262a6d6f6e8252::t_67c8bcc0825007 7-47,77-78,271,280-282
+Sources/MacParakeetCore/Audio/SystemAudioStream.swift
+  s_262a6d6f6e8252::t_eafd8d392ba451 22-53,625-632,634,637,648,656-668,671-677,679
+Sources/MacParakeetCore/Services/Telemetry/CrashReporter.swift
+  s_262a6d6f6e8252::t_d611ec2b137d08 4,6-7,9-16,20-34,40,42-45,47-50,72-74,76-78,80-102,107-109,126-129,140-147,173-175,186,195,212-221,282-285,289-320,344-347
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_262a6d6f6e8252::t_999cf1c7ab465c 965-966,1721,1731-1734
+Sources/MacParakeetObjCShims/MPKCrashSignalHandler.c
+  s_262a6d6f6e8252::t_fab838302a6287 1-340
+Sources/MacParakeetObjCShims/include/MPKCrashSignalHandler.h
+  s_262a6d6f6e8252::t_b4aa77ef09080c 1-69
+Tests/MacParakeetTests/App/MainWindowLifecycleTests.swift
+  s_262a6d6f6e8252::t_b0e196a2896f4b 1-106
+Tests/MacParakeetTests/Audio/ScreenCaptureLifecycleTests.swift
+  s_262a6d6f6e8252::t_7dc9b1ae5c0f60 2,228-319,418-442
+Tests/MacParakeetTests/Services/Capture/MeetingEchoSuppressionRuntimeTests.swift
+  s_262a6d6f6e8252::t_7e718014ccf292 524-529,602
+Tests/MacParakeetTests/Services/Telemetry/CrashReporterSignalProbeTests.swift
+  s_262a6d6f6e8252::t_d4bb624615acff 1-363
+Tests/MacParakeetTests/Services/Telemetry/CrashReporterTests.swift
+  s_262a6d6f6e8252::t_cd53740cdacba5 142,263-466,497,525
+docs/distribution.md
+  s_262a6d6f6e8252::t_2f7400092cbdf1 66-74,108-126
+docs/planning/2026-09-12-v0.8.0-crash-evidence-review.md
+  s_262a6d6f6e8252::t_da83b329e18647 1-98
+docs/telemetry.md
+  s_262a6d6f6e8252::t_f9c8be70e2eb8b 486-488
+scripts/dev/tests/crash_signal_probe_harness.c
+  s_262a6d6f6e8252::t_4038b51a741091 1-209
+scripts/dist/build_app_bundle.sh
+  s_262a6d6f6e8252::t_347c438353f856 44-46,59,465,537-539,542
+scripts/dist/macho_min_version.sh
+  s_262a6d6f6e8252::t_6bc6743031d938 1-111
+scripts/dist/meeting_echo_asset_defaults.sh
+  s_262a6d6f6e8252::t_f2309d8ad703e5 6-10
+scripts/dist/prepare_meeting_echo_assets.sh
+  s_262a6d6f6e8252::t_0fc5b23d97caa9 11,36-44,215,254
+scripts/dist/test_macho_min_version.sh
+  s_262a6d6f6e8252::t_5ac3d36afd6ee6 1-145
+scripts/dist/test_prepare_meeting_echo_assets.sh
+  s_262a6d6f6e8252::t_9677d415d560b4 1-242
+scripts/dist/test_verify_meeting_echo_assets.sh
+  s_262a6d6f6e8252::t_66d5db6623d764 1-358
+scripts/dist/verify_meeting_echo_assets.sh
+  s_262a6d6f6e8252::t_6fa508a3fc9fc9 7,14-15,35-124,258-259
+spec/contracts/telemetry-v1.md
+  s_262a6d6f6e8252::t_0967c5a74241d0 22-41,127-138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "05c331d89f54d2aff0cc947ba9ab8beb1c043ec1",
+  "prompts": {},
+  "sessions": {
+    "s_262a6d6f6e8252": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a099f4-a4d1-7af2-8f02-8a3cf11f637a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
