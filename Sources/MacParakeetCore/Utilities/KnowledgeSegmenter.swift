@@ -2,7 +2,7 @@ import Foundation
 
 /// Frozen versioned rules for deriving the rebuildable transcript search layer.
 public enum KnowledgeSegmenter {
-    public static let currentVersion = 4
+    public static let currentVersion = 5
 
     private static let targetMinimumScalars = 200
     private static let targetMaximumScalars = 500
@@ -166,6 +166,33 @@ public enum KnowledgeSegmenter {
         effectiveAttribution: EffectiveSpeakerAttribution
     ) -> [Segment] {
         guard transcription.status == .completed else { return [] }
+        if effectiveAttribution.hasTextCorrections {
+            let labels = Dictionary(
+                effectiveAttribution.speakers.map { ($0.id, normalizedSpeaker($0.label)) },
+                uniquingKeysWith: { first, _ in first }
+            )
+            var result: [Segment] = []
+            for source in effectiveAttribution.editableSegments {
+                guard let text = usableText(source.text) else { continue }
+                let speaker: String?
+                switch source.assignment {
+                case .speaker(let id):
+                    speaker = labels[id] ?? AudioSource(rawValue: id)?.displayLabel ?? id
+                case .unassigned:
+                    speaker = nil
+                }
+                result.append(Segment(
+                    transcriptionId: transcription.id,
+                    seq: result.count,
+                    startMs: source.startMs,
+                    endMs: source.endMs,
+                    speaker: speaker,
+                    text: text,
+                    segmenterVersion: currentVersion
+                ))
+            }
+            return result
+        }
         guard !effectiveAttribution.durableSegments.isEmpty,
               !effectiveAttribution.words.isEmpty
         else {

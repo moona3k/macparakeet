@@ -140,6 +140,7 @@ accepted direction is not proof that every phase is implemented or released.
 | [ADR-027](adr/027-product-north-star.md) | Product north star — MacParakeet is the private speech memory of your Mac; Library (search + QA + export) becomes the center of gravity; agent access first-class; ambient capture parked (not rejected); session-based capture stands |
 | [ADR-028](adr/028-meeting-echo-cancellation.md) | Offline meeting echo cancellation via derived cleaned-mic artifact |
 | [ADR-029](adr/029-encrypted-shareable-transcript-snapshots.md) | Explicit encrypted, expiring transcript-derived snapshots as a hosted export rather than Library sync |
+| [ADR-030](adr/030-timed-transcript-corrections.md) | One effective transcript from immutable automatic evidence plus reversible segment-timed text and speaker corrections |
 
 ## Version Roadmap
 

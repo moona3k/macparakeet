@@ -27,6 +27,7 @@ public struct SpeakerEditableSegment: Identifiable, Sendable, Equatable {
     public let automaticSpeakerIDs: [String]
     public let sourceProvenance: [AudioSource]
     public let isManuallySplit: Bool
+    public let isTextEdited: Bool
 
     public init(
         id: SpeakerEditableSegmentID,
@@ -37,7 +38,8 @@ public struct SpeakerEditableSegment: Identifiable, Sendable, Equatable {
         assignment: SpeakerAssignment,
         automaticSpeakerIDs: [String],
         sourceProvenance: [AudioSource],
-        isManuallySplit: Bool
+        isManuallySplit: Bool,
+        isTextEdited: Bool = false
     ) {
         self.id = id
         self.anchorTranscriptSegmentIDs = anchorTranscriptSegmentIDs
@@ -48,6 +50,7 @@ public struct SpeakerEditableSegment: Identifiable, Sendable, Equatable {
         self.automaticSpeakerIDs = automaticSpeakerIDs
         self.sourceProvenance = sourceProvenance
         self.isManuallySplit = isManuallySplit
+        self.isTextEdited = isTextEdited
     }
 
     public var wordRange: TranscriptSegmentWordRange { id.wordRange }
@@ -88,6 +91,10 @@ public enum UnresolvedSpeakerCorrectionReason: String, Sendable, Equatable {
     case protectedSpeaker
     case reassignmentRequired
     case overlappingTargets
+    case invalidText
+    case nonAdjacentTargets
+    case mixedAssignments
+    case textAlignmentConflict
     case malformedHistory
 }
 
@@ -107,6 +114,7 @@ public struct EffectiveSpeakerAttribution: Sendable, Equatable {
     public let turns: [EffectiveSpeakerTurn]
     public let statistics: [String: SpeakerStatistics]
     public let provenanceByWord: [SpeakerWordProvenance]
+    public let hasTextCorrections: Bool
     public let unresolvedCorrections: [UnresolvedSpeakerCorrection]
 }
 
@@ -161,6 +169,8 @@ public enum SpeakerAttributionResolver {
             fingerprint: fingerprint,
             assignments: replay.assignments,
             splitBoundaries: replay.splitBoundaries,
+            suppressedBoundaries: replay.suppressedBoundaries,
+            textOverrides: replay.textOverrides,
             provenance: provenance
         )
         let diarizationSegments =
@@ -185,6 +195,7 @@ public enum SpeakerAttributionResolver {
                 wordTimestamps: effectiveWords
             ),
             provenanceByWord: provenance,
+            hasTextCorrections: !replay.textOverrides.isEmpty || !replay.suppressedBoundaries.isEmpty,
             unresolvedCorrections: unresolved
         )
     }
@@ -287,6 +298,7 @@ public enum SpeakerAttributionResolver {
                 targets,
                 transcription: transcription,
                 splitBoundaries: replay.splitBoundaries,
+                suppressedBoundaries: replay.suppressedBoundaries,
                 requireCurrentRanges: true
             ) {
                 reject(reason)
@@ -310,6 +322,7 @@ public enum SpeakerAttributionResolver {
                 targets,
                 transcription: transcription,
                 splitBoundaries: replay.splitBoundaries,
+                suppressedBoundaries: replay.suppressedBoundaries,
                 requireCurrentRanges: true
             ) {
                 reject(reason)
@@ -322,6 +335,7 @@ public enum SpeakerAttributionResolver {
                 [target],
                 transcription: transcription,
                 splitBoundaries: replay.splitBoundaries,
+                suppressedBoundaries: replay.suppressedBoundaries,
                 requireCurrentRanges: true
             ) {
                 reject(reason)
@@ -333,6 +347,15 @@ public enum SpeakerAttributionResolver {
                 reject(.invalidBoundary)
                 return
             }
+            guard
+                !replay.textOverrides.keys.contains(where: {
+                    $0.startIndex < wordIndex && wordIndex < $0.endIndexExclusive
+                })
+            else {
+                reject(.textAlignmentConflict)
+                return
+            }
+            replay.suppressedBoundaries.remove(wordIndex)
             replay.splitBoundaries.insert(wordIndex)
 
         case .removeSplit(let boundary, let joinedAssignment):
@@ -346,7 +369,8 @@ public enum SpeakerAttributionResolver {
             }
             let ranges = editableRanges(
                 words: transcription.wordTimestamps ?? [],
-                splitBoundaries: replay.splitBoundaries
+                splitBoundaries: replay.splitBoundaries,
+                suppressedBoundaries: replay.suppressedBoundaries
             )
             guard
                 let rightIndex = ranges.firstIndex(where: {
@@ -382,6 +406,11 @@ public enum SpeakerAttributionResolver {
                 setRange(joinedRange, to: joinedAssignment, replay: &replay)
             }
             replay.splitBoundaries.remove(boundary.wordIndex)
+            if automaticBoundaries(words: transcription.wordTimestamps ?? [])
+                .contains(boundary.wordIndex)
+            {
+                replay.suppressedBoundaries.insert(boundary.wordIndex)
+            }
 
         case .merge(let sourceSpeakerID, let targetSpeakerID):
             guard sourceSpeakerID != targetSpeakerID,
@@ -423,6 +452,74 @@ public enum SpeakerAttributionResolver {
             }
             replay.speakers.removeAll { $0.id == speakerID }
 
+        case .editText(let target, let text):
+            if let reason = validateTargets(
+                [target],
+                transcription: transcription,
+                splitBoundaries: replay.splitBoundaries,
+                suppressedBoundaries: replay.suppressedBoundaries,
+                requireCurrentRanges: true
+            ) {
+                reject(reason)
+                return
+            }
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else {
+                reject(.invalidText)
+                return
+            }
+            replay.textOverrides = replay.textOverrides.filter { range, _ in
+                !rangeIsContained(range, in: target.wordRange)
+            }
+            replay.textOverrides[target.wordRange] = trimmed
+
+        case .mergeSegments(let targets):
+            guard targets.count >= 2 else {
+                reject(.nonAdjacentTargets)
+                return
+            }
+            let ordered = targets.sorted {
+                $0.wordRange.startIndex < $1.wordRange.startIndex
+            }
+            guard targets == ordered else {
+                reject(.nonAdjacentTargets)
+                return
+            }
+            if let reason = validateTargets(
+                targets,
+                transcription: transcription,
+                splitBoundaries: replay.splitBoundaries,
+                suppressedBoundaries: replay.suppressedBoundaries,
+                requireCurrentRanges: true
+            ) {
+                reject(reason)
+                return
+            }
+            for index in ordered.indices.dropFirst() {
+                guard
+                    ordered[index - 1].wordRange.endIndexExclusive
+                        == ordered[index].wordRange.startIndex
+                else {
+                    reject(.nonAdjacentTargets)
+                    return
+                }
+            }
+            let assignments = Set(
+                ordered.flatMap { target in
+                    replay.assignments[
+                        target.wordRange.startIndex..<target.wordRange.endIndexExclusive
+                    ]
+                })
+            guard assignments.count == 1 else {
+                reject(.mixedAssignments)
+                return
+            }
+            for target in ordered.dropFirst() {
+                let boundary = target.wordRange.startIndex
+                replay.splitBoundaries.remove(boundary)
+                replay.suppressedBoundaries.insert(boundary)
+            }
+
         case .reset:
             replay = baseline
         }
@@ -432,6 +529,7 @@ public enum SpeakerAttributionResolver {
         _ targets: [SpeakerCorrectionTarget],
         transcription: Transcription,
         splitBoundaries: Set<Int>,
+        suppressedBoundaries: Set<Int>,
         requireCurrentRanges: Bool
     ) -> UnresolvedSpeakerCorrectionReason? {
         let sorted = targets.sorted { $0.wordRange.startIndex < $1.wordRange.startIndex }
@@ -449,7 +547,8 @@ public enum SpeakerAttributionResolver {
             let current = Set(
                 editableRanges(
                     words: transcription.wordTimestamps ?? [],
-                    splitBoundaries: splitBoundaries
+                    splitBoundaries: splitBoundaries,
+                    suppressedBoundaries: suppressedBoundaries
                 ))
             guard targets.allSatisfy({ current.contains($0.wordRange) }) else {
                 return .rangeMismatch
@@ -480,24 +579,40 @@ public enum SpeakerAttributionResolver {
         lhs.startIndex < rhs.endIndexExclusive && rhs.startIndex < lhs.endIndexExclusive
     }
 
+    private static func rangeIsContained(
+        _ candidate: TranscriptSegmentWordRange,
+        in container: TranscriptSegmentWordRange
+    ) -> Bool {
+        candidate.startIndex >= container.startIndex
+            && candidate.endIndexExclusive <= container.endIndexExclusive
+    }
+
     private static func editableRanges(
         words: [WordTimestamp],
-        splitBoundaries: Set<Int>
+        splitBoundaries: Set<Int>,
+        suppressedBoundaries: Set<Int>
     ) -> [TranscriptSegmentWordRange] {
-        TranscriptSegmenter.editableWordRanges(words: words).flatMap { base in
-            let boundaries =
-                splitBoundaries
-                .filter { $0 > base.startIndex && $0 < base.endIndexExclusive }
-                .sorted()
-            var start = base.startIndex
-            var result: [TranscriptSegmentWordRange] = []
-            for boundary in boundaries {
-                result.append(.init(startIndex: start, endIndexExclusive: boundary))
-                start = boundary
-            }
-            result.append(.init(startIndex: start, endIndexExclusive: base.endIndexExclusive))
-            return result
+        guard !words.isEmpty else { return [] }
+        var boundaries = automaticBoundaries(words: words)
+        boundaries.formUnion(splitBoundaries)
+        boundaries.subtract(suppressedBoundaries)
+
+        var start = 0
+        var result: [TranscriptSegmentWordRange] = []
+        for boundary in boundaries.sorted() where boundary > 0 && boundary < words.count {
+            result.append(.init(startIndex: start, endIndexExclusive: boundary))
+            start = boundary
         }
+        result.append(.init(startIndex: start, endIndexExclusive: words.count))
+        return result
+    }
+
+    private static func automaticBoundaries(words: [WordTimestamp]) -> Set<Int> {
+        Set(
+            TranscriptSegmenter.editableWordRanges(words: words)
+                .dropLast()
+                .map(\.endIndexExclusive)
+        )
     }
 
     private static func set(
@@ -563,16 +678,28 @@ public enum SpeakerAttributionResolver {
         fingerprint: TranscriptFingerprint,
         assignments: [SpeakerAssignment],
         splitBoundaries: Set<Int>,
+        suppressedBoundaries: Set<Int>,
+        textOverrides: [TranscriptSegmentWordRange: String],
         provenance: [SpeakerWordProvenance]
     ) -> [SpeakerEditableSegment] {
         let words = transcription.wordTimestamps ?? []
-        let baseRanges = Set(TranscriptSegmenter.editableWordRanges(words: words))
-        return editableRanges(words: words, splitBoundaries: splitBoundaries).map { range in
+        return editableRanges(
+            words: words,
+            splitBoundaries: splitBoundaries,
+            suppressedBoundaries: suppressedBoundaries
+        ).map { range in
             let wordSlice = words[range.startIndex..<range.endIndexExclusive]
             let automaticIDs = uniqueInOrder(wordSlice.compactMap(\.speakerId))
             let sources = uniqueInOrder(
                 provenance[range.startIndex..<range.endIndexExclusive].compactMap(\.audioSource)
             )
+            let textEdited =
+                textOverrides.keys.contains(where: {
+                    rangeIsContained($0, in: range)
+                })
+                || suppressedBoundaries.contains(where: {
+                    $0 > range.startIndex && $0 < range.endIndexExclusive
+                })
             return SpeakerEditableSegment(
                 id: .init(
                     transcriptionId: transcription.id,
@@ -582,13 +709,53 @@ public enum SpeakerAttributionResolver {
                 anchorTranscriptSegmentIDs: anchors(for: range, in: transcription.transcriptSegments ?? []),
                 startMs: wordSlice.first?.startMs ?? 0,
                 endMs: wordSlice.last?.endMs ?? 0,
-                text: wordSlice.map(\.word).joined(separator: " "),
+                text: effectiveText(for: range, words: words, overrides: textOverrides),
                 assignment: assignments[range.startIndex],
                 automaticSpeakerIDs: automaticIDs,
                 sourceProvenance: sources,
-                isManuallySplit: !baseRanges.contains(range)
+                isManuallySplit: splitBoundaries.contains(range.startIndex)
+                    || splitBoundaries.contains(range.endIndexExclusive),
+                isTextEdited: textEdited
             )
         }
+    }
+
+    private static func effectiveText(
+        for range: TranscriptSegmentWordRange,
+        words: [WordTimestamp],
+        overrides: [TranscriptSegmentWordRange: String]
+    ) -> String {
+        let contained =
+            overrides
+            .filter { rangeIsContained($0.key, in: range) }
+            .sorted { $0.key.startIndex < $1.key.startIndex }
+        guard !contained.isEmpty else {
+            return words[range.startIndex..<range.endIndexExclusive]
+                .map(\.word)
+                .joined(separator: " ")
+        }
+
+        var pieces: [String] = []
+        var cursor = range.startIndex
+        for (overrideRange, text) in contained {
+            if cursor < overrideRange.startIndex {
+                pieces.append(
+                    words[cursor..<overrideRange.startIndex]
+                        .map(\.word)
+                        .joined(separator: " ")
+                )
+            }
+            pieces.append(text)
+            cursor = overrideRange.endIndexExclusive
+        }
+        if cursor < range.endIndexExclusive {
+            pieces.append(
+                words[cursor..<range.endIndexExclusive]
+                    .map(\.word)
+                    .joined(separator: " ")
+            )
+        }
+        return pieces.filter { !$0.isEmpty }.joined(separator: " ")
     }
 
     private static func makeEffectiveDurableSegments(
@@ -729,6 +896,8 @@ private struct ReplayState {
     var speakers: [SpeakerInfo]
     var assignments: [SpeakerAssignment]
     var splitBoundaries: Set<Int> = []
+    var suppressedBoundaries: Set<Int> = []
+    var textOverrides: [TranscriptSegmentWordRange: String] = [:]
     var assignmentChanged = false
 
     init(transcription: Transcription) {

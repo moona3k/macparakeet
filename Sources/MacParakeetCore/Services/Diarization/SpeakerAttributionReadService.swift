@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import GRDB
 
@@ -39,6 +40,7 @@ public struct SpeakerAttributionProjection: Sendable {
             attribution.words != automaticWords
                 || attribution.speakers != automaticSpeakers
                 || attribution.diarizationSegments != automaticDiarization
+                || attribution.hasTextCorrections
         else {
             return automaticTranscription
         }
@@ -48,8 +50,57 @@ public struct SpeakerAttributionProjection: Sendable {
         result.speakerCount = attribution.speakers.count
         result.wordTimestamps = attribution.words
         result.diarizationSegments = attribution.diarizationSegments
-        result.transcriptSegments = materializedDurableSegments()
+        if attribution.hasTextCorrections {
+            result.cleanTranscript = attribution.editableSegments
+                .map(\.text)
+                .joined(separator: " ")
+            result.transcriptSegments = materializedTextCorrectedSegments()
+        } else {
+            result.transcriptSegments = materializedDurableSegments()
+        }
         return result
+    }
+
+    private func materializedTextCorrectedSegments() -> [TranscriptSegmentRecord] {
+        let labelsByID = Dictionary(
+            attribution.speakers.map { ($0.id, $0.label) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        return attribution.editableSegments.map { segment in
+            let speakerID: String?
+            let speakerLabel: String
+            switch segment.assignment {
+            case .speaker(let id):
+                speakerID = id
+                speakerLabel = labelsByID[id] ?? id
+            case .unassigned:
+                speakerID = nil
+                speakerLabel = "Unassigned"
+            }
+            return TranscriptSegmentRecord(
+                id: effectiveSegmentID(for: segment.id),
+                startMs: segment.startMs,
+                endMs: segment.endMs,
+                speakerId: speakerID,
+                speakerLabel: speakerLabel,
+                text: segment.text,
+                wordRange: segment.wordRange,
+                isTextEdited: segment.isTextEdited ? true : nil
+            )
+        }
+    }
+
+    private func effectiveSegmentID(for id: SpeakerEditableSegmentID) -> UUID {
+        let input = "\(id.transcriptionId.uuidString.lowercased()):\(id.transcriptFingerprint.rawValue):\(id.wordRange.startIndex):\(id.wordRange.endIndexExclusive)"
+        var bytes = Array(SHA256.hash(data: Data(input.utf8)).prefix(16))
+        bytes[6] = (bytes[6] & 0x0F) | 0x50
+        bytes[8] = (bytes[8] & 0x3F) | 0x80
+        return UUID(uuid: (
+            bytes[0], bytes[1], bytes[2], bytes[3],
+            bytes[4], bytes[5], bytes[6], bytes[7],
+            bytes[8], bytes[9], bytes[10], bytes[11],
+            bytes[12], bytes[13], bytes[14], bytes[15]
+        ))
     }
 
     private func materializedDurableSegments() -> [TranscriptSegmentRecord]? {

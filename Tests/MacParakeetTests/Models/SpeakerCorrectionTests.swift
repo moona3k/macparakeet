@@ -18,6 +18,8 @@ final class SpeakerCorrectionTests: XCTestCase {
             ),
             .merge(sourceSpeakerID: "S2", targetSpeakerID: "S1"),
             .remove(speakerID: "S2", reassignTo: .unassigned),
+            .editText(target: target, text: "Corrected words"),
+            .mergeSegments(targets: [target]),
             .reset,
         ]
         let encoder = JSONEncoder()
@@ -27,7 +29,7 @@ final class SpeakerCorrectionTests: XCTestCase {
         for command in commands {
             let data = try encoder.encode(command)
             let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
-            XCTAssertEqual(object["version"] as? Int, 1)
+            XCTAssertEqual(object["version"] as? Int, 2)
             XCTAssertNotNil(object["kind"] as? String)
             XCTAssertEqual(try decoder.decode(SpeakerCorrectionCommand.self, from: data), command)
         }
@@ -36,16 +38,13 @@ final class SpeakerCorrectionTests: XCTestCase {
     func testRenamePayloadMatchesPersistedVersionOneJSON() throws {
         let json = #"{"kind":"rename","label":"Alice","speakerID":"S1","version":1}"#
         let command = SpeakerCorrectionCommand.rename(speakerID: "S1", label: "Alice")
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        XCTAssertEqual(String(decoding: try encoder.encode(command), as: UTF8.self), json)
         XCTAssertEqual(
             try JSONDecoder().decode(SpeakerCorrectionCommand.self, from: Data(json.utf8)), command
         )
     }
 
     func testUnsupportedPayloadVersionIsRejected() {
-        let data = Data(#"{"version":2,"kind":"reset"}"#.utf8)
+        let data = Data(#"{"version":3,"kind":"reset"}"#.utf8)
         XCTAssertThrowsError(try JSONDecoder().decode(SpeakerCorrectionCommand.self, from: data))
     }
 
@@ -61,5 +60,15 @@ final class SpeakerCorrectionTests: XCTestCase {
                 ),
                 joinedAssignment: nil
             ).operation, .unsplit)
+        XCTAssertEqual(
+            SpeakerCorrectionCommand.editText(
+                target: .init(
+                    anchorTranscriptSegmentIDs: [],
+                    wordRange: .init(startIndex: 0, endIndexExclusive: 1)
+                ),
+                text: "Corrected"
+            ).operation,
+            .editText
+        )
     }
 }

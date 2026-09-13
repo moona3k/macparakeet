@@ -46,6 +46,7 @@ public enum SpeakerCorrectionServiceError: Error, Equatable, Sendable {
     case transcriptionIncomplete
     case timingsRequired
     case durableSegmentsRequired
+    case untimedTranscriptEdit
     case conflict
     case invalidCommand(UnresolvedSpeakerCorrectionReason)
     case malformedHistory
@@ -84,6 +85,12 @@ public final class SpeakerCorrectionService: SpeakerCorrectionServicing, @unchec
                 now: now,
                 in: db
             )
+            guard
+                !command.isTimedTextCorrection
+                    || context.transcription.transcriptTextAlignment != .untimed
+            else {
+                throw SpeakerCorrectionServiceError.untimedTranscriptEdit
+            }
             let correction = SpeakerCorrection(
                 transcriptionId: transcriptionId,
                 parentId: context.state.headId,

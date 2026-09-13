@@ -157,6 +157,77 @@ final class DatabaseManagerTests: XCTestCase {
         }
     }
 
+    func testTimedCorrectionMigrationPreservesHistoryCursorAndForeignKeys() async throws {
+        let dbPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("timed_corrections_migration_\(UUID().uuidString).db")
+            .path
+        defer { cleanupDatabaseFiles(atPath: dbPath) }
+
+        let words = [
+            WordTimestamp(word: "Hello", startMs: 0, endMs: 150, confidence: 0.9, speakerId: "S1"),
+            WordTimestamp(word: "world.", startMs: 200, endMs: 350, confidence: 0.9, speakerId: "S1"),
+        ]
+        let transcription = Transcription(
+            fileName: "Existing interview",
+            rawTranscript: "Hello world.",
+            cleanTranscript: "Hello world.",
+            wordTimestamps: words,
+            speakers: [.init(id: "S1", label: "Speaker 1")],
+            transcriptSegments: TranscriptSegmenter.materializeSegments(words: words),
+            status: .completed,
+            sourceType: .file
+        )
+        let fingerprint = SpeakerAttributionResolver.fingerprint(for: transcription)
+        let rename = SpeakerCorrection(
+            transcriptionId: transcription.id,
+            parentId: nil,
+            sequence: 1,
+            transcriptFingerprint: fingerprint,
+            payload: .rename(speakerID: "S1", label: "Alice")
+        )
+        do {
+            let original = try DatabaseManager(path: dbPath)
+            try TranscriptionRepository(dbQueue: original.dbQueue).save(transcription)
+            try await original.dbQueue.write { db in
+                try rename.insert(db)
+                try SpeakerCorrectionState(
+                    transcriptionId: transcription.id,
+                    transcriptFingerprint: fingerprint.rawValue,
+                    headId: rename.id,
+                    revision: 1
+                ).insert(db)
+                try db.execute(
+                    sql: "DELETE FROM grdb_migrations WHERE identifier = ?",
+                    arguments: ["v0.43-timed-transcript-corrections"]
+                )
+            }
+        }
+
+        let migrated = try DatabaseManager(path: dbPath)
+        let history = try SpeakerCorrectionRepository(dbQueue: migrated.dbQueue)
+            .fetchHistory(transcriptionId: transcription.id)
+        XCTAssertEqual(history.map(\.id), [rename.id])
+        XCTAssertEqual(
+            try SpeakerCorrectionRepository(dbQueue: migrated.dbQueue)
+                .fetchState(transcriptionId: transcription.id)?.headId,
+            rename.id
+        )
+        let target = SpeakerCorrectionTarget(
+            anchorTranscriptSegmentIDs: try XCTUnwrap(transcription.transcriptSegments?.map(\.id)),
+            wordRange: .init(startIndex: 0, endIndexExclusive: 2)
+        )
+        let result = try await SpeakerCorrectionService(dbQueue: migrated.dbQueue).apply(
+            transcriptionId: transcription.id,
+            command: .editText(target: target, text: "Corrected greeting."),
+            expectedFingerprint: fingerprint,
+            expectedRevision: 1
+        )
+        XCTAssertEqual(result.revision, 2)
+        try await migrated.dbQueue.read { db in
+            XCTAssertTrue(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty)
+        }
+    }
+
     func testSegmentsFTSMigrationCreatesExternalContentIndexAndTriggers() throws {
         let manager = try DatabaseManager()
         let transcription = Transcription(

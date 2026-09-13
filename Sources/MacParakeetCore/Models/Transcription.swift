@@ -184,6 +184,18 @@ public struct Transcription: Codable, Identifiable, Sendable {
 }
 
 extension Transcription {
+    /// The strongest timing claim the currently materialized transcript text
+    /// can make. Legacy whole-text edits are untimed; corrected timed lines
+    /// retain only their segment envelope, while automatic text retains the
+    /// recognizer's word-level alignment.
+    public var transcriptTextAlignment: TranscriptTextAlignment {
+        if isTranscriptEdited { return .untimed }
+        if transcriptSegments?.contains(where: { $0.isTextEdited == true }) == true {
+            return .segment
+        }
+        return .automatic
+    }
+
     /// Whether this transcription carries word-level timing. This is the source
     /// of truth for the "Timed" transcript view and for whether timestamps can
     /// be exported. Plain-text engines (such as Cohere) and older pre-timestamp
@@ -291,6 +303,9 @@ public struct TranscriptSegmentRecord: Codable, Sendable, Equatable, Identifiabl
     public var speakerLabel: String
     public var text: String
     public var wordRange: TranscriptSegmentWordRange
+    /// `true` only on an effective projection whose displayed text or boundary
+    /// was corrected. Omitted from automatic/legacy segment JSON.
+    public var isTextEdited: Bool?
 
     public init(
         id: UUID = UUID(),
@@ -299,7 +314,8 @@ public struct TranscriptSegmentRecord: Codable, Sendable, Equatable, Identifiabl
         speakerId: String?,
         speakerLabel: String,
         text: String,
-        wordRange: TranscriptSegmentWordRange
+        wordRange: TranscriptSegmentWordRange,
+        isTextEdited: Bool? = nil
     ) {
         self.id = id
         self.startMs = startMs
@@ -308,6 +324,7 @@ public struct TranscriptSegmentRecord: Codable, Sendable, Equatable, Identifiabl
         self.speakerLabel = speakerLabel
         self.text = text
         self.wordRange = wordRange
+        self.isTextEdited = isTextEdited
     }
 
     public static func updatingSpeakerLabels(
@@ -335,6 +352,12 @@ public struct TranscriptSegmentRecord: Codable, Sendable, Equatable, Identifiabl
         }
         return segments
     }
+}
+
+public enum TranscriptTextAlignment: String, Codable, Sendable {
+    case automatic
+    case segment
+    case untimed
 }
 
 extension Transcription: FetchableRecord, PersistableRecord {

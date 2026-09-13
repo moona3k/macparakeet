@@ -3,6 +3,43 @@ import XCTest
 @testable import MacParakeetCore
 
 final class SpeakerAttributionReadServiceTests: XCTestCase {
+    func testTextOnlyCorrectionPublishesOneSegmentTimedTranscript() async throws {
+        let manager = try DatabaseManager()
+        let transcription = fixture()
+        try TranscriptionRepository(dbQueue: manager.dbQueue).save(transcription)
+        let fingerprint = SpeakerAttributionResolver.fingerprint(for: transcription)
+        let target = SpeakerCorrectionTarget(
+            anchorTranscriptSegmentIDs: try XCTUnwrap(transcription.transcriptSegments?.map(\.id)),
+            wordRange: .init(startIndex: 0, endIndexExclusive: 4)
+        )
+
+        _ = try await SpeakerCorrectionService(dbQueue: manager.dbQueue).apply(
+            transcriptionId: transcription.id,
+            command: .editText(target: target, text: "A corrected sentence."),
+            expectedFingerprint: fingerprint,
+            expectedRevision: 0
+        )
+
+        let reader = SpeakerAttributionReadService(dbQueue: manager.dbQueue)
+        let first = try XCTUnwrap(reader.resolve(transcriptionId: transcription.id))
+        let second = try XCTUnwrap(reader.resolve(transcriptionId: transcription.id))
+        let effective = first.effectiveTranscription
+        XCTAssertEqual(effective.cleanTranscript, "A corrected sentence.")
+        XCTAssertEqual(effective.transcriptTextAlignment, .segment)
+        XCTAssertEqual(effective.transcriptSegments?.map(\.text), ["A corrected sentence."])
+        XCTAssertEqual(effective.transcriptSegments?.first?.isTextEdited, true)
+        XCTAssertNotEqual(
+            effective.transcriptSegments?.first?.id,
+            transcription.transcriptSegments?.first?.id
+        )
+        XCTAssertEqual(
+            effective.transcriptSegments?.map(\.id),
+            second.effectiveTranscription.transcriptSegments?.map(\.id)
+        )
+        XCTAssertEqual(effective.rawTranscript, transcription.rawTranscript)
+        XCTAssertEqual(effective.wordTimestamps, transcription.wordTimestamps)
+    }
+
     func testNoCorrectionsPreservesNilSpeakerGapsInExportedProjection() throws {
         let manager = try DatabaseManager()
         var transcription = fixture()
