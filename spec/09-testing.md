@@ -79,7 +79,7 @@ struct MockTranscriptionService: TranscriptionService {
 The suite includes targeted regressions for progress behavior in URL transcription:
 
 - `STTClientTests`: STT progress updates are parsed and forwarded correctly
-- `YouTubeDownloaderTests`: yt-dlp download percent line parsing
+- `YouTubeDownloaderTests`: yt-dlp download percent line parsing and YouTube anti-bot error mapping
 - `TranscriptionServiceTests`: download-phase percentages are forwarded to `onProgress`
 - `TranscriptionViewModelTests`: phase text percent parsing updates UI progress and resets on non-percent phases
 

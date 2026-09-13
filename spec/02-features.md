@@ -1305,6 +1305,9 @@ Display result (same view as file transcription)
 
 **Limitations:**
 - Age-restricted videos may fail (requires auth cookies)
+- YouTube may reject an unauthenticated download with an anti-bot check. The app
+  explains that clearly and points the user to retry later or drop a local file;
+  it does not collect browser cookies.
 - Live streams not supported
 - Very long videos (6+ hours) can take significant time to download/transcribe even with progress updates
 - Download for personal use only (noted in UI)
@@ -1317,6 +1320,7 @@ Display result (same view as file transcription)
 - [x] Result displayed same as file transcription
 - [x] Handles invalid URLs gracefully (error message)
 - [x] Handles private/restricted videos with clear error
+- [x] YouTube anti-bot rejections surface a clear error and suggest local-file import instead of yt-dlp cookie flags
 - [x] Downloaded video audio is kept by default, with a Settings toggle to auto-delete after transcription
 - [ ] Playlist URLs supported (batch transcription) — deferred to v0.4
 
