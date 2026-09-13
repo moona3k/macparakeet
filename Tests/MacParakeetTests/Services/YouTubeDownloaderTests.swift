@@ -414,6 +414,14 @@ final class YouTubeDownloaderTests: XCTestCase {
         XCTAssertTrue(YouTubeDownloader.shouldRetryWithFreshYtDlp(genericError))
         XCTAssertTrue(YouTubeDownloader.shouldRetryWithFreshYtDlp(YouTubeDownloadError.timedOut))
         XCTAssertFalse(YouTubeDownloader.shouldRetryWithFreshYtDlp(YouTubeDownloadError.videoNotFound))
+
+        let nonYouTubeCookieAdvice = YouTubeDownloader.classifiedDownloadError(
+            fromYtDlpOutput: "ERROR: [generic] Use --cookies-from-browser or --cookies for the authentication."
+        )
+        guard case .downloadFailed(let cookieReason) = nonYouTubeCookieAdvice else {
+            return XCTFail("Expected downloadFailed for non-YouTube cookie advice, got \(nonYouTubeCookieAdvice)")
+        }
+        XCTAssertTrue(cookieReason.contains("cookies-from-browser"))
     }
 
     private func formatSelector(in args: [String]) -> String? {

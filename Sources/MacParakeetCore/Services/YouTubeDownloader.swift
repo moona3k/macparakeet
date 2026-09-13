@@ -752,7 +752,8 @@ public actor YouTubeDownloader {
     }
 
     private nonisolated static func isYouTubeAntiBotMessage(_ folded: String) -> Bool {
-        folded.contains("not a bot") || folded.contains("cookies-from-browser")
+        guard folded.contains("youtube") else { return false }
+        return folded.contains("not a bot") || folded.contains("cookies-from-browser")
     }
 
     private nonisolated static func normalizeYtDlpError(_ raw: String) -> String {
