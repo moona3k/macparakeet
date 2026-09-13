@@ -41,6 +41,7 @@ final class AppEnvironment {
     let meetingArtifactStore: MeetingArtifactStore
     let meetingSplitRepo: MeetingSplitRepository
     let meetingSplitService: MeetingSplitService
+    let meetingImportService: MeetingImportService
     let llmRunRepo: LLMRunRepository
     let aiFormatterProfileRepo: AIFormatterProfileRepository
     let transformHistoryRepo: TransformHistoryRepository
@@ -474,6 +475,24 @@ final class AppEnvironment {
             ),
             retentionConfig: { UserDefaultsAppRuntimePreferences.meetingAudioRetention(persistMigration: false) },
             speechEngineSelection: { SpeechEngineSelection.finalTranscription() }
+        )
+        meetingImportService = MeetingImportService(
+            transcriptionService: transcriptionService,
+            transcriptionRepo: transcriptionRepo,
+            completionService: SavedAudioAutoPromptCompletionService(
+                promptRepo: promptRepo,
+                promptResultRepo: promptResultRepo,
+                llmService: llmService,
+                promptLabelPolicyRepository: promptLabelPolicyRepo,
+                transcriptionLabelRepository: transcriptionMeetingLabelRepo,
+                speakerAttributionReader: speakerAttributionReader,
+                meetingArtifactStore: meetingArtifactStore,
+                cardGenerator: cardGenerationService
+            ),
+            recordingsRoot: {
+                URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
+            },
+            lockFileStore: meetingRecordingLockFileStore
         )
 
         derivedFieldsBackfill = DerivedFieldsBackfillService(dbQueue: databaseManager.dbQueue)
