@@ -68,6 +68,24 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertNil(metadata.captureReport)
     }
 
+    func testRecoverImportedSessionWithoutRowPreservesHistoricalMetadata() async throws {
+        let startedAt = Date(timeIntervalSince1970: 1_650_000_000)
+        let retentionStartedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let fixture = try makeRecoverableSession(
+            lockState: .awaitingTranscription,
+            startedAt: startedAt,
+            audioRetentionStartedAt: retentionStartedAt,
+            titleOverride: "Partnership discussion"
+        )
+
+        let recovered = try await recoveryService.recover(fixture.lock)
+
+        XCTAssertEqual(recovered.createdAt, startedAt)
+        XCTAssertEqual(recovered.audioRetentionStartedAt, retentionStartedAt)
+        XCTAssertEqual(recovered.fileName, "Partnership discussion")
+        XCTAssertEqual(recovered.titleOverride, "Partnership discussion")
+    }
+
     func testRecoverPreservesExistingTimelineAndProvenanceWhileRefreshingMediaFacts() async throws {
         let fixture = try makeRecoverableSession(systemAudio: .silent)
         let finalizedAlignment = MeetingSourceAlignment(
@@ -1395,7 +1413,10 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         systemSampleRate: Double = 48_000,
         lockState: MeetingRecordingLockState = .recording,
         notes: String? = nil,
-        speechEngineWasCaptured: Bool = true
+        speechEngineWasCaptured: Bool = true,
+        startedAt: Date = Date(timeIntervalSince1970: 1_700_000_000),
+        audioRetentionStartedAt: Date? = nil,
+        titleOverride: String? = nil
     ) throws -> (folderURL: URL, lock: MeetingRecordingLockFile) {
         let sessionID = UUID()
         let folderURL = tempRoot.appendingPathComponent(sessionID.uuidString, isDirectory: true)
@@ -1422,12 +1443,14 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
 
         let lock = MeetingRecordingLockFile(
             sessionId: sessionID,
-            startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            startedAt: startedAt,
             pid: 42,
             displayName: "Recovered Team Sync",
             state: lockState,
             speechEngineWasCaptured: speechEngineWasCaptured,
             notes: notes,
+            audioRetentionStartedAt: audioRetentionStartedAt,
+            titleOverride: titleOverride,
             folderURL: folderURL
         )
         try lockStore.write(lock, folderURL: folderURL)
@@ -1720,12 +1743,15 @@ private final class RecoveryMockTranscriptionService: TranscriptionServiceProtoc
             recordings.append(recording)
         }
         let transcription = Transcription(
+            createdAt: recording.startedAt ?? Date(),
             fileName: recording.displayName,
             filePath: recording.mixedAudioURL.path,
             meetingArtifactFolderPath: recording.folderURL.path,
             status: .completed,
             sourceType: .meeting,
-            meetingCaptureReport: recording.captureReport
+            meetingCaptureReport: recording.captureReport,
+            titleOverride: recording.titleOverride,
+            audioRetentionStartedAt: recording.audioRetentionStartedAt
         )
         try transcriptionRepo?.save(transcription)
         return transcription

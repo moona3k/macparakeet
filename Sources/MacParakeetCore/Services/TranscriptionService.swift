@@ -1398,6 +1398,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
 
     private func makeMeetingTranscriptionStub(recording: MeetingRecordingOutput) -> Transcription {
         Transcription(
+            createdAt: recording.startedAt ?? Date(),
             fileName: recording.displayName,
             filePath: recording.mixedAudioURL.path,
             meetingArtifactFolderPath: recording.folderURL.path,
@@ -1411,7 +1412,9 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
             meetingStartContext: recording.startContext,
             meetingCaptureReport: recording.captureReport,
             engine: recording.speechEngine.engine.rawValue,
-            calendarEventSnapshot: recording.calendarEventSnapshot
+            calendarEventSnapshot: recording.calendarEventSnapshot,
+            titleOverride: recording.titleOverride,
+            audioRetentionStartedAt: recording.audioRetentionStartedAt
         )
     }
 
@@ -2215,6 +2218,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         }
 
         if persistResult, source == .meeting,
+           transcription.normalizedTitleOverride == nil,
            let generatedTitle = try await generateMeetingTitleIfNeeded(
                transcriptText: derivationSource,
                currentTitle: transcription.fileName

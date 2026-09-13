@@ -367,7 +367,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
 
         let recording = MeetingRecordingOutput(
             sessionID: lock.sessionId,
-            displayName: lock.displayName,
+            displayName: lock.titleOverride ?? lock.displayName,
             folderURL: folderURL,
             mixedAudioURL: mixedURL,
             microphoneAudioURL: microphoneAudio.url,
@@ -383,7 +383,10 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             startContext: recoveredMetadata.startContext,
             userNotes: lock.notes,
             calendarEventSnapshot: recoveredMetadata.calendarEventSnapshot,
-            meetingTypeId: recoveredMetadata.meetingTypeId
+            meetingTypeId: recoveredMetadata.meetingTypeId,
+            startedAt: lock.startedAt,
+            audioRetentionStartedAt: lock.audioRetentionStartedAt,
+            titleOverride: lock.titleOverride
         )
 
         do {

@@ -51,6 +51,8 @@ Stable lock fields:
 - `finalizationLeaseId`
 - `speechEngine`
 - `notes`
+- `audioRetentionStartedAt`
+- `titleOverride`
 
 Stable states:
 
@@ -61,6 +63,11 @@ Stable states:
 `notes` is a backward-compatible additive field. Missing values decode to safe
 defaults, and malformed `notes` does not block recovery of the structural lock
 metadata.
+
+`audioRetentionStartedAt` and `titleOverride` are backward-compatible optional
+import metadata. Missing-row recovery uses `startedAt` for historical chronology,
+the optional retention clock for the managed copy, and a normalized explicit
+title when present. Older locks omit both fields and keep their existing behavior.
 
 `finalizationLeaseId` is a backward-compatible optional ownership token.
 Normal stop-and-queue locks and older locks omit it. Retry and crash-recovery

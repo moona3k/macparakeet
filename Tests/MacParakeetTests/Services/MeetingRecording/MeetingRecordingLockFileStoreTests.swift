@@ -30,6 +30,49 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         XCTAssertFalse(try encodedJSONKeys(folderURL: folderURL).contains("folderURL"))
     }
 
+    func testImportMetadataRoundTripsAndSurvivesLockTransitions() throws {
+        let folderURL = tempRoot.appendingPathComponent("import-session")
+        let retentionStartedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let lockFile = makeLockFile(
+            folderURL: folderURL,
+            audioRetentionStartedAt: retentionStartedAt,
+            titleOverride: "Partnership discussion"
+        )
+        let transitioned = lockFile
+            .withState(.awaitingTranscription)
+            .withFinalizationOwner(pid: 456, leaseID: UUID())
+
+        try store.write(transitioned, folderURL: folderURL)
+
+        let saved = try XCTUnwrap(store.read(folderURL: folderURL))
+        XCTAssertEqual(saved.audioRetentionStartedAt, retentionStartedAt)
+        XCTAssertEqual(saved.titleOverride, "Partnership discussion")
+        XCTAssertEqual(saved.state, .awaitingTranscription)
+        XCTAssertEqual(saved.pid, 456)
+    }
+
+    func testLegacyLockDecodesWithoutImportMetadata() throws {
+        let folderURL = tempRoot.appendingPathComponent("legacy-import-metadata")
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let json = """
+            {
+                "schemaVersion": 1,
+                "sessionId": "11111111-2222-3333-4444-555555555555",
+                "startedAt": "2026-04-25T12:00:00Z",
+                "pid": 123,
+                "displayName": "Legacy meeting",
+                "state": "awaitingTranscription",
+                "audioRetentionStartedAt": 42,
+                "titleOverride": false
+            }
+            """
+        try Data(json.utf8).write(to: MeetingRecordingLockFileStore.lockFileURL(for: folderURL))
+
+        let saved = try XCTUnwrap(store.read(folderURL: folderURL))
+        XCTAssertNil(saved.audioRetentionStartedAt)
+        XCTAssertNil(saved.titleOverride)
+    }
+
     func testReadFromMissingFolderReturnsNil() throws {
         let folderURL = tempRoot.appendingPathComponent("missing")
 
@@ -684,7 +727,9 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
         displayName: String = "Team Sync",
         state: MeetingRecordingLockState = .recording,
         folderURL: URL? = nil,
-        speechEngineWasCaptured: Bool = true
+        speechEngineWasCaptured: Bool = true,
+        audioRetentionStartedAt: Date? = nil,
+        titleOverride: String? = nil
     ) -> MeetingRecordingLockFile {
         MeetingRecordingLockFile(
             schemaVersion: schemaVersion,
@@ -694,6 +739,8 @@ final class MeetingRecordingLockFileStoreTests: XCTestCase {
             displayName: displayName,
             state: state,
             speechEngineWasCaptured: speechEngineWasCaptured,
+            audioRetentionStartedAt: audioRetentionStartedAt,
+            titleOverride: titleOverride,
             folderURL: folderURL
         )
     }
