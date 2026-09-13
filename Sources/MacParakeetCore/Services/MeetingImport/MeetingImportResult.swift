@@ -71,6 +71,7 @@ public enum MeetingImportWarning: Sendable, Equatable {
     case persistenceFailed(message: String)
     case settlementFailed(message: String)
     case ownershipReleaseFailed(message: String)
+    case audioRetentionFailed(message: String)
     case automationFailed(message: String)
     case automationCancelled
     case promptFailed(promptID: UUID?, promptName: String, message: String)

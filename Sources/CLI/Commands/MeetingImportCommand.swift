@@ -8,28 +8,6 @@ typealias MeetingImportRunning =
         @escaping @Sendable (MeetingImportProgress) -> Void
     ) async throws -> MeetingImportResult
 
-/// Test-only injection stays outside the ArgumentParser command so command
-/// decoding remains synthesized. Production leaves this empty and constructs
-/// the real Core service below.
-final class MeetingImportRunnerOverride: @unchecked Sendable {
-    private let lock = NSLock()
-    private var runner: MeetingImportRunning?
-
-    func set(_ runner: MeetingImportRunning?) {
-        lock.lock()
-        self.runner = runner
-        lock.unlock()
-    }
-
-    func current() -> MeetingImportRunning? {
-        lock.lock()
-        defer { lock.unlock() }
-        return runner
-    }
-}
-
-let meetingImportRunnerOverride = MeetingImportRunnerOverride()
-
 extension MeetingsCommand {
     struct ImportSubcommand: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
@@ -73,6 +51,12 @@ extension MeetingsCommand {
         }
 
         func run() async throws {
+            try await run(importRunner: nil)
+        }
+
+        /// Internal injection keeps command tests isolated while production
+        /// still constructs the normal Core service from the parsed options.
+        func run(importRunner: MeetingImportRunning?) async throws {
             try await emitJSONOrRethrow(json: json || envelope) {
                 let request = MeetingImportRequest(
                     sourceURL: URL(fileURLWithPath: expandTilde(path)),
@@ -84,7 +68,7 @@ extension MeetingsCommand {
                 do {
                     let processing = try await withSIGINTCooperativeCancellationResult {
                         try await withStandardOutputRedirectedToStandardError {
-                            if let importRunner = meetingImportRunnerOverride.current() {
+                            if let importRunner {
                                 return try await importRunner(request, meetingImportProgressToStderr)
                             }
                             let dbManager = try makeDatabaseManager(database: database)
@@ -156,12 +140,16 @@ private func makeMeetingImportService(
 ) throws -> MeetingImportService {
     let processing = try SavedMeetingProcessingContext(
         dbManager: dbManager, transcriptionRepo: transcriptionRepo)
+    let defaults = AppPaths.appDefaults()
     return MeetingImportService(
         transcriptionService: processing.transcriptionService,
         transcriptionRepo: transcriptionRepo,
         completionService: processing.completionService,
         recordingsRoot: { processing.recordingsRootURL },
-        lockFileStore: processing.lockFileStore
+        retentionConfig: {
+            UserDefaultsAppRuntimePreferences.meetingAudioRetention(
+                defaults: defaults, persistMigration: false)
+        }
     )
 }
 
@@ -203,9 +191,10 @@ struct MeetingImportRecord: Encodable {
         title = transcription.effectiveDisplayTitle
         startedAt = transcription.createdAt
         durationMs = transcription.durationMs
-        managedAudioPath =
+        managedAudioPath = transcription.filePath.flatMap { _ in
             MeetingArtifactStore.sessionFolderURL(for: transcription)?
-            .appendingPathComponent(MeetingArtifactAudioFileNames.playback).path
+                .appendingPathComponent(MeetingArtifactAudioFileNames.playback).path
+        }
         warnings = result.warnings.map(MeetingImportWarningRecord.init)
     }
 }
@@ -241,6 +230,12 @@ struct MeetingImportWarningRecord: Encodable {
         case .ownershipReleaseFailed:
             kind = "ownershipReleaseFailed"
             message = "Some saved-meeting details need attention. The transcript is ready."
+            promptId = nil
+            promptName = nil
+        case .audioRetentionFailed:
+            kind = "audioRetentionFailed"
+            message =
+                "The managed audio could not be removed for the configured retention setting. The transcript is ready."
             promptId = nil
             promptName = nil
         case .automationFailed:

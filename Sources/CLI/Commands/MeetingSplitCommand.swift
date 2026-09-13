@@ -609,7 +609,7 @@ private func makeMeetingSplitService(
 /// honored here too. Without this, `MeetingSplitService`'s own default falls
 /// back to `.standard`, which is the wrong domain for a standalone CLI
 /// process reading the app's shared suite.
-func splitMeetingRecordingsRootURL(defaults: UserDefaults) -> URL {
+func meetingRecordingsRootURL(defaults: UserDefaults) -> URL {
     URL(fileURLWithPath: AppPaths.configuredMeetingRecordingsDir(defaults: defaults), isDirectory: true)
 }
 

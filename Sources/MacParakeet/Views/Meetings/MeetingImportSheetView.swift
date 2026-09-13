@@ -285,17 +285,7 @@ struct MeetingImportSheetView: View {
     }
 
     private func chooseSource() {
-        let panel = NSOpenPanel()
-        panel.title = "Import Recording"
-        panel.message = "Choose one audio or video file to add as a meeting."
-        panel.prompt = "Choose"
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = AudioFileConverter.supportedExtensions.compactMap {
-            UTType(filenameExtension: $0)
-        }
-        guard panel.runModal() == .OK, let sourceURL = panel.url else { return }
+        guard let sourceURL = MeetingImportSourcePicker.chooseURL() else { return }
         _ = viewModel.select(sourceURL: sourceURL)
         if viewModel.draft != nil { titleFocused = true }
     }
@@ -338,5 +328,22 @@ struct MeetingImportSheetView: View {
         case .partial, .needsRetry: DesignSystem.Colors.warningAmber
         case .failed: DesignSystem.Colors.errorRed
         }
+    }
+}
+
+enum MeetingImportSourcePicker {
+    static func chooseURL() -> URL? {
+        let panel = NSOpenPanel()
+        panel.title = "Import Recording"
+        panel.message = "Choose one audio or video file to add as a meeting."
+        panel.prompt = "Choose"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = AudioFileConverter.supportedExtensions.compactMap {
+            UTType(filenameExtension: $0)
+        }
+        guard panel.runModal() == .OK else { return nil }
+        return panel.url
     }
 }

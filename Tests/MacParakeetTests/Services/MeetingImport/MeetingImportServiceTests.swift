@@ -28,14 +28,16 @@ final class MeetingImportServiceTests: XCTestCase {
         audioConverter: (any AudioFileConverting)? = nil,
         completion: ImportCompletion = ImportCompletion(),
         fileManager: FileManager = .default,
-        lockStore: (any MeetingRecordingLockFileStoring & MeetingFinalizationOwnershipClaiming)? = nil
+        lockStore: (any MeetingRecordingLockFileStoring & MeetingFinalizationOwnershipClaiming)? = nil,
+        retentionConfig: @escaping @Sendable () -> MeetingAudioRetention = { .keepForever }
     ) -> MeetingImportService {
         let destination = root!
         let clock = now
         return MeetingImportService(
             converter: audioConverter ?? converter, transcriptionService: transcriber, transcriptionRepo: repo,
             completionService: completion, recordingsRoot: { destination },
-            lockFileStore: lockStore ?? MeetingRecordingLockFileStore(), fileManager: fileManager, now: { clock })
+            lockFileStore: lockStore ?? MeetingRecordingLockFileStore(), retentionConfig: retentionConfig,
+            fileManager: fileManager, now: { clock })
     }
 
     private func source(_ name: String = "Planning session.wav") throws -> URL {
@@ -388,6 +390,21 @@ final class MeetingImportServiceTests: XCTestCase {
         XCTAssertEqual(result.completion, .partial)
         XCTAssertEqual(result.transcription.status, .completed)
         XCTAssertNotNil(try MeetingRecordingLockFileStore().read(folderURL: transcriber.recordings[0].folderURL))
+    }
+
+    func testDeleteImmediatelyRetentionDetachesManagedAudioAfterCompletion() async throws {
+        let result = try await service(retentionConfig: { .deleteImmediately })
+            .importMeeting(.init(sourceURL: source()))
+
+        XCTAssertEqual(result.completion, .completed)
+        XCTAssertNil(result.transcription.filePath)
+        let folder = URL(fileURLWithPath: try XCTUnwrap(result.transcription.meetingArtifactFolderPath))
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: folder.appendingPathComponent(MeetingArtifactAudioFileNames.playback).path))
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: folder.appendingPathComponent(MeetingArtifactAudioFileNames.rawSystem).path))
     }
 }
 

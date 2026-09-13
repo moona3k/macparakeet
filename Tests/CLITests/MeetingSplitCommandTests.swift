@@ -441,7 +441,7 @@ final class MeetingSplitCommandTests: XCTestCase {
             .appendingPathComponent("custom-meeting-recordings-\(UUID().uuidString)").path
         defaults.set(customFolder, forKey: AppPaths.meetingArtifactsFolderKey)
 
-        let rootURL = splitMeetingRecordingsRootURL(defaults: defaults)
+        let rootURL = meetingRecordingsRootURL(defaults: defaults)
 
         XCTAssertEqual(rootURL.path, customFolder)
     }
@@ -456,7 +456,7 @@ final class MeetingSplitCommandTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
-        let rootURL = splitMeetingRecordingsRootURL(defaults: defaults)
+        let rootURL = meetingRecordingsRootURL(defaults: defaults)
 
         XCTAssertEqual(rootURL.path, AppPaths.configuredMeetingRecordingsDir(defaults: defaults))
     }

@@ -9,7 +9,6 @@ struct SavedMeetingProcessingContext {
     let transcriptionService: TranscriptionService
     let completionService: SavedAudioAutoPromptCompletionService
     let recordingsRootURL: URL
-    let lockFileStore: MeetingRecordingLockFileStore
 
     init(dbManager: DatabaseManager, transcriptionRepo: TranscriptionRepository) throws {
         let dbQueue = dbManager.dbQueue
@@ -73,8 +72,7 @@ struct SavedMeetingProcessingContext {
                 completionProvider: llmService
             )
         )
-        recordingsRootURL = splitMeetingRecordingsRootURL(defaults: defaults)
+        recordingsRootURL = meetingRecordingsRootURL(defaults: defaults)
         try FileManager.default.createDirectory(at: recordingsRootURL, withIntermediateDirectories: true)
-        lockFileStore = MeetingRecordingLockFileStore()
     }
 }

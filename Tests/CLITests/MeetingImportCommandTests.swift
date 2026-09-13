@@ -9,14 +9,12 @@ final class MeetingImportCommandTests: XCTestCase {
     private var sourceURL: URL!
 
     override func setUpWithError() throws {
-        meetingImportRunnerOverride.set(nil)
         sourceURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("macparakeet-cli-import-\(UUID().uuidString).m4a")
         try Data().write(to: sourceURL)
     }
 
     override func tearDownWithError() throws {
-        meetingImportRunnerOverride.set(nil)
         try? FileManager.default.removeItem(at: sourceURL)
     }
 
@@ -52,14 +50,14 @@ final class MeetingImportCommandTests: XCTestCase {
 
     func testPartialJSONUsesStableCamelCaseRecordAndSafeWarning() async throws {
         let transcription = meeting(status: .completed)
-        meetingImportRunnerOverride.set { _, progress in
+        let importRunner: MeetingImportRunning = { _, progress in
             progress(.preparingMedia)
             progress(.published(transcription))
             return MeetingImportResult(
                 transcription: transcription, warnings: [.artifactRefreshFailed(message: "/private/raw")])
         }
         let command = try MeetingsCommand.ImportSubcommand.parse([sourceURL.path, "--json"])
-        let output = try await captureStandardOutput { try await command.run() }
+        let output = try await captureStandardOutput { try await command.run(importRunner: importRunner) }
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
 
         XCTAssertEqual(object["id"] as? String, transcription.id.uuidString)
@@ -76,7 +74,7 @@ final class MeetingImportCommandTests: XCTestCase {
 
     func testNeedsRetryPrintsDurableResultBeforeFailureExit() async throws {
         let transcription = meeting(status: .error)
-        meetingImportRunnerOverride.set { _, _ in
+        let importRunner: MeetingImportRunning = { _, _ in
             MeetingImportResult(
                 transcription: transcription, warnings: [.transcriptionFailed(message: "provider detail")])
         }
@@ -84,7 +82,7 @@ final class MeetingImportCommandTests: XCTestCase {
         var caught: Error?
         let output = try await captureStandardOutput {
             do {
-                try await command.run()
+                try await command.run(importRunner: importRunner)
             } catch {
                 caught = error
             }
@@ -99,7 +97,7 @@ final class MeetingImportCommandTests: XCTestCase {
 
     func testInterruptedDurableResultPrintsBeforeExit130() async throws {
         let transcription = meeting(status: .cancelled)
-        meetingImportRunnerOverride.set { _, _ in
+        let importRunner: MeetingImportRunning = { _, _ in
             withUnsafeCurrentTask { $0?.cancel() }
             return MeetingImportResult(
                 transcription: transcription,
@@ -110,7 +108,7 @@ final class MeetingImportCommandTests: XCTestCase {
         var caught: Error?
         let output = try await captureStandardOutput {
             do {
-                try await command.run()
+                try await command.run(importRunner: importRunner)
             } catch {
                 caught = error
             }
@@ -126,14 +124,14 @@ final class MeetingImportCommandTests: XCTestCase {
     func testEnvelopeWrapsTheSameStableImportRecord() async throws {
         let transcription = meeting(status: .completed)
         let capturedRequest = CapturedImportRequest()
-        meetingImportRunnerOverride.set { request, _ in
+        let importRunner: MeetingImportRunning = { request, _ in
             capturedRequest.set(request)
             return MeetingImportResult(transcription: transcription)
         }
         let command = try MeetingsCommand.ImportSubcommand.parse([
             sourceURL.path, "--title", "Imported planning", "--started-at", "2026-05-14T17:30:00Z", "--envelope",
         ])
-        let output = try await captureStandardOutput { try await command.run() }
+        let output = try await captureStandardOutput { try await command.run(importRunner: importRunner) }
         let envelope = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
 
         XCTAssertEqual(envelope["ok"] as? Bool, true)
@@ -152,6 +150,14 @@ final class MeetingImportCommandTests: XCTestCase {
         XCTAssertTrue(isCLIValidationMisuse(MeetingImportError.unsupportedFormat))
         XCTAssertTrue(isCLIValidationMisuse(MeetingImportError.blankTitle))
         XCTAssertFalse(isCLIValidationMisuse(MeetingImportError.invalidAudio))
+    }
+
+    func testRecordOmitsManagedAudioPathAfterRetentionRemovesAudio() {
+        var transcription = meeting(status: .completed)
+        transcription.filePath = nil
+        transcription.meetingArtifactFolderPath = "/managed/meeting"
+
+        XCTAssertNil(MeetingImportRecord(.init(transcription: transcription)).managedAudioPath)
     }
 
     private func meeting(status: Transcription.TranscriptionStatus) -> Transcription {

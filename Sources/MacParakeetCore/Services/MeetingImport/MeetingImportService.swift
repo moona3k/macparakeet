@@ -22,6 +22,7 @@ public actor MeetingImportService {
     private let completionService: any SavedAudioAutoPromptCompletionServicing
     private let recordingsRoot: @Sendable () throws -> URL
     private let lockFileStore: any MeetingRecordingLockFileStoring & MeetingFinalizationOwnershipClaiming
+    private let retentionConfig: @Sendable () -> MeetingAudioRetention
     private let fileManager: FileManager
     private let now: @Sendable () -> Date
 
@@ -33,6 +34,7 @@ public actor MeetingImportService {
         recordingsRoot: @escaping @Sendable () throws -> URL,
         lockFileStore: any MeetingRecordingLockFileStoring & MeetingFinalizationOwnershipClaiming =
             MeetingRecordingLockFileStore(),
+        retentionConfig: @escaping @Sendable () -> MeetingAudioRetention = { .keepForever },
         fileManager: FileManager = .default,
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
@@ -42,6 +44,7 @@ public actor MeetingImportService {
         self.completionService = completionService
         self.recordingsRoot = recordingsRoot
         self.lockFileStore = lockFileStore
+        self.retentionConfig = retentionConfig
         self.fileManager = fileManager
         self.now = now
     }
@@ -118,6 +121,18 @@ public actor MeetingImportService {
                 warnings.append(
                     error is CancellationError
                         ? .automationCancelled : .automationFailed(message: error.localizedDescription))
+            }
+        }
+        if row.status == .completed, retentionConfig().mode == .deleteImmediately {
+            do {
+                let detached = try TranscriptionAssetCleanup.detachOwnedMeetingAudio(
+                    for: row, repository: transcriptionRepo, fileManager: fileManager)
+                if !detached.detached {
+                    warnings.append(
+                        .audioRetentionFailed(message: TranscriptionAssetCleanup.unmanagedMeetingAudioMessage))
+                }
+            } catch {
+                warnings.append(.audioRetentionFailed(message: error.localizedDescription))
             }
         }
         do { row = try transcriptionRepo.fetch(id: row.id) ?? row } catch {

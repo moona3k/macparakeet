@@ -1,5 +1,4 @@
 import EventKit
-import UniformTypeIdentifiers
 import SwiftUI
 import MacParakeetCore
 import MacParakeetViewModels
@@ -274,17 +273,7 @@ struct MeetingsView: View {
     }
 
     private func chooseMeetingImportSource(using viewModel: MeetingImportViewModel) {
-        let panel = NSOpenPanel()
-        panel.title = "Import Recording"
-        panel.message = "Choose one audio or video file to add as a meeting."
-        panel.prompt = "Choose"
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = AudioFileConverter.supportedExtensions.compactMap {
-            UTType(filenameExtension: $0)
-        }
-        guard panel.runModal() == .OK, let sourceURL = panel.url else { return }
+        guard let sourceURL = MeetingImportSourcePicker.chooseURL() else { return }
         _ = viewModel.select(sourceURL: sourceURL)
         showingMeetingImport = true
     }

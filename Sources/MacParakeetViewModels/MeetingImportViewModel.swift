@@ -254,6 +254,8 @@ public final class MeetingImportViewModel {
         case .transcriptionFailed(_), .persistenceFailed(_), .settlementFailed(_),
             .ownershipReleaseFailed(_):
             "Transcription needs another try. The saved meeting is available in Meetings."
+        case .audioRetentionFailed:
+            "The managed audio could not be removed for your retention setting. The transcript is ready."
         case .automationFailed(_), .knowledgeCardFailed(_), .artifactRefreshFailed(_):
             "Some meeting notes could not finish. The transcript is ready."
         case .transcriptionCancelled:

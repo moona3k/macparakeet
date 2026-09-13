@@ -456,43 +456,33 @@ final class AppEnvironment {
             transcriptionRepo: transcriptionRepo
         )
 
-        // Reuses the app's existing saved-audio transcription and completion
-        // seams: no second STT client, no duplicated prompt-selection logic.
-        // The exact construction the CLI's `meetings split` already uses.
+        let savedAudioCompletionService = SavedAudioAutoPromptCompletionService(
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo,
+            llmService: llmService,
+            promptLabelPolicyRepository: promptLabelPolicyRepo,
+            transcriptionLabelRepository: transcriptionMeetingLabelRepo,
+            speakerAttributionReader: speakerAttributionReader,
+            meetingArtifactStore: meetingArtifactStore,
+            cardGenerator: cardGenerationService
+        )
         meetingSplitService = MeetingSplitService(
             transcriptionRepo: transcriptionRepo,
             splitRepo: meetingSplitRepo,
             transcriptionService: transcriptionService,
-            completionService: SavedAudioAutoPromptCompletionService(
-                promptRepo: promptRepo,
-                promptResultRepo: promptResultRepo,
-                llmService: llmService,
-                promptLabelPolicyRepository: promptLabelPolicyRepo,
-                transcriptionLabelRepository: transcriptionMeetingLabelRepo,
-                speakerAttributionReader: speakerAttributionReader,
-                meetingArtifactStore: meetingArtifactStore,
-                cardGenerator: cardGenerationService
-            ),
+            completionService: savedAudioCompletionService,
             retentionConfig: { UserDefaultsAppRuntimePreferences.meetingAudioRetention(persistMigration: false) },
             speechEngineSelection: { SpeechEngineSelection.finalTranscription() }
         )
         meetingImportService = MeetingImportService(
             transcriptionService: transcriptionService,
             transcriptionRepo: transcriptionRepo,
-            completionService: SavedAudioAutoPromptCompletionService(
-                promptRepo: promptRepo,
-                promptResultRepo: promptResultRepo,
-                llmService: llmService,
-                promptLabelPolicyRepository: promptLabelPolicyRepo,
-                transcriptionLabelRepository: transcriptionMeetingLabelRepo,
-                speakerAttributionReader: speakerAttributionReader,
-                meetingArtifactStore: meetingArtifactStore,
-                cardGenerator: cardGenerationService
-            ),
+            completionService: savedAudioCompletionService,
             recordingsRoot: {
                 URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
             },
-            lockFileStore: meetingRecordingLockFileStore
+            lockFileStore: meetingRecordingLockFileStore,
+            retentionConfig: { [runtimePreferences] in runtimePreferences.meetingAudioRetention }
         )
 
         derivedFieldsBackfill = DerivedFieldsBackfillService(dbQueue: databaseManager.dbQueue)
