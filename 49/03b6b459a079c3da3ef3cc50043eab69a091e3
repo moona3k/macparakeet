@@ -1,0 +1,48 @@
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_40854eda65ef0b::t_984bd89766cfec 1986-1988,1990-1993,1996-1999,2002,2018,2021
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_40854eda65ef0b::t_24ac4d1b5e01ff 540,679-685,788,2440,2446-2454,2457-2459,2471
+  s_40854eda65ef0b::t_ee5ad64cce90ae 80,1480-1483,2376,4145-4149,4193,4198,4203,4310-4328
+  s_40854eda65ef0b::t_ffc523e13569db 618,734,768
+  s_40854eda65ef0b::t_ef18b4f3884d3f 4329,5688-5713,5715-5794
+  s_40854eda65ef0b::t_2dc4365c34509e 4304-4306
+  s_40854eda65ef0b::t_61e9db8e6b7dbe 5714
+  s_d10e9f532d10f8::t_87a0c3c015abd3 4330
+Sources/MacParakeet/Views/Transcription/SpeakerEditSelectionModel.swift
+  s_40854eda65ef0b::t_4a593924208cd0 98-129
+Tests/MacParakeetTests/Views/SpeakerEditSelectionModelTests.swift
+  s_40854eda65ef0b::t_4a593924208cd0 117-149
+Tests/MacParakeetTests/ViewModels/TranscriptionSpeakerCorrectionViewModelTests.swift
+  s_40854eda65ef0b::t_44d4a249bd8c96 189-190,202,272-275,282
+Sources/MacParakeet/Views/Transcription/TranscriptTimestampedContentView.swift
+  s_40854eda65ef0b::t_42fa14410f5a61 831
+  s_40854eda65ef0b::t_102906ab08d3a0 233-235,363-365,398-403,447-449,548-553,765-769,809,869,880-881,911,913-922,925
+  s_40854eda65ef0b::t_b7054f5f64b2ee 355,439,530
+  s_40854eda65ef0b::t_2dc4365c34509e 950-952
+Sources/MacParakeetViewModels/MediaPlayerViewModel.swift
+  s_40854eda65ef0b::t_ffc523e13569db 320-327
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4903b6b459a079c3da3ef3cc50043eab69a091e3",
+  "prompts": {},
+  "sessions": {
+    "s_40854eda65ef0b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09cc0-83c9-73d2-af78-ce0480aa0477",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_d10e9f532d10f8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09cea-8c9e-7273-b13a-e73d92b9b191",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
