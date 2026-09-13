@@ -1,0 +1,81 @@
+benchmarks/diarization/rttm/ledhe.rttm
+  s_3d817ec712ce4d::t_e2df987fca337c 1-29
+benchmarks/diarization/rttm/sfdvy.rttm
+  s_3d817ec712ce4d::t_e84241813b33f7 1-5
+Package.swift
+  s_3d817ec712ce4d::t_d1c420c7cf5b8e 32-35
+benchmarks/diarization/2026-09-13-fluidaudio-0.15.7-eval.md
+  s_3d817ec712ce4d::t_59cbe0434fb6fd 1-248
+spec/03-architecture.md
+  s_3d817ec712ce4d::t_2be28bc0eb9d1d 298
+Sources/MacParakeetCore/Services/Diarization/DiarizationService.swift
+  s_3d817ec712ce4d::t_2b97b1c8f33178 437,445-447
+  s_3d817ec712ce4d::t_e824dbae1b933f 470
+benchmarks/diarization/rttm/gylzn.rttm
+  s_3d817ec712ce4d::t_0dc3bcd3d7505a 1-26
+benchmarks/diarization/voxconverse_v0.3_speaker_counts.tsv
+  s_3d817ec712ce4d::t_b378e88263bdba 1-449
+benchmarks/diarization/scripts/run_speaker_count_ab.sh
+  s_3d817ec712ce4d::t_4086a3e924258c 1-2,4-54,62-64,66-75,77-87,89-91,93-94
+  s_3d817ec712ce4d::t_c97bb5da4d8279 3,55-60,65,76,88,92
+  s_3d817ec712ce4d::t_0e62a0a7242c05 61
+spec/06-stt-engine.md
+  s_3d817ec712ce4d::t_c3ba29435c45a4 650-651,654
+  s_3d817ec712ce4d::t_d6641feb1dc9da 656-657
+benchmarks/diarization/fluidaudio-0.15.7-ab.md
+  s_3d817ec712ce4d::t_4f26f5b21c03f4 124-128,132-137,142-143
+  s_3d817ec712ce4d::t_1511d8d3a6e8f9 100-123
+  s_3d817ec712ce4d::t_24ef2c1495d4cf 4-99,144-153
+  s_3d817ec712ce4d::t_fd60565b548c0e 1-3
+  s_3d817ec712ce4d::t_0deab4d3b8f99a 129-131,138-141
+benchmarks/diarization/rttm/bxcfq.rttm
+  s_3d817ec712ce4d::t_b2abc44a3f27c4 1-14
+spec/adr/010-speaker-diarization.md
+  s_3d817ec712ce4d::t_9fb92677abb899 5
+  s_3d817ec712ce4d::t_7a09c79917a30d 257-260,272
+  s_3d817ec712ce4d::t_67dd5d0d43e3c3 261-271
+  s_3d817ec712ce4d::t_1927feab743d49 200-201
+Package.resolved
+  s_3d817ec712ce4d::t_2b419f7a5ce6ec 26-27
+benchmarks/diarization/.gitignore
+  s_3d817ec712ce4d::t_6bda6cbc467062 1-4
+benchmarks/diarization/scripts/download_selected_wavs.py
+  s_3d817ec712ce4d::t_26a864312d7903 1-159
+benchmarks/diarization/selected_files.tsv
+  s_3d817ec712ce4d::t_b2e0516a780d90 1-8
+benchmarks/diarization/README.md
+  s_3d817ec712ce4d::t_510220fc4afb62 1-38,42-49,51-86
+  s_3d817ec712ce4d::t_ccf4c4b899d43b 50
+  s_3d817ec712ce4d::t_bfa37a623eb859 39-41
+  s_3d817ec712ce4d::t_fcb057cfdd64f6 87-88
+benchmarks/diarization/rttm/wibky.rttm
+  s_3d817ec712ce4d::t_7bd53f6c6a3c9d 1-27
+benchmarks/diarization/scripts/score_speaker_count.py
+  s_3d817ec712ce4d::t_695ebabe3a4484 112
+  s_3d817ec712ce4d::t_2ae2b2744cf4a0 1-7,9-42,62-74,76-111,113-120
+  s_3d817ec712ce4d::t_e7a337dd990636 8,43-61,75
+benchmarks/diarization/rttm/fyqoe.rttm
+  s_3d817ec712ce4d::t_639ec29ff019bd 1-104
+Sources/CLI/CHANGELOG.md
+  s_3d817ec712ce4d::t_840b7bb890ba48 92-99
+benchmarks/diarization/rttm/ouvtt.rttm
+  s_3d817ec712ce4d::t_d09c2d245d3f2d 1-201
+spec/02-features.md
+  s_3d817ec712ce4d::t_bc4656fde9d715 1450
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2a2adb22544ec45966fde0b2c9155b55e30c7448",
+  "prompts": {},
+  "sessions": {
+    "s_3d817ec712ce4d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "bfb876c0-7784-4d15-8a90-eacea5c0c8eb",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
