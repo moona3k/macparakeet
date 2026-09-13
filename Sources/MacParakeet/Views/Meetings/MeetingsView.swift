@@ -1103,7 +1103,8 @@ private struct CalendarInlineControlsRow: View {
             if settingsViewModel.calendarPermissionStatus == .denied {
                 return "Calendar access is blocked. Re-enable it in System Settings to use reminders."
             }
-            return "Connect your macOS Calendar to preview meetings and enable reminders."
+            return
+                "Connect calendars from this Mac, including Microsoft 365 and Exchange accounts added in System Settings."
         }
 
         switch settingsViewModel.calendarAutoStartMode {

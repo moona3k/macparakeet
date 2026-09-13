@@ -267,7 +267,10 @@ public enum SettingsSearchIndex {
             tab: .capture,
             title: "Calendar",
             subtitle: "in Meeting Recording",
-            keywords: ["calendar", "auto start", "auto-start", "reminders", "events", "ics"],
+            keywords: [
+                "calendar", "auto start", "auto-start", "reminders", "events", "ics",
+                "outlook", "microsoft 365", "exchange", "internet accounts",
+            ],
             cardAnchor: "meeting"
         ),
         SettingsSearchEntry(

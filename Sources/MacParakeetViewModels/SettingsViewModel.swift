@@ -24,6 +24,12 @@ public final class SettingsViewModel {
         case failed(String)
     }
 
+    public enum CalendarListLoadState: Equatable {
+        case notLoaded
+        case loading
+        case loaded
+    }
+
     public struct MicrophoneDeviceOption: Identifiable, Equatable, Sendable {
         public let id: String
         public let uid: String
@@ -693,6 +699,9 @@ public final class SettingsViewModel {
     public var calendarPermissionGranted: Bool {
         calendarPermissionStatus == .granted
     }
+    public private(set) var availableCalendars: [CalendarInfo] = []
+    public private(set) var calendarListLoadState: CalendarListLoadState = .notLoaded
+    public private(set) var isRefreshingCalendars = false
     /// Whether macOS notification authorization is granted. Calendar reminders
     /// (`.notify`, and the pre-meeting reminder in `.autoStart`) are delivered
     /// via `UNUserNotificationCenter`, a *separate* TCC scope from Calendar —
@@ -758,8 +767,11 @@ public final class SettingsViewModel {
     private let inputDevicesProvider: @Sendable () -> [AudioDeviceManager.InputDevice]
     private let defaultInputDeviceUIDProvider: @Sendable () -> String?
     private let permissionPollingInterval: Duration
+    private let calendarService: CalendarServicing
+    private let openURL: (URL) -> Bool
     private var isApplyingLaunchAtLoginState = false
     private var storageStatsRefreshGeneration = 0
+    private var calendarRefreshGeneration = 0
     // `deinit` is nonisolated even though this type is `@MainActor`.
     // These handles are only mutated on the main actor during the view
     // model lifetime; unsafe access lets deinit cancel/unregister.
@@ -807,7 +819,9 @@ public final class SettingsViewModel {
         defaultInputDeviceUIDProvider: @escaping @Sendable () -> String? = {
             AudioDeviceManager.defaultInputDeviceInfo()?.uid
         },
-        permissionPollingInterval: Duration = .seconds(2)
+        permissionPollingInterval: Duration = .seconds(2),
+        calendarService: CalendarServicing = CalendarService.shared,
+        openURL: @escaping (URL) -> Bool = { NSWorkspace.shared.open($0) }
     ) {
         AutoSaveService.migrateLegacyMeetingSettingsIfNeeded(defaults: defaults)
         self.defaults = defaults
@@ -816,6 +830,8 @@ public final class SettingsViewModel {
         self.inputDevicesProvider = inputDevicesProvider
         self.defaultInputDeviceUIDProvider = defaultInputDeviceUIDProvider
         self.permissionPollingInterval = permissionPollingInterval
+        self.calendarService = calendarService
+        self.openURL = openURL
         self.engine = EngineSettingsViewModel(
             defaults: defaults,
             parakeetModelVariantCached: parakeetModelVariantCached,
@@ -1413,7 +1429,58 @@ public final class SettingsViewModel {
     /// network or disk; just reads `EKEventStore.authorizationStatus` (which
     /// is `nonisolated` on the actor, so no await needed).
     public func refreshCalendarPermission() {
-        calendarPermissionStatus = CalendarService.shared.permissionStatus
+        let status = calendarService.permissionStatus
+        let previousStatus = calendarPermissionStatus
+        calendarPermissionStatus = status
+        guard status != .granted else { return }
+        guard
+            previousStatus == .granted
+                || !availableCalendars.isEmpty
+                || calendarListLoadState != .notLoaded
+        else { return }
+
+        calendarRefreshGeneration += 1
+        availableCalendars = []
+        calendarListLoadState = .notLoaded
+        isRefreshingCalendars = false
+    }
+
+    /// Reload Calendar permission and the calendars EventKit currently exposes.
+    /// Multiple lifecycle and user actions can overlap, so only the newest
+    /// request may update the list. A permission change also invalidates any
+    /// in-flight result before it can become visible.
+    public func refreshCalendarAccess() async {
+        calendarRefreshGeneration += 1
+        let generation = calendarRefreshGeneration
+
+        let status = calendarService.permissionStatus
+        calendarPermissionStatus = status
+        guard status == .granted else {
+            availableCalendars = []
+            calendarListLoadState = .notLoaded
+            isRefreshingCalendars = false
+            return
+        }
+
+        if calendarListLoadState != .loaded {
+            calendarListLoadState = .loading
+        }
+        isRefreshingCalendars = true
+        let calendars = await calendarService.availableCalendars()
+
+        guard generation == calendarRefreshGeneration else { return }
+        let refreshedStatus = calendarService.permissionStatus
+        calendarPermissionStatus = refreshedStatus
+        guard refreshedStatus == .granted else {
+            availableCalendars = []
+            calendarListLoadState = .notLoaded
+            isRefreshingCalendars = false
+            return
+        }
+
+        availableCalendars = calendars
+        calendarListLoadState = .loaded
+        isRefreshingCalendars = false
     }
 
     /// Trigger the EventKit permission prompt if not yet decided. Returns the
@@ -1423,12 +1490,12 @@ public final class SettingsViewModel {
     @discardableResult
     public func requestCalendarPermission() async -> Bool {
         Telemetry.send(.permissionPrompted(permission: .calendar))
-        let granted = await CalendarService.shared.requestPermission()
+        let granted = await calendarService.requestPermission()
         // Re-read the status (rather than just assigning .granted/.denied
         // from the bool) so `.restricted` from MDM-managed Macs is reflected
         // accurately — the service maps it to `.denied` so callers don't
         // need a fourth case, but a fresh read is the source of truth.
-        calendarPermissionStatus = CalendarService.shared.permissionStatus
+        calendarPermissionStatus = calendarService.permissionStatus
         Telemetry.send(granted ? .permissionGranted(permission: .calendar) : .permissionDenied(permission: .calendar))
         if granted {
             await CalendarNotificationAuthorization.requestIfNeeded()
@@ -1444,7 +1511,18 @@ public final class SettingsViewModel {
     }
 
     public func openCalendarSystemSettings() {
-        if NSWorkspace.shared.open(CalendarService.settingsURL) { return }
+        _ = openURL(CalendarService.settingsURL)
+    }
+
+    /// Opens the account source used by EventKit. Pane identifiers have changed
+    /// across macOS releases, and a successful open does not guarantee the pane
+    /// was selected, so the UI also keeps the manual navigation path visible.
+    public func openInternetAccountsSystemSettings() {
+        openFirstSystemSettingsURL(from: [
+            "x-apple.systempreferences:com.apple.Internet-Accounts-Settings.extension",
+            "x-apple.systempreferences:com.apple.preference.internetaccounts",
+            "x-apple.systempreferences:",
+        ])
     }
 
     /// Refresh the cached notification-authorization state. Cheap async read
@@ -1457,12 +1535,15 @@ public final class SettingsViewModel {
     /// Deep-link to the Notifications pane in System Settings. The pane id
     /// changed across macOS versions, so try the modern one first.
     public func openNotificationSystemSettings() {
-        let candidates = [
+        openFirstSystemSettingsURL(from: [
             "x-apple.systempreferences:com.apple.Notifications-Settings.extension",
             "x-apple.systempreferences:com.apple.preference.notifications",
-        ]
+        ])
+    }
+
+    private func openFirstSystemSettingsURL(from candidates: [String]) {
         for string in candidates {
-            if let url = URL(string: string), NSWorkspace.shared.open(url) { return }
+            if let url = URL(string: string), openURL(url) { return }
         }
     }
 

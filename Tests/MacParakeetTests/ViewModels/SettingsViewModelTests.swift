@@ -2696,6 +2696,146 @@ final class SettingsViewModelTests: XCTestCase {
         }
     }
 
+    // MARK: - Calendar account discovery
+
+    func testCalendarRefreshDistinguishesLoadingFromLoadedEmpty() async throws {
+        let calendarService = MockCalendarService()
+        calendarService.stubPermissionStatus = .granted
+        calendarService.holdNextAvailableCalendars = true
+        let vm = SettingsViewModel(defaults: testDefaults, calendarService: calendarService)
+
+        let refresh = Task { await vm.refreshCalendarAccess() }
+        try await waitUntil { calendarService.availableCalendarsCallCount == 1 }
+
+        XCTAssertEqual(vm.calendarListLoadState, .loading)
+        XCTAssertTrue(vm.availableCalendars.isEmpty)
+
+        calendarService.releaseHeldAvailableCalendars()
+        await refresh.value
+
+        XCTAssertEqual(vm.calendarListLoadState, .loaded)
+        XCTAssertTrue(vm.availableCalendars.isEmpty)
+    }
+
+    func testCalendarRefreshLatestResultWins() async throws {
+        let calendarService = MockCalendarService()
+        calendarService.stubPermissionStatus = .granted
+        calendarService.stubCalendars = [CalendarInfo(id: "old", title: "Old")]
+        calendarService.holdNextAvailableCalendars = true
+        let vm = SettingsViewModel(defaults: testDefaults, calendarService: calendarService)
+
+        let firstRefresh = Task { await vm.refreshCalendarAccess() }
+        try await waitUntil { calendarService.availableCalendarsCallCount == 1 }
+
+        calendarService.stubCalendars = [CalendarInfo(id: "new", title: "New", sourceTitle: "Exchange")]
+        await vm.refreshCalendarAccess()
+        calendarService.releaseHeldAvailableCalendars()
+        await firstRefresh.value
+
+        XCTAssertEqual(vm.availableCalendars.map(\.id), ["new"])
+        XCTAssertEqual(vm.calendarListLoadState, .loaded)
+    }
+
+    func testRepeatCalendarRefreshKeepsLoadedListVisible() async throws {
+        let calendarService = MockCalendarService()
+        calendarService.stubPermissionStatus = .granted
+        calendarService.stubCalendars = [CalendarInfo(id: "old", title: "Old")]
+        let vm = SettingsViewModel(defaults: testDefaults, calendarService: calendarService)
+        await vm.refreshCalendarAccess()
+
+        calendarService.stubCalendars = [CalendarInfo(id: "new", title: "New")]
+        calendarService.holdNextAvailableCalendars = true
+        let refresh = Task { await vm.refreshCalendarAccess() }
+        try await waitUntil { calendarService.availableCalendarsCallCount == 2 }
+
+        XCTAssertEqual(vm.calendarListLoadState, .loaded)
+        XCTAssertEqual(vm.availableCalendars.map(\.id), ["old"])
+        XCTAssertTrue(vm.isRefreshingCalendars)
+
+        calendarService.releaseHeldAvailableCalendars()
+        await refresh.value
+
+        XCTAssertEqual(vm.availableCalendars.map(\.id), ["new"])
+        XCTAssertFalse(vm.isRefreshingCalendars)
+    }
+
+    func testCalendarPermissionLossInvalidatesPendingRefresh() async throws {
+        let calendarService = MockCalendarService()
+        calendarService.stubPermissionStatus = .granted
+        calendarService.stubCalendars = [CalendarInfo(id: "work", title: "Work")]
+        calendarService.holdNextAvailableCalendars = true
+        let vm = SettingsViewModel(defaults: testDefaults, calendarService: calendarService)
+
+        let refresh = Task { await vm.refreshCalendarAccess() }
+        try await waitUntil { calendarService.availableCalendarsCallCount == 1 }
+
+        calendarService.stubPermissionStatus = .denied
+        vm.refreshCalendarPermission()
+        calendarService.releaseHeldAvailableCalendars()
+        await refresh.value
+
+        XCTAssertEqual(vm.calendarPermissionStatus, .denied)
+        XCTAssertEqual(vm.calendarListLoadState, .notLoaded)
+        XCTAssertTrue(vm.availableCalendars.isEmpty)
+    }
+
+    func testCalendarRefreshPreservesExcludedCalendars() async {
+        let calendarService = MockCalendarService()
+        calendarService.stubPermissionStatus = .granted
+        calendarService.stubCalendars = [CalendarInfo(id: "work", title: "Work")]
+        let vm = SettingsViewModel(defaults: testDefaults, calendarService: calendarService)
+        vm.calendarExcludedIdentifiers = ["work"]
+
+        await vm.refreshCalendarAccess()
+
+        XCTAssertEqual(vm.availableCalendars.map(\.id), ["work"])
+        XCTAssertEqual(vm.calendarExcludedIdentifiers, ["work"])
+    }
+
+    func testInternetAccountsSettingsStopsAfterFirstSuccessfulCandidate() {
+        var openedURLs: [URL] = []
+        var results = [false, true]
+        let vm = SettingsViewModel(
+            defaults: testDefaults,
+            openURL: { url in
+                openedURLs.append(url)
+                return results.removeFirst()
+            }
+        )
+
+        vm.openInternetAccountsSystemSettings()
+
+        XCTAssertEqual(
+            openedURLs.map(\.absoluteString),
+            [
+                "x-apple.systempreferences:com.apple.Internet-Accounts-Settings.extension",
+                "x-apple.systempreferences:com.apple.preference.internetaccounts",
+            ]
+        )
+    }
+
+    func testInternetAccountsSettingsFallsBackToGenericSystemSettings() {
+        var openedURLs: [URL] = []
+        let vm = SettingsViewModel(
+            defaults: testDefaults,
+            openURL: { url in
+                openedURLs.append(url)
+                return false
+            }
+        )
+
+        vm.openInternetAccountsSystemSettings()
+
+        XCTAssertEqual(
+            openedURLs.map(\.absoluteString),
+            [
+                "x-apple.systempreferences:com.apple.Internet-Accounts-Settings.extension",
+                "x-apple.systempreferences:com.apple.preference.internetaccounts",
+                "x-apple.systempreferences:",
+            ]
+        )
+    }
+
     // MARK: - Hotkey Trigger
 
     func testHotkeyTriggerDefaultsToFn() {

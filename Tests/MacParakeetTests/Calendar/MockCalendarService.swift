@@ -27,6 +27,8 @@ final class MockCalendarService: CalendarServicing, @unchecked Sendable {
     /// can be issued deterministically (no sleeps).
     nonisolated(unsafe) var holdNextFetch = false
     nonisolated(unsafe) private var fetchContinuation: CheckedContinuation<Void, Never>?
+    nonisolated(unsafe) var holdNextAvailableCalendars = false
+    nonisolated(unsafe) private var availableCalendarsContinuation: CheckedContinuation<Void, Never>?
 
     nonisolated var permissionStatus: CalendarService.PermissionStatus {
         stubPermissionStatus
@@ -44,7 +46,12 @@ final class MockCalendarService: CalendarServicing, @unchecked Sendable {
 
     func availableCalendars() async -> [CalendarInfo] {
         availableCalendarsCallCount += 1
-        return stubCalendars
+        let result = stubCalendars
+        if holdNextAvailableCalendars {
+            holdNextAvailableCalendars = false
+            await withCheckedContinuation { availableCalendarsContinuation = $0 }
+        }
+        return result
     }
 
     func fetchUpcomingEvents(from: Date, days: Int?) async throws -> [CalendarEvent] {
@@ -63,5 +70,10 @@ final class MockCalendarService: CalendarServicing, @unchecked Sendable {
     func releaseHeldFetch() {
         fetchContinuation?.resume()
         fetchContinuation = nil
+    }
+
+    func releaseHeldAvailableCalendars() {
+        availableCalendarsContinuation?.resume()
+        availableCalendarsContinuation = nil
     }
 }

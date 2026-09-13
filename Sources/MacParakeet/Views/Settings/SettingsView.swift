@@ -191,7 +191,15 @@ struct SettingsView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             viewModel.engine.refreshSpeechEngineSwitchAvailability()
-            Task { await viewModel.refreshCalendarNotificationAuthorization() }
+            guard AppFeatures.calendarEnabled,
+                rootViewModel.activeTab == .capture,
+                displayedCaptureWorkflow == .meetings,
+                !rootViewModel.isSearching
+            else { return }
+            Task {
+                await viewModel.refreshCalendarAccess()
+                await viewModel.refreshCalendarNotificationAuthorization()
+            }
         }
         .onAppear {
             if requestedTab != nil || requestedAnchor != nil {
