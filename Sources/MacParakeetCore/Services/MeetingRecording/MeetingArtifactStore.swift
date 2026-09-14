@@ -746,6 +746,7 @@ private struct MeetingArtifactTranscriptSegment: Codable {
     let speakerLabel: String?
     let wordRange: TranscriptSegmentWordRange
     let isTextEdited: Bool?
+    let anchorTranscriptSegmentIDs: [UUID]?
     let speakerSpans: [MeetingArtifactSpeakerSpan]?
 
     init(
@@ -761,6 +762,7 @@ private struct MeetingArtifactTranscriptSegment: Codable {
         speakerLabel = segment.speakerLabel
         wordRange = segment.wordRange
         isTextEdited = segment.isTextEdited
+        anchorTranscriptSegmentIDs = segment.anchorTranscriptSegmentIDs
         speakerSpans = speakerRuns?.map {
             MeetingArtifactSpeakerSpan(
                 run: $0,

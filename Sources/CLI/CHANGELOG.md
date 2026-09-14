@@ -95,6 +95,14 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   additive `textCorrectionsApplied` and `transcriptTextAlignment` fields.
   Effective transcript segments may include `isTextEdited: true`; automatic
   word text and timing remain available as original evidence.
+- `meetings corrections edit-line|merge-lines|undo|redo|reset` gives agents
+  optimistic, revision-checked access to the same reversible timed transcript
+  journal as the app. Successful JSON writes return the updated effective
+  transcript and revision.
+- Meeting list previews now use the effective corrected transcript. One-to-one
+  text edits retain the durable segment ID; structural edits include additive
+  `anchorTranscriptSegmentIDs`. Transcripts without word timestamps report
+  `transcriptTextAlignment: "untimed"`.
 - `meetings split preview|create|status|resume|discard` splits a saved
   meeting recording into independent parts, each receiving its own first
   transcription and normal enabled completion automation. `preview` is

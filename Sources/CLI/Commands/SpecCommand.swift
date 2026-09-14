@@ -1312,6 +1312,90 @@ private extension CLISpecCommand {
             output: "MeetingTranscriptRecord object with transcriptSegments for --format json."
         ),
         CLISpecCommand(
+            ["meetings", "corrections", "edit-line"],
+            summary:
+                "Replace one timed transcript line through the reversible correction journal.",
+            readOnly: false,
+            arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
+            options: [
+                CLISpecParameter.option(
+                    "--segment", valueName: "UUID", required: true,
+                    summary: "Current segment ID from meetings transcript --format json."),
+                CLISpecParameter.option("--text", valueName: "TEXT", summary: "Replacement text."),
+                CLISpecParameter.flag("--stdin", summary: "Read replacement text from stdin."),
+                CLISpecParameter.option(
+                    "--expected-revision", valueName: "N", required: true,
+                    summary: "Optimistic speakerCorrectionRevision from the last transcript read."),
+                CLISpecParameter.flag(
+                    "--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output: "Updated MeetingTranscriptRecord object when --json or --envelope is used."
+        ),
+        CLISpecCommand(
+            ["meetings", "corrections", "merge-lines"],
+            summary: "Merge adjacent same-speaker timed transcript lines.",
+            readOnly: false,
+            arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
+            options: [
+                CLISpecParameter.option(
+                    "--segment", valueName: "UUID", required: true,
+                    summary: "Current segment ID; repeat in transcript order at least twice."),
+                CLISpecParameter.option(
+                    "--expected-revision", valueName: "N", required: true,
+                    summary: "Optimistic speakerCorrectionRevision from the last transcript read."),
+                CLISpecParameter.flag(
+                    "--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output: "Updated MeetingTranscriptRecord object when --json or --envelope is used."
+        ),
+        CLISpecCommand(
+            ["meetings", "corrections", "undo"],
+            summary: "Undo the active transcript correction.",
+            readOnly: false,
+            arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
+            options: [
+                CLISpecParameter.option(
+                    "--expected-revision", valueName: "N", required: true,
+                    summary: "Optimistic speakerCorrectionRevision from the last transcript read."),
+                CLISpecParameter.flag(
+                    "--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output: "Updated MeetingTranscriptRecord object when --json or --envelope is used."
+        ),
+        CLISpecCommand(
+            ["meetings", "corrections", "redo"],
+            summary: "Redo the next transcript correction.",
+            readOnly: false,
+            arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
+            options: [
+                CLISpecParameter.option(
+                    "--expected-revision", valueName: "N", required: true,
+                    summary: "Optimistic speakerCorrectionRevision from the last transcript read."),
+                CLISpecParameter.flag(
+                    "--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output: "Updated MeetingTranscriptRecord object when --json or --envelope is used."
+        ),
+        CLISpecCommand(
+            ["meetings", "corrections", "reset"],
+            summary: "Reset the active transcript projection to its automatic baseline.",
+            readOnly: false,
+            arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
+            options: [
+                CLISpecParameter.option(
+                    "--expected-revision", valueName: "N", required: true,
+                    summary: "Optimistic speakerCorrectionRevision from the last transcript read."),
+                CLISpecParameter.flag(
+                    "--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output: "Updated MeetingTranscriptRecord object when --json or --envelope is used."
+        ),
+        CLISpecCommand(
             ["meetings", "notes", "get"],
             summary: "Read user-authored notes from a meeting.",
             arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],

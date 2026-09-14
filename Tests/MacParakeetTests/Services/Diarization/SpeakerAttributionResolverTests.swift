@@ -125,9 +125,47 @@ final class SpeakerAttributionResolverTests: XCTestCase {
         )
 
         XCTAssertEqual(joined.editableSegments.map(\.wordRange), [whole.wordRange])
+        XCTAssertTrue(joined.editableSegments[0].isTextEdited)
+        XCTAssertFalse(joined.editableSegments[0].hasTextOverride)
         XCTAssertEqual(undone.editableSegments.map(\.wordRange), ranges)
         XCTAssertTrue(joined.unresolvedCorrections.isEmpty)
         XCTAssertTrue(undone.unresolvedCorrections.isEmpty)
+    }
+
+    func testBoundaryOnlyMergeCanBeSplitAgain() {
+        let transcription = twoSegmentFixture()
+        let fingerprint = SpeakerAttributionResolver.fingerprint(for: transcription)
+        let ranges = TranscriptSegmenter.editableWordRanges(words: transcription.wordTimestamps ?? [])
+        let targets = ranges.map { target($0, transcription: transcription) }
+        let whole = target(
+            .init(startIndex: ranges[0].startIndex, endIndexExclusive: ranges[1].endIndexExclusive),
+            transcription: transcription
+        )
+        let merge = correction(
+            id: UUID(), parentID: nil, sequence: 1,
+            fingerprint: fingerprint, transcription: transcription,
+            command: .mergeSegments(targets: targets)
+        )
+        let split = correction(
+            id: UUID(), parentID: merge.id, sequence: 2,
+            fingerprint: fingerprint, transcription: transcription,
+            command: .split(target: whole, atWordIndex: ranges[1].startIndex)
+        )
+
+        let resolved = SpeakerAttributionResolver.resolve(
+            transcription: transcription,
+            corrections: [merge, split],
+            state: .init(
+                transcriptionId: transcription.id,
+                transcriptFingerprint: fingerprint.rawValue,
+                headId: split.id,
+                revision: 2
+            )
+        )
+
+        XCTAssertEqual(resolved.editableSegments.map(\.wordRange), ranges)
+        XCTAssertTrue(resolved.editableSegments.allSatisfy { !$0.hasTextOverride })
+        XCTAssertTrue(resolved.unresolvedCorrections.isEmpty)
     }
 
     func testSplitRejectsBoundaryCrossingEditedText() {

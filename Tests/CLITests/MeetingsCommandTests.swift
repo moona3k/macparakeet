@@ -59,6 +59,7 @@ final class MeetingsCommandTests: XCTestCase {
         let showSegments = try XCTUnwrap(show["transcriptSegments"] as? [[String: Any]])
         XCTAssertEqual(showSegments.first?["text"] as? String, "Corrected words.")
         XCTAssertEqual(showSegments.first?["isTextEdited"] as? Bool, true)
+        XCTAssertEqual(showSegments.first?["id"] as? String, segmentID.uuidString)
 
         let transcriptCommand = try MeetingsCommand.TranscriptSubcommand.parse([
             meeting.id.uuidString, "--format", "json", "--database", dbURL.path,
@@ -70,8 +71,130 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertEqual(transcript["transcript"] as? String, "Corrected words.")
         XCTAssertEqual(transcript["textCorrectionsApplied"] as? Bool, true)
         XCTAssertEqual(transcript["transcriptTextAlignment"] as? String, "segment")
+
+        let listCommand = try MeetingsCommand.ListSubcommand.parse([
+            "--json", "--database", dbURL.path,
+        ])
+        let listOutput = try await captureStandardOutput { try await listCommand.run() }
+        let list = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(listOutput.utf8)) as? [[String: Any]]
+        )
+        XCTAssertEqual(list.first?["transcriptPreview"] as? String, "Corrected words.")
         XCTAssertEqual(try repository.fetch(id: meeting.id)?.wordTimestamps, words)
         XCTAssertEqual(try repository.fetch(id: meeting.id)?.cleanTranscript, "Wrong words.")
+    }
+
+    func testUntimedMeetingJSONReportsUntimedAlignment() async throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let db = try DatabaseManager(path: dbURL.path)
+        let repository = TranscriptionRepository(dbQueue: db.dbQueue)
+        let meeting = Transcription(
+            fileName: "Plain text",
+            rawTranscript: "No timing evidence.",
+            status: .completed,
+            sourceType: .meeting
+        )
+        try repository.save(meeting)
+
+        let command = try MeetingsCommand.ShowSubcommand.parse([
+            meeting.id.uuidString, "--json", "--database", dbURL.path,
+        ])
+        let output = try await captureStandardOutput { try await command.run() }
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(json["transcriptTextAlignment"] as? String, "untimed")
+    }
+
+    func testTimedCorrectionCommandsEditMergeUndoRedoAndReset() async throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let db = try DatabaseManager(path: dbURL.path)
+        let repository = TranscriptionRepository(dbQueue: db.dbQueue)
+        let words = [
+            WordTimestamp(word: "one", startMs: 0, endMs: 100, confidence: 1, speakerId: "S1"),
+            WordTimestamp(word: "two.", startMs: 120, endMs: 220, confidence: 1, speakerId: "S1"),
+            WordTimestamp(word: "three", startMs: 2_000, endMs: 2_100, confidence: 1, speakerId: "S1"),
+            WordTimestamp(word: "four.", startMs: 2_120, endMs: 2_220, confidence: 1, speakerId: "S1"),
+        ]
+        let firstID = UUID()
+        let secondID = UUID()
+        let meeting = Transcription(
+            fileName: "CLI corrections",
+            rawTranscript: "one two. three four.",
+            cleanTranscript: "one two. three four.",
+            wordTimestamps: words,
+            speakers: [.init(id: "S1", label: "Alice")],
+            transcriptSegments: [
+                .init(
+                    id: firstID, startMs: 0, endMs: 220, speakerId: "S1",
+                    speakerLabel: "Alice", text: "one two.",
+                    wordRange: .init(startIndex: 0, endIndexExclusive: 2)
+                ),
+                .init(
+                    id: secondID, startMs: 2_000, endMs: 2_220, speakerId: "S1",
+                    speakerLabel: "Alice", text: "three four.",
+                    wordRange: .init(startIndex: 2, endIndexExclusive: 4)
+                ),
+            ],
+            status: .completed,
+            sourceType: .meeting
+        )
+        try repository.save(meeting)
+
+        let edit = try MeetingsCommand.CorrectionsSubcommand.EditLine.parse([
+            meeting.id.uuidString,
+            "--segment", firstID.uuidString,
+            "--text", "corrected first.",
+            "--expected-revision", "0",
+            "--json",
+            "--database", dbURL.path,
+        ])
+        let editJSON = try await correctionJSON { try await edit.run() }
+        XCTAssertEqual(editJSON["speakerCorrectionRevision"] as? Int, 1)
+        XCTAssertEqual(editJSON["transcript"] as? String, "corrected first. three four.")
+
+        let undo = try MeetingsCommand.CorrectionsSubcommand.Undo.parse([
+            meeting.id.uuidString, "--expected-revision", "1", "--json", "--database", dbURL.path,
+        ])
+        let undoJSON = try await correctionJSON { try await undo.run() }
+        XCTAssertEqual(undoJSON["speakerCorrectionRevision"] as? Int, 2)
+        XCTAssertEqual(undoJSON["transcript"] as? String, "one two. three four.")
+
+        let redo = try MeetingsCommand.CorrectionsSubcommand.Redo.parse([
+            meeting.id.uuidString, "--expected-revision", "2", "--json", "--database", dbURL.path,
+        ])
+        let redoJSON = try await correctionJSON { try await redo.run() }
+        XCTAssertEqual(redoJSON["speakerCorrectionRevision"] as? Int, 3)
+        XCTAssertEqual(redoJSON["transcript"] as? String, "corrected first. three four.")
+
+        let merge = try MeetingsCommand.CorrectionsSubcommand.MergeLines.parse([
+            meeting.id.uuidString,
+            "--segment", firstID.uuidString,
+            "--segment", secondID.uuidString,
+            "--expected-revision", "3",
+            "--json",
+            "--database", dbURL.path,
+        ])
+        let mergeJSON = try await correctionJSON { try await merge.run() }
+        XCTAssertEqual(mergeJSON["speakerCorrectionRevision"] as? Int, 4)
+        let mergedSegments = try XCTUnwrap(mergeJSON["transcriptSegments"] as? [[String: Any]])
+        XCTAssertEqual(mergedSegments.count, 1)
+        XCTAssertEqual(
+            mergedSegments[0]["anchorTranscriptSegmentIDs"] as? [String],
+            [firstID.uuidString, secondID.uuidString]
+        )
+
+        let reset = try MeetingsCommand.CorrectionsSubcommand.Reset.parse([
+            meeting.id.uuidString, "--expected-revision", "4", "--json", "--database", dbURL.path,
+        ])
+        let resetJSON = try await correctionJSON { try await reset.run() }
+        XCTAssertEqual(resetJSON["speakerCorrectionRevision"] as? Int, 5)
+        XCTAssertEqual(resetJSON["textCorrectionsApplied"] as? Bool, false)
+        XCTAssertEqual(resetJSON["transcript"] as? String, "one two. three four.")
+        XCTAssertEqual(try repository.fetch(id: meeting.id)?.cleanTranscript, "one two. three four.")
+        XCTAssertEqual(try repository.fetch(id: meeting.id)?.wordTimestamps, words)
     }
 
     func testClassifyPreservesCorrectedArtifactSpeakersAndProvenance() async throws {
@@ -318,6 +441,22 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertNoThrow(try MeetingsCommand.ListSubcommand.parse(["--json"]))
         XCTAssertNoThrow(try MeetingsCommand.ShowSubcommand.parse(["abcd", "--json"]))
         XCTAssertNoThrow(try MeetingsCommand.TranscriptSubcommand.parse(["abcd", "--format", "srt"]))
+        XCTAssertNoThrow(try MeetingsCommand.CorrectionsSubcommand.EditLine.parse([
+            "abcd", "--segment", UUID().uuidString, "--text", "fixed", "--expected-revision", "0",
+        ]))
+        XCTAssertNoThrow(try MeetingsCommand.CorrectionsSubcommand.MergeLines.parse([
+            "abcd", "--segment", UUID().uuidString, "--segment", UUID().uuidString,
+            "--expected-revision", "0",
+        ]))
+        XCTAssertNoThrow(try MeetingsCommand.CorrectionsSubcommand.Undo.parse([
+            "abcd", "--expected-revision", "1",
+        ]))
+        XCTAssertNoThrow(try MeetingsCommand.CorrectionsSubcommand.Redo.parse([
+            "abcd", "--expected-revision", "1",
+        ]))
+        XCTAssertNoThrow(try MeetingsCommand.CorrectionsSubcommand.Reset.parse([
+            "abcd", "--expected-revision", "1",
+        ]))
         XCTAssertNoThrow(try MeetingsCommand.NotesSubcommand.GetSubcommand.parse(["abcd", "--envelope"]))
         XCTAssertNoThrow(
             try MeetingsCommand.NotesSubcommand.SetSubcommand.parse(["abcd", "--text", "Decision: ship", "--envelope"]))
@@ -1300,6 +1439,15 @@ final class MeetingsCommandTests: XCTestCase {
         return try await captureStandardOutput {
             try await command.run()
         }
+    }
+
+    private func correctionJSON(
+        _ operation: () async throws -> Void
+    ) async throws -> [String: Any] {
+        let output = try await captureStandardOutput(operation)
+        return try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any]
+        )
     }
 
     private func writeM4A(to url: URL, sampleRate: Double = 16_000) throws {

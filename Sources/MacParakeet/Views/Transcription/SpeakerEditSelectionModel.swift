@@ -142,3 +142,10 @@ enum TimedTranscriptMergeModel {
         return [first, second]
     }
 }
+
+enum TimedTranscriptSplitModel {
+    static func canSplit(_ segment: SpeakerEditableSegment?) -> Bool {
+        guard let segment, !segment.hasTextOverride else { return false }
+        return segment.wordRange.endIndexExclusive - segment.wordRange.startIndex > 1
+    }
+}

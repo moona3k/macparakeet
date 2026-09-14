@@ -189,7 +189,7 @@ extension Transcription {
     /// retain only their segment envelope, while automatic text retains the
     /// recognizer's word-level alignment.
     public var transcriptTextAlignment: TranscriptTextAlignment {
-        if isTranscriptEdited { return .untimed }
+        if isTranscriptEdited || !hasWordTimestamps { return .untimed }
         if transcriptSegments?.contains(where: { $0.isTextEdited == true }) == true {
             return .segment
         }
@@ -306,6 +306,10 @@ public struct TranscriptSegmentRecord: Codable, Sendable, Equatable, Identifiabl
     /// `true` only on an effective projection whose displayed text or boundary
     /// was corrected. Omitted from automatic/legacy segment JSON.
     public var isTextEdited: Bool?
+    /// Durable automatic segments that contributed to a structurally changed
+    /// effective segment. Omitted when the effective segment keeps one durable
+    /// segment's ID and range unchanged.
+    public var anchorTranscriptSegmentIDs: [UUID]?
 
     public init(
         id: UUID = UUID(),
@@ -315,7 +319,8 @@ public struct TranscriptSegmentRecord: Codable, Sendable, Equatable, Identifiabl
         speakerLabel: String,
         text: String,
         wordRange: TranscriptSegmentWordRange,
-        isTextEdited: Bool? = nil
+        isTextEdited: Bool? = nil,
+        anchorTranscriptSegmentIDs: [UUID]? = nil
     ) {
         self.id = id
         self.startMs = startMs
@@ -325,6 +330,7 @@ public struct TranscriptSegmentRecord: Codable, Sendable, Equatable, Identifiabl
         self.text = text
         self.wordRange = wordRange
         self.isTextEdited = isTextEdited
+        self.anchorTranscriptSegmentIDs = anchorTranscriptSegmentIDs
     }
 
     public static func updatingSpeakerLabels(

@@ -2017,45 +2017,72 @@ public final class TranscriptionViewModel {
         }
     }
 
-    /// Returns `false` when the correction could not be submitted. The optional
-    /// completion reports the persisted result so editors can retain drafts on
-    /// an asynchronous failure.
+    private struct SpeakerCorrectionSubmission: Sendable {
+        let transcriptionID: UUID
+        let service: SpeakerCorrectionServicing
+        let attribution: EffectiveSpeakerAttribution
+        let selectedRevision: UInt64
+    }
+
+    /// Returns `false` when the correction could not be submitted. Callers that
+    /// need the durable result use the async method below.
     @discardableResult
-    public func applySpeakerCorrection(
-        _ command: SpeakerCorrectionCommand,
-        completion: (@MainActor (Bool) -> Void)? = nil
-    ) -> Bool {
+    public func applySpeakerCorrection(_ command: SpeakerCorrectionCommand) -> Bool {
+        guard let submission = beginSpeakerCorrectionSubmission() else { return false }
+        Task { [weak self] in
+            _ = await self?.persistSpeakerCorrection(command, submission: submission)
+        }
+        return true
+    }
+
+    /// Applies a correction and returns only after the journal write succeeds
+    /// or fails. Editors await this method so dismissal follows persistence.
+    @discardableResult
+    public func applySpeakerCorrectionAndWait(_ command: SpeakerCorrectionCommand) async -> Bool {
+        guard let submission = beginSpeakerCorrectionSubmission() else { return false }
+        return await persistSpeakerCorrection(command, submission: submission)
+    }
+
+    private func beginSpeakerCorrectionSubmission() -> SpeakerCorrectionSubmission? {
         guard let transcriptionID = currentTranscription?.id,
               let speakerCorrectionService
         else {
-            completion?(false)
-            return false
+            return nil
         }
         guard let attribution = speakerAttribution, !isApplyingSpeakerCorrection else {
             setError(message: "Speaker changes are still loading or saving. Please try again.")
-            completion?(false)
-            return false
+            return nil
         }
         isApplyingSpeakerCorrection = true
-        let selectedRevision = currentTranscriptionRevision
-        Task { [weak self, speakerCorrectionService] in
-            do {
-                let result = try await speakerCorrectionService.apply(
-                    transcriptionId: transcriptionID,
-                    command: command,
-                    expectedFingerprint: attribution.fingerprint,
-                    expectedRevision: attribution.correctionRevision
-                )
-                self?.publishSpeakerCorrectionResult(
-                    result, transcriptionID: transcriptionID, selectedRevision: selectedRevision
-                )
-                completion?(true)
-            } catch {
-                self?.handleSpeakerCorrectionFailure(error, transcriptionID: transcriptionID)
-                completion?(false)
-            }
+        return SpeakerCorrectionSubmission(
+            transcriptionID: transcriptionID,
+            service: speakerCorrectionService,
+            attribution: attribution,
+            selectedRevision: currentTranscriptionRevision
+        )
+    }
+
+    private func persistSpeakerCorrection(
+        _ command: SpeakerCorrectionCommand,
+        submission: SpeakerCorrectionSubmission
+    ) async -> Bool {
+        do {
+            let result = try await submission.service.apply(
+                transcriptionId: submission.transcriptionID,
+                command: command,
+                expectedFingerprint: submission.attribution.fingerprint,
+                expectedRevision: submission.attribution.correctionRevision
+            )
+            publishSpeakerCorrectionResult(
+                result,
+                transcriptionID: submission.transcriptionID,
+                selectedRevision: submission.selectedRevision
+            )
+            return true
+        } catch {
+            handleSpeakerCorrectionFailure(error, transcriptionID: submission.transcriptionID)
+            return false
         }
-        return true
     }
 
     public func undoSpeakerCorrection() {

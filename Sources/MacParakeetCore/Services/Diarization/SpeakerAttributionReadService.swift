@@ -77,15 +77,25 @@ public struct SpeakerAttributionProjection: Sendable {
                 speakerID = nil
                 speakerLabel = "Unassigned"
             }
+            let keepsDurableIdentity =
+                segment.anchorTranscriptSegmentIDs.count == 1
+                && automaticTranscription.transcriptSegments?.first(where: {
+                    $0.id == segment.anchorTranscriptSegmentIDs[0]
+                })?.wordRange == segment.wordRange
             return TranscriptSegmentRecord(
-                id: effectiveSegmentID(for: segment.id),
+                id: keepsDurableIdentity
+                    ? segment.anchorTranscriptSegmentIDs[0]
+                    : effectiveSegmentID(for: segment.id),
                 startMs: segment.startMs,
                 endMs: segment.endMs,
                 speakerId: speakerID,
                 speakerLabel: speakerLabel,
                 text: segment.text,
                 wordRange: segment.wordRange,
-                isTextEdited: segment.isTextEdited ? true : nil
+                isTextEdited: segment.isTextEdited ? true : nil,
+                anchorTranscriptSegmentIDs: keepsDurableIdentity
+                    ? nil
+                    : segment.anchorTranscriptSegmentIDs
             )
         }
     }

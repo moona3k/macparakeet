@@ -178,52 +178,91 @@ final class DatabaseManagerTests: XCTestCase {
             sourceType: .file
         )
         let fingerprint = SpeakerAttributionResolver.fingerprint(for: transcription)
-        let rename = SpeakerCorrection(
+        let root = SpeakerCorrection(
             transcriptionId: transcription.id,
             parentId: nil,
             sequence: 1,
             transcriptFingerprint: fingerprint,
             payload: .rename(speakerID: "S1", label: "Alice")
         )
-        do {
-            let original = try DatabaseManager(path: dbPath)
-            try TranscriptionRepository(dbQueue: original.dbQueue).save(transcription)
-            try await original.dbQueue.write { db in
-                try rename.insert(db)
-                try SpeakerCorrectionState(
-                    transcriptionId: transcription.id,
-                    transcriptFingerprint: fingerprint.rawValue,
-                    headId: rename.id,
-                    revision: 1
-                ).insert(db)
-                try db.execute(
-                    sql: "DELETE FROM grdb_migrations WHERE identifier = ?",
-                    arguments: ["v0.43-timed-transcript-corrections"]
-                )
-            }
-        }
-
-        let migrated = try DatabaseManager(path: dbPath)
-        let history = try SpeakerCorrectionRepository(dbQueue: migrated.dbQueue)
-            .fetchHistory(transcriptionId: transcription.id)
-        XCTAssertEqual(history.map(\.id), [rename.id])
-        XCTAssertEqual(
-            try SpeakerCorrectionRepository(dbQueue: migrated.dbQueue)
-                .fetchState(transcriptionId: transcription.id)?.headId,
-            rename.id
-        )
         let target = SpeakerCorrectionTarget(
             anchorTranscriptSegmentIDs: try XCTUnwrap(transcription.transcriptSegments?.map(\.id)),
             wordRange: .init(startIndex: 0, endIndexExclusive: 2)
         )
-        let result = try await SpeakerCorrectionService(dbQueue: migrated.dbQueue).apply(
+        let head = SpeakerCorrection(
+            transcriptionId: transcription.id,
+            parentId: root.id,
+            sequence: 2,
+            transcriptFingerprint: fingerprint,
+            payload: .assign(targets: [target], to: .speaker(id: "S1"))
+        )
+        let redo = SpeakerCorrection(
+            transcriptionId: transcription.id,
+            parentId: head.id,
+            sequence: 3,
+            transcriptFingerprint: fingerprint,
+            payload: .rename(speakerID: "S1", label: "Redo name"),
+            branchState: .redo
+        )
+        let abandoned = SpeakerCorrection(
+            transcriptionId: transcription.id,
+            parentId: head.id,
+            sequence: 4,
+            transcriptFingerprint: fingerprint,
+            payload: .rename(speakerID: "S1", label: "Abandoned name"),
+            branchState: .abandoned
+        )
+
+        var configuration = Configuration()
+        configuration.foreignKeysEnabled = true
+        let queue = try DatabaseQueue(path: dbPath, configuration: configuration)
+        var migrator = DatabaseManager.makeMigrator()
+        try migrator.migrate(queue, upTo: "v0.42-meeting-split-operations")
+        try TranscriptionRepository(dbQueue: queue).save(transcription)
+        let state = SpeakerCorrectionState(
+            transcriptionId: transcription.id,
+            transcriptFingerprint: fingerprint.rawValue,
+            headId: head.id,
+            revision: 6
+        )
+        try await queue.write { db in
+            try root.insert(db)
+            try head.insert(db)
+            try redo.insert(db)
+            try abandoned.insert(db)
+            try state.insert(db)
+        }
+
+        try migrator.migrate(queue)
+        let history = try SpeakerCorrectionRepository(dbQueue: queue)
+            .fetchHistory(transcriptionId: transcription.id)
+        XCTAssertEqual(history.map(\.id), [root.id, head.id, redo.id, abandoned.id])
+        XCTAssertEqual(history.map(\.parentId), [nil, root.id, head.id, head.id])
+        XCTAssertEqual(history.map(\.branchState), [.current, .current, .redo, .abandoned])
+        XCTAssertEqual(
+            try SpeakerCorrectionRepository(dbQueue: queue)
+                .fetchState(transcriptionId: transcription.id)?.headId,
+            head.id
+        )
+        XCTAssertEqual(
+            try SpeakerCorrectionRepository(dbQueue: queue)
+                .fetchState(transcriptionId: transcription.id)?.revision,
+            6
+        )
+        let result = try await SpeakerCorrectionService(dbQueue: queue).apply(
             transcriptionId: transcription.id,
             command: .editText(target: target, text: "Corrected greeting."),
             expectedFingerprint: fingerprint,
-            expectedRevision: 1
+            expectedRevision: 6
         )
-        XCTAssertEqual(result.revision, 2)
-        try await migrated.dbQueue.read { db in
+        XCTAssertEqual(result.revision, 7)
+        try await queue.read { db in
+            let tableSQL = try XCTUnwrap(String.fetchOne(
+                db,
+                sql: "SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'speaker_corrections'"
+            ))
+            XCTAssertTrue(tableSQL.contains("'editText'"))
+            XCTAssertTrue(tableSQL.contains("'mergeSegments'"))
             XCTAssertTrue(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty)
         }
     }

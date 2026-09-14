@@ -42,6 +42,22 @@ final class MeetingArtifactStoreTests: XCTestCase {
         XCTAssertEqual(snapshot.title, "Legacy")
     }
 
+    func testUntimedTranscriptArtifactReportsUntimedAlignment() async throws {
+        var transcription = makeMeeting(notes: nil)
+        transcription.wordTimestamps = nil
+        transcription.transcriptSegments = nil
+
+        let snapshot = try await MeetingArtifactStore().materialize(
+            transcription: transcription,
+            promptResults: []
+        )
+        let manifest = try jsonObject(at: URL(fileURLWithPath: snapshot.manifestPath))
+        let meeting = try XCTUnwrap(manifest["meeting"] as? [String: Any])
+        XCTAssertEqual(meeting["transcriptTextAlignment"] as? String, "untimed")
+        let transcript = try jsonObject(at: URL(fileURLWithPath: snapshot.transcriptPath))
+        XCTAssertEqual(transcript["transcriptTextAlignment"] as? String, "untimed")
+    }
+
     func testMaterializeToleratesDuplicateLegacySpeakerAndSegmentIDs() async throws {
         var row = makeMeeting(notes: nil)
         row.speakers = [.init(id: "S1", label: "First"), .init(id: "S1", label: "Duplicate")]

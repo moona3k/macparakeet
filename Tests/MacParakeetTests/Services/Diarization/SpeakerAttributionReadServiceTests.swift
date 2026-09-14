@@ -28,16 +28,69 @@ final class SpeakerAttributionReadServiceTests: XCTestCase {
         XCTAssertEqual(effective.transcriptTextAlignment, .segment)
         XCTAssertEqual(effective.transcriptSegments?.map(\.text), ["A corrected sentence."])
         XCTAssertEqual(effective.transcriptSegments?.first?.isTextEdited, true)
-        XCTAssertNotEqual(
+        XCTAssertEqual(
             effective.transcriptSegments?.first?.id,
             transcription.transcriptSegments?.first?.id
         )
+        XCTAssertNil(effective.transcriptSegments?.first?.anchorTranscriptSegmentIDs)
         XCTAssertEqual(
             effective.transcriptSegments?.map(\.id),
             second.effectiveTranscription.transcriptSegments?.map(\.id)
         )
         XCTAssertEqual(effective.rawTranscript, transcription.rawTranscript)
         XCTAssertEqual(effective.wordTimestamps, transcription.wordTimestamps)
+    }
+
+    func testMergedCorrectionPublishesNewIDWithDurableAnchors() async throws {
+        let manager = try DatabaseManager()
+        var transcription = fixture()
+        var words = try XCTUnwrap(transcription.wordTimestamps)
+        words[2].startMs = 2_000
+        words[2].endMs = 2_150
+        words[3].startMs = 2_200
+        words[3].endMs = 2_350
+        transcription.wordTimestamps = words
+        transcription.transcriptSegments = [
+            TranscriptSegmentRecord(
+                startMs: words[0].startMs,
+                endMs: words[1].endMs,
+                speakerId: "S1",
+                speakerLabel: "Speaker 1",
+                text: "one two",
+                wordRange: .init(startIndex: 0, endIndexExclusive: 2)
+            ),
+            TranscriptSegmentRecord(
+                startMs: words[2].startMs,
+                endMs: words[3].endMs,
+                speakerId: "S1",
+                speakerLabel: "Speaker 1",
+                text: "three four",
+                wordRange: .init(startIndex: 2, endIndexExclusive: 4)
+            ),
+        ]
+        try TranscriptionRepository(dbQueue: manager.dbQueue).save(transcription)
+        let automaticIDs = try XCTUnwrap(transcription.transcriptSegments?.map(\.id))
+        let targets = SpeakerAttributionResolver.resolve(transcription: transcription)
+            .editableSegments.map {
+                SpeakerCorrectionTarget(
+                    anchorTranscriptSegmentIDs: $0.anchorTranscriptSegmentIDs,
+                    wordRange: $0.wordRange
+                )
+            }
+        _ = try await SpeakerCorrectionService(dbQueue: manager.dbQueue).apply(
+            transcriptionId: transcription.id,
+            command: .mergeSegments(targets: targets),
+            expectedFingerprint: SpeakerAttributionResolver.fingerprint(for: transcription),
+            expectedRevision: 0
+        )
+
+        let projection = try XCTUnwrap(
+            SpeakerAttributionReadService(dbQueue: manager.dbQueue)
+                .resolve(transcriptionId: transcription.id)
+        )
+        let segment = try XCTUnwrap(projection.effectiveTranscription.transcriptSegments?.first)
+        XCTAssertFalse(automaticIDs.contains(segment.id))
+        XCTAssertEqual(segment.anchorTranscriptSegmentIDs, automaticIDs)
     }
 
     func testNoCorrectionsPreservesNilSpeakerGapsInExportedProjection() throws {

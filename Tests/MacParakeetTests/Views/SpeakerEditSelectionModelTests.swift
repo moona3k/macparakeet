@@ -155,6 +155,49 @@ final class SpeakerEditSelectionModelTests: XCTestCase {
         )
     }
 
+    func testTimedSplitAllowsBoundaryOnlyEditButRejectsRewrittenText() {
+        let automatic = SpeakerEditableSegment(
+            id: makeID(range: 0..<2),
+            anchorTranscriptSegmentIDs: [UUID()],
+            startMs: 0,
+            endMs: 500,
+            text: "one two",
+            assignment: .speaker(id: "S1"),
+            automaticSpeakerIDs: ["S1"],
+            sourceProvenance: [],
+            isManuallySplit: false
+        )
+        let boundaryOnly = SpeakerEditableSegment(
+            id: automatic.id,
+            anchorTranscriptSegmentIDs: automatic.anchorTranscriptSegmentIDs,
+            startMs: automatic.startMs,
+            endMs: automatic.endMs,
+            text: automatic.text,
+            assignment: automatic.assignment,
+            automaticSpeakerIDs: automatic.automaticSpeakerIDs,
+            sourceProvenance: automatic.sourceProvenance,
+            isManuallySplit: automatic.isManuallySplit,
+            isTextEdited: true,
+            hasTextOverride: false
+        )
+        let rewritten = SpeakerEditableSegment(
+            id: automatic.id,
+            anchorTranscriptSegmentIDs: automatic.anchorTranscriptSegmentIDs,
+            startMs: automatic.startMs,
+            endMs: automatic.endMs,
+            text: "Corrected line.",
+            assignment: automatic.assignment,
+            automaticSpeakerIDs: automatic.automaticSpeakerIDs,
+            sourceProvenance: automatic.sourceProvenance,
+            isManuallySplit: automatic.isManuallySplit,
+            isTextEdited: true,
+            hasTextOverride: true
+        )
+
+        XCTAssertTrue(TimedTranscriptSplitModel.canSplit(boundaryOnly))
+        XCTAssertFalse(TimedTranscriptSplitModel.canSplit(rewritten))
+    }
+
     private func makeIDs(_ count: Int) -> [SpeakerEditableSegmentID] {
         (0..<count).map { makeID(range: $0..<($0 + 1)) }
     }

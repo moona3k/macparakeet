@@ -36,6 +36,51 @@ final class TranscriptTimestampedLayoutSmokeTests: XCTestCase {
     private let watchdogSeconds: Double = 120
     private let firstLayoutBudgetSeconds: Double = 10
 
+    func testDisplayedWordCountUsesCorrectedSegmentText() {
+        var transcription = Transcription(
+            fileName: "Count",
+            cleanTranscript: "one two three four",
+            wordTimestamps: [
+                .init(word: "one", startMs: 0, endMs: 100, confidence: 1),
+                .init(word: "two", startMs: 110, endMs: 200, confidence: 1),
+                .init(word: "three", startMs: 210, endMs: 300, confidence: 1),
+                .init(word: "four", startMs: 310, endMs: 400, confidence: 1),
+            ],
+            transcriptSegments: [
+                .init(
+                    startMs: 0,
+                    endMs: 400,
+                    speakerId: nil,
+                    speakerLabel: "Unassigned",
+                    text: "one two three four",
+                    wordRange: .init(startIndex: 0, endIndexExclusive: 4)
+                )
+            ],
+            status: .completed
+        )
+
+        XCTAssertEqual(
+            TranscriptDisplayedWordCount.count(in: transcription, displayedText: "one two three four"),
+            4
+        )
+
+        transcription.cleanTranscript = "corrected phrase"
+        transcription.transcriptSegments?[0].text = "corrected phrase"
+        transcription.transcriptSegments?[0].isTextEdited = true
+        XCTAssertEqual(
+            TranscriptDisplayedWordCount.count(in: transcription, displayedText: "corrected phrase"),
+            2
+        )
+
+        transcription.cleanTranscript = "one two three four"
+        transcription.transcriptSegments?[0].text = "one two three four"
+        transcription.transcriptSegments?[0].isTextEdited = nil
+        XCTAssertEqual(
+            TranscriptDisplayedWordCount.count(in: transcription, displayedText: "one two three four"),
+            4
+        )
+    }
+
     private func segments(count: Int, speakers: [String?]) -> [TranscriptSegment] {
         let words = [
             "one", "quarterly", "review", "dashboard", "metrics",

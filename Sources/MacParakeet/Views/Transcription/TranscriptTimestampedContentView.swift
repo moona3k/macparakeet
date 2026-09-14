@@ -955,10 +955,7 @@ private struct TranscriptSegmentRow: View {
     }
 
     private var canSplitEditableSegment: Bool {
-        guard editableSegment?.isTextEdited != true,
-              let range = editableSegment?.wordRange
-        else { return false }
-        return range.endIndexExclusive - range.startIndex > 1
+        TimedTranscriptSplitModel.canSplit(editableSegment)
     }
 
     private func rowActionButton(

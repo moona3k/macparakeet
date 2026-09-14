@@ -253,7 +253,8 @@ for copy/export. Rich rendering is presentation, not transcript mutation;
 `ExportService` supports TXT, Markdown, SRT, VTT, DAPT, DOCX, PDF and JSON; timing
 and speaker behavior depend on the effective transcript projection. Automatic
 text can use word timing, a corrected line can use only its segment envelope,
-and a legacy whole-text replacement is untimed. The
+and a transcript without word timestamps or with a legacy whole-text replacement
+is untimed. The
 [DAPT contract](contracts/dapt-export-v1.md) defines the same alignment boundary.
 
 ## Storage and external boundaries

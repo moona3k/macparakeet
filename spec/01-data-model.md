@@ -414,10 +414,17 @@ version so retranscription cannot silently replay stale ranges.
 segment time envelope. `mergeSegments` suppresses boundaries between adjacent
 current ranges with one effective speaker assignment. Both commands use the
 same cursor as speaker changes. Their effective projection derives
-`transcriptTextAlignment` as `segment`; an unchanged automatic projection is
-`automatic`, and a legacy whole-text edit is `untimed`. Segment-aligned outputs
+`transcriptTextAlignment` as `segment`; an unchanged projection with automatic
+word timestamps is `automatic`, and a transcript without word timestamps or a
+legacy whole-text edit is `untimed`. Segment-aligned outputs
 may claim the line envelope but never reuse the automatic timestamps as timing
 for rewritten words.
+
+An effective segment retains its durable automatic `id` when one automatic
+segment contributes the same complete word range, including a text-only edit.
+Structural split/merge projections receive a deterministic effective `id` and
+publish additive `anchorTranscriptSegmentIDs` so citations can trace them back
+to their durable automatic segments.
 
 Migration `v0.43-timed-transcript-corrections` rebuilds both tables to widen
 the SQLite operation constraint, then copies all correction rows, parent links,

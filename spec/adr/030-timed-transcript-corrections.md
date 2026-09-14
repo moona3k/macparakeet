@@ -69,11 +69,14 @@ are rejected without advancing the journal or changing derived state.
 `Transcription.transcriptTextAlignment` derives three states without adding a
 second persisted transcript-wide flag:
 
-- `automatic`: text/timing behavior is derived from automatic words;
+- `automatic`: text/timing behavior is derived from present automatic words;
 - `segment`: effective text is aligned only to effective segment envelopes;
-- `untimed`: a legacy whole-transcript edit has no safe timed mapping.
+- `untimed`: the transcript has no safe timed mapping, either because automatic
+  word timestamps are absent or because a legacy whole-transcript edit replaced
+  the timed text.
 
-The existing `isTranscriptEdited` value identifies `untimed` legacy edits.
+The existing `isTranscriptEdited` value identifies `untimed` legacy edits;
+absence of automatic word timestamps also derives `untimed`.
 Effective segment records mark only corrected text/boundaries, which derives
 `segment`; otherwise the projection is `automatic`. Correction history remains
 the durable source of truth for the effective segment state.

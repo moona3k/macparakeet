@@ -28,6 +28,9 @@ public struct SpeakerEditableSegment: Identifiable, Sendable, Equatable {
     public let sourceProvenance: [AudioSource]
     public let isManuallySplit: Bool
     public let isTextEdited: Bool
+    /// True only when recognized words were replaced. Boundary-only changes
+    /// remain segment-timed but can still be split again.
+    public let hasTextOverride: Bool
 
     public init(
         id: SpeakerEditableSegmentID,
@@ -39,7 +42,8 @@ public struct SpeakerEditableSegment: Identifiable, Sendable, Equatable {
         automaticSpeakerIDs: [String],
         sourceProvenance: [AudioSource],
         isManuallySplit: Bool,
-        isTextEdited: Bool = false
+        isTextEdited: Bool = false,
+        hasTextOverride: Bool = false
     ) {
         self.id = id
         self.anchorTranscriptSegmentIDs = anchorTranscriptSegmentIDs
@@ -51,6 +55,7 @@ public struct SpeakerEditableSegment: Identifiable, Sendable, Equatable {
         self.sourceProvenance = sourceProvenance
         self.isManuallySplit = isManuallySplit
         self.isTextEdited = isTextEdited
+        self.hasTextOverride = hasTextOverride
     }
 
     public var wordRange: TranscriptSegmentWordRange { id.wordRange }
@@ -693,10 +698,11 @@ public enum SpeakerAttributionResolver {
             let sources = uniqueInOrder(
                 provenance[range.startIndex..<range.endIndexExclusive].compactMap(\.audioSource)
             )
+            let hasTextOverride = textOverrides.keys.contains(where: {
+                rangeIsContained($0, in: range)
+            })
             let textEdited =
-                textOverrides.keys.contains(where: {
-                    rangeIsContained($0, in: range)
-                })
+                hasTextOverride
                 || suppressedBoundaries.contains(where: {
                     $0 > range.startIndex && $0 < range.endIndexExclusive
                 })
@@ -715,7 +721,8 @@ public enum SpeakerAttributionResolver {
                 sourceProvenance: sources,
                 isManuallySplit: splitBoundaries.contains(range.startIndex)
                     || splitBoundaries.contains(range.endIndexExclusive),
-                isTextEdited: textEdited
+                isTextEdited: textEdited,
+                hasTextOverride: hasTextOverride
             )
         }
     }

@@ -5,6 +5,18 @@ import SwiftUI
 import MacParakeetCore
 import MacParakeetViewModels
 
+enum TranscriptDisplayedWordCount {
+    static func count(in transcription: Transcription, displayedText: String) -> Int {
+        if transcription.transcriptTextAlignment == .automatic,
+            let words = transcription.wordTimestamps,
+            !words.isEmpty
+        {
+            return words.count
+        }
+        return displayedText.split(whereSeparator: \.isWhitespace).count
+    }
+}
+
 /// One searchable unit of the transcript reading surface (U2): a renderable
 /// text block plus its rendering context. Effective timed mode uses the stable
 /// editable-segment identity, so split segments and equal timestamps remain
@@ -623,6 +635,8 @@ struct TranscriptResultView: View {
                 if let attribution = viewModel.speakerAttribution {
                     speakerSelection.reconcile(with: attribution.editableSegments.map(\.id))
                 }
+                chatNotesActionGate.invalidate()
+                chatViewModel.updateTranscriptText(transcriptText)
                 playerViewModel.loadSubtitleCues(from: activeTranscription)
                 if transcriptDisplayMode == .timed {
                     scheduleSegmentCacheRebuild()
@@ -1496,12 +1510,10 @@ struct TranscriptResultView: View {
     }
 
     private var transcriptWordCount: Int {
-        if !hasEditedTranscript,
-            let wordTimestamps = activeTranscription.wordTimestamps, !wordTimestamps.isEmpty
-        {
-            return wordTimestamps.count
-        }
-        return transcriptText.split(whereSeparator: \.isWhitespace).count
+        TranscriptDisplayedWordCount.count(
+            in: activeTranscription,
+            displayedText: transcriptText
+        )
     }
 
     private var speakerCountValue: Int {
@@ -3565,12 +3577,16 @@ struct TranscriptResultView: View {
                                 .onSubmit {
                                     if !chatVM.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                                         && chatVM.canSendMessage && !chatVM.isStreaming
+                                        && !viewModel.isApplyingSpeakerCorrection
                                         && !chatNotesActionGate.isRunning
                                     {
                                         sendChatMessage(chatVM)
                                     }
                                 }
-                                .disabled(chatVM.isStreaming || !chatVM.canSendMessage)
+                                .disabled(
+                                    chatVM.isStreaming || !chatVM.canSendMessage
+                                        || viewModel.isApplyingSpeakerCorrection
+                                )
                                 .onAppear {
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                                         chatInputFocused = true
@@ -3602,6 +3618,7 @@ struct TranscriptResultView: View {
                                 let canSend =
                                     !chatVM.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                                     && chatVM.canSendMessage && !chatNotesActionGate.isRunning
+                                    && !viewModel.isApplyingSpeakerCorrection
                                 Button {
                                     sendChatMessage(chatVM)
                                 } label: {
@@ -4331,9 +4348,7 @@ struct TranscriptResultView: View {
     }
 
     private func presentSplitPicker(_ segment: SpeakerEditableSegment) {
-        guard !segment.isTextEdited,
-              segment.wordRange.endIndexExclusive - segment.wordRange.startIndex > 1
-        else { return }
+        guard TimedTranscriptSplitModel.canSplit(segment) else { return }
         pendingSplitSegment = segment
     }
 
@@ -4892,10 +4907,13 @@ struct TranscriptResultView: View {
         _ chatViewModel: TranscriptChatViewModel,
         richPrompt: String? = nil
     ) {
+        guard !viewModel.isApplyingSpeakerCorrection else { return }
         let selectedID = activeTranscription.id
         let notesEditor = savedMeetingNotesViewModel
         let inputText = chatViewModel.inputText
         let conversationID = chatViewModel.currentConversation?.id
+        let correctionRevision = viewModel.speakerAttribution?.correctionRevision
+        chatViewModel.updateTranscriptText(transcriptText)
         chatNotesActionGate.start(
             flush: { await notesEditor.flush() },
             isCurrent: {
@@ -4904,6 +4922,8 @@ struct TranscriptResultView: View {
                     && notesEditor.saveState != .deleted
                     && chatViewModel.currentConversation?.id == conversationID
                     && chatViewModel.inputText == inputText
+                    && viewModel.speakerAttribution?.correctionRevision == correctionRevision
+                    && !viewModel.isApplyingSpeakerCorrection
             },
             onFailure: { viewModel.selectedTab = .notes }
         ) {
@@ -5759,6 +5779,8 @@ private struct TimedTranscriptTextEditSheet: View {
                 )
                 .focused($editorFocused)
                 .disabled(isSaving)
+                .accessibilityLabel("Timed transcript line text")
+                .accessibilityHint("Edits the words while keeping this line's displayed time range.")
 
             if saveFailed {
                 Label("Couldn't save. Your draft is still here.", systemImage: "exclamationmark.triangle.fill")
@@ -5797,9 +5819,10 @@ private struct TimedTranscriptTextEditSheet: View {
         guard canSave else { return }
         isSaving = true
         saveFailed = false
-        viewModel.applySpeakerCorrection(
-            .editText(target: target, text: normalizedDraft)
-        ) { succeeded in
+        Task { @MainActor in
+            let succeeded = await viewModel.applySpeakerCorrectionAndWait(
+                .editText(target: target, text: normalizedDraft)
+            )
             isSaving = false
             if succeeded {
                 onDismiss()

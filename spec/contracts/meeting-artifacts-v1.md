@@ -174,8 +174,10 @@ raw-audio filenames.
 - `promptResults`
 
 `manifest.meeting.transcriptTextAlignment` is `automatic`, `segment`, or
-`untimed`. `segment` means effective rewritten text is aligned only to its
-segment envelopes. `manifest.meeting.meetingType` is optional; absence means
+`untimed`. `automatic` requires present automatic word timestamps; `segment`
+means effective rewritten text is aligned only to its segment envelopes;
+`untimed` covers missing word timestamps and legacy whole-text edits.
+`manifest.meeting.meetingType` is optional; absence means
 unclassified.
 `manifest.meeting.meetingLabels` is the complete assigned-label array and may
 be empty. Type and label snapshots carry stable UUID and display name plus
@@ -275,6 +277,10 @@ artifact paths.
 Legacy v1 `MeetingArtifactSnapshot` JSON without correction keys decodes with
 `speakerCorrectionsApplied = false`, `textCorrectionsApplied = false`, and
 `speakerCorrectionRevision = 0`.
+The legacy `speakerCorrectionsApplied` name reports any active entry in the
+shared speaker/transcript correction journal, including text-only corrections;
+it does not assert that a speaker identity changed. Consumers should use
+`textCorrectionsApplied` for the independent timed-text/boundary signal.
 Metadata and speaker refreshes in the transcription view model share a queue
 per meeting and read the current DB row after earlier materializations finish.
 
@@ -282,7 +288,9 @@ per meeting and read the current DB row after earlier materializations finish.
 `speakerCorrectionsApplied`, `textCorrectionsApplied`,
 `speakerCorrectionRevision`, and `transcriptTextAlignment`. Each durable
 `transcriptSegments` item may additionally include `isTextEdited: true` and
-`speakerSpans`. Omitted `isTextEdited` means the line retains automatic text and
+`speakerSpans`. A structurally changed segment also includes
+`anchorTranscriptSegmentIDs`; a one-to-one text edit retains the durable segment
+ID instead. Omitted `isTextEdited` means the line retains automatic text and
 boundaries. A span has
 `wordRange`, nullable `speakerId`, and `speakerLabel`; multiple spans preserve
 manual splits that cannot be represented by the segment's legacy single
@@ -311,9 +319,10 @@ meeting has durable segments. Each segment keeps `id`, `startMs`, `endMs`,
 `wordTimestamps` array. Effective text or boundary corrections are represented
 by `isTextEdited: true` and retain only the segment's start/end timing claim.
 The word array preserves the automatic recognized text and timing; it is not a
-per-word alignment for a corrected line. Segment IDs are stable for that
-transcript version; meeting retranscription may replace the array with newly
-minted segment IDs.
+per-word alignment for a corrected line. One-to-one edits retain the durable
+segment ID. Structural splits and merges use a deterministic effective ID plus
+`anchorTranscriptSegmentIDs` mapping to the durable source segments. Meeting
+retranscription may replace the array with newly minted segment IDs.
 
 `startContext`, when present, keeps the recording-start snapshot:
 

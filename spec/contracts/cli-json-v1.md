@@ -200,7 +200,10 @@ with human progress/status kept off stdout.
   `wordRange.startIndex` / `wordRange.endIndexExclusive` into the same payload's
   `wordTimestamps` array. Effective corrected segments may additionally contain
   `isTextEdited: true`; omission means no text/boundary correction is claimed
-  for that segment. Callers that need stable citations should prefer these
+  for that segment. A one-to-one text correction retains the durable segment
+  `id`. A structurally split or merged effective segment receives a deterministic
+  effective `id` and includes `anchorTranscriptSegmentIDs` containing the
+  durable source IDs. Callers that need stable citations should prefer these
   segments over re-segmenting words.
 - Since CLI 4.0.0, `export --stdout --format txt` uses the same formatted output as TXT file
   export, with default metadata, timestamps, and speaker labels. JSON transcript
@@ -216,13 +219,26 @@ with human progress/status kept off stdout.
   --format json`, and `meetings export --stdout --format json` expose the
   effective speaker attribution. They include additive
   `speakerCorrectionsApplied` and `speakerCorrectionRevision` fields; revision
-  `0` with `false` means the automatic baseline is active.
+  `0` with `false` means the automatic baseline is active. The legacy
+  `speakerCorrectionsApplied` name reports any active entry in the shared
+  speaker/transcript correction journal, including text-only corrections; it
+  does not assert that a speaker identity changed. Use `textCorrectionsApplied`
+  for the independent timed-text/boundary signal.
 - `meetings show --json` and `meetings transcript --format json` additionally
   include `textCorrectionsApplied` and `transcriptTextAlignment`. Alignment is
-  `automatic`, `segment`, or `untimed`; `segment` means rewritten text is timed
-  only to segment envelopes. The same payload's `wordTimestamps` retain the
+  `automatic`, `segment`, or `untimed`; `automatic` requires present automatic
+  word timestamps, `segment` means rewritten text is timed only to segment
+  envelopes, and `untimed` covers rows without word timestamps plus legacy
+  whole-text edits. The same payload's `wordTimestamps` retain the
   automatic recognized text and timing as immutable evidence, so consumers
   must not substitute them for corrected-word timing.
+- `meetings corrections edit-line|merge-lines|undo|redo|reset` mutates the
+  same reversible correction journal as the app. Every command requires
+  `--expected-revision` from the last transcript read; edit/merge target current
+  segment UUIDs from `meetings transcript --format json`. A stale revision or
+  segment is rejected without advancing history. JSON success output is the
+  updated `MeetingTranscriptRecord`, including the new revision and effective
+  projection.
 - `meetings show --json` meeting objects can include optional `startContext`
   for meeting rows. When present it contains `triggerKind`, `sourceMode`, and
   optional `frontmostApplication` (`bundleIdentifier`, `localizedName`).
