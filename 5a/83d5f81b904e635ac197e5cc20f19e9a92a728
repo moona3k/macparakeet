@@ -1,0 +1,43 @@
+Sources/MacParakeetCore/Services/Diarization/SpeakerAttributionResolver.swift
+  s_40854eda65ef0b::t_f784c899ebbfed 742
+  s_40854eda65ef0b::t_6ba1d6c2322e70 740-741,745,749,751,755,757
+Tests/MacParakeetTests/Services/Diarization/SpeakerAttributionResolverTests.swift
+  s_40854eda65ef0b::t_f784c899ebbfed 36-46,48-57,59-61,69-70,73-77,80-81,93-94,97-99,102-106,108-110,114-118,120-123,125-127,129-131
+  s_40854eda65ef0b::t_6ba1d6c2322e70 47,58,62-68,71-72,78-79,82-92,95-96,100-101,107,111-113,119,124,128
+Sources/CLI/Commands/MeetingsCommand.swift
+  s_40854eda65ef0b::t_9ec6d8c0a216d8 1198,1205
+  s_40854eda65ef0b::t_f8b0bc6791b558 337-355,375-393,413-431
+  s_40854eda65ef0b::t_59cdce42780eb0 1179,1185-1186,1195-1197,1203-1204,1210
+  s_04b1ae56e392af::t_c77a7f1965907c 1201-1202
+Tests/CLITests/MeetingsCommandTests.swift
+  s_40854eda65ef0b::t_f8b0bc6791b558 248-266,269-274
+  s_40854eda65ef0b::t_298d961c54780d 267-268
+  s_40854eda65ef0b::t_59cdce42780eb0 200-222,224-247
+  s_40854eda65ef0b::t_9ec6d8c0a216d8 223
+Sources/MacParakeetCore/Utilities/KnowledgeSegmenter.swift
+  s_40854eda65ef0b::t_6ba1d6c2322e70 313-317,319-321
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5a83d5f81b904e635ac197e5cc20f19e9a92a728",
+  "prompts": {},
+  "sessions": {
+    "s_04b1ae56e392af": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09cdd-aab4-76b0-8def-6c10035ea821",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_40854eda65ef0b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09cc0-83c9-73d2-af78-ce0480aa0477",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
