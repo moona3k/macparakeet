@@ -1,0 +1,49 @@
+Sources/MacParakeetCore/Audio/README.md
+  s_ef822ca118a414::t_9451971c626526 365-368,414-416
+  s_ef822ca118a414::t_358697d483e295 27-29,363-364,369-375,388-390,400,409-413,417-420
+  s_ef822ca118a414::t_3cc436b58ec7ec 421
+Tests/MacParakeetTests/Audio/MutableMicrophoneTapHandlerTests.swift
+  s_ef822ca118a414::t_c074f7232d425a 63,74,81,90,156-157,192-207,245-286,292-295,301-350,393-395
+  s_ef822ca118a414::t_675ff9a3a2052f 144
+  s_ef822ca118a414::t_edfef4ca17d904 141-143,145-155,158-164,171-176
+  s_ef822ca118a414::t_7cdd499e2315b4 165-170,208-244,287-291,296-300
+  s_ef822ca118a414::t_fd0386a6fca526 396
+docs/audits/2026-09-14-issue-1032-bluetooth-silence.md
+  s_ef822ca118a414::t_675ff9a3a2052f 1-26
+  s_ef822ca118a414::t_8b12badea47d87 27-37
+spec/05-audio-pipeline.md
+  s_ef822ca118a414::t_1c670544807bbf 20
+  s_ef822ca118a414::t_d91dfe4913563f 19,322
+docs/audits/2026-09-14-issue-1033-airpods-disconnect.md
+  s_ef822ca118a414::t_8b12badea47d87 1-49
+Sources/MacParakeetCore/Audio/MicrophoneEnginePlatform.swift
+  s_ef822ca118a414::t_64a8fe9db2b620 314,317,320-321,325
+  s_ef822ca118a414::t_274c4294c0bf0b 81-104,128-130,132,135,182-184,186,196,198-222,225-231,238,256-257,292-294,297,300-303,306-308,310,315-316,318-319,322-324,326,329-330,332-346,348-352,354-356,358,365,370-371,373,375-377,400
+  s_ef822ca118a414::t_7de7d16860f417 131,185,263,347,353,500-502,510,646,665,682,1571,1615,1744,1747,1812,1843-1845,1850,1868-1869,1871,1874,1877,1901-1902,1914-1915,1917-1924,1926,2015
+Tests/MacParakeetTests/Audio/MicrophoneEnginePlatformConfigChangeRecoveryTests.swift
+  s_ef822ca118a414::t_efac9448490d29 920-923,934
+  s_ef822ca118a414::t_c6eff846f61def 966-1013
+  s_ef822ca118a414::t_edfef4ca17d904 919,924-933,935-965
+  s_ef822ca118a414::t_21522ca1773a1d 1014-1020,1029-1030,1054,1088,1097,1108,1115-1116,1131,1157,1159,1172,1181-1182,1197,1221,1223,1229,1232
+  s_ef822ca118a414::t_5a446693ceb391 1236,1238
+Tests/MacParakeetTests/Audio/MicrophoneEnginePlatformStartupReadinessTests.swift
+  s_ef822ca118a414::t_50889d7c2b4e1e 630,686-687
+spec/adr/025-meeting-capture-reliability.md
+  s_ef822ca118a414::t_27a19c69db7b9f 82-103,433-436
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "df01ce8055886905d817bd23ca951ad98fa9d791",
+  "prompts": {},
+  "sessions": {
+    "s_ef822ca118a414": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a094-51e0-74d2-9f9e-72652998f1d6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
