@@ -118,7 +118,7 @@ final class MeetingImportServiceTests: XCTestCase {
             ])
         for input in [silentVideo, try source("corrupt.wav")] {
             do {
-                _ = try await service(audioConverter: AudioFileConverter()).importMeeting(.init(sourceURL: input));
+                _ = try await service(audioConverter: AudioFileConverter()).importMeeting(.init(sourceURL: input))
                 XCTFail("Expected no usable audio")
             } catch {}
         }
@@ -288,7 +288,7 @@ final class MeetingImportServiceTests: XCTestCase {
         }
     }
 
-    func testPreRowConversionAndPreparationCancellationRemoveOwnedFolders() async throws {
+    func testPrePublicationCancellationCleansStagingAndPostPublicationFailurePreservesRecoveryArchive() async throws {
         converter.failure = CancellationError()
         do {
             _ = try await service().importMeeting(.init(sourceURL: source())); XCTFail("Expected cancellation")
@@ -299,7 +299,12 @@ final class MeetingImportServiceTests: XCTestCase {
         do {
             _ = try await service().importMeeting(.init(sourceURL: source())); XCTFail("Expected cancellation")
         } catch is CancellationError {}
-        XCTAssertTrue(try folders().isEmpty)
+        let publishedFolders = try folders()
+        XCTAssertEqual(publishedFolders.count, 1)
+        let folder = try XCTUnwrap(publishedFolders.first)
+        let lock = try XCTUnwrap(MeetingRecordingLockFileStore().read(folderURL: folder))
+        XCTAssertEqual(lock.state, .awaitingTranscription)
+        XCTAssertNil(lock.finalizationLeaseId)
         XCTAssertEqual(try repo.count(), 0)
     }
 

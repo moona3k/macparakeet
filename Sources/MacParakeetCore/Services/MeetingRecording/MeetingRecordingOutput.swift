@@ -306,5 +306,8 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
             && lhs.startContext == rhs.startContext
             && lhs.userNotes == rhs.userNotes
             && lhs.calendarEventSnapshot == rhs.calendarEventSnapshot
+            && lhs.startedAt == rhs.startedAt
+            && lhs.audioRetentionStartedAt == rhs.audioRetentionStartedAt
+            && lhs.titleOverride == rhs.titleOverride
     }
 }

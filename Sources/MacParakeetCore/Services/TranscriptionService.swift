@@ -1399,7 +1399,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
     private func makeMeetingTranscriptionStub(recording: MeetingRecordingOutput) -> Transcription {
         Transcription(
             createdAt: recording.startedAt ?? Date(),
-            fileName: recording.displayName,
+            fileName: recording.titleOverride ?? recording.displayName,
             filePath: recording.mixedAudioURL.path,
             meetingArtifactFolderPath: recording.folderURL.path,
             fileSizeBytes: meetingFileSize(for: recording),

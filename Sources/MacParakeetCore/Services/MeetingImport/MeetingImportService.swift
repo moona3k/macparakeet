@@ -156,13 +156,13 @@ public actor MeetingImportService {
         let staging = root.appendingPathComponent(Self.stagingPrefix + sessionID.uuidString, isDirectory: true)
         let final = root.appendingPathComponent(sessionID.uuidString, isDirectory: true)
         try fileManager.createDirectory(at: staging, withIntermediateDirectories: false)
-        var ownedFolder = staging
+        var finalFolderPublished = false
         var ownership: MeetingFinalizationOwnershipLease?
         var prepared: Transcription?
         defer {
             if prepared == nil {
                 if let ownership { try? lockFileStore.releaseFinalizationOwnership(ownership) }
-                try? fileManager.removeItem(at: ownedFolder)
+                if !finalFolderPublished { try? fileManager.removeItem(at: staging) }
             }
         }
         onProgress?(.preparingMedia)
@@ -195,7 +195,7 @@ public actor MeetingImportService {
                 audioRetentionStartedAt: retentionStartedAt, titleOverride: defaults.titleOverride), folderURL: staging)
         try Task.checkCancellation()
         try fileManager.moveItem(at: staging, to: final)
-        ownedFolder = final
+        finalFolderPublished = true
         let claimed = try lockFileStore.claimFinalizationOwnership(folderURL: final)
         ownership = claimed
         let recording = MeetingRecordingOutput(

@@ -107,7 +107,9 @@ extension MeetingsCommand {
             if value.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil {
                 let formatter = DateFormatter()
                 formatter.locale = Locale(identifier: "en_US_POSIX")
-                formatter.calendar = Calendar.current
+                var calendar = Calendar(identifier: .gregorian)
+                calendar.timeZone = .current
+                formatter.calendar = calendar
                 formatter.timeZone = .current
                 formatter.dateFormat = "yyyy-MM-dd"
                 guard let date = formatter.date(from: value), formatter.string(from: date) == value else {

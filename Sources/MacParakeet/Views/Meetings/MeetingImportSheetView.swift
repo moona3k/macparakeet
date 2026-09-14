@@ -407,9 +407,15 @@ struct MeetingImportSheetView: View {
     private func meetingMetadata(for transcription: Transcription) -> String {
         let date = transcription.createdAt.formatted(date: .abbreviated, time: .shortened)
         guard let durationMs = transcription.durationMs else { return date }
-        let minutes = durationMs / 60_000
-        let seconds = durationMs / 1_000 % 60
-        return "\(date) · \(minutes):\(String(format: "%02d", seconds))"
+        let totalSeconds = durationMs / 1_000
+        let hours = totalSeconds / 3_600
+        let minutes = totalSeconds / 60 % 60
+        let seconds = totalSeconds % 60
+        let duration =
+            hours > 0
+            ? String(format: "%d:%02d:%02d", hours, minutes, seconds)
+            : String(format: "%d:%02d", minutes, seconds)
+        return "\(date) · \(duration)"
     }
 
     private func completionAvailabilityMessage(for terminal: MeetingImportViewModel.TerminalResult) -> String {

@@ -1863,7 +1863,7 @@ final class TranscriptionServiceTests: XCTestCase {
         let startedAt = Date(timeIntervalSince1970: 1_650_000_000)
         let retentionStartedAt = Date(timeIntervalSince1970: 1_800_000_000)
         let recording = try makeOneSourceMeetingRecording(
-            displayName: "Partnership discussion",
+            displayName: "Fallback source name",
             startedAt: startedAt,
             audioRetentionStartedAt: retentionStartedAt,
             titleOverride: "Partnership discussion"
@@ -1879,6 +1879,7 @@ final class TranscriptionServiceTests: XCTestCase {
         let fetched = try XCTUnwrap(transcriptionRepo.fetch(id: stub.id))
         XCTAssertEqual(fetched.createdAt, startedAt)
         XCTAssertEqual(fetched.audioRetentionStartedAt, retentionStartedAt)
+        XCTAssertEqual(fetched.fileName, "Partnership discussion")
         XCTAssertEqual(fetched.titleOverride, "Partnership discussion")
     }
 

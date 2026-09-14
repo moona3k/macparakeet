@@ -73,6 +73,5 @@ struct SavedMeetingProcessingContext {
             )
         )
         recordingsRootURL = meetingRecordingsRootURL(defaults: defaults)
-        try FileManager.default.createDirectory(at: recordingsRootURL, withIntermediateDirectories: true)
     }
 }
