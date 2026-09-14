@@ -100,8 +100,10 @@ Treat an external final review as a SHA-bound merge gate:
    verdict token in an assistant response or successful result event.
 4. For Claude print-mode review, exclude `Task` and other delegation tools.
    Keep normal session persistence so an interrupted run can be resumed.
-5. Diagnose heavyweight reviewers serially so failure evidence belongs to one
-   invocation. If a process is killed or returns no output, preserve the exit
+5. Run independent final reviewers in parallel by default when each uses an
+   isolated read-only session against the same pushed SHA. If one reviewer is
+   killed, returns no output, or behaves inconsistently, let healthy reviews
+   finish and diagnose only the failing reviewer serially. Preserve its exit
    status and change one invocation boundary at a time.
 6. If any commit lands after either review, including a documentation-only
    commit, rerun both reviewers on the new pushed HEAD.
