@@ -62,6 +62,28 @@ final class MeetingImportViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.draft)
     }
 
+    func testCompletedSettlementWarningDoesNotSuggestRetryingTranscription() async throws {
+        let transcription = meeting(status: .completed)
+        let viewModel = MeetingImportViewModel(
+            run: { _, _ in
+                MeetingImportResult(
+                    transcription: transcription,
+                    warnings: [.settlementFailed(message: "private cleanup detail")]
+                )
+            }
+        )
+        XCTAssertTrue(viewModel.select(sourceURL: sourceURL))
+        XCTAssertTrue(viewModel.startImport())
+
+        try await waitUntil { !viewModel.isProcessing }
+
+        XCTAssertEqual(viewModel.terminalResult?.outcome, .partial)
+        XCTAssertEqual(
+            viewModel.terminalResult?.warnings,
+            ["Some saved-meeting details need attention. The transcript is ready."]
+        )
+    }
+
     func testStopBeforePublicationReturnsToEditableDraft() async throws {
         let gate = ImportGate()
         let viewModel = MeetingImportViewModel(run: { _, progress in

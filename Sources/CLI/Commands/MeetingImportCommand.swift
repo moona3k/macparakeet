@@ -277,7 +277,13 @@ private func printMeetingImport(_ record: MeetingImportRecord) {
     switch record.completion {
     case MeetingImportResult.Completion.completed.rawValue,
         MeetingImportResult.Completion.partial.rawValue:
-        print("  Transcript, search, and playback are ready. Your source recording was unchanged.")
+        if record.managedAudioPath == nil {
+            print(
+                "  Transcript and search are ready. Managed audio was removed by your retention setting. Your source recording was unchanged."
+            )
+        } else {
+            print("  Transcript, search, and playback are ready. Your source recording was unchanged.")
+        }
     default:
         print(
             "  Meeting and managed audio are saved. Open it and choose Retry Transcription; do not import the file again."

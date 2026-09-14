@@ -162,7 +162,10 @@ public final class MeetingImportViewModel {
                 terminalResult = TerminalResult(
                     transcription: result.transcription,
                     outcome: Self.outcome(for: result.completion),
-                    warnings: result.warnings.map(Self.message(for:)), errorMessage: nil
+                    warnings: result.warnings.map {
+                        Self.message(for: $0, transcriptionStatus: result.transcription.status)
+                    },
+                    errorMessage: nil
                 )
             } catch is CancellationError {
                 guard processingGeneration == generation else { return }
@@ -249,11 +252,19 @@ public final class MeetingImportViewModel {
         }
     }
 
-    private static func message(for warning: MeetingImportWarning) -> String {
+    private static func message(
+        for warning: MeetingImportWarning,
+        transcriptionStatus: Transcription.TranscriptionStatus
+    ) -> String {
         switch warning {
-        case .transcriptionFailed(_), .persistenceFailed(_), .settlementFailed(_),
-            .ownershipReleaseFailed(_):
+        case .transcriptionFailed(_):
             "Transcription needs another try. The saved meeting is available in Meetings."
+        case .persistenceFailed(_), .settlementFailed(_), .ownershipReleaseFailed(_):
+            if transcriptionStatus == .completed {
+                "Some saved-meeting details need attention. The transcript is ready."
+            } else {
+                "Transcription needs another try. The saved meeting is available in Meetings."
+            }
         case .audioRetentionFailed:
             "The managed audio could not be removed for your retention setting. The transcript is ready."
         case .automationFailed(_), .knowledgeCardFailed(_), .artifactRefreshFailed(_):

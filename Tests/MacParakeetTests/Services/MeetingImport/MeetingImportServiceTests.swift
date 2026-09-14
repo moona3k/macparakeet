@@ -406,6 +406,22 @@ final class MeetingImportServiceTests: XCTestCase {
             FileManager.default.fileExists(
                 atPath: folder.appendingPathComponent(MeetingArtifactAudioFileNames.rawSystem).path))
     }
+
+    func testDeleteImmediatelyRetentionFailureReturnsDurablePartialResult() async throws {
+        let result = try await service(
+            fileManager: RemovalFailingFileManager(), retentionConfig: { .deleteImmediately }
+        ).importMeeting(.init(sourceURL: source()))
+
+        XCTAssertEqual(result.completion, .partial)
+        XCTAssertEqual(result.transcription.status, .completed)
+        XCTAssertTrue(
+            result.warnings.contains { warning in
+                if case .audioRetentionFailed = warning { return true }
+                return false
+            }
+        )
+        XCTAssertEqual(try repo.fetch(id: result.transcription.id)?.status, .completed)
+    }
 }
 
 private enum TestFailure: Error { case failed }
@@ -484,6 +500,10 @@ private struct ImportCompletion: SavedAudioAutoPromptCompletionServicing {
 
 private final class LinkFailingFileManager: FileManager {
     override func linkItem(at srcURL: URL, to dstURL: URL) throws { throw TestFailure.failed }
+}
+
+private final class RemovalFailingFileManager: FileManager {
+    override func removeItem(at URL: URL) throws { throw TestFailure.failed }
 }
 
 private struct DeleteFailingLockStore: MeetingRecordingLockFileStoring, MeetingFinalizationOwnershipClaiming {

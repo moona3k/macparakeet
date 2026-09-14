@@ -424,6 +424,14 @@ enum CLIErrorType {
     static let validation = "validation"
 
     static func key(for error: Error) -> String {
+        if let importError = error as? MeetingImportError {
+            switch importError {
+            case .invalidSource, .unsupportedFormat, .blankTitle:
+                return validation
+            case .invalidAudio:
+                return runtime
+            }
+        }
         if let llm = error as? LLMError {
             switch llm {
             case .notConfigured: return config

@@ -146,10 +146,16 @@ final class MeetingImportCommandTests: XCTestCase {
     }
 
     func testImportErrorValidationTaxonomy() {
-        XCTAssertTrue(isCLIValidationMisuse(MeetingImportError.invalidSource))
-        XCTAssertTrue(isCLIValidationMisuse(MeetingImportError.unsupportedFormat))
-        XCTAssertTrue(isCLIValidationMisuse(MeetingImportError.blankTitle))
+        for error in [
+            MeetingImportError.invalidSource,
+            .unsupportedFormat,
+            .blankTitle,
+        ] {
+            XCTAssertTrue(isCLIValidationMisuse(error))
+            XCTAssertEqual(CLIErrorType.key(for: error), CLIErrorType.validation)
+        }
         XCTAssertFalse(isCLIValidationMisuse(MeetingImportError.invalidAudio))
+        XCTAssertEqual(CLIErrorType.key(for: MeetingImportError.invalidAudio), CLIErrorType.runtime)
     }
 
     func testRecordOmitsManagedAudioPathAfterRetentionRemovesAudio() {
@@ -158,6 +164,21 @@ final class MeetingImportCommandTests: XCTestCase {
         transcription.meetingArtifactFolderPath = "/managed/meeting"
 
         XCTAssertNil(MeetingImportRecord(.init(transcription: transcription)).managedAudioPath)
+    }
+
+    func testHumanResultExplainsWhenRetentionRemovedManagedAudio() async throws {
+        var retainedTranscription = meeting(status: .completed)
+        retainedTranscription.filePath = nil
+        let transcription = retainedTranscription
+        let importRunner: MeetingImportRunning = { _, _ in MeetingImportResult(transcription: transcription) }
+        let command = try MeetingsCommand.ImportSubcommand.parse([sourceURL.path])
+
+        let output = try await captureStandardOutput { try await command.run(importRunner: importRunner) }
+
+        XCTAssertTrue(output.contains("Transcript and search are ready."))
+        XCTAssertTrue(output.contains("Managed audio was removed by your retention setting."))
+        XCTAssertTrue(output.contains("Your source recording was unchanged."))
+        XCTAssertFalse(output.contains("playback are ready"))
     }
 
     private func meeting(status: Transcription.TranscriptionStatus) -> Transcription {

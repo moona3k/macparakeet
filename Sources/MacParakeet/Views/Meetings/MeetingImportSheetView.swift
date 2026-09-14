@@ -197,7 +197,7 @@ struct MeetingImportSheetView: View {
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
             }
             if terminal.outcome == .completed || terminal.outcome == .partial {
-                Text("Transcript, search, and playback are ready. Your original recording was not changed.")
+                Text(completionAvailabilityMessage(for: terminal))
                     .font(DesignSystem.Typography.bodySmall)
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
             }
@@ -303,6 +303,14 @@ struct MeetingImportSheetView: View {
         let minutes = durationMs / 60_000
         let seconds = durationMs / 1_000 % 60
         return "\(date) · \(minutes):\(String(format: "%02d", seconds))"
+    }
+
+    private func completionAvailabilityMessage(for terminal: MeetingImportViewModel.TerminalResult) -> String {
+        if terminal.transcription?.filePath == nil {
+            return
+                "Transcript and search are ready. Managed audio was removed by your meeting-audio retention setting. Your original recording was not changed."
+        }
+        return "Transcript, search, and playback are ready. Your original recording was not changed."
     }
 
     private func terminalTitle(for terminal: MeetingImportViewModel.TerminalResult) -> String {
