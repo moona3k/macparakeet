@@ -1,0 +1,22 @@
+AGENTS.md
+  s_40854eda65ef0b::t_32060ae37b8887 176-178
+docs/solutions/workflow-issues/reliable-noninteractive-external-final-reviews.md
+  s_40854eda65ef0b::t_72a0059a325da0 26-27,38-39,41-42,81-83,91
+  s_40854eda65ef0b::t_136b152d1a57fc 1-25,28-37,40,43-80,84-90,92-186
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "41e4a1aa85966d79cf00e505bd33e0b50e74eb14",
+  "prompts": {},
+  "sessions": {
+    "s_40854eda65ef0b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09cc0-83c9-73d2-af78-ce0480aa0477",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
