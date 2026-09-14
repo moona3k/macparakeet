@@ -720,12 +720,19 @@ public final class TranscriptionLibraryViewModel {
         if loadTask != nil {
             cancelActiveLoad()
         }
-        guard let refreshed = try repo.fetch(id: id) else {
+        guard let refreshed = try repo.fetchLibraryItem(id: id) else {
             removeLoadedTranscriptions(withIDs: [id])
             return
         }
-        transcriptions[index] = refreshed
-        publishLoadedItems(transcriptions, hasMore: hasMore, filter: displayedFilter)
+        transcriptions[index] = refreshed.transcription
+        var updatedEffectiveText = effectiveTranscriptTextByID
+        updatedEffectiveText[id] = refreshed.effectiveTranscriptText
+        publishLoadedItems(
+            transcriptions,
+            hasMore: hasMore,
+            filter: displayedFilter,
+            effectiveTranscriptTextByID: updatedEffectiveText
+        )
     }
 
     private func cancelActiveLoad() {

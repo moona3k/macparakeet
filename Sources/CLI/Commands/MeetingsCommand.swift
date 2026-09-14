@@ -68,7 +68,7 @@ struct MeetingsCommand: AsyncParsableCommand {
                 let labelIDs = try Set(label.map {
                     try findMeetingLabel($0, repo: labelRepo, includeArchived: true).id
                 })
-                let meetings = try repositories.transcriptions.fetchLibraryPage(
+                let page = try repositories.transcriptions.fetchLibraryPage(
                     query: TranscriptionLibraryQuery(
                         sourceType: .meeting,
                         meetingTypeIDs: typeIDs,
@@ -77,18 +77,16 @@ struct MeetingsCommand: AsyncParsableCommand {
                         limit: limit,
                         includeProcessing: true
                     )
-                ).items
+                )
+                let meetings = page.items
                 let promptResultCounts = try repositories.promptResults.counts(
                     transcriptionIds: meetings.map(\.id)
                 )
                 let classificationService = MeetingClassificationService(dbQueue: repositories.database.dbQueue)
                 let items = try meetings.map { transcription in
-                    let effectiveTranscription = try repositories.speakerAttributionReader
-                        .effectiveTranscription(
-                            for: transcription
-                        )
                     return MeetingListItem(
-                        effectiveTranscription,
+                        transcription,
+                        effectiveTranscriptText: page.effectiveTranscriptTextByID[transcription.id],
                         promptResultCount: promptResultCounts[transcription.id] ?? 0,
                         classification: try classificationService.classification(for: transcription.id)
                     )
@@ -936,6 +934,7 @@ private struct MeetingListItem: Encodable {
 
     init(
         _ transcription: Transcription,
+        effectiveTranscriptText: String? = nil,
         promptResultCount: Int = 0,
         classification: MeetingClassification = MeetingClassification(meetingType: nil, labels: [])
     ) {
@@ -951,7 +950,7 @@ private struct MeetingListItem: Encodable {
         notesPreview = preview(transcription.userNotes)
         self.promptResultCount = promptResultCount
         hasPromptResults = promptResultCount > 0
-        let transcript = preferredTranscriptText(transcription)
+        let transcript = effectiveTranscriptText ?? preferredTranscriptText(transcription)
         hasTranscript = !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         transcriptPreview = preview(transcript)
         let artifactFolder = MeetingArtifactStore.sessionFolderURL(for: transcription)

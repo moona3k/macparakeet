@@ -20,6 +20,7 @@ public protocol TranscriptionRepositoryProtocol: Sendable {
     func fetch(id: UUID) throws -> Transcription?
     func fetchAll(limit: Int?) throws -> [Transcription]
     func fetchLibraryPage(query: TranscriptionLibraryQuery) throws -> TranscriptionLibraryPage
+    func fetchLibraryItem(id: UUID) throws -> TranscriptionLibraryItem?
     func fetchByFilePath(_ filePath: String, sourceType: Transcription.SourceType?) throws -> [Transcription]
     func fetchMeetings(withStatus status: Transcription.TranscriptionStatus) throws -> [Transcription]
     func fetchMeetingAudioRetentionCandidates(createdAtOrBefore cutoff: Date) throws -> [Transcription]
@@ -85,6 +86,11 @@ extension TranscriptionRepositoryProtocol {
     public func fetchCompletedByVideoID(_ videoID: String) throws -> Transcription? { nil }
     public func count() throws -> Int { try fetchAll(limit: nil).count }
     public func search(query: String, limit: Int?) throws -> [Transcription] { [] }
+    public func fetchLibraryItem(id: UUID) throws -> TranscriptionLibraryItem? {
+        try fetch(id: id).map {
+            TranscriptionLibraryItem(transcription: $0, effectiveTranscriptText: nil)
+        }
+    }
     public func fetchLibraryPage(query: TranscriptionLibraryQuery) throws -> TranscriptionLibraryPage {
         var results = try fetchAll(limit: nil)
 
@@ -347,6 +353,21 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
         }
     }
 
+    public func fetchLibraryItem(id: UUID) throws -> TranscriptionLibraryItem? {
+        try dbQueue.read { db in
+            guard let transcription = try Transcription.fetchOne(db, key: id) else { return nil }
+            let effectiveTranscriptText = try Self.effectiveLibraryTranscriptText(
+                for: transcription,
+                activeTextCorrectionIDs: Self.activeTextCorrectionTranscriptionIDs(in: db),
+                in: db
+            )
+            return TranscriptionLibraryItem(
+                transcription: transcription,
+                effectiveTranscriptText: effectiveTranscriptText
+            )
+        }
+    }
+
     private static func fetchUnicodeSearchLibraryPage(
         db: Database,
         whereClauses: [String],
@@ -367,14 +388,14 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
             sql: sql,
             arguments: StatementArguments(arguments)
         )
-        let activeCorrectionIDs = try activeCorrectionTranscriptionIDs(in: db)
+        let activeTextCorrectionIDs = try activeTextCorrectionTranscriptionIDs(in: db)
         var skipped = 0
         var items: [Transcription] = []
         var effectiveTranscriptTextByID: [UUID: String] = [:]
         while let transcription = try cursor.next() {
             let effectiveTranscriptText = try effectiveLibraryTranscriptText(
                 for: transcription,
-                activeCorrectionIDs: activeCorrectionIDs,
+                activeTextCorrectionIDs: activeTextCorrectionIDs,
                 in: db
             )
             guard transcriptionMatchesLibrarySearch(
@@ -539,13 +560,13 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
                 try Transcription
                 .order(Transcription.Columns.createdAt.desc)
                 .fetchCursor(db)
-            let activeCorrectionIDs = try Self.activeCorrectionTranscriptionIDs(in: db)
+            let activeTextCorrectionIDs = try Self.activeTextCorrectionTranscriptionIDs(in: db)
 
             var results: [Transcription] = []
             while let transcription = try cursor.next() {
                 let effectiveTranscriptText = try Self.effectiveLibraryTranscriptText(
                     for: transcription,
-                    activeCorrectionIDs: activeCorrectionIDs,
+                    activeTextCorrectionIDs: activeTextCorrectionIDs,
                     in: db
                 )
                 guard transcriptionMatchesLibrarySearch(
@@ -846,31 +867,62 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
         for transcriptions: [Transcription],
         in db: Database
     ) throws -> [UUID: String] {
-        let activeCorrectionIDs = try activeCorrectionTranscriptionIDs(in: db)
+        let activeTextCorrectionIDs = try activeTextCorrectionTranscriptionIDs(in: db)
         return try transcriptions.reduce(into: [:]) { result, transcription in
             result[transcription.id] = try effectiveLibraryTranscriptText(
                 for: transcription,
-                activeCorrectionIDs: activeCorrectionIDs,
+                activeTextCorrectionIDs: activeTextCorrectionIDs,
                 in: db
             )
         }
     }
 
-    private static func activeCorrectionTranscriptionIDs(in db: Database) throws -> Set<UUID> {
-        Set(
-            try SpeakerCorrectionState
-                .filter(Column("headId") != nil)
-                .fetchAll(db)
-                .map(\.transcriptionId)
+    private static func activeTextCorrectionTranscriptionIDs(in db: Database) throws -> Set<UUID> {
+        try Set(
+            UUID.fetchAll(
+                db,
+                sql: """
+                    SELECT DISTINCT state.transcriptionId
+                    FROM speaker_correction_states AS state
+                    JOIN speaker_corrections AS head
+                      ON head.id = state.headId
+                     AND head.transcriptionId = state.transcriptionId
+                     AND head.transcriptFingerprint = state.transcriptFingerprint
+                    JOIN speaker_corrections AS edit
+                      ON edit.transcriptionId = state.transcriptionId
+                     AND edit.transcriptFingerprint = state.transcriptFingerprint
+                    WHERE state.headId IS NOT NULL
+                      AND edit.branchState = ?
+                      AND edit.operation IN (?, ?)
+                      AND edit.sequence <= head.sequence
+                      AND NOT EXISTS (
+                        SELECT 1
+                        FROM speaker_corrections AS reset
+                        WHERE reset.transcriptionId = edit.transcriptionId
+                          AND reset.transcriptFingerprint = edit.transcriptFingerprint
+                          AND reset.branchState = ?
+                          AND reset.operation = ?
+                          AND reset.sequence > edit.sequence
+                          AND reset.sequence <= head.sequence
+                      )
+                    """,
+                arguments: [
+                    SpeakerCorrectionBranchState.current.rawValue,
+                    SpeakerCorrectionOperation.editText.rawValue,
+                    SpeakerCorrectionOperation.mergeSegments.rawValue,
+                    SpeakerCorrectionBranchState.current.rawValue,
+                    SpeakerCorrectionOperation.reset.rawValue,
+                ]
+            )
         )
     }
 
     private static func effectiveLibraryTranscriptText(
         for transcription: Transcription,
-        activeCorrectionIDs: Set<UUID>,
+        activeTextCorrectionIDs: Set<UUID>,
         in db: Database
     ) throws -> String? {
-        guard activeCorrectionIDs.contains(transcription.id) else { return nil }
+        guard activeTextCorrectionIDs.contains(transcription.id) else { return nil }
         let projection = try SpeakerAttributionReadService.resolve(
             transcription: transcription,
             in: db

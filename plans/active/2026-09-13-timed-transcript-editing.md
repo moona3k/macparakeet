@@ -108,6 +108,13 @@ smoke tests, accessibility labels, and a manual app smoke pass.
   focused correction-service, Library view-model, and CLI tests with zero
   failures. Timed-correction help and the machine-readable CLI spec rendered
   successfully again.
+- Recovering that review through Cursor's structured output exposed two more
+  valid integration edges: retry refresh could retain a preview from the old
+  transcript fingerprint, and Library/CLI list reads replayed speaker-only
+  histories unnecessarily. The fixes now refresh the canonical row and its
+  effective preview in one database snapshot, and resolve only histories with
+  active timed-text operations. The 11 correction-service, 61 Library
+  view-model, and 31 CLI meeting tests pass with zero failures.
 - Two independent architecture/code-review passes found and verified fixes for
   automatic-boundary replay and competing whole-transcript/timed-line edits.
 - The non-interactive Cursor and Claude review failure modes and verified

@@ -45,6 +45,73 @@ final class SpeakerCorrectionServiceTests: XCTestCase {
         XCTAssertTrue(try fixture.transcriptions.search(query: "hello world", limit: nil).isEmpty)
     }
 
+    func testLibraryProjectionOnlyResolvesActiveTimedTextHistory() async throws {
+        let fixture = try Fixture()
+        let target = SpeakerCorrectionTarget(
+            anchorTranscriptSegmentIDs: [try XCTUnwrap(fixture.transcription.transcriptSegments?.first?.id)],
+            wordRange: .init(startIndex: 0, endIndexExclusive: 2)
+        )
+        let renamed = try await fixture.service.apply(
+            transcriptionId: fixture.transcription.id,
+            command: .rename(speakerID: "S1", label: "Alice"),
+            expectedFingerprint: fixture.fingerprint,
+            expectedRevision: 0
+        )
+        XCTAssertNil(
+            try fixture.transcriptions.fetchLibraryItem(id: fixture.transcription.id)?.effectiveTranscriptText
+        )
+
+        let edited = try await fixture.service.apply(
+            transcriptionId: fixture.transcription.id,
+            command: .editText(target: target, text: "Corrected greeting."),
+            expectedFingerprint: fixture.fingerprint,
+            expectedRevision: renamed.revision
+        )
+        XCTAssertEqual(
+            try fixture.transcriptions.fetchLibraryItem(id: fixture.transcription.id)?.effectiveTranscriptText,
+            "Corrected greeting."
+        )
+
+        let undone = try await fixture.service.undo(
+            transcriptionId: fixture.transcription.id,
+            expectedFingerprint: fixture.fingerprint,
+            expectedRevision: edited.revision
+        )
+        XCTAssertNil(
+            try fixture.transcriptions.fetchLibraryItem(id: fixture.transcription.id)?.effectiveTranscriptText
+        )
+
+        let redone = try await fixture.service.redo(
+            transcriptionId: fixture.transcription.id,
+            expectedFingerprint: fixture.fingerprint,
+            expectedRevision: undone.revision
+        )
+        XCTAssertEqual(
+            try fixture.transcriptions.fetchLibraryItem(id: fixture.transcription.id)?.effectiveTranscriptText,
+            "Corrected greeting."
+        )
+
+        let reset = try await fixture.service.apply(
+            transcriptionId: fixture.transcription.id,
+            command: .reset,
+            expectedFingerprint: fixture.fingerprint,
+            expectedRevision: redone.revision
+        )
+        XCTAssertNil(
+            try fixture.transcriptions.fetchLibraryItem(id: fixture.transcription.id)?.effectiveTranscriptText
+        )
+
+        _ = try await fixture.service.undo(
+            transcriptionId: fixture.transcription.id,
+            expectedFingerprint: fixture.fingerprint,
+            expectedRevision: reset.revision
+        )
+        XCTAssertEqual(
+            try fixture.transcriptions.fetchLibraryItem(id: fixture.transcription.id)?.effectiveTranscriptText,
+            "Corrected greeting."
+        )
+    }
+
     func testTimedTextCommandRejectsLegacyUntimedEditWithoutWriting() async throws {
         let fixture = try Fixture(isTranscriptEdited: true)
         let target = SpeakerCorrectionTarget(
@@ -316,6 +383,9 @@ final class SpeakerCorrectionServiceTests: XCTestCase {
         XCTAssertFalse(baseline.canUndo)
         XCTAssertFalse(baseline.canRedo)
         XCTAssertEqual(baseline.effectiveTranscription.speakers?.first?.label, "Speaker 1")
+        XCTAssertNil(
+            try fixture.transcriptions.fetchLibraryItem(id: retranscribed.id)?.effectiveTranscriptText
+        )
 
         do {
             _ = try await fixture.service.undo(

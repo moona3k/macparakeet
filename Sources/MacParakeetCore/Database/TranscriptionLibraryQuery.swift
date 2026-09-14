@@ -67,3 +67,13 @@ public struct TranscriptionLibraryPage: Sendable {
         self.effectiveTranscriptTextByID = effectiveTranscriptTextByID
     }
 }
+
+public struct TranscriptionLibraryItem: Sendable {
+    public let transcription: Transcription
+    public let effectiveTranscriptText: String?
+
+    public init(transcription: Transcription, effectiveTranscriptText: String?) {
+        self.transcription = transcription
+        self.effectiveTranscriptText = effectiveTranscriptText
+    }
+}
