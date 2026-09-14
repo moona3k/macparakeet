@@ -96,11 +96,17 @@ smoke tests, accessibility labels, and a manual app smoke pass.
 
 - Focused correction-model, migration, service, consumer, CLI, view-model, and
   presentation suites passed during implementation.
-- `swift run macparakeet-cli --help` passed on the final implementation head.
-- The final `swift test` gate passed 6,494 XCTest cases and 29 Swift Testing
-  cases with zero failures; 24 environment-gated tests were skipped.
+- The complete pre-review implementation passed 6,494 XCTest cases and 29
+  Swift Testing cases with zero failures; 24 environment-gated tests were
+  skipped. Per the repository's one-full-suite policy, the suite was not run a
+  second time after review refinements.
+- After review fixes and rebasing onto current `origin/main`, the exact code
+  head passed all 121 affected tests with zero failures. The timed-correction
+  command help and machine-readable CLI spec also rendered successfully.
 - Two independent architecture/code-review passes found and verified fixes for
   automatic-boundary replay and competing whole-transcript/timed-line edits.
+- The repository's local Greptile wrapper was attempted on the exact branch
+  head but could not authenticate; hosted review remains part of PR validation.
 
 Merge review and hands-on testing with real saved transcripts remain release
 verification, not implementation blockers.
