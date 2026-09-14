@@ -1,0 +1,35 @@
+Sources/MacParakeetViewModels/TranscriptionLibraryViewModel.swift
+  s_40854eda65ef0b::t_e28f8cac2cf824 723,727-735
+plans/active/2026-09-13-timed-transcript-editing.md
+  s_40854eda65ef0b::t_3fb820adc44494 111-117
+Sources/MacParakeetCore/Database/TranscriptionLibraryQuery.swift
+  s_40854eda65ef0b::t_154cec69c59477 70-79
+Sources/CLI/Commands/MeetingsCommand.swift
+  s_40854eda65ef0b::t_5af295f33f9eb2 71,80-81,88-89,937,953
+Tests/MacParakeetTests/ViewModels/TranscriptionLibraryViewModelTests.swift
+  s_40854eda65ef0b::t_3f0329db92a04c 127-129,153
+  s_40854eda65ef0b::t_3cb27b7201f93c 79-117,126,130-152,154-162
+  s_40854eda65ef0b::t_c1b70c2269a02b 78,118-125
+Sources/MacParakeetCore/Database/TranscriptionRepository.swift
+  s_40854eda65ef0b::t_154cec69c59477 23,89-93,356,358-359,363-366
+  s_40854eda65ef0b::t_1a6ae2b3cb353a 357,360-362,367-370,391,398,563,569,870,874,880,922,925
+  s_40854eda65ef0b::t_7d72072991eefa 881-916
+Tests/MacParakeetTests/Services/SpeakerCorrectionServiceTests.swift
+  s_40854eda65ef0b::t_7e19a2a6e44622 48-114,386-388
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c70283e5762d1f7d827522d02b0568792bb98c34",
+  "prompts": {},
+  "sessions": {
+    "s_40854eda65ef0b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09cc0-83c9-73d2-af78-ce0480aa0477",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
