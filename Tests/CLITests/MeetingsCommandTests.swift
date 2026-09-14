@@ -245,6 +245,115 @@ final class MeetingsCommandTests: XCTestCase {
         }
     }
 
+    func testTimedCorrectionCommandsRejectUnsafeInputsWithoutAdvancingRevision() async throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let db = try DatabaseManager(path: dbURL.path)
+        let repository = TranscriptionRepository(dbQueue: db.dbQueue)
+        let segmentIDs = (0..<4).map { _ in UUID() }
+        let words = [
+            WordTimestamp(word: "one", startMs: 0, endMs: 150, confidence: 1, speakerId: "S1"),
+            WordTimestamp(word: "two", startMs: 3_000, endMs: 3_150, confidence: 1, speakerId: "S1"),
+            WordTimestamp(word: "three", startMs: 6_000, endMs: 6_150, confidence: 1, speakerId: "S2"),
+            WordTimestamp(word: "four", startMs: 9_000, endMs: 9_150, confidence: 1, speakerId: "S2"),
+        ]
+        let speakers = [
+            SpeakerInfo(id: "S1", label: "Alice"),
+            SpeakerInfo(id: "S2", label: "Bob"),
+        ]
+        let meeting = Transcription(
+            fileName: "Unsafe correction inputs",
+            rawTranscript: "one two three four",
+            cleanTranscript: "one two three four",
+            wordTimestamps: words,
+            speakers: speakers,
+            transcriptSegments: words.enumerated().map { index, word in
+                TranscriptSegmentRecord(
+                    id: segmentIDs[index],
+                    startMs: word.startMs,
+                    endMs: word.endMs,
+                    speakerId: word.speakerId,
+                    speakerLabel: index < 2 ? "Alice" : "Bob",
+                    text: word.word,
+                    wordRange: .init(startIndex: index, endIndexExclusive: index + 1)
+                )
+            },
+            status: .completed,
+            sourceType: .meeting
+        )
+        try repository.save(meeting)
+
+        let blankEdit = try MeetingsCommand.CorrectionsSubcommand.EditLine.parse([
+            meeting.id.uuidString,
+            "--segment", segmentIDs[0].uuidString,
+            "--text", "   ",
+            "--expected-revision", "0",
+            "--database", dbURL.path,
+        ])
+        do {
+            try await blankEdit.run()
+            XCTFail("Expected blank replacement text to be rejected")
+        } catch {
+            XCTAssertEqual(error.localizedDescription, "Input is empty.")
+        }
+
+        let outOfOrderMerge = try MeetingsCommand.CorrectionsSubcommand.MergeLines.parse([
+            meeting.id.uuidString,
+            "--segment", segmentIDs[1].uuidString,
+            "--segment", segmentIDs[0].uuidString,
+            "--expected-revision", "0",
+            "--database", dbURL.path,
+        ])
+        do {
+            try await outOfOrderMerge.run()
+            XCTFail("Expected out-of-order segments to be rejected")
+        } catch {
+            XCTAssertEqual(
+                error as? SpeakerCorrectionServiceError,
+                .invalidCommand(.nonAdjacentTargets)
+            )
+        }
+
+        let gappedMerge = try MeetingsCommand.CorrectionsSubcommand.MergeLines.parse([
+            meeting.id.uuidString,
+            "--segment", segmentIDs[0].uuidString,
+            "--segment", segmentIDs[2].uuidString,
+            "--expected-revision", "0",
+            "--database", dbURL.path,
+        ])
+        do {
+            try await gappedMerge.run()
+            XCTFail("Expected non-adjacent segments to be rejected")
+        } catch {
+            XCTAssertEqual(
+                error as? SpeakerCorrectionServiceError,
+                .invalidCommand(.nonAdjacentTargets)
+            )
+        }
+
+        let mixedSpeakerMerge = try MeetingsCommand.CorrectionsSubcommand.MergeLines.parse([
+            meeting.id.uuidString,
+            "--segment", segmentIDs[1].uuidString,
+            "--segment", segmentIDs[2].uuidString,
+            "--expected-revision", "0",
+            "--database", dbURL.path,
+        ])
+        do {
+            try await mixedSpeakerMerge.run()
+            XCTFail("Expected mixed-speaker segments to be rejected")
+        } catch {
+            XCTAssertEqual(
+                error as? SpeakerCorrectionServiceError,
+                .invalidCommand(.mixedAssignments)
+            )
+        }
+
+        XCTAssertNil(
+            try SpeakerCorrectionRepository(dbQueue: db.dbQueue)
+                .fetchState(transcriptionId: meeting.id)
+        )
+    }
+
     func testCorrectionHistoryDirectHelpDocumentsPurposeAndParameters() {
         let commands: [(help: String, purpose: String)] = [
             (

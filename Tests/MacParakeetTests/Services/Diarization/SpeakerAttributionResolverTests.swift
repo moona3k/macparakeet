@@ -170,6 +170,127 @@ final class SpeakerAttributionResolverTests: XCTestCase {
         XCTAssertTrue(resolved.unresolvedCorrections.isEmpty)
     }
 
+    func testTextEditRejectsBlankReplacement() {
+        let transcription = fixture()
+        let fingerprint = SpeakerAttributionResolver.fingerprint(for: transcription)
+        let edit = correction(
+            id: UUID(), parentID: nil, sequence: 1,
+            fingerprint: fingerprint, transcription: transcription,
+            command: .editText(
+                target: target(
+                    .init(startIndex: 0, endIndexExclusive: 4),
+                    transcription: transcription
+                ),
+                text: "  \n  "
+            )
+        )
+
+        let resolved = resolve(transcription, correction: edit, fingerprint: fingerprint)
+
+        XCTAssertEqual(
+            resolved.unresolvedCorrections,
+            [.init(correctionID: edit.id, reason: .invalidText)]
+        )
+        XCTAssertFalse(resolved.hasTextCorrections)
+    }
+
+    func testMergeRejectsNonAdjacentCurrentSegments() {
+        var transcription = fixture()
+        var words = transcription.wordTimestamps ?? []
+        for index in words.indices {
+            words[index].startMs = index * 3_000
+            words[index].endMs = index * 3_000 + 150
+        }
+        transcription.wordTimestamps = words
+        transcription.transcriptSegments = TranscriptSegmenter.materializeSegments(
+            words: words,
+            speakers: transcription.speakers,
+            idGenerator: sequentialUUIDGenerator()
+        )
+        let ranges = TranscriptSegmenter.editableWordRanges(
+            words: words
+        )
+        XCTAssertEqual(ranges.count, 4)
+        let fingerprint = SpeakerAttributionResolver.fingerprint(for: transcription)
+        let merge = correction(
+            id: UUID(), parentID: nil, sequence: 1,
+            fingerprint: fingerprint, transcription: transcription,
+            command: .mergeSegments(
+                targets: [ranges[0], ranges[2]].map {
+                    target($0, transcription: transcription)
+                }
+            )
+        )
+
+        let resolved = resolve(transcription, correction: merge, fingerprint: fingerprint)
+
+        XCTAssertEqual(
+            resolved.unresolvedCorrections,
+            [.init(correctionID: merge.id, reason: .nonAdjacentTargets)]
+        )
+        XCTAssertEqual(resolved.editableSegments.map(\.wordRange), ranges)
+    }
+
+    func testMergeRejectsOutOfOrderCurrentSegments() {
+        let transcription = twoSegmentFixture()
+        let ranges = TranscriptSegmenter.editableWordRanges(
+            words: transcription.wordTimestamps ?? []
+        )
+        let fingerprint = SpeakerAttributionResolver.fingerprint(for: transcription)
+        let merge = correction(
+            id: UUID(), parentID: nil, sequence: 1,
+            fingerprint: fingerprint, transcription: transcription,
+            command: .mergeSegments(
+                targets: ranges.reversed().map {
+                    target($0, transcription: transcription)
+                }
+            )
+        )
+
+        let resolved = resolve(transcription, correction: merge, fingerprint: fingerprint)
+
+        XCTAssertEqual(
+            resolved.unresolvedCorrections,
+            [.init(correctionID: merge.id, reason: .nonAdjacentTargets)]
+        )
+        XCTAssertEqual(resolved.editableSegments.map(\.wordRange), ranges)
+    }
+
+    func testMergeRejectsMixedSpeakerAssignments() {
+        var transcription = twoSegmentFixture()
+        transcription.wordTimestamps?[2].speakerId = "S2"
+        transcription.wordTimestamps?[3].speakerId = "S2"
+        transcription.diarizationSegments = [
+            .init(speakerId: "S1", startMs: 0, endMs: 350),
+            .init(speakerId: "S2", startMs: 3_000, endMs: 3_350),
+        ]
+        transcription.transcriptSegments = TranscriptSegmenter.materializeSegments(
+            words: transcription.wordTimestamps ?? [],
+            speakers: transcription.speakers,
+            idGenerator: sequentialUUIDGenerator()
+        )
+        let ranges = TranscriptSegmenter.editableWordRanges(
+            words: transcription.wordTimestamps ?? []
+        )
+        XCTAssertEqual(ranges.count, 2)
+        let fingerprint = SpeakerAttributionResolver.fingerprint(for: transcription)
+        let merge = correction(
+            id: UUID(), parentID: nil, sequence: 1,
+            fingerprint: fingerprint, transcription: transcription,
+            command: .mergeSegments(
+                targets: ranges.map { target($0, transcription: transcription) }
+            )
+        )
+
+        let resolved = resolve(transcription, correction: merge, fingerprint: fingerprint)
+
+        XCTAssertEqual(
+            resolved.unresolvedCorrections,
+            [.init(correctionID: merge.id, reason: .mixedAssignments)]
+        )
+        XCTAssertEqual(resolved.editableSegments.map(\.wordRange), ranges)
+    }
+
     func testRemovingSplitAtMergedAutomaticBoundaryRestoresMergeAcrossUndoRedo() {
         let transcription = twoSegmentFixture()
         let fingerprint = SpeakerAttributionResolver.fingerprint(for: transcription)
@@ -853,6 +974,23 @@ final class SpeakerAttributionResolverTests: XCTestCase {
             transcriptFingerprint: fingerprint,
             payload: command,
             createdAt: Date(timeIntervalSince1970: TimeInterval(sequence))
+        )
+    }
+
+    private func resolve(
+        _ transcription: Transcription,
+        correction: SpeakerCorrection,
+        fingerprint: TranscriptFingerprint
+    ) -> EffectiveSpeakerAttribution {
+        SpeakerAttributionResolver.resolve(
+            transcription: transcription,
+            corrections: [correction],
+            state: .init(
+                transcriptionId: transcription.id,
+                transcriptFingerprint: fingerprint.rawValue,
+                headId: correction.id,
+                revision: 1
+            )
         )
     }
 

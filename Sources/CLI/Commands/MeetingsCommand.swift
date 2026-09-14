@@ -83,11 +83,12 @@ struct MeetingsCommand: AsyncParsableCommand {
                 )
                 let classificationService = MeetingClassificationService(dbQueue: repositories.database.dbQueue)
                 let items = try meetings.map { transcription in
-                    let projection = try repositories.speakerAttributionReader.resolve(
-                        transcription: transcription
-                    )
+                    let effectiveTranscription = try repositories.speakerAttributionReader
+                        .effectiveTranscription(
+                            for: transcription
+                        )
                     return MeetingListItem(
-                        projection.effectiveTranscription,
+                        effectiveTranscription,
                         promptResultCount: promptResultCounts[transcription.id] ?? 0,
                         classification: try classificationService.classification(for: transcription.id)
                     )

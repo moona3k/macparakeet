@@ -175,8 +175,14 @@ public final class SpeakerAttributionReadService: SpeakerAttributionReading,
         }
     }
 
-    /// Card provenance only needs exported transcript content, not the full
-    /// timed-display projection when no correction branch is active.
+    /// Returns effective content without building the full timed-display
+    /// projection when no correction branch is active.
+    public func effectiveTranscription(for transcription: Transcription) throws -> Transcription {
+        try dbQueue.read { db in
+            try Self.effectiveTranscription(transcription: transcription, in: db)
+        }
+    }
+
     static func effectiveTranscription(
         transcription: Transcription,
         in db: Database

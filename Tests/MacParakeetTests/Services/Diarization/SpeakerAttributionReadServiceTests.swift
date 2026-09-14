@@ -3,6 +3,28 @@ import XCTest
 @testable import MacParakeetCore
 
 final class SpeakerAttributionReadServiceTests: XCTestCase {
+    func testEffectiveTranscriptionReturnsStoredValueWithoutActiveCorrections() throws {
+        let manager = try DatabaseManager()
+        let transcription = fixture()
+        try TranscriptionRepository(dbQueue: manager.dbQueue).save(transcription)
+
+        let effective = try SpeakerAttributionReadService(dbQueue: manager.dbQueue)
+            .effectiveTranscription(for: transcription)
+
+        XCTAssertEqual(effective.id, transcription.id)
+        XCTAssertEqual(effective.rawTranscript, transcription.rawTranscript)
+        XCTAssertEqual(effective.cleanTranscript, transcription.cleanTranscript)
+        XCTAssertEqual(effective.wordTimestamps, transcription.wordTimestamps)
+        XCTAssertEqual(effective.speakers, transcription.speakers)
+        XCTAssertEqual(effective.diarizationSegments, transcription.diarizationSegments)
+        XCTAssertEqual(effective.transcriptSegments, transcription.transcriptSegments)
+        XCTAssertEqual(effective.isTranscriptEdited, transcription.isTranscriptEdited)
+        XCTAssertNil(
+            try SpeakerCorrectionRepository(dbQueue: manager.dbQueue)
+                .fetchState(transcriptionId: transcription.id)
+        )
+    }
+
     func testTextOnlyCorrectionPublishesOneSegmentTimedTranscript() async throws {
         let manager = try DatabaseManager()
         let transcription = fixture()
