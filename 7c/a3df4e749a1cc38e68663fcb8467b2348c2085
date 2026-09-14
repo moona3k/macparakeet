@@ -1,0 +1,35 @@
+spec/03-architecture.md
+  s_b917cce38c86a5::t_0ffbe6b5935308 153-163
+spec/contracts/README.md
+  s_b917cce38c86a5::t_0ffbe6b5935308 38
+spec/contracts/meeting-import-v1.md
+  s_b917cce38c86a5::t_e279cee310181f 31-36,89-90
+README.md
+  s_b917cce38c86a5::t_0ffbe6b5935308 67,82,238
+spec/adr/030-external-meeting-import.md
+  s_b917cce38c86a5::t_e279cee310181f 46-48
+docs/cli-testing.md
+  s_b917cce38c86a5::t_0ffbe6b5935308 4-5,7-13
+docs/plans/2026-09-13-1514-issue-906-meeting-import-plan.md
+  s_b917cce38c86a5::t_e279cee310181f 53
+spec/05-audio-pipeline.md
+  s_b917cce38c86a5::t_e279cee310181f 460-463
+spec/02-features.md
+  s_b917cce38c86a5::t_0ffbe6b5935308 1718-1739
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7ca3df4e749a1cc38e68663fcb8467b2348c2085",
+  "prompts": {},
+  "sessions": {
+    "s_b917cce38c86a5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09cbc-4be8-7390-8404-01e9b48cd014",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

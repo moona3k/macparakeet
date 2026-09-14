@@ -1,0 +1,23 @@
+spec/contracts/meeting-import-v1.md
+  s_b917cce38c86a5::t_788e6c00e477bd 34-36
+Sources/MacParakeet/Views/Meetings/MeetingImportSheetView.swift
+  s_b917cce38c86a5::t_be5314d96d4200 15-18,38-70,142,149,256,321-393
+docs/plans/2026-09-13-1514-issue-906-meeting-import-plan.md
+  s_b917cce38c86a5::t_bbad4b7936a98f 53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ebcc01fc655b5796af1fa5245ea9a40028f7cfab",
+  "prompts": {},
+  "sessions": {
+    "s_b917cce38c86a5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09cbc-4be8-7390-8404-01e9b48cd014",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

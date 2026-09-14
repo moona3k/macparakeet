@@ -1,0 +1,55 @@
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  s_b917cce38c86a5::t_59b6faba53b640 2228-2235
+Sources/MacParakeetCore/Database/MeetingSplitRepository.swift
+  s_b917cce38c86a5::t_fa86a3ecbdb27a 441
+Sources/MacParakeetCore/Database/TranscriptionRepository.swift
+  s_b917cce38c86a5::t_840a4d1deb2654 75,495-496,624-626,842,846-850
+Sources/MacParakeetCore/Models/Transcription.swift
+  s_b917cce38c86a5::t_d5e739e37529ca 20-21,78-80,144,149,349,364
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingAudioRetentionSweeper.swift
+  s_b917cce38c86a5::t_41dcd8adad1055 64
+Sources/MacParakeetCore/Services/MeetingSplit/MeetingSplitService.swift
+  s_b917cce38c86a5::t_b45da5da8a26bd 947
+Tests/MacParakeetTests/Database/DatabaseManagerTests.swift
+  s_b917cce38c86a5::t_8a03a5c834ce7f 22-48
+Tests/MacParakeetTests/Database/MeetingSplitRepositoryTests.swift
+  s_b917cce38c86a5::t_258d86f52ff1da 211-231
+Tests/MacParakeetTests/Database/TranscriptionRepositoryTests.swift
+  s_b917cce38c86a5::t_b7196762acc0d9 15-75
+Tests/MacParakeetTests/Models/TranscriptionModelTests.swift
+  s_b917cce38c86a5::t_c4ce801e3ea095 6-17
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingAudioRetentionSweeperTests.swift
+  s_b917cce38c86a5::t_10d10b808ce87e 27-47
+Tests/MacParakeetTests/Services/MeetingSplit/MeetingSplitServiceTests.swift
+  s_b917cce38c86a5::t_a1e4399af4c05f 1016-1031
+spec/01-data-model.md
+  s_b917cce38c86a5::t_38a60f72145816 295,299,344-345,1110,1114,1651,1675-1676
+spec/05-audio-pipeline.md
+  s_b917cce38c86a5::t_cafb936ea49736 426-430,440-459
+spec/README.md
+  s_b917cce38c86a5::t_77623359de3caa 143-145
+spec/adr/030-external-meeting-import.md
+  s_b917cce38c86a5::t_56e3dd55e71b54 1-56
+spec/contracts/meeting-import-v1.md
+  s_b917cce38c86a5::t_3b22e09ee7181f 1-101
+spec/contracts/meeting-recovery-retention.md
+  s_b917cce38c86a5::t_de90725bf9f1b6 185-194
+spec/contracts/meeting-splitting.md
+  s_b917cce38c86a5::t_b14622377e65ef 82-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f1292598318c8bc3a12d845443b50d57ad388426",
+  "prompts": {},
+  "sessions": {
+    "s_b917cce38c86a5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09cbc-4be8-7390-8404-01e9b48cd014",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
