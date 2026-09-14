@@ -120,7 +120,10 @@ struct MeetingImportSheetView: View {
                 formRow("Meeting title") {
                     TextField(
                         "Meeting title",
-                        text: Binding(get: { viewModel.draft?.title ?? "" }, set: viewModel.updateTitle)
+                        text: Binding(
+                            get: { viewModel.draft?.title ?? "" },
+                            set: { viewModel.updateTitle($0) }
+                        )
                     )
                     .focused($titleFocused)
                     .accessibilityLabel("Meeting title")
@@ -131,7 +134,7 @@ struct MeetingImportSheetView: View {
                         "Meeting date and time",
                         selection: Binding(
                             get: { viewModel.draft?.startedAt ?? Date() },
-                            set: viewModel.updateStartedAt
+                            set: { viewModel.updateStartedAt($0) }
                         ),
                         displayedComponents: [.date, .hourAndMinute]
                     )
@@ -453,6 +456,7 @@ struct MeetingImportSheetView: View {
 }
 
 enum MeetingImportSourcePicker {
+    @MainActor
     static func chooseURL() -> URL? {
         let panel = NSOpenPanel()
         panel.title = "Import Recording"
