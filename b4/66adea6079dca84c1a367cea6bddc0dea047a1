@@ -1,0 +1,21 @@
+Sources/CLI/MacParakeetCLI.swift
+  s_ef822ca118a414::t_10a1c5bdc338bf 11
+Sources/CLI/CHANGELOG.md
+  s_ef822ca118a414::t_10a1c5bdc338bf 92-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b466adea6079dca84c1a367cea6bddc0dea047a1",
+  "prompts": {},
+  "sessions": {
+    "s_ef822ca118a414": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a094-51e0-74d2-9f9e-72652998f1d6",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
