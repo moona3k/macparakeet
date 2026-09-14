@@ -89,6 +89,8 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+## [4.1.0] — 2026-09-14
+
 ### Added
 
 - `meetings show --json` and `meetings transcript --format json` expose
