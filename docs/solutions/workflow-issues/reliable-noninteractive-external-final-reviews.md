@@ -55,11 +55,19 @@ terminations. A later resume failed with `No conversation found with session
 ID` because the original command had explicitly disabled persistence.
 
 A corrected Cursor retry was then launched at the same time as a max-effort
-Sonnet review. Cursor was killed with exit status 137 before emitting any
-output, while Sonnet completed. No OS memory-pressure or jetsam record was
-captured, so the cause is not established. This is execution evidence, not a
-review verdict: rerun the reviewer alone instead of inferring anything about
-the code or model.
+Sonnet review. Cursor was killed with exit status 137 before emitting output,
+while Sonnet completed. Running Cursor alone from both the task worktree and a
+detached linked worktree reproduced the immediate kill, so reviewer concurrency
+was not the cause.
+
+The remaining boundary was Cursor-specific. In a fresh independent clone, a
+no-tools Grok 4.6 prompt succeeded. An Ask-mode shell probe then reported that
+Ask mode blocks the shell, while a Plan-mode probe read the exact Git SHA.
+Detailed review briefs still exited 137 in Cursor Agent
+`2026.09.10-fd3934a`; a concise Plan-mode contract completed the full diff
+review and emitted the required verdict. No OS crash record identified the
+internal reason for the prompt-sensitive termination, so the reliable remedy
+is the verified invocation shape, not a speculative root-cause claim.
 
 ## Guidance
 
@@ -68,22 +76,29 @@ Treat an external final review as a SHA-bound merge gate:
 1. Finish and push every code and documentation change first. Record
    `git rev-parse HEAD`, confirm the task worktree is clean, and put that exact
    SHA in the review prompt.
-2. Run from the clean task worktree. `--add-dir` grants access to an additional
-   root; it does not make that root the primary workspace.
-3. Use a one-shot read-only mode and require a terminal verdict. The response
-   is incomplete unless it names the reviewed SHA and emits the agreed verdict
-   token.
+2. Run from a clean repository root. `--add-dir` grants access to an additional
+   root; it does not make that root the primary workspace. If checkout-local
+   Cursor configuration is invalid or execution remains unstable, use a fresh
+   independent clone at the pushed SHA; a linked worktree still shares its
+   primary repository's Git directory.
+3. Use a one-shot, tool-capable read-only mode and require a terminal verdict.
+   For Cursor this is Plan mode: Ask mode blocks shell commands and cannot
+   verify an exact Git diff. The response is incomplete unless it names the
+   reviewed SHA and emits the agreed verdict token.
 4. For Claude print-mode review, exclude `Task` and other delegation tools.
    Keep normal session persistence so an interrupted run can be resumed.
-5. Run heavyweight final reviewers serially. If a process is killed or returns
-   no output, preserve the exit status and rerun it alone.
+5. Diagnose heavyweight reviewers serially so failure evidence belongs to one
+   invocation. If a process is killed or returns no output, preserve the exit
+   status and change one invocation boundary at a time.
 6. If any commit lands after either review, including a documentation-only
    commit, rerun both reviewers on the new pushed HEAD.
 
 For Cursor, use the clean repository as both the current directory and
-`--workspace`, use `--mode ask` for the final Q&A-style verdict, explicitly
-enable the sandbox, and select the exact installed model ID
-`cursor-grok-4.6-xhigh`.
+`--workspace`, use `--mode plan`, explicitly enable the sandbox, and select the
+exact installed model ID `cursor-grok-4.6-xhigh`. Keep the prompt concise: name
+the diff, read-only boundary, finding threshold, reviewed SHA, and exact verdict
+tokens. A large checklist is less reliable in the affected Cursor build and
+does not substitute for the model reading the repository instructions.
 
 For Claude, `--safe-mode` removes custom agents, plugins, hooks, and MCP
 configuration, while `--tools "Read,Glob,Grep,Bash"` omits `Task`.
@@ -98,8 +113,10 @@ synthesize every child before returning a verdict.
 
 Process state is not a passed review gate. Cursor first returned without its
 promised verdict and later was killed before returning output, while Claude
-returned without a verdict after its child reviews were terminated. Accepting
-any of these outcomes would confuse tool execution with review completion.
+returned without a verdict after its child reviews were terminated. Ask mode
+also succeeded as a process while explicitly declining the shell operation.
+Accepting any of these outcomes would confuse tool execution with review
+completion.
 
 Code and tests do not preserve these orchestration constraints. The important
 boundaries are the CLI workspace root, the tools available to a print-mode
@@ -133,20 +150,21 @@ cursor agent -p --mode plan \
   "Read the brief and review the PR."
 ```
 
-Use the clean task worktree as the real workspace:
+Use a clean independent clone when checkout-local configuration or linked
+worktree execution is suspect, and keep the final contract concise:
 
 ```sh
-review_worktree=/absolute/path/to/clean-task-worktree
-cd "$review_worktree"
+review_clone=/absolute/path/to/clean-independent-clone
+cd "$review_clone"
 
 cursor agent -p \
-  --mode ask \
+  --mode plan \
   --model cursor-grok-4.6-xhigh \
-  --workspace "$review_worktree" \
+  --workspace "$review_clone" \
   --trust \
   --sandbox enabled \
   --output-format text \
-  "Review the exact current HEAD against origin/main. Read AGENTS.md and the full diff. Do not modify files, delegate, or change external state. State the reviewed SHA and finish with exactly FINAL_VERDICT: LGTM or FINAL_VERDICT: CHANGES_REQUIRED."
+  "Analyze git diff origin/main...HEAD for material issues. Read AGENTS.md and relevant files. Read only; do not edit, delegate, or run tests. State the SHA, cite actionable findings, and end exactly FINAL_VERDICT: LGTM or FINAL_VERDICT: CHANGES_REQUIRED."
 ```
 
 Avoid combining unrestricted delegation with an unrecoverable Claude print
