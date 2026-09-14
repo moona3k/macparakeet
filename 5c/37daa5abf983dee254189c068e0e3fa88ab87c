@@ -1,0 +1,117 @@
+Tests/MacParakeetTests/ViewModels/TranscriptionSpeakerCorrectionViewModelTests.swift
+  s_40854eda65ef0b::t_1fc627c6904023 189,270
+  s_40854eda65ef0b::t_e72f5e4696b99d 191,271-272,274
+Tests/MacParakeetTests/Services/Diarization/SpeakerAttributionReadServiceTests.swift
+  s_40854eda65ef0b::t_20feecc499b77c 31,35,44-46,53-72,74-93
+  s_40854eda65ef0b::t_802debec59fb0e 47-52
+  s_40854eda65ef0b::t_5f42d041580ae0 73
+  s_40854eda65ef0b::t_9553890654df1a 94-95
+Sources/MacParakeetCore/Services/Diarization/SpeakerAttributionReadService.swift
+  s_40854eda65ef0b::t_f95901616bd4d0 80-81
+  s_40854eda65ef0b::t_fd9c7ceb0c7b85 82-84,86-88,95-98
+spec/01-data-model.md
+  s_40854eda65ef0b::t_f2ee2c6aaf5606 417-419,423-427
+  s_13790609e34831::t_94fc39afeeb22d 428
+Tests/MacParakeetTests/Services/Diarization/SpeakerAttributionResolverTests.swift
+  s_40854eda65ef0b::t_20feecc499b77c 128-129,135-168
+  s_b917cce38c86a5::t_b061dd946e3bd2 169-170
+spec/contracts/speaker-correction-view-model.md
+  s_40854eda65ef0b::t_e72f5e4696b99d 26,28
+  s_40854eda65ef0b::t_bb161cb40c7fbe 27
+  s_40854eda65ef0b::t_34c6b6bb151c16 20-21,33-34,41-42
+  s_40854eda65ef0b::t_1fc627c6904023 15-16,19,31-32,40,59-61
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingArtifactStore.swift
+  s_40854eda65ef0b::t_fd9c7ceb0c7b85 749,765
+Sources/CLI/Commands/MeetingsCommand.swift
+  s_40854eda65ef0b::t_6fbcdeaa768e2c 89
+  s_40854eda65ef0b::t_7d4f10e4a35565 413-414,1133-1153,1160-1263,1394-1409
+  s_40854eda65ef0b::t_f95901616bd4d0 1154-1159
+  s_40854eda65ef0b::t_7fe2b11d0ddb08 13,86-88,90,208-412
+  s_40854eda65ef0b::t_9fdd1be8e95c4f 415
+  s_40854eda65ef0b::t_d851923122a11c 1410
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingArtifactStoreTests.swift
+  s_40854eda65ef0b::t_a83607099e4012 45-60
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_40854eda65ef0b::t_f57356c0cd44cb 2021-2027,2030-2038,2040,2042-2046,2057-2084
+  s_40854eda65ef0b::t_bb161cb40c7fbe 2028,2039
+  s_40854eda65ef0b::t_bef1f4b30fbe7e 2020
+  s_40854eda65ef0b::t_877e6798585183 2050,2054
+  s_40854eda65ef0b::t_1fc627c6904023 2041
+Tests/MacParakeetTests/Views/TranscriptTimestampedLayoutSmokeTests.swift
+  s_40854eda65ef0b::t_314121459a034f 39-83
+Sources/MacParakeetCore/Models/Transcription.swift
+  s_40854eda65ef0b::t_fd9c7ceb0c7b85 192,309-312,322-323,333
+Sources/MacParakeetCore/Services/Diarization/SpeakerAttributionResolver.swift
+  s_40854eda65ef0b::t_fd9c7ceb0c7b85 31-33,45-46,58,701,724-725
+  s_40854eda65ef0b::t_a50dc2de8a695d 705
+  s_40854eda65ef0b::t_f95901616bd4d0 702-703
+spec/contracts/meeting-artifacts-v1.md
+  s_40854eda65ef0b::t_82ca12e883b4bc 177-180
+  s_40854eda65ef0b::t_d95bd881b9344f 280-283
+  s_40854eda65ef0b::t_62b7ef21580eb3 291-293,322-325
+Sources/CLI/Commands/SpecCommand.swift
+  s_40854eda65ef0b::t_c6de48af4b8696 1314-1315,1318-1328,1331-1346,1349-1361,1364-1376,1379-1391,1394-1397
+  s_40854eda65ef0b::t_f95901616bd4d0 1316-1317,1329-1330,1347-1348,1362-1363,1377-1378,1392-1393
+Sources/MacParakeet/Views/Transcription/TranscriptTimestampedContentView.swift
+  s_40854eda65ef0b::t_103735982ec0c7 958
+Tests/CLITests/MeetingsCommandTests.swift
+  s_40854eda65ef0b::t_eb2134fccaa2ef 163,1444-1450
+  s_40854eda65ef0b::t_d76aac70618645 62,74-82,87-117,120-135,137-162,164-199,444-459,1451
+  s_40854eda65ef0b::t_802debec59fb0e 118-119,136
+  s_40854eda65ef0b::t_8410d10cc828a0 1452
+spec/03-architecture.md
+  s_40854eda65ef0b::t_82ca12e883b4bc 256-257
+Sources/CLI/CHANGELOG.md
+  s_40854eda65ef0b::t_d65a5af02c607a 98-105
+Sources/MacParakeet/Views/Transcription/SpeakerEditSelectionModel.swift
+  s_40854eda65ef0b::t_103735982ec0c7 145-151
+spec/contracts/cli-json-v1.md
+  s_40854eda65ef0b::t_a63ef11a60dd96 203-206,222-226,229-232,235-241
+Tests/MacParakeetTests/Database/DatabaseManagerTests.swift
+  s_40854eda65ef0b::t_abbc6b98ad0d9a 181,188-233,236-237,239-241,243,245,247-250,252,256,258-265
+spec/adr/030-timed-transcript-corrections.md
+  s_40854eda65ef0b::t_f2ee2c6aaf5606 72,74-76,78-79
+Tests/MacParakeetTests/Views/SpeakerEditSelectionModelTests.swift
+  s_40854eda65ef0b::t_65d5e95568abd7 159-169
+  s_40854eda65ef0b::t_103735982ec0c7 158,170-200
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_40854eda65ef0b::t_314121459a034f 8-10,14-19,1513-1516
+  s_40854eda65ef0b::t_103735982ec0c7 4351
+  s_40854eda65ef0b::t_f57356c0cd44cb 638-639,3580,3586-3589,3621,4910,4915-4916,4925-4926,5782-5783,5822,5824-5825
+  s_40854eda65ef0b::t_1fc627c6904023 5823
+  s_40854eda65ef0b::t_a50dc2de8a695d 11-13
+integrations/README.md
+  s_40854eda65ef0b::t_d65a5af02c607a 615-621,625-627,631-635
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5c37daa5abf983dee254189c068e0e3fa88ab87c",
+  "prompts": {},
+  "sessions": {
+    "s_13790609e34831": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "70435c91-2ee4-43ab-8233-e19745b80a10",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_40854eda65ef0b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09cc0-83c9-73d2-af78-ce0480aa0477",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_b917cce38c86a5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09cbc-4be8-7390-8404-01e9b48cd014",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
