@@ -1,0 +1,39 @@
+Sources/CLI/Commands/CLIHelpers.swift
+  s_b917cce38c86a5::t_34779846836331 427-434
+Sources/CLI/Commands/MeetingImportCommand.swift
+  s_b917cce38c86a5::t_0578e20607dcba 280,284-286
+  s_b917cce38c86a5::t_cd7cea6fcf5eab 281-283
+Tests/CLITests/MeetingImportCommandTests.swift
+  s_b917cce38c86a5::t_cd7cea6fcf5eab 180
+  s_b917cce38c86a5::t_86f8ab9c4871d8 149-156,158,169,173-179,181
+  s_b917cce38c86a5::t_e5b2eac0234108 170-172
+  s_b917cce38c86a5::t_5a4addc950ecba 182-183
+Tests/MacParakeetTests/ViewModels/MeetingImportViewModelTests.swift
+  s_b917cce38c86a5::t_86f8ab9c4871d8 65-86
+Sources/MacParakeetViewModels/MeetingImportViewModel.swift
+  s_b917cce38c86a5::t_ea655eb18e9f7b 165-168,255-258,260,262-267
+Sources/MacParakeet/Views/Meetings/MeetingImportSheetView.swift
+  s_b917cce38c86a5::t_4ce499d4323882 200,308-309,312-313
+  s_b917cce38c86a5::t_ed7f3ed8d29b8a 310-311
+  s_b917cce38c86a5::t_5d875de9d47d30 314-315
+Tests/MacParakeetTests/Services/MeetingImport/MeetingImportServiceTests.swift
+  s_b917cce38c86a5::t_ed7f3ed8d29b8a 417-422
+  s_b917cce38c86a5::t_86f8ab9c4871d8 409-416,423-424,505-506
+  s_b917cce38c86a5::t_2cf41f95522562 507-508
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fa8bc70cea2720d4a0b7d2f331d31871a5d4b808",
+  "prompts": {},
+  "sessions": {
+    "s_b917cce38c86a5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09cbc-4be8-7390-8404-01e9b48cd014",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
