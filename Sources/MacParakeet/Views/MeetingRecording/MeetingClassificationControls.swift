@@ -129,9 +129,12 @@ private struct MeetingLabelFilterPopover: View {
     @State private var showingSelectedOnly = false
     @FocusState private var searchFocused: Bool
 
+    private var allLabels: [MeetingLabel] {
+        libraryViewModel.meetingClassificationViewModel.meetingLabels
+    }
+
     private var labels: [MeetingLabel] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let allLabels = libraryViewModel.meetingClassificationViewModel.meetingLabels
         return allLabels.filter { label in
             (!showingSelectedOnly || libraryViewModel.selectedMeetingLabelIDs.contains(label.id))
                 && (trimmed.isEmpty || label.name.localizedCaseInsensitiveContains(trimmed))
@@ -140,25 +143,29 @@ private struct MeetingLabelFilterPopover: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-            searchField
+            if allLabels.isEmpty {
+                noLabelsState
+            } else {
+                searchField
 
-            Text("Match any selected label")
-                .font(DesignSystem.Typography.micro)
-                .foregroundStyle(DesignSystem.Colors.textTertiary)
+                Text("Match any selected label")
+                    .font(DesignSystem.Typography.micro)
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
 
-            Toggle("Show selected", isOn: $showingSelectedOnly)
-                .font(DesignSystem.Typography.caption)
+                Toggle("Show selected", isOn: $showingSelectedOnly)
+                    .font(DesignSystem.Typography.caption)
 
-            Divider()
+                Divider()
 
-            LabelPopoverOptionsViewport {
-                filterOptions
+                LabelPopoverOptionsViewport {
+                    filterOptions
+                }
+
+                Button("Manage labels…", action: onManage)
+                    .buttonStyle(.plain)
+                    .font(DesignSystem.Typography.caption.weight(.medium))
+                    .foregroundStyle(DesignSystem.Colors.accent)
             }
-
-            Button("Manage labels…", action: onManage)
-                .buttonStyle(.plain)
-                .font(DesignSystem.Typography.caption.weight(.medium))
-                .foregroundStyle(DesignSystem.Colors.accent)
 
             if libraryViewModel.hasMeetingClassificationFilter {
                 Divider()
@@ -174,9 +181,28 @@ private struct MeetingLabelFilterPopover: View {
         .frame(width: 320)
         .background(DesignSystem.Colors.contentBackground)
         .onAppear {
+            guard !allLabels.isEmpty else { return }
             Task { @MainActor in searchFocused = true }
         }
         .onExitCommand(perform: onDismiss)
+    }
+
+    private var noLabelsState: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("No labels yet")
+                .font(DesignSystem.Typography.bodySmall.weight(.semibold))
+                .foregroundStyle(DesignSystem.Colors.textPrimary)
+
+            Text("Create labels to group meetings and filter your library.")
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+
+            Button("Manage labels…", action: onManage)
+                .buttonStyle(.plain)
+                .font(DesignSystem.Typography.caption.weight(.medium))
+                .foregroundStyle(DesignSystem.Colors.accent)
+                .padding(.top, 3)
+        }
     }
 
     private var searchField: some View {

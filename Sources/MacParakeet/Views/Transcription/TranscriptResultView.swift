@@ -54,26 +54,54 @@ private struct ExportConfirmation: Identifiable {
 }
 
 private struct RetranscriptionConfirmation: Identifiable {
+    enum Purpose {
+        case standard
+        case addTimestamps
+    }
+
     let id = UUID()
     let transcriptionID: UUID
     let speechEngineOverride: SpeechEngineSelection?
     let speakerSelection: RetranscriptionSpeakerSelection?
     let countsOtherSpeakers: Bool
     let resetsSpeakerCorrections: Bool
+    let purpose: Purpose
+
+    init(
+        transcriptionID: UUID,
+        speechEngineOverride: SpeechEngineSelection?,
+        speakerSelection: RetranscriptionSpeakerSelection?,
+        countsOtherSpeakers: Bool,
+        resetsSpeakerCorrections: Bool,
+        purpose: Purpose = .standard
+    ) {
+        self.transcriptionID = transcriptionID
+        self.speechEngineOverride = speechEngineOverride
+        self.speakerSelection = speakerSelection
+        self.countsOtherSpeakers = countsOtherSpeakers
+        self.resetsSpeakerCorrections = resetsSpeakerCorrections
+        self.purpose = purpose
+    }
 
     var title: String {
+        if purpose == .addTimestamps, let speechEngineOverride {
+            return "Add timestamps with \(speechEngineOverride.engine.displayName)?"
+        }
         if let speechEngineOverride {
-            "Try with \(speechEngineOverride.engine.displayName)?"
+            return "Try with \(speechEngineOverride.engine.displayName)?"
         } else {
-            "Retranscribe this file?"
+            return "Retranscribe this file?"
         }
     }
 
     var confirmLabel: String {
+        if purpose == .addTimestamps {
+            return "Add timestamps"
+        }
         if let speechEngineOverride {
-            "Try with \(speechEngineOverride.engine.displayName)"
+            return "Try with \(speechEngineOverride.engine.displayName)"
         } else {
-            "Retranscribe"
+            return "Retranscribe"
         }
     }
 
@@ -90,7 +118,14 @@ private struct RetranscriptionConfirmation: Identifiable {
         }
         let correctionWarning = resetsSpeakerCorrections
             ? "Your manual transcript edits will be reset. " : ""
-        return speakerSummary + correctionWarning
+        let durationWarning: String
+        if purpose == .addTimestamps, let speechEngineOverride {
+            durationWarning =
+                "This can take several minutes and may download the \(speechEngineOverride.engine.displayName) model first. "
+        } else {
+            durationWarning = ""
+        }
+        return speakerSummary + correctionWarning + durationWarning
             + "Replaces this transcript. Prompts and chats are preserved."
     }
 }
@@ -412,9 +447,9 @@ struct MeetingTimedTranscriptRecoveryBannerPresentation: Equatable {
             return MeetingTimedTranscriptRecoveryBannerPresentation(
                 title: "No timed transcript",
                 message:
-                    "\(baseMessage) Rerun with \(timestampCapableRerun.engine.displayName) to try adding timestamps. Speaker labels depend on the captured audio and may be approximate.",
+                    "\(baseMessage) MacParakeet can reprocess the saved audio with \(timestampCapableRerun.engine.displayName) to try adding timestamps. This may download a model and take several minutes. Speaker labels depend on the captured audio and may be approximate.",
                 action: Action(
-                    title: "Try timed retranscription",
+                    title: "Add timestamps…",
                     selection: timestampCapableRerun
                 )
             )
@@ -3963,7 +3998,8 @@ struct TranscriptResultView: View {
                         speechEngineOverride: action.selection,
                         speakerSelection: nil,
                         countsOtherSpeakers: false,
-                        resetsSpeakerCorrections: viewModel.speakerCorrectionsApplied
+                        resetsSpeakerCorrections: viewModel.speakerCorrectionsApplied,
+                        purpose: .addTimestamps
                     )
                 } label: {
                     Label(

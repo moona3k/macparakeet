@@ -22,9 +22,11 @@ final class MeetingTimedTranscriptRecoveryBannerPresentationTests: XCTestCase {
         ))
 
         XCTAssertEqual(presentation.title, "No timed transcript")
-        XCTAssertEqual(presentation.action?.title, "Try timed retranscription")
+        XCTAssertEqual(presentation.action?.title, "Add timestamps…")
         XCTAssertEqual(presentation.action?.selection, rerun)
         XCTAssertTrue(presentation.message.contains("try adding timestamps"))
+        XCTAssertTrue(presentation.message.contains("may download a model"))
+        XCTAssertTrue(presentation.message.contains("take several minutes"))
         XCTAssertTrue(presentation.message.contains("Speaker labels depend on the captured audio"))
         XCTAssertFalse(presentation.message.contains("to add them"))
     }
