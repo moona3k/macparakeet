@@ -197,6 +197,81 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertEqual(try repository.fetch(id: meeting.id)?.wordTimestamps, words)
     }
 
+    func testEditLineReportsDurableMixedSpeakerLineCannotBeTargeted() async throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let db = try DatabaseManager(path: dbURL.path)
+        let repository = TranscriptionRepository(dbQueue: db.dbQueue)
+        let segmentID = UUID()
+        let meeting = Transcription(
+            fileName: "Mixed speaker line",
+            rawTranscript: "one two.",
+            cleanTranscript: "one two.",
+            wordTimestamps: [
+                WordTimestamp(word: "one", startMs: 0, endMs: 100, confidence: 1, speakerId: "S1"),
+                WordTimestamp(word: "two.", startMs: 120, endMs: 220, confidence: 1, speakerId: "S2"),
+            ],
+            speakers: [
+                .init(id: "S1", label: "Alice"),
+                .init(id: "S2", label: "Bob"),
+            ],
+            transcriptSegments: [
+                .init(
+                    id: segmentID, startMs: 0, endMs: 220, speakerId: nil,
+                    speakerLabel: "Multiple speakers", text: "one two.",
+                    wordRange: .init(startIndex: 0, endIndexExclusive: 2)
+                )
+            ],
+            status: .completed,
+            sourceType: .meeting
+        )
+        try repository.save(meeting)
+        let command = try MeetingsCommand.CorrectionsSubcommand.EditLine.parse([
+            meeting.id.uuidString,
+            "--segment", segmentID.uuidString,
+            "--text", "corrected.",
+            "--expected-revision", "0",
+            "--database", dbURL.path,
+        ])
+
+        do {
+            try await command.run()
+            XCTFail("Expected mixed-speaker durable line to be rejected")
+        } catch {
+            XCTAssertEqual(
+                error.localizedDescription,
+                "Transcript line '\(segmentID.uuidString)' cannot be targeted at line granularity because it does not map to one editable range."
+            )
+        }
+    }
+
+    func testCorrectionHistoryDirectHelpDocumentsPurposeAndParameters() {
+        let commands: [(help: String, purpose: String)] = [
+            (
+                MeetingsCommand.CorrectionsSubcommand.Undo.helpMessage(),
+                "Undo the active transcript correction."
+            ),
+            (
+                MeetingsCommand.CorrectionsSubcommand.Redo.helpMessage(),
+                "Redo the next transcript correction."
+            ),
+            (
+                MeetingsCommand.CorrectionsSubcommand.Reset.helpMessage(),
+                "Reset the active transcript projection to its automatic baseline."
+            ),
+        ]
+
+        for command in commands {
+            XCTAssertTrue(command.help.contains(command.purpose))
+            XCTAssertTrue(command.help.contains("Meeting UUID, UUID prefix, or exact title."))
+            XCTAssertTrue(command.help.contains("Expected speakerCorrectionRevision from the last"))
+            XCTAssertTrue(command.help.contains("transcript read."))
+            XCTAssertTrue(command.help.contains("Emit the updated transcript object as JSON."))
+            XCTAssertTrue(command.help.contains("Wrap JSON output in an ok/data/meta envelope."))
+            XCTAssertTrue(command.help.contains("Path to SQLite database file"))
+        }
+    }
+
     func testClassifyPreservesCorrectedArtifactSpeakersAndProvenance() async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

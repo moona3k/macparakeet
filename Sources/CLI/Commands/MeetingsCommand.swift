@@ -334,12 +334,25 @@ struct MeetingsCommand: AsyncParsableCommand {
         }
 
         struct Undo: AsyncParsableCommand {
-            static let configuration = CommandConfiguration(commandName: "undo")
-            @Argument var meeting: String
-            @Option(name: .long) var expectedRevision: Int
-            @Flag(name: .long) var json = false
-            @Flag(name: .long) var envelope = false
-            @Option var database: String?
+            static let configuration = CommandConfiguration(
+                commandName: "undo",
+                abstract: "Undo the active transcript correction."
+            )
+
+            @Argument(help: "Meeting UUID, UUID prefix, or exact title.")
+            var meeting: String
+
+            @Option(name: .long, help: "Expected speakerCorrectionRevision from the last transcript read.")
+            var expectedRevision: Int
+
+            @Flag(name: .long, help: "Emit the updated transcript object as JSON.")
+            var json = false
+
+            @Flag(name: .long, help: "Wrap JSON output in an ok/data/meta envelope.")
+            var envelope = false
+
+            @Option(help: "Path to SQLite database file (defaults to the app database).")
+            var database: String?
 
             func validate() throws {
                 guard expectedRevision >= 0 else {
@@ -359,12 +372,25 @@ struct MeetingsCommand: AsyncParsableCommand {
         }
 
         struct Redo: AsyncParsableCommand {
-            static let configuration = CommandConfiguration(commandName: "redo")
-            @Argument var meeting: String
-            @Option(name: .long) var expectedRevision: Int
-            @Flag(name: .long) var json = false
-            @Flag(name: .long) var envelope = false
-            @Option var database: String?
+            static let configuration = CommandConfiguration(
+                commandName: "redo",
+                abstract: "Redo the next transcript correction."
+            )
+
+            @Argument(help: "Meeting UUID, UUID prefix, or exact title.")
+            var meeting: String
+
+            @Option(name: .long, help: "Expected speakerCorrectionRevision from the last transcript read.")
+            var expectedRevision: Int
+
+            @Flag(name: .long, help: "Emit the updated transcript object as JSON.")
+            var json = false
+
+            @Flag(name: .long, help: "Wrap JSON output in an ok/data/meta envelope.")
+            var envelope = false
+
+            @Option(help: "Path to SQLite database file (defaults to the app database).")
+            var database: String?
 
             func validate() throws {
                 guard expectedRevision >= 0 else {
@@ -384,12 +410,25 @@ struct MeetingsCommand: AsyncParsableCommand {
         }
 
         struct Reset: AsyncParsableCommand {
-            static let configuration = CommandConfiguration(commandName: "reset")
-            @Argument var meeting: String
-            @Option(name: .long) var expectedRevision: Int
-            @Flag(name: .long) var json = false
-            @Flag(name: .long) var envelope = false
-            @Option var database: String?
+            static let configuration = CommandConfiguration(
+                commandName: "reset",
+                abstract: "Reset the active transcript projection to its automatic baseline."
+            )
+
+            @Argument(help: "Meeting UUID, UUID prefix, or exact title.")
+            var meeting: String
+
+            @Option(name: .long, help: "Expected speakerCorrectionRevision from the last transcript read.")
+            var expectedRevision: Int
+
+            @Flag(name: .long, help: "Emit the updated transcript object as JSON.")
+            var json = false
+
+            @Flag(name: .long, help: "Wrap JSON output in an ok/data/meta envelope.")
+            var envelope = false
+
+            @Option(help: "Path to SQLite database file (defaults to the app database).")
+            var database: String?
 
             func validate() throws {
                 guard expectedRevision >= 0 else {
@@ -1137,11 +1176,14 @@ private enum MeetingCorrectionHistoryAction {
 
 private enum MeetingCorrectionCLIError: LocalizedError {
     case invalidSegment(String)
+    case segmentNotTargetable(String)
 
     var errorDescription: String? {
         switch self {
         case .invalidSegment(let value):
             "No current editable transcript line matches segment '\(value)'. Read the latest transcript JSON and retry."
+        case .segmentNotTargetable(let value):
+            "Transcript line '\(value)' cannot be targeted at line granularity because it does not map to one editable range."
         }
     }
 }
@@ -1150,15 +1192,22 @@ private func correctionTarget(
     segment value: String,
     in projection: SpeakerAttributionProjection
 ) throws -> SpeakerCorrectionTarget {
-    guard let id = UUID(uuidString: value),
+    guard let id = UUID(uuidString: value) else {
+        throw MeetingCorrectionCLIError.invalidSegment(value)
+    }
+    guard
         let segment = projection.effectiveTranscription.transcriptSegments?.first(where: {
             $0.id == id
-        }),
+        })
+    else {
+        throw MeetingCorrectionCLIError.invalidSegment(value)
+    }
+    guard
         let editable = projection.attribution.editableSegments.first(where: {
             $0.wordRange == segment.wordRange
         })
     else {
-        throw MeetingCorrectionCLIError.invalidSegment(value)
+        throw MeetingCorrectionCLIError.segmentNotTargetable(value)
     }
     return SpeakerCorrectionTarget(
         anchorTranscriptSegmentIDs: editable.anchorTranscriptSegmentIDs,

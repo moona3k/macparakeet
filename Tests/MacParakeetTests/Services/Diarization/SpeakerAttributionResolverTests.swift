@@ -33,6 +33,102 @@ final class SpeakerAttributionResolverTests: XCTestCase {
         XCTAssertTrue(resolved.unresolvedCorrections.isEmpty)
     }
 
+    func testPartialTextEditNormalizesUntouchedTokenizerWordSlices() {
+        let words = [
+            WordTimestamp(word: "That's", startMs: 0, endMs: 150, confidence: 0.9, speakerId: "S1"),
+            WordTimestamp(word: " incredible", startMs: 200, endMs: 350, confidence: 0.9, speakerId: "S1"),
+            WordTimestamp(word: ".", startMs: 400, endMs: 450, confidence: 0.9, speakerId: "S1"),
+        ]
+        let speakers = [SpeakerInfo(id: "S1", label: "Speaker 1")]
+        let transcription = Transcription(
+            fileName: "tokenizer-words.wav",
+            wordTimestamps: words,
+            speakers: speakers,
+            diarizationSegments: [.init(speakerId: "S1", startMs: 0, endMs: 450)],
+            transcriptSegments: TranscriptSegmenter.materializeSegments(
+                words: words,
+                speakers: speakers,
+                idGenerator: sequentialUUIDGenerator()
+            ),
+            status: .completed
+        )
+        XCTAssertEqual(
+            SpeakerAttributionResolver.resolve(transcription: transcription)
+                .editableSegments.map(\.text),
+            ["That's incredible."]
+        )
+
+        let fingerprint = SpeakerAttributionResolver.fingerprint(for: transcription)
+        let wholeRange = TranscriptSegmentWordRange(startIndex: 0, endIndexExclusive: 3)
+        let middleAndSuffixRange = TranscriptSegmentWordRange(startIndex: 1, endIndexExclusive: 3)
+        let prefixRange = TranscriptSegmentWordRange(startIndex: 0, endIndexExclusive: 1)
+        let middleRange = TranscriptSegmentWordRange(startIndex: 1, endIndexExclusive: 2)
+        let suffixRange = TranscriptSegmentWordRange(startIndex: 2, endIndexExclusive: 3)
+        let firstSplitID = UUID()
+        let secondSplitID = UUID()
+        let editID = UUID()
+        let mergeID = UUID()
+        let firstSplit = correction(
+            id: firstSplitID,
+            parentID: nil,
+            sequence: 1,
+            fingerprint: fingerprint,
+            transcription: transcription,
+            command: .split(
+                target: target(wholeRange, transcription: transcription),
+                atWordIndex: 1
+            )
+        )
+        let secondSplit = correction(
+            id: secondSplitID,
+            parentID: firstSplitID,
+            sequence: 2,
+            fingerprint: fingerprint,
+            transcription: transcription,
+            command: .split(
+                target: target(middleAndSuffixRange, transcription: transcription),
+                atWordIndex: 2
+            )
+        )
+        let edit = correction(
+            id: editID,
+            parentID: secondSplitID,
+            sequence: 3,
+            fingerprint: fingerprint,
+            transcription: transcription,
+            command: .editText(
+                target: target(middleRange, transcription: transcription),
+                text: "amazing"
+            )
+        )
+        let merge = correction(
+            id: mergeID,
+            parentID: editID,
+            sequence: 4,
+            fingerprint: fingerprint,
+            transcription: transcription,
+            command: .mergeSegments(
+                targets: [prefixRange, middleRange, suffixRange].map {
+                    target($0, transcription: transcription)
+                }
+            )
+        )
+
+        let resolved = SpeakerAttributionResolver.resolve(
+            transcription: transcription,
+            corrections: [firstSplit, secondSplit, edit, merge],
+            state: .init(
+                transcriptionId: transcription.id,
+                transcriptFingerprint: fingerprint.rawValue,
+                headId: mergeID,
+                revision: 4
+            )
+        )
+
+        XCTAssertEqual(resolved.editableSegments.map(\.text), ["That's amazing."])
+        XCTAssertTrue(resolved.unresolvedCorrections.isEmpty)
+    }
+
     func testMergeComposesAdjacentCurrentTextAndKeepsTimingEnvelope() {
         let transcription = twoSegmentFixture()
         let fingerprint = SpeakerAttributionResolver.fingerprint(for: transcription)

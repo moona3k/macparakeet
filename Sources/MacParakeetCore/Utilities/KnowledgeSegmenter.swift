@@ -310,10 +310,15 @@ public enum KnowledgeSegmenter {
     }
 
     private static func joinedWordText(_ words: [WordTimestamp]) -> String? {
+        joinedTokenText(words.lazy.map(\.word))
+    }
+
+    static func joinedTokenText<Tokens: Sequence>(_ rawTokens: Tokens) -> String?
+    where Tokens.Element == String {
         var result = ""
-        for word in words {
-            guard let token = usableText(word.word) else { continue }
-            result += tokenSeparator(before: token, rawToken: word.word, currentText: result) + token
+        for rawToken in rawTokens {
+            guard let token = usableText(rawToken) else { continue }
+            result += tokenSeparator(before: token, rawToken: rawToken, currentText: result) + token
         }
         return usableText(result)
     }

@@ -737,32 +737,24 @@ public enum SpeakerAttributionResolver {
             .filter { rangeIsContained($0.key, in: range) }
             .sorted { $0.key.startIndex < $1.key.startIndex }
         guard !contained.isEmpty else {
-            return words[range.startIndex..<range.endIndexExclusive]
-                .map(\.word)
-                .joined(separator: " ")
+            return KnowledgeSegmenter.joinedTokenText(
+                words[range.startIndex..<range.endIndexExclusive].lazy.map(\.word)
+            ) ?? ""
         }
 
-        var pieces: [String] = []
+        var tokens: [String] = []
         var cursor = range.startIndex
         for (overrideRange, text) in contained {
             if cursor < overrideRange.startIndex {
-                pieces.append(
-                    words[cursor..<overrideRange.startIndex]
-                        .map(\.word)
-                        .joined(separator: " ")
-                )
+                tokens.append(contentsOf: words[cursor..<overrideRange.startIndex].map(\.word))
             }
-            pieces.append(text)
+            tokens.append(text)
             cursor = overrideRange.endIndexExclusive
         }
         if cursor < range.endIndexExclusive {
-            pieces.append(
-                words[cursor..<range.endIndexExclusive]
-                    .map(\.word)
-                    .joined(separator: " ")
-            )
+            tokens.append(contentsOf: words[cursor..<range.endIndexExclusive].map(\.word))
         }
-        return pieces.filter { !$0.isEmpty }.joined(separator: " ")
+        return KnowledgeSegmenter.joinedTokenText(tokens) ?? ""
     }
 
     private static func makeEffectiveDurableSegments(
