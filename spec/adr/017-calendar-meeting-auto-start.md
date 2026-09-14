@@ -101,7 +101,7 @@ Account guidance remains visible while auto-start is off. Calendar-list controls
 
 ### 9. Setup: in-context from Settings
 
-Calendar is not part of first-run onboarding. When `AppFeatures.calendarEnabled` is `true`, the Meeting Recording settings surface explains the feature, requests EventKit access, and requests notification authorization when needed. It also explains that Microsoft 365/Exchange must be enabled for Calendar in System Settings → Internet Accounts, provides a best-effort link to that pane, and reloads authorization and visible calendars when the app becomes active. Until the user opts in, `calendarAutoStartMode` remains `.off`.
+Calendar is not part of first-run onboarding. When `AppFeatures.calendarEnabled` is `true`, the Meeting Recording settings surface explains the feature, requests EventKit access, and requests notification authorization when needed. It also explains that Microsoft 365/Exchange must be enabled for Calendar in System Settings → Internet Accounts, provides a best-effort link to that pane, and reloads authorization and visible calendars when the app becomes active. While Settings is open, the same permission poll that drives other permission rows also self-heals a stranded calendar list: if it observes a not-yet-loaded list transition to granted (e.g. an MDM-pushed profile granting access without an app reactivation), it starts the calendar load itself rather than waiting for the user to notice and press Refresh. Until the user opts in, `calendarAutoStartMode` remains `.off`.
 
 ### 10. Hotkey / manual start still works independently
 
