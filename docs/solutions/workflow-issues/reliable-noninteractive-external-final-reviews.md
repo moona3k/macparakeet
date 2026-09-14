@@ -54,6 +54,13 @@ The receipt recorded two spawned agents, zero completions, and two system
 terminations. A later resume failed with `No conversation found with session
 ID` because the original command had explicitly disabled persistence.
 
+A corrected Cursor retry was then launched at the same time as a max-effort
+Sonnet review. Cursor was killed with exit status 137 before emitting any
+output, while Sonnet completed. No OS memory-pressure or jetsam record was
+captured, so the cause is not established. This is execution evidence, not a
+review verdict: rerun the reviewer alone instead of inferring anything about
+the code or model.
+
 ## Guidance
 
 Treat an external final review as a SHA-bound merge gate:
@@ -68,7 +75,9 @@ Treat an external final review as a SHA-bound merge gate:
    token.
 4. For Claude print-mode review, exclude `Task` and other delegation tools.
    Keep normal session persistence so an interrupted run can be resumed.
-5. If any commit lands after either review, including a documentation-only
+5. Run heavyweight final reviewers serially. If a process is killed or returns
+   no output, preserve the exit status and rerun it alone.
+6. If any commit lands after either review, including a documentation-only
    commit, rerun both reviewers on the new pushed HEAD.
 
 For Cursor, use the clean repository as both the current directory and
@@ -87,10 +96,10 @@ synthesize every child before returning a verdict.
 
 ## Why This Matters
 
-A successful process exit is not a passed review gate. Cursor returned without
-its promised verdict, while Claude returned without a verdict after its child
-reviews were terminated. Accepting either would confuse tool execution with
-review completion.
+Process state is not a passed review gate. Cursor first returned without its
+promised verdict and later was killed before returning output, while Claude
+returned without a verdict after its child reviews were terminated. Accepting
+any of these outcomes would confuse tool execution with review completion.
 
 Code and tests do not preserve these orchestration constraints. The important
 boundaries are the CLI workspace root, the tools available to a print-mode
@@ -104,6 +113,8 @@ reproducible and auditable.
 - A review process exits without the required verdict.
 - Git access is unexpectedly unavailable despite readable repository files.
 - Claude print mode launches background agents.
+- A reviewer is killed, produces no output, or was co-scheduled with another
+  heavyweight review.
 - The PR head changes after an external review.
 
 The no-delegation rule does not apply to an intentionally coordinated
