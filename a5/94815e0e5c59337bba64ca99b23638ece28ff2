@@ -1,0 +1,219 @@
+Sources/CLI/CHANGELOG.md
+  s_40854eda65ef0b::t_ff1e7dc539fbe9 106-114
+spec/02-features.md
+  s_40854eda65ef0b::t_a45737dde65e38 1498,1743-1764,2061
+integrations/README.md
+  s_40854eda65ef0b::t_50eb5f6d24c6a3 637-649
+spec/README.md
+  s_40854eda65ef0b::t_eb5e785dda11a6 143-146,297,300
+spec/04-ui-patterns.md
+  s_40854eda65ef0b::t_a45737dde65e38 956
+Tests/MacParakeetTests/Database/DatabaseManagerTests.swift
+  s_40854eda65ef0b::t_a44f90d377dddd 22-48,2191-2193
+  s_40854eda65ef0b::t_a467948234a284 247
+plans/active/2026-09-05-speaker-attribution-editing.md
+  s_40854eda65ef0b::t_a45737dde65e38 10
+spec/adr/031-timed-transcript-corrections.md
+  s_40854eda65ef0b::t_278b5204436feb 1
+spec/01-data-model.md
+  s_40854eda65ef0b::t_332e73c20c7c25 295,299,344-345,431,1136,1140,1677-1678,1702-1703,1726
+spec/adr/010-speaker-diarization.md
+  s_40854eda65ef0b::t_a45737dde65e38 318
+plans/active/2026-09-13-timed-transcript-editing.md
+  s_40854eda65ef0b::t_a45737dde65e38 6
+  s_40854eda65ef0b::t_b77c7700e6b260 118-122
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  s_40854eda65ef0b::t_f4b95209cffade 2231-2239,2243
+.github/workflows/ci.yml
+  s_40854eda65ef0b::t_71908764bda9f6 49-60
+AGENTS.md
+  s_40854eda65ef0b::t_bac1ef7896f973 57-60,168-169
+CLAUDE.md
+  s_40854eda65ef0b::t_67de604e8c53ed 24
+README.md
+  s_40854eda65ef0b::t_aa9cc9abebf4d6 67,71,82,84,238
+Sources/CLI/Commands/CLIHelpers.swift
+  s_40854eda65ef0b::t_864005d08fc33b 428-435,658-665
+Sources/CLI/Commands/MeetingImportCommand.swift
+  s_40854eda65ef0b::t_fbab70d9b51dd8 1-288
+Sources/CLI/Commands/MeetingSplitCommand.swift
+  s_40854eda65ef0b::t_92838c0db23a87 175,353,421,457-468,482,586,589-590,596-598,612
+Sources/CLI/Commands/MeetingsCommand.swift
+  s_40854eda65ef0b::t_597220813d60c9 22
+Sources/CLI/Commands/SavedMeetingProcessingContext.swift
+  s_40854eda65ef0b::t_c03aa916c30fb1 1-77
+Sources/CLI/Commands/SpecCommand.swift
+  s_40854eda65ef0b::t_bbb4da72005da8 1503-1518
+Sources/CLI/README.md
+  s_40854eda65ef0b::t_e52bc6f70b8de7 23
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_40854eda65ef0b::t_af0a76c82b4ee2 44,459-468,473,477-486
+Sources/MacParakeet/App/AppWindowCoordinator.swift
+  s_40854eda65ef0b::t_dae5df3a1fb51c 68,100,128,243
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_40854eda65ef0b::t_ce264c5f5c4e77 479,709-713,807,831,998,1023,1041,1074,1722-1728,1779-1780
+Sources/MacParakeet/AppDelegate.swift
+  s_40854eda65ef0b::t_f682b38cac7030 81,219,572-578
+Sources/MacParakeet/Views/MainWindowView.swift
+  s_40854eda65ef0b::t_25ef376869a072 85,146
+Sources/MacParakeet/Views/Meetings/MeetingImportSheetView.swift
+  s_40854eda65ef0b::t_6ea653dea2f807 1-474
+Sources/MacParakeet/Views/Meetings/MeetingsView.swift
+  s_40854eda65ef0b::t_e679fe84c473a6 9,26,217-225,241-253,269-280,1145-1146
+Sources/MacParakeet/Views/Settings/CalendarSettingsView.swift
+  s_40854eda65ef0b::t_f5146873e19003 12-13,28-35,37-39,44-112,372,405-406,437-440
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_40854eda65ef0b::t_f57c9d2b1fd027 194-202
+Sources/MacParakeetCore/Audio/AudioCaptureDiagnostics.swift
+  s_40854eda65ef0b::t_b504822f5cf06d 100-104,107-114,167,169-172,176-181,185,188-192
+Sources/MacParakeetCore/Audio/AudioEngineLifecycleDiagnostics.swift
+  s_40854eda65ef0b::t_144889636e0278 48-49,72-73,126-127,154-157,296-298
+Sources/MacParakeetCore/Audio/AudioFileConverter.swift
+  s_40854eda65ef0b::t_390b9674a0f0dc 197
+Sources/MacParakeetCore/Database/MeetingSplitRepository.swift
+  s_40854eda65ef0b::t_9adcc1d23126b1 441
+Sources/MacParakeetCore/Database/TranscriptionRepository.swift
+  s_40854eda65ef0b::t_40b9dc098299b5 76,541-542,680-682,988,992-996
+Sources/MacParakeetCore/Models/Transcription.swift
+  s_40854eda65ef0b::t_e3949874bb5596 20-21,78-80,144,149,378,393
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_40854eda65ef0b::t_f2b036e5d197bc 351-355,364,392,1568-1570
+Sources/MacParakeetCore/Services/MeetingImport/MeetingImportResult.swift
+  s_40854eda65ef0b::t_e300da303941db 1-130
+Sources/MacParakeetCore/Services/MeetingImport/MeetingImportService.swift
+  s_40854eda65ef0b::t_b2712583486b61 1-232
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingAudioRetentionSweeper.swift
+  s_40854eda65ef0b::t_f6358fb4e44594 64
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingLockFileStore.swift
+  s_40854eda65ef0b::t_4746898e6ac342 45-49,65-66,83-84,100-101,133-138,158-159,177-178,198-199,219-220,240-241,264-265
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingOutput.swift
+  s_40854eda65ef0b::t_2238c11e6781b7 40-46,70-73,93-96,118-121,141-143,309-311
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingRecoveryService.swift
+  s_40854eda65ef0b::t_8ac84b6f6840ac 370,386-389
+Sources/MacParakeetCore/Services/MeetingSplit/MeetingSplitService.swift
+  s_40854eda65ef0b::t_5de3dd60aadccd 947
+Sources/MacParakeetCore/Services/SavedAudioAutoPromptCompletionService.swift
+  s_40854eda65ef0b::t_4393b3e64ff090 45-49,78-80,82,145-148,150,163,197-199,201,252-255,261,263,276-278,281,287-291,300,302
+Sources/MacParakeetCore/Services/Telemetry/Observability.swift
+  s_40854eda65ef0b::t_f2b44469b75835 2,49-63,66-68,118-161
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_40854eda65ef0b::t_fe5aad377d5ef1 903-904,1639-1640,1656-1657,1997-1999,2003-2006
+Sources/MacParakeetCore/Services/Telemetry/TelemetryService.swift
+  s_40854eda65ef0b::t_b3898c76546762 104-105,178-179,364-366
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_40854eda65ef0b::t_4d84bace212ce3 1401-1402,1415-1417,2221
+Sources/MacParakeetViewModels/MeetingImportViewModel.swift
+  s_40854eda65ef0b::t_5a1311e8cbcf77 1-261
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_40854eda65ef0b::t_4ebd3953b1e63b 270-273
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_40854eda65ef0b::t_96bcc7fe7afae0 27-32,702-704,770-771,774,822-824,833-834,1432-1489,1499,1504,1520-1531,1544,1547-1550,1552
+Tests/CLITests/MeetingImportCommandTests.swift
+  s_40854eda65ef0b::t_ce47a14c80d459 1-218
+Tests/CLITests/MeetingSplitCommandTests.swift
+  s_40854eda65ef0b::t_a64a95f977adbf 444,459
+Tests/CLITests/SpecCommandTests.swift
+  s_40854eda65ef0b::t_e45419970e8ccb 18-28
+Tests/MacParakeetTests/Audio/AudioCaptureDiagnosticsTests.swift
+  s_40854eda65ef0b::t_681c1556864d99 138-152
+Tests/MacParakeetTests/Audio/AudioEngineLifecycleDiagnosticsTests.swift
+  s_40854eda65ef0b::t_bc576d2653462b 7-11,315-352
+Tests/MacParakeetTests/Audio/AudioFileConverterTests.swift
+  s_40854eda65ef0b::t_e6dd796adc9042 6-12
+Tests/MacParakeetTests/Calendar/MockCalendarService.swift
+  s_40854eda65ef0b::t_d0bda9761439e0 10-13,15-26,32-36,39-41,48-51,68-95,115-128
+Tests/MacParakeetTests/Database/MeetingSplitRepositoryTests.swift
+  s_40854eda65ef0b::t_cdf821c5531b39 211-231
+Tests/MacParakeetTests/Database/TranscriptionRepositoryTests.swift
+  s_40854eda65ef0b::t_5c9160f5c5a329 15-75
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_40854eda65ef0b::t_58fe42476cacfa 124,462,1869,1888-1889,1900-1901
+Tests/MacParakeetTests/Models/TranscriptionModelTests.swift
+  s_40854eda65ef0b::t_7e4638ef8caef0 6-17
+Tests/MacParakeetTests/Services/MeetingImport/MeetingImportServiceTests.swift
+  s_40854eda65ef0b::t_f1437c2d9ce98b 1-528
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingAudioRetentionSweeperTests.swift
+  s_40854eda65ef0b::t_878d99d71573c2 27-47
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingLockFileStoreTests.swift
+  s_40854eda65ef0b::t_d7feec7af399ab 33-75,730-732,742-743
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingOutputTests.swift
+  s_40854eda65ef0b::t_aa5081c5a2d347 9-42
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift
+  s_40854eda65ef0b::t_988993701f65a0 71-88,1416-1419,1446,1452-1453,1746,1752-1754
+Tests/MacParakeetTests/Services/MeetingSplit/MeetingSplitServiceTests.swift
+  s_40854eda65ef0b::t_28ffa27fb4bd3c 1016-1031
+Tests/MacParakeetTests/Services/SavedAudioAutoPromptCompletionServiceTests.swift
+  s_40854eda65ef0b::t_0c7e95563e7884 44-68,440-451
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_40854eda65ef0b::t_e9b9876b19d3eb 1862-1885,3839-3842,3875-3878
+Tests/MacParakeetTests/TelemetryServiceTests.swift
+  s_40854eda65ef0b::t_8f25671896f444 1795-1844,1995-1996
+Tests/MacParakeetTests/ViewModels/MeetingImportViewModelTests.swift
+  s_40854eda65ef0b::t_58842e8368f9d9 1-220
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_40854eda65ef0b::t_2e24325252dc75 156-159
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_40854eda65ef0b::t_c5dfccfb9e59a6 2699-2857
+docs/audits/2026-05-02-logging-telemetry-issues.md
+  s_40854eda65ef0b::t_d617e5ded4230c 14
+docs/audits/2026-09-13-telemetry-agent-debug.md
+  s_40854eda65ef0b::t_95e3b7e1d79476 1-98
+docs/cli-testing.md
+  s_40854eda65ef0b::t_53aeabb80c60b3 4-5,7-13
+docs/local-audio-diagnostics-query.md
+  s_40854eda65ef0b::t_f7424d5a3db097 78-81
+docs/plans/2026-09-13-1514-issue-906-meeting-import-plan.md
+  s_40854eda65ef0b::t_69a6e6016bb2dc 1-284
+docs/plans/2026-09-13-1539-outlook-calendar-support-plan.md
+  s_40854eda65ef0b::t_2c0351d93afa20 1-237
+docs/research/2026-09-13-issues-502-1013-outlook-calendar.md
+  s_40854eda65ef0b::t_e84fe36f9fb701 1-99
+docs/telemetry.md
+  s_40854eda65ef0b::t_e3a5068cbe7f0b 128-132,389,398-400,464,504-506,508-509
+plans/README.md
+  s_40854eda65ef0b::t_e06334307daf31 51
+plans/active/2026-06-12-advisor-index.md
+  s_40854eda65ef0b::t_154b3d431f9063 37
+plans/active/2026-06-12-telemetry-allowlist-ci-guard.md
+  s_40854eda65ef0b::t_3f1109ab598d43 23
+scripts/ci/check-telemetry-allowlist.sh
+  s_40854eda65ef0b::t_8ffb9a73a7f22d 1-135
+spec/03-architecture.md
+  s_40854eda65ef0b::t_7c611903e1cb18 153-163
+spec/05-audio-pipeline.md
+  s_40854eda65ef0b::t_9c7eb6e49d1f09 426-430,440-463
+spec/adr/012-telemetry-system.md
+  s_40854eda65ef0b::t_e38e04078555c1 68-74,76-78,102
+spec/adr/017-calendar-meeting-auto-start.md
+  s_40854eda65ef0b::t_e8b6f8a4610649 7,22,92-93,96-98,100,104
+spec/adr/030-external-meeting-import.md
+  s_40854eda65ef0b::t_a9f3eb17594317 1-57
+spec/contracts/README.md
+  s_40854eda65ef0b::t_95ba305815ad2b 38
+spec/contracts/cli-json-v1.md
+  s_40854eda65ef0b::t_b206b38b4114c4 268-279
+spec/contracts/meeting-import-v1.md
+  s_40854eda65ef0b::t_dfbe4b747b3810 1-118
+spec/contracts/meeting-recovery-retention.md
+  s_40854eda65ef0b::t_d03dcddaefb425 54-55,67-71,192-201
+spec/contracts/meeting-splitting.md
+  s_40854eda65ef0b::t_1c394e40055856 82-87
+spec/contracts/telemetry-v1.md
+  s_40854eda65ef0b::t_2392d5c76a439f 86-92,113-119,187-189,192-194,208-212
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a594815e0e5c59337bba64ca99b23638ece28ff2",
+  "prompts": {},
+  "sessions": {
+    "s_40854eda65ef0b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09cc0-83c9-73d2-af78-ce0480aa0477",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
