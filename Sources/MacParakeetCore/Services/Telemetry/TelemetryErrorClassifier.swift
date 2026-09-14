@@ -25,10 +25,15 @@ public enum TelemetryErrorClassifier {
             return "URLError.\(urlErrorCodeName(urlError.code))"
         }
 
-        if let audioError = error as? AudioProcessorError,
-            case .recordingFailed("interrupted during subscribe") = audioError
-        {
-            return "AudioProcessorError.recordingFailed.interrupted_subscribe"
+        if let audioError = error as? AudioProcessorError {
+            if case .recordingFailed("interrupted during subscribe") = audioError {
+                return "AudioProcessorError.recordingFailed.interrupted_subscribe"
+            }
+            // AudioCaptureProblem raw values are a closed identifier set, not
+            // associated user text. Mirror only keeps the enum case name.
+            if case .inputUnavailable(let problem) = audioError {
+                return "AudioProcessorError.inputUnavailable.\(problem.rawValue)"
+            }
         }
 
         // SharedMicrophoneStream currently crosses its queue boundary with the
