@@ -103,8 +103,15 @@ smoke tests, accessibility labels, and a manual app smoke pass.
 - After review fixes and rebasing onto current `origin/main`, the exact code
   head passed all 121 affected tests with zero failures. The timed-correction
   command help and machine-readable CLI spec also rendered successfully.
+- After the first full-diff Grok 4.6 review found Library projection, CLI error
+  taxonomy, and data-model version gaps, the corrected code state passed 101
+  focused correction-service, Library view-model, and CLI tests with zero
+  failures. Timed-correction help and the machine-readable CLI spec rendered
+  successfully again.
 - Two independent architecture/code-review passes found and verified fixes for
   automatic-boundary replay and competing whole-transcript/timed-line edits.
+- The non-interactive Cursor and Claude review failure modes and verified
+  SHA-bound rerun commands are recorded in the workflow solutions catalog.
 - The repository's local Greptile wrapper was attempted on the exact branch
   head but could not authenticate; hosted review remains part of PR validation.
 
