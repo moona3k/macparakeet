@@ -1,0 +1,21 @@
+spec/README.md
+  s_183aec78cd6249::t_973f9fd0b95091 76
+integrations/README.md
+  s_183aec78cd6249::t_4ac8c559612527 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7ac4691712f14fb7fc33d27204d67f96692c2df9",
+  "prompts": {},
+  "sessions": {
+    "s_183aec78cd6249": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "06ab621e-6936-437c-aca5-7c8e193656d1",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
