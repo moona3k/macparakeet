@@ -1,0 +1,26 @@
+Tests/MacParakeetTests/Services/Telemetry/TelemetryErrorClassifierTests.swift
+  s_85b887dbfa029e::t_4a4cdaeef7bf90 21-25
+spec/contracts/telemetry-v1.md
+  s_85b887dbfa029e::t_e2d60b1d45b83b 22-26
+Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift
+  s_85b887dbfa029e::t_3afbafb4260e67 28-36
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_85b887dbfa029e::t_23bb828585ea06 781
+  s_85b887dbfa029e::t_577169b9074a10 697
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bf9451d2a240722eb637ecb5f53ba789f074751c",
+  "prompts": {},
+  "sessions": {
+    "s_85b887dbfa029e": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3c5ac565-2a2d-4af3-9b57-6923712a2137",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
