@@ -1,0 +1,38 @@
+Sources/CLI/Commands/MeetingsCommand.swift
+  s_40854eda65ef0b::t_ccc40524160f49 86-89,91
+Tests/CLITests/MeetingsCommandTests.swift
+  s_40854eda65ef0b::t_0d87b11aaeee5a 248-356
+Sources/MacParakeetCore/Services/Diarization/SpeakerAttributionReadService.swift
+  s_40854eda65ef0b::t_ccc40524160f49 178-185
+Tests/MacParakeetTests/Services/Diarization/SpeakerAttributionReadServiceTests.swift
+  s_40854eda65ef0b::t_6a0aadfc4cd678 14-21
+  s_40854eda65ef0b::t_b313d82d0f3f5b 6-13,22-27
+Tests/MacParakeetTests/Services/Diarization/SpeakerAttributionResolverTests.swift
+  s_40854eda65ef0b::t_7861e158f5a850 199-202,204,206,211
+  s_40854eda65ef0b::t_00045ee627abb4 173-198,203,205,207-210,212-293,980-995
+  s_04b1ae56e392af::t_86284a58e5441e 996
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "981a61500b12d056c6997ec2ce27acf7eda25984",
+  "prompts": {},
+  "sessions": {
+    "s_04b1ae56e392af": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09cdd-aab4-76b0-8def-6c10035ea821",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_40854eda65ef0b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09cc0-83c9-73d2-af78-ce0480aa0477",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
