@@ -173,6 +173,9 @@ for significant work, not ceremony for every typo.
 - Testing strategy: [`spec/09-testing.md`](./spec/09-testing.md)
 - Agent working method: [`spec/10-ai-coding-method.md`](./spec/10-ai-coding-method.md)
 - Agent memory governance: [`docs/agent-memory-governance.md`](./docs/agent-memory-governance.md)
+- Documented solutions: [`docs/solutions/`](./docs/solutions/) -- categorized
+  learnings with `module`, `tags`, and `problem_type` frontmatter, relevant when
+  implementing, debugging, or making decisions in covered areas.
 - Agent instruction research: [`docs/research/coding-agent-instructions-2026-06.md`](./docs/research/coding-agent-instructions-2026-06.md)
 - Active/completed plans: [`plans/README.md`](./plans/README.md)
 - Distribution/release steps: [`docs/distribution.md`](./docs/distribution.md)
