@@ -163,7 +163,7 @@ public final class MeetingImportViewModel {
                     transcription: result.transcription,
                     outcome: Self.outcome(for: result.completion),
                     warnings: result.warnings.map {
-                        Self.message(for: $0, transcriptionStatus: result.transcription.status)
+                        $0.userFacingMessage(for: result.transcription.status)
                     },
                     errorMessage: nil
                 )
@@ -249,32 +249,6 @@ public final class MeetingImportViewModel {
         case .completed: .completed
         case .partial: .partial
         case .needsRetry: .needsRetry
-        }
-    }
-
-    private static func message(
-        for warning: MeetingImportWarning,
-        transcriptionStatus: Transcription.TranscriptionStatus
-    ) -> String {
-        switch warning {
-        case .transcriptionFailed(_):
-            "Transcription needs another try. The saved meeting is available in Meetings."
-        case .persistenceFailed(_), .settlementFailed(_), .ownershipReleaseFailed(_):
-            if transcriptionStatus == .completed {
-                "Some saved-meeting details need attention. The transcript is ready."
-            } else {
-                "Transcription needs another try. The saved meeting is available in Meetings."
-            }
-        case .audioRetentionFailed:
-            "The managed audio could not be removed for your retention setting. The transcript is ready."
-        case .automationFailed(_), .knowledgeCardFailed(_), .artifactRefreshFailed(_):
-            "Some meeting notes could not finish. The transcript is ready."
-        case .transcriptionCancelled:
-            "Transcription was stopped. The saved meeting can be retried."
-        case .automationCancelled:
-            "Meeting notes stopped before they finished. The transcript is ready."
-        case .promptFailed:
-            "An enabled meeting note could not finish. The transcript is ready."
         }
     }
 

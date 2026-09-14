@@ -77,6 +77,35 @@ public enum MeetingImportWarning: Sendable, Equatable {
     case promptFailed(promptID: UUID?, promptName: String, message: String)
     case knowledgeCardFailed(message: String)
     case artifactRefreshFailed(message: String)
+
+    public func userFacingMessage(
+        for transcriptionStatus: Transcription.TranscriptionStatus
+    ) -> String {
+        switch self {
+        case .transcriptionFailed:
+            "Transcription needs another try. The saved meeting is available in Meetings."
+        case .transcriptionCancelled:
+            "Transcription was stopped. The saved meeting can be retried."
+        case .persistenceFailed, .settlementFailed, .ownershipReleaseFailed:
+            if transcriptionStatus == .completed {
+                "Some saved-meeting details need attention. The transcript is ready."
+            } else {
+                "Transcription needs another try. The saved meeting is available in Meetings."
+            }
+        case .audioRetentionFailed:
+            "The managed audio could not be removed for the configured retention setting. The transcript is ready."
+        case .automationFailed:
+            "Some meeting notes could not finish. The transcript is ready."
+        case .automationCancelled:
+            "Meeting notes stopped before they finished. The transcript is ready."
+        case .promptFailed:
+            "An enabled meeting note could not finish. The transcript is ready."
+        case .knowledgeCardFailed:
+            "The knowledge card could not finish. The transcript is ready."
+        case .artifactRefreshFailed:
+            "Some meeting details could not finish. The transcript is ready."
+        }
+    }
 }
 
 public struct MeetingImportResult: Sendable {

@@ -84,6 +84,20 @@ final class MeetingImportViewModelTests: XCTestCase {
         )
     }
 
+    func testPrepublicationInvalidAudioPresentsSafeFailedResult() async throws {
+        let viewModel = MeetingImportViewModel(run: { _, _ in throw MeetingImportError.invalidAudio })
+        XCTAssertTrue(viewModel.select(sourceURL: sourceURL))
+        XCTAssertTrue(viewModel.startImport())
+
+        try await waitUntil { !viewModel.isProcessing }
+
+        XCTAssertEqual(viewModel.terminalResult?.outcome, .failed)
+        XCTAssertNil(viewModel.terminalResult?.transcription)
+        XCTAssertEqual(viewModel.terminalResult?.errorMessage, "The file does not contain playable audio.")
+        XCTAssertNil(viewModel.stage)
+        XCTAssertFalse(viewModel.isProcessing)
+    }
+
     func testStopBeforePublicationReturnsToEditableDraft() async throws {
         let gate = ImportGate()
         let viewModel = MeetingImportViewModel(run: { _, progress in

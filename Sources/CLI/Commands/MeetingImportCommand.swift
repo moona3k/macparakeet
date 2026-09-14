@@ -195,7 +195,9 @@ struct MeetingImportRecord: Encodable {
             MeetingArtifactStore.sessionFolderURL(for: transcription)?
                 .appendingPathComponent(MeetingArtifactAudioFileNames.playback).path
         }
-        warnings = result.warnings.map(MeetingImportWarningRecord.init)
+        warnings = result.warnings.map {
+            MeetingImportWarningRecord($0, transcriptionStatus: transcription.status)
+        }
     }
 }
 
@@ -205,65 +207,57 @@ struct MeetingImportWarningRecord: Encodable {
     let promptId: UUID?
     let promptName: String?
 
-    init(_ warning: MeetingImportWarning) {
+    init(
+        _ warning: MeetingImportWarning,
+        transcriptionStatus: Transcription.TranscriptionStatus
+    ) {
         switch warning {
         case .transcriptionFailed:
             kind = "transcriptionFailed"
-            message = "Transcription needs another try. The saved meeting is available in Meetings."
             promptId = nil
             promptName = nil
         case .transcriptionCancelled:
             kind = "transcriptionCancelled"
-            message = "Transcription was stopped. The saved meeting can be retried."
             promptId = nil
             promptName = nil
         case .persistenceFailed:
             kind = "persistenceFailed"
-            message = "Some saved-meeting details need attention. The transcript is ready."
             promptId = nil
             promptName = nil
         case .settlementFailed:
             kind = "settlementFailed"
-            message = "Some saved-meeting details need attention. The transcript is ready."
             promptId = nil
             promptName = nil
         case .ownershipReleaseFailed:
             kind = "ownershipReleaseFailed"
-            message = "Some saved-meeting details need attention. The transcript is ready."
             promptId = nil
             promptName = nil
         case .audioRetentionFailed:
             kind = "audioRetentionFailed"
-            message =
-                "The managed audio could not be removed for the configured retention setting. The transcript is ready."
             promptId = nil
             promptName = nil
         case .automationFailed:
             kind = "automationFailed"
-            message = "Some meeting notes could not finish. The transcript is ready."
             promptId = nil
             promptName = nil
         case .automationCancelled:
             kind = "automationCancelled"
-            message = "Meeting notes stopped before they finished. The transcript is ready."
             promptId = nil
             promptName = nil
         case .promptFailed(let id, let name, _):
             kind = "promptFailed"
-            message = "An enabled meeting note could not finish. The transcript is ready."
             promptId = id
             promptName = name
         case .knowledgeCardFailed:
             kind = "knowledgeCardFailed"
-            message = "The knowledge card could not finish. The transcript is ready."
             promptId = nil
             promptName = nil
         case .artifactRefreshFailed:
             kind = "artifactRefreshFailed"
-            message = "Some meeting details could not finish. The transcript is ready."
             promptId = nil
             promptName = nil
         }
+        message = warning.userFacingMessage(for: transcriptionStatus)
     }
 }
 

@@ -54,7 +54,12 @@ final class MeetingImportCommandTests: XCTestCase {
             progress(.preparingMedia)
             progress(.published(transcription))
             return MeetingImportResult(
-                transcription: transcription, warnings: [.artifactRefreshFailed(message: "/private/raw")])
+                transcription: transcription,
+                warnings: [
+                    .artifactRefreshFailed(message: "/private/raw"),
+                    .knowledgeCardFailed(message: "/private/card"),
+                ]
+            )
         }
         let command = try MeetingsCommand.ImportSubcommand.parse([sourceURL.path, "--json"])
         let output = try await captureStandardOutput { try await command.run(importRunner: importRunner) }
@@ -69,7 +74,11 @@ final class MeetingImportCommandTests: XCTestCase {
         XCTAssertEqual(warnings.first?["kind"] as? String, "artifactRefreshFailed")
         XCTAssertEqual(
             warnings.first?["message"] as? String, "Some meeting details could not finish. The transcript is ready.")
+        XCTAssertEqual(warnings.last?["kind"] as? String, "knowledgeCardFailed")
+        XCTAssertEqual(
+            warnings.last?["message"] as? String, "The knowledge card could not finish. The transcript is ready.")
         XCTAssertFalse(output.contains("/private/raw"))
+        XCTAssertFalse(output.contains("/private/card"))
     }
 
     func testNeedsRetryPrintsDurableResultBeforeFailureExit() async throws {
