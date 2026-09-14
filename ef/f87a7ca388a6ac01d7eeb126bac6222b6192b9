@@ -1,0 +1,20 @@
+Tests/MacParakeetTests/Calendar/MockCalendarService.swift
+  s_04b1ae56e392af::t_ca555cc14ebb9d 10-13,15-26,32-36,39-41,48-51,68-93,118-127
+  s_04b1ae56e392af::t_6e805a59daefc4 117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "eff87a7ca388a6ac01d7eeb126bac6222b6192b9",
+  "prompts": {},
+  "sessions": {
+    "s_04b1ae56e392af": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09cdd-aab4-76b0-8def-6c10035ea821",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
