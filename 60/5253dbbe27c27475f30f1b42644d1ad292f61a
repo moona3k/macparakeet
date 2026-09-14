@@ -1,0 +1,104 @@
+AGENTS.md
+  s_13344e8ba706a0::t_02b6a535a7c75a 164-165
+Sources/MacParakeetCore/Services/Telemetry/TelemetryService.swift
+  s_13344e8ba706a0::t_02c79af595db42 104-105
+  s_13344e8ba706a0::t_44284c335736ab 178-179
+  s_13344e8ba706a0::t_5acce02faed8b9 364-366
+Tests/MacParakeetTests/TelemetryServiceTests.swift
+  s_13344e8ba706a0::t_bd44d2ef9a4c2e 1828-1844
+  s_13344e8ba706a0::t_e57beb344c94b5 1795-1827
+  s_13344e8ba706a0::t_510dede04967ef 1995-1996
+Sources/MacParakeetCore/Audio/AudioCaptureDiagnostics.swift
+  s_13344e8ba706a0::t_5d321d276c3f68 107-110,113
+  s_13344e8ba706a0::t_61dfa750333aea 100-104
+  s_13344e8ba706a0::t_d18ffafbc7a1f4 167,169-172,176-181,185,188-192
+  s_13344e8ba706a0::t_4b4b354766bdee 111-112,114
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_13344e8ba706a0::t_a2330dc2b84ab1 1869,1888-1889,1900-1901
+  s_13344e8ba706a0::t_25be12bca28f7a 462
+  s_13344e8ba706a0::t_fc64866be91f48 124
+Sources/MacParakeetCore/Services/Telemetry/Observability.swift
+  s_13344e8ba706a0::t_000763bae236cc 2
+  s_13344e8ba706a0::t_112690c3a67994 49-63,66-68
+  s_13344e8ba706a0::t_8ce63915b368ab 118-161
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_13344e8ba706a0::t_b1780bd950ab05 903-904
+  s_13344e8ba706a0::t_206d68fd1ab025 1997-1999,2003-2006
+  s_13344e8ba706a0::t_2354140d59972a 1639-1640,1656-1657
+Tests/MacParakeetTests/Audio/AudioCaptureDiagnosticsTests.swift
+  s_13344e8ba706a0::t_509b7a4619c067 138-152
+spec/adr/012-telemetry-system.md
+  s_13344e8ba706a0::t_af1fde18cd42b2 102
+  s_13344e8ba706a0::t_5228141328776d 68-74,76-78
+CLAUDE.md
+  s_13344e8ba706a0::t_8466d037106df3 24
+plans/active/2026-06-12-advisor-index.md
+  s_13344e8ba706a0::t_092d068119f3ea 37
+.github/workflows/ci.yml
+  s_13344e8ba706a0::t_aba3f19fff8e62 49-60
+docs/audits/2026-09-13-telemetry-agent-debug.md
+  s_13344e8ba706a0::t_164c7e641d42be 57
+  s_13344e8ba706a0::t_06a30d81910056 73-76
+  s_13344e8ba706a0::t_b711bc34925d70 1-56,58-72,77-98
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_13344e8ba706a0::t_76201de679d98c 351-355
+  s_13344e8ba706a0::t_86230702f27cc1 392
+  s_13344e8ba706a0::t_069e7aee291684 364
+  s_13344e8ba706a0::t_bd7b76d7a362ad 1568-1570
+Sources/MacParakeetCore/Audio/AudioEngineLifecycleDiagnostics.swift
+  s_13344e8ba706a0::t_4f7aec95c640c2 296-298
+  s_13344e8ba706a0::t_64371299a55e08 154-157
+  s_13344e8ba706a0::t_d71b1b99266519 126-127
+  s_13344e8ba706a0::t_b6627e063d8816 48-49
+  s_13344e8ba706a0::t_782e563cbd2113 72-73
+spec/contracts/telemetry-v1.md
+  s_13344e8ba706a0::t_8932e2e2a4671a 113-119
+  s_13344e8ba706a0::t_de073544d22d59 187-189,192-194
+  s_13344e8ba706a0::t_7414b826ae3cd2 86-88,91-92
+  s_13344e8ba706a0::t_a76cd012a4bb5e 208-212
+  s_13344e8ba706a0::t_2e0c335638e09e 89-90
+docs/local-audio-diagnostics-query.md
+  s_13344e8ba706a0::t_d0f74400dc1887 78-81
+plans/active/2026-06-12-telemetry-allowlist-ci-guard.md
+  s_13344e8ba706a0::t_eee245a11f66dd 23
+docs/telemetry.md
+  s_13344e8ba706a0::t_1d8db7e2df294e 464
+  s_13344e8ba706a0::t_1a9daae9387c61 504-506,508-509
+  s_13344e8ba706a0::t_4b2312db1dd731 128-132
+  s_13344e8ba706a0::t_703cd53ab26fc0 389
+  s_13344e8ba706a0::t_6c43bf20826633 398-400
+scripts/ci/check-telemetry-allowlist.sh
+  s_13344e8ba706a0::t_8c1410cd0f65c5 1-135
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_13344e8ba706a0::t_2ec8d51b485801 1779-1780
+  s_13344e8ba706a0::t_bb0f0c98871478 807
+  s_13344e8ba706a0::t_b79086f201b2b6 709-713
+  s_13344e8ba706a0::t_35491cd2449e33 479
+  s_13344e8ba706a0::t_607c4467bbf727 831,998,1023,1041
+  s_13344e8ba706a0::t_05286b0d52f16f 1074
+  s_13344e8ba706a0::t_046bf2791f89a8 1722-1728
+plans/README.md
+  s_13344e8ba706a0::t_7c99cda00aa1f7 50
+Tests/MacParakeetTests/Audio/AudioEngineLifecycleDiagnosticsTests.swift
+  s_13344e8ba706a0::t_885894734674f1 7-11
+  s_13344e8ba706a0::t_08e5e9e8094417 315-339
+  s_13344e8ba706a0::t_7bfcf4e1b71d4a 340-352
+docs/audits/2026-05-02-logging-telemetry-issues.md
+  s_13344e8ba706a0::t_19398825ae356b 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "605253dbbe27c27475f30f1b42644d1ad292f61a",
+  "prompts": {},
+  "sessions": {
+    "s_13344e8ba706a0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "411cdce3-6551-42bd-b3d1-43300af8685e",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
