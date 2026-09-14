@@ -69,6 +69,12 @@ review and emitted the required verdict. No OS crash record identified the
 internal reason for the prompt-sensitive termination, so the reliable remedy
 is the verified invocation shape, not a speculative root-cause claim.
 
+A later exact-head retry added a pseudo-terminal to expose progress. It ran to
+exit status 0 but returned only a terminal control sequence, with no review
+text or verdict. The same print-mode command therefore needs ordinary captured
+stdout rather than a PTY; a zero exit remains insufficient without the review
+contract's required output.
+
 ## Guidance
 
 Treat an external final review as a SHA-bound merge gate:
@@ -83,8 +89,9 @@ Treat an external final review as a SHA-bound merge gate:
    primary repository's Git directory.
 3. Use a one-shot, tool-capable read-only mode and require a terminal verdict.
    For Cursor this is Plan mode: Ask mode blocks shell commands and cannot
-   verify an exact Git diff. The response is incomplete unless it names the
-   reviewed SHA and emits the agreed verdict token.
+   verify an exact Git diff. Run print mode without allocating a pseudo-terminal.
+   The response is incomplete unless it names the reviewed SHA and emits the
+   agreed verdict token.
 4. For Claude print-mode review, exclude `Task` and other delegation tools.
    Keep normal session persistence so an interrupted run can be resumed.
 5. Diagnose heavyweight reviewers serially so failure evidence belongs to one
@@ -132,6 +139,8 @@ reproducible and auditable.
 - Claude print mode launches background agents.
 - A reviewer is killed, produces no output, or was co-scheduled with another
   heavyweight review.
+- A print-mode review exits successfully but returns only terminal control
+  output instead of its verdict.
 - The PR head changes after an external review.
 
 The no-delegation rule does not apply to an intentionally coordinated
