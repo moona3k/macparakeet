@@ -1,0 +1,19 @@
+docs/plans/2026-09-13-1539-outlook-calendar-support-plan.md
+  s_04b1ae56e392af::t_ab587e286239a0 2-3,11,18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "344b247089122a913484553c10e9b86f0bd618b6",
+  "prompts": {},
+  "sessions": {
+    "s_04b1ae56e392af": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09cdd-aab4-76b0-8def-6c10035ea821",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
