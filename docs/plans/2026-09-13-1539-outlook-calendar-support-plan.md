@@ -1,6 +1,6 @@
 ---
-title: Outlook Calendar Discovery - Plan
-type: fix
+title: Outlook Calendar Support - Plan
+type: feature
 date: 2026-09-13
 artifact_contract: ce-unified-plan/v1
 product_contract_source: ce-plan-bootstrap
@@ -8,14 +8,14 @@ execution: code
 deepened: 2026-09-13
 ---
 
-# Outlook Calendar Discovery - Plan
+# Outlook Calendar Support - Plan
 
 ## Goal Capsule
 
 - **Objective:** People who use Outlook or Microsoft 365 can find and configure MacParakeet's calendar integration without mistaking Apple Calendar for the only supported provider.
 - **Means:** Keep EventKit as the single local calendar source and add accurate setup, account-management, refresh, search, and documentation affordances (KTD1-KTD4).
 - **Authority:** Current repository behavior and Apple/Microsoft platform contracts outrank implementation preference; issues #502 and #1013 establish the user problem.
-- **Execution profile:** Standard, user-visible fix across Settings, Meetings discovery copy, search, and governing documentation.
+- **Execution profile:** Standard, user-visible feature across Settings, Meetings discovery copy, search, and governing documentation.
 - **Stop conditions:** Stop before adding Microsoft Graph, OAuth, provider-specific persistence, or unverified shared-calendar promises.
 - **Delivery:** Implement, verify, independently review, and open one PR that references both issues.
 
