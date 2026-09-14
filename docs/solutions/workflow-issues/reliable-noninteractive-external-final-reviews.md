@@ -69,11 +69,14 @@ review and emitted the required verdict. No OS crash record identified the
 internal reason for the prompt-sensitive termination, so the reliable remedy
 is the verified invocation shape, not a speculative root-cause claim.
 
-A later exact-head retry added a pseudo-terminal to expose progress. It ran to
-exit status 0 but returned only a terminal control sequence, with no review
-text or verdict. The same print-mode command therefore needs ordinary captured
-stdout rather than a PTY; a zero exit remains insufficient without the review
-contract's required output.
+Later exact-head retries exposed a separate output-capture boundary. The
+pseudo-terminal run returned only a terminal control sequence, while an
+ordinary `--output-format text` run returned only a newline; both exited 0
+without a verdict. Resuming the persisted review with `--output-format
+stream-json --stream-partial-output` returned the complete assistant response
+and a final result event. The PTY was therefore not the root cause. In this
+Cursor build, structured streaming output is the verified capture path, and a
+zero exit remains insufficient without the review contract's required output.
 
 ## Guidance
 
@@ -89,9 +92,10 @@ Treat an external final review as a SHA-bound merge gate:
    primary repository's Git directory.
 3. Use a one-shot, tool-capable read-only mode and require a terminal verdict.
    For Cursor this is Plan mode: Ask mode blocks shell commands and cannot
-   verify an exact Git diff. Run print mode without allocating a pseudo-terminal.
-   The response is incomplete unless it names the reviewed SHA and emits the
-   agreed verdict token.
+   verify an exact Git diff. Capture print mode as structured streaming output
+   and retain the session so an empty terminal response can be resumed. The
+   response is incomplete unless it names the reviewed SHA and emits the agreed
+   verdict token in an assistant response or successful result event.
 4. For Claude print-mode review, exclude `Task` and other delegation tools.
    Keep normal session persistence so an interrupted run can be resumed.
 5. Diagnose heavyweight reviewers serially so failure evidence belongs to one
@@ -105,7 +109,10 @@ For Cursor, use the clean repository as both the current directory and
 exact installed model ID `cursor-grok-4.6-xhigh`. Keep the prompt concise: name
 the diff, read-only boundary, finding threshold, reviewed SHA, and exact verdict
 tokens. A large checklist is less reliable in the affected Cursor build and
-does not substitute for the model reading the repository instructions.
+does not substitute for the model reading the repository instructions. Use
+`--output-format stream-json --stream-partial-output`; reconstruct the verdict
+from assistant deltas or the final result event rather than relying on plain
+text output alone.
 
 For Claude, `--safe-mode` removes custom agents, plugins, hooks, and MCP
 configuration, while `--tools "Read,Glob,Grep,Bash"` omits `Task`.
@@ -140,7 +147,7 @@ reproducible and auditable.
 - A reviewer is killed, produces no output, or was co-scheduled with another
   heavyweight review.
 - A print-mode review exits successfully but returns only terminal control
-  output instead of its verdict.
+  output or a blank plain-text response instead of its verdict.
 - The PR head changes after an external review.
 
 The no-delegation rule does not apply to an intentionally coordinated
@@ -172,9 +179,15 @@ cursor agent -p \
   --workspace "$review_clone" \
   --trust \
   --sandbox enabled \
-  --output-format text \
+  --output-format stream-json \
+  --stream-partial-output \
   "Analyze git diff origin/main...HEAD for material issues. Read AGENTS.md and relevant files. Read only; do not edit, delegate, or run tests. State the SHA, cite actionable findings, and end exactly FINAL_VERDICT: LGTM or FINAL_VERDICT: CHANGES_REQUIRED."
 ```
+
+If the terminal response is empty, resume the persisted session once with the
+same structured output flags and ask it to return the completed review without
+more tool work. The resumed result still must name the original SHA and include
+the required verdict token.
 
 Avoid combining unrestricted delegation with an unrecoverable Claude print
 session:
