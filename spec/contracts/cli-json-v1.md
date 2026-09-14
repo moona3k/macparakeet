@@ -238,7 +238,10 @@ with human progress/status kept off stdout.
   segment UUIDs from `meetings transcript --format json`. A stale revision or
   segment is rejected without advancing history. JSON success output is the
   updated `MeetingTranscriptRecord`, including the new revision and effective
-  projection.
+  projection. JSON failures use `conflict` for a stale expected revision,
+  `validation` for stale/unsupported segment targets and correction commands,
+  and `input_empty` for blank replacement text. Conflict exits `1`; validation
+  and empty-input misuse exit `2`.
 - `meetings show --json` meeting objects can include optional `startContext`
   for meeting rows. When present it contains `triggerKind`, `sourceMode`, and
   optional `frontmostApplication` (`bundleIdentifier`, `localizedName`).

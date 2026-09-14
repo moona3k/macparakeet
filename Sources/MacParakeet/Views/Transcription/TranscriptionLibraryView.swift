@@ -367,6 +367,7 @@ struct TranscriptionLibraryView: View {
                                 for: transcription.id
                             ),
                             searchText: viewModel.searchText,
+                            effectiveTranscriptText: viewModel.effectiveTranscriptText(for: transcription),
                             isSelected: viewModel.isTranscriptionSelected(transcription),
                             showsSelectionControls: viewModel.isBulkSelectionModeEnabled,
                             sourceLabelStyle: sourceLabelStyle,

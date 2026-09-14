@@ -288,14 +288,24 @@ final class MeetingsCommandTests: XCTestCase {
             "--segment", segmentIDs[0].uuidString,
             "--text", "   ",
             "--expected-revision", "0",
+            "--json",
             "--database", dbURL.path,
         ])
-        do {
-            try await blankEdit.run()
-            XCTFail("Expected blank replacement text to be rejected")
-        } catch {
-            XCTAssertEqual(error.localizedDescription, "Input is empty.")
+        var blankError: Error?
+        let blankOutput = try await captureStandardOutput {
+            do {
+                try await blankEdit.run()
+                XCTFail("Expected blank replacement text to be rejected")
+            } catch {
+                blankError = error
+            }
         }
+        XCTAssertTrue(blankError is CLIJSONEnvelopeExit)
+        XCTAssertEqual(CLI.normalizedExitCode(for: try XCTUnwrap(blankError)), cliValidationMisuseExitCode)
+        let blankEnvelope = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(blankOutput.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(blankEnvelope["errorType"] as? String, "input_empty")
 
         let outOfOrderMerge = try MeetingsCommand.CorrectionsSubcommand.MergeLines.parse([
             meeting.id.uuidString,
@@ -336,17 +346,76 @@ final class MeetingsCommandTests: XCTestCase {
             "--segment", segmentIDs[1].uuidString,
             "--segment", segmentIDs[2].uuidString,
             "--expected-revision", "0",
+            "--json",
             "--database", dbURL.path,
         ])
-        do {
-            try await mixedSpeakerMerge.run()
-            XCTFail("Expected mixed-speaker segments to be rejected")
-        } catch {
-            XCTAssertEqual(
-                error as? SpeakerCorrectionServiceError,
-                .invalidCommand(.mixedAssignments)
-            )
+        var mixedSpeakerError: Error?
+        let mixedSpeakerOutput = try await captureStandardOutput {
+            do {
+                try await mixedSpeakerMerge.run()
+                XCTFail("Expected mixed-speaker segments to be rejected")
+            } catch {
+                mixedSpeakerError = error
+            }
         }
+        XCTAssertTrue(mixedSpeakerError is CLIJSONEnvelopeExit)
+        XCTAssertEqual(
+            CLI.normalizedExitCode(for: try XCTUnwrap(mixedSpeakerError)),
+            cliValidationMisuseExitCode
+        )
+        let mixedSpeakerEnvelope = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(mixedSpeakerOutput.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(mixedSpeakerEnvelope["errorType"] as? String, "validation")
+
+        let staleSegment = try MeetingsCommand.CorrectionsSubcommand.EditLine.parse([
+            meeting.id.uuidString,
+            "--segment", UUID().uuidString,
+            "--text", "corrected",
+            "--expected-revision", "0",
+            "--json",
+            "--database", dbURL.path,
+        ])
+        var staleSegmentError: Error?
+        let staleSegmentOutput = try await captureStandardOutput {
+            do {
+                try await staleSegment.run()
+                XCTFail("Expected stale segment to be rejected")
+            } catch {
+                staleSegmentError = error
+            }
+        }
+        XCTAssertEqual(
+            CLI.normalizedExitCode(for: try XCTUnwrap(staleSegmentError)),
+            cliValidationMisuseExitCode
+        )
+        let staleSegmentEnvelope = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(staleSegmentOutput.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(staleSegmentEnvelope["errorType"] as? String, "validation")
+
+        let staleRevision = try MeetingsCommand.CorrectionsSubcommand.EditLine.parse([
+            meeting.id.uuidString,
+            "--segment", segmentIDs[0].uuidString,
+            "--text", "corrected",
+            "--expected-revision", "1",
+            "--json",
+            "--database", dbURL.path,
+        ])
+        var staleRevisionError: Error?
+        let staleRevisionOutput = try await captureStandardOutput {
+            do {
+                try await staleRevision.run()
+                XCTFail("Expected stale revision to be rejected")
+            } catch {
+                staleRevisionError = error
+            }
+        }
+        XCTAssertEqual(CLI.normalizedExitCode(for: try XCTUnwrap(staleRevisionError)), .failure)
+        let staleRevisionEnvelope = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(staleRevisionOutput.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(staleRevisionEnvelope["errorType"] as? String, "conflict")
 
         XCTAssertNil(
             try SpeakerCorrectionRepository(dbQueue: db.dbQueue)

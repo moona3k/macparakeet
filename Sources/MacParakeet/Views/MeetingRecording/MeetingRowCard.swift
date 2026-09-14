@@ -9,6 +9,7 @@ struct MeetingRowCard<MenuContent: View>: View {
     let transcription: Transcription
     var classification: MeetingClassification? = nil
     var searchText: String = ""
+    var effectiveTranscriptText: String? = nil
     var isSelected: Bool = false
     var showsSelectionControls: Bool = false
     var sourceLabelStyle: LibrarySourceLabelStyle = .hidden
@@ -334,6 +335,14 @@ struct MeetingRowCard<MenuContent: View>: View {
     }
 
     private var displayedSnippet: String? {
+        if let effectiveTranscriptText,
+            let effectiveSnippet = SnippetDeriver.derive(
+                from: effectiveTranscriptText,
+                excluding: transcription.derivedTitle
+            ) ?? snippet(from: effectiveTranscriptText)
+        {
+            return effectiveSnippet
+        }
         if let derived = transcription.derivedSnippet?.trimmingCharacters(in: .whitespacesAndNewlines), !derived.isEmpty
         {
             return derived
@@ -342,7 +351,11 @@ struct MeetingRowCard<MenuContent: View>: View {
     }
 
     private var legacySnippet: String? {
-        guard let text = transcription.cleanTranscript ?? transcription.rawTranscript, !text.isEmpty else {
+        snippet(from: transcription.cleanTranscript ?? transcription.rawTranscript)
+    }
+
+    private func snippet(from text: String?) -> String? {
+        guard let text, !text.isEmpty else {
             return nil
         }
         let cleaned =

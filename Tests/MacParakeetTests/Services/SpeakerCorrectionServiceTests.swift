@@ -24,6 +24,25 @@ final class SpeakerCorrectionServiceTests: XCTestCase {
         XCTAssertEqual(stored.rawTranscript, "Hello world.")
         XCTAssertEqual(stored.wordTimestamps?.map(\.word), ["Hello", "world."])
         XCTAssertFalse(stored.isTranscriptEdited)
+
+        let correctedPage = try fixture.transcriptions.fetchLibraryPage(
+            query: .init(searchText: "corrected greeting", limit: 10)
+        )
+        XCTAssertEqual(correctedPage.items.map(\.id), [fixture.transcription.id])
+        XCTAssertEqual(
+            correctedPage.effectiveTranscriptTextByID[fixture.transcription.id],
+            "Corrected greeting."
+        )
+        XCTAssertTrue(
+            try fixture.transcriptions.fetchLibraryPage(
+                query: .init(searchText: "hello world", limit: 10)
+            ).items.isEmpty
+        )
+        XCTAssertEqual(
+            try fixture.transcriptions.search(query: "corrected greeting", limit: nil).map(\.id),
+            [fixture.transcription.id]
+        )
+        XCTAssertTrue(try fixture.transcriptions.search(query: "hello world", limit: nil).isEmpty)
     }
 
     func testTimedTextCommandRejectsLegacyUntimedEditWithoutWriting() async throws {

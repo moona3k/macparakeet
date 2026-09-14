@@ -1175,7 +1175,7 @@ private enum MeetingCorrectionHistoryAction {
     case redo
 }
 
-private enum MeetingCorrectionCLIError: LocalizedError {
+enum MeetingCorrectionCLIError: LocalizedError {
     case invalidSegment(String)
     case segmentNotTargetable(String)
 

@@ -591,6 +591,9 @@ struct MeetingsView: View {
                             for: transcription.id
                         ),
                         searchText: viewModel.recentMeetingsViewModel.searchText,
+                        effectiveTranscriptText: viewModel.recentMeetingsViewModel.effectiveTranscriptText(
+                            for: transcription
+                        ),
                         isSelected: viewModel.recentMeetingsViewModel.isTranscriptionSelected(transcription),
                         showsSelectionControls: viewModel.recentMeetingsViewModel.isBulkSelectionModeEnabled,
                         isRetrying: viewModel.recentMeetingsViewModel.isRetryingMeetingTranscription(transcription),

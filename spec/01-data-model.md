@@ -471,9 +471,10 @@ without locale or NaturalLanguage dependencies. Dictations are not populated.
 Version 2 fixed mixed word-token whitespace and punctuation joining. Version 3
 added effective-speaker run boundaries so one durable citation segment can yield
 multiple corrected retrieval rows without reminting its durable UUID;
-version 4 is current and preserves automatic speaker inheritance while
-excluding blank edge tokens from corrected retrieval timestamps. Same-version
-rebuilds remain byte-identical.
+version 4 preserves automatic speaker inheritance while excluding blank edge
+tokens from corrected retrieval timestamps. Version 5 is current and derives
+corrected retrieval rows from effective timed-text segments while retaining
+their segment timing envelopes. Same-version rebuilds remain byte-identical.
 
 ---
 

@@ -335,9 +335,14 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
                 sql: sql,
                 arguments: StatementArguments(arguments)
             )
+            let items = limit == 0 ? [] : Array(fetched.prefix(limit))
             return TranscriptionLibraryPage(
-                items: limit == 0 ? [] : Array(fetched.prefix(limit)),
-                hasMore: fetched.count > limit
+                items: items,
+                hasMore: fetched.count > limit,
+                effectiveTranscriptTextByID: try Self.effectiveLibraryTranscriptTexts(
+                    for: items,
+                    in: db
+                )
             )
         }
     }
@@ -362,10 +367,21 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
             sql: sql,
             arguments: StatementArguments(arguments)
         )
+        let activeCorrectionIDs = try activeCorrectionTranscriptionIDs(in: db)
         var skipped = 0
         var items: [Transcription] = []
+        var effectiveTranscriptTextByID: [UUID: String] = [:]
         while let transcription = try cursor.next() {
-            guard transcriptionMatchesLibrarySearch(transcription, normalizedQuery: normalizedQuery) else {
+            let effectiveTranscriptText = try effectiveLibraryTranscriptText(
+                for: transcription,
+                activeCorrectionIDs: activeCorrectionIDs,
+                in: db
+            )
+            guard transcriptionMatchesLibrarySearch(
+                transcription,
+                normalizedQuery: normalizedQuery,
+                effectiveTranscriptText: effectiveTranscriptText
+            ) else {
                 continue
             }
             if skipped < offset {
@@ -373,11 +389,20 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
                 continue
             }
             guard items.count < limit else {
-                return TranscriptionLibraryPage(items: items, hasMore: true)
+                return TranscriptionLibraryPage(
+                    items: items,
+                    hasMore: true,
+                    effectiveTranscriptTextByID: effectiveTranscriptTextByID
+                )
             }
             items.append(transcription)
+            effectiveTranscriptTextByID[transcription.id] = effectiveTranscriptText
         }
-        return TranscriptionLibraryPage(items: items, hasMore: false)
+        return TranscriptionLibraryPage(
+            items: items,
+            hasMore: false,
+            effectiveTranscriptTextByID: effectiveTranscriptTextByID
+        )
     }
 
     public func fetchBySourceType(_ sourceType: Transcription.SourceType, limit: Int? = nil) throws -> [Transcription] {
@@ -514,10 +539,20 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
                 try Transcription
                 .order(Transcription.Columns.createdAt.desc)
                 .fetchCursor(db)
+            let activeCorrectionIDs = try Self.activeCorrectionTranscriptionIDs(in: db)
 
             var results: [Transcription] = []
             while let transcription = try cursor.next() {
-                guard transcriptionMatchesLibrarySearch(transcription, normalizedQuery: normalizedQuery) else {
+                let effectiveTranscriptText = try Self.effectiveLibraryTranscriptText(
+                    for: transcription,
+                    activeCorrectionIDs: activeCorrectionIDs,
+                    in: db
+                )
+                guard transcriptionMatchesLibrarySearch(
+                    transcription,
+                    normalizedQuery: normalizedQuery,
+                    effectiveTranscriptText: effectiveTranscriptText
+                ) else {
                     continue
                 }
 
@@ -806,6 +841,50 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
             return "\(libraryDisplayTitleExpression) COLLATE NOCASE ASC, createdAt DESC"
         }
     }
+
+    private static func effectiveLibraryTranscriptTexts(
+        for transcriptions: [Transcription],
+        in db: Database
+    ) throws -> [UUID: String] {
+        let activeCorrectionIDs = try activeCorrectionTranscriptionIDs(in: db)
+        return try transcriptions.reduce(into: [:]) { result, transcription in
+            result[transcription.id] = try effectiveLibraryTranscriptText(
+                for: transcription,
+                activeCorrectionIDs: activeCorrectionIDs,
+                in: db
+            )
+        }
+    }
+
+    private static func activeCorrectionTranscriptionIDs(in db: Database) throws -> Set<UUID> {
+        Set(
+            try SpeakerCorrectionState
+                .filter(Column("headId") != nil)
+                .fetchAll(db)
+                .map(\.transcriptionId)
+        )
+    }
+
+    private static func effectiveLibraryTranscriptText(
+        for transcription: Transcription,
+        activeCorrectionIDs: Set<UUID>,
+        in db: Database
+    ) throws -> String? {
+        guard activeCorrectionIDs.contains(transcription.id) else { return nil }
+        let projection = try SpeakerAttributionReadService.resolve(
+            transcription: transcription,
+            in: db
+        )
+        guard projection.attribution.hasTextCorrections,
+              let text = projection.effectiveTranscription.cleanTranscript?.trimmingCharacters(
+                in: .whitespacesAndNewlines
+              ),
+              !text.isEmpty
+        else {
+            return nil
+        }
+        return text
+    }
 }
 
 private func escapedLikePattern(_ value: String) -> String {
@@ -817,13 +896,28 @@ private func escapedLikePattern(_ value: String) -> String {
 
 private func transcriptionMatchesLibrarySearch(
     _ transcription: Transcription,
-    normalizedQuery: String
+    normalizedQuery: String,
+    effectiveTranscriptText: String? = nil
 ) -> Bool {
-    UnicodeSearch.contains(transcription.effectiveDisplayTitle, normalizedQuery: normalizedQuery)
+    let matchesTranscript: Bool
+    if let effectiveTranscriptText {
+        matchesTranscript = UnicodeSearch.contains(
+            effectiveTranscriptText,
+            normalizedQuery: normalizedQuery
+        )
+    } else {
+        matchesTranscript =
+            (transcription.rawTranscript.map {
+                UnicodeSearch.contains($0, normalizedQuery: normalizedQuery)
+            } ?? false)
+            || (transcription.cleanTranscript.map {
+                UnicodeSearch.contains($0, normalizedQuery: normalizedQuery)
+            } ?? false)
+    }
+    return UnicodeSearch.contains(transcription.effectiveDisplayTitle, normalizedQuery: normalizedQuery)
         || UnicodeSearch.contains(transcription.fileName, normalizedQuery: normalizedQuery)
         || (transcription.derivedTitle.map { UnicodeSearch.contains($0, normalizedQuery: normalizedQuery) } ?? false)
-        || (transcription.rawTranscript.map { UnicodeSearch.contains($0, normalizedQuery: normalizedQuery) } ?? false)
-        || (transcription.cleanTranscript.map { UnicodeSearch.contains($0, normalizedQuery: normalizedQuery) } ?? false)
+        || matchesTranscript
         || (transcription.channelName.map { UnicodeSearch.contains($0, normalizedQuery: normalizedQuery) } ?? false)
 }
 

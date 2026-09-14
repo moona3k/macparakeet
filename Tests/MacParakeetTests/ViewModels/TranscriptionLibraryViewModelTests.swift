@@ -1,4 +1,5 @@
 import XCTest
+import GRDB
 @testable import MacParakeetCore
 @testable import MacParakeetViewModels
 
@@ -6,10 +7,12 @@ import XCTest
 final class TranscriptionLibraryViewModelTests: XCTestCase {
     var vm: TranscriptionLibraryViewModel!
     var repo: TranscriptionRepository!
+    var dbQueue: DatabaseQueue!
 
     override func setUp() async throws {
         let manager = try DatabaseManager()
         repo = TranscriptionRepository(dbQueue: manager.dbQueue)
+        dbQueue = manager.dbQueue
         vm = TranscriptionLibraryViewModel()
         vm.configure(transcriptionRepo: repo)
     }
@@ -26,6 +29,50 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
 
         await load()
         XCTAssertEqual(vm.transcriptions.count, 2)
+    }
+
+    func testLoadPublishesEffectiveTimedTextForLibraryPreview() async throws {
+        let words = [
+            WordTimestamp(word: "Wrong", startMs: 0, endMs: 150, confidence: 1, speakerId: "S1"),
+            WordTimestamp(word: "words.", startMs: 170, endMs: 350, confidence: 1, speakerId: "S1"),
+        ]
+        let segment = TranscriptSegmentRecord(
+            startMs: 0,
+            endMs: 350,
+            speakerId: "S1",
+            speakerLabel: "Speaker 1",
+            text: "Wrong words.",
+            wordRange: .init(startIndex: 0, endIndexExclusive: 2)
+        )
+        let transcription = Transcription(
+            fileName: "Meeting",
+            rawTranscript: "Wrong words.",
+            cleanTranscript: "Wrong words.",
+            wordTimestamps: words,
+            speakers: [.init(id: "S1", label: "Speaker 1")],
+            transcriptSegments: [segment],
+            status: .completed,
+            sourceType: .meeting
+        )
+        try repo.save(transcription)
+        _ = try await SpeakerCorrectionService(dbQueue: dbQueue).apply(
+            transcriptionId: transcription.id,
+            command: .editText(
+                target: .init(
+                    anchorTranscriptSegmentIDs: [segment.id],
+                    wordRange: segment.wordRange
+                ),
+                text: "Corrected preview."
+            ),
+            expectedFingerprint: SpeakerAttributionResolver.fingerprint(for: transcription),
+            expectedRevision: 0
+        )
+
+        await load()
+
+        let loaded = try XCTUnwrap(vm.transcriptions.first)
+        XCTAssertEqual(vm.effectiveTranscriptText(for: loaded), "Corrected preview.")
+        XCTAssertEqual(loaded.cleanTranscript, "Wrong words.")
     }
 
     func testLoadTranscriptionsIncludesProcessingMeetingRowsOnly() async throws {

@@ -41,7 +41,7 @@ public struct SpeakerCorrectionResult: Sendable, Equatable {
     }
 }
 
-public enum SpeakerCorrectionServiceError: Error, Equatable, Sendable {
+public enum SpeakerCorrectionServiceError: Error, Equatable, Sendable, LocalizedError {
     case transcriptionNotFound
     case transcriptionIncomplete
     case timingsRequired
@@ -52,6 +52,37 @@ public enum SpeakerCorrectionServiceError: Error, Equatable, Sendable {
     case malformedHistory
     case nothingToUndo
     case nothingToRedo
+
+    public var errorDescription: String? {
+        switch self {
+        case .transcriptionNotFound:
+            "Transcript not found."
+        case .transcriptionIncomplete:
+            "Transcript editing is available after transcription completes."
+        case .timingsRequired:
+            "Timed transcript editing requires word timestamps."
+        case .durableSegmentsRequired:
+            "Timed transcript editing requires current transcript lines."
+        case .untimedTranscriptEdit:
+            "This transcript has no safe timed-text alignment."
+        case .conflict:
+            "The transcript changed since it was read. Read the latest transcript and retry."
+        case .invalidCommand(.invalidText):
+            "Replacement text cannot be empty."
+        case .invalidCommand(.nonAdjacentTargets):
+            "Transcript lines must be adjacent and in transcript order."
+        case .invalidCommand(.mixedAssignments):
+            "Transcript lines must have the same speaker assignment before merging."
+        case .invalidCommand:
+            "The correction no longer matches the current transcript. Read the latest transcript and retry."
+        case .malformedHistory:
+            "Transcript correction history could not be read."
+        case .nothingToUndo:
+            "There is no transcript correction to undo."
+        case .nothingToRedo:
+            "There is no transcript correction to redo."
+        }
+    }
 }
 
 /// Commits one speaker-management action together with every database-derived
