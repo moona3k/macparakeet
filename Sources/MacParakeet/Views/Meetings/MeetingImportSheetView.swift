@@ -12,6 +12,10 @@ struct MeetingImportSheetView: View {
     let onOpenMeeting: (Transcription) -> Void
 
     @FocusState private var titleFocused: Bool
+    @AccessibilityFocusState private var accessibilityFocus: AccessibilityFocusTarget?
+    @State private var announcedProgressStage: MeetingImportViewModel.Stage?
+    @State private var announcedTerminal: TerminalAnnouncement?
+    @State private var announcedValidationMessage: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -31,6 +35,39 @@ struct MeetingImportSheetView: View {
             if viewModel.draft != nil, !viewModel.isProcessing, viewModel.terminalResult == nil {
                 titleFocused = true
             }
+            if let validationMessage = viewModel.validationMessage {
+                announceValidationIfNeeded(validationMessage)
+            }
+            if let stage = viewModel.stage, viewModel.isProcessing {
+                announceProgressStageIfNeeded(stage)
+            }
+            announceTerminalIfNeeded()
+        }
+        .onChange(of: viewModel.validationMessage) { _, validationMessage in
+            guard let validationMessage else {
+                announcedValidationMessage = nil
+                return
+            }
+            announceValidationIfNeeded(validationMessage)
+        }
+        .onChange(of: viewModel.stage) { _, stage in
+            guard let stage, viewModel.isProcessing else {
+                announcedProgressStage = nil
+                return
+            }
+            announceProgressStageIfNeeded(stage)
+        }
+        .onChange(of: viewModel.isProcessing) { _, isProcessing in
+            guard !isProcessing else { return }
+            announcedProgressStage = nil
+            announceTerminalIfNeeded()
+        }
+        .onChange(of: terminalAnnouncement) { _, terminalAnnouncement in
+            guard terminalAnnouncement != nil else {
+                announcedTerminal = nil
+                return
+            }
+            announceTerminalIfNeeded()
         }
         .onExitCommand(perform: dismissSheet)
     }
@@ -102,18 +139,14 @@ struct MeetingImportSheetView: View {
                     .accessibilityLabel("Meeting date and time")
                 }
                 if let message = viewModel.validationMessage {
-                    Label(message, systemImage: "exclamationmark.circle")
-                        .font(DesignSystem.Typography.bodySmall)
-                        .foregroundStyle(DesignSystem.Colors.errorRed)
+                    validationLabel(message, systemImage: "exclamationmark.circle")
                 }
                 ownershipNotice
             }
         } else {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
                 if let message = viewModel.validationMessage {
-                    Label(message, systemImage: "exclamationmark.triangle")
-                        .font(DesignSystem.Typography.bodySmall)
-                        .foregroundStyle(DesignSystem.Colors.errorRed)
+                    validationLabel(message, systemImage: "exclamationmark.triangle")
                 }
                 Text("Choose one audio or video file to add as a meeting.")
                     .font(DesignSystem.Typography.body)
@@ -220,6 +253,7 @@ struct MeetingImportSheetView: View {
         }
         .frame(maxWidth: .infinity, minHeight: 180, alignment: .leading)
         .accessibilityElement(children: .combine)
+        .accessibilityFocused($accessibilityFocus, equals: .terminalSummary)
     }
 
     private var footer: some View {
@@ -282,6 +316,79 @@ struct MeetingImportSheetView: View {
             content()
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    private enum AccessibilityFocusTarget: Hashable {
+        case validation
+        case terminalSummary
+    }
+
+    private struct TerminalAnnouncement: Equatable {
+        let transcriptionID: UUID?
+        let outcome: MeetingImportViewModel.Outcome
+    }
+
+    private var terminalAnnouncement: TerminalAnnouncement? {
+        guard let terminal = viewModel.terminalResult else { return nil }
+        return TerminalAnnouncement(
+            transcriptionID: terminal.transcription?.id,
+            outcome: terminal.outcome
+        )
+    }
+
+    private func validationLabel(_ message: String, systemImage: String) -> some View {
+        Label(message, systemImage: systemImage)
+            .font(DesignSystem.Typography.bodySmall)
+            .foregroundStyle(DesignSystem.Colors.errorRed)
+            .accessibilityFocused($accessibilityFocus, equals: .validation)
+    }
+
+    private func announceValidationIfNeeded(_ message: String) {
+        guard announcedValidationMessage != message else { return }
+        announcedValidationMessage = message
+        scheduleAccessibilityUpdate {
+            guard viewModel.validationMessage == message else { return }
+            accessibilityFocus = .validation
+            postAccessibilityAnnouncement(message)
+        }
+    }
+
+    private func announceProgressStageIfNeeded(_ stage: MeetingImportViewModel.Stage) {
+        guard announcedProgressStage != stage else { return }
+        announcedProgressStage = stage
+        postAccessibilityAnnouncement("Import progress: \(stage.message)")
+    }
+
+    private func announceTerminalIfNeeded() {
+        guard !viewModel.isProcessing,
+            let terminalAnnouncement,
+            announcedTerminal != terminalAnnouncement,
+            let terminal = viewModel.terminalResult
+        else { return }
+        announcedTerminal = terminalAnnouncement
+        scheduleAccessibilityUpdate {
+            guard self.terminalAnnouncement == terminalAnnouncement else { return }
+            accessibilityFocus = .terminalSummary
+            postAccessibilityAnnouncement(terminalTitle(for: terminal))
+        }
+    }
+
+    private func scheduleAccessibilityUpdate(_ update: @escaping @MainActor () -> Void) {
+        Task { @MainActor in
+            await Task.yield()
+            update()
+        }
+    }
+
+    private func postAccessibilityAnnouncement(_ message: String) {
+        NSAccessibility.post(
+            element: NSApplication.shared,
+            notification: .announcementRequested,
+            userInfo: [
+                .announcement: message,
+                .priority: NSAccessibilityPriorityLevel.high,
+            ]
+        )
     }
 
     private func chooseSource() {

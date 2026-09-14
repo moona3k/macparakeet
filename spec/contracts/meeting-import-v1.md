@@ -31,8 +31,9 @@ the durable retention clock and title intent.
 The current meeting-audio retention setting applies to the managed copy. Timed
 retention starts at `audioRetentionStartedAt`; keep-forever retains it; and
 delete-immediately removes managed audio only after successful transcription
-and automation. Retryable imports retain audio regardless of that setting so
-Retry can finish the same meeting. A cleanup failure is a partial-result warning.
+and completion of the automation attempt, including a stopped or failed attempt.
+Retryable imports retain audio regardless of that setting so Retry can finish the
+same meeting. A cleanup failure is a partial-result warning.
 
 ## Managed publication and ownership
 
