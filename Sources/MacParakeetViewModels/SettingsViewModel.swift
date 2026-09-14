@@ -1432,17 +1432,23 @@ public final class SettingsViewModel {
         let status = calendarService.permissionStatus
         let previousStatus = calendarPermissionStatus
         calendarPermissionStatus = status
-        guard status != .granted else { return }
-        guard
-            previousStatus == .granted
-                || !availableCalendars.isEmpty
-                || calendarListLoadState != .notLoaded
-        else { return }
 
-        calendarRefreshGeneration += 1
-        availableCalendars = []
-        calendarListLoadState = .notLoaded
-        isRefreshingCalendars = false
+        guard status == .granted else {
+            guard
+                previousStatus == .granted
+                    || !availableCalendars.isEmpty
+                    || calendarListLoadState != .notLoaded
+            else { return }
+
+            calendarRefreshGeneration += 1
+            availableCalendars = []
+            calendarListLoadState = .notLoaded
+            isRefreshingCalendars = false
+            return
+        }
+
+        guard previousStatus != .granted, calendarListLoadState == .notLoaded else { return }
+        Task { await refreshCalendarAccess() }
     }
 
     /// Reload Calendar permission and the calendars EventKit currently exposes.

@@ -2779,6 +2779,25 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(vm.availableCalendars.isEmpty)
     }
 
+    func testPolledPermissionGrantSelfHealsNotLoadedCalendarList() async throws {
+        let calendarService = MockCalendarService()
+        calendarService.stubPermissionStatus = .denied
+        calendarService.stubCalendars = [CalendarInfo(id: "work", title: "Work")]
+        let vm = SettingsViewModel(defaults: testDefaults, calendarService: calendarService)
+
+        vm.refreshCalendarPermission()
+        XCTAssertEqual(vm.calendarPermissionStatus, .denied)
+        XCTAssertEqual(vm.calendarListLoadState, .notLoaded)
+
+        calendarService.stubPermissionStatus = .granted
+        vm.refreshCalendarPermission()
+
+        try await waitUntil { vm.calendarListLoadState == .loaded }
+
+        XCTAssertEqual(vm.calendarPermissionStatus, .granted)
+        XCTAssertEqual(vm.availableCalendars.map(\.id), ["work"])
+    }
+
     func testCalendarRefreshPreservesExcludedCalendars() async {
         let calendarService = MockCalendarService()
         calendarService.stubPermissionStatus = .granted
