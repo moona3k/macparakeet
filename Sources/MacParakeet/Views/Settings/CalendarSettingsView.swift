@@ -9,12 +9,12 @@ import SwiftUI
 /// matching its "Stop recording automatically" sibling and the "Auto-save
 /// meetings to disk" toggle above — and turning it on reveals an elevated
 /// sub-panel holding the `.notify` vs `.autoStart` mode fork (ADR-017
-/// Phases 1+2) plus the reminder, event-filter, and per-calendar controls.
+/// Phases 1+2) plus the reminder and event-filter controls. Calendar account
+/// discovery and the per-calendar list stay visible independently of this mode.
 /// `.off` is the toggle's unchecked state, so it no longer competes with the
 /// mode choice the way the old three-value picker did.
 struct CalendarSettingsView: View {
     @Bindable var viewModel: SettingsViewModel
-    @State private var availableCalendars: [CalendarInfo] = []
     @State private var isRequestingPermission = false
     @State private var calendarsExpanded = false
 
@@ -25,13 +25,89 @@ struct CalendarSettingsView: View {
             if viewModel.calendarPermissionGranted && viewModel.calendarAutoStartMode != .off {
                 startOptionsPanel
             }
+
+            Divider()
+            calendarAccountsRow
+
+            if viewModel.calendarPermissionGranted {
+                Divider()
+                calendarListRow
+            }
         }
-        .onAppear {
-            reloadCalendars()
-            refreshNotificationAuth()
+        .task {
+            await viewModel.refreshCalendarAccess()
+            await viewModel.refreshCalendarNotificationAuthorization()
         }
-        .onChange(of: viewModel.calendarPermissionGranted) { _, _ in reloadCalendars() }
         .onChange(of: viewModel.calendarAutoStartMode) { _, _ in refreshNotificationAuth() }
+    }
+
+    // MARK: - Calendar accounts
+
+    private var calendarAccountsRow: some View {
+        HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Calendar accounts")
+                    .font(DesignSystem.Typography.body)
+                Text(
+                    "MacParakeet reads calendars added to this Mac, including Microsoft 365 and Exchange. Add accounts in System Settings → Internet Accounts; you can keep using Outlook."
+                )
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: DesignSystem.Spacing.md)
+            VStack(alignment: .trailing, spacing: DesignSystem.Spacing.sm) {
+                Button {
+                    viewModel.openInternetAccountsSystemSettings()
+                } label: {
+                    Label("Manage Accounts", systemImage: "person.crop.circle.badge.plus")
+                }
+                .parakeetAction(.secondary)
+                .controlSize(.small)
+                .help("Open System Settings → Internet Accounts")
+
+                if viewModel.calendarPermissionGranted {
+                    Button {
+                        Task { await viewModel.refreshCalendarAccess() }
+                    } label: {
+                        if viewModel.isRefreshingCalendars {
+                            ParakeetSpinner(.inline)
+                        } else {
+                            Label("Refresh", systemImage: "arrow.clockwise")
+                        }
+                    }
+                    .parakeetAction(.secondary)
+                    .controlSize(.small)
+                    .disabled(viewModel.isRefreshingCalendars)
+                    .help("Refresh calendars from this Mac")
+                    .accessibilityLabel("Refresh calendars")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var calendarListRow: some View {
+        switch viewModel.calendarListLoadState {
+        case .notLoaded, .loading:
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                ParakeetSpinner(.inline)
+                Text("Loading calendars…")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+        case .loaded where viewModel.availableCalendars.isEmpty:
+            VStack(alignment: .leading, spacing: 2) {
+                Text("No calendars found")
+                    .font(DesignSystem.Typography.body)
+                Text("If you just added an account, allow macOS a moment to sync, then refresh.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        case .loaded:
+            includedCalendarsRow
+        }
     }
 
     // MARK: - Notification permission warning
@@ -176,11 +252,6 @@ struct CalendarSettingsView: View {
             reminderLeadRow
             Divider()
             triggerFilterRow
-
-            if !availableCalendars.isEmpty {
-                Divider()
-                includedCalendarsRow
-            }
         }
         .padding(DesignSystem.Spacing.sm)
         .background(
@@ -298,7 +369,7 @@ struct CalendarSettingsView: View {
                     .foregroundStyle(.secondary)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    ForEach(availableCalendars) { calendar in
+                    ForEach(viewModel.availableCalendars) { calendar in
                         Toggle(isOn: bindingForCalendar(calendar)) {
                             VStack(alignment: .leading, spacing: 0) {
                                 Text(calendar.title)
@@ -331,8 +402,8 @@ struct CalendarSettingsView: View {
     }
 
     private var calendarSelectionSummary: String {
-        let total = availableCalendars.count
-        let included = availableCalendars.filter {
+        let total = viewModel.availableCalendars.count
+        let included = viewModel.availableCalendars.filter {
             !viewModel.calendarExcludedIdentifiers.contains($0.id)
         }.count
         return "\(included) of \(total) selected"
@@ -363,23 +434,11 @@ struct CalendarSettingsView: View {
             // the gentle `.notify` (and requests notification auth), so the row
             // lands in the on state and reveals the sub-panel — "Turn On…"
             // genuinely turns it on with nothing to set here.
-            _ = await viewModel.requestCalendarPermission()
+            let granted = await viewModel.requestCalendarPermission()
+            if granted {
+                await viewModel.refreshCalendarAccess()
+            }
             isRequestingPermission = false
-            reloadCalendars()
-        }
-    }
-
-    private func reloadCalendars() {
-        guard viewModel.calendarPermissionGranted else {
-            availableCalendars = []
-            return
-        }
-        // CalendarService is an actor (EventKit isn't thread-safe), so this
-        // hops off main. Cheap — typically <5ms with permission already
-        // granted — but worth keeping off the main thread on principle.
-        Task {
-            let calendars = await CalendarService.shared.availableCalendars()
-            await MainActor.run { self.availableCalendars = calendars }
         }
     }
 }

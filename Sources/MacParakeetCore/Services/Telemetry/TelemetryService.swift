@@ -101,6 +101,8 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
     private let osVer: String
     private let locale: String?
     private let chip: String
+    private let gitCommit: String
+    private let buildNumber: String
     private let surface: String
     private let isEnabled: () -> Bool
     private let isTransportEligible: () -> Bool
@@ -173,6 +175,8 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
         self.osVer = "\(osVersion.majorVersion).\(osVersion.minorVersion)"
         self.locale = Locale.current.identifier
         self.chip = info.chipType
+        self.gitCommit = Observability.sanitizedGitCommit(info.gitCommit)
+        self.buildNumber = Observability.sanitizedBuildNumber(info.buildNumber)
         self.surface = surface
 
         startTimer()
@@ -357,7 +361,9 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
             locale: locale,
             chip: chip,
             session: sessionId,
-            surface: surface
+            surface: surface,
+            gitCommit: gitCommit,
+            buildNumber: buildNumber
         )
     }
 

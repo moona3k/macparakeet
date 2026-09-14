@@ -75,7 +75,10 @@ checkpoint describes the last entered native/queue boundary after at least five
 seconds; a later terminal has the same attempt ID. Inspect `phase`, `phase_ms`,
 `elapsed_ms`, `attempt_count`, and `phase_<phase>_ms`. On failure,
 `last_error_phase` preserves the last recorded error's origin even when `phase`
-has advanced to teardown. Fast prepare/stop are suppressed. This utility has no
+has advanced to teardown. When a meeting or dictation owns capture, neighboring
+lines in the same process also carry `workflow_id` and `consumer`; join those
+to `meeting_operation` / `dictation_operation` in telemetry. Idle prepare/stop
+omit them. Fast prepare/stop are suppressed. This utility has no
 attempt-ID filter; select the returned records locally, and check the scan/limit
 counters before treating an absent terminal as meaningful.
 

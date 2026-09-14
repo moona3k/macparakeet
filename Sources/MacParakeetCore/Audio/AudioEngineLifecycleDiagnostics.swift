@@ -45,6 +45,8 @@ public struct AudioEngineLifecycleSnapshot: Sendable, Equatable {
     public let lastErrorPhase: Phase?
     public let wasSlow: Bool
     public let phaseDurationsMilliseconds: [Phase: Int]
+    public let workflowID: String?
+    public let consumer: String?
 
     /// Shared schema for the local record and the consent-gated telemetry event.
     /// Only phases actually visited are included; the full schema stays below
@@ -67,6 +69,8 @@ public struct AudioEngineLifecycleSnapshot: Sendable, Equatable {
         ]
         result["last_error_type"] = lastErrorType
         result["last_error_phase"] = lastErrorPhase?.rawValue
+        result["workflow_id"] = workflowID
+        result["consumer"] = consumer
         for (phase, duration) in phaseDurationsMilliseconds {
             result["phase_\(phase.rawValue)_ms"] = String(duration)
         }
@@ -119,6 +123,8 @@ final class AudioEngineLifecycleDiagnostics: @unchecked Sendable {
     private let operation: Operation
     private let vpioEnabled: Bool
     private let bufferSize: UInt32
+    private let workflowID: String?
+    private let consumer: String?
     private let startedAt: UInt64
     private let slowThresholdNanoseconds: UInt64
     private let now: @Sendable () -> UInt64
@@ -145,6 +151,10 @@ final class AudioEngineLifecycleDiagnostics: @unchecked Sendable {
         self.operation = operation
         self.vpioEnabled = vpioEnabled
         self.bufferSize = bufferSize
+        let correlation = Observability.currentCaptureCorrelation
+        self.workflowID =
+            correlation.flatMap { UUID(uuidString: $0.workflowID) != nil ? $0.workflowID : nil }
+        self.consumer = correlation?.consumer.rawValue
         self.now = now
         self.sink = sink
         startedAt = now()
@@ -283,7 +293,9 @@ final class AudioEngineLifecycleDiagnostics: @unchecked Sendable {
             lastErrorType: state.lastErrorType,
             lastErrorPhase: state.lastErrorPhase,
             wasSlow: wasSlow,
-            phaseDurationsMilliseconds: durations.mapValues(Self.milliseconds)
+            phaseDurationsMilliseconds: durations.mapValues(Self.milliseconds),
+            workflowID: workflowID,
+            consumer: consumer
         )
     }
 

@@ -79,10 +79,12 @@ Callers do not sequence filesystem and database mutations themselves.
 
 ## Retention, privacy and presentation
 
-The initial recording-date/retention anchor remains the original's date;
-split-created time and ordinal are separate. Recheck current age-based expiry
-before audio publication and honor normal retention during later processing.
-Splitting grants no hidden grace period. The existing delete-immediately
+Children keep the original's historical `createdAt`; their newly materialized
+managed audio receives `audioRetentionStartedAt` at split publication. Recheck
+the source's current age-based expiry before audio publication using
+`audioRetentionStartedAt ?? createdAt`, then honor each child's fresh retention
+clock during later processing. Split-created time and ordinal remain separate
+provenance. The existing delete-immediately
 preference remains a new-capture policy, not retroactive historical deletion.
 If a retention sweep cannot acquire the media lease, it leaves the audio
 untouched and remains due for the next existing sweep trigger. A failed sweep

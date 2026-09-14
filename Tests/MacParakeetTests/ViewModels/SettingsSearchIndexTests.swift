@@ -153,7 +153,10 @@ final class SettingsSearchIndexTests: XCTestCase {
     }
 
     func testCalendarQueriesHonorCalendarFeatureFlag() {
-        for query in ["calendar", "auto-start", "auto start", "reminders"] {
+        for query in [
+            "calendar", "auto-start", "auto start", "reminders",
+            "Outlook", "Microsoft 365", "Exchange", "Internet Accounts",
+        ] {
             let results = SettingsSearchIndex.matches(query)
             let ids = Set(results.map(\.id))
 

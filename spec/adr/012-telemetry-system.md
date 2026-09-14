@@ -65,13 +65,17 @@ outcome events (`*_operation`) for product-health analysis.
 The development source also emits `audio_engine_lifecycle` as bounded
 shared microphone diagnostics: at most one five-second slow checkpoint and one terminal
 snapshot, with fast prepare/stop snapshots suppressed. Its random `attempt_id`
-belongs to that lifecycle call, not a meeting or product operation. It adds no
-product-health denominator and does not turn delay into a failure verdict or
-audio timeout. Both local and consent-gated network sinks run asynchronously
-and remain best effort. Safe phase/route categories and classified errors follow
+belongs to that lifecycle call. When a meeting or dictation owns capture, the
+same snapshot also carries that workflow's `workflow_id` and `consumer` so it
+can be joined to the parent `*_operation` without treating the engine attempt
+as a product failure. It adds no product-health denominator and does not turn
+delay into a failure verdict or audio timeout. Both local and consent-gated
+network sinks run asynchronously and remain best effort. Safe phase/route
+categories and classified errors follow
 the [telemetry contract](../contracts/telemetry-v1.md#microphone-engine-lifecycle-observation).
-Stable-channel availability requires the paired server deployment before the
-app release.
+Queued events also carry `git_commit` and `build_number` in props so agents can
+group by exact binary. Stable-channel availability requires the paired server
+deployment before the app release.
 
 ### What We Don't Collect
 
@@ -95,7 +99,7 @@ Transcription content, audio, file paths, YouTube URLs, LLM prompts/responses, c
 ### Risks
 
 - **Endpoint abuse** — Mitigated with event name allowlist, rate limiting, field validation
-- **Schema evolution** — Props are JSON, so new props and new event shapes on an existing event name do not require D1 migrations or website allowlist changes. Every new `TelemetryEventName`, including `audio_engine_lifecycle`, must be added to `ALLOWED_EVENTS` in the **separate** `macparakeet-website` repo and deployed before the client ships. An unknown event causes HTTP 400 for the entire batch; the client's permanent-rejection policy discards valid co-batched events too and reports the transport failure locally. A CI guard that diffs the Swift enum against the website allowlist is planned (`plans/active/2026-06-12-telemetry-allowlist-ci-guard.md`). App tests do not verify the deployed server.
+- **Schema evolution** — Props are JSON, so new props and new event shapes on an existing event name do not require D1 migrations or website allowlist changes. Every new `TelemetryEventName`, including `audio_engine_lifecycle`, must be added to `ALLOWED_EVENTS` in the **separate** `macparakeet-website` repo and deployed before the client ships. An unknown event causes HTTP 400 for the entire batch; the client's permanent-rejection policy discards valid co-batched events too and reports the transport failure locally. `scripts/ci/check-telemetry-allowlist.sh` diffs the Swift enum against that allowlist; CI skips rather than fails when the private website repo is unreachable. App tests do not verify the deployed server. Unknown `audio_engine_lifecycle` keys are dropped silently, so new diagnostic fields on that event also need a website deploy first.
 
 ## References
 

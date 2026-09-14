@@ -1792,6 +1792,56 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertNotNil(json["event_id"], "Delivery deduplication remains distinct from attempt correlation")
     }
 
+    func testQueuedEventsCarrySanitizedBuildProvenance() throws {
+        let event = TelemetryEvent(
+            spec: .appLaunched, appVer: "0.8.0", osVer: "26.0",
+            locale: "en-US", chip: "Apple M4", session: "test-session",
+            gitCommit: Observability.sanitizedGitCommit("CA13604B4C7B"),
+            buildNumber: Observability.sanitizedBuildNumber("20260913.1")
+        )
+        XCTAssertEqual(event.props?["git_commit"], "ca13604b4c7b")
+        XCTAssertEqual(event.props?["build_number"], "20260913.1")
+        XCTAssertEqual(Observability.sanitizedGitCommit("/Users/me/secret"), "unknown")
+        XCTAssertEqual(Observability.sanitizedBuildNumber("build number with space"), "unknown")
+    }
+
+    func testMeetingOperationSerializesCaptureStartCompleted() {
+        let event = TelemetryEventSpec.meetingOperation(
+            operationID: "op-meeting",
+            outcome: .failure,
+            trigger: .manual,
+            stage: .startRecording,
+            durationSeconds: 12.5,
+            liveWordCount: nil,
+            liveTranscriptLagged: nil,
+            microphoneTrackPresent: nil,
+            systemTrackPresent: nil,
+            notesUsed: nil,
+            notesLengthBucket: nil,
+            errorType: "timeout",
+            captureStartCompleted: false
+        )
+        XCTAssertEqual(event.props?["capture_start_completed"], "false")
+        XCTAssertEqual(event.props?["stage"], "start_recording")
+    }
+
+    func testBuildProvenanceKeepsSampleEventsUnderIngestionPropCeiling() {
+        for spec in sampleEvents() {
+            let event = TelemetryEvent(
+                spec: spec, appVer: "0.8.0", osVer: "26.0",
+                locale: "en-US", chip: "Apple M4", session: "test-session",
+                gitCommit: "ca13604b4c7b",
+                buildNumber: "20260913.1"
+            )
+            XCTAssertLessThanOrEqual(
+                event.props?.count ?? 0, 40,
+                "Provenance must not push \(spec.name.rawValue) over the Worker 40-prop limit"
+            )
+            XCTAssertEqual(event.props?["git_commit"], "ca13604b4c7b")
+            XCTAssertEqual(event.props?["build_number"], "20260913.1")
+        }
+    }
+
     func testHotkeyCustomizedPropsUseStructuralCategoriesOnly() {
         let cases: [(TelemetryHotkeySurface, TelemetryHotkeyKind, String, String)] = [
             (.dictation, .disabled, "dictation", "disabled"),
@@ -1942,7 +1992,8 @@ final class TelemetryServiceTests: XCTestCase {
             phase: .startEngine, elapsedMilliseconds: 5_000, phaseMilliseconds: 4_800,
             attemptCount: 1, prepared: false, vpioEnabled: false, bufferSize: 512,
             routeSource: "selected", transport: "usb", lastErrorType: nil, lastErrorPhase: nil,
-            wasSlow: true, phaseDurationsMilliseconds: [.queueWait: 200, .startEngine: 4_800]
+            wasSlow: true, phaseDurationsMilliseconds: [.queueWait: 200, .startEngine: 4_800],
+            workflowID: nil, consumer: nil
         )
     }
 

@@ -17,6 +17,8 @@ public struct Transcription: Codable, Identifiable, Sendable {
 
     public var id: UUID
     public var createdAt: Date
+    /// When managed meeting audio entered the library. Legacy rows use `createdAt`.
+    public var audioRetentionStartedAt: Date?
     public var fileName: String
     public var filePath: String?
     /// Zero-based ordinal among the source file's audio streams (`0:a:N`).
@@ -73,8 +75,9 @@ public struct Transcription: Codable, Identifiable, Sendable {
     /// from, or probably overlaps, an EventKit event. Contains attendee data
     /// and remains local-only.
     public var calendarEventSnapshot: MeetingCalendarSnapshot?
-    /// User-authored display title for non-meeting transcription rows. This is
-    /// app metadata only; it does not rename or move the original source file.
+    /// User-authored file display title or explicit meeting-title intent.
+    /// A normalized non-nil value protects a meeting name from automatic generation.
+    /// This metadata never renames or moves the external source file.
     public var titleOverride: String?
     /// Display-ready title derived from the transcript content at completion
     /// (substantive first sentence, filler-stripped). `nil` when the transcript
@@ -138,10 +141,12 @@ public struct Transcription: Codable, Identifiable, Sendable {
         derivedTitle: String? = nil,
         derivedSnippet: String? = nil,
         splitProvenance: MeetingSplitProvenance? = nil,
+        audioRetentionStartedAt: Date? = nil,
         updatedAt: Date = Date()
     ) {
         self.id = id
         self.createdAt = createdAt
+        self.audioRetentionStartedAt = audioRetentionStartedAt
         self.fileName = fileName
         self.filePath = filePath
         self.audioTrackOrdinal = audioTrackOrdinal
@@ -370,7 +375,7 @@ extension Transcription: FetchableRecord, PersistableRecord {
     public static let databaseTableName = "transcriptions"
 
     public enum Columns: String, ColumnExpression {
-        case id, createdAt, fileName, filePath, audioTrackOrdinal, meetingArtifactFolderPath, fileSizeBytes, durationMs
+        case id, createdAt, audioRetentionStartedAt, fileName, filePath, audioTrackOrdinal, meetingArtifactFolderPath, fileSizeBytes, durationMs
         case rawTranscript, cleanTranscript, wordTimestamps, language
         case speakerCount, speakers, diarizationSegments, transcriptSegments, chatMessages
         case status, errorMessage, exportPath, sourceURL
@@ -385,6 +390,7 @@ extension Transcription: FetchableRecord, PersistableRecord {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
+        audioRetentionStartedAt = try container.decodeIfPresent(Date.self, forKey: .audioRetentionStartedAt)
         fileName = try container.decode(String.self, forKey: .fileName)
         filePath = try container.decodeIfPresent(String.self, forKey: .filePath)
         audioTrackOrdinal = try container.decodeIfPresent(Int.self, forKey: .audioTrackOrdinal)

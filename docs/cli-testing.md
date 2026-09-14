@@ -1,11 +1,16 @@
 # CLI Testing Guide
 
 For saved-meeting splitting, run `swift test --filter 'MeetingSplit|SpecCommandTests'`.
+For external meeting import, run
+`swift test --filter 'MeetingImport|AudioFileConverterTests|SpecCommandTests'`.
 The tests use synthetic temporary audio and databases, not personal recordings.
-Check `meetings split --help` and `spec --json` for discovery. Preview and
-`create --dry-run` must not initialize models, migrate the database or write
-preferences. A `committed` operation means audio was published; inspect each
-child's progress and exit status for processing success.
+Check `meetings split --help`, `meetings import --help`, and `spec --json` for
+discovery. Split preview and `create --dry-run` must not initialize models,
+migrate the database, or write preferences. A split `committed` operation means
+audio was published; inspect each child's progress and exit status for processing
+success. Import progress belongs on stderr; stdout carries one final result.
+`partial` is usable and exits zero, while `needsRetry` prints the saved meeting
+before exiting one so verification does not create a duplicate by importing again.
 
 > Status: **ACTIVE** - CLI testing guide for core services
 

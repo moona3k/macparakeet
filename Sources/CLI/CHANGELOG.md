@@ -103,6 +103,15 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   text edits retain the durable segment ID; structural edits include additive
   `anchorTranscriptSegmentIDs`. Transcripts without word timestamps report
   `transcriptTextAlignment: "untimed"`.
+- `meetings import <path>` imports one supported local audio or video file as
+  a managed meeting. It accepts optional `--title` and historical
+  `--started-at`, supports `--json` and `--envelope`, keeps progress on stderr,
+  and returns a stable `MeetingImportRecord`. Complete and transcript-saved
+  partial results exit zero; a retryable transcription prints its saved
+  meeting record before exiting one. Callers should open that saved meeting and
+  retry its transcription rather than running another import, which would
+  create a second meeting. SIGINT after publication also prints the durable
+  record before exiting `130`.
 - `meetings split preview|create|status|resume|discard` splits a saved
   meeting recording into independent parts, each receiving its own first
   transcription and normal enabled completion automation. `preview` is

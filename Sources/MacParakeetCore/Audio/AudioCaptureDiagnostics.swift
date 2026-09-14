@@ -97,11 +97,21 @@ public enum AudioCaptureDiagnostics {
     }
 
     public static func append(_ message: @autoclosure () -> String) {
-        append(message(), timestamp: Date(), uptimeNanoseconds: DispatchTime.now().uptimeNanoseconds)
+        append(
+            message(), timestamp: Date(),
+            uptimeNanoseconds: DispatchTime.now().uptimeNanoseconds,
+            correlation: Observability.currentCaptureCorrelation
+        )
     }
 
-    private static func append(_ message: String, timestamp: Date, uptimeNanoseconds: UInt64) {
-        let data = encodedLogLine(message, timestamp: timestamp, uptimeNanoseconds: uptimeNanoseconds)
+    private static func append(
+        _ message: String, timestamp: Date, uptimeNanoseconds: UInt64,
+        correlation: ObservabilityCaptureCorrelation? = nil
+    ) {
+        let data = encodedLogLine(
+            message, timestamp: timestamp, uptimeNanoseconds: uptimeNanoseconds,
+            correlation: correlation
+        )
         appendEncodedLogLine(data, to: diagnosticLogURL())
     }
 
@@ -154,19 +164,32 @@ public enum AudioCaptureDiagnostics {
     public static func appendAsync(_ message: String) {
         let timestamp = Date()
         let uptimeNanoseconds = DispatchTime.now().uptimeNanoseconds
+        let correlation = Observability.currentCaptureCorrelation
         appendQueue.async {
-            append(message, timestamp: timestamp, uptimeNanoseconds: uptimeNanoseconds)
+            append(
+                message, timestamp: timestamp, uptimeNanoseconds: uptimeNanoseconds,
+                correlation: correlation
+            )
         }
     }
 
-    static func encodedLogLine(_ message: String, timestamp: Date, uptimeNanoseconds: UInt64) -> Data {
+    static func encodedLogLine(
+        _ message: String,
+        timestamp: Date,
+        uptimeNanoseconds: UInt64,
+        correlation: ObservabilityCaptureCorrelation? = nil
+    ) -> Data {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let sanitized = String(sanitizedMessage(message).prefix(maxMessageCharacters))
-        let line =
+        var line =
             "\(formatter.string(from: timestamp)) \(sanitized)"
             + " process_id=\(ProcessInfo.processInfo.processIdentifier)"
-            + " process_session=\(processSession) uptime_ns=\(uptimeNanoseconds)\n"
+            + " process_session=\(processSession) uptime_ns=\(uptimeNanoseconds)"
+        if let correlation, UUID(uuidString: correlation.workflowID) != nil {
+            line += " workflow_id=\(correlation.workflowID) consumer=\(correlation.consumer.rawValue)"
+        }
+        line += "\n"
         return Data(line.utf8)
     }
 

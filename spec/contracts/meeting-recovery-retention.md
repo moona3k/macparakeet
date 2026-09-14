@@ -51,6 +51,8 @@ Stable lock fields:
 - `finalizationLeaseId`
 - `speechEngine`
 - `notes`
+- `audioRetentionStartedAt`
+- `titleOverride`
 
 Stable states:
 
@@ -61,6 +63,11 @@ Stable states:
 `notes` is a backward-compatible additive field. Missing values decode to safe
 defaults, and malformed `notes` does not block recovery of the structural lock
 metadata.
+
+`audioRetentionStartedAt` and `titleOverride` are backward-compatible optional
+import metadata. Missing-row recovery uses `startedAt` for historical chronology,
+the optional retention clock for the managed copy, and a normalized explicit
+title when present. Older locks omit both fields and keep their existing behavior.
 
 `finalizationLeaseId` is a backward-compatible optional ownership token.
 Normal stop-and-queue locks and older locks omit it. Retry and crash-recovery
@@ -181,6 +188,16 @@ prove healthy capture; see the
 [capture-report contract](meeting-artifacts-v1.md#stable-json-fields).
 
 ## Retention Rule
+
+Scheduled retention selects completed meetings by
+`COALESCE(audioRetentionStartedAt, createdAt)` and uses the same effective date
+for in-memory policy decisions. Split eligibility uses that clock as well.
+External imports retain their historical `createdAt` while a fresh
+`audioRetentionStartedAt` starts the owned copy's retention window. A nullable
+additive migration leaves legacy rows unchanged. Whole-row completion merges
+preserve the stored clock; retranscription and rename do not restart it.
+The [import contract](meeting-import-v1.md) defines source ownership and
+interrupted-import recovery through this existing lifecycle.
 
 Only the current, uncancelled scheduled sweep may update the last-success
 timestamp. A failed sweep leaves cleanup due for the next existing trigger.

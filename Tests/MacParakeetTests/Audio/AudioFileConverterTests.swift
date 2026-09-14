@@ -3,6 +3,13 @@ import XCTest
 
 final class AudioFileConverterTests: XCTestCase {
 
+    func testSingleInputMeetingNormalizationSelectsFirstAudioAndDisablesVideo() {
+        let args = AudioFileConverter().ffmpegMixArguments(
+            inputPaths: ["/tmp/meeting.mov"], outputPath: "/tmp/system-raw.m4a")
+        XCTAssertTrue(args.contains("-vn"))
+        XCTAssertTrue(zip(args, args.dropFirst()).contains { $0 == "-map" && $1 == "0:a:0" })
+    }
+
     func testSupportedAudioExtensions() {
         XCTAssertTrue(AudioFileConverter.isSupported(extension: "mp3"))
         XCTAssertTrue(AudioFileConverter.isSupported(extension: "wav"))

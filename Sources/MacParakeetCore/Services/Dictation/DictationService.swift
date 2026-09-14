@@ -348,6 +348,11 @@ public actor DictationService: DictationServiceProtocol {
         let sampleSink = Self.combinedSampleSink(liveSampleSink, previewSampleSink)
         let speechEngineAttribution = await currentSpeechEngineTelemetryAttribution()
         currentOperationSpeechEngineAttribution = speechEngineAttribution
+        Observability.beginCaptureCorrelation(
+            ObservabilityCaptureCorrelation(
+                workflowID: operationContext.workflowID, consumer: .dictation
+            )
+        )
         do {
             try await audioProcessor.startCapture(sampleSink: sampleSink)
             // Guard against reentrancy: cancel or replacement may have run during the await above.
@@ -356,6 +361,7 @@ public actor DictationService: DictationServiceProtocol {
             }
             let activeAtStartCompletion = activeSessionID
             guard activeAtStartCompletion == requestedSessionID, case .recording = _state else {
+                Observability.endCaptureCorrelation(workflowID: operationContext.workflowID)
                 let processorIsRecording: Bool
                 if activeAtStartCompletion == requestedSessionID {
                     processorIsRecording = await audioProcessor.isRecording
@@ -383,6 +389,7 @@ public actor DictationService: DictationServiceProtocol {
             Telemetry.send(.dictationStarted(trigger: context.trigger, mode: context.mode))
             logger.debug("dictation_capture_started session=\(requestedSessionID, privacy: .public)")
         } catch {
+            Observability.endCaptureCorrelation(workflowID: operationContext.workflowID)
             let activeAtFailure = activeSessionID
             guard activeAtFailure == requestedSessionID else {
                 await cancelLiveDictationTranscription(sessionID: requestedSessionID)
@@ -1558,6 +1565,9 @@ public actor DictationService: DictationServiceProtocol {
     }
 
     private func clearCurrentOperation() {
+        if let workflowID = currentObservabilityOperationContext?.workflowID {
+            Observability.endCaptureCorrelation(workflowID: workflowID)
+        }
         currentOperationID = nil
         currentOperationTerminalEmitted = false
         currentOperationTelemetryContext = DictationTelemetryContext()

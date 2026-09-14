@@ -900,7 +900,8 @@ public enum TelemetryEventSpec: Sendable {
         systemTrackPresent: Bool?,
         notesUsed: Bool?,
         notesLengthBucket: String?,
-        errorType: String?
+        errorType: String?,
+        captureStartCompleted: Bool? = nil
     )
     case meetingRecoveryDiscovered(
         count: Int, source: TelemetryMeetingRecoverySource, phases: [MeetingRecordingLockState])
@@ -1635,7 +1636,8 @@ extension TelemetryEventSpec {
             let systemTrackPresent,
             let notesUsed,
             let notesLengthBucket,
-            let errorType
+            let errorType,
+            let captureStartCompleted
         ):
             return Self.compactProps(
                 ("operation_id", operationID),
@@ -1651,7 +1653,8 @@ extension TelemetryEventSpec {
                 ("system_track_present", systemTrackPresent.map(Self.boolString)),
                 ("notes_used", notesUsed.map(Self.boolString)),
                 ("notes_length_bucket", notesLengthBucket),
-                ("error_type", errorType)
+                ("error_type", errorType),
+                ("capture_start_completed", captureStartCompleted.map(Self.boolString))
             )
         case .meetingRecoveryDiscovered(let count, let source, let phases):
             return [
@@ -1991,11 +1994,16 @@ public struct TelemetryEvent: Sendable, Encodable {
         chip: String,
         session: String,
         surface: String = "gui",
-        ts: Date = Date()
+        ts: Date = Date(),
+        gitCommit: String? = nil,
+        buildNumber: String? = nil
     ) {
         self.eventId = UUID().uuidString
         self.event = spec.name.rawValue
-        self.props = spec.props
+        var props = spec.props ?? [:]
+        if let gitCommit { props["git_commit"] = gitCommit }
+        if let buildNumber { props["build_number"] = buildNumber }
+        self.props = props.isEmpty ? nil : props
         self.appVer = appVer
         self.osVer = osVer
         self.locale = locale

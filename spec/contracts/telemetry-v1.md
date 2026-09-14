@@ -83,8 +83,13 @@ batch/drop counts and retry timing, never event props or response bodies.
 and stop. The [catalog](../../docs/telemetry.md#5e-microphone-engine-lifecycle)
 defines its finite phases and exact safe fields. A fresh random `attempt_id`
 identifies one lifecycle call and its route fallbacks, not a meeting,
-`operation_id`, workflow, or persistent identity. Each recovery attempt starts
-a new observer; its elapsed time excludes scheduled recovery backoff.
+`operation_id`, user, or persistent identity. When a meeting or dictation
+owns capture, the snapshot also carries that workflow's `workflow_id` and
+`consumer` (`meeting` or `dictation`) so agents can join it to the parent
+`*_operation` event. Casing is preserved so it matches the product event.
+Idle prepare/stop omit those fields. Each recovery
+attempt starts a new observer; its elapsed time excludes scheduled recovery
+backoff.
 
 An independent utility timer can publish one `outcome=slow` checkpoint after
 five seconds while native lifecycle work remains pending. It is observability
@@ -104,6 +109,13 @@ state lock or on the audio render callback. Local append and network delivery
 are asynchronous and best effort under their existing policies. Missing
 terminal evidence remains unknown; a phase checkpoint is not native root-cause
 proof or a guarantee that this operation will recover.
+
+Queued events copy sanitized `git_commit` and `build_number` into props. D1
+does not persist extra envelope columns; invalid values become `unknown`.
+`meeting_operation.capture_start_completed` is `false` when `stage=start_recording`
+has no recording output, `true` when an output exists, and omitted otherwise.
+The same `workflow_id` / `consumer` pair is appended to local audio log lines
+at enqueue time so a deferred write cannot pick up a later session.
 
 ## Aggregate evidence
 
@@ -172,10 +184,14 @@ diagnostics or claim that the absence of logged failures means successful audio.
   codes, and append/rotation behavior. The offline parser's synthetic-file
   tests live in `scripts/dev/tests/test_query_audio_diagnostics.py`.
 - `AudioEngineLifecycleDiagnosticsTests` pins the lifecycle schema, phase
-  clocks, suppression, cancellation, safe labels/errors, and checkpoint/terminal
-  races. `MicrophoneEngineLifecycleDiagnosticsTests` checks the platform
+  clocks, suppression, cancellation, safe labels/errors, capture-correlation
+  join fields, and checkpoint/terminal races.
+  `MicrophoneEngineLifecycleDiagnosticsTests` checks the platform
   integration through injected lifecycle operations; neither proves physical
   hardware recovery or the cause of a native framework hang.
+- `scripts/ci/check-telemetry-allowlist.sh` fails when Swift emits an event
+  name absent from the website `ALLOWED_EVENTS` set. CI skips when the private
+  website repo cannot be read.
 
 Update the typed event factories, focused tests, and
 [telemetry catalog](../../docs/telemetry.md) together when this boundary changes.
@@ -189,8 +205,8 @@ plan. App-repo tests do not verify the deployed website contract or ingestion.
 App changes require a new app/CLI build. Website changes are in the separate
 `macparakeet-website` repository and require deployment. Existing stored private
 rows and previously cached public responses are not deleted by source changes.
-Deploy the `audio_engine_lifecycle` website allowlist change before releasing
-a client that emits it. Older Workers reject the whole batch with HTTP 400 for
-an unknown event, and the client's permanent-rejection policy drops valid
-co-batched events too. A paired source change or passing app tests does not
-prove the deployed endpoint accepts the event.
+Deploy the website validator before releasing a client that emits new
+`audio_engine_lifecycle` keys (`workflow_id`, `consumer`, `git_commit`,
+`build_number`). Unknown event names still 400 the whole batch; unknown keys
+on this event are dropped silently. A paired source change or passing app
+tests does not prove the deployed endpoint accepts the fields.

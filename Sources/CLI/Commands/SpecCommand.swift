@@ -1501,6 +1501,22 @@ private extension CLISpecCommand {
                 "Meeting Markdown in the same shape as meeting.md, or MeetingRecord JSON with prompt-result count and artifact paths when --stdout is present; otherwise writes a file and prints its path."
         ),
         CLISpecCommand(
+            ["meetings", "import"],
+            summary: "Import one external audio or video recording as a managed, searchable meeting.",
+            readOnly: false,
+            arguments: [.argument("path", summary: "Local audio or video file path.")],
+            options: [
+                CLISpecParameter.option("--title", valueName: "TITLE", summary: "Explicit title; defaults to the filename."),
+                CLISpecParameter.option(
+                    "--started-at", valueName: "DATE",
+                    summary: "YYYY-MM-DD at local midnight or an ISO-8601 timestamp."),
+                CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output:
+                "MeetingImportRecord with id, completion, status, title, startedAt, durationMs, managedAudioPath, and warnings. Complete and partial results exit 0; needsRetry prints its saved meeting then exits 1, or 130 after SIGINT."
+        ),
+        CLISpecCommand(
             ["meetings", "split", "preview"],
             summary: "Read-only preview of the parts a split would produce. Performs no writes.",
             arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],

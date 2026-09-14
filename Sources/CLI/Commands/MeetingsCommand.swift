@@ -19,6 +19,7 @@ struct MeetingsCommand: AsyncParsableCommand {
             ArtifactSubcommand.self,
             ExportSubcommand.self,
             SplitSubcommand.self,
+            ImportSubcommand.self,
         ]
     )
 

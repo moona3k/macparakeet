@@ -4,6 +4,11 @@ import XCTest
 @testable import MacParakeetCore
 
 final class AudioEngineLifecycleDiagnosticsTests: XCTestCase {
+    override func tearDown() {
+        Observability.resetCaptureCorrelation()
+        super.tearDown()
+    }
+
     func testPhaseTimingAccumulatesRepeatedPhasesAndRetainsFinalAttempt() async throws {
         let (recorder, clock, output) = makeRecorder()
         recorder.beginAttempt(source: "selected", transport: "usb", prepared: false)
@@ -305,6 +310,44 @@ final class AudioEngineLifecycleDiagnosticsTests: XCTestCase {
         XCTAssertEqual(snapshot.props["was_slow"], "false")
         let expectedFields = snapshot.props.map { "\($0.key)=\($0.value)" }.sorted()
         XCTAssertEqual(snapshot.localLogLine, "audio_engine_lifecycle " + expectedFields.joined(separator: " "))
+    }
+
+    func testCaptureCorrelationIsStampedAtRecorderCreationAndOmittedWhenIdle() async throws {
+        let workflowID = "3F2504E0-4F89-11D3-9A0C-0305E82C3301"
+        Observability.beginCaptureCorrelation(
+            ObservabilityCaptureCorrelation(workflowID: workflowID, consumer: .meeting)
+        )
+        let (recorder, _, output) = makeRecorder()
+        Observability.resetCaptureCorrelation()
+        recorder.finish()
+        await recorder.flushPendingEmissions()
+        let correlated = try XCTUnwrap(output.snapshots.single)
+        XCTAssertEqual(correlated.workflowID, workflowID)
+        XCTAssertEqual(correlated.consumer, "meeting")
+        XCTAssertEqual(correlated.props["workflow_id"], workflowID)
+        XCTAssertEqual(correlated.props["consumer"], "meeting")
+
+        let (idleRecorder, _, idleOutput) = makeRecorder()
+        idleRecorder.finish()
+        await idleRecorder.flushPendingEmissions()
+        let idle = try XCTUnwrap(idleOutput.snapshots.single)
+        XCTAssertNil(idle.workflowID)
+        XCTAssertNil(idle.consumer)
+        XCTAssertFalse(idle.props.keys.contains("workflow_id"))
+        XCTAssertFalse(idle.props.keys.contains("consumer"))
+    }
+
+    func testEndCaptureCorrelationClearsOnlyMatchingWorkflow() async throws {
+        let first = "3F2504E0-4F89-11D3-9A0C-0305E82C3301"
+        let second = "6BA7B810-9DAD-11D1-80B4-00C04FD430C8"
+        Observability.beginCaptureCorrelation(
+            ObservabilityCaptureCorrelation(workflowID: first, consumer: .dictation)
+        )
+        Observability.endCaptureCorrelation(workflowID: second)
+        XCTAssertEqual(Observability.currentCaptureCorrelation?.workflowID, first)
+
+        Observability.endCaptureCorrelation(workflowID: first)
+        XCTAssertNil(Observability.currentCaptureCorrelation)
     }
 
     func testTimerDoesNotRetainAnAbandonedRecorder() {

@@ -438,6 +438,7 @@ public final class MeetingSplitRepository: MeetingSplitRepositoryProtocol, @unch
                         ordinal: index,
                         splitCreatedAt: now
                     ),
+                    audioRetentionStartedAt: now,
                     updatedAt: now
                 )
                 try child.insert(db)

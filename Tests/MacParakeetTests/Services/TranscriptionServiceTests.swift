@@ -1859,6 +1859,30 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(try transcriptionRepo.count(), 1)
     }
 
+    func testPrepareImportedMeetingPreservesHistoricalMetadataAndExplicitTitle() async throws {
+        let startedAt = Date(timeIntervalSince1970: 1_650_000_000)
+        let retentionStartedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let recording = try makeOneSourceMeetingRecording(
+            displayName: "Fallback source name",
+            startedAt: startedAt,
+            audioRetentionStartedAt: retentionStartedAt,
+            titleOverride: "Partnership discussion"
+        )
+        defer { try? FileManager.default.removeItem(at: recording.folderURL) }
+
+        let stub = try await service.prepareMeetingTranscription(recording: recording)
+
+        XCTAssertEqual(stub.createdAt, startedAt)
+        XCTAssertEqual(stub.audioRetentionStartedAt, retentionStartedAt)
+        XCTAssertEqual(stub.fileName, "Partnership discussion")
+        XCTAssertEqual(stub.titleOverride, "Partnership discussion")
+        let fetched = try XCTUnwrap(transcriptionRepo.fetch(id: stub.id))
+        XCTAssertEqual(fetched.createdAt, startedAt)
+        XCTAssertEqual(fetched.audioRetentionStartedAt, retentionStartedAt)
+        XCTAssertEqual(fetched.fileName, "Partnership discussion")
+        XCTAssertEqual(fetched.titleOverride, "Partnership discussion")
+    }
+
     func testFinalizeMeetingTranscriptionUpdatesExistingStubWithoutDuplicatingLibraryRow() async throws {
         let recording = try makeOneSourceMeetingRecording(displayName: "Queued Meeting")
         defer { try? FileManager.default.removeItem(at: recording.folderURL) }
@@ -3812,7 +3836,10 @@ final class TranscriptionServiceTests: XCTestCase {
         startContext: MeetingStartContext? = nil,
         meetingTypeId: UUID? = nil,
         captureReport: MeetingCaptureReport? = nil,
-        durationSeconds: TimeInterval = 3
+        durationSeconds: TimeInterval = 3,
+        startedAt: Date? = nil,
+        audioRetentionStartedAt: Date? = nil,
+        titleOverride: String? = nil
     ) throws -> MeetingRecordingOutput {
         let recordingFolder = URL(fileURLWithPath: AppPaths.tempDir)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -3845,7 +3872,10 @@ final class TranscriptionServiceTests: XCTestCase {
             ),
             captureReport: captureReport,
             startContext: startContext,
-            meetingTypeId: meetingTypeId
+            meetingTypeId: meetingTypeId,
+            startedAt: startedAt,
+            audioRetentionStartedAt: audioRetentionStartedAt,
+            titleOverride: titleOverride
         )
     }
 

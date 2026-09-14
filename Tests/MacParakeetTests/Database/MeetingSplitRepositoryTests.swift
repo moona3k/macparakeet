@@ -208,6 +208,27 @@ final class MeetingSplitRepositoryTests: XCTestCase {
         }
     }
 
+    func testPublishedHistoricalChildrenReceiveFreshRetentionWindow() throws {
+        var source = try savedSource(createdAt: epoch.addingTimeInterval(-3650 * 86_400))
+        source.audioRetentionStartedAt = epoch.addingTimeInterval(-10 * 86_400)
+        try transcriptions.save(source)
+        let operation = try repo.begin(idempotencyKey: "historical-copy", request: twoPartRequest(sourceId: source.id), now: epoch)
+        let snapshot = try XCTUnwrap(repo.sourceSnapshot(sourceId: source.id))
+        _ = try repo.publish(operationId: operation.id, preparedChildren: preparedChildren(for: operation),
+                             expectedSource: snapshot, now: epoch)
+
+        for id in operation.childIds {
+            var child = try XCTUnwrap(transcriptions.fetch(id: id))
+            XCTAssertEqual(child.createdAt, source.createdAt)
+            XCTAssertEqual(child.audioRetentionStartedAt, epoch)
+            child.status = .completed
+            try transcriptions.save(child)
+        }
+        let cutoff = epoch.addingTimeInterval(-30 * 86_400)
+        XCTAssertTrue(try transcriptions.fetchMeetingAudioRetentionCandidates(createdAtOrBefore: cutoff).isEmpty)
+        XCTAssertEqual(try transcriptions.fetch(id: source.id)?.audioRetentionStartedAt, source.audioRetentionStartedAt)
+    }
+
     func testPublishDoesNotSaveOrUpdateTheSourceRow() throws {
         let source = try savedSource()
         let request = twoPartRequest(sourceId: source.id)

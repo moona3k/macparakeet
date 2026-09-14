@@ -4,6 +4,7 @@
 > Date: 2026-04-19
 > **Amendment (2026-05-22): calendar-driven auto-stop removed.** §5 (auto-stop at event end) is withdrawn — see the amendment note in §5. Scheduled end times are too unreliable to drive a stop; the calendar coordinator never stops a recording. The replacement is ADR-023 (Activity-Based Meeting Auto-Stop, 2026-06-14), now enabled with a separate per-user opt-in setting defaulting off, using activity signals plus a veto countdown.
 > **Amendment (2026-06-13): Calendar removed from first-run onboarding.** The six-step dictation-first flow in ADR-005 no longer asks for EventKit access. Calendar setup is opt-in from the Meeting Recording settings surface, which requests Calendar and notification access in context.
+> **Amendment (2026-09-13): Microsoft calendar setup made explicit.** The EventKit architecture already includes Microsoft 365 and Exchange calendars enabled for Calendar in macOS Internet Accounts. Settings now explains that provider boundary, opens Internet Accounts, refreshes visible calendars on demand and after app reactivation, and indexes Outlook/Microsoft terminology. This does not add Microsoft Graph, OAuth, or access to calendars stored only inside Outlook.
 > Related: ADR-002 (local-first), ADR-005 (onboarding), ADR-009 (custom hotkeys), ADR-014 (meeting recording), ADR-015 (concurrent dictation/meeting)
 
 ## Context
@@ -18,7 +19,7 @@ This ADR defines MacParakeet's scope for that feature. It is deliberately narrow
 
 ### 1. EventKit only — no cloud calendar APIs
 
-Calendar access goes through Apple's EventKit framework (`EKEventStore`), which reads whatever calendars the user has already configured in the macOS Calendar app (iCloud, Google via macOS Internet Accounts, Exchange, CalDAV). MacParakeet does not run its own OAuth flows and does not ship Google/Microsoft SDKs.
+Calendar access goes through Apple's EventKit framework (`EKEventStore`), which reads whatever calendars the user has already configured in the macOS Calendar app (iCloud, Google via macOS Internet Accounts, Exchange, CalDAV). Microsoft 365 and Exchange calendars therefore work when Calendar is enabled for the account in System Settings → Internet Accounts; an account configured only inside Outlook is outside EventKit and is not visible to MacParakeet. Shared and delegated Exchange calendars are not claimed without representative runtime verification. MacParakeet does not run its own OAuth flows and does not ship Google/Microsoft SDKs.
 
 **Why:** ADR-002 (local-first). Events stay on-device; we don't add a new cloud surface. The in-context Settings flow delegates authorization to macOS without adding first-run friction.
 
@@ -88,17 +89,19 @@ Also: subscribe to `.EKEventStoreChanged` so a calendar edit (e.g., meeting move
 
 The implemented Settings surface is folded into the Meeting Recording card rather than a standalone Settings card. When `AppFeatures.calendarEnabled` is `true`, the Meeting Recording card includes:
 
-- Mode picker (`Off` / `Notify` / `Auto-start`)
+- An adaptive auto-start row (`Turn On…`, permission recovery, or on/off toggle)
+- A behavior picker (`Notify me` / `Start automatically`) when the row is on
 - Reminder lead time (`Off` / `1 min` / `5 min` / `10 min`)
 - Trigger filter picker (`With video link` / `With participants` / `All events`)
-- Per-calendar include list (checkboxes over the user's visible calendars)
-- A "Grant Calendar access" button if permission is `.notDetermined` or `.denied`
+- An always-visible Calendar accounts row explaining Microsoft 365/Exchange setup through macOS, with a best-effort Internet Accounts link
+- Loading, loaded-empty, and populated calendar-list states; the populated state exposes per-calendar checkboxes and both loaded states can be refreshed explicitly
+- A contextual Calendar permission action: request access when `.notDetermined`, or open Privacy & Security → Calendars when denied
 
-This subsection appears once Calendar access is granted (`AppFeatures.calendarEnabled = true`).
+Account guidance remains visible while auto-start is off. Calendar-list controls appear after access is granted, while the auto-start options panel additionally requires the row to be on.
 
 ### 9. Setup: in-context from Settings
 
-Calendar is not part of first-run onboarding. When `AppFeatures.calendarEnabled` is `true`, the Meeting Recording settings surface explains the feature, requests EventKit access, and requests notification authorization when needed. Until the user opts in, `calendarAutoStartMode` remains `.off`.
+Calendar is not part of first-run onboarding. When `AppFeatures.calendarEnabled` is `true`, the Meeting Recording settings surface explains the feature, requests EventKit access, and requests notification authorization when needed. It also explains that Microsoft 365/Exchange must be enabled for Calendar in System Settings → Internet Accounts, provides a best-effort link to that pane, and reloads authorization and visible calendars when the app becomes active. While Settings is open, the same permission poll that drives other permission rows also self-heals a stranded calendar list: if it observes a not-yet-loaded list transition to granted (e.g. an MDM-pushed profile granting access without an app reactivation), it starts the calendar load itself rather than waiting for the user to notice and press Refresh. Until the user opts in, `calendarAutoStartMode` remains `.off`.
 
 ### 10. Hotkey / manual start still works independently
 

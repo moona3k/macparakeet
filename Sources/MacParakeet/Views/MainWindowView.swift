@@ -82,6 +82,7 @@ struct MainWindowView: View {
     let meetingsWorkspaceViewModel: MeetingsWorkspaceViewModel
     let meetingPillViewModel: MeetingRecordingPillViewModel
     let meetingSplitViewModel: MeetingSplitViewModel
+    let meetingImportViewModel: MeetingImportViewModel
     let shareManagementViewModel: ShareManagementViewModel?
     let updater: SPUUpdater
     let onRecordMeeting: () -> Void
@@ -142,6 +143,7 @@ struct MainWindowView: View {
                         MeetingsView(
                             viewModel: meetingsWorkspaceViewModel,
                             meetingSplitViewModel: meetingSplitViewModel,
+                            meetingImportViewModel: meetingImportViewModel,
                             onRecordMeeting: {
                                 onRecordMeetingFromWorkspace()
                             },

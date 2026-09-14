@@ -6,6 +6,7 @@ import MacParakeetViewModels
 struct MeetingsView: View {
     @Bindable var viewModel: MeetingsWorkspaceViewModel
     var meetingSplitViewModel: MeetingSplitViewModel? = nil
+    var meetingImportViewModel: MeetingImportViewModel? = nil
 
     var onRecordMeeting: () -> Void
     var onPauseToggleMeeting: (() -> Void)?
@@ -22,6 +23,7 @@ struct MeetingsView: View {
     @State private var classificationTarget: Transcription?
     @State private var showingAskPromptsSheet = false
     @State private var showingPromptLibrary = false
+    @State private var showingMeetingImport = false
     @FocusState private var recentMeetingsSelectionFocused: Bool
 
     private static let rightRailWidth: CGFloat = 280
@@ -212,6 +214,15 @@ struct MeetingsView: View {
                     )
                 }
             }
+            .sheet(isPresented: $showingMeetingImport) {
+                if let meetingImportViewModel {
+                    MeetingImportSheetView(
+                        viewModel: meetingImportViewModel,
+                        onDismiss: { showingMeetingImport = false },
+                        onOpenMeeting: onSelectMeeting
+                    )
+                }
+            }
     }
 
     private var header: some View {
@@ -227,6 +238,19 @@ struct MeetingsView: View {
 
             Spacer(minLength: DesignSystem.Spacing.lg)
 
+            if let meetingImportViewModel {
+                Button {
+                    if meetingImportViewModel.isProcessing || meetingImportViewModel.terminalResult != nil {
+                        showingMeetingImport = true
+                    } else {
+                        chooseMeetingImportSource(using: meetingImportViewModel)
+                    }
+                } label: {
+                    Label(importButtonTitle(for: meetingImportViewModel), systemImage: "tray.and.arrow.down")
+                }
+                .parakeetAction(.secondary)
+            }
+
             if viewModel.recordingStatus != .ready {
                 // Isolated into its own View so the per-second elapsed-time
                 // update (read via `formattedElapsed`) re-renders ONLY this
@@ -240,6 +264,18 @@ struct MeetingsView: View {
                 MeetingsLiveStatusChip(viewModel: viewModel)
             }
         }
+    }
+
+    private func importButtonTitle(for viewModel: MeetingImportViewModel) -> String {
+        if viewModel.isProcessing { return "View Import…" }
+        if viewModel.terminalResult != nil { return "View Import Result…" }
+        return "Import Recording…"
+    }
+
+    private func chooseMeetingImportSource(using viewModel: MeetingImportViewModel) {
+        guard let sourceURL = MeetingImportSourcePicker.chooseURL() else { return }
+        _ = viewModel.select(sourceURL: sourceURL)
+        showingMeetingImport = true
     }
 
     private var recordingSurface: some View {
@@ -1106,7 +1142,8 @@ private struct CalendarInlineControlsRow: View {
             if settingsViewModel.calendarPermissionStatus == .denied {
                 return "Calendar access is blocked. Re-enable it in System Settings to use reminders."
             }
-            return "Connect your macOS Calendar to preview meetings and enable reminders."
+            return
+                "Connect calendars from this Mac, including Microsoft 365 and Exchange accounts added in System Settings."
         }
 
         switch settingsViewModel.calendarAutoStartMode {

@@ -37,6 +37,13 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
     /// Primary meeting type captured durably with the recording. The database
     /// row copies this value when it is first prepared for transcription.
     public let meetingTypeId: UUID?
+    /// Optional meeting chronology supplied by imported or recovered media.
+    /// Live capture leaves this nil and keeps its existing preparation time.
+    public let startedAt: Date?
+    /// Fresh managed-audio retention clock for an imported archive.
+    public let audioRetentionStartedAt: Date?
+    /// Explicit meeting title that automatic title generation must preserve.
+    public let titleOverride: String?
 
     /// Canonical duration persisted for playback and transcription rows.
     public var playableDurationMs: Int {
@@ -60,7 +67,10 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         startContext: MeetingStartContext? = nil,
         userNotes: String? = nil,
         calendarEventSnapshot: MeetingCalendarSnapshot? = nil,
-        meetingTypeId: UUID? = nil
+        meetingTypeId: UUID? = nil,
+        startedAt: Date? = nil,
+        audioRetentionStartedAt: Date? = nil,
+        titleOverride: String? = nil
     ) {
         self.init(
             sessionID: sessionID,
@@ -80,7 +90,10 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
             startContext: startContext,
             userNotes: userNotes,
             calendarEventSnapshot: calendarEventSnapshot,
-            meetingTypeId: meetingTypeId
+            meetingTypeId: meetingTypeId,
+            startedAt: startedAt,
+            audioRetentionStartedAt: audioRetentionStartedAt,
+            titleOverride: titleOverride
         )
     }
 
@@ -102,7 +115,10 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         startContext: MeetingStartContext? = nil,
         userNotes: String? = nil,
         calendarEventSnapshot: MeetingCalendarSnapshot? = nil,
-        meetingTypeId: UUID? = nil
+        meetingTypeId: UUID? = nil,
+        startedAt: Date? = nil,
+        audioRetentionStartedAt: Date? = nil,
+        titleOverride: String? = nil
     ) {
         self.sessionID = sessionID
         self.displayName = displayName
@@ -122,6 +138,9 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         self.userNotes = userNotes
         self.calendarEventSnapshot = calendarEventSnapshot
         self.meetingTypeId = meetingTypeId
+        self.startedAt = startedAt
+        self.audioRetentionStartedAt = audioRetentionStartedAt
+        self.titleOverride = Transcription.normalizedTitleOverride(from: titleOverride)
     }
 
     /// The microphone audio to transcribe for the local ("Me") track: the
@@ -287,5 +306,8 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
             && lhs.startContext == rhs.startContext
             && lhs.userNotes == rhs.userNotes
             && lhs.calendarEventSnapshot == rhs.calendarEventSnapshot
+            && lhs.startedAt == rhs.startedAt
+            && lhs.audioRetentionStartedAt == rhs.audioRetentionStartedAt
+            && lhs.titleOverride == rhs.titleOverride
     }
 }

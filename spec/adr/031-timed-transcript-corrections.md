@@ -1,4 +1,4 @@
-# ADR-030: Segment-Timed Transcript Corrections
+# ADR-031: Segment-Timed Transcript Corrections
 
 > Status: **Accepted; implemented in development source**
 > Date: 2026-09-13

@@ -54,6 +54,10 @@ before it rebuilds or re-signs their bundle; preserve unrelated app instances.
 Re-signing a bundle in place while macOS is executing it can cause a delayed
 `SIGKILL (Code Signature Invalid)` when a menu or sheet loads another page.
 
+For UI verification, use Playwright for browser pages and web views. For the
+native macOS app, use Xcode/XCUITest or the system Accessibility and screenshot
+tools directly. Do not use Orca computer-use in this repository.
+
 Iterate on focused tests ONLY (`swift test --filter <AreaTests>` for the
 areas the diff touches). Run the full `swift test` suite AT MOST ONCE per
 task, as the final gate before declaring code-change work complete — never
@@ -161,7 +165,8 @@ with the documented PR workflow and say so in the handoff or PR notes.
 
 Commit messages should help a future reader understand the change. The rich
 format in [`docs/commit-guidelines.md`](./docs/commit-guidelines.md) is a tool
-for significant work, not ceremony for every typo.
+for significant work, not ceremony for every typo. Do not add Cursor or other
+assistant `Co-authored-by` trailers.
 
 ## Where To Look
 

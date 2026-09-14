@@ -425,6 +425,14 @@ enum CLIErrorType {
     static let validation = "validation"
 
     static func key(for error: Error) -> String {
+        if let importError = error as? MeetingImportError {
+            switch importError {
+            case .invalidSource, .unsupportedFormat, .blankTitle:
+                return validation
+            case .invalidAudio:
+                return runtime
+            }
+        }
         if let llm = error as? LLMError {
             switch llm {
             case .notConfigured: return config
@@ -647,6 +655,14 @@ private func rethrowWithOptionalJSONEnvelope(_ error: Error, json: Bool) throws 
 }
 
 func isCLIValidationMisuse(_ error: Error) -> Bool {
+    if let importError = error as? MeetingImportError {
+        switch importError {
+        case .invalidSource, .unsupportedFormat, .blankTitle:
+            return true
+        case .invalidAudio:
+            return false
+        }
+    }
     if error is ValidationError || error is CLIInputError {
         return true
     }

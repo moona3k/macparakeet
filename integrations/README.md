@@ -634,6 +634,19 @@ automatic sources. Correction writes require the latest
 `speakerCorrectionRevision`; stale writes fail instead of overwriting another
 app or agent's work.
 
+Import one historical audio or video file as a normal managed meeting. The
+source remains unchanged; progress goes to stderr and the final record goes to
+stdout. A `partial` result is usable and exits zero. A `needsRetry` result has
+already saved its meeting and audio, so open that meeting and retry
+transcription rather than importing again:
+
+```bash
+macparakeet-cli meetings import ~/Downloads/partnership.m4a \
+  --title "Partnership discussion" \
+  --started-at 2026-05-14 \
+  --json
+```
+
 Split a saved recording that spans multiple meetings. Every resulting part,
 including the first, is a brand-new saved meeting that receives its own first
 transcription and normal enabled completion automation, including summaries

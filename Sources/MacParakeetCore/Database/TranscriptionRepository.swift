@@ -73,7 +73,7 @@ extension TranscriptionRepositoryProtocol {
             $0.sourceType == .meeting
                 && !($0.filePath?.isEmpty ?? true)
                 && $0.status == .completed
-                && $0.createdAt <= cutoff
+                && ($0.audioRetentionStartedAt ?? $0.createdAt) <= cutoff
         }
     }
 
@@ -538,8 +538,8 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
                 .filter(Transcription.Columns.filePath != nil)
                 .filter(Transcription.Columns.filePath != "")
                 .filter(Transcription.Columns.status == Transcription.TranscriptionStatus.completed.rawValue)
-                .filter(Transcription.Columns.createdAt <= cutoff)
-                .order(Transcription.Columns.createdAt.asc)
+                .filter(sql: "COALESCE(audioRetentionStartedAt, createdAt) <= ?", arguments: [cutoff])
+                .order(sql: "COALESCE(audioRetentionStartedAt, createdAt) ASC")
                 .fetchAll(db)
         }
     }
@@ -677,6 +677,9 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
         try dbQueue.write { db in
             guard var transcription = try Transcription.fetchOne(db, key: id) else { return nil }
             transcription.fileName = fileName
+            if transcription.sourceType == .meeting {
+                transcription.titleOverride = Transcription.normalizedTitleOverride(from: fileName)
+            }
             // A user-driven rename (meetings only) is the source of truth for
             // the meeting's name. The Library rows already read `fileName` for
             // meetings, but `derivedTitle` still feeds the "Save Audio As…"
@@ -982,12 +985,15 @@ private extension Transcription {
         merged.meetingTypeId = current.meetingTypeId
         merged.isFavorite = current.isFavorite
         merged.titleOverride = current.titleOverride
+        merged.audioRetentionStartedAt = current.audioRetentionStartedAt
         merged.chatMessages = current.chatMessages
         merged.meetingArtifactFolderPath = current.meetingArtifactFolderPath
         merged.filePath = current.filePath
-        // Allow an automatically generated meeting title only if the user has
-        // not renamed the row since the processing snapshot was captured.
-        if current.fileName != originalFileName {
+        // Explicit meeting names survive generation even when chosen before STT.
+        // A concurrent rename also wins over the processing snapshot.
+        if current.fileName != originalFileName
+            || (current.sourceType == .meeting && current.normalizedTitleOverride != nil)
+        {
             merged.fileName = current.fileName
             if current.sourceType == .meeting {
                 merged.derivedTitle = current.derivedTitle

@@ -194,6 +194,7 @@ public final class AudioFileConverter: AudioFileConverting, Sendable {
                 "-b:a", "64k",
             ]
         } else {
+            args.append(contentsOf: ["-map", "0:a:0", "-vn"])
             outputArgs = [
                 "-ar", "16000",
                 "-ac", "1",

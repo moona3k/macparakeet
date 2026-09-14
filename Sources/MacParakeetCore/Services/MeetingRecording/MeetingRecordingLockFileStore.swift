@@ -42,6 +42,11 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
     /// recovery of the audio metadata.
     public let notes: String?
     public let meetingTypeId: UUID?
+    /// Fresh retention clock for an imported managed copy. Absent on legacy
+    /// and live-capture locks, which keep their existing row-date behavior.
+    public let audioRetentionStartedAt: Date?
+    /// Explicit meeting-title intent carried across missing-row recovery.
+    public let titleOverride: String?
     public let folderURL: URL?
 
     private enum CodingKeys: String, CodingKey {
@@ -57,6 +62,8 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         case calendarEventSnapshot
         case notes
         case meetingTypeId
+        case audioRetentionStartedAt
+        case titleOverride
     }
 
     public init(
@@ -73,6 +80,8 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         calendarEventSnapshot: MeetingCalendarSnapshot? = nil,
         notes: String? = nil,
         meetingTypeId: UUID? = nil,
+        audioRetentionStartedAt: Date? = nil,
+        titleOverride: String? = nil,
         folderURL: URL? = nil
     ) {
         self.schemaVersion = schemaVersion
@@ -88,6 +97,8 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         self.calendarEventSnapshot = calendarEventSnapshot
         self.notes = notes
         self.meetingTypeId = meetingTypeId
+        self.audioRetentionStartedAt = audioRetentionStartedAt
+        self.titleOverride = Transcription.normalizedTitleOverride(from: titleOverride)
         self.folderURL = folderURL
     }
 
@@ -119,6 +130,12 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         // of the audio metadata still succeeds; only the typed notes are lost.
         notes = (try? container.decodeIfPresent(String.self, forKey: .notes)) ?? nil
         meetingTypeId = (try? container.decodeIfPresent(UUID.self, forKey: .meetingTypeId)) ?? nil
+        audioRetentionStartedAt = (
+            try? container.decodeIfPresent(Date.self, forKey: .audioRetentionStartedAt)
+        ) ?? nil
+        titleOverride = Transcription.normalizedTitleOverride(
+            from: (try? container.decodeIfPresent(String.self, forKey: .titleOverride)) ?? nil
+        )
         folderURL = nil
     }
 
@@ -138,6 +155,8 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         try container.encodeIfPresent(calendarEventSnapshot, forKey: .calendarEventSnapshot)
         try container.encodeIfPresent(notes, forKey: .notes)
         try container.encodeIfPresent(meetingTypeId, forKey: .meetingTypeId)
+        try container.encodeIfPresent(audioRetentionStartedAt, forKey: .audioRetentionStartedAt)
+        try container.encodeIfPresent(titleOverride, forKey: .titleOverride)
     }
 
     public func withFolderURL(_ folderURL: URL) -> MeetingRecordingLockFile {
@@ -155,6 +174,8 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
             calendarEventSnapshot: calendarEventSnapshot,
             notes: notes,
             meetingTypeId: meetingTypeId,
+            audioRetentionStartedAt: audioRetentionStartedAt,
+            titleOverride: titleOverride,
             folderURL: folderURL
         )
     }
@@ -174,6 +195,8 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
             calendarEventSnapshot: calendarEventSnapshot,
             notes: notes,
             meetingTypeId: meetingTypeId,
+            audioRetentionStartedAt: audioRetentionStartedAt,
+            titleOverride: titleOverride,
             folderURL: folderURL
         )
     }
@@ -193,6 +216,8 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
             calendarEventSnapshot: calendarEventSnapshot,
             notes: notes,
             meetingTypeId: meetingTypeId,
+            audioRetentionStartedAt: audioRetentionStartedAt,
+            titleOverride: titleOverride,
             folderURL: folderURL
         )
     }
@@ -212,6 +237,8 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
             calendarEventSnapshot: calendarEventSnapshot,
             notes: notes,
             meetingTypeId: meetingTypeId,
+            audioRetentionStartedAt: audioRetentionStartedAt,
+            titleOverride: titleOverride,
             folderURL: folderURL
         )
     }
@@ -234,6 +261,8 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
             calendarEventSnapshot: calendarEventSnapshot,
             notes: notes,
             meetingTypeId: meetingTypeId,
+            audioRetentionStartedAt: audioRetentionStartedAt,
+            titleOverride: titleOverride,
             folderURL: folderURL
         )
     }

@@ -46,6 +46,18 @@ jobs:
           set -o pipefail
           ./scripts/check-readme-references.sh 2>&1 | tee .ci-logs/check-readme-references.log
 
+      - name: Check Telemetry Allowlist
+        timeout-minutes: 2
+        env:
+          # PAT with read access to the private macparakeet-website repo, so
+          # the script's `gh`/`curl` fallback can fetch the allowlist in CI. If
+          # this secret is unset the script SKIPS (exit 0) rather than failing.
+          GH_TOKEN: ${{ secrets.WEBSITE_REPO_TOKEN }}
+        run: |
+          mkdir -p .ci-logs
+          set -o pipefail
+          ./scripts/ci/check-telemetry-allowlist.sh 2>&1 | tee .ci-logs/check-telemetry-allowlist.log
+
       - name: Meeting Echo Packaging Fixtures
         timeout-minutes: 5
         run: |

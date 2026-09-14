@@ -42,6 +42,11 @@ public struct SavedAudioAutoPromptCompletionProgress: Sendable, Equatable {
 }
 
 public struct SavedAudioAutoPromptCompletionResult: Sendable, Equatable {
+    public enum Warning: Sendable, Equatable {
+        case knowledgeCardFailed(message: String)
+        case artifactRefreshFailed(message: String)
+    }
+
     public struct PromptOutcome: Sendable, Equatable {
         public enum Status: Sendable, Equatable {
             /// A new `PromptResult` was generated and saved this call.
@@ -70,8 +75,11 @@ public struct SavedAudioAutoPromptCompletionResult: Sendable, Equatable {
     /// Empty when the transcript was blank or no prompt is enabled/applicable.
     public var outcomes: [PromptOutcome]
 
-    public init(outcomes: [PromptOutcome] = []) {
+    public var warnings: [Warning]
+
+    public init(outcomes: [PromptOutcome] = [], warnings: [Warning] = []) {
         self.outcomes = outcomes
+        self.warnings = warnings
     }
 
     public var hasFailures: Bool {
@@ -134,10 +142,12 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
         }
 
         try Task.checkCancellation()
-        try await generateKnowledgeCardIfConfigured(transcriptionId: transcription.id)
+        var warnings: [SavedAudioAutoPromptCompletionResult.Warning] = []
+        if let warning = try await generateKnowledgeCardIfConfigured(transcriptionId: transcription.id) {
+            warnings.append(warning)
+        }
         // A generator may return normally after cooperative cancellation
-        // instead of throwing. Do not let the no-auto-prompts branch below
-        // turn that cancelled completion into durable success.
+        // instead of throwing. Preserve cancellation even without auto-prompts.
         try Task.checkCancellation()
 
         let labelIDs = try transcriptionLabelRepository?.labelIDs(for: transcription.id) ?? []
@@ -150,11 +160,7 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
             promptLabelPolicyRepository: promptLabelPolicyRepository,
             promptApplicabilityResolver: promptApplicabilityResolver
         )
-        guard !autoPrompts.isEmpty else {
-            return SavedAudioAutoPromptCompletionResult()
-        }
-
-        let existingResults = try promptResultRepo.fetchAll(transcriptionId: transcription.id)
+        let existingResults = autoPrompts.isEmpty ? [] : (try promptResultRepo.fetchAll(transcriptionId: transcription.id))
         var outcomes: [SavedAudioAutoPromptCompletionResult.PromptOutcome] = []
         for (index, prompt) in autoPrompts.enumerated() {
             try Task.checkCancellation()
@@ -188,9 +194,11 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
             totalCount: autoPrompts.count,
             promptName: ""
         ))
-        await refreshMeetingArtifactsIfConfigured(transcription: transcription)
+        if let warning = await refreshMeetingArtifactsIfConfigured(transcription: transcription) {
+            warnings.append(warning)
+        }
 
-        return SavedAudioAutoPromptCompletionResult(outcomes: outcomes)
+        return SavedAudioAutoPromptCompletionResult(outcomes: outcomes, warnings: warnings)
     }
 
     private func generateAndSave(
@@ -241,16 +249,18 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
         return TranscriptAIContextFormatter.format(projection: projection)
     }
 
-    private func generateKnowledgeCardIfConfigured(transcriptionId: UUID) async throws {
-        guard let cardGenerator else { return }
+    private func generateKnowledgeCardIfConfigured(
+        transcriptionId: UUID
+    ) async throws -> SavedAudioAutoPromptCompletionResult.Warning? {
+        guard let cardGenerator else { return nil }
         do {
             _ = try await cardGenerator.generate(transcriptionId: transcriptionId, force: false)
         } catch is CancellationError {
             throw CancellationError()
         } catch {
-            // Knowledge cards remain best effort. Prompt completion owns
-            // cancellation, but an ordinary card failure is repairable later.
+            return .knowledgeCardFailed(message: error.localizedDescription)
         }
+        return nil
     }
 
     /// Best-effort: a stale artifact is repairable later and must never
@@ -263,19 +273,22 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
     /// removed. If the lease is currently held elsewhere (a delete or a split
     /// export/publish in progress), this refresh is skipped for this call
     /// rather than waiting — the next successful completion still refreshes.
-    private func refreshMeetingArtifactsIfConfigured(transcription: Transcription) async {
+    private func refreshMeetingArtifactsIfConfigured(
+        transcription: Transcription
+    ) async -> SavedAudioAutoPromptCompletionResult.Warning? {
         guard let meetingArtifactStore, transcription.sourceType == .meeting,
               let folderURL = MeetingArtifactStore.sessionFolderURL(for: transcription)
-        else { return }
+        else { return nil }
         // Same root identity `TranscriptionAssetCleanup` locks (the session
         // folder's own parent), not a fixed default, so this always
         // serializes against whichever root actually owns this folder.
         let rootURL = folderURL.standardizedFileURL.deletingLastPathComponent()
-        guard let lease = try? MeetingMediaMutationLease.acquire(roots: [rootURL]) else { return }
-        defer { lease.release() }
-        guard fileManager.fileExists(atPath: folderURL.path) else { return }
-
         do {
+            let lease = try MeetingMediaMutationLease.acquire(roots: [rootURL])
+            defer { lease.release() }
+            guard fileManager.fileExists(atPath: folderURL.path) else {
+                return .artifactRefreshFailed(message: "The meeting artifact folder is no longer available.")
+            }
             let promptResults = try promptResultRepo.fetchAll(transcriptionId: transcription.id)
             if let speakerAttributionReader,
                let projection = try? speakerAttributionReader.resolve(transcription: transcription) {
@@ -284,8 +297,8 @@ public final class SavedAudioAutoPromptCompletionService: SavedAudioAutoPromptCo
                 _ = try await meetingArtifactStore.materialize(transcription: transcription, promptResults: promptResults)
             }
         } catch {
-            // Best-effort refresh: a stale artifact is repairable later and
-            // must never revert an already-saved PromptResult.
+            return .artifactRefreshFailed(message: error.localizedDescription)
         }
+        return nil
     }
 }

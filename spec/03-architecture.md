@@ -150,6 +150,17 @@ row aborts completion instead of recreating an item deleted during processing.
 See the [database guide](../Sources/MacParakeetCore/Database/README.md) and
 [file audio-track contract](contracts/file-transcription-audio-tracks.md).
 
+`MeetingImportService` is the shared app/CLI boundary for turning one external
+recording into a managed meeting. It normalizes the first/default audio stream
+under the meeting-recordings root while holding the media mutation lease,
+publishes the ordinary recovery lock before the database stub, then delegates
+to `TranscriptionService`, `MeetingRecordingSettlement`, and
+`SavedAudioAutoPromptCompletionService`. The source path never becomes owned
+meeting state. `createdAt` preserves historical chronology, while
+`audioRetentionStartedAt` ages only the managed copy. See
+[ADR-030](adr/030-external-meeting-import.md) and the
+[meeting import contract](contracts/meeting-import-v1.md).
+
 ### Meeting stop, finalization and recovery
 
 ```mermaid

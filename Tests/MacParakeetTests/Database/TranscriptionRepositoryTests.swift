@@ -12,6 +12,67 @@ final class TranscriptionRepositoryTests: XCTestCase {
         repo = TranscriptionRepository(dbQueue: manager.dbQueue)
     }
 
+    func testMeetingRenameRecordsExplicitTitleIntent() throws {
+        let meeting = Transcription(fileName: "Original", sourceType: .meeting)
+        try repo.save(meeting)
+        let saved = try XCTUnwrap(repo.updateFileName(id: meeting.id, fileName: "  Chosen title  "))
+        XCTAssertEqual(saved.titleOverride, "Chosen title")
+        XCTAssertEqual(try repo.fetch(id: meeting.id)?.titleOverride, "Chosen title")
+    }
+
+    func testCompletionPreservesExplicitMeetingTitleFromBeforeProcessing() throws {
+        let meeting = Transcription(fileName: "Chosen title", sourceType: .meeting, titleOverride: "Chosen title")
+        try repo.save(meeting)
+        var completed = meeting
+        completed.fileName = "Automatic title"
+        completed.derivedTitle = "Automatic title"
+        completed.status = .completed
+        let saved = try repo.savePreservingUserMetadata(completed, originalFileName: meeting.fileName)
+        XCTAssertEqual(saved.fileName, "Chosen title")
+        XCTAssertEqual(saved.titleOverride, "Chosen title")
+    }
+
+    func testRetentionUsesManagedAudioClockWithLegacyFallbackInSQLAndAdapters() throws {
+        let now = Date(timeIntervalSince1970: 1_000_000_000)
+        let cutoff = now.addingTimeInterval(-30 * 86_400)
+        let historical = now.addingTimeInterval(-3650 * 86_400)
+        let legacy = Transcription(createdAt: historical, fileName: "Legacy", filePath: "/managed/legacy.m4a",
+                                   status: .completed, sourceType: .meeting)
+        var imported = Transcription(createdAt: historical, fileName: "Imported", filePath: "/managed/imported.m4a",
+                                     status: .completed, sourceType: .meeting)
+        imported.audioRetentionStartedAt = now
+        var expired = imported
+        expired.id = UUID()
+        expired.createdAt = now
+        expired.audioRetentionStartedAt = cutoff
+        let adapter = MockTranscriptionRepository()
+        for row in [legacy, imported, expired] {
+            try repo.save(row)
+            try adapter.save(row)
+        }
+        for repository in [repo!, adapter] as [TranscriptionRepositoryProtocol] {
+            XCTAssertEqual(Set(try repository.fetchMeetingAudioRetentionCandidates(createdAtOrBefore: cutoff).map(\.id)),
+                           Set([legacy.id, expired.id]))
+        }
+        XCTAssertEqual(try repo.fetch(id: imported.id)?.audioRetentionStartedAt, now)
+        XCTAssertEqual(try repo.fetch(id: imported.id)?.createdAt, historical)
+    }
+
+    func testCompletionPreservesCurrentRetentionClockIncludingNil() throws {
+        for currentClock in [nil, Date(timeIntervalSince1970: 1_000_000_000)] as [Date?] {
+            var current = Transcription(fileName: "Meeting", sourceType: .meeting)
+            current.audioRetentionStartedAt = currentClock
+            try repo.save(current)
+            var completed = current
+            completed.audioRetentionStartedAt = Date(timeIntervalSince1970: 50)
+            completed.status = .completed
+            let saved = try repo.savePreservingUserMetadata(completed, originalFileName: current.fileName)
+            XCTAssertEqual(saved.audioRetentionStartedAt, currentClock)
+            try repo.savePreservingMeetingClassification(completed)
+            XCTAssertEqual(try repo.fetch(id: current.id)?.audioRetentionStartedAt, currentClock)
+        }
+    }
+
     // MARK: - CRUD
 
     func testSaveAndFetch() throws {

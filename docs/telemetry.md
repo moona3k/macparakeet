@@ -125,6 +125,11 @@ deriving it from the event name when older clients do not send the field.
 | `chip` | `Apple M1` | Safe | Performance benchmarking across chip types |
 | `country` | `US` | From CF header | Cloudflare provides this; we don't store IP |
 | `surface` | `gui` / `cli` | Safe | Separates menu-bar app sessions from one-shot CLI invocations |
+| `git_commit` (props) | `ca13604b4c7b` | Safe | Short git SHA or `unknown`. Copied into props because D1 does not persist extra envelope columns. |
+| `build_number` (props) | `20260913.1` | Safe | `CFBundleVersion` / env build identity, charset-limited |
+
+Queued events also receive these two props so agents can group failures by
+exact binary, not marketing version alone.
 
 ### What We Explicitly DON'T Collect
 
@@ -381,7 +386,7 @@ prompt-customization trend.
 | `meeting_recording_completed` | `duration_seconds`, `live_word_count`, `live_transcript_lagged` | Recording duration and live-preview quality |
 | `meeting_recording_cancelled` | `duration_seconds` | How often recordings are intentionally discarded |
 | `meeting_recording_failed` | `error_type` | What blocks recording/finalization |
-| `meeting_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `trigger`, `stage`, `duration_seconds`, `live_word_count`, `live_transcript_lagged`, `microphone_track_present`, `system_track_present`, `notes_used`, `notes_length_bucket`, `error_type` | One wide outcome event for the full meeting capture + transcription flow |
+| `meeting_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `trigger`, `stage`, `duration_seconds`, `live_word_count`, `live_transcript_lagged`, `microphone_track_present`, `system_track_present`, `notes_used`, `notes_length_bucket`, `error_type`, `capture_start_completed` | One wide outcome event for the full meeting capture + transcription flow |
 | `vad_model_prep` | `outcome` (`prepared`, `failed`) | Whether launch-time Silero VAD model prep is reaching the installed base in flag-on VAD live-chunking builds |
 
 `meeting_operation.stage` values are `permissions`, `start_recording`,
@@ -390,6 +395,9 @@ prompt-customization trend.
 `meeting_operation.trigger` values include `manual`, `hotkey`,
 `calendar_auto_start`, and `auto_stop`; `meeting_recording_started.trigger`
 does not use `auto_stop` because auto-stop only affects the stop/finalize path.
+`capture_start_completed` is `false` when start recording fails without a
+recording output, `true` when an output exists, and omitted for earlier
+permission-only terminals.
 
 ### 5. Settings & Customization — "How do people configure the app?"
 
@@ -453,7 +461,7 @@ It does not observe ScreenCaptureKit's separate system-audio lifecycle.
 
 | Event | Props | Question It Answers |
 |---|---|---|
-| `audio_engine_lifecycle` | `attempt_id`, `operation`, `outcome`, `phase`, `elapsed_ms`, `phase_ms`, `attempt_count`, `prepared`, `vpio`, `buffer_size`, `route_source`, `transport`, `was_slow`; optional `last_error_type`, `last_error_phase`, and observed `phase_<phase>_ms` fields | Which engine lifecycle boundary is still pending, how long each phase took, and whether fallback or cancellation eventually resolved it |
+| `audio_engine_lifecycle` | `attempt_id`, `operation`, `outcome`, `phase`, `elapsed_ms`, `phase_ms`, `attempt_count`, `prepared`, `vpio`, `buffer_size`, `route_source`, `transport`, `was_slow`; optional `last_error_type`, `last_error_phase`, `workflow_id`, `consumer`, `git_commit`, `build_number`, and observed `phase_<phase>_ms` fields | Which engine lifecycle boundary is still pending, how long each phase took, whether fallback or cancellation eventually resolved it, and which meeting/dictation workflow owned capture |
 
 `AudioEngineLifecycleDiagnostics` starts its independent utility timer before
 start, prepare, or stop waits for the platform's serial queue. A recovery
@@ -493,8 +501,12 @@ Both sinks receive the same immutable safe fields:
 | `transport` | `none`, `built-in`, `bluetooth`, `bluetooth-le`, `usb`, `aggregate`, `virtual`, `unknown`; aggregate members use `aggregate-` followed by a category other than `none`. Unknown/arbitrary labels become `unknown`. |
 | `last_error_type`, `last_error_phase` | Latest explicitly recorded attempt error and its originating boundary. The terminal error fills these fields only if no attempt error was recorded. Fallback may ultimately throw a different error or succeed while retaining the latest attempt error. No free-form error text. |
 | `was_slow` | True if a checkpoint was emitted or elapsed time reached the threshold by completion. |
+| `workflow_id` | Optional parent product workflow UUID, stamped from process-wide capture correlation before the audio queue. Matches `meeting_operation` / `dictation_operation` `workflow_id`. Omitted for idle prepare/stop. |
+| `consumer` | Optional `meeting` or `dictation`. Omitted when no capture correlation is active. |
+| `git_commit`, `build_number` | Added when the snapshot is queued as a telemetry event. Hex SHA or `unknown`; charset-limited build identity. Not a user identifier. |
 
-The full schema has at most 29 props, below the 40-property ingestion ceiling.
+The snapshot schema stays at most 31 props; queued events may add build identity
+for a still-bounded total under the 40-property ingestion ceiling.
 It contains no audio, transcript, device name/UID, path, or persistent identity.
 `phase` locates the last instrumented boundary; it does not prove what caused a
 native hang. A success reports that this lifecycle call returned successfully,

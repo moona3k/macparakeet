@@ -953,7 +953,7 @@ and boundary actions:
 
 Retranscribing changes the automatic transcript fingerprint and resets manual
 transcript edits rather than replaying stale ranges. The complete storage and
-alignment decision is [ADR-030](adr/030-timed-transcript-corrections.md).
+alignment decision is [ADR-031](adr/031-timed-transcript-corrections.md).
 
 ### Transcript AI Context Lifecycle
 

@@ -15,6 +15,17 @@ final class SpecCommandTests: XCTestCase {
         }
     }
 
+    func testSpecDescribesMeetingImportResultAndRetryExit() throws {
+        let commands = try XCTUnwrap(specPayload()["commands"] as? [[String: Any]])
+        let command = try XCTUnwrap(
+            commands.first { ($0["path"] as? [String]) == ["meetings", "import"] })
+        XCTAssertEqual(command["readOnly"] as? Bool, false)
+        XCTAssertEqual(command["jsonMode"] as? String, "--json")
+        let options = try XCTUnwrap(command["options"] as? [[String: Any]])
+        XCTAssertTrue(options.contains { ($0["name"] as? String) == "--started-at" })
+        XCTAssertTrue((command["output"] as? String)?.contains("needsRetry") == true)
+    }
+
     func testSpecDocumentsPromptCollectionCommandsAndMembership() throws {
         let payload = try specPayload()
         let commands = try XCTUnwrap(payload["commands"] as? [[String: Any]])

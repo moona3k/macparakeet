@@ -2228,11 +2228,19 @@ public final class DatabaseManager: Sendable {
             }
         }
 
-        // v0.43 — The existing correction journal now also carries timed-line
+        // Historical meeting chronology is independent of when managed audio was imported.
+        migrator.registerMigration("v0.43-meeting-audio-retention") { db in
+            let columns = try db.columns(in: "transcriptions").map(\.name)
+            if !columns.contains("audioRetentionStartedAt") {
+                try db.execute(sql: "ALTER TABLE transcriptions ADD COLUMN audioRetentionStartedAt TEXT")
+            }
+        }
+
+        // v0.44 — The existing correction journal now also carries timed-line
         // text replacement and boundary suppression. SQLite cannot widen a
         // CHECK constraint in place, so rebuild both related tables while
         // preserving their rows, parent links, and persistent undo cursor.
-        migrator.registerMigration("v0.43-timed-transcript-corrections") { db in
+        migrator.registerMigration("v0.44-timed-transcript-corrections") { db in
             try db.execute(
                 sql: """
                     ALTER TABLE speaker_correction_states

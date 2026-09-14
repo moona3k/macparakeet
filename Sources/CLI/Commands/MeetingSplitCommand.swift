@@ -172,7 +172,7 @@ extension MeetingsCommand.SplitSubcommand {
                 let dbManager = try makeMutatingSplitDatabaseManager(database: database)
                 let transcriptionRepo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
                 let sourceId = try resolvedMeetingSourceId(meeting, repo: transcriptionRepo)
-                let service = makeMeetingSplitService(dbManager: dbManager, transcriptionRepo: transcriptionRepo)
+                let service = try makeMeetingSplitService(dbManager: dbManager, transcriptionRepo: transcriptionRepo)
 
                 let idempotencyKey = key ?? Self.defaultIdempotencyKey(sourceId: sourceId, cuts: cut, titles: title)
                 let operation: MeetingSplitOperation
@@ -350,7 +350,7 @@ extension MeetingsCommand.SplitSubcommand {
             try await emitJSONOrRethrow(json: json || envelope) {
                 let dbManager = try makeMutatingSplitDatabaseManager(database: database)
                 let transcriptionRepo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
-                let service = makeMeetingSplitService(dbManager: dbManager, transcriptionRepo: transcriptionRepo)
+                let service = try makeMeetingSplitService(dbManager: dbManager, transcriptionRepo: transcriptionRepo)
                 let uuid = try parsedOperationId(operationId)
 
                 let operation: MeetingSplitOperation
@@ -418,7 +418,7 @@ extension MeetingsCommand.SplitSubcommand {
             try emitJSONOrRethrow(json: json || envelope) {
                 let dbManager = try makeMutatingSplitDatabaseManager(database: database)
                 let transcriptionRepo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
-                let service = makeMeetingSplitService(dbManager: dbManager, transcriptionRepo: transcriptionRepo)
+                let service = try makeMeetingSplitService(dbManager: dbManager, transcriptionRepo: transcriptionRepo)
                 let uuid = try parsedOperationId(operationId)
 
                 let operation = try service.discard(operationId: uuid)
@@ -454,6 +454,18 @@ extension MeetingsCommand.SplitSubcommand {
 func withSIGINTCooperativeCancellation<T: Sendable>(
     _ operation: @escaping @Sendable () async throws -> T
 ) async throws -> T {
+    let result = try await withSIGINTCooperativeCancellationResult(operation)
+    guard !result.wasInterrupted else { throw CancellationError() }
+    return result.value
+}
+
+/// The import command needs to print a durable Core result even when SIGINT
+/// arrived while its task was settling. Split retains its existing throw-on-
+/// interrupt behavior through the wrapper above; callers that own a durable
+/// single result can inspect this flag after printing it.
+func withSIGINTCooperativeCancellationResult<T: Sendable>(
+    _ operation: @escaping @Sendable () async throws -> T
+) async throws -> (value: T, wasInterrupted: Bool) {
     // Disable the default terminate-on-SIGINT disposition first: left in
     // place, the signal's default action could terminate the process in the
     // gap between starting the operation and arming the dispatch source.
@@ -467,8 +479,7 @@ func withSIGINTCooperativeCancellation<T: Sendable>(
         signal(SIGINT, previousDisposition)
     }
     let value = try await task.value
-    guard !task.isCancelled else { throw CancellationError() }
-    return value
+    return (value, task.isCancelled)
 }
 
 // MARK: - Retry guidance for a non-committed operation
@@ -572,79 +583,19 @@ private func makeMutatingSplitDatabaseManager(database: String?) throws -> Datab
 private func makeMeetingSplitService(
     dbManager: DatabaseManager,
     transcriptionRepo: TranscriptionRepository
-) -> MeetingSplitService {
+) throws -> MeetingSplitService {
     let dbQueue = dbManager.dbQueue
     let defaults = AppPaths.appDefaults()
-    let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
-    let llmService = LLMService()
+    let processing = try SavedMeetingProcessingContext(
+        dbManager: dbManager, transcriptionRepo: transcriptionRepo)
     let splitRepo = MeetingSplitRepository(dbQueue: dbQueue)
-    let promptRepo = PromptRepository(dbQueue: dbQueue)
-    let promptResultRepo = PromptResultRepository(dbQueue: dbQueue)
-    let promptLabelPolicyRepository = PromptLabelPolicyRepository(dbQueue: dbQueue)
-    let transcriptionLabelRepository = TranscriptionMeetingLabelRepository(dbQueue: dbQueue)
-    let speakerAttributionReader = SpeakerAttributionReadService(dbQueue: dbQueue)
-    let cardRepository = CardRepository(dbQueue: dbQueue)
-    let customWordRepo = CustomWordRepository(dbQueue: dbQueue)
-    let segmentRepo = SegmentRepository(dbQueue: dbQueue)
-    let knowledgeLayerMutator = KnowledgeLayerMutationService(dbQueue: dbQueue)
-    let snippetRepo = TextSnippetRepository(dbQueue: dbQueue)
-
-    let sttClient = STTClient(
-        parakeetModelVariant: SpeechEnginePreference.parakeetModelVariant(defaults: defaults),
-        speechEngine: SpeechEnginePreference.finalTranscription(defaults: defaults),
-        nemotronModelVariant: SpeechEnginePreference.nemotronModelVariant(defaults: defaults),
-        whisperModelVariant: SpeechEnginePreference.whisperModelVariant(defaults: defaults),
-        defaults: defaults,
-        customWordRepository: customWordRepo
-    )
-    // The exact construction path saved-meeting `retranscribe`/automatic
-    // completion already uses: real STT client, meeting speaker-diarization
-    // preference wired through, and no CLI-invented per-invocation flags.
-    let transcriptionService = TranscriptionService(
-        audioProcessor: AudioProcessor(),
-        sttTranscriber: sttClient,
-        transcriptionRepo: transcriptionRepo,
-        segmentRepo: segmentRepo,
-        knowledgeLayerMutator: knowledgeLayerMutator,
-        promptResultRepo: promptResultRepo,
-        customWordRepo: customWordRepo,
-        snippetRepo: snippetRepo,
-        processingMode: { preferences.processingMode },
-        llmService: llmService,
-        llmRunRepo: LLMRunRepository(dbQueue: dbQueue),
-        shouldUseAIFormatter: { preferences.aiFormatterEnabled && preferences.aiFormatterEnabledForTranscriptions },
-        aiFormatterPromptTemplate: { preferences.aiFormatterPrompt },
-        shouldAutoGenerateMeetingTitles: { preferences.shouldAutoGenerateMeetingTitles },
-        shouldDiarize: { preferences.shouldDiarize },
-        shouldDiarizeMeetings: { preferences.shouldDiarizeMeetings },
-        fileSpeechEngineSelection: { SpeechEngineSelection.finalTranscription(defaults: defaults) },
-        diarizationService: DiarizationService(),
-        meetingArtifactStore: MeetingArtifactStore(speakerAttributionReader: speakerAttributionReader)
-    )
-
-    let completionService = SavedAudioAutoPromptCompletionService(
-        promptRepo: promptRepo,
-        promptResultRepo: promptResultRepo,
-        llmService: llmService,
-        promptLabelPolicyRepository: promptLabelPolicyRepository,
-        transcriptionLabelRepository: transcriptionLabelRepository,
-        speakerAttributionReader: speakerAttributionReader,
-        meetingArtifactStore: MeetingArtifactStore(speakerAttributionReader: speakerAttributionReader),
-        cardGenerator: CardGenerationService(
-            transcriptionRepository: transcriptionRepo,
-            segmentRepository: segmentRepo,
-            cardRepository: cardRepository,
-            speakerAttributionReader: speakerAttributionReader,
-            completionProvider: llmService
-        )
-    )
 
     return MeetingSplitService(
         transcriptionRepo: transcriptionRepo,
         splitRepo: splitRepo,
-        transcriptionService: transcriptionService,
-        completionService: completionService,
-        meetingRecordingsRootURL: { splitMeetingRecordingsRootURL(defaults: defaults) },
+        transcriptionService: processing.transcriptionService,
+        completionService: processing.completionService,
+        meetingRecordingsRootURL: { processing.recordingsRootURL },
         retentionConfig: { UserDefaultsAppRuntimePreferences.meetingAudioRetention(defaults: defaults, persistMigration: false) },
         speechEngineSelection: { SpeechEngineSelection.finalTranscription(defaults: defaults) }
     )
@@ -658,7 +609,7 @@ private func makeMeetingSplitService(
 /// honored here too. Without this, `MeetingSplitService`'s own default falls
 /// back to `.standard`, which is the wrong domain for a standalone CLI
 /// process reading the app's shared suite.
-func splitMeetingRecordingsRootURL(defaults: UserDefaults) -> URL {
+func meetingRecordingsRootURL(defaults: UserDefaults) -> URL {
     URL(fileURLWithPath: AppPaths.configuredMeetingRecordingsDir(defaults: defaults), isDirectory: true)
 }
 

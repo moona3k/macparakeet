@@ -476,7 +476,7 @@ final class MeetingRecordingFlowCoordinator {
         pendingAudioSourceMode = nil
         pendingLivePanelPresentation = false
         pendingStartContext = nil
-        currentMeetingOperationContext = nil
+        clearMeetingOperationContext()
         currentMeetingTrigger = nil
         if wasCalendarTriggered {
             Telemetry.send(.calendarAutoStartFailed(reason: failureReason))
@@ -706,6 +706,11 @@ final class MeetingRecordingFlowCoordinator {
             let operationContext = currentMeetingOperationContext ?? ObservabilityOperationContext()
             currentMeetingOperationContext = operationContext
             currentMeetingTrigger = trigger.map(TelemetryMeetingOperationTrigger.init)
+            Observability.beginCaptureCorrelation(
+                ObservabilityCaptureCorrelation(
+                    workflowID: operationContext.workflowID, consumer: .meeting
+                )
+            )
             actionTask = Task { @MainActor in
                 do {
                     try await meetingRecordingService.startRecording(
@@ -799,6 +804,7 @@ final class MeetingRecordingFlowCoordinator {
                     Telemetry.send(.meetingRecordingStarted(trigger: trigger))
                     self.onRecordingBegan()
                 } catch {
+                    Observability.endCaptureCorrelation(workflowID: operationContext.workflowID)
                     guard self.ownsPendingStart(generation: gen) else {
                         self.recordIgnoredStartResult(generation: gen, outcome: "failure")
                         return
@@ -822,7 +828,7 @@ final class MeetingRecordingFlowCoordinator {
                         durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
                         errorType: TelemetryErrorClassifier.classify(error)
                     )
-                    self.currentMeetingOperationContext = nil
+                    self.clearMeetingOperationContext()
                     self.currentMeetingTrigger = nil
                     self.sendEvent(.startFailed(generation: gen, message: error.localizedDescription))
                 }
@@ -989,7 +995,7 @@ final class MeetingRecordingFlowCoordinator {
                         )
                         return prepared
                     }
-                    self.currentMeetingOperationContext = nil
+                    self.clearMeetingOperationContext()
                     self.currentMeetingTrigger = nil
                     self.sendEvent(.recordingQueued(generation: gen, transcriptionID: prepared.id))
                 } catch {
@@ -1014,7 +1020,7 @@ final class MeetingRecordingFlowCoordinator {
                                 generation: gen,
                                 message: message
                             ))
-                        self.currentMeetingOperationContext = nil
+                        self.clearMeetingOperationContext()
                         self.currentMeetingTrigger = nil
                     } else {
                         queueingOutcome = "failure"
@@ -1032,7 +1038,7 @@ final class MeetingRecordingFlowCoordinator {
                             liveTranscriptLagged: liveTranscriptLagged,
                             errorType: TelemetryErrorClassifier.classify(error)
                         )
-                        self.currentMeetingOperationContext = nil
+                        self.clearMeetingOperationContext()
                         self.currentMeetingTrigger = nil
                         self.sendEvent(.transcriptionFailed(generation: gen, message: error.localizedDescription))
                     }
@@ -1065,7 +1071,7 @@ final class MeetingRecordingFlowCoordinator {
                     stage: .cancel,
                     durationSeconds: durationSeconds
                 )
-                self.currentMeetingOperationContext = nil
+                        self.clearMeetingOperationContext()
                 self.currentMeetingTrigger = nil
             }
 
@@ -1713,6 +1719,13 @@ final class MeetingRecordingFlowCoordinator {
         )
     }
 
+    private func clearMeetingOperationContext() {
+        if let workflowID = currentMeetingOperationContext?.workflowID {
+            Observability.endCaptureCorrelation(workflowID: workflowID)
+        }
+        currentMeetingOperationContext = nil
+    }
+
     private func sendMeetingOperation(
         outcome: ObservabilityOutcome,
         trigger: TelemetryMeetingOperationTrigger? = nil,
@@ -1763,7 +1776,8 @@ final class MeetingRecordingFlowCoordinator {
                 systemTrackPresent: output.map { $0.sourceAlignment.system != nil },
                 notesUsed: notes.map { !$0.isEmpty },
                 notesLengthBucket: output.map { Observability.textLengthBucket($0.userNotes) },
-                errorType: errorType
+                errorType: errorType,
+                captureStartCompleted: output != nil ? true : (stage == .startRecording ? false : nil)
             ))
     }
 }

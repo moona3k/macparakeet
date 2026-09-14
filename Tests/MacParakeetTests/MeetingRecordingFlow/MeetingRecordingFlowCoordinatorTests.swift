@@ -121,6 +121,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(operation.durationSeconds, output.durationSeconds)
         XCTAssertEqual(operation.microphoneTrackPresent, true)
         XCTAssertEqual(operation.systemTrackPresent, true)
+        XCTAssertEqual(operation.captureStartCompleted, true)
     }
 
     func testCancelledDurableStopLeavesProcessingState() async throws {
@@ -458,6 +459,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         let failure = try XCTUnwrap(telemetry.snapshot().compactMap(\.meetingOperationPayload).last)
         XCTAssertEqual(failure.outcome, .failure)
         XCTAssertGreaterThanOrEqual(try XCTUnwrap(failure.durationSeconds), 0)
+        XCTAssertEqual(failure.captureStartCompleted, false)
     }
 
     func testStopWhileServiceStartIsPendingSuppressesLateStartSideEffects() async throws {
@@ -1864,6 +1866,7 @@ private struct MeetingOperationPayload: Equatable {
     let durationSeconds: Double?
     let microphoneTrackPresent: Bool?
     let systemTrackPresent: Bool?
+    let captureStartCompleted: Bool?
 }
 
 private extension TelemetryEventSpec {
@@ -1882,7 +1885,8 @@ private extension TelemetryEventSpec {
                 let systemTrackPresent,
                 _,
                 _,
-                _
+                _,
+                let captureStartCompleted
             ) = self
         else {
             return nil
@@ -1893,7 +1897,8 @@ private extension TelemetryEventSpec {
             trigger: trigger,
             durationSeconds: durationSeconds,
             microphoneTrackPresent: microphoneTrackPresent,
-            systemTrackPresent: systemTrackPresent
+            systemTrackPresent: systemTrackPresent,
+            captureStartCompleted: captureStartCompleted
         )
     }
 }

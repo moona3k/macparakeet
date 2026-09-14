@@ -135,6 +135,21 @@ final class AudioCaptureDiagnosticsTests: XCTestCase {
         )
         XCTAssertTrue(second.contains(String(sessionField)), "One process must retain the same correlation ID")
         XCTAssertTrue(line.hasSuffix("\n"))
+        XCTAssertFalse(line.contains("workflow_id="))
+    }
+
+    func testEncodedLogLineIncludesActiveCaptureCorrelation() throws {
+        let workflowID = "3F2504E0-4F89-11D3-9A0C-0305E82C3301"
+        let data = AudioCaptureDiagnostics.encodedLogLine(
+            "meeting_recording_health session=test",
+            timestamp: Date(timeIntervalSince1970: 1_780_000_000),
+            uptimeNanoseconds: 1,
+            correlation: ObservabilityCaptureCorrelation(workflowID: workflowID, consumer: .meeting)
+        )
+        let line = String(decoding: data, as: UTF8.self)
+        XCTAssertTrue(line.contains("workflow_id=\(workflowID)"))
+        XCTAssertTrue(line.contains("consumer=meeting"))
+        Observability.resetCaptureCorrelation()
     }
 
     func testWritePreservesExistingHistoryWhenLogCannotBeOpenedForAppend() throws {

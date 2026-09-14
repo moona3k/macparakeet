@@ -6,6 +6,40 @@ import XCTest
 /// Coverage for `MeetingRecordingOutput` archive reconstruction, metadata
 /// compatibility, cleaned-microphone preference, and validated STT routing.
 final class MeetingRecordingOutputTests: XCTestCase {
+    func testEqualityIncludesImportChronologyRetentionAndTitleIntent() {
+        let sessionID = UUID()
+        let folder = URL(fileURLWithPath: "/tmp/meeting-recording-output-equality")
+        let defaultStartedAt = Date(timeIntervalSince1970: 1_650_000_000)
+        let defaultRetentionStartedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        func output(
+            startedAt: Date? = nil,
+            retentionStartedAt: Date? = nil,
+            titleOverride: String? = "Imported title"
+        ) -> MeetingRecordingOutput {
+            MeetingRecordingOutput(
+                sessionID: sessionID,
+                displayName: "Fallback title",
+                folderURL: folder,
+                mixedAudioURL: folder.appendingPathComponent("meeting-playback.m4a"),
+                microphoneAudioURL: folder.appendingPathComponent("microphone-raw.m4a"),
+                systemAudioURL: folder.appendingPathComponent("system-raw.m4a"),
+                durationSeconds: 60,
+                sourceAlignment: MeetingSourceAlignment(
+                    meetingOriginHostTime: nil, microphone: nil, system: nil),
+                startedAt: startedAt ?? defaultStartedAt,
+                audioRetentionStartedAt: retentionStartedAt ?? defaultRetentionStartedAt,
+                titleOverride: titleOverride
+            )
+        }
+
+        let baseline = output()
+        XCTAssertEqual(baseline, output())
+        XCTAssertNotEqual(baseline, output(startedAt: defaultStartedAt.addingTimeInterval(1)))
+        XCTAssertNotEqual(
+            baseline, output(retentionStartedAt: defaultRetentionStartedAt.addingTimeInterval(1)))
+        XCTAssertNotEqual(baseline, output(titleOverride: "Another title"))
+    }
+
     func testMicrophoneTranscriptionURLPrefersExistingCleanedMic() throws {
         let dir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }

@@ -3,7 +3,7 @@
 > Status: **IMPLEMENTED ON FEATURE BRANCH**
 > Date: 2026-09-13
 > Issue: [#893](https://github.com/moona3k/macparakeet/issues/893)
-> Governing decision: [ADR-030](../../spec/adr/030-timed-transcript-corrections.md)
+> Governing decision: [ADR-031](../../spec/adr/031-timed-transcript-corrections.md)
 
 ## Goal
 
@@ -115,6 +115,11 @@ smoke tests, accessibility labels, and a manual app smoke pass.
   effective preview in one database snapshot, and resolve only histories with
   active timed-text operations. The 11 correction-service, 61 Library
   view-model, and 31 CLI meeting tests pass with zero failures.
+- The branch was merged with `origin/main` after meeting import landed. Both
+  features are preserved: meeting import keeps ADR-030 and migration v0.43,
+  while timed transcript corrections move to ADR-031 and migration v0.44. The
+  merged tree builds, and 131 focused migration, correction, Library, meeting
+  CLI, import CLI, and CLI-spec tests pass with zero failures.
 - Two independent architecture/code-review passes found and verified fixes for
   automatic-boundary replay and competing whole-transcript/timed-line edits.
 - The non-interactive Cursor and Claude review failure modes and verified
