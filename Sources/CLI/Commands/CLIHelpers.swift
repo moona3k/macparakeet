@@ -456,6 +456,8 @@ enum CLIErrorType {
                 return conflict
             case .transcriptionNotFound:
                 return lookup
+            case .invalidCommand(.invalidText):
+                return inputEmpty
             case .malformedHistory:
                 return runtime
             case .transcriptionIncomplete, .timingsRequired, .durableSegmentsRequired,

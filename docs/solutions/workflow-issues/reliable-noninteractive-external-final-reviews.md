@@ -75,8 +75,10 @@ ordinary `--output-format text` run returned only a newline; both exited 0
 without a verdict. Resuming the persisted review with `--output-format
 stream-json --stream-partial-output` returned the complete assistant response
 and a final result event. The PTY was therefore not the root cause. In this
-Cursor build, structured streaming output is the verified capture path, and a
-zero exit remains insufficient without the review contract's required output.
+Cursor build, structured streaming output is the verified capture path. The
+review is complete only when an assistant response or successful final result
+contains both the reviewed SHA and the review contract's exact terminal
+verdict token.
 
 ## Guidance
 

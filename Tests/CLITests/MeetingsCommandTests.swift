@@ -5,6 +5,17 @@ import XCTest
 @testable import MacParakeetCore
 
 final class MeetingsCommandTests: XCTestCase {
+    func testTimedTextCorrectionErrorsUseSpecificCLIErrorTypes() {
+        XCTAssertEqual(
+            CLIErrorType.key(for: SpeakerCorrectionServiceError.invalidCommand(.invalidText)),
+            CLIErrorType.inputEmpty
+        )
+        XCTAssertEqual(
+            CLIErrorType.key(for: SpeakerCorrectionServiceError.invalidCommand(.nonAdjacentTargets)),
+            CLIErrorType.validation
+        )
+    }
+
     func testMeetingJSONSurfacesExposeTimedTextCorrectionsWithoutRewritingStoredWords() async throws {
         let dbURL = temporaryDatabaseURL()
         defer { try? FileManager.default.removeItem(at: dbURL) }
