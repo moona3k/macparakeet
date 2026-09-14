@@ -1,0 +1,20 @@
+spec/adr/025-meeting-capture-reliability.md
+  s_ef822ca118a414::t_b008411a7c4be0 254-255
+  s_ef822ca118a414::t_53b025617e28a7 48-50,203,205-210,213,216,218-230,241-242,248-250,252-253,430,454-457,506-509,520-523,546-551,556-557
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6d37e3e47df187f31baa7c661e3b10e18936c784",
+  "prompts": {},
+  "sessions": {
+    "s_ef822ca118a414": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a094-51e0-74d2-9f9e-72652998f1d6",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
