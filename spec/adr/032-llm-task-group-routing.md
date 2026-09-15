@@ -26,8 +26,10 @@ The latency half shipped as independent formatter **enablement** toggles
 ("Use for dictation", "Use for transcripts") plus a transcription input
 cap. Settings still stores **one** default `LLMProviderConfig`.
 `StoredLLMExecutionContextResolver` is task-blind. Prompt and Transform
-`modelOverride` values, plus CLI `--model` and inline command configs,
-already overlay that saved route and are not removed by this ADR.
+`modelOverride` values, and `--model` on commands that use the saved
+Settings route, overlay that route and are not removed by this ADR.
+Inline CLI commands that pass a full provider context are independent
+configs; they do not require the saved Settings route.
 
 [#930](https://github.com/moona3k/macparakeet/issues/930) is a cleanup-tuned
 chat model that is a poor summarizer. [#265](https://github.com/moona3k/macparakeet/issues/265)
@@ -111,9 +113,10 @@ Resolve the route once at operation start. `llm_runs` already records
 rewrite an in-flight call.
 
 CLI uses the same policy (`summarize` / chat → `analysis`, formatter →
-`cleanup`, transform → `transform`). Existing one-shot `--model` and
-inline CLI execution contexts remain invocation overlays, not a saved
-task-group policy.
+`cleanup`, transform → `transform`). Existing `--model` on
+stored-config commands remains an invocation overlay, not a saved
+task-group policy. Inline CLI commands that pass a full provider
+context stay independent configs.
 
 ### 4. Enablement stays independent of routing
 
@@ -157,8 +160,8 @@ checkpoint. Do not auto-download.
 S1-mini stays English dictation cleanup: deterministic Clean still runs
 first; failures fall back to Clean; meetings, files, summaries, Ask,
 Transforms, and app formatter profiles do not use it. Those surfaces keep
-the general cleanup or analysis route (inherit or that task's general
-override), not an implicit second specialist. Identify it as
+the general cleanup, analysis, or transform route (inherit or that
+task's general override), not an implicit second specialist. Identify it as
 **S1-mini by Superwhisper** where the model is chosen and in Third-Party
 Notices. See [#939](https://github.com/moona3k/macparakeet/issues/939).
 
@@ -176,8 +179,10 @@ groups at different general providers or models.
 
 - One saved default provider config via `LLMConfigStore`.
 - Task-blind `StoredLLMExecutionContextResolver`.
-- Per-prompt and per-Transform `modelOverride`, plus CLI `--model` /
-  inline configs, overlay that saved route without replacing it.
+- Per-prompt and per-Transform `modelOverride`, plus `--model` on
+  stored-config CLI commands, overlay that saved route without replacing
+  it. Inline CLI commands that pass a full provider context are
+  independent configs.
 - Per-surface formatter enablement and the transcription length cap.
 - No specialist recipes and no translation product.
 
