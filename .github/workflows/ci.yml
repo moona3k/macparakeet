@@ -23,7 +23,9 @@ jobs:
   swift-test:
     runs-on: macos-14
     # Leave time for tests after the release, bundle, and concurrency builds.
-    timeout-minutes: 60
+    # Voice-profile sources pushed a clean Release compile past the old 15/60
+    # minute step/job caps (pre-#1044 Release builds already took ~14.5 min).
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -87,7 +89,7 @@ jobs:
             ${{ runner.os }}-spm-
 
       - name: Swift Build (Release)
-        timeout-minutes: 15
+        timeout-minutes: 25
         run: |
           mkdir -p .ci-logs
           set -o pipefail
@@ -167,7 +169,7 @@ jobs:
           swift build --build-path .build-swift6-no-whisper -Xswiftc -swift-version -Xswiftc 6 2>&1 | tee .ci-logs/swift-6-language-mode.log
 
       - name: Swift Test
-        timeout-minutes: 20
+        timeout-minutes: 25
         run: |
           mkdir -p .ci-logs
           set -o pipefail
