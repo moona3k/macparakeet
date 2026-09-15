@@ -694,7 +694,7 @@ final class DictationServiceTests: XCTestCase {
 
         let operation = try XCTUnwrap(dictationOperationProps(in: events).last)
         XCTAssertEqual(operation["outcome"], "failure")
-        XCTAssertEqual(operation["error_type"], "AudioProcessorError.inputUnavailable")
+        XCTAssertEqual(operation["error_type"], "AudioProcessorError.inputUnavailable.silent_input")
         XCTAssertEqual(operation["trigger"], "hotkey")
         XCTAssertEqual(operation["mode"], "persistent")
         XCTAssertEqual(operation["speech_engine"], "whisper")
@@ -778,7 +778,7 @@ final class DictationServiceTests: XCTestCase {
             })
         let operation = try XCTUnwrap(dictationOperationProps(in: events).last)
         XCTAssertEqual(operation["outcome"], "failure")
-        XCTAssertEqual(operation["error_type"], "AudioProcessorError.inputUnavailable")
+        XCTAssertEqual(operation["error_type"], "AudioProcessorError.inputUnavailable.no_input_buffers")
     }
 
     func testStopRecordingUsesRecordedFileEvenWhenLiveFinalIsAvailable() async throws {

@@ -19,6 +19,11 @@ records the September 2026 tightening of privacy and outcome semantics.
 - Retain bounded error categories and safe numeric codes. CoreAudio domain/code
   information may be recovered from the recognized Foundation wrapper format;
   arbitrary numbers, domains and descriptions are not error categories.
+  `AudioProcessorError.inputUnavailable` includes the closed
+  `AudioCaptureProblem` raw value (`engine_start_failed`, `no_input_buffers`,
+  `silent_input`). Associated strings on other cases remain omitted. The
+  website `publicErrorCategory` allowlist must include those suffixes before
+  they appear on the public stats page.
 - `crash_occurred`'s optional `si_code`, `pc`, and `fault_addr` fields are
   narrow signal-context evidence (fault subtype, interrupted instruction
   pointer, faulting address), not free-form text. The on-disk report parser
