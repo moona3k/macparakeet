@@ -1,0 +1,25 @@
+Tests/MacParakeetTests/Audio/AudioRecorderFormatChangeTests.swift
+  s_85b887dbfa029e::t_98ec7929276082 772
+  s_85b887dbfa029e::t_ade3255467460f 1176-1179,1188-1189
+  s_85b887dbfa029e::t_f40a72e7ef6250 118-142
+  s_85b887dbfa029e::t_a477614d4906a2 773
+  s_85b887dbfa029e::t_2126a75ceadd61 1172-1174,1181,1183-1187,1190-1197
+  s_85b887dbfa029e::t_97a9da25ed4b81 1269-1272
+  s_85b887dbfa029e::t_5afb6f70d0c895 1175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "612cc2ac16dc0070b1e87dcc7084525f1a427f99",
+  "prompts": {},
+  "sessions": {
+    "s_85b887dbfa029e": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3c5ac565-2a2d-4af3-9b57-6923712a2137",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
