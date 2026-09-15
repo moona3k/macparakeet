@@ -1,0 +1,39 @@
+plans/active/2026-09-14-issue-609-calendar-event-skip.md
+  s_20a381408b77ac::t_f38a410ac5a0f3 308-312,320,325,327-328
+  s_20a381408b77ac::t_7455f9e469a989 157-158,164,171,183,189,242,263-267,280,340,431-432,487
+Sources/MacParakeetCore/Calendar/CalendarEvent.swift
+  s_7877b8f1c73fc0::t_693e08784301cc 208
+  s_7877b8f1c73fc0::t_19c49462fec683 222
+Sources/MacParakeet/App/MeetingAutoStartCoordinator.swift
+  s_7877b8f1c73fc0::t_441e30a7203397 169
+  s_20a381408b77ac::t_03c8f26f82fbaf 170-171,206-208
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_20a381408b77ac::t_03c8f26f82fbaf 1003-1005
+Tests/MacParakeetTests/Calendar/MeetingAutoStartCoordinatorTests.swift
+  s_20a381408b77ac::t_0cab738ca799fd 541-542,549-550,555,557,608-633,640-641,646-647,650
+  s_20a381408b77ac::t_3eeea44a00da54 590-607,634-635
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e61346f920d1702cec140fef3153e7f7fe0dd6c1",
+  "prompts": {},
+  "sessions": {
+    "s_20a381408b77ac": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a39b-3a4e-7ab3-a8cc-d898f09e29ff",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_7877b8f1c73fc0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "f20b262c-fcad-468e-8ba0-b799744b4e51",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
