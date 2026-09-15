@@ -1,0 +1,59 @@
+{
+  "captureReport" : {
+    "captureFailed" : false,
+    "capturedDurationMs" : 82816,
+    "elapsedDurationMs" : 82262,
+    "interruptedSources" : [
+
+    ],
+    "quality" : "healthy",
+    "sourceMode" : "microphone_and_system",
+    "sources" : [
+      {
+        "coverageRatio" : 1,
+        "source" : "microphone",
+        "status" : "complete",
+        "writtenDurationMs" : 82800
+      },
+      {
+        "coverageRatio" : 1,
+        "source" : "system",
+        "status" : "complete",
+        "writtenDurationMs" : 82300
+      }
+    ]
+  },
+  "echoSuppression" : {
+    "reasonCode" : "rawNoAECAssets"
+  },
+  "sourceAlignment" : {
+    "meetingOriginHostTime" : 12323534884517,
+    "microphone" : {
+      "firstHostTime" : 12323534884517,
+      "lastHostTime" : 12325519688397,
+      "sampleRate" : 48000,
+      "startOffsetMs" : 0,
+      "timelineFrameCount" : 3974408,
+      "writtenFrameCount" : 3974400
+    },
+    "system" : {
+      "firstHostTime" : 12323547267450,
+      "lastHostTime" : 12325521987450,
+      "sampleRate" : 48000,
+      "startOffsetMs" : 516,
+      "timelineFrameCount" : 3950400,
+      "writtenFrameCount" : 3950400
+    }
+  },
+  "speechEngine" : {
+    "engine" : "parakeet"
+  },
+  "startContext" : {
+    "frontmostApplication" : {
+      "bundleIdentifier" : "com.macparakeet.dev",
+      "localizedName" : "MacParakeet Dev"
+    },
+    "sourceMode" : "microphone_and_system",
+    "triggerKind" : "manual"
+  }
+}

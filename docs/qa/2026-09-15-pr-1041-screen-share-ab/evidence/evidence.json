@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "pr": 1041,
+  "sourceHead": "8e6ebb957dd920bf32f40a72793f96bdb10b25e2",
+  "build": {
+    "configuration": "Release",
+    "source": "screen-share-ab-release",
+    "embeddedCommit": "8e6ebb957dd9"
+  },
+  "environment": {
+    "machineModel": "Mac16,7",
+    "chip": "Apple M4 Pro",
+    "cpuCores": 14,
+    "memoryGB": 48,
+    "macOSVersion": "26.6.2",
+    "macOSBuild": "25G83",
+    "zoomVersion": "7.1.5",
+    "sharedResolution": "1728x1118",
+    "displayRefreshHz": 120,
+    "powerSource": "battery",
+    "thermalWarnings": false
+  },
+  "protocol": {
+    "runOrder": ["on-1", "off-1", "off-2", "on-2"],
+    "processSamplesPerArm": 40,
+    "percentileMethod": "observed value at ceil(p * (n - 1))",
+    "syntheticSpeechDurationSeconds": 119.228571,
+    "receiver": "same-machine Zoom web client",
+    "receiverMicrophoneEnabled": false,
+    "receiverCameraEnabled": false
+  },
+  "arms": [
+    {
+      "label": "on-1",
+      "livePreview": true,
+      "macParakeetCpu": {"median": 8.5, "mean": 12.0325, "p95": 45.5},
+      "zoomCpu": {"median": 68.4, "mean": 68.88, "p95": 84.0},
+      "windowServerCpu": {"median": 85.5, "mean": 83.995, "p95": 94.5},
+      "canvas": {"traceDurationMs": 69526.2, "fps": 119.652735, "p95FrameMs": 9.2, "p99FrameMs": 9.4, "framesOver25Ms": 1, "framesOver50Ms": 0},
+      "recording": {"capturedDurationMs": 81332, "captureQuality": "healthy", "microphoneCoverage": 1.0, "systemCoverage": 1.0, "previewEngine": "parakeet", "finalEngine": "parakeet", "finalVariant": "unified", "microphoneChunksEnqueued": 0, "systemChunksEnqueued": 8, "transcriptionFailures": 0, "finalStatus": "completed", "finalTranscriptCharacters": 1545}
+    },
+    {
+      "label": "off-1",
+      "livePreview": false,
+      "macParakeetCpu": {"median": 7.2, "mean": 7.385, "p95": 9.1},
+      "zoomCpu": {"median": 74.65, "mean": 74.805, "p95": 89.7},
+      "windowServerCpu": {"median": 86.7, "mean": 85.185, "p95": 91.9},
+      "canvas": {"traceDurationMs": 68517.6, "fps": 119.735659, "p95FrameMs": 9.8, "p99FrameMs": 10.2, "framesOver25Ms": 0, "framesOver50Ms": 0},
+      "recording": {"capturedDurationMs": 82816, "captureQuality": "healthy", "microphoneCoverage": 1.0, "systemCoverage": 1.0, "previewEngine": null, "finalEngine": "parakeet", "finalVariant": "unified", "microphoneChunksEnqueued": 0, "systemChunksEnqueued": 0, "transcriptionFailures": 0, "finalStatus": "completed", "finalTranscriptCharacters": 1561}
+    },
+    {
+      "label": "off-2",
+      "livePreview": false,
+      "macParakeetCpu": {"median": 7.3, "mean": 7.38, "p95": 8.7},
+      "zoomCpu": {"median": 79.2, "mean": 78.52, "p95": 93.6},
+      "windowServerCpu": {"median": 87.95, "mean": 87.5875, "p95": 92.9},
+      "canvas": {"traceDurationMs": 82819.5, "fps": 119.561214, "p95FrameMs": 9.8, "p99FrameMs": 10.2, "framesOver25Ms": 2, "framesOver50Ms": 0},
+      "recording": {"capturedDurationMs": 98300, "captureQuality": "healthy", "microphoneCoverage": 1.0, "systemCoverage": 1.0, "previewEngine": null, "finalEngine": "parakeet", "finalVariant": "unified", "microphoneChunksEnqueued": 0, "systemChunksEnqueued": 0, "transcriptionFailures": 0, "finalStatus": "completed", "finalTranscriptCharacters": 1839}
+    },
+    {
+      "label": "on-2",
+      "livePreview": true,
+      "macParakeetCpu": {"median": 8.5, "mean": 12.4875, "p95": 43.2},
+      "zoomCpu": {"median": 85.9, "mean": 85.345, "p95": 97.3},
+      "windowServerCpu": {"median": 86.9, "mean": 85.2275, "p95": 93.0},
+      "canvas": {"traceDurationMs": 68571.5, "fps": 119.729042, "p95FrameMs": 9.9, "p99FrameMs": 10.2, "framesOver25Ms": 1, "framesOver50Ms": 0},
+      "recording": {"capturedDurationMs": 83119, "captureQuality": "healthy", "microphoneCoverage": 1.0, "systemCoverage": 1.0, "previewEngine": "parakeet", "finalEngine": "parakeet", "finalVariant": "unified", "microphoneChunksEnqueued": 1, "systemChunksEnqueued": 8, "transcriptionFailures": 0, "finalStatus": "completed", "finalTranscriptCharacters": 1678}
+    }
+  ],
+  "aggregate": {
+    "liveOn": {"macParakeetCpuMedian": 8.5, "macParakeetCpuMean": 12.26, "macParakeetCpuP95": 43.2, "zoomCpuMedian": 77.6, "windowServerCpuMedian": 85.65},
+    "liveOff": {"macParakeetCpuMedian": 7.25, "macParakeetCpuMean": 7.3825, "macParakeetCpuP95": 9.0, "zoomCpuMedian": 78.1, "windowServerCpuMedian": 87.3}
+  },
+  "zoomSenderSnapshots": {
+    "framesPerSecond": 5,
+    "latencyMsRange": [24, 26],
+    "jitterMsRange": [2, 6],
+    "packetLossPercent": 0.0
+  }
+}
