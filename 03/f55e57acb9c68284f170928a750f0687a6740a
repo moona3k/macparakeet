@@ -1,0 +1,51 @@
+docs/qa/2026-09-15-pr-1041-screen-share-ab/evidence/evidence.json
+  s_5050a2f8f7378a::t_5757247739fad4 57,66
+  s_5050a2f8f7378a::t_2d42d06c218f05 26
+  s_5050a2f8f7378a::t_198de04c7185c2 1-25,27-56,58-65,67-80
+docs/qa/2026-09-15-pr-1041-screen-share-ab/evidence/recording-metadata/on-2.json
+  s_5050a2f8f7378a::t_a492df31f1fd65 1-62
+docs/qa/2026-09-15-pr-1041-screen-share-ab/evidence/recording-metadata/off-2.json
+  s_5050a2f8f7378a::t_fb1b99f289f2c7 1-59
+docs/qa/2026-09-15-pr-1041-screen-share-ab/evidence/process-samples/off-1.csv
+  s_5050a2f8f7378a::t_ba385a07750535 1-41
+docs/qa/2026-09-15-pr-1041-screen-share-ab/evidence/process-samples/on-1.csv
+  s_5050a2f8f7378a::t_56bad1344efe70 1-41
+docs/qa/2026-09-15-pr-1041-screen-share-ab/evidence/process-samples/off-2.csv
+  s_5050a2f8f7378a::t_536dcc43c2322d 1-41
+docs/qa/2026-09-15-pr-1041-screen-share-ab/evidence/off-2-frame.json
+  s_5050a2f8f7378a::t_e17feb992ce996 1
+docs/qa/2026-09-15-pr-1041-screen-share-ab/evidence/process-samples/on-2.csv
+  s_5050a2f8f7378a::t_6ffa190c8e9aad 1-41
+docs/qa/2026-09-15-pr-1041-screen-share-ab/evidence/recording-metadata/off-1.json
+  s_5050a2f8f7378a::t_6797b819e287bc 1-59
+docs/qa/2026-09-15-pr-1041-screen-share-ab/README.md
+  s_5050a2f8f7378a::t_72857c8d047b12 13-14,134-138
+  s_5050a2f8f7378a::t_198de04c7185c2 1-12,15-133
+docs/qa/2026-09-15-pr-1041-screen-share-ab/evidence/on-2-frame.json
+  s_5050a2f8f7378a::t_94145abb9f4088 1
+docs/qa/2026-09-15-pr-1041-screen-share-ab/evidence/off-1-frame.json
+  s_5050a2f8f7378a::t_a013e82c0f9e0a 1
+docs/qa/2026-09-15-pr-1041-screen-share-ab/evidence/recording-metadata/on-1.json
+  s_5050a2f8f7378a::t_f825c32ec6860c 1-62
+docs/qa/2026-09-15-pr-1041-screen-share-ab/fable-final-review.md
+  s_5050a2f8f7378a::t_badfa4d79663f7 7-10
+  s_5050a2f8f7378a::t_5757247739fad4 1-6,11-38
+docs/qa/2026-09-15-pr-1041-screen-share-ab/evidence/on-1-frame.json
+  s_5050a2f8f7378a::t_2baff41b156de1 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "03f55e57acb9c68284f170928a750f0687a6740a",
+  "prompts": {},
+  "sessions": {
+    "s_5050a2f8f7378a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a397-830f-7083-b465-f411b2921797",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
