@@ -1,0 +1,19 @@
+Package.swift
+  s_5e16f6226b2875::t_0afdd34fe97512 163
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8d443721d7b713620d762d48a9384bb8144e395e",
+  "prompts": {},
+  "sessions": {
+    "s_5e16f6226b2875": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "82a540eb-1215-4f9c-9e36-16804f2bd456",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
