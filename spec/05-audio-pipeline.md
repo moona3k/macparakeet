@@ -176,6 +176,27 @@ User pastes YouTube URL
 
 ### Dual-Stream Capture
 
+Selected sources start independently. The recording service installs its
+session-scoped event consumer after creating the protective lock and writer,
+before awaiting capture startup, so a pending microphone cannot delay system
+audio storage. The first usable buffer establishes capture; valid silence is
+accepted. A 12-second initial readiness window marks sources with no buffers
+unavailable (they may join later); with no source delivering, startup fails.
+This bounds the meeting's readiness decision, not native microphone execution.
+
+Stop retires session callbacks and settles available source files without
+waiting for native microphone startup/unsubscription. The microphone remains
+leased until both calls settle; another system-only meeting can proceed, but
+another mic start cannot bypass that lease. Pill/hotkey Stop during Starting
+saves surviving audio through the normal finalize path. App quit during that
+Starting capture window offers End & Transcribe or Discard; permission-check
+abort remains discard-only. Explicit user discard still deletes. The existing
+partial capture report and source offsets describe missing or late channels. If
+the only healthy source is then lost, capture failure routes the saved audio
+through normal Stop. Failed startup never deletes already-written audio, and
+competing Stop/discard/startup cleanup paths share one settlement owner. See the
+[artifact contract](contracts/meeting-artifacts-v1.md#stable-folder-entries).
+
 ```
 System Audio → ScreenCaptureKit SCStream audio → PCM adapter ─────────────┐
                                                                           ├→ MeetingAudioCaptureService

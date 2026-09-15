@@ -4,6 +4,230 @@ import XCTest
 @testable import MacParakeetCore
 
 final class MeetingRecordingServiceTests: XCTestCase {
+    func testStopOwnsSettlementAndConcurrentDiscardCannotDeleteSavedAudio() async throws {
+        let capture = MockMeetingAudioCaptureService(holdStop: true)
+        let lockStore = RecordingLockFileStore()
+        let service = MeetingRecordingService(
+            audioCaptureService: capture,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: lockStore,
+            micConditionerFactory: { PassthroughMicConditioner() }
+        )
+        try await service.startRecording()
+        let buffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 48_000, sampleValue: 0.25, sampleRate: 48_000))
+        await capture.yield(.systemBuffer(buffer, AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100))))
+        let stop = Task { try await service.stopRecording() }
+        defer { Task { await capture.releaseStop() } }
+        try await containmentBeforeDeadline { await capture.waitForStopCall() }
+        let discard = Task { await service.cancelRecording() }
+        do {
+            try await service.startRecording()
+            XCTFail("A replacement must not start while the previous writer is settling")
+        } catch MeetingAudioError.alreadyRunning {}
+        await capture.releaseStop()
+        let output = try await containmentBeforeDeadline { try await stop.value }
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+        try await containmentBeforeDeadline { await discard.value }
+        let stopCount = await capture.stopCallCount
+        XCTAssertEqual(stopCount, 1)
+        XCTAssertTrue(lockStore.deletes.isEmpty)
+        let duration = try await playableAudioDuration(at: output.mixedAudioURL)
+        XCTAssertGreaterThan(duration, 0.9)
+    }
+
+    func testMissingMicrophoneAndLostSystemConvergeOnSavedCaptureInEitherOrder() async throws {
+        for timeoutFirst in [false, true] {
+            let capture = MockMeetingAudioCaptureService(
+                startReport: .init(
+                    sourceMode: .microphoneAndSystem, microphoneState: .starting, systemState: .ready
+                ))
+            let service = MeetingRecordingService(
+                audioCaptureService: capture,
+                audioConverter: MockMeetingAudioFileConverter(),
+                sttTranscriber: CountingMeetingSTTClient(),
+                micConditionerFactory: { PassthroughMicConditioner() }
+            )
+            try await service.startRecording()
+            let buffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 48_000, sampleValue: 0.25, sampleRate: 48_000))
+            await capture.yield(.systemBuffer(buffer, AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100))))
+            let unavailable = MeetingAudioCaptureEvent.sourceStartupState(source: .microphone, state: .unavailable)
+            let interrupted = MeetingAudioCaptureEvent.sourceInterrupted(
+                source: .system, error: .systemAudioStreamStopped("test"))
+            await capture.yield(timeoutFirst ? unavailable : interrupted)
+            await capture.yield(timeoutFirst ? interrupted : unavailable)
+            for _ in 0..<100 {
+                if await service.captureMode == .stopped { break }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            let mode = await service.captureMode
+            XCTAssertEqual(mode, .stopped)
+            let output = try await service.stopRecording()
+            defer { try? FileManager.default.removeItem(at: output.folderURL) }
+            XCTAssertNotNil(output.sourceAlignment.system)
+            XCTAssertEqual(output.captureReport?.quality, .partial)
+        }
+    }
+
+    func testRealCaptureSavesTwoSystemMeetingsWithoutSettlingOldMicrophone() async throws {
+        let microphone = ContainmentMicrophone(holdStart: true)
+        defer { microphone.releaseStart() }
+        let capture = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioCaptureFactory: { ContainmentSystemAudio() },
+            startupTimeout: .milliseconds(150)
+        )
+        let service = MeetingRecordingService(
+            audioCaptureService: capture,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            micConditionerFactory: { PassthroughMicConditioner() }
+        )
+        for mode in [MeetingAudioSourceMode.microphoneAndSystem, .systemOnly] {
+            try await containmentBeforeDeadline { try await service.startRecording(title: nil, sourceMode: mode) }
+            let output = try await containmentBeforeDeadline { try await service.stopRecording() }
+            defer { try? FileManager.default.removeItem(at: output.folderURL) }
+            XCTAssertNotNil(output.sourceAlignment.system)
+            XCTAssertNil(output.sourceAlignment.microphone)
+            let duration = try await playableAudioDuration(at: output.mixedAudioURL)
+            XCTAssertGreaterThan(duration, 0)
+            XCTAssertFalse(microphone.startSettled)
+            XCTAssertEqual(microphone.startCount, 1)
+        }
+    }
+
+    func testFailedStartPreservesEarlySourceAudioForRecovery() async throws {
+        let capture = BlockingStartMeetingAudioCaptureService(startError: .captureStartupTimedOut)
+        let lockStore = RecordingLockFileStore()
+        let service = MeetingRecordingService(
+            audioCaptureService: capture,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: lockStore,
+            micConditionerFactory: { PassthroughMicConditioner() }
+        )
+        let start = Task { try await service.startRecording() }
+        defer { Task { await capture.releaseStart() } }
+        await capture.waitForStartCall()
+        let folder = try XCTUnwrap(lockStore.writes.first?.folderURL)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let buffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 48_000, sampleValue: 0.25, sampleRate: 48_000))
+        await capture.yield(.systemBuffer(buffer, AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100))))
+        await capture.releaseStart()
+        do { try await start.value; XCTFail("Expected original startup failure") } catch MeetingAudioError
+            .captureStartupTimedOut
+        {}
+        XCTAssertTrue(lockStore.deletes.isEmpty)
+        XCTAssertEqual(lockStore.writes.last?.file.state, .recording)
+        let duration = try await playableAudioDuration(at: folder.appendingPathComponent("system-raw.m4a"))
+        XCTAssertGreaterThan(duration, 0.9)
+    }
+
+    func testPendingStartWritesAndDurableStopPreservesSystemAudio() async throws {
+        let captureService = BlockingStartMeetingAudioCaptureService()
+        let lockStore = RecordingLockFileStore()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: lockStore,
+            micConditionerFactory: { PassthroughMicConditioner() }
+        )
+        let start = Task { try await service.startRecording() }
+        defer { Task { await captureService.releaseStart() } }
+        await captureService.waitForStartCall()
+        await captureService.yield(.captureStarting(sourceMode: .microphoneAndSystem))
+        await captureService.yield(.sourceStartupState(source: .microphone, state: .starting))
+        let buffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 48_000, sampleValue: 0.25, sampleRate: 48_000))
+        await captureService.yield(.systemBuffer(buffer, AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100))))
+        // Reading health proves the stream is consumed before the start call returns.
+        for _ in 0..<100 {
+            if await service.systemLevel > 0 { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let health = await service.captureHealth
+        XCTAssertEqual(health.microphone.status, .starting)
+        XCTAssertEqual(health.system.status, .live)
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+        XCTAssertNil(output.sourceAlignment.microphone)
+        XCTAssertNotNil(output.sourceAlignment.system)
+        XCTAssertEqual(output.captureReport?.quality, .partial)
+        let playableDuration = try await playableAudioDuration(at: output.mixedAudioURL)
+        XCTAssertGreaterThan(playableDuration, 0.9)
+        await captureService.releaseStart()
+        do { try await start.value; XCTFail("Stopped startup must not revive") } catch is CancellationError {}
+        XCTAssertTrue(FileManager.default.fileExists(atPath: output.mixedAudioURL.path))
+        XCTAssertTrue(lockStore.deletes.isEmpty)
+    }
+
+    func testPendingStartDiscardStillDeletesWrittenAudio() async throws {
+        let captureService = BlockingStartMeetingAudioCaptureService()
+        let lockStore = RecordingLockFileStore()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: lockStore,
+            micConditionerFactory: { PassthroughMicConditioner() }
+        )
+        let start = Task { try await service.startRecording() }
+        defer { Task { await captureService.releaseStart() } }
+        await captureService.waitForStartCall()
+        await captureService.yield(.captureStarting(sourceMode: .microphoneAndSystem))
+        let buffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 48_000, sampleValue: 0.25, sampleRate: 48_000))
+        await captureService.yield(.systemBuffer(buffer, AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100))))
+        for _ in 0..<100 {
+            if await service.systemLevel > 0 { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let folder = try XCTUnwrap(lockStore.writes.first?.folderURL)
+        await service.cancelRecording()
+        await captureService.releaseStart()
+        do { try await start.value; XCTFail("Discarded startup must not succeed") } catch is CancellationError {}
+        XCTAssertFalse(lockStore.deletes.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folder.path))
+    }
+
+    func testStopBeforeCaptureStartCancelsStartAndAllowsReplacement() async throws {
+        let captureService = BlockingStartMeetingAudioCaptureService(holdEvents: true)
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            micConditionerFactory: { PassthroughMicConditioner() }
+        )
+        let start = Task { try await service.startRecording() }
+        defer {
+            Task {
+                await captureService.releaseEvents()
+                await captureService.releaseStart()
+            }
+        }
+        await captureService.waitForEventsCall()
+        let stop = Task { try await service.stopRecording() }
+        try await containmentBeforeDeadline { await captureService.waitForStopCall() }
+        await captureService.releaseEvents()
+        do {
+            try await start.value
+            XCTFail("Settlement-owned start must not start capture")
+        } catch is CancellationError {}
+        do {
+            _ = try await stop.value
+            XCTFail("Empty settlement stop has no audio")
+        } catch MeetingAudioError.noAudioCaptured {}
+        let cancelledStartCount = await captureService.startCallCount
+        XCTAssertEqual(cancelledStartCount, 0)
+
+        let replacement = Task { try await service.startRecording() }
+        try await containmentBeforeDeadline { await captureService.waitForStartCall() }
+        await captureService.releaseStart()
+        try await replacement.value
+        let replacementStartCount = await captureService.startCallCount
+        XCTAssertEqual(replacementStartCount, 1)
+        await service.cancelRecording()
+    }
+
     func testCaptureDiagnosticsRetainsOnlyMatchingStoppedSession() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let service = MeetingRecordingService(
@@ -105,7 +329,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let isRecordingAfterStartReturned = await service.isRecording
         let stopCallCount = await captureService.stopCallCount
         XCTAssertFalse(isRecordingAfterStartReturned)
-        XCTAssertEqual(stopCallCount, 2)
+        XCTAssertEqual(stopCallCount, 1)
         XCTAssertGreaterThanOrEqual(lockStore.deletes.count, 1)
     }
 
@@ -4417,6 +4641,9 @@ private actor MockMeetingAudioCaptureService: MeetingAudioCapturing {
     private var continuation: AsyncStream<MeetingAudioCaptureEvent>.Continuation?
     private var stream: AsyncStream<MeetingAudioCaptureEvent>?
     private let startReport: MeetingAudioCaptureStartReport
+    private var holdStop: Bool
+    private var stopGate: CheckedContinuation<Void, Never>?
+    private var stopWaiters: [CheckedContinuation<Void, Never>] = []
     private(set) var startCallCount = 0
     private(set) var stopCallCount = 0
     private(set) var requestedSourceModes: [MeetingAudioSourceMode?] = []
@@ -4427,9 +4654,11 @@ private actor MockMeetingAudioCaptureService: MeetingAudioCapturing {
                 requestedMode: .vpioPreferred,
                 effectiveMode: .vpio
             )
-        )
+        ),
+        holdStop: Bool = false
     ) {
         self.startReport = startReport
+        self.holdStop = holdStop
     }
 
     var events: AsyncStream<MeetingAudioCaptureEvent> {
@@ -4453,6 +4682,11 @@ private actor MockMeetingAudioCaptureService: MeetingAudioCapturing {
 
     func stop() async {
         stopCallCount += 1
+        stopWaiters.forEach { $0.resume() }
+        stopWaiters.removeAll()
+        if holdStop {
+            await withCheckedContinuation { stopGate = $0 }
+        }
         continuation?.finish()
         continuation = nil
         stream = nil
@@ -4461,35 +4695,74 @@ private actor MockMeetingAudioCaptureService: MeetingAudioCapturing {
     func yield(_ event: MeetingAudioCaptureEvent) {
         continuation?.yield(event)
     }
+
+    func waitForStopCall() async {
+        guard stopCallCount == 0 else { return }
+        await withCheckedContinuation { stopWaiters.append($0) }
+    }
+
+    func releaseStop() {
+        holdStop = false
+        stopGate?.resume()
+        stopGate = nil
+    }
 }
 
 private actor BlockingStartMeetingAudioCaptureService: MeetingAudioCapturing {
+    private let startError: MeetingAudioError?
+    private var holdEvents: Bool
+
+    init(startError: MeetingAudioError? = nil, holdEvents: Bool = false) {
+        self.startError = startError
+        self.holdEvents = holdEvents
+    }
     private var continuation: AsyncStream<MeetingAudioCaptureEvent>.Continuation?
     private var stream: AsyncStream<MeetingAudioCaptureEvent>?
     private var startWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
     private var startGate: CheckedContinuation<Void, Never>?
+    private var eventsGate: CheckedContinuation<Void, Never>?
+    private var eventsWaiters: [CheckedContinuation<Void, Never>] = []
+    private var stopWaiters: [CheckedContinuation<Void, Never>] = []
+    private var eventsCallCount = 0
+    private var startReleased = false
     private(set) var startCallCount = 0
     private(set) var stopCallCount = 0
 
     var events: AsyncStream<MeetingAudioCaptureEvent> {
-        if let stream {
+        get async {
+            eventsCallCount += 1
+            let waiters = eventsWaiters
+            eventsWaiters.removeAll()
+            for waiter in waiters {
+                waiter.resume()
+            }
+            if holdEvents {
+                await withCheckedContinuation { continuation in
+                    eventsGate = continuation
+                }
+            }
+            if let stream {
+                return stream
+            }
+
+            let stream = AsyncStream<MeetingAudioCaptureEvent>(bufferingPolicy: .unbounded) {
+                self.continuation = $0
+            }
+            self.stream = stream
             return stream
         }
-
-        let stream = AsyncStream<MeetingAudioCaptureEvent>(bufferingPolicy: .unbounded) {
-            self.continuation = $0
-        }
-        self.stream = stream
-        return stream
     }
 
     func start(sourceMode: MeetingAudioSourceMode?) async throws -> MeetingAudioCaptureStartReport {
         startCallCount += 1
         resumeSatisfiedStartWaiters()
 
-        await withCheckedContinuation { continuation in
-            startGate = continuation
+        if !startReleased {
+            await withCheckedContinuation { continuation in
+                startGate = continuation
+            }
         }
+        if let startError { throw startError }
         return MeetingAudioCaptureStartReport(
             microphone: MeetingMicrophoneCaptureStartReport(
                 requestedMode: .vpioPreferred,
@@ -4500,9 +4773,31 @@ private actor BlockingStartMeetingAudioCaptureService: MeetingAudioCapturing {
 
     func stop() async {
         stopCallCount += 1
+        let waiters = stopWaiters
+        stopWaiters.removeAll()
+        for waiter in waiters {
+            waiter.resume()
+        }
         continuation?.finish()
         continuation = nil
         stream = nil
+    }
+
+    func yield(_ event: MeetingAudioCaptureEvent) {
+        continuation?.yield(event)
+    }
+
+    func waitForEventsCall() async {
+        guard eventsCallCount == 0 else { return }
+        await withCheckedContinuation { continuation in
+            eventsWaiters.append(continuation)
+        }
+    }
+
+    func releaseEvents() {
+        holdEvents = false
+        eventsGate?.resume()
+        eventsGate = nil
     }
 
     func waitForStartCall(count: Int = 1) async {
@@ -4512,7 +4807,15 @@ private actor BlockingStartMeetingAudioCaptureService: MeetingAudioCapturing {
         }
     }
 
+    func waitForStopCall() async {
+        guard stopCallCount == 0 else { return }
+        await withCheckedContinuation { continuation in
+            stopWaiters.append(continuation)
+        }
+    }
+
     func releaseStart() {
+        startReleased = true
         startGate?.resume()
         startGate = nil
     }

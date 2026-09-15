@@ -127,6 +127,7 @@ A horizontal strip on the Transcribe tab. Mirrors the floating recording pill's 
 States, all bound to the long-lived `MeetingRecordingPillViewModel` shared with the floating pill:
 
 - **Idle**: green rosette + stem (subtle 4s glow breathing), "Record Meeting" + subtitle, red "Start" capsule on the right.
+- **Starting**: capture is requested; pause/mute/elapsed stay inactive until the first usable buffer is accepted. Stop remains available and saves any audio already written. A selected source may still be pending.
 - **Recording**: rosette rotates (12s/turn — matches the floating pill exactly), audio halo grows with mic level, breathing red dot + monospaced MM:SS timer, white-on-red Stop button. Border picks up `recordingRed` opacity.
 - **Completing / Transcribing**: spinner replaces rosette; "Wrapping up..." then "Transcribing..." labels.
 - **Completed**: green checkmark + "Saved to Library"; auto-reverts to idle.
@@ -712,6 +713,8 @@ Default-on floating pill that appears during meeting recording unless the user d
 ### Behavior
 
 - **Appears** when meeting recording starts (after permissions granted) if `showMeetingRecordingPill` is enabled
+- **Starting** keeps pause/mute/elapsed inactive; Stop remains available and saves partial audio
+- **Quit** during Starting capture offers End & Transcribe or Discard, matching Stop-during-start. Quit during the permission prompt still only cancels.
 - **Persists** for the entire recording session while enabled — does not auto-dismiss
 - **Click** anywhere on the pill opens the meeting recording panel
 - **Stays visible** during concurrent dictation — dictation overlay appears separately

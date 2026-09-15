@@ -431,6 +431,29 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         await coordinator.discardRecordingAndWaitForCompletion()
     }
 
+    func testStopDuringSuspendedStartSavesInsteadOfDiscarding() async throws {
+        let service = MeetingRecordingServiceSpy(output: makeRecordingOutput(), blocksStart: true)
+        let coordinator = makeQuitTeardownCoordinator(
+            recordingService: service,
+            shouldShowFloatingMeetingPill: { false }
+        )
+        XCTAssertNotNil(coordinator.startRecording())
+        await service.waitUntilStartCalled()
+        let pendingStart = try XCTUnwrap(coordinator.testHook_actionTask)
+        XCTAssertEqual(coordinator.quitState, .capturing)
+        XCTAssertEqual(coordinator.testHook_state, .starting)
+
+        await coordinator.stopRecordingAndWaitForCompletion()
+        await service.releaseStart()
+        await pendingStart.value
+
+        XCTAssertEqual(coordinator.testHook_state, .idle)
+        let stopCount = await service.stopCallCount
+        let cancelCount = await service.cancelCallCount
+        XCTAssertEqual(stopCount, 1)
+        XCTAssertEqual(cancelCount, 0)
+    }
+
     func testCancelledSuspendedStartCannotReviveRecordingPresentation() async throws {
         let service = MeetingRecordingServiceSpy(output: makeRecordingOutput(), blocksStart: true)
         let pill = MeetingRecordingPillViewModel()
@@ -1545,6 +1568,7 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
     var startCallCount = 0
     var startCalls: [StartCall] = []
     var stopCallCount = 0
+    var cancelCallCount = 0
     var pauseCallCount = 0
     var muteCallCount = 0
     var startTitles: [String?] = []
@@ -1669,6 +1693,7 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
     }
 
     func cancelRecording() async {
+        cancelCallCount += 1
         paused = false
         resetCaptureFailureObservationState()
     }

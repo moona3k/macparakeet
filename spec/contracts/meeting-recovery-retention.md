@@ -98,6 +98,15 @@ accept supported older versions and reject newer, unknown versions.
 
 ## Safety Predicates
 
+Stop, discard, and failed-start cleanup share one in-process settlement owner.
+Competing settlement calls wait for that owner rather than finalizing or
+deleting the same writer twice. An early-start consumer is drained before
+writer finalization. Failed-start cleanup may delete a folder only when no
+capture frames were written and no finalizer remains pending; otherwise the
+existing lock and media remain for recovery. Such a retained recording lock
+still follows the PID/lease discovery rules below; retaining it does not claim
+that same-process recovery or a library row has already completed.
+
 Use the narrow predicate that matches the operation:
 
 - Recovery orphan discovery: valid/readable lock plus dead owner PID, or an

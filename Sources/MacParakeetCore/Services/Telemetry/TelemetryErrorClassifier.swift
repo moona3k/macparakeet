@@ -20,6 +20,13 @@ public enum TelemetryErrorClassifier {
     ]
 
     public static func classify(_ error: Error) -> String {
+        if let meetingError = error as? MeetingAudioError {
+            switch meetingError {
+            case .captureStartupTimedOut: return "MeetingAudioError.captureStartupTimedOut"
+            case .microphoneCleanupPending: return "MeetingAudioError.microphoneCleanupPending"
+            default: break
+            }
+        }
         // URLError: include the code name for network diagnosis
         if let urlError = error as? URLError {
             return "URLError.\(urlErrorCodeName(urlError.code))"
@@ -119,7 +126,8 @@ public enum TelemetryErrorClassifier {
             options: .regularExpression
         )
         sanitized = sanitized.replacingOccurrences(
-            of: #"(?i)\b(?:api[_-]?key|access[_-]?token|token|authorization)\s*[:=]\s*(?:\"(?:\\[^\r\n]|[^\"\\\r\n])*\\?(?:\"|(?=[\r\n]|$))|'(?:\\[^\r\n]|[^'\\\r\n])*\\?(?:'|(?=[\r\n]|$))|[^\s\"',;<>]+)"#,
+            of:
+                #"(?i)\b(?:api[_-]?key|access[_-]?token|token|authorization)\s*[:=]\s*(?:\"(?:\\[^\r\n]|[^\"\\\r\n])*\\?(?:\"|(?=[\r\n]|$))|'(?:\\[^\r\n]|[^'\\\r\n])*\\?(?:'|(?=[\r\n]|$))|[^\s\"',;<>]+)"#,
             with: "credential=<redacted>",
             options: .regularExpression
         )

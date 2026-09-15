@@ -46,10 +46,16 @@ Two independent `AVAudioEngine` instances cannot escape this — VPIO state is p
 
 **Why a shared engine is also fine for lifecycle:** the original ADR worried that a long-running meeting engine would glitch when dictation start/stop touched it. In practice, dictation `subscribe`/`unsubscribe` calls are buffer-fanout list mutations behind a lock — they don't touch the running `AVAudioEngine`, don't reconfigure VPIO, and don't restart the engine. The engine starts on the first subscriber and stops on the last; mid-session subscribers join an already-running engine.
 
-Meeting lifecycle hardening preserves that independence. A meeting Stop owns
-and tears down its partial microphone subscription plus its separate
-ScreenCaptureKit source; attempt-generation checks prevent late meeting startup
-from reviving either source. Dictation keeps its own state machine, readiness
+Meeting lifecycle hardening preserves that independence. Selected meeting
+sources start independently and write available audio immediately. A meeting
+Stop retires its partial microphone subscription callbacks and settles its
+separate ScreenCaptureKit source without waiting indefinitely for microphone
+native work. The same microphone capture object remains leased until start and
+unsubscription both settle; new system-only meetings can bypass that lease,
+but no second mic engine or overlapping mic start may bypass it. Attempt
+generations prevent late meeting startup from reviving ended capture or
+touching a replacement session. Stop during Starting saves surviving audio;
+quit in that window offers save or discard. Dictation keeps its own state machine, readiness
 watchdog, and shared-stream subscription ownership. The two flows do not share
 a combined start/stop state machine.
 

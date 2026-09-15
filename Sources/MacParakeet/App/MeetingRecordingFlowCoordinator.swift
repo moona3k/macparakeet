@@ -3,8 +3,11 @@ import MacParakeetCore
 import MacParakeetViewModels
 import OSLog
 
-enum MeetingRecordingQuitState {
+enum MeetingRecordingQuitState: Equatable {
     case starting
+    /// Capture has been requested. Source audio may already be on disk even
+    /// though the live UI is still Starting, so quit must offer save.
+    case capturing
     case recording
     case finishing
 }
@@ -63,8 +66,10 @@ final class MeetingRecordingFlowCoordinator {
         switch stateMachine.state {
         case .idle, .finishing:
             return nil
-        case .checkingPermissions, .starting:
+        case .checkingPermissions:
             return .starting
+        case .starting:
+            return .capturing
         case .recording:
             return .recording
         case .stopping:
@@ -354,7 +359,7 @@ final class MeetingRecordingFlowCoordinator {
 
     func stopRecordingAndWaitForCompletion() async {
         switch stateMachine.state {
-        case .checkingPermissions, .starting:
+        case .checkingPermissions:
             sendEvent(.cancelRequested)
         default:
             _ = stopRecording(trigger: .manual)

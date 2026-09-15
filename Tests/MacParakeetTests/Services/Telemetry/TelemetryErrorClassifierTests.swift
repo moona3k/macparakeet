@@ -5,6 +5,14 @@ import Testing
 @Suite("TelemetryErrorClassifier")
 struct TelemetryErrorClassifierTests {
 
+    @Test("classifies bounded meeting startup outcomes without free-form details")
+    func meetingStartupErrors() {
+        #expect(TelemetryErrorClassifier.classify(MeetingAudioError.captureStartupTimedOut)
+            == "MeetingAudioError.captureStartupTimedOut")
+        #expect(TelemetryErrorClassifier.classify(MeetingAudioError.microphoneCleanupPending)
+            == "MeetingAudioError.microphoneCleanupPending")
+    }
+
     @Test("classifies AudioProcessorError cases with case name")
     func audioProcessorErrorCases() {
         #expect(TelemetryErrorClassifier.classify(AudioProcessorError.insufficientSamples)

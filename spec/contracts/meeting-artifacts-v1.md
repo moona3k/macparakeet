@@ -60,6 +60,36 @@ starts no artifact refresh.
 
 ## Stable Folder Entries
 
+Selected capture sources start independently. The recording service installs
+the source writer's event consumer before awaiting capture startup; a stuck
+microphone cannot prevent a healthy system source from being written. A missing selected source
+can therefore produce a valid partial meeting. Stop finalizes surviving audio
+through the existing source-alignment, playback and capture-report contract.
+A late source retains its actual offset rather than moving meeting time zero.
+
+The first usable buffer establishes capture, including valid silence. After
+12 seconds, a selected source with no callbacks is shown as unavailable; it may
+join the same live session later. With neither source delivering, startup fails
+and retires that session. Native microphone execution itself is not cancelled
+by this deadline. Existing bounded system teardown is additional settlement
+work. No deadline permits deleting captured audio: failed-start cleanup removes
+only proven-empty, finalized attempts; otherwise media and the recovery lock
+remain. Explicit user discard retains its existing deletion authority.
+
+Meeting Stop does not await a stuck microphone's native start/unsubscription.
+The singleton microphone remains leased until both settle; later system-only
+meetings can record, combined meetings report microphone unavailable, and a
+microphone-only request fails with a cleanup-pending error. Retired callbacks
+and late processing reports cannot write into a replacement meeting. This
+contains the impact of native delay; it does not establish or repair its cause.
+
+Quit while capture is still Starting offers End & Transcribe as well as
+Discard, because the writer may already hold a healthy source. Permission
+prompt abort stays discard-only. Explicit discard keeps its deletion
+authority. A missing selected source that later delivers may join the same
+live session; health does not tell the user to restart solely because the
+12-second window expired.
+
 The v1 folder can contain these stable filenames:
 
 - `meeting-playback.m4a`: mixed playback/export audio referenced by

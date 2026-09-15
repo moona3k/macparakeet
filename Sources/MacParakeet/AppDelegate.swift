@@ -35,7 +35,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var appEnvironment: AppEnvironment?
     private var shareStopObserver: NSObjectProtocol?
-    private let shareManagementViewModel: ShareManagementViewModel? = AppFeatures.isShareLinksAvailable() ? ShareManagementViewModel() : nil
+    private let shareManagementViewModel: ShareManagementViewModel? =
+        AppFeatures.isShareLinksAvailable() ? ShareManagementViewModel() : nil
     private var hotkeyCoordinator: AppHotkeyCoordinator?
     private var dictationFlowCoordinator: DictationFlowCoordinator?
     private var meetingRecordingFlowCoordinator: MeetingRecordingFlowCoordinator?
@@ -258,7 +259,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.appEnvironment
         },
         hotkeyMenuTitleProvider: { [weak self] in
-            self?.hotkeyMenuTitle ?? AppHotkeyCoordinator.menuTitle(handsFree: .defaultDictation, pushToTalk: .defaultPushToTalk)
+            self?.hotkeyMenuTitle
+                ?? AppHotkeyCoordinator.menuTitle(handsFree: .defaultDictation, pushToTalk: .defaultPushToTalk)
         },
         meetingHotkeyTriggerProvider: { [weak self] in
             self?.settingsViewModel.meetingHotkeyTrigger ?? .defaultMeetingRecording
@@ -487,7 +489,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = "Meeting Notes Could Not Be Saved"
-        alert.informativeText = "MacParakeet is staying open to preserve your notes. Retry saving before quitting, or keep the app open and return to the meeting."
+        alert.informativeText =
+            "MacParakeet is staying open to preserve your notes. Retry saving before quitting, or keep the app open and return to the meeting."
         alert.addButton(withTitle: "Retry & Quit")
         alert.addButton(withTitle: "Keep Open")
         let response = alert.runModal()
@@ -548,12 +551,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let results = env.promptResultRepo
             sharing.configure(service: coordinator) { id in
                 try await Task.detached(priority: .userInitiated) {
-                    guard let projection = try reader.resolve(transcriptionId: id) else { return nil as ShareDraftSource? }
+                    guard let projection = try reader.resolve(transcriptionId: id) else {
+                        return nil as ShareDraftSource?
+                    }
                     let source = projection.effectiveTranscription
                     let summaries = try results.fetchAll(transcriptionId: id).map {
                         ShareDraftSource.Summary(id: $0.id, title: $0.promptName, markdown: $0.content)
                     }
-                    return ShareDraftSource(transcription: source, title: source.effectiveDisplayTitle, summaries: summaries)
+                    return ShareDraftSource(
+                        transcription: source, title: source.effectiveDisplayTitle, summaries: summaries)
                 }.value
             }
             Task { await sharing.refresh() }
@@ -757,7 +763,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         guard let fallbackURL = Bundle.module.url(forResource: "discover-fallback", withExtension: "json"),
-              let data = try? Data(contentsOf: fallbackURL) else { return }
+            let data = try? Data(contentsOf: fallbackURL)
+        else { return }
 
         let service = DiscoverService(fallbackData: data)
         discoverViewModel.configure(service: service)
@@ -774,9 +781,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showMoveToApplicationsAlert() {
         let alert = NSAlert()
         alert.messageText = "Move to Applications"
-        alert.informativeText = "MacParakeet must be in your Applications folder to work correctly. " +
-            "Running from a disk image prevents macOS from granting microphone and accessibility permissions.\n\n" +
-            "Drag MacParakeet to the Applications folder in the DMG window, then launch it from there."
+        alert.informativeText =
+            "MacParakeet must be in your Applications folder to work correctly. "
+            + "Running from a disk image prevents macOS from granting microphone and accessibility permissions.\n\n"
+            + "Drag MacParakeet to the Applications folder in the DMG window, then launch it from there."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Quit")
         alert.runModal()
@@ -842,11 +850,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 trigger: settingsViewModel.pushToTalkHotkeyTrigger,
                 conflictMode: .bareModifierDictation
             ),
-            TransformShortcutReservedHotkey(name: "file transcription", trigger: settingsViewModel.fileTranscriptionHotkeyTrigger),
-            TransformShortcutReservedHotkey(name: "video URL transcription", trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger),
+            TransformShortcutReservedHotkey(
+                name: "file transcription", trigger: settingsViewModel.fileTranscriptionHotkeyTrigger),
+            TransformShortcutReservedHotkey(
+                name: "video URL transcription", trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger),
         ]
         if AppFeatures.meetingRecordingEnabled {
-            reserved.append(TransformShortcutReservedHotkey(name: "meeting recording", trigger: settingsViewModel.meetingHotkeyTrigger))
+            reserved.append(
+                TransformShortcutReservedHotkey(
+                    name: "meeting recording", trigger: settingsViewModel.meetingHotkeyTrigger))
         }
         return reserved.filter { !$0.trigger.isDisabled }
     }
@@ -1016,9 +1028,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 finishMeetingThenQuit(discard: true)
             }
 
+        case .capturing:
+            alert.messageText = "Meeting Recording Is Starting"
+            alert.informativeText =
+                "Audio may already be saving. End and save any captured audio, discard the recording, or keep MacParakeet open."
+            alert.addButton(withTitle: "End & Transcribe")
+            alert.addButton(withTitle: "Discard Recording")
+            alert.addButton(withTitle: "Cancel Quit")
+            if alert.buttons.indices.contains(1) {
+                alert.buttons[1].hasDestructiveAction = true
+            }
+            switch alert.runModal() {
+            case .alertFirstButtonReturn:
+                committedToQuit = true
+                finishMeetingThenQuit(discard: false)
+            case .alertSecondButtonReturn:
+                committedToQuit = true
+                finishMeetingThenQuit(discard: true)
+            default:
+                break
+            }
+
         case .recording:
             alert.messageText = "Meeting Recording in Progress"
-            alert.informativeText = "End and transcribe the meeting before quitting, discard the recording, or keep MacParakeet open."
+            alert.informativeText =
+                "End and transcribe the meeting before quitting, discard the recording, or keep MacParakeet open."
             alert.addButton(withTitle: "End & Transcribe")
             alert.addButton(withTitle: "Discard Recording")
             alert.addButton(withTitle: "Cancel Quit")
@@ -1038,7 +1072,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         case .finishing:
             alert.messageText = "Meeting Transcription in Progress"
-            alert.informativeText = "MacParakeet is saving the meeting. Finish transcription before quitting, or keep the app open."
+            alert.informativeText =
+                "MacParakeet is saving the meeting. Finish transcription before quitting, or keep the app open."
             alert.addButton(withTitle: "Finish & Quit")
             alert.addButton(withTitle: "Cancel Quit")
             if alert.runModal() == .alertFirstButtonReturn {
@@ -1105,8 +1140,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.alertStyle = .warning
         alert.messageText = "Global Hotkey Unavailable"
         alert.informativeText =
-            "MacParakeet couldn’t enable the system-wide hotkey because Accessibility access is missing. " +
-            "You can still open the app manually, but dictation shortcuts won’t work until this is enabled."
+            "MacParakeet couldn’t enable the system-wide hotkey because Accessibility access is missing. "
+            + "You can still open the app manually, but dictation shortcuts won’t work until this is enabled."
         alert.addButton(withTitle: "Open Settings")
         alert.addButton(withTitle: "Not Now")
 
@@ -1128,8 +1163,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.alertStyle = .warning
         alert.messageText = "Hotkey Conflict"
         alert.informativeText =
-            "\(trigger.displayName) overlaps with \(conflictNames), so one of these shortcuts was not enabled. " +
-            "Open Settings to choose distinct shortcuts."
+            "\(trigger.displayName) overlaps with \(conflictNames), so one of these shortcuts was not enabled. "
+            + "Open Settings to choose distinct shortcuts."
         alert.addButton(withTitle: "Open Settings")
         alert.addButton(withTitle: "Not Now")
 
