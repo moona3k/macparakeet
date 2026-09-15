@@ -1,0 +1,21 @@
+.github/workflows/ci.yml
+  s_a0c6484ebd2422::t_6d83132e220282 172
+  s_a0c6484ebd2422::t_01347e0801c6e9 92
+  s_a0c6484ebd2422::t_5abd2e28d45883 26-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9737a2c637df573bead89114d84bb7eb9aa068a8",
+  "prompts": {},
+  "sessions": {
+    "s_a0c6484ebd2422": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "dbaa186c-eb91-4cba-a2e0-b2894530d96d",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
