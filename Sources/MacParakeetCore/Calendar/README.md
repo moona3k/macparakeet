@@ -19,9 +19,9 @@ count.
 - `CalendarService.swift` / `CalendarServicing.swift` — permission, fetch,
   calendar list.
 - `CalendarEvent.swift` — EventKit snapshot. Occurrence identity is
-  `dedupeKey` (`id` + start time). After Phase 2b: meeting/series identity
-  is `eventKey` (`externalId ?? id`); recurrence is `isRecurring`, not a
-  non-nil `externalId`. Do not key suppression on title.
+  `dedupeKey` (`id` + start time). Meeting/series identity is `eventKey`
+  (`externalId ?? id`); recurrence is `isRecurring`, not a non-nil
+  `externalId`. Do not key suppression on title.
 - `MeetingMonitor.swift` — candidate filter + remind / auto-start /
   late-join windows. RSVP: declined is dropped; pending reminds but does not
   auto-start; tentative auto-starts.

@@ -15,7 +15,7 @@ MacParakeet has these primary UI surfaces:
 8. **Transforms Tab** -- Productized selected-text rewrite management for `Polish`, `Distill`, `Decide`, and custom Transforms
 9. **Transform Progress Pill** -- Floating progress/cancel surface while a Transform is running
 10. **Menu Bar** -- Quick access and status
-11. **Calendar Countdown Toasts** -- Implemented and enabled (`AppFeatures.calendarEnabled = true`); surface only when a user opts into calendar auto-start. Phase 2b: toast ✕ persists an occurrence skip (#609), accepted and not implemented.
+11. **Calendar Countdown Toasts** -- Implemented and enabled (`AppFeatures.calendarEnabled = true`); surface only when a user opts into calendar auto-start. Phase 2b: toast ✕ persists an occurrence skip (#609).
 12. **Settings** -- Preferences, permissions, local speech models, and update controls; calendar controls appear once Calendar access is granted
 
 Design philosophy: **Simple, native, stays out of the way.** No chrome, no clutter. The app should feel like part of macOS, not a web app in a wrapper.

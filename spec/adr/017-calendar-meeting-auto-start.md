@@ -172,8 +172,8 @@ architecture, UI, types, and tests:
 │     ├── MonitorEvent: .reminderDue / .autoStartDue /            │
 │     │                 .lateJoinAvailable                        │
 │     └── TriggerFilter: .withLink / .withParticipants / .all     │
-│  After Phase 2b (#609, not implemented): candidates annotate    │
-│  skipped events; evaluate ignores them.                         │
+│  Phase 2b (#609, implemented): candidates annotate skipped      │
+│  events; evaluate ignores them.                                 │
 └────────────────────────────────────────────────────────────────┘
                            │
                            ▼
@@ -231,7 +231,7 @@ Notifications are dismissed silently by macOS when the user isn't at their machi
 - **New permission (Calendar)**: an additional optional permission, requested in context from Meeting Recording settings rather than during first-run onboarding.
 - **Polling**: 60-second timer when no events are near is cheap but non-zero. Acceptable for an app that's already idle-friendly post-PR #111.
 - **Video-link detection is heuristic**: meetings without URLs but with participants won't match the default filter. Users who rely on phone calls or non-standard conferencing tools need to change the filter to `.withParticipants` or `.allEvents`.
-- **Per-event skip is accepted but unshipped (#609 / §11):** without it, optional-invite meetings that pass the coarse filters can only be cancelled for the current process lifetime via the auto-start toast.
+- **Skip is a user decision, not an invite-role heuristic (#609 / §11):** optional-invite meetings that pass the coarse filters still remind and auto-start until the user skips that occurrence or series.
 - **Countdown toast is new UI surface area**: another floating panel controller to maintain alongside pill / panel / dictation overlay.
 - **Ported code can drift** from Oatmeal. Low impact — we don't import Oatmeal as a dependency, so drift is local.
 
