@@ -903,7 +903,8 @@ public enum TelemetryEventSpec: Sendable {
         notesUsed: Bool?,
         notesLengthBucket: String?,
         errorType: String?,
-        captureStartCompleted: Bool? = nil
+        captureStartCompleted: Bool? = nil,
+        captureDiagnostics: MeetingCaptureDiagnostics? = nil
     )
     case meetingRecoveryDiscovered(
         count: Int, source: TelemetryMeetingRecoverySource, phases: [MeetingRecordingLockState])
@@ -1639,7 +1640,8 @@ extension TelemetryEventSpec {
             let notesUsed,
             let notesLengthBucket,
             let errorType,
-            let captureStartCompleted
+            let captureStartCompleted,
+            let captureDiagnostics
         ):
             return Self.compactProps(
                 ("operation_id", operationID),
@@ -1656,7 +1658,13 @@ extension TelemetryEventSpec {
                 ("notes_used", notesUsed.map(Self.boolString)),
                 ("notes_length_bucket", notesLengthBucket),
                 ("error_type", errorType),
-                ("capture_start_completed", captureStartCompleted.map(Self.boolString))
+                (
+                    "capture_start_completed",
+                    (captureDiagnostics?.captureStartCompleted ?? captureStartCompleted).map(Self.boolString)
+                ),
+                ("capture_source_mode", captureDiagnostics?.sourceMode?.rawValue),
+                ("microphone_frames", captureDiagnostics.map { String($0.microphoneFrames) }),
+                ("system_frames", captureDiagnostics.map { String($0.systemFrames) })
             )
         case .meetingRecoveryDiscovered(let count, let source, let phases):
             return [

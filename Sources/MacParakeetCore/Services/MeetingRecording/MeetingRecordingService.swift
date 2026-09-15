@@ -51,6 +51,8 @@ public protocol MeetingRecordingServiceProtocol: Sendable {
         calendarEventSnapshot: MeetingCalendarSnapshot?
     ) async throws
     func stopRecording() async throws -> MeetingRecordingOutput
+    /// Session-scoped so a late terminal event cannot read a replacement meeting's facts.
+    func captureDiagnostics(for sessionID: UUID) async -> MeetingCaptureDiagnostics?
     func cancelRecording() async
     /// Pause an active recording. No-op when no session is active or when
     /// already paused. The OS-level capture stays running (mic + ScreenCaptureKit
@@ -100,6 +102,8 @@ public protocol MeetingRecordingServiceProtocol: Sendable {
 }
 
 public extension MeetingRecordingServiceProtocol {
+    func captureDiagnostics(for sessionID: UUID) async -> MeetingCaptureDiagnostics? { nil }
+
     func updateMeetingType(_ meetingTypeId: UUID?) async {}
 
     /// Existing manual / hotkey callers use the no-arg form — the calendar
@@ -316,6 +320,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private var recoveringSources: Set<AudioSource> = []
     private var sourceCaptureMetrics: [AudioSource: SourceCaptureMetrics] = [:]
     private var captureHealthMetrics = CaptureHealthMetrics()
+    private var lastCaptureDiagnostics: (sessionID: UUID, snapshot: MeetingCaptureDiagnostics)?
     private var latestLevels = MeetingAudioLevels()
     private var sourceHealthLastBufferAt: [AudioSource: Date] = [:]
     private var sourceHealthLastBufferActiveSeconds: [AudioSource: TimeInterval] = [:]
@@ -617,6 +622,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         }
 
         let sessionID = UUID()
+        lastCaptureDiagnostics = nil
         startingSessionID = sessionID
         defer {
             if startingSessionID == sessionID {
@@ -704,6 +710,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             recoveringSources = []
             sourceCaptureMetrics = [:]
             captureHealthMetrics = CaptureHealthMetrics()
+            captureHealthMetrics.sourceMode = sourceMode
             sourceHealthLastBufferAt = [:]
             sourceHealthLastBufferActiveSeconds = [:]
             activeMicrophoneStall = nil
@@ -879,6 +886,16 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             AudioSource.microphone: finalizedWriter?.metrics(for: .microphone),
             AudioSource.system: finalizedWriter?.metrics(for: .system),
         ]
+        lastCaptureDiagnostics = (
+            session.id,
+            MeetingCaptureDiagnostics(
+                captureStartCompleted: captureHealthMetrics.captureStartedAt != nil,
+                sourceMode: captureHealthMetrics.sourceMode,
+                elapsedSeconds: captureElapsedDurationSeconds,
+                microphoneFrames: finalizedWriter?.metrics(for: .microphone).writtenFrameCount ?? 0,
+                systemFrames: finalizedWriter?.metrics(for: .system).writtenFrameCount ?? 0
+            )
+        )
         await liveChunkTranscriber.cancelPendingTasks(waitForCancellation: false)
         do {
             try Self.requireSuccessfulWriterFinalization(writerFinalization)
@@ -2285,6 +2302,11 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             sumSquares += sample * sample
         }
         return sqrt(sumSquares / Float(samples.count))
+    }
+
+    public func captureDiagnostics(for sessionID: UUID) async -> MeetingCaptureDiagnostics? {
+        guard lastCaptureDiagnostics?.sessionID == sessionID else { return nil }
+        return lastCaptureDiagnostics?.snapshot
     }
 
     private func cleanupState() {

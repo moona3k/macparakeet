@@ -18,6 +18,9 @@ owned by `AppEnvironment`.
 **Shared mic engine (the core of this folder)**
 - `SharedMicrophoneStream.swift` — fan-out, VPIO state machine,
   subscriber tokens, `Diagnostics` snapshot. ADR-015 + ADR-016.
+  Active subscriptions also observe time waiting to enter the engine queue,
+  before native lifecycle diagnostics begin. Slow upstream waits carry
+  `scope=shared_subscription_queue`; their success means queue entry only.
 - `MicrophoneEnginePlatform.swift` — `AVAudioEngine` wrapper. Device
   fallback chain, VPIO toggle, tap install, engine recreation on
   every teardown (so coreaudiod releases the VPAU aggregate

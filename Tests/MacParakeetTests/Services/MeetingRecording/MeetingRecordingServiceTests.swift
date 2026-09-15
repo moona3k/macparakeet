@@ -4,6 +4,31 @@ import XCTest
 @testable import MacParakeetCore
 
 final class MeetingRecordingServiceTests: XCTestCase {
+    func testCaptureDiagnosticsRetainsOnlyMatchingStoppedSession() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            micConditionerFactory: { PassthroughMicConditioner() }
+        )
+        try await service.startRecording()
+        let buffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 16_000, sampleValue: 0.25, sampleRate: 48_000))
+        let time = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100))
+        await captureService.yield(.microphoneBuffer(buffer, time))
+        await captureService.yield(.systemBuffer(buffer, time))
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        let diagnostics = await service.captureDiagnostics(for: output.sessionID)
+        XCTAssertEqual(diagnostics?.captureStartCompleted, true)
+        XCTAssertEqual(diagnostics?.sourceMode, .microphoneAndSystem)
+        XCTAssertEqual(diagnostics?.microphoneFrames, 16_000)
+        XCTAssertEqual(diagnostics?.systemFrames, 16_000)
+        let unrelatedDiagnostics = await service.captureDiagnostics(for: UUID())
+        XCTAssertNil(unrelatedDiagnostics)
+    }
+
     func testStartRecordingWritesLockFileBeforeCaptureStarts() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let lockStore = RecordingLockFileStore()
@@ -99,6 +124,8 @@ final class MeetingRecordingServiceTests: XCTestCase {
         }
         await captureService.waitForStartCall()
 
+        let activeSessionID = await service.activeSessionID
+        let sessionID = try XCTUnwrap(activeSessionID)
         do {
             _ = try await service.stopRecording()
             XCTFail("Expected an empty partial start to contain no audio")
@@ -106,6 +133,10 @@ final class MeetingRecordingServiceTests: XCTestCase {
             // The durable Stop path owns cleanup.
         }
         XCTAssertEqual(lockStore.deletes.count, 1)
+        let diagnostics = await service.captureDiagnostics(for: sessionID)
+        XCTAssertEqual(diagnostics?.captureStartCompleted, false)
+        XCTAssertEqual(diagnostics?.microphoneFrames, 0)
+        XCTAssertEqual(diagnostics?.systemFrames, 0)
 
         await captureService.releaseStart()
         do {
@@ -690,6 +721,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
         )
 
         try await service.startRecording()
+        let sessionID = await service.activeSessionID
         let folderURL = try XCTUnwrap(lockStore.writes.first?.folderURL)
         defer { try? FileManager.default.removeItem(at: folderURL) }
         let microphoneBuffer = try XCTUnwrap(
@@ -712,6 +744,10 @@ final class MeetingRecordingServiceTests: XCTestCase {
         }
 
         let isRecordingAfterFailure = await service.isRecording
+        let diagnostics = await service.captureDiagnostics(for: try XCTUnwrap(sessionID))
+        XCTAssertEqual(diagnostics?.captureStartCompleted, true)
+        XCTAssertGreaterThan(diagnostics?.microphoneFrames ?? 0, 0)
+        XCTAssertEqual(diagnostics?.systemFrames, 0)
         XCTAssertFalse(isRecordingAfterFailure)
         XCTAssertTrue(lockStore.deletes.isEmpty)
         XCTAssertEqual(lockStore.writes.last?.file.state, .recording)
@@ -893,7 +929,9 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertTrue(log.contains("meeting_recording_health session=\(output.sessionID.uuidString)"))
         XCTAssertTrue(log.contains("source_mode=microphone_and_system"))
         let healthLine = try XCTUnwrap(
-            log.split(separator: "\n").last { $0.contains("meeting_recording_health session=\(output.sessionID.uuidString)") }
+            log.split(separator: "\n").last {
+                $0.contains("meeting_recording_health session=\(output.sessionID.uuidString)")
+            }
         )
         XCTAssertTrue(healthLine.contains("capture_start_completed=true"))
         XCTAssertTrue(log.contains("mic_started=true"))
@@ -1180,6 +1218,8 @@ final class MeetingRecordingServiceTests: XCTestCase {
         try await service.startRecording()
         let folderURL = try XCTUnwrap(lockStore.writes.first?.folderURL)
 
+        let activeSessionID = await service.activeSessionID
+        let sessionID = try XCTUnwrap(activeSessionID)
         do {
             _ = try await service.stopRecording()
             XCTFail("Expected stopRecording to throw noAudioCaptured")
@@ -1191,6 +1231,15 @@ final class MeetingRecordingServiceTests: XCTestCase {
         }
         XCTAssertEqual(lockStore.deletes, [folderURL])
         XCTAssertFalse(FileManager.default.fileExists(atPath: folderURL.path))
+        let diagnostics = await service.captureDiagnostics(for: sessionID)
+        XCTAssertEqual(diagnostics?.captureStartCompleted, true)
+        XCTAssertEqual(diagnostics?.microphoneFrames, 0)
+        XCTAssertEqual(diagnostics?.systemFrames, 0)
+        XCTAssertGreaterThanOrEqual(diagnostics?.elapsedSeconds ?? -1, 0)
+        try await service.startRecording()
+        let staleDiagnostics = await service.captureDiagnostics(for: sessionID)
+        XCTAssertNil(staleDiagnostics)
+        await service.cancelRecording()
     }
 
     func testRuntimeCaptureErrorTransitionsCaptureModeToStopped() async throws {

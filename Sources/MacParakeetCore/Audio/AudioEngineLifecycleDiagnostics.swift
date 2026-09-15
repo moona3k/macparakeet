@@ -8,6 +8,11 @@ public struct AudioEngineLifecycleSnapshot: Sendable, Equatable {
         case start, prepare, recovery, stop
     }
 
+    public enum Scope: String, Sendable {
+        /// Waiting to enter the shared subscription queue, before native engine work.
+        case sharedSubscriptionQueue = "shared_subscription_queue"
+    }
+
     public enum Outcome: String, Sendable {
         case success, failure, cancelled, slow
     }
@@ -31,6 +36,7 @@ public struct AudioEngineLifecycleSnapshot: Sendable, Equatable {
 
     public let attemptID: String
     public let operation: Operation
+    public let scope: Scope?
     public let outcome: Outcome
     public let phase: Phase
     public let elapsedMilliseconds: Int
@@ -69,6 +75,7 @@ public struct AudioEngineLifecycleSnapshot: Sendable, Equatable {
         ]
         result["last_error_type"] = lastErrorType
         result["last_error_phase"] = lastErrorPhase?.rawValue
+        result["scope"] = scope?.rawValue
         result["workflow_id"] = workflowID
         result["consumer"] = consumer
         for (phase, duration) in phaseDurationsMilliseconds {
@@ -89,6 +96,8 @@ public struct AudioEngineLifecycleSnapshot: Sendable, Equatable {
 /// A checkpoint observes pending work; it does not time out or recover audio.
 /// Start/recovery always emit a terminal record. Prepare/stop emit only when
 /// slow, including failures, so recurring idle preparation does not fill logs.
+/// Scoped subscription queue observations also emit only when slow. Their
+/// success means queue entry, not completion of native engine startup.
 /// Never call this recorder from an audio render callback.
 ///
 /// Mutable state is protected by `state`; the timer handle is immutable after
@@ -121,6 +130,7 @@ final class AudioEngineLifecycleDiagnostics: @unchecked Sendable {
 
     private let attemptID = UUID().uuidString.lowercased()
     private let operation: Operation
+    private let scope: AudioEngineLifecycleSnapshot.Scope?
     private let vpioEnabled: Bool
     private let bufferSize: UInt32
     private let workflowID: String?
@@ -138,17 +148,19 @@ final class AudioEngineLifecycleDiagnostics: @unchecked Sendable {
 
     init(
         operation: Operation,
+        scope: AudioEngineLifecycleSnapshot.Scope? = nil,
         vpioEnabled: Bool,
         bufferSize: UInt32,
         slowThreshold: TimeInterval = 5,
         now: @escaping @Sendable () -> UInt64 = { DispatchTime.now().uptimeNanoseconds },
         automaticallySchedule: Bool = true,
         sink: @escaping @Sendable (AudioEngineLifecycleSnapshot) -> Void = {
-            AudioCaptureDiagnostics.appendAsync($0.localLogLine)
+            AudioCaptureDiagnostics.appendAsync($0.localLogLine, correlation: nil)
             Telemetry.send(.audioEngineLifecycle($0))
         }
     ) {
         self.operation = operation
+        self.scope = scope
         self.vpioEnabled = vpioEnabled
         self.bufferSize = bufferSize
         let correlation = Observability.currentCaptureCorrelation
@@ -230,7 +242,8 @@ final class AudioEngineLifecycleDiagnostics: @unchecked Sendable {
                 state.lastErrorPhase = state.phase
             }
             let wasSlow = state.reportedSlow || time - startedAt >= slowThresholdNanoseconds
-            guard operation == .start || operation == .recovery || wasSlow else { return }
+            let alwaysEmitTerminal = scope == nil && (operation == .start || operation == .recovery)
+            guard alwaysEmitTerminal || wasSlow else { return }
             enqueue(
                 snapshot(
                     state: state,
@@ -280,6 +293,7 @@ final class AudioEngineLifecycleDiagnostics: @unchecked Sendable {
         return AudioEngineLifecycleSnapshot(
             attemptID: attemptID,
             operation: operation,
+            scope: scope,
             outcome: outcome,
             phase: state.phase,
             elapsedMilliseconds: Self.milliseconds(time - startedAt),

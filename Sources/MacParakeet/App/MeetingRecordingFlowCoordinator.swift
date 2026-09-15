@@ -870,6 +870,7 @@ final class MeetingRecordingFlowCoordinator {
             currentMeetingOperationContext = operationContext
             actionTask = Task { @MainActor in
                 var stoppedOutput: MeetingRecordingOutput?
+                var captureDiagnostics: MeetingCaptureDiagnostics?
                 let queueingStartedAt = Date()
                 var queueingOutcome = "success"
                 var queueingFailureDetail: String?
@@ -924,6 +925,10 @@ final class MeetingRecordingFlowCoordinator {
                         do {
                             output = try await meetingRecordingService.stopRecording()
                         } catch {
+                            if let activeSessionID {
+                                captureDiagnostics = await meetingRecordingService.captureDiagnostics(
+                                    for: activeSessionID)
+                            }
                             appendStopStage(
                                 "service_stop",
                                 sessionID: activeSessionID,
@@ -934,6 +939,7 @@ final class MeetingRecordingFlowCoordinator {
                             throw error
                         }
                         stoppedOutput = output
+                        captureDiagnostics = await meetingRecordingService.captureDiagnostics(for: output.sessionID)
                         appendStopStage(
                             "service_stop",
                             sessionID: output.sessionID,
@@ -1007,6 +1013,7 @@ final class MeetingRecordingFlowCoordinator {
                             outcome: .cancelled,
                             output: stoppedOutput,
                             stage: stoppedOutput == nil ? .stopRecording : .completeTranscription,
+                            captureDiagnostics: captureDiagnostics,
                             liveWordCount: liveWordCount,
                             liveTranscriptLagged: liveTranscriptLagged
                         )
@@ -1033,6 +1040,7 @@ final class MeetingRecordingFlowCoordinator {
                             outcome: .failure,
                             output: stoppedOutput,
                             stage: stoppedOutput == nil ? .stopRecording : .completeTranscription,
+                            captureDiagnostics: captureDiagnostics,
                             liveWordCount: liveWordCount,
                             liveTranscriptLagged: liveTranscriptLagged,
                             errorType: TelemetryErrorClassifier.classify(error)
@@ -1070,7 +1078,7 @@ final class MeetingRecordingFlowCoordinator {
                     stage: .cancel,
                     durationSeconds: durationSeconds
                 )
-                        self.clearMeetingOperationContext()
+                self.clearMeetingOperationContext()
                 self.currentMeetingTrigger = nil
             }
 
@@ -1637,7 +1645,8 @@ final class MeetingRecordingFlowCoordinator {
             // Idle alone is insufficient: a newer meeting may already have
             // stopped and queued behind this one. Only the current generation
             // can present; every completed item still runs background effects.
-            let canPresent = stateMachine.state == .idle
+            let canPresent =
+                stateMachine.state == .idle
                 && item.recordingGeneration == stateMachine.generation
             onQueuedTranscriptionReady(transcription, canPresent)
 
@@ -1727,6 +1736,7 @@ final class MeetingRecordingFlowCoordinator {
         trigger: TelemetryMeetingOperationTrigger? = nil,
         output: MeetingRecordingOutput? = nil,
         stage: TelemetryMeetingOperationStage? = nil,
+        captureDiagnostics: MeetingCaptureDiagnostics? = nil,
         durationSeconds: Double? = nil,
         liveWordCount: Int? = nil,
         liveTranscriptLagged: Bool? = nil,
@@ -1738,6 +1748,7 @@ final class MeetingRecordingFlowCoordinator {
             trigger: trigger ?? currentMeetingTrigger,
             output: output,
             stage: stage,
+            captureDiagnostics: captureDiagnostics,
             durationSeconds: durationSeconds,
             liveWordCount: liveWordCount,
             liveTranscriptLagged: liveTranscriptLagged,
@@ -1751,6 +1762,7 @@ final class MeetingRecordingFlowCoordinator {
         trigger: TelemetryMeetingOperationTrigger? = nil,
         output: MeetingRecordingOutput? = nil,
         stage: TelemetryMeetingOperationStage? = nil,
+        captureDiagnostics: MeetingCaptureDiagnostics? = nil,
         durationSeconds: Double? = nil,
         liveWordCount: Int? = nil,
         liveTranscriptLagged: Bool? = nil,
@@ -1765,7 +1777,7 @@ final class MeetingRecordingFlowCoordinator {
                 outcome: outcome,
                 trigger: trigger,
                 stage: stage,
-                durationSeconds: output?.durationSeconds ?? durationSeconds,
+                durationSeconds: output?.durationSeconds ?? captureDiagnostics?.elapsedSeconds ?? durationSeconds,
                 liveWordCount: liveWordCount,
                 liveTranscriptLagged: liveTranscriptLagged,
                 microphoneTrackPresent: output.map { $0.sourceAlignment.microphone != nil },
@@ -1773,7 +1785,9 @@ final class MeetingRecordingFlowCoordinator {
                 notesUsed: notes.map { !$0.isEmpty },
                 notesLengthBucket: output.map { Observability.textLengthBucket($0.userNotes) },
                 errorType: errorType,
-                captureStartCompleted: output != nil ? true : (stage == .startRecording ? false : nil)
+                captureStartCompleted: captureDiagnostics?.captureStartCompleted
+                    ?? (output != nil ? true : (stage == .startRecording ? false : nil)),
+                captureDiagnostics: captureDiagnostics
             ))
     }
 }

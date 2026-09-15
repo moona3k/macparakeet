@@ -124,6 +124,38 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(operation.captureStartCompleted, true)
     }
 
+    func testFailedStopUsesSessionCaptureFactsWithoutOutput() async throws {
+        for captureStarted in [false, true] {
+            let service = MeetingRecordingServiceSpy(
+                output: makeRecordingOutput(),
+                stopShouldFail: true,
+                diagnostics: MeetingCaptureDiagnostics(
+                    captureStartCompleted: captureStarted,
+                    sourceMode: .microphoneAndSystem,
+                    elapsedSeconds: 428,
+                    microphoneFrames: 0,
+                    systemFrames: captureStarted ? 16_000 : 0
+                )
+            )
+            let coordinator = makeQuitTeardownCoordinator(recordingService: service)
+            coordinator.testHook_enterRecording()
+            XCTAssertTrue(coordinator.stopRecording(operationTrigger: .manual))
+            await coordinator.testHook_waitForActionTask()
+
+            let event = try XCTUnwrap(telemetry.snapshot().last { $0.name == .meetingOperation })
+            XCTAssertEqual(event.props?["outcome"], "failure")
+            XCTAssertEqual(event.props?["stage"], "stop_recording")
+            XCTAssertEqual(
+                event.props?["error_type"], TelemetryErrorClassifier.classify(MeetingAudioError.noAudioCaptured))
+            XCTAssertEqual(event.props?["capture_start_completed"], String(captureStarted))
+            XCTAssertEqual(Double(event.props?["duration_seconds"] ?? ""), 428)
+            XCTAssertEqual(event.props?["capture_source_mode"], "microphone_and_system")
+            XCTAssertEqual(event.props?["microphone_frames"], "0")
+            XCTAssertEqual(event.props?["system_frames"], captureStarted ? "16000" : "0")
+            XCTAssertNil(event.props?["microphone_track_present"])
+        }
+    }
+
     func testCancelledDurableStopLeavesProcessingState() async throws {
         let output = makeRecordingOutput()
         let recordingService = MeetingRecordingServiceSpy(
@@ -1505,6 +1537,8 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
     private var output: MeetingRecordingOutput
     private let blocksStart: Bool
     private let stopShouldCancel: Bool
+    private let stopShouldFail: Bool
+    private let diagnostics: MeetingCaptureDiagnostics?
     private let startShouldFail: Bool
     let activeSpeechEngineSelection: SpeechEngineSelection?
     let activeMeetingSpeechPlan: MeetingSpeechPlan?
@@ -1553,6 +1587,8 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
         activeMeetingSpeechPlan: MeetingSpeechPlan? = nil,
         blocksStart: Bool = false,
         stopShouldCancel: Bool = false,
+        stopShouldFail: Bool = false,
+        diagnostics: MeetingCaptureDiagnostics? = nil,
         startShouldFail: Bool = false
     ) {
         self.output = output
@@ -1560,6 +1596,8 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
         self.activeMeetingSpeechPlan = activeMeetingSpeechPlan
         self.blocksStart = blocksStart
         self.stopShouldCancel = stopShouldCancel
+        self.stopShouldFail = stopShouldFail
+        self.diagnostics = diagnostics
         self.startShouldFail = startShouldFail
     }
 
@@ -1620,7 +1658,14 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
         if stopShouldCancel {
             throw CancellationError()
         }
+        if stopShouldFail { throw MeetingAudioError.noAudioCaptured }
         return output
+    }
+
+    var activeSessionID: UUID? { output.sessionID }
+
+    func captureDiagnostics(for sessionID: UUID) async -> MeetingCaptureDiagnostics? {
+        sessionID == output.sessionID ? diagnostics : nil
     }
 
     func cancelRecording() async {
@@ -1888,7 +1933,8 @@ private extension TelemetryEventSpec {
                 _,
                 _,
                 _,
-                let captureStartCompleted
+                let captureStartCompleted,
+                _
             ) = self
         else {
             return nil

@@ -96,6 +96,23 @@ Idle prepare/stop omit those fields. Each recovery
 attempt starts a new observer; its elapsed time excludes scheduled recovery
 backoff.
 
+Overlapping dictation and meeting workflows retain one active correlation per
+consumer. Ending the newest owner restores the other active consumer; stale
+completion cannot clear a newer same-consumer workflow. This is attribution,
+not evidence that both consumers started audio successfully.
+
+Optional `scope=shared_subscription_queue` observes an active subscription
+waiting to enter `SharedMicrophoneStream`'s upstream serial queue, including
+waits behind idle preparation. Omitted scope means native engine lifecycle.
+Scoped records remain `operation=start`, `phase=queue_wait`, `attempt_count=0`,
+with unknown route/transport, and emit only for slow waits. Scoped `success`
+means queue entry, **not microphone readiness**. Exclude scoped records from
+native engine success/failure counts. The workflow is captured at enqueue;
+these records do not identify which native attempt is blocking the queue.
+Deploy the receiver's finite scope allowlist before releasing this producer;
+the older receiver strips this unrecognized property, losing the distinction
+between queue entry and native engine success.
+
 An independent utility timer can publish one `outcome=slow` checkpoint after
 five seconds while native lifecycle work remains pending. It is observability
 only: no audio graph changes, cancellation, restart, or hard timeout. Start and
@@ -117,8 +134,17 @@ proof or a guarantee that this operation will recover.
 
 Queued events copy sanitized `git_commit` and `build_number` into props. D1
 does not persist extra envelope columns; invalid values become `unknown`.
-`meeting_operation.capture_start_completed` is `false` when `stage=start_recording`
-has no recording output, `true` when an output exists, and omitted otherwise.
+Failed/cancelled Stop reads a session-scoped snapshot retained after cleanup:
+`capture_start_completed` reflects accepted capture startup even when Stop has
+no output; `duration_seconds` excludes settlement time; `capture_source_mode`
+is the known selected source mode; `microphone_frames` and `system_frames`
+count successfully written capture frames, excluding gap padding. A zero count
+does not mean permissions were granted or a source started. Unknown source
+selection is omitted, not guessed. Snapshots reset on a new start and are
+looked up by local session ID; that ID is not added to telemetry. Successful
+output remains a fallback for callers without a snapshot. Start failures use
+`false`; permission-only terminals omit capture facts. Existing errors retain
+their original classification.
 The same `workflow_id` / `consumer` pair is appended to local audio log lines
 at enqueue time so a deferred write cannot pick up a later session.
 

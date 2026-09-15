@@ -117,21 +117,22 @@ public enum AudioCaptureDiagnostics {
 
     static func appendEncodedLogLine(_ data: Data, to logURL: URL) {
         if Thread.isMainThread {
-            let result = lock.withLockIfAvailable {
-                do {
-                    try writeLogLine(data, to: logURL, waitForLock: false, allowRotation: false)
-                    return MainThreadAppendResult.completed
-                } catch LogWriteError.rotationRequiresBackground {
-                    return .deferred(reason: "rotation")
-                } catch {
-                    let code = (error as NSError).code
-                    if (error as NSError).domain == NSPOSIXErrorDomain, code == Int(EWOULDBLOCK) {
-                        return .deferred(reason: "lock_contended")
+            let result =
+                lock.withLockIfAvailable {
+                    do {
+                        try writeLogLine(data, to: logURL, waitForLock: false, allowRotation: false)
+                        return MainThreadAppendResult.completed
+                    } catch LogWriteError.rotationRequiresBackground {
+                        return .deferred(reason: "rotation")
+                    } catch {
+                        let code = (error as NSError).code
+                        if (error as NSError).domain == NSPOSIXErrorDomain, code == Int(EWOULDBLOCK) {
+                            return .deferred(reason: "lock_contended")
+                        }
+                        logger.error("audio_diagnostic_write_failed error_type=\(errorType(error), privacy: .public)")
+                        return .completed
                     }
-                    logger.error("audio_diagnostic_write_failed error_type=\(errorType(error), privacy: .public)")
-                    return .completed
-                }
-            } ?? .deferred(reason: "lock_contended")
+                } ?? .deferred(reason: "lock_contended")
             if case .deferred(let reason) = result {
                 logger.info("audio_diagnostic_write_deferred reason=\(reason, privacy: .public)")
                 // Keep the exact record and its occurrence clocks. Only its
@@ -162,9 +163,14 @@ public enum AudioCaptureDiagnostics {
     /// make a first-buffer event appear to have happened after Stop. The random
     /// process session distinguishes app/CLI runs without a persistent ID.
     public static func appendAsync(_ message: String) {
+        appendAsync(message, correlation: Observability.currentCaptureCorrelation)
+    }
+
+    /// Snapshot records already own their workflow fields. Passing nil avoids
+    /// adding ambient attribution that may have changed before emission.
+    static func appendAsync(_ message: String, correlation: ObservabilityCaptureCorrelation?) {
         let timestamp = Date()
         let uptimeNanoseconds = DispatchTime.now().uptimeNanoseconds
-        let correlation = Observability.currentCaptureCorrelation
         appendQueue.async {
             append(
                 message, timestamp: timestamp, uptimeNanoseconds: uptimeNanoseconds,

@@ -63,8 +63,10 @@ public struct ObservabilityCaptureCorrelation: Sendable, Equatable {
 
 public enum Observability {
     @TaskLocal public static var currentOperationContext: ObservabilityOperationContext?
-    private static let captureCorrelation = OSAllocatedUnfairLock<ObservabilityCaptureCorrelation?>(
-        initialState: nil
+    // Keep at most one workflow per consumer, ordered by their distinct begin calls.
+    // A short dictation can temporarily own attribution without losing an ongoing meeting.
+    private static let captureCorrelations = OSAllocatedUnfairLock<[ObservabilityCaptureCorrelation]>(
+        initialState: []
     )
 
     public static func withOperationContext<T: Sendable>(
@@ -117,23 +119,25 @@ public enum Observability {
 
     public static func beginCaptureCorrelation(_ correlation: ObservabilityCaptureCorrelation) {
         guard UUID(uuidString: correlation.workflowID) != nil else { return }
-        captureCorrelation.withLock { $0 = correlation }
+        captureCorrelations.withLock { active in
+            guard !active.contains(correlation) else { return }
+            active.removeAll { $0.consumer == correlation.consumer }
+            active.append(correlation)
+        }
     }
 
     public static func endCaptureCorrelation(workflowID: String) {
-        captureCorrelation.withLock { current in
-            if current?.workflowID == workflowID {
-                current = nil
-            }
+        captureCorrelations.withLock { active in
+            active.removeAll { $0.workflowID == workflowID }
         }
     }
 
     public static var currentCaptureCorrelation: ObservabilityCaptureCorrelation? {
-        captureCorrelation.withLock { $0 }
+        captureCorrelations.withLock { $0.last }
     }
 
     static func resetCaptureCorrelation() {
-        captureCorrelation.withLock { $0 = nil }
+        captureCorrelations.withLock { $0.removeAll() }
     }
 
     public static func sanitizedGitCommit(_ raw: String) -> String {
@@ -232,10 +236,10 @@ public enum Observability {
     }
 
     private static let audioExtensions: Set<String> = [
-        "aac", "aif", "aiff", "caf", "flac", "m4a", "mp3", "ogg", "opus", "wav", "wma"
+        "aac", "aif", "aiff", "caf", "flac", "m4a", "mp3", "ogg", "opus", "wav", "wma",
     ]
 
     private static let videoExtensions: Set<String> = [
-        "avi", "flv", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "webm", "wmv"
+        "avi", "flv", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "webm", "wmv",
     ]
 }

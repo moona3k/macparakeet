@@ -395,9 +395,13 @@ prompt-customization trend.
 `meeting_operation.trigger` values include `manual`, `hotkey`,
 `calendar_auto_start`, and `auto_stop`; `meeting_recording_started.trigger`
 does not use `auto_stop` because auto-stop only affects the stop/finalize path.
-`capture_start_completed` is `false` when start recording fails without a
-recording output, `true` when an output exists, and omitted for earlier
-permission-only terminals.
+Failed/cancelled Stop includes actual `capture_start_completed`, elapsed
+`duration_seconds`, known `capture_source_mode`, and successfully written
+`microphone_frames` / `system_frames` from a session-scoped capture snapshot,
+even when no output exists. Counts exclude recovery padding. Unknown selection
+is omitted. Start failures use `false`; output supplies a compatibility fallback
+of `true`; permission-only terminals omit capture facts. A failed Stop with
+zero frames remains distinct from a Stop whose start never completed.
 
 ### 5. Settings & Customization — "How do people configure the app?"
 
@@ -468,6 +472,14 @@ start, prepare, or stop waits for the platform's serial queue. A recovery
 observer starts when each recovery attempt begins, excluding the episode's
 scheduled backoff. The observer snapshots only locked diagnostic state; it
 does not call native audio APIs or run on an audio render callback.
+
+An optional `scope=shared_subscription_queue` instead observes active subscribe
+requests waiting for the upstream shared-stream queue, including a wait behind
+idle preparation. It emits only slow waits, keeps `phase=queue_wait` and
+`attempt_count=0`, and snapshots workflow attribution at enqueue. Its terminal
+`success` means queue entry, not native engine success. Filter these scoped
+records separately; omitted scope retains native lifecycle semantics. The
+receiver must accept this finite optional scope before the app release.
 
 The emission policy is bounded per lifecycle call:
 
