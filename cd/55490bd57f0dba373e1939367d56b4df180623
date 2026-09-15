@@ -1,0 +1,29 @@
+Tests/MacParakeetTests/Calendar/MeetingAutoStartCoordinatorTests.swift
+  s_7877b8f1c73fc0::t_fff16802bdcd98 664-731
+  s_7877b8f1c73fc0::t_d302797623b3d6 2
+  s_7877b8f1c73fc0::t_979ea89f6db45c 67-68,85-90
+Sources/MacParakeet/App/MeetingAutoStartCoordinator.swift
+  s_7877b8f1c73fc0::t_8c231a1aa02327 641
+  s_7877b8f1c73fc0::t_45059931bbec0f 680
+  s_7877b8f1c73fc0::t_3197e69455c372 92-97,104-105
+  s_7877b8f1c73fc0::t_d625ca4b21ecb7 49-52
+  s_7877b8f1c73fc0::t_de66f3f0d2e680 624-627
+plans/active/2026-09-14-issue-609-calendar-event-skip.md
+  s_7877b8f1c73fc0::t_55fa7ba4b803ef 460-462
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "cd55490bd57f0dba373e1939367d56b4df180623",
+  "prompts": {},
+  "sessions": {
+    "s_7877b8f1c73fc0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "f20b262c-fcad-468e-8ba0-b799744b4e51",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
