@@ -1,0 +1,25 @@
+spec/11-llm-integration.md
+  s_85b887dbfa029e::t_718410ceecf221 52-54,61-63
+  s_85b887dbfa029e::t_6fceb3f399f38b 27
+spec/adr/032-llm-task-group-routing.md
+  s_85b887dbfa029e::t_16990468310a44 182-185
+  s_85b887dbfa029e::t_5cf67a79704af3 163-164
+  s_85b887dbfa029e::t_bf5b99a9625f70 29-32
+  s_85b887dbfa029e::t_b4fc4844d3fae8 116-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c37b10bded1abafca5b12a3f5d01f2256734f8ac",
+  "prompts": {},
+  "sessions": {
+    "s_85b887dbfa029e": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3c5ac565-2a2d-4af3-9b57-6923712a2137",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
