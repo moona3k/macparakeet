@@ -1,0 +1,46 @@
+spec/README.md
+  s_85b887dbfa029e::t_0bfe8101ea9c86 123
+spec/11-llm-integration.md
+  s_85b887dbfa029e::t_fb680bfd47b0e0 27
+  s_85b887dbfa029e::t_4e6f01f2364f6f 49,52-58
+  s_85b887dbfa029e::t_75ec6453a00d8e 50-51,59
+  s_85b887dbfa029e::t_dd7448c0bab528 38
+  s_85b887dbfa029e::t_bbe1cd4641a861 5
+plans/active/2026-06-27-on-device-local-llm.md
+  s_85b887dbfa029e::t_8bc2920efecc0b 88
+  s_85b887dbfa029e::t_e609c402d79bec 5,7
+  s_85b887dbfa029e::t_c7b82cfbefb458 186
+  s_85b887dbfa029e::t_e4da7d4d246dbc 185
+Sources/MacParakeetCore/TextProcessing/README.md
+  s_85b887dbfa029e::t_89d38b5a43f184 48-52
+plans/active/2026-06-27-on-device-local-llm-phase0-eval.md
+  s_85b887dbfa029e::t_a8c2544f19537d 383-386
+  s_85b887dbfa029e::t_6634967fad28bc 447-451
+spec/02-features.md
+  s_85b887dbfa029e::t_7c38ea8d02f9aa 943
+  s_85b887dbfa029e::t_68de716dc35cf6 1890
+spec/adr/029-llm-task-group-routing.md
+  s_85b887dbfa029e::t_74974d11a05a1d 1,9-10,30-40,46-49,51,61,65-68,73-82,92-93,112-149,151-153,155,158-160,167,177-180,189-190,204-213,218-219,231-233
+  s_85b887dbfa029e::t_ba4db8b78b9d52 2-8,11-29,41-45,50,52-60,62-64,69-72,83-91,94-111,150,154,156-157,161-166,168-176,181-188,191-203,214-217,220-230
+spec/adr/011-llm-cloud-and-local-providers.md
+  s_85b887dbfa029e::t_47a6bee4d9861e 249
+  s_85b887dbfa029e::t_ea2d7b799b2228 69
+  s_85b887dbfa029e::t_f2d7440d5dc30d 68
+  s_85b887dbfa029e::t_15f9db15284ce9 248
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7ace398a0937128f473dfe3b5a23e65d936ed775",
+  "prompts": {},
+  "sessions": {
+    "s_85b887dbfa029e": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3c5ac565-2a2d-4af3-9b57-6923712a2137",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
