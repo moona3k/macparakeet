@@ -24,7 +24,7 @@ model option.
 2. Bundled/default LLM processing in the dictation hot path. The AI formatter is opt-in, runs after deterministic cleanup, and falls back to the deterministic result if the provider fails.
 3. Building a hosted backend or proxy service.
 4. Automatic fallback between providers.
-5. Per-feature LLM model pickers. If model selection is split, it is by task (cleanup vs analysis, with Transforms inheriting the default) per [ADR-032](adr/032-llm-task-group-routing.md): inherit the default, pick a general LLM route, or pick a specialist recipe. That policy is not implemented; the current runtime still uses one saved provider config for every LLM call. Specialists such as S1-mini (cleanup) or Hy-MT2 (translation, only if F31 ships) are recipes bound to a task, not names in the default model list.
+5. Per-feature LLM model pickers. If model selection is split, it is by task (cleanup vs analysis, with Transforms inheriting the default route) per [ADR-032](adr/032-llm-task-group-routing.md): inherit the default, pick a general LLM route, or pick a specialist recipe on eligible tasks. That policy is not implemented; the current runtime still uses one saved default provider config, with existing prompt/Transform `modelOverride` and CLI `--model` / inline overlays. Specialists such as S1-mini (cleanup) or Hy-MT2 (translation, only if F31 ships) are recipes bound to a task, not names in the default model list. Analysis does not get a recipe.
 
 **Local MLX status (updated 2026-07-05):** The in-process provider, MLX runtime seam, verified model downloader, and one-click Settings card now exist as a developer-gated foundation. The public feature flag remains off, downloads are never automatic, and public one-click setup remains blocked by runtime capability gating, setup UX, release readiness, and Phase 0 quality evidence. The first plausible public scope is single-transcript cleanup/summarization/Q&A; cross-meeting or whole-library analysis remains future-gated. Cloud/frontier providers remain the recommended quality path per surface until local capability reaches parity there. See `plans/active/2026-06-27-on-device-local-llm.md`.
 
@@ -48,14 +48,17 @@ User triggers LLM action (Summary / Chat / Formatter / Transform)
 
 ### Per-task selection (accepted direction; not implemented)
 
-Current code loads one saved provider config for every LLM call. If that
-grows, follow [ADR-032](adr/032-llm-task-group-routing.md): define a few
-tasks (`cleanup`, `analysis`, `transform`; `translate` only if F31 ships),
-then a selector per task. Inherit the default, pick a general LLM route, or
-pick a specialist recipe (fixed prompt/sampling/output contract). Do not add
-a Settings picker per feature, and do not put S1-mini or Hy-MT2 in the
-default model list. The first-party Local MLX model, if offered, remains one
-general model; built-in specialists are optional, task-bound recipes.
+Current code loads one saved default provider config, then may apply a
+prompt/Transform `modelOverride` or CLI `--model` / inline overlay. If
+that grows, follow [ADR-032](adr/032-llm-task-group-routing.md): define a
+few tasks (`cleanup`, `analysis`, `transform`; `translate` only if F31
+ships), then a selector per task. Inherit the default, pick a general LLM
+route, or pick a specialist recipe on eligible tasks (`cleanup` now;
+`translate` only if F31). Do not add a Settings picker per feature, and do
+not put S1-mini or Hy-MT2 in the default model list. The first-party Local
+MLX model, if offered, remains one general model; built-in specialists are
+optional, task-bound recipes. Those overlays stay; the later split adds
+full-route task overrides, not a wipe of current model-name overrides.
 
 ### Provider Protocol
 

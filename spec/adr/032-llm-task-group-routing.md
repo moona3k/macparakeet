@@ -24,8 +24,10 @@ meeting intelligence. Those jobs want opposite LLM properties:
 dictation/transform AI from meeting AI on model size, latency, and cost.
 The latency half shipped as independent formatter **enablement** toggles
 ("Use for dictation", "Use for transcripts") plus a transcription input
-cap. Settings still stores **one** `LLMProviderConfig`.
-`LLMExecutionContextResolver` is task-blind.
+cap. Settings still stores **one** default `LLMProviderConfig`.
+`StoredLLMExecutionContextResolver` is task-blind. Prompt and Transform
+`modelOverride` values, plus CLI `--model` and inline command configs,
+already overlay that saved route and are not removed by this ADR.
 
 [#930](https://github.com/moona3k/macparakeet/issues/930) is a cleanup-tuned
 chat model that is a poor summarizer. [#265](https://github.com/moona3k/macparakeet/issues/265)
@@ -45,8 +47,9 @@ If MacParakeet adds per-task model selection, it follows this ADR. This
 does not schedule the work and does not change current runtime behavior.
 
 **Product model:** define a few tasks, then a selector on each task.
-Inherit the default, pick a general LLM route, or pick a specialist
-recipe. Same Settings control; two contracts underneath.
+Inherit the default, pick a general LLM route, or — where the task
+allows a recipe — pick a specialist recipe. Same Settings control; two
+contracts underneath.
 
 ### 1. Granularity is tasks, not features
 
@@ -61,18 +64,24 @@ small set of inherited groups:
 | `translate` | Transcript translation (spec F31) | Only if that product ships; not a current Settings row |
 
 Summary and Ask share `analysis`. Dictation format and file format share
-`cleanup`; they already have independent on/off toggles. Transforms stay
-on the default until a concrete need appears for an override. A meeting
-can hit more than one task: formatter rewrite is `cleanup`; summarize/Ask
-is `analysis`; a future translation pass is `translate`. Do not rewrite
-the canonical stored transcript in place.
+`cleanup`; they already have independent on/off toggles. Transforms
+inherit the default **route** until a concrete need appears for a
+task-group override; existing per-prompt and per-Transform
+`modelOverride` (same provider, different model name) stays. A meeting
+can hit more than one task: formatter rewrite is `cleanup` (the Dictation
+& cleanup row, not Meetings & library); summarize/Ask is `analysis`; a
+future translation pass is `translate`. Do not rewrite the canonical
+stored transcript in place.
 
 ### 2. One default, sparse full-route overrides
 
 Keep today's Default AI block (provider, credentials, model). Add at most
-two collapsed override rows for the jobs that exist today: **Dictation &
-cleanup** and **Meetings & library**. Each is "Use default", a complete
-general-LLM route, or a specialist recipe (see §5).
+two collapsed override rows for the jobs that exist today:
+**Dictation & cleanup** (`cleanup`) and **Meetings & library**
+(`analysis`). Meeting formatter still uses the cleanup row. Each row is
+"Use default" or a complete general-LLM route. A specialist recipe (see
+§5) is offered only on eligible tasks: `cleanup` now, `translate` only if
+F31 ships. The analysis row does not offer a recipe.
 
 A general-LLM override is a full `LLMProviderConfig` (and Local CLI
 config when that provider is selected), not a model-name string.
@@ -87,10 +96,12 @@ the default route.
 ### 3. Grow the resolver, not a second client
 
 Call sites stay on `LLMService`. The service maps the operation to a
-task group. `LLMExecutionContextResolver` resolves
-`override ?? default` and returns one `LLMExecutionContext`.
-`RoutingLLMClient` and provider adapters stay unchanged for general LLM
-routes.
+task group. `StoredLLMExecutionContextResolver` (protocol
+`LLMExecutionContextResolving`) resolves `override ?? default` and
+returns one `LLMExecutionContext`. Existing prompt/Transform
+`modelOverride` still applies on that general-LLM context after the
+route is chosen. `RoutingLLMClient` and provider adapters stay unchanged
+for general LLM routes.
 
 Do not add a second `LLMService`, a parallel client, or per-ViewModel
 provider configuration.
@@ -100,8 +111,9 @@ Resolve the route once at operation start. `llm_runs` already records
 rewrite an in-flight call.
 
 CLI uses the same policy (`summarize` / chat → `analysis`, formatter →
-`cleanup`, transform → `transform`). Existing one-shot `--model` remains
-an invocation override, not a saved policy.
+`cleanup`, transform → `transform`). Existing one-shot `--model` and
+inline CLI execution contexts remain invocation overlays, not a saved
+task-group policy.
 
 ### 4. Enablement stays independent of routing
 
@@ -143,11 +155,12 @@ machinery when a second specialist needs it. Do not add llama.cpp for one
 checkpoint. Do not auto-download.
 
 S1-mini stays English dictation cleanup: deterministic Clean still runs
-first; failures fall back to Clean; meetings/files/summaries/Ask/Transforms
-do not use it; app formatter profiles stay on the generic cleanup path.
-Identify it as **S1-mini by Superwhisper** where the model is chosen and
-in Third-Party Notices. See
-[#939](https://github.com/moona3k/macparakeet/issues/939).
+first; failures fall back to Clean; meetings, files, summaries, Ask,
+Transforms, and app formatter profiles do not use it. Those surfaces keep
+the general cleanup or analysis route (inherit or that task's general
+override), not an implicit second specialist. Identify it as
+**S1-mini by Superwhisper** where the model is chosen and in Third-Party
+Notices. See [#939](https://github.com/moona3k/macparakeet/issues/939).
 
 Hy-MT2 is machine translation, not cleanup. It must not occupy the
 cleanup or analysis slot.
@@ -161,8 +174,10 @@ groups at different general providers or models.
 
 ## Current behavior (unchanged until implemented)
 
-- One saved provider config via `LLMConfigStore`.
+- One saved default provider config via `LLMConfigStore`.
 - Task-blind `StoredLLMExecutionContextResolver`.
+- Per-prompt and per-Transform `modelOverride`, plus CLI `--model` /
+  inline configs, overlay that saved route without replacing it.
 - Per-surface formatter enablement and the transcription length cap.
 - No specialist recipes and no translation product.
 
