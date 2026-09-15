@@ -200,12 +200,12 @@ public extension CalendarEvent {
     }
 
     /// Stable key for the coordinator's per-occurrence suppression sets
-    /// (reminded / countdown-shown / dismissed). Combines `id` with the start
+    /// (reminded / countdown-shown / skipped occurrence). Combines `id` with the start
     /// time so rescheduling an event to a different time is treated as a fresh
     /// occurrence that can re-fire — keying on `id` alone permanently
     /// suppressed a same-day reschedule. Whole-second granularity is plenty;
     /// meetings don't move by sub-second amounts.
-    var dedupeKey: String {
+    public var dedupeKey: String {
         "\(id)|\(Int(startTime.timeIntervalSinceReferenceDate))"
     }
 
@@ -219,7 +219,7 @@ public extension CalendarEvent {
 
     /// Meeting/series identity for event-level skip. `externalId` when
     /// present, otherwise `id`.
-    var eventKey: String {
+    public var eventKey: String {
         CalendarSkip.eventKey(for: self)
     }
 }

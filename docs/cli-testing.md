@@ -502,6 +502,11 @@ swift run macparakeet-cli meetings export <meeting> --format md --stdout
 
 Calendar commands inspect the same EventKit pipeline used by the calendar auto-start/reminder code, which is enabled (`AppFeatures.calendarEnabled = true`). This CLI surface remains useful for headless verification. Calendar permission must already be granted through the GUI calendar permission surface, a previous grant, or macOS Settings — the CLI is a separate TCC identity and won't prompt on its own.
 
+`--json` is a flat array of event objects. Additive fields are `skipped`
+(boolean) and `skipScope` (`"occurrence"`, `"event"`, or `null`). Recurrence
+is not exposed. List membership, `--filter`, and declined-fetch behavior are
+unchanged.
+
 ```bash
 swift run macparakeet-cli calendar upcoming --days 1 --filter link
 swift run macparakeet-cli calendar upcoming --days 7 --filter all --json

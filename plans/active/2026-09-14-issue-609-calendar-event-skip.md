@@ -8,7 +8,8 @@
 > Independent reviews (Fable 5.1, GPT-6 Astra via Codex) were **NOT LGTM**
 > on the first two drafts. This revision settles persisted keys, recurrence
 > gating, CLI membership, owning-countdown re-eval (post-#318), immediate
-> skip/unskip rearm, and undo. Do not implement against earlier drafts.
+> skip/unskip rearm, and undo. The Swift implementation matches this
+> revision. Do not implement against earlier drafts.
 
 ## Original ask
 
@@ -22,7 +23,10 @@ filter. Overlapping-meeting pickers, notification Record/Skip actions, and
 menu-bar next-event (#875) are later adapters of the same policy; they are
 **out of this plan**.
 
-## Why current code is incomplete
+## Why this was incomplete (pre-implementation)
+
+This section describes `main` before Phase 2b. The implementation replaces
+session-only dismiss with persisted skip.
 
 Calendar automation already has coarse filters (mode, trigger, per-calendar
 include, RSVP). The per-meeting veto almost exists and then evaporates:
