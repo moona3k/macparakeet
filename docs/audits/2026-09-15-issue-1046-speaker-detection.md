@@ -31,7 +31,7 @@ They are linked. Raising the clustering cut merges more (helps 1, hurts 2). Lowe
 
 **Presentation.** `TranscriptSegmenter.segmentBoundaries` starts a new bubble on every speaker-ID change (`Sources/MacParakeetCore/Utilities/TranscriptSegmenter.swift`). Isolated one-word ID flips therefore look like "cluttered transcription segmentation" even when ASR chunking is fine. Consecutive same-ID words already group into one turn; collapsing bogus IDs is what cleans the UI, not a new Markdown renderer.
 
-`SpeakerMerger.mergeWordTimestampsWithSpeakers` assigns by maximum direct overlap only. No overlap leaves `speakerId` nil. There is no nearest-turn fallback and no singleton-flip smooth (`Sources/MacParakeetCore/Services/Diarization/SpeakerMerger.swift`).
+`SpeakerMerger.mergeWordTimestampsWithSpeakers` first assigns by maximum direct overlap, then applies the neighbor-agreement smoothing added by this change. A no-overlap run remains nil unless both surrounding speaker runs agree. There is no nearest-turn fallback at transcript edges or between different speakers (`Sources/MacParakeetCore/Services/Diarization/SpeakerMerger.swift`).
 
 ## What already shipped (do not redo)
 

@@ -652,8 +652,9 @@ sets segmentation `stepRatio = 0.1`, embedding
 `minSegmentDurationSeconds = 0`, and zero-vote re-embedding enabled.
 Speaker-count constraints are applied to this preset per request. After
 FluidAudio returns, isolated one-word speaker flips and unlabeled gaps are
-smoothed at word assignment only when both neighboring runs agree (issue
-#1046). This does not change clusters or `clustering.threshold`.
+smoothed at word assignment only when both neighboring runs agree
+([issue #1046](https://github.com/moona3k/macparakeet/issues/1046)). This
+does not change clusters or `clustering.threshold`.
 
 The app pins FluidAudio 0.15.7, including 0.15.6 clustering corrections and
 the 0.15.7 dual-census speaker-cap fix (FluidAudio #891). Older upstream

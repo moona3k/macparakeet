@@ -20,7 +20,7 @@ fi
 
 mkdir -p "$RESULTS_DIR/baseline" "$RESULTS_DIR/candidate"
 
-while IFS=$'\t' read -r role split fid rttm_speakers rttm_end_s rttm_speech_s relpath; do
+while IFS=$'\t' read -r _role _split fid _rttm_speakers _rttm_end_s _rttm_speech_s relpath; do
   relpath="${relpath%$'\r'}"
   wav="$VOXCONVERSE_ROOT/$relpath"
   frozen="$FROZEN_JSON/${fid}.unconstrained.json"
