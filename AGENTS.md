@@ -99,8 +99,8 @@ This repo often has many parallel worktrees.
 - UI buttons use `.parakeetAction(...)`; do not tint whole hosting roots coral.
 
 When editing a load-bearing Core subsystem, read its local README before code:
-`Audio/`, `STT/`, `TextProcessing/`, `Database/`, `Licensing/`, and
-`Services/System/` currently have subsystem rules.
+`Audio/`, `STT/`, `TextProcessing/`, `Database/`, `Licensing/`, `Calendar/`,
+and `Services/System/` currently have subsystem rules.
 
 ## Product Rules
 

@@ -15,7 +15,7 @@ MacParakeet has these primary UI surfaces:
 8. **Transforms Tab** -- Productized selected-text rewrite management for `Polish`, `Distill`, `Decide`, and custom Transforms
 9. **Transform Progress Pill** -- Floating progress/cancel surface while a Transform is running
 10. **Menu Bar** -- Quick access and status
-11. **Calendar Countdown Toasts** -- Implemented and enabled (`AppFeatures.calendarEnabled = true`); surface only when a user opts into calendar auto-start
+11. **Calendar Countdown Toasts** -- Implemented and enabled (`AppFeatures.calendarEnabled = true`); surface only when a user opts into calendar auto-start. Phase 2b: toast ✕ persists an occurrence skip (#609), accepted and not implemented.
 12. **Settings** -- Preferences, permissions, local speech models, and update controls; calendar controls appear once Calendar access is granted
 
 Design philosophy: **Simple, native, stays out of the way.** No chrome, no clutter. The app should feel like part of macOS, not a web app in a wrapper.
@@ -83,6 +83,15 @@ Meetings workspace; meeting **browse** lives both in the Meetings workspace and
 under Library's Meetings filter. Reason: Library remains the universal archive,
 while Meetings is the workflow surface for upcoming calendar context, the active
 recording state, recent meetings, recovery states, and intelligence readiness.
+
+Upcoming calendar rows are informational until ADR-017 Phase 2b. After that
+change they stay list-like: no persistent Skip button. A context menu offers
+**Don't auto-record this meeting**, and **Don't auto-record this repeating
+meeting** when the event has an `externalId`. Skipped rows remain visible at
+reduced opacity with **Won't auto-record** and **Auto-record again**. The
+auto-start toast ✕ is the same occurrence skip, not a session-only dismiss.
+Skip never lives as a Settings list of events; per-calendar include stays the
+coarse filter.
 
 Column width: `min: 160, ideal: 180, max: 220`. Window minimum width: 800pt.
 
@@ -1018,7 +1027,7 @@ Row anatomy:
 
 Settings open in the content area when "Settings" is selected in the sidebar. The current information architecture is a four-tab shell with a persistent header, search field, and status-aware tab badges:
 
-- **Modes** — Audio Input, Dictation, Transcription, and Meeting Recording cards. The Meeting Recording card groups start/stop automation under an "Automatic recording" subsection as two parallel on/off toggles: a calendar-driven "Start recording automatically" adaptive row (requests Calendar access in context, then becomes a plain on/off toggle that reveals an elevated sub-panel — matching the "Also save meetings to a folder" disclosure — holding the `.notify` vs `.autoStart` mode segmented control plus the reminder, event-filter, and per-calendar controls; `.off` is the toggle's unchecked state; `AppFeatures.calendarEnabled = true`) paired with an activity-driven "Stop recording automatically" toggle (`AppFeatures.meetingAutoStopEnabled = true`). Both halves use the same toggle idiom so the lifecycle pair reads as symmetric. Below the floating-controls toggle sits a meeting-end pair: **Open app when meeting ends** (default on; off preserves the user's focus and workspace while the meeting completes, including an in-place refresh of its already-open detail) and **Notify when transcript is ready** (default on; a quiet-completion chime plus a banner only while backgrounded, disabled while auto-open is on without changing its saved value — see F47 in `spec/02-features.md`). The meeting folder disclosure distinguishes complete managed meeting artifacts from the selected-format file saved to the chosen folder, shows the resolved managed-artifact path, and warns when the chosen folder is unavailable or not writable. TXT and Markdown additionally expose independent toggles for one timestamp per reading paragraph, speaker labels, and meeting details; those toggles affect only the folder copy.
+- **Modes** — Audio Input, Dictation, Transcription, and Meeting Recording cards. The Meeting Recording card groups start/stop automation under an "Automatic recording" subsection as two parallel on/off toggles: a calendar-driven "Start recording automatically" adaptive row (requests Calendar access in context, then becomes a plain on/off toggle that reveals an elevated sub-panel — matching the "Also save meetings to a folder" disclosure — holding the `.notify` vs `.autoStart` mode segmented control plus the reminder, event-filter, and per-calendar controls; `.off` is the toggle's unchecked state; `AppFeatures.calendarEnabled = true`) paired with an activity-driven "Stop recording automatically" toggle (`AppFeatures.meetingAutoStopEnabled = true`). Both halves use the same toggle idiom so the lifecycle pair reads as symmetric. Per-event skip (#609 / F48) is not a Settings list; it lives on Upcoming rows and the auto-start toast. Below the floating-controls toggle sits a meeting-end pair: **Open app when meeting ends** (default on; off preserves the user's focus and workspace while the meeting completes, including an in-place refresh of its already-open detail) and **Notify when transcript is ready** (default on; a quiet-completion chime plus a banner only while backgrounded, disabled while auto-open is on without changing its saved value — see F47 in `spec/02-features.md`). The meeting folder disclosure distinguishes complete managed meeting artifacts from the selected-format file saved to the chosen folder, shows the resolved managed-artifact path, and warns when the chosen folder is unavailable or not writable. TXT and Markdown additionally expose independent toggles for one timestamp per reading paragraph, speaker labels, and meeting details; those toggles affect only the folder copy.
 - **Engine** — One Speech Engine card with the primary engine tiles and an inline optional recordings/files override, followed by per-engine model/language controls and local model status/management.
 - **AI** — Optional provider setup for summaries, transcript chat, prompt actions, and live Ask.
 - **System** — Appearance; a Startup card with Launch at login, Hide menu bar icon, and Menu bar only mode; permissions; storage; updates; privacy/telemetry; onboarding reset; about; and fenced Reset & Cleanup actions.

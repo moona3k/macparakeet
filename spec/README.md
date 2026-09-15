@@ -127,7 +127,7 @@ accepted direction is not proof that every phase is implemented or released.
 | [ADR-014](adr/014-meeting-recording.md) | Meeting recording via ScreenCaptureKit system audio |
 | [ADR-015](adr/015-concurrent-dictation-meeting.md) | Concurrent dictation and meeting recording |
 | [ADR-016](adr/016-centralized-stt-runtime-scheduler.md) | Centralized STT runtime and two-slot scheduler |
-| [ADR-017](adr/017-calendar-meeting-auto-start.md) | Calendar-driven meeting auto-start (Phases 1 + 2 implemented and enabled; Phase 3 proposed) |
+| [ADR-017](adr/017-calendar-meeting-auto-start.md) | Calendar-driven meeting auto-start (Phases 1 + 2 implemented and enabled; Phase 2b per-event skip accepted, not implemented; Phase 3 proposed) |
 | [ADR-018](adr/018-live-meeting-insights-and-ask.md) | Live meeting Ask tab (Insights dropped per amendment; Ask shipped 2026-04-24) |
 | [ADR-019](adr/019-crash-resilient-meeting-recording.md) | Crash-resilient meeting recording via fragmented MP4 + session lock files (implemented 2026-04-25) |
 | [ADR-020](adr/020-live-meeting-notepad-and-memo-summaries.md) | Live meeting notepad + memo-steered summaries (implemented 2026-04-25) |
@@ -304,6 +304,7 @@ Calendar-related code is implemented and **enabled** (`AppFeatures.calendarEnabl
 - [x] Activity-based auto-stop replacement (ADR-023 Phases A+B): enabled in the v0.7 release train, with a separate per-user setting defaulting off; scheduled end times remain removed, and app-quit or sustained dual-channel silence must persist through grace and a veto countdown
 - [x] Calendar event title applied to auto-started recordings instead of date-based default
 - [x] Rich pre-meeting countdown toast for calendar starts (ADR-020): attendees + service icon row + steering hint pointing the user at the Notes tab. Manual-trigger toasts unchanged
+- [ ] Per-event skip (ADR-017 Phase 2b / #609 / F48): persist occurrence or series mute; Upcoming "Don't auto-record"; toast ✕ remembers; no optional-invite auto-exclude. Plan: [`plans/active/2026-09-14-issue-609-calendar-event-skip.md`](../plans/active/2026-09-14-issue-609-calendar-event-skip.md)
 
 ### Optional Local STT Engines
 

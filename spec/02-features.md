@@ -2048,6 +2048,24 @@ Presentation additionally requires the queued completion's recording-flow genera
 
 The existing completion handler reads the auto-open preference before presenting the completed transcription. Auto-open takes precedence over notifications, so it adds no completion chime or banner. When the queue reports that the recording flow is not idle (including a newer meeting starting, recording, paused, or stopping), success completion does not select a different meeting, navigate, activate, chime, or notify, regardless of settings; the same-meeting detail and Library still refresh. Quiet completion chimes while foregrounded and adds a silent banner only while backgrounded, subject to system sound and notification permissions. Turning off both toggles silences successful completion, not finalization failures that need a retry. Both settings emit `setting_changed` telemetry and are registered in the settings search index.
 
+### F48: Per-Event Calendar Skip
+
+> Status: **PROPOSED** — ADR-017 Phase 2b / [issue #609](https://github.com/moona3k/macparakeet/issues/609). Design accepted 2026-09-14; not implemented. Plan: [`plans/active/2026-09-14-issue-609-calendar-event-skip.md`](../plans/active/2026-09-14-issue-609-calendar-event-skip.md).
+
+**What:** Mute one calendar meeting so MacParakeet will not remind or auto-start for it, without turning calendar automation off or ignoring a whole calendar. Optional-invitee is the reason users want this, not an automatic filter. Skip persists across launches. Default scope is this occurrence (`CalendarEvent.dedupeKey`); repeating meetings can also skip the series (`externalId`). Skipped rows stay on Upcoming so undo is **Auto-record again**. Toast ✕ writes the same occurrence skip. Manual Record still works.
+
+**Acceptance criteria:**
+- [ ] `MeetingMonitor.candidates` is the shared filter for Upcoming, CLI `calendar upcoming`, and the coordinator; skipped events are annotated, not dropped from the list
+- [ ] `MeetingMonitor.evaluate` emits no reminder and no auto-start for skipped occurrence or series keys
+- [ ] Occurrence and series IDs persist in `CalendarAutoStartPreferences`; never title; never SQLite EventKit cache
+- [ ] Upcoming context menu: "Don't auto-record this meeting"; "Don't auto-record this repeating meeting" only when `externalId` is present; skipped row quieter with "Auto-record again"
+- [ ] Auto-start toast ✕ persists an occurrence skip; programmatic toast close does not skip
+- [ ] Notify-only mode: skip suppresses the reminder (otherwise mute is a no-op)
+- [ ] Manual hotkey / menu bar / Record still start; skip is automation-only
+- [ ] Do not auto-exclude EventKit optional attendee role; do not change tentative-RSVP auto-start
+- [ ] CLI upcoming JSON is additive: `skipped`, `skipScope`; contract doc updated in the same change
+- [ ] Telemetry may send skip counts and scope, never event titles or attendees
+
 ---
 
 ## Development additions after 0.7.3
