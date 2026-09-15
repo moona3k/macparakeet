@@ -1,0 +1,29 @@
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_8fa5d602e173bc::t_eedb9719e2d9a4 3987-3988,4028,4031,4039-4041,4062-4064,4075-4122,4201-4206,4208,4210,4222,4227-4231
+Sources/MacParakeetCore/Services/Diarization/SpeakerVoiceprintService.swift
+  s_8fa5d602e173bc::t_66a9df0fb81294 31-36,181-211,383-394,414-415
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_8fa5d602e173bc::t_59d1897dbcf7e9 153,2015-2021,2223-2235,2241,2246-2249,2255-2368,2500-2507,2523,2525,2531,2533,2541-2543,2545-2550,2557-2566,2585-2603
+Tests/MacParakeetTests/Services/Diarization/SpeakerVoiceprintServiceTests.swift
+  s_8fa5d602e173bc::t_6cad8986ee88b4 1093-1213,1290
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_8fa5d602e173bc::t_488265f65cb462 138,144-149
+Tests/MacParakeetTests/ViewModels/TranscriptionVoiceEnrollmentTests.swift
+  s_8fa5d602e173bc::t_768f109e20a41d 13,30-48,54-57,63-65,103,106-158,161,164-169,236-431,729-738
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0e8d0dfa38488b7bba799ee72affe3a224766d83",
+  "prompts": {},
+  "sessions": {
+    "s_8fa5d602e173bc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a63c-0ead-7bc2-9ca2-d8e8537b939f",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
