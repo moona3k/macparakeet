@@ -1,0 +1,90 @@
+spec/adr/010-speaker-diarization.md
+  s_522037b26be2dc::t_b651f28844aaf3 5,273-288,290-292
+  s_522037b26be2dc::t_1800c462c4d16b 289
+  s_522037b26be2dc::t_c4eb86948597c8 293
+benchmarks/diarization/scripts/score_speaker_count.py
+  s_522037b26be2dc::t_a3d8063f7f826f 103-107
+  s_522037b26be2dc::t_289ae92fedf08a 43-78,134,154
+  s_d21378d4ce5e19::t_8db617fc5c542f 117-118
+  s_522037b26be2dc::t_477d013213273c 131-132,135
+Tests/MacParakeetTests/Services/Diarization/SpeakerMergerTests.swift
+  s_522037b26be2dc::t_a95d7d8b4eaae4 188-226,229-236,238-254,272
+  s_522037b26be2dc::t_40929fb58c820b 227-228,237,255-271
+  s_522037b26be2dc::t_ec712ed6efe3a3 9-13,71,86,89,160,175
+benchmarks/diarization/scripts/run_issue_1046_unconstrained_ab.sh
+  s_522037b26be2dc::t_85fee01da7a97f 1-53,55-64,66
+  s_522037b26be2dc::t_5b27c760719050 65,67
+  s_522037b26be2dc::t_d4886fe61343fc 54
+plans/active/2026-09-15-issue-1046-speaker-over-split.md
+  s_522037b26be2dc::t_685b6172e33a04 6-7
+  s_522037b26be2dc::t_c837d3bada3f4b 67
+  s_522037b26be2dc::t_4fbd59e2f1d0fe 22-37,75
+  s_522037b26be2dc::t_9045433f9f5c5f 3,11-17,50-60,68-72,78-85
+  s_522037b26be2dc::t_1238c2b61d7807 1-2
+  s_522037b26be2dc::t_823bfebab8ac83 4-5
+  s_522037b26be2dc::t_8002888514084f 8-10
+  s_522037b26be2dc::t_4ffadeafacffa7 18-21
+  s_522037b26be2dc::t_5b119704d0091a 38-40,47-49
+  s_522037b26be2dc::t_1507400b1fa6ab 61-66
+  s_522037b26be2dc::t_06bcb49d5e6258 73-74
+  s_522037b26be2dc::t_d2b535e20ff2f1 76-77
+  s_522037b26be2dc::t_95a43f7afb9209 86
+benchmarks/diarization/2026-09-15-issue-1046-baseline.md
+  s_522037b26be2dc::t_84a391d013caba 5-115
+  s_522037b26be2dc::t_0ebbbab437166e 117
+  s_fd24c1471479c1::t_c49c2e3626161f 1-4,116,118-124
+docs/audits/2026-09-15-issue-1046-speaker-detection.md
+  s_522037b26be2dc::t_6c8633c4a9ce37 15-102
+  s_522037b26be2dc::t_6a18b3902898bf 121
+  s_522037b26be2dc::t_27ea63aa03cb91 12-14
+  s_522037b26be2dc::t_f6f15565c92ad2 103-105,118-120
+benchmarks/diarization/test_score_speaker_count.py
+  s_522037b26be2dc::t_d8f3ee41c0208c 1-60
+plans/README.md
+  s_522037b26be2dc::t_64262a399eaa00 79
+spec/06-stt-engine.md
+  s_522037b26be2dc::t_d9ce9b687f7184 654-656,665-666
+  s_522037b26be2dc::t_7c9df8e95fd5a7 653,664
+Sources/MacParakeetCore/Services/Diarization/SpeakerMerger.swift
+  s_522037b26be2dc::t_6eeb286ca2cadb 69
+  s_522037b26be2dc::t_3a6c409b502754 60-68,70-103
+  s_522037b26be2dc::t_e20fdc20ecde1a 39
+benchmarks/diarization/README.md
+  s_522037b26be2dc::t_d7f1b50f687155 24-25
+  s_522037b26be2dc::t_797cb31c7e78d4 26
+  s_522037b26be2dc::t_81f62b74704e4a 12-14
+spec/02-features.md
+  s_522037b26be2dc::t_7a2ac109e4e5e5 1462
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5a37d308df5abf0c5de4937c2cfc5029f9096144",
+  "prompts": {},
+  "sessions": {
+    "s_522037b26be2dc": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3a3ba01a-90c6-4a39-b310-33a6c6f51502",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_d21378d4ce5e19": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2bc2171b-b9c4-4f24-b736-fdca9f11f66a",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_fd24c1471479c1": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3bcdf2b3-8d78-438c-b342-1a98b7734daa",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
