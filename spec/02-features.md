@@ -2050,26 +2050,26 @@ The existing completion handler reads the auto-open preference before presenting
 
 ### F48: Per-Event Calendar Skip
 
-> Status: **PROPOSED** — ADR-017 Phase 2b / [issue #609](https://github.com/moona3k/macparakeet/issues/609). Design accepted 2026-09-14, then corrected from independent review the same day; not implemented. Plan: [`plans/active/2026-09-14-issue-609-calendar-event-skip.md`](../plans/active/2026-09-14-issue-609-calendar-event-skip.md).
+> Status: **IMPLEMENTED** — ADR-017 Phase 2b / [issue #609](https://github.com/moona3k/macparakeet/issues/609). Design accepted 2026-09-14, then corrected from independent review; implemented on this branch. Plan: [`plans/active/2026-09-14-issue-609-calendar-event-skip.md`](../plans/active/2026-09-14-issue-609-calendar-event-skip.md).
 
 **What:** Mute one calendar meeting so MacParakeet will not remind or auto-start for it, without turning calendar automation off or ignoring a whole calendar. Optional-invitee is the reason users want this, not an automatic filter. Skip persists across launches. Upcoming default is the whole meeting for one-off events (`eventKey` = `externalId ?? id`) and this occurrence for recurring events (`dedupeKey`). Toast ✕ is always this occurrence. Series skip is offered only when `isRecurring` (not merely when `externalId` is set). Skipped rows stay on Upcoming so undo is visible. Manual Record still works.
 
 **Acceptance criteria:**
-- [ ] `MeetingMonitor.candidates` is the shared filter for Upcoming and the coordinator; skipped events are annotated, not dropped from the list
-- [ ] `MeetingMonitor.evaluate` emits no reminder and no auto-start for skipped occurrence or event-level keys
-- [ ] Occurrence (`dedupeKey`) and event (`externalId ?? id`) IDs persist in `CalendarAutoStartPreferences`; never title; never SQLite EventKit cache
-- [ ] `CalendarEvent.isRecurring` is ingested from `hasRecurrenceRules || isDetached`; series menu is hidden when `isRecurring == false`
-- [ ] Upcoming: "Don't auto-record this meeting"; "Don't auto-record this repeating meeting" only when recurring; occurrence-skip caption on a collapsed series row is "Won't auto-record this time"
-- [ ] Occurrence undo removes that key; series undo removes `eventKey` plus the selected occurrence key; other occurrence skips remain
-- [ ] Auto-start toast ✕ persists an occurrence skip; programmatic toast close does not skip; skip does not close an unrelated countdown or stop a live recording
-- [ ] Recheck full eligibility, including skip, after awaited preparation, immediately before countdown presentation, and immediately before notification submit or recording confirm
-- [ ] On calendar settings change, close the owning countdown only if it is no longer eligible under the new policy (mode, permission, trigger, excluded calendar, skip); skipping B never closes A
-- [ ] Skip/unskip of the owning occurrence clears that occurrence’s countdown-shown suppression immediately (no fetch required) so undo inside the auto-start window can re-fire; do not re-fire a delivered reminder
-- [ ] Notify-only mode: skip suppresses the reminder (otherwise mute is a no-op)
-- [ ] Manual hotkey / menu bar / Record still start; skip is automation-only; `probableSnapshotForManualStart` still excludes `.pending`
-- [ ] Do not auto-exclude EventKit optional attendee role; do not change tentative-RSVP auto-start
-- [ ] CLI `calendar upcoming` membership, `--filter`, and existing flat JSON fields stay as today; only new JSON fields are `skipped` / `skipScope` (`occurrence` | `event` | null); `isRecurring` stays internal; contract **entry added**
-- [ ] Telemetry may send skip counts and scope, never event titles or attendees
+- [x] `MeetingMonitor.candidates` is the shared filter for Upcoming and the coordinator; skipped events are annotated, not dropped from the list
+- [x] `MeetingMonitor.evaluate` emits no reminder and no auto-start for skipped occurrence or event-level keys
+- [x] Occurrence (`dedupeKey`) and event (`externalId ?? id`) IDs persist in `CalendarAutoStartPreferences`; never title; never SQLite EventKit cache
+- [x] `CalendarEvent.isRecurring` is ingested from `hasRecurrenceRules || isDetached`; series menu is hidden when `isRecurring == false`
+- [x] Upcoming: "Don't auto-record this meeting"; "Don't auto-record this repeating meeting" only when recurring; occurrence-skip caption on a collapsed series row is "Won't auto-record this time"
+- [x] Occurrence undo removes that key; series undo removes `eventKey` plus the selected occurrence key; other occurrence skips remain
+- [x] Auto-start toast ✕ persists an occurrence skip; programmatic toast close does not skip; skip does not close an unrelated countdown or stop a live recording
+- [x] Recheck full eligibility, including skip, after awaited preparation, immediately before countdown presentation, and immediately before notification submit or recording confirm
+- [x] On calendar settings change, close the owning countdown only if it is no longer eligible under the new policy (mode, permission, trigger, excluded calendar, skip); skipping B never closes A
+- [x] Skip/unskip of the owning occurrence clears that occurrence’s countdown-shown suppression immediately (no fetch required) so undo inside the auto-start window can re-fire; do not re-fire a delivered reminder
+- [x] Notify-only mode: skip suppresses the reminder (otherwise mute is a no-op)
+- [x] Manual hotkey / menu bar / Record still start; skip is automation-only; `probableSnapshotForManualStart` still excludes `.pending`
+- [x] Do not auto-exclude EventKit optional attendee role; do not change tentative-RSVP auto-start
+- [x] CLI `calendar upcoming` membership, `--filter`, and existing flat JSON fields stay as today; only new JSON fields are `skipped` / `skipScope` (`occurrence` | `event` | null); `isRecurring` stays internal; contract **entry added**
+- [x] Telemetry may send skip counts and scope, never event titles or attendees
 
 ---
 

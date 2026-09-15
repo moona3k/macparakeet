@@ -226,6 +226,7 @@ public actor CalendarService {
             calendarIdentifier: ekEvent.calendar?.calendarIdentifier,
             userStatus: userStatus,
             externalId: ekEvent.calendarItemExternalIdentifier,
+            isRecurring: ekEvent.hasRecurrenceRules || ekEvent.isDetached,
             syncedAt: Date()
         )
     }

@@ -96,6 +96,32 @@ final class MeetingsWorkspaceViewModelTests: XCTestCase {
         }
     }
 
+    func testSkippedUpcomingEventStaysVisibleAndSeriesActionHiddenForOneOff() async {
+        let calendar = MockCalendarService()
+        calendar.stubPermissionStatus = .granted
+        let event = makeEvent(title: "Optional Sync", meetUrl: "https://zoom.us/j/123", isRecurring: false)
+        calendar.stubEvents = [event]
+        let viewModel = makeViewModel(
+            calendarMode: .notify,
+            triggerFilter: .withLink,
+            calendarService: calendar
+        )
+        viewModel.settingsViewModel.calendarPermissionStatus = .granted
+
+        await viewModel.refreshUpcomingEvents().value
+        guard AppFeatures.calendarEnabled else {
+            XCTAssertTrue(viewModel.upcomingEvents.isEmpty)
+            return
+        }
+
+        XCTAssertEqual(viewModel.upcomingEvents.map(\.title), ["Optional Sync"])
+        viewModel.skipThisMeeting(event)
+        XCTAssertEqual(viewModel.skipScope(for: event), .event)
+        XCTAssertFalse(event.isRecurring)
+        await viewModel.refreshUpcomingEvents().value
+        XCTAssertEqual(viewModel.upcomingEvents.map(\.title), ["Optional Sync"])
+    }
+
     func testUpcomingPreviewSkipsAllDayAndDeclinedEvents() async {
         let calendar = MockCalendarService()
         calendar.stubPermissionStatus = .granted
@@ -953,7 +979,8 @@ final class MeetingsWorkspaceViewModelTests: XCTestCase {
         startTime: Date? = nil,
         calendarIdentifier: String? = nil,
         userStatus: EventParticipant.ParticipantStatus? = nil,
-        isAllDay: Bool = false
+        isAllDay: Bool = false,
+        isRecurring: Bool = false
     ) -> CalendarEvent {
         let start = startTime ?? Date().addingTimeInterval(3600)
         return CalendarEvent(
@@ -966,7 +993,8 @@ final class MeetingsWorkspaceViewModelTests: XCTestCase {
             isAllDay: isAllDay,
             calendarName: "Work",
             calendarIdentifier: calendarIdentifier,
-            userStatus: userStatus
+            userStatus: userStatus,
+            isRecurring: isRecurring
         )
     }
 }

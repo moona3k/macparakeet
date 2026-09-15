@@ -689,6 +689,22 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .calendarIncludedCalendars))
         }
     }
+    public var calendarSkippedOccurrences: Set<String> {
+        didSet {
+            defaults.set(Array(calendarSkippedOccurrences), forKey: CalendarAutoStartPreferences.skippedOccurrencesKey)
+            guard !isResolvingCalendarSettings else { return }
+            NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
+            Telemetry.send(.settingChanged(setting: .calendarEventSkip, value: "occurrence"))
+        }
+    }
+    public var calendarSkippedEvents: Set<String> {
+        didSet {
+            defaults.set(Array(calendarSkippedEvents), forKey: CalendarAutoStartPreferences.skippedEventsKey)
+            guard !isResolvingCalendarSettings else { return }
+            NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
+            Telemetry.send(.settingChanged(setting: .calendarEventSkip, value: "event"))
+        }
+    }
     /// Three-state Calendar permission. Settings UI needs to distinguish
     /// `.denied` from `.notDetermined` because macOS only shows the
     /// EventKit prompt once — after denial, the only recovery path is
@@ -942,6 +958,8 @@ public final class SettingsViewModel {
         calendarReminderMinutes = Self.resolveCalendarReminderMinutes(defaults: defaults)
         meetingTriggerFilter = Self.resolveMeetingTriggerFilter(defaults: defaults)
         calendarExcludedIdentifiers = Self.resolveCalendarExcludedIdentifiers(defaults: defaults)
+        calendarSkippedOccurrences = CalendarAutoStartPreferences.skippedOccurrences(defaults: defaults)
+        calendarSkippedEvents = CalendarAutoStartPreferences.skippedEvents(defaults: defaults)
 
         // Keep the transcription toggle consistent with its resolved folder.
         // Meeting auto-save deliberately preserves its enabled preference when
@@ -1002,6 +1020,38 @@ public final class SettingsViewModel {
 
         let resolvedExcluded = Self.resolveCalendarExcludedIdentifiers(defaults: defaults)
         if calendarExcludedIdentifiers != resolvedExcluded { calendarExcludedIdentifiers = resolvedExcluded }
+
+        let resolvedSkippedOccurrences = CalendarAutoStartPreferences.skippedOccurrences(defaults: defaults)
+        if calendarSkippedOccurrences != resolvedSkippedOccurrences {
+            calendarSkippedOccurrences = resolvedSkippedOccurrences
+        }
+        let resolvedSkippedEvents = CalendarAutoStartPreferences.skippedEvents(defaults: defaults)
+        if calendarSkippedEvents != resolvedSkippedEvents {
+            calendarSkippedEvents = resolvedSkippedEvents
+        }
+    }
+
+    public func skipOccurrence(_ event: CalendarEvent) {
+        calendarSkippedOccurrences.insert(event.dedupeKey)
+    }
+
+    public func skipEvent(_ event: CalendarEvent) {
+        calendarSkippedEvents.insert(event.eventKey)
+    }
+
+    public func unskipOccurrence(_ event: CalendarEvent) {
+        calendarSkippedOccurrences.remove(event.dedupeKey)
+    }
+
+    public func unskipEvent(_ event: CalendarEvent) {
+        calendarSkippedEvents.remove(event.eventKey)
+        calendarSkippedOccurrences.remove(event.dedupeKey)
+    }
+
+    public func pruneSkippedOccurrences(now: Date = Date()) {
+        let pruned = CalendarSkip.prunedOccurrences(calendarSkippedOccurrences, now: now)
+        guard pruned != calendarSkippedOccurrences else { return }
+        calendarSkippedOccurrences = pruned
     }
 
     public func setMeetingAudioRetention(_ retention: MeetingAudioRetention) {

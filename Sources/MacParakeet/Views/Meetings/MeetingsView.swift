@@ -393,7 +393,15 @@ struct MeetingsView: View {
                     } else {
                         VStack(spacing: 0) {
                             ForEach(viewModel.upcomingEvents) { event in
-                                CalendarEventRow(event: event)
+                                CalendarEventRow(
+                                    event: event,
+                                    skipScope: viewModel.skipScope(for: event),
+                                    isNotifyOnly: viewModel.settingsViewModel.calendarAutoStartMode == .notify,
+                                    onSkipThisMeeting: { viewModel.skipThisMeeting(event) },
+                                    onSkipThisRepeatingMeeting: { viewModel.skipThisRepeatingMeeting(event) },
+                                    onUnskipThisMeeting: { viewModel.unskipThisMeeting(event) },
+                                    onUnskipThisRepeatingMeeting: { viewModel.unskipThisRepeatingMeeting(event) }
+                                )
                                 if event.id != viewModel.upcomingEvents.last?.id {
                                     MeetingsHairline()
                                 }
@@ -1404,6 +1412,12 @@ private struct MeetingsLoadingRow: View {
 
 private struct CalendarEventRow: View {
     let event: CalendarEvent
+    let skipScope: CalendarSkipScope?
+    let isNotifyOnly: Bool
+    var onSkipThisMeeting: () -> Void
+    var onSkipThisRepeatingMeeting: () -> Void
+    var onUnskipThisMeeting: () -> Void
+    var onUnskipThisRepeatingMeeting: () -> Void
 
     var body: some View {
         HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
@@ -1428,10 +1442,62 @@ private struct CalendarEventRow: View {
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
                 .lineLimit(1)
+                if let caption = skipCaption {
+                    Text(caption)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        .lineLimit(2)
+                }
             }
         }
         .padding(DesignSystem.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .opacity(skipScope == nil ? 1 : 0.55)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+        .contextMenu {
+            skipMenuItems
+        }
+    }
+
+    @ViewBuilder
+    private var skipMenuItems: some View {
+        switch skipScope {
+        case nil:
+            Button("Don't auto-record this meeting", action: onSkipThisMeeting)
+            if event.isRecurring {
+                Button("Don't auto-record this repeating meeting", action: onSkipThisRepeatingMeeting)
+            }
+        case .event where event.isRecurring:
+            Button("Auto-record this repeating meeting again", action: onUnskipThisRepeatingMeeting)
+        default:
+            Button("Auto-record again", action: onUnskipThisMeeting)
+            if event.isRecurring, skipScope == .occurrence {
+                Button("Don't auto-record this repeating meeting", action: onSkipThisRepeatingMeeting)
+            }
+        }
+    }
+
+    private var skipCaption: String? {
+        guard skipScope != nil else { return nil }
+        if isNotifyOnly {
+            return "MacParakeet won't remind you or start recording."
+        }
+        if skipScope == .occurrence, event.isRecurring {
+            return "Won't auto-record this time."
+        }
+        if skipScope == .event, event.isRecurring {
+            return "Won't auto-record this series."
+        }
+        return "Won't auto-record."
+    }
+
+    private var accessibilityLabel: String {
+        var parts = [event.title, eventDateText, event.formattedTimeRange]
+        if let caption = skipCaption {
+            parts.append(caption)
+        }
+        return parts.joined(separator: ", ")
     }
 
     private var peopleCountText: String {

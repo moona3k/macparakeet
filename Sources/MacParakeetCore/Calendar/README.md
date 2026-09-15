@@ -33,7 +33,7 @@ count.
 Preferences live in `CalendarAutoStartPreferences` (`AppPreferences.swift`):
 mode, reminder lead, trigger filter, excluded calendar IDs.
 
-## Accepted, not implemented — per-event skip (#609)
+## Implemented — per-event skip (#609)
 
 Users can mute this occurrence (`dedupeKey`) or this meeting/series
 (`eventKey`). Series skip is offered only when `isRecurring`. Skip is a
@@ -50,9 +50,6 @@ Governing docs:
 
 - [ADR-017 §11](../../../../spec/adr/017-calendar-meeting-auto-start.md)
 - [plan](../../../../plans/active/2026-09-14-issue-609-calendar-event-skip.md)
-
-Until that lands, toast dismiss is session-only (`dismissedEventIds` in the
-coordinator) and Upcoming rows have no mute.
 
 ## What to know before editing
 

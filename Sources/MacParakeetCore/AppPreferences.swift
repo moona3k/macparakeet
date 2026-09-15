@@ -70,6 +70,16 @@ public enum CalendarAutoStartPreferences {
     /// Stored as the inverse so a fresh install / new calendar account is
     /// included by default — users opt out, not in.
     public static let excludedCalendarIdsKey = "CalendarAutoStart.excludedCalendarIds"
+    public static let skippedOccurrencesKey = "CalendarAutoStart.skippedOccurrences"
+    public static let skippedEventsKey = "CalendarAutoStart.skippedEvents"
 
     public static let defaultReminderMinutes = 5
+
+    public static func skippedOccurrences(defaults: UserDefaults) -> Set<String> {
+        Set(defaults.stringArray(forKey: skippedOccurrencesKey) ?? [])
+    }
+
+    public static func skippedEvents(defaults: UserDefaults) -> Set<String> {
+        Set(defaults.stringArray(forKey: skippedEventsKey) ?? [])
+    }
 }

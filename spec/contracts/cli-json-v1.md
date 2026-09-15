@@ -54,6 +54,11 @@ with human progress/status kept off stdout.
   user's local calendar and time zone: `--since` starts at local midnight and
   `--until` includes the full local day. Full ISO-8601 timestamps with `Z` or
   an explicit offset retain that stated zone.
+- `calendar upcoming --json` returns a flat array of event objects. Existing
+  `CalendarEvent` fields are unchanged. Additive fields are `skipped`
+  (boolean) and `skipScope` (`"occurrence"`, `"event"`, or `null`). Recurrence
+  is not exposed. Membership, `--filter`, and declined-fetch behavior stay as
+  before this feature.
 - `transcript --json` returns one object with transcription metadata and an
   ordered `segments` array. Segment objects contain `seq`, nullable timing and
   speaker fields, `text`, and `segmenterVersion`. Its Local-file `title` follows
@@ -409,6 +414,7 @@ version/changelog treatment.
 - `SearchCommandTests`
 - `CardsCommandTests`
 - `VocabCommandTests`
+- `CalendarUpcomingJSONTests`
 
 Focused coverage pins spec conventions, failure-envelope fields, exit code
 entries, JSON wrapper failure envelopes, JSON validation exit-code

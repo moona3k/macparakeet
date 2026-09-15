@@ -47,6 +47,10 @@ public struct CalendarEvent: Codable, Sendable, Identifiable {
     /// recurring events whose occurrences get reorganized server-side.
     public var externalId: String?
 
+    /// `EKEvent.hasRecurrenceRules || EKEvent.isDetached`. Not inferred from
+    /// a non-nil `externalId`. Default `false` so fixtures compile.
+    public var isRecurring: Bool
+
     public var syncedAt: Date
 
     public init(
@@ -63,6 +67,7 @@ public struct CalendarEvent: Codable, Sendable, Identifiable {
         calendarIdentifier: String? = nil,
         userStatus: EventParticipant.ParticipantStatus? = nil,
         externalId: String? = nil,
+        isRecurring: Bool = false,
         syncedAt: Date = Date()
     ) {
         self.id = id
@@ -78,7 +83,52 @@ public struct CalendarEvent: Codable, Sendable, Identifiable {
         self.calendarIdentifier = calendarIdentifier
         self.userStatus = userStatus
         self.externalId = externalId
+        self.isRecurring = isRecurring
         self.syncedAt = syncedAt
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, startTime, endTime, location, meetUrl, participants
+        case organizer, isAllDay, calendarName, calendarIdentifier, userStatus
+        case externalId, isRecurring, syncedAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        startTime = try container.decode(Date.self, forKey: .startTime)
+        endTime = try container.decode(Date.self, forKey: .endTime)
+        location = try container.decodeIfPresent(String.self, forKey: .location)
+        meetUrl = try container.decodeIfPresent(String.self, forKey: .meetUrl)
+        participants = try container.decodeIfPresent([EventParticipant].self, forKey: .participants) ?? []
+        organizer = try container.decodeIfPresent(EventParticipant.self, forKey: .organizer)
+        isAllDay = try container.decodeIfPresent(Bool.self, forKey: .isAllDay) ?? false
+        calendarName = try container.decodeIfPresent(String.self, forKey: .calendarName)
+        calendarIdentifier = try container.decodeIfPresent(String.self, forKey: .calendarIdentifier)
+        userStatus = try container.decodeIfPresent(EventParticipant.ParticipantStatus.self, forKey: .userStatus)
+        externalId = try container.decodeIfPresent(String.self, forKey: .externalId)
+        isRecurring = try container.decodeIfPresent(Bool.self, forKey: .isRecurring) ?? false
+        syncedAt = try container.decodeIfPresent(Date.self, forKey: .syncedAt) ?? Date()
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(title, forKey: .title)
+        try container.encode(startTime, forKey: .startTime)
+        try container.encode(endTime, forKey: .endTime)
+        try container.encodeIfPresent(location, forKey: .location)
+        try container.encodeIfPresent(meetUrl, forKey: .meetUrl)
+        try container.encode(participants, forKey: .participants)
+        try container.encodeIfPresent(organizer, forKey: .organizer)
+        try container.encode(isAllDay, forKey: .isAllDay)
+        try container.encodeIfPresent(calendarName, forKey: .calendarName)
+        try container.encodeIfPresent(calendarIdentifier, forKey: .calendarIdentifier)
+        try container.encodeIfPresent(userStatus, forKey: .userStatus)
+        try container.encodeIfPresent(externalId, forKey: .externalId)
+        try container.encode(isRecurring, forKey: .isRecurring)
+        try container.encode(syncedAt, forKey: .syncedAt)
     }
 }
 
@@ -165,6 +215,12 @@ public extension CalendarEvent {
 
     var userDeclined: Bool {
         userStatus == .declined
+    }
+
+    /// Meeting/series identity for event-level skip. `externalId` when
+    /// present, otherwise `id`.
+    var eventKey: String {
+        CalendarSkip.eventKey(for: self)
     }
 }
 

@@ -218,7 +218,8 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
             id: "evt-1",
             title: uniqueTitle,
             startTime: Date(),
-            endTime: Date().addingTimeInterval(1800)
+            endTime: Date().addingTimeInterval(1800),
+            meetUrl: "https://zoom.us/j/123"
         )
         coordinator.handleAutoStartOutcome(.completed, for: event)
         XCTAssertEqual(autoStartConfirmedCount, 1,
@@ -459,7 +460,8 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
             id: "B",
             title: "Back-to-back",
             startTime: Date(),
-            endTime: Date().addingTimeInterval(1800)
+            endTime: Date().addingTimeInterval(1800),
+            meetUrl: "https://zoom.us/j/123"
         )
         coordinator.testHook_markCountdownShown(event)
         XCTAssertTrue(coordinator.testHook_isCountdownShown(event))
@@ -486,7 +488,8 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
             id: "B",
             title: "Solo",
             startTime: Date(),
-            endTime: Date().addingTimeInterval(1800)
+            endTime: Date().addingTimeInterval(1800),
+            meetUrl: "https://zoom.us/j/123"
         )
         coordinator.testHook_markCountdownShown(event)
         coordinator.handleAutoStartOutcome(.completed, for: event)
@@ -528,6 +531,70 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
         XCTAssertEqual(calendarService.fetchUpcomingEventsCallCount, 2,
                        "The dropped poll must be honored once after the in-flight poll completes")
 
+        coordinator.stop()
+    }
+
+    func testSkippingOtherEventDoesNotClearOwningCountdown() async {
+        calendarService.stubPermissionStatus = .granted
+        seedSettings(mode: .autoStart)
+
+        let coordinator = makeCoordinator()
+        coordinator.start()
+        await waitForPoll()
+
+        let meetingA = event(id: "A", title: "Keep")
+        let meetingB = event(id: "B", title: "Skip")
+        coordinator.testHook_markCountdownShown(meetingA)
+        settingsViewModel.skipOccurrence(meetingB)
+        await waitForPoll()
+
+        XCTAssertTrue(coordinator.testHook_isCountdownShown(meetingA))
+        coordinator.stop()
+    }
+
+    func testSkipThenUnskipDuringHeldFetchRearmsCountdown() async {
+        calendarService.stubPermissionStatus = .granted
+        let meetingA = event(id: "A", startsIn: 0)
+        calendarService.stubEvents = [meetingA]
+        seedSettings(mode: .autoStart)
+
+        let coordinator = makeCoordinator()
+        coordinator.start()
+        await waitForPoll()
+        coordinator.testHook_markCountdownShown(meetingA)
+        XCTAssertTrue(coordinator.testHook_isCountdownShown(meetingA))
+
+        calendarService.holdNextFetch = true
+        coordinator.testHook_forcePoll()
+        await waitForPoll()
+
+        settingsViewModel.skipOccurrence(meetingA)
+        await waitForPoll()
+        XCTAssertFalse(coordinator.testHook_isCountdownShown(meetingA))
+
+        settingsViewModel.unskipOccurrence(meetingA)
+        await waitForPoll()
+        calendarService.releaseHeldFetch()
+        await waitForPoll()
+
+        XCTAssertTrue(coordinator.testHook_isCountdownShown(meetingA),
+                       "Undo inside the auto-start window must allow the countdown to reappear")
+        coordinator.stop()
+    }
+
+    func testModeChangeToNotifyClosesOwningCountdownSuppressionPath() async {
+        calendarService.stubPermissionStatus = .granted
+        seedSettings(mode: .autoStart)
+
+        let coordinator = makeCoordinator()
+        coordinator.start()
+        await waitForPoll()
+        let meetingA = event(id: "A")
+        coordinator.testHook_markCountdownShown(meetingA)
+        settingsViewModel.calendarAutoStartMode = .notify
+        await waitForPoll()
+        XCTAssertTrue(coordinator.testHook_isCountdownShown(meetingA),
+                      "Mode change closes the toast but keeps countdown-shown (post-#318)")
         coordinator.stop()
     }
 

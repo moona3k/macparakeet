@@ -215,7 +215,10 @@ public final class MeetingsWorkspaceViewModel {
                 let events = try await calendarService.fetchUpcomingEvents(days: lookAheadDays)
                 guard let self, !Task.isCancelled, self.upcomingEventsGeneration == generation else { return }
                 self.upcomingEvents = Self.collapseRecurringOccurrences(
-                    events.filter { event in self.shouldShowCalendarEvent(event) },
+                    MeetingMonitor.candidates(
+                        events: events,
+                        config: self.calendarMonitorConfig()
+                    ).map(\.event),
                     limit: eventLimit
                 )
                 self.isLoadingUpcomingEvents = false
@@ -637,40 +640,48 @@ public final class MeetingsWorkspaceViewModel {
             && settingsViewModel.calendarPermissionStatus == .granted
     }
 
-    /// Decides which fetched events appear in the "Upcoming" preview.
-    ///
-    /// This mirrors the *candidate* set MacParakeet acts on, so the preview
-    /// never promises behavior the coordinator won't deliver. It matches the
-    /// candidate filter of `MeetingAutoStartCoordinator` + `MeetingMonitor.evaluate`:
-    ///   - exclude all-day and RSVP-declined events (`MeetingMonitor` candidate filter),
-    ///   - exclude calendars the user opted out of (`filterByIncludedCalendars`),
-    ///   - apply the trigger filter (`MeetingMonitor.passesFilter`).
-    /// RSVP is deliberately NOT mode-gated here: every candidate gets a reminder
-    /// in any non-`.off` mode, and `.pending`/`.tentative` differ only in whether
-    /// they additionally auto-*record* (`MeetingMonitor.shouldAutoStart`) — a
-    /// per-event nuance, not list membership. Hiding `.pending` in `.autoStart`
-    /// would make the app remind about an event missing from this list.
-    /// The only candidate-filter input not mirrored is `MeetingMonitor`'s
-    /// runtime `dismissedEventIds` (coordinator-private session state); a
-    /// dismissed event reappears here until it passes or the mode changes.
-    /// If the candidate rules change in `MeetingMonitor`, update this in lockstep.
-    private func shouldShowCalendarEvent(_ event: CalendarEvent) -> Bool {
-        guard !event.isAllDay, !event.userDeclined else { return false }
+    /// Shared candidate filter with the auto-start coordinator.
+    private func calendarMonitorConfig() -> MeetingMonitor.Config {
+        MeetingMonitor.Config(
+            mode: settingsViewModel.calendarAutoStartMode,
+            reminderMinutes: settingsViewModel.calendarReminderMinutes,
+            triggerFilter: settingsViewModel.meetingTriggerFilter,
+            excludedCalendarIdentifiers: settingsViewModel.calendarExcludedIdentifiers,
+            skippedOccurrences: settingsViewModel.calendarSkippedOccurrences,
+            skippedEvents: settingsViewModel.calendarSkippedEvents
+        )
+    }
 
-        if let calendarIdentifier = event.calendarIdentifier,
-            settingsViewModel.calendarExcludedIdentifiers.contains(calendarIdentifier)
-        {
-            return false
-        }
+    public func skipScope(for event: CalendarEvent) -> CalendarSkipScope? {
+        CalendarSkip.matches(
+            event,
+            occurrences: settingsViewModel.calendarSkippedOccurrences,
+            events: settingsViewModel.calendarSkippedEvents
+        )
+    }
 
-        switch settingsViewModel.meetingTriggerFilter {
-        case .withLink:
-            return event.meetUrl != nil
-        case .withParticipants:
-            return !event.participants.isEmpty
-        case .allEvents:
-            return true
+    public func skipThisMeeting(_ event: CalendarEvent) {
+        if event.isRecurring {
+            settingsViewModel.skipOccurrence(event)
+        } else {
+            settingsViewModel.skipEvent(event)
         }
+    }
+
+    public func skipThisRepeatingMeeting(_ event: CalendarEvent) {
+        settingsViewModel.skipEvent(event)
+    }
+
+    public func unskipThisMeeting(_ event: CalendarEvent) {
+        if skipScope(for: event) == .event {
+            settingsViewModel.unskipEvent(event)
+        } else {
+            settingsViewModel.unskipOccurrence(event)
+        }
+    }
+
+    public func unskipThisRepeatingMeeting(_ event: CalendarEvent) {
+        settingsViewModel.unskipEvent(event)
     }
 
     /// Collapses occurrences of a recurring series down to its soonest

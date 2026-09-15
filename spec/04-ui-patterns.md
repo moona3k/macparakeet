@@ -84,13 +84,12 @@ under Library's Meetings filter. Reason: Library remains the universal archive,
 while Meetings is the workflow surface for upcoming calendar context, the active
 recording state, recent meetings, recovery states, and intelligence readiness.
 
-Upcoming calendar rows are informational until ADR-017 Phase 2b. After that
-change they stay list-like: no persistent Skip button. A context menu offers
-**Don't auto-record this meeting**, and **Don't auto-record this repeating
-meeting** only when `event.isRecurring` is true (`externalId` alone is not
-enough). Skipped rows remain visible at reduced opacity: **Won't auto-record
-this time** for an occurrence skip on a collapsed series row, **Won't
-auto-record this series** for a recurring event-level skip, **Won't
+Upcoming calendar rows stay list-like: no persistent Skip button. A context
+menu offers **Don't auto-record this meeting**, and **Don't auto-record this
+repeating meeting** only when `event.isRecurring` is true (`externalId` alone
+is not enough). Skipped rows remain visible at reduced opacity: **Won't
+auto-record this time** for an occurrence skip on a collapsed series row,
+**Won't auto-record this series** for a recurring event-level skip, **Won't
 auto-record** for a one-off (occurrence or event-level). Undo is
 **Auto-record again**, or **Auto-record this repeating meeting again** for
 series. In notify-only mode the row caption states that MacParakeet won't

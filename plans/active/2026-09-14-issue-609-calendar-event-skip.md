@@ -1,6 +1,6 @@
 # Per-event calendar skip (#609)
 
-> Status: **PROPOSED** (design accepted 2026-09-14; review-corrected the same day; not implemented)
+> Status: **IMPLEMENTED** (2026-09-14; review-corrected then built)
 > Issue: [#609](https://github.com/moona3k/macparakeet/issues/609)
 > Governs: [ADR-017](../../spec/adr/017-calendar-meeting-auto-start.md) amendment 2026-09-14, [F48](../../spec/02-features.md)
 > Priority: P2

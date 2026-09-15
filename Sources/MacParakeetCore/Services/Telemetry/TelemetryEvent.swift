@@ -583,6 +583,7 @@ public enum TelemetrySettingName: String, Sendable, Equatable {
     case calendarReminderMinutes = "calendar_reminder_minutes"
     case calendarTriggerFilter = "calendar_trigger_filter"
     case calendarIncludedCalendars = "calendar_included_calendars"
+    case calendarEventSkip = "calendar_event_skip"
 }
 
 /// Free-form error details, descriptions and crash reasons are accepted for
