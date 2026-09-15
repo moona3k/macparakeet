@@ -1,0 +1,25 @@
+integrations/README.md
+  s_a0c6484ebd2422::t_ee0242f80c53f2 8
+Sources/CLI/CHANGELOG.md
+  s_a0c6484ebd2422::t_0c3575a2882554 92-93
+spec/README.md
+  s_a0c6484ebd2422::t_4ebbcb41c38d32 84-85
+Sources/CLI/MacParakeetCLI.swift
+  s_a0c6484ebd2422::t_95a8ca8032c500 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d2bb29a112c7c4822942ca5dc1d92195c4154476",
+  "prompts": {},
+  "sessions": {
+    "s_a0c6484ebd2422": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "dbaa186c-eb91-4cba-a2e0-b2894530d96d",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
