@@ -1,0 +1,21 @@
+plans/README.md
+  s_7877b8f1c73fc0::t_e2a41553ae9496 37
+Sources/MacParakeet/App/MeetingAutoStartCoordinator.swift
+  s_7877b8f1c73fc0::t_8c9ec6c52bf6cb 479-481
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5306b8f57197e58aba8a4c1a235109faf2ec0540",
+  "prompts": {},
+  "sessions": {
+    "s_7877b8f1c73fc0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "f20b262c-fcad-468e-8ba0-b799744b4e51",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
