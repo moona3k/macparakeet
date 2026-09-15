@@ -322,6 +322,29 @@ model bundles.
 > diarization evidence remain unchanged, so this does not alter the diarization
 > model or claim per-word timing for rewritten text.
 
+## Audio speaker timeline decision (2026-09-14)
+
+**Accepted direction; implementation pending ([issue #836](https://github.com/moona3k/macparakeet/issues/836)).**
+Preserve detected audio turns independently of word timing and expose a read-only timeline with playback navigation.
+This extends the audio-navigation intent above to Cohere and other wordless results; it does not make their text speaker-attributed.
+The [Audio Speaker Timeline v1 contract](../contracts/audio-speaker-timeline-v1.md) owns the planned payload, coverage, lifecycle, and consumer behavior.
+The [implementation plan](../../docs/plans/2026-09-14-2147-feat-audio-speaker-timeline-plan.md) records the source investigation and verification gates.
+
+Use a separate optional `audioSpeakerTimeline` with its own automatic roster.
+Although this ADR originally described `diarizationSegments` as raw audio evidence, current meeting finalization derives that field from words, and effective correction projections can rebuild it from corrected assignments.
+Reinterpreting it as authoritative audio turns would mislabel legacy records and entangle the timeline with text corrections.
+Keep those existing semantics and text correction fingerprints intact; do not backfill audio evidence from them.
+
+Existing archived-source meetings cover only isolated system audio, shifted onto playback time once.
+Canonical-only saved/imported/split meetings retain their existing single-file analysis path and must identify coverage as canonical recording audio, not isolated system audio.
+This clarifies the earlier mixed-playback prohibition: do not substitute the mixed artifact when isolated archived sources exist.
+No microphone speech intervals are inferred from untimed text or channel duration.
+
+Keep the existing offline service, model readiness, inference serialization, preferences, and speaker-count policy.
+Initial timeline interaction is read-only; audio-cluster correction and text alignment remain follow-ups.
+This decision changes neither voiceprint consent/eligibility nor audio-retention policy.
+Source analysis establishes feasibility; real-audio and native-playback qualification are still required before claiming reliability or availability.
+
 ## Rationale
 
 ### Why the offline pipeline, not Sortformer

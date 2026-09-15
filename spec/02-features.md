@@ -1397,6 +1397,13 @@ new scheduling architecture.
 system track during meeting finalization. The selected ASR engine must provide
 word timings for alignment; Cohere does not. Dictation is single-speaker by design.
 
+**Planned extension (#836):** [Audio Speaker Timeline v1](contracts/audio-speaker-timeline-v1.md)
+adds independent detected audio turns and playback navigation, including for Cohere's untimed text.
+Archived-source meetings expose system-audio coverage only; canonical-only meeting analysis is labeled separately.
+The first milestone is read-only and does not assign words/sentences, expose timeline speaker editing, or change existing text exports.
+See the [implementation plan](../docs/plans/2026-09-14-2147-feat-audio-speaker-timeline-plan.md).
+This extension is not implemented; the checked criteria below describe the existing timed-transcript feature.
+
 **Features:**
 - Automatic speaker segmentation (detect speaker changes)
 - Labels: Speaker 1, Speaker 2, etc. (auto-generated)

@@ -43,6 +43,15 @@ recipient-link, bundle, anonymous owner, lifecycle, and deletion boundaries.
 
 ## Design References
 
+### Planned speaker timeline
+
+[Audio Speaker Timeline v1](contracts/audio-speaker-timeline-v1.md) and its
+[implementation plan](../docs/plans/2026-09-14-2147-feat-audio-speaker-timeline-plan.md)
+define the accepted direction for #836: detected audio turns and playback navigation independent of word timings.
+This is planned work, including for Cohere; it does not change current text-alignment capabilities or release status.
+
+### Current design references
+
 - [UI Patterns](04-ui-patterns.md) is the active product UI contract.
 - [`docs/brand-identity.md`](../docs/brand-identity.md) is the active runtime
   brand identity reference: canonical parakeet mark, app accent color, sizing,

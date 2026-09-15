@@ -72,6 +72,11 @@ Parakeet remains the default because it is faster, lower-latency, and lower-memo
 
 ### Cohere Transcribe Optional Engine
 
+**Planned audio navigation (#836):** The [independent speaker timeline](contracts/audio-speaker-timeline-v1.md)
+will preserve audio-derived speaker turns without requiring Cohere word timestamps.
+This is planned work, not a new Cohere decoder capability or current speaker-labeled-text support.
+The current output and capture behavior below remain accurate.
+
 Cohere Transcribe (`cohere-transcribe-03-2026`, 2B, Apache-2.0) was evaluated by the gold-standard benchmark (`benchmarks/asr/`, PR #568) and is shipped as an opt-in local engine for accuracy-critical record-then-transcribe work. It runs on-device through the same FluidAudio CoreML SDK as Parakeet/Nemotron — FluidAudio >= 0.15.4 exposes a public `CoherePipeline`; q8 model repo `FluidInference/cohere-transcribe-03-2026-coreml` — so no MLX or new runtime is required, unlike the deferred MLX-only candidates (Qwen3-ASR, Moonshine).
 
 | Property | Value |

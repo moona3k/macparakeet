@@ -17,6 +17,11 @@
 
 ## How to read a status
 
+**New planning record (2026-09-14):** [Audio Speaker Timeline](../docs/plans/2026-09-14-2147-feat-audio-speaker-timeline-plan.md)
+scopes #836's timeline-first milestone for files/URLs and finalized meetings.
+The independent audio-evidence contract and ADR-010 direction are documented; app/CLI implementation and real-audio qualification remain pending.
+
+
 | Status | Meaning |
 |--------|---------|
 | **TODO** | Not started. Drift-check before executing. |

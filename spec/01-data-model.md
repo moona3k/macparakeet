@@ -352,12 +352,20 @@ CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, crea
 **Diarization data (v0.4):**
 - `speakerCount`: Number of detected speakers (e.g., 2). Nil if diarization not run or failed.
 - `speakers`: JSON array of `SpeakerInfo` objects mapping stable IDs to display labels (e.g., `[{"id":"S1","label":"Speaker 1"},{"id":"S2","label":"Sarah"}]`). Rename updates the `label` field only — no word rewrite needed.
-- `diarizationSegments`: JSON array of raw diarization segments (e.g., `[{"speakerId":"S1","startMs":0,"endMs":5000}]`). Used for accurate speaking time analytics. Nil if diarization not run or failed.
+- `diarizationSegments`: JSON array of speaker intervals (e.g., `[{"speakerId":"S1","startMs":0,"endMs":5000}]`). File completion stores audio-derived intervals; meeting finalization derives them from timed words, and effective speaker-correction projections can rebuild them from word assignments. This legacy field is not uniformly raw audio evidence. Nil when unavailable.
 - Speaker assignment per word is stored via `speakerId` on each `WordTimestamp` entry using **stable IDs** (`"S1"`, `"S2"`) — not display labels. Display labels are resolved via the `speakers` mapping.
 - `transcriptSegments`: JSON array of durable transcript segments derived from the persisted word array. Readers should use this array for citations instead of re-segmenting words. Nil for legacy/no-timing rows.
 - All diarization fields are nullable. If diarization fails, ASR result is still persisted with these fields as nil.
 
 ---
+
+### Planned independent audio timeline (#836)
+
+[Audio Speaker Timeline v1](contracts/audio-speaker-timeline-v1.md) specifies a proposed nullable `audioSpeakerTimeline` JSON column with independent analysis identity, source coverage, automatic roster, and audio turns.
+The column is not implemented or assigned a migration number by this document.
+It will coexist with the legacy speaker fields rather than reinterpret or backfill them.
+Missing timeline data must not change text alignment; an untimed Cohere transcript stays untimed.
+The contract defines lossless handling of unsupported optional JSON, replacement semantics, and separation from the existing text correction fingerprint.
 
 ### `speaker_corrections` + `speaker_correction_states` (v0.32, extended v0.43)
 
