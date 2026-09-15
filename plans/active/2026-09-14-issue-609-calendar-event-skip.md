@@ -295,17 +295,18 @@ Do **not** newly drop declined or excluded-calendar events in this feature.
 (Declined events are already absent from `CalendarService` fetch when
 `excludeDeclined` is true; excluded-calendar preferences are not applied.)
 
-Encode a CLI-local flat DTO that carries today's `CalendarEvent` fields plus
-the additive skip annotations. Adding `isRecurring` to `CalendarEvent` will
-appear automatically because today's command encodes `CalendarEvent`
-directly; the new contract entry must list `isRecurring`, `skipped`, and
-`skipScope`.
+Encode a CLI-local flat DTO that explicitly carries today's `CalendarEvent`
+JSON fields plus only the two skip annotations below. Keep `isRecurring`
+internal to the calendar policy and UI for #609. Today's command encodes
+`CalendarEvent` directly, so introduce the DTO in the same slice that adds
+`isRecurring`; otherwise that internal field would leak into CLI output.
+Preserve existing field names, values, date encoding, and optional-field
+omission behavior. Do not nest the event under an `event` key.
 
 Additive JSON fields (MINOR, when implemented):
 
 - `skipped: Bool`
 - `skipScope: "occurrence" | "event" | null`
-- `isRecurring: Bool` (new `CalendarEvent` field; list it in the contract)
 
 Human output marks skipped rows. Add a `calendar upcoming --json` entry to
 [`spec/contracts/cli-json-v1.md`](../../spec/contracts/cli-json-v1.md)
@@ -402,7 +403,8 @@ add optional-invitee auto-exclude in this plan.
    `CalendarService.convertEvent`. Policy fields, SettingsViewModel, toast ✕
    writes occurrence skip, Upcoming context menu, undo rules, effect-boundary
    on the coordinator (don't close unrelated toasts; recheck before notify/
-   start).
+   start). Introduce the CLI-local flat DTO here so adding the internal
+   recurrence field does not change CLI JSON.
 3. **CLI annotations + docs** — additive `skipped` / `skipScope` on the
    existing flat JSON; contract **entry added**; CHANGELOG; F48 checkboxes.
 
@@ -454,7 +456,11 @@ Workspace/UI tests:
 - Series action hidden when `isRecurring == false`.
 
 CLI tests: annotation on the existing event array; membership unchanged for
-declined / excluded-calendar fixtures.
+declined / excluded-calendar fixtures. Compare the pre-feature event payload
+with the DTO after removing `skipped` and `skipScope`: existing fields and
+values must match, including optional-field omission and date encoding.
+Assert that `isRecurring` is absent and that an unskipped row emits
+`skipped: false` and `skipScope: null`.
 
 Do not send event titles in telemetry assertions.
 

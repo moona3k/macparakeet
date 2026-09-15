@@ -2068,7 +2068,7 @@ The existing completion handler reads the auto-open preference before presenting
 - [ ] Notify-only mode: skip suppresses the reminder (otherwise mute is a no-op)
 - [ ] Manual hotkey / menu bar / Record still start; skip is automation-only; `probableSnapshotForManualStart` still excludes `.pending`
 - [ ] Do not auto-exclude EventKit optional attendee role; do not change tentative-RSVP auto-start
-- [ ] CLI `calendar upcoming` membership, `--filter`, and flat JSON shape stay as today; additive `skipped` / `skipScope` (`occurrence` | `event` | null); contract **entry added**
+- [ ] CLI `calendar upcoming` membership, `--filter`, and existing flat JSON fields stay as today; only new JSON fields are `skipped` / `skipScope` (`occurrence` | `event` | null); `isRecurring` stays internal; contract **entry added**
 - [ ] Telemetry may send skip counts and scope, never event titles or attendees
 
 ---
