@@ -1,0 +1,51 @@
+Sources/MacParakeet/App/AppWindowCoordinator.swift
+  s_8fa5d602e173bc::t_54b7116eedf8c6 55,88,117,233
+Sources/MacParakeet/AppDelegate.swift
+  s_8fa5d602e173bc::t_169a8c1a8c56d5 84-87,210,566-570
+Sources/MacParakeet/Views/MainWindowView.swift
+  s_8fa5d602e173bc::t_d90c73d0da677d 72,290
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_8fa5d602e173bc::t_f1371a18557098 86,116-118,124,135,1309-1311,1316-1322,1441,1448-1473,2050-2058,2102-2121
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_8fa5d602e173bc::t_2069c71739adcb 3987-4226,4232-6221
+Sources/MacParakeetCore/Database/SpeakerProfileRepository.swift
+  s_8fa5d602e173bc::t_6893bf96f8d357 72-73,84-86,325-340,438-453
+Sources/MacParakeetCore/Services/Diarization/DiarizationService.swift
+  s_8fa5d602e173bc::t_2a3fe0c446b563 473
+Sources/MacParakeetCore/Services/Diarization/SpeakerEmbedding.swift
+  s_8fa5d602e173bc::t_0b4506111671a3 10-19
+Sources/MacParakeetCore/Services/Diarization/SpeakerVoiceprintService.swift
+  s_8fa5d602e173bc::t_f545f6ebda235f 22-64,111-131,158-161,171,180,531-612
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_8fa5d602e173bc::t_26b5a33a4090a7 552-2028
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_8fa5d602e173bc::t_7f480abb5c9bc0 565-2108
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_8fa5d602e173bc::t_95613fc3c6ce7a 153-2584,2604-2913
+Tests/MacParakeetTests/Database/SpeakerProfileRepositoryTests.swift
+  s_8fa5d602e173bc::t_9e54fd56cfdfd9 627-706
+Tests/MacParakeetTests/Services/Diarization/SpeakerVoiceprintServiceTests.swift
+  s_8fa5d602e173bc::t_0901a35cbab6da 1093-1300,1617,1724-1731
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_8fa5d602e173bc::t_92ef6bac60e2d4 150-173
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_8fa5d602e173bc::t_82b15c0a379c2b 3438-3458,3460-3462
+Tests/MacParakeetTests/ViewModels/TranscriptionVoiceEnrollmentTests.swift
+  s_8fa5d602e173bc::t_91774062af7b0b 13-776,787-835
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a815d0654f1848ef194302d39f03bb9d24bba913",
+  "prompts": {},
+  "sessions": {
+    "s_8fa5d602e173bc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a63c-0ead-7bc2-9ca2-d8e8537b939f",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
