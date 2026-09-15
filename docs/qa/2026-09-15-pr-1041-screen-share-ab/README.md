@@ -47,7 +47,9 @@ calendar and shared Settings changes that landed on main while hosted CI ran.
 - Same-machine Zoom web receiver with microphone and camera disabled.
 - Animated 16x9 canvas with continuously moving tiles, gradient, and marker at
   the display's 120 Hz refresh rate.
-- Repeatable 119-second synthetic speech sample; no user audio.
+- Repeatable 119-second synthetic speech fixture; no user audio. Recordings
+  lasted 81.3 to 98.3 seconds and captured a leading portion of the fixture,
+  so final-transcript validation applies only to the captured portion.
 - Run order: live on, live off, live off, live on.
 - Forty process samples per arm. Canvas traces covered 68.5 to 82.8 seconds
   because process enumeration extended the nominal sample interval.
