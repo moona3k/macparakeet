@@ -1,0 +1,106 @@
+Sources/MacParakeetCore/Calendar/CalendarSkip.swift
+  s_7877b8f1c73fc0::t_5fdb350592f3b6 1-45
+Tests/MacParakeetTests/Calendar/MeetingAutoStartCoordinatorTests.swift
+  s_7877b8f1c73fc0::t_567cf292e7a79f 463-464
+  s_7877b8f1c73fc0::t_b1038110501e1d 580-581
+  s_7877b8f1c73fc0::t_88ceabbc76c2b7 221-222
+  s_7877b8f1c73fc0::t_aa5bf218762aca 491-492
+  s_7877b8f1c73fc0::t_10b691a1e7c8ae 537-579,582-600
+Tests/MacParakeetTests/Calendar/MeetingMonitorTests.swift
+  s_7877b8f1c73fc0::t_6da13cd1ccd3da 329,332-335,339
+  s_7877b8f1c73fc0::t_5c924d83ebd301 17-19,31-33,40-42,49-51
+  s_7877b8f1c73fc0::t_e7bbfa712a092b 478,480,482,489-531,533-548
+  s_7877b8f1c73fc0::t_de9a3701369d85 532
+  s_7877b8f1c73fc0::t_aae1ee1918923c 549-559
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_7877b8f1c73fc0::t_8a0ad2668af9f0 586
+spec/04-ui-patterns.md
+  s_7877b8f1c73fc0::t_26340475cf21ca 87-92
+Sources/MacParakeetCore/Calendar/README.md
+  s_7877b8f1c73fc0::t_5afdf01d9f8420 36
+Sources/MacParakeet/Views/Meetings/MeetingsView.swift
+  s_7877b8f1c73fc0::t_319875dd3b6613 1415-1420,1445-1450,1455-1500
+  s_7877b8f1c73fc0::t_8bcd3f2ab2de73 396-404
+plans/active/2026-09-14-issue-609-calendar-event-skip.md
+  s_7877b8f1c73fc0::t_d444695e12c1eb 3
+Tests/MacParakeetTests/ViewModels/MeetingsWorkspaceViewModelTests.swift
+  s_7877b8f1c73fc0::t_a6fdb3de777680 982-983,996-997
+  s_7877b8f1c73fc0::t_2ff2804f42e8dc 99-124
+Sources/CLI/Commands/CalendarCommand.swift
+  s_7877b8f1c73fc0::t_8f9f3ba09f6e25 126-212
+  s_7877b8f1c73fc0::t_efbd026f014760 109
+  s_7877b8f1c73fc0::t_893c5eae045f43 46-55,58,60
+  s_7877b8f1c73fc0::t_13569be5112455 74,85-86,88-91,94,98-99,101,106-108
+Tests/CLITests/CalendarUpcomingJSONTests.swift
+  s_7877b8f1c73fc0::t_62ad12bbc9c212 1-146
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_7877b8f1c73fc0::t_300a96af0b908d 961-962
+  s_7877b8f1c73fc0::t_6283a2f33a22f4 1033
+  s_7877b8f1c73fc0::t_49c1b55905e00d 692-707
+  s_7877b8f1c73fc0::t_2c526cbda14acd 1023-1031
+  s_7877b8f1c73fc0::t_327906c159b943 1032,1034-1054
+plans/README.md
+  s_7877b8f1c73fc0::t_410ca367f0d435 37
+Sources/CLI/CHANGELOG.md
+  s_7877b8f1c73fc0::t_50bf4e896a1cc3 92-97
+spec/README.md
+  s_7877b8f1c73fc0::t_168d8809676963 307
+  s_7877b8f1c73fc0::t_e075a67ada42cf 130
+Sources/MacParakeetViewModels/MeetingsWorkspaceViewModel.swift
+  s_7877b8f1c73fc0::t_2c5096b8a77b76 218-221
+  s_7877b8f1c73fc0::t_04b21ad2f6ee0b 686
+  s_7877b8f1c73fc0::t_7922b85755be62 643-667,669,671-679,683-685
+spec/adr/017-calendar-meeting-auto-start.md
+  s_7877b8f1c73fc0::t_f93c5307fe7796 288
+  s_7877b8f1c73fc0::t_a2f7a294273837 111
+  s_7877b8f1c73fc0::t_a6a026547b8cd9 3
+Sources/MacParakeetCore/AppPreferences.swift
+  s_7877b8f1c73fc0::t_84e75cf8f07416 73-74,77-84
+Sources/MacParakeet/App/MeetingAutoStartCoordinator.swift
+  s_7877b8f1c73fc0::t_99cb8c63810568 255
+  s_7877b8f1c73fc0::t_c5c889981b38a5 349-352
+  s_7877b8f1c73fc0::t_bf70c261be866a 692
+  s_7877b8f1c73fc0::t_47574b7199eb47 254,497,501,506-526
+  s_7877b8f1c73fc0::t_e95a884f178628 624
+  s_7877b8f1c73fc0::t_41d01d80424e12 430-431
+  s_7877b8f1c73fc0::t_625d67e78ad8ed 126
+  s_7877b8f1c73fc0::t_fad792bfc52b98 68
+  s_7877b8f1c73fc0::t_ee2bebf2491071 207-208,210,214-253
+  s_7877b8f1c73fc0::t_95d76878d350e7 571
+  s_7877b8f1c73fc0::t_15271296866439 535-544
+  s_7877b8f1c73fc0::t_98dbb2e4649321 476,478
+  s_7877b8f1c73fc0::t_f6bf45e7e66ed7 433-434,436
+  s_7877b8f1c73fc0::t_02ecede1aedacc 527
+  s_7877b8f1c73fc0::t_9b346a9bd0ec4e 326,328
+Sources/MacParakeetCore/Calendar/CalendarEvent.swift
+  s_7877b8f1c73fc0::t_ea45b611c01ed9 50-53,70,86,89-112
+  s_7877b8f1c73fc0::t_77b8b9bf399739 114-132
+  s_7877b8f1c73fc0::t_1f4295ec7bc11d 113,219-224
+spec/02-features.md
+  s_7877b8f1c73fc0::t_5ce4831a2c0594 2053
+  s_7877b8f1c73fc0::t_7d5c46ed67ffa7 2058-2072
+Sources/MacParakeetCore/Calendar/CalendarService.swift
+  s_7877b8f1c73fc0::t_abca62f2d62c0f 229
+Sources/MacParakeetCore/Calendar/MeetingMonitor.swift
+  s_7877b8f1c73fc0::t_2268357fe5ebd0 171
+  s_7877b8f1c73fc0::t_6f08204346f304 26-37,47-49,56-59,66-68,74-99,102,105,116-119,154-170
+spec/contracts/cli-json-v1.md
+  s_7877b8f1c73fc0::t_2f16d91321deff 417
+  s_7877b8f1c73fc0::t_e204ba714863fc 57-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6bfaf49d64cf3ed36728f6eb67c3772a3c4ee01b",
+  "prompts": {},
+  "sessions": {
+    "s_7877b8f1c73fc0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "f20b262c-fcad-468e-8ba0-b799744b4e51",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

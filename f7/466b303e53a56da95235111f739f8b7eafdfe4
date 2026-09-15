@@ -1,0 +1,27 @@
+spec/adr/017-calendar-meeting-auto-start.md
+  s_7877b8f1c73fc0::t_d16ba079562944 138-147
+plans/active/2026-09-14-issue-609-calendar-event-skip.md
+  s_7877b8f1c73fc0::t_6d48f14fbe0d57 249-259
+  s_7877b8f1c73fc0::t_3fb8432421cbd7 309-312
+  s_7877b8f1c73fc0::t_b667d4856cf845 320-321
+  s_7877b8f1c73fc0::t_584fb87ed62138 453-456
+  s_7877b8f1c73fc0::t_dca7ccb3745d6f 108-110
+spec/02-features.md
+  s_7877b8f1c73fc0::t_080424132d57fa 2065
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f7466b303e53a56da95235111f739f8b7eafdfe4",
+  "prompts": {},
+  "sessions": {
+    "s_7877b8f1c73fc0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "f20b262c-fcad-468e-8ba0-b799744b4e51",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
