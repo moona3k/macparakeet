@@ -1,0 +1,47 @@
+spec/02-features.md
+  s_7877b8f1c73fc0::t_54786e94cf9df4 2065-2067
+plans/README.md
+  s_7877b8f1c73fc0::t_785237d0a3b85e 37
+spec/README.md
+  s_7877b8f1c73fc0::t_d8690206e98a3b 306
+spec/adr/017-calendar-meeting-auto-start.md
+  s_7877b8f1c73fc0::t_e428353ed80726 175-176
+  s_7877b8f1c73fc0::t_bb4ea059a32d59 136-147
+  s_7877b8f1c73fc0::t_a2d2304dc06380 288
+  s_7877b8f1c73fc0::t_4f7e176e298955 249-250
+Sources/MacParakeetCore/Calendar/README.md
+  s_7877b8f1c73fc0::t_3797997dee5a17 22-24
+  s_7877b8f1c73fc0::t_c67276e47f88f0 43-46
+  s_7877b8f1c73fc0::t_aa9f795a0e258f 64-67
+spec/04-ui-patterns.md
+  s_7877b8f1c73fc0::t_cba4c058f6ea21 93-100
+plans/active/2026-09-14-issue-609-calendar-event-skip.md
+  s_7877b8f1c73fc0::t_e5ec152cd5d023 135-138
+  s_7877b8f1c73fc0::t_c625bd3d42191b 324-336
+  s_7877b8f1c73fc0::t_d33e43c20cdcf4 190-194
+  s_7877b8f1c73fc0::t_db05839b9bf283 292,295-302,308
+  s_7877b8f1c73fc0::t_fc1aeeac74d646 200-210
+  s_7877b8f1c73fc0::t_54d521411a4a03 339-341
+  s_7877b8f1c73fc0::t_b7824810b06988 360-362,365-367
+  s_7877b8f1c73fc0::t_4d554b14f44b70 8-11
+  s_7877b8f1c73fc0::t_fe4ac2213af5df 438-442
+  s_7877b8f1c73fc0::t_39a66d550bf950 246-256
+  s_7877b8f1c73fc0::t_36138335efa9ca 414-416
+  s_7877b8f1c73fc0::t_3c31c19f6912aa 107-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6e0362445386aa41896ba5ff9bd56067806e71fd",
+  "prompts": {},
+  "sessions": {
+    "s_7877b8f1c73fc0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "f20b262c-fcad-468e-8ba0-b799744b4e51",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
