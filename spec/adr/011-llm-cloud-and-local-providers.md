@@ -65,6 +65,8 @@ The current implementation supports these provider/runtime types through one sha
 
 **Amendment (2026-07-05): developer-gated Local MLX foundation.** The provider seam, gated MLX runtime wiring, verified model downloader, and one-click Settings card may exist in `main` as non-public infrastructure. `AppFeatures.inProcessLocalLLMEnabled` stays `false`; developers expose the option with `MacParakeetEnableInProcessLocalLLM` or `--enable-local-ai`. Public one-click setup remains blocked by runtime capability gating, setup UX, release readiness, and Phase 0 quality evidence. The first plausible public scope is single-transcript cleanup/summarization/Q&A; cross-meeting or whole-library analysis remains future-gated. The app still never bundles a model, never downloads one automatically, and never recommends Local MLX over cloud/frontier quality until surface-specific evidence justifies that change.
 
+**Amendment (2026-09-14): per-task selection, if split.** The current runtime still stores one `LLMProviderConfig` and resolves it for every LLM call. If model selection is later split, it follows [ADR-032](032-llm-task-group-routing.md): a few tasks with inherit / general-LLM route / specialist recipe, not a picker per AI feature. Specialists are task-bound recipes, not default-list model IDs. That ADR does not change this ADR's provider, privacy, or shared-client decisions, and it does not schedule the work.
+
 ### Features Enabled
 
 | Feature | Description | Scope |
@@ -249,6 +251,7 @@ Historical note: this alternative has since been implemented. Anthropic now uses
 
 - ADR-002: Local-first processing (updated with LLM provider exception)
 - ADR-008: Previous local LLM approach (HISTORICAL)
+- ADR-032: Per-task LLM selection and specialist recipes if model selection is split (accepted direction; not implemented)
 - `spec/11-llm-integration.md`: Current provider integration spec
 - Char (fastrepl/char): Meeting app with cloud + local-provider LLM support
 - Cursor, Raycast, Continue: Precedent for "bring your own API key" in developer tools
