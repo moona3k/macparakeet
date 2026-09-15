@@ -1,0 +1,21 @@
+plans/active/2026-09-14-issue-609-calendar-event-skip.md
+  s_3123863988cdf3::t_5866e967e61aec 298-304,406-407,459-463
+spec/02-features.md
+  s_3123863988cdf3::t_5866e967e61aec 2071
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8e74f7ef3723789e36d03e82fe4d9e8ba099c50d",
+  "prompts": {},
+  "sessions": {
+    "s_3123863988cdf3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a339-ad67-7f50-932d-9ff4179c2f28",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
