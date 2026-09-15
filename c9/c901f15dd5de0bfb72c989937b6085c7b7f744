@@ -1,0 +1,19 @@
+Sources/MacParakeetCore/Calendar/README.md
+  s_7877b8f1c73fc0::t_7c3c670694250a 25-26,29,36-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c9c901f15dd5de0bfb72c989937b6085c7b7f744",
+  "prompts": {},
+  "sessions": {
+    "s_7877b8f1c73fc0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "f20b262c-fcad-468e-8ba0-b799744b4e51",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
