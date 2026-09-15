@@ -160,6 +160,7 @@ let package = Package(
             path: "Sources/MacParakeetCore",
             exclude: [
                 "Audio/README.md",
+                "Calendar/README.md",
                 "Database/README.md",
                 "Licensing/README.md",
                 "Resources",
