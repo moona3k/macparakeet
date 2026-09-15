@@ -1,0 +1,66 @@
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  s_6e900f61be018a::t_f9083925964ebf 7-31,724,747-750,933
+  s_6e900f61be018a::t_98bc1c5700c4a1 127-128
+  s_6e900f61be018a::t_45b9e561070ed0 136-139,1221-1222,1234-1238
+  s_6e900f61be018a::t_1e9e490d2e56d9 1239-1242
+  s_6e900f61be018a::t_0a3dbe3c104256 932,934
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingService.swift
+  s_6e900f61be018a::t_92b836d50b9e40 895-896,2307
+  s_6e900f61be018a::t_b94eaf86eab105 54-55,105-106,323,625,713,889-894,897-898,2308-2309
+  s_6e900f61be018a::t_da01e883887a0a 2310-2311
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_6e900f61be018a::t_92b836d50b9e40 1666
+  s_6e900f61be018a::t_b9457dd403798a 127-158,1540-1541,1590-1591,1599-1600,1661,1665,1667-1668
+  s_6e900f61be018a::t_b94eaf86eab105 1936
+  s_6e900f61be018a::t_5749c8e112418a 1669-1670,1937
+Sources/MacParakeetCore/Audio/SharedMicrophoneStream.swift
+  s_6e900f61be018a::t_bbf6d12b82bb77 134,142,147-169,173,268-270,272-273
+Tests/MacParakeetTests/Audio/AudioLifecycleLogCorrelationTests.swift
+  s_6e900f61be018a::t_a2dacab47c07fe 1-61
+Tests/MacParakeetTests/Audio/SharedMicrophoneQueueDiagnosticsTests.swift
+  s_6e900f61be018a::t_9e496fe27c9aca 1-241
+Sources/MacParakeetCore/Services/Telemetry/Observability.swift
+  s_6e900f61be018a::t_9231828ee2367e 66-69,122-126,130-131,136,140
+  s_6e900f61be018a::t_ffa87722c0cf53 239,243
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_6e900f61be018a::t_1e9e490d2e56d9 873,928-930
+  s_6e900f61be018a::t_36a91686af913e 931,942,1016,1043,1081,1648-1649,1739,1751,1765,1780,1788-1790
+spec/contracts/telemetry-v1.md
+  s_6e900f61be018a::t_d14e93cd41d60f 113-114
+  s_6e900f61be018a::t_a61fd168a6906a 99-112,115,137-147
+docs/telemetry.md
+  s_6e900f61be018a::t_a61fd168a6906a 398-404,476-482
+  s_6e900f61be018a::t_597b353327d472 483
+Tests/MacParakeetTests/Services/Telemetry/ObservabilityCaptureCorrelationTests.swift
+  s_6e900f61be018a::t_3ae4a0b760e1a2 1-142
+Sources/MacParakeetCore/Audio/AudioCaptureDiagnostics.swift
+  s_6e900f61be018a::t_35ae79d411df75 166-171
+  s_6e900f61be018a::t_1c3bcb26d07516 120-133,135
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingCaptureDiagnostics.swift
+  s_6e900f61be018a::t_b94eaf86eab105 1-25
+Sources/MacParakeetCore/Audio/AudioEngineLifecycleDiagnostics.swift
+  s_6e900f61be018a::t_bbf6d12b82bb77 11-15,39,78,99-100,133,151,163,245-246,296
+  s_6e900f61be018a::t_35ae79d411df75 158
+Tests/MacParakeetTests/TelemetryServiceTests.swift
+  s_6e900f61be018a::t_c24f7d4259ef22 2035
+  s_6e900f61be018a::t_30b73c55b44c9a 453-454,473-474,482-484,488-495,593-595,728-729,839-840,843-844,1571-1573,1583-1585,1710-1711,1856-1888
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_6e900f61be018a::t_b94eaf86eab105 906-907,1643-1644,1661-1664
+  s_6e900f61be018a::t_5268251e59cba6 1665-1667
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "aa8beec66c68f126b91a014c46de1f5f4ac9a140",
+  "prompts": {},
+  "sessions": {
+    "s_6e900f61be018a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a602-46c5-7951-a593-e5b58817a95b",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
