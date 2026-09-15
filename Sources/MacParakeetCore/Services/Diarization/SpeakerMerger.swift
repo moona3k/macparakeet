@@ -36,7 +36,7 @@ public enum SpeakerMerger {
             while s < sortedSegments.count {
                 let seg = sortedSegments[s]
                 if seg.startMs >= word.endMs {
-                    break // No more segments can overlap this word
+                    break  // No more segments can overlap this word
                 }
 
                 let overlapStart = max(word.startMs, seg.startMs)
@@ -57,6 +57,50 @@ public enum SpeakerMerger {
             }
         }
 
+        return smoothIsolatedAssignments(result)
+    }
+
+    /// Collapse one-word speaker flips and nil gaps when both neighbors agree.
+    ///
+    /// Over-split clustering and `minSegmentDurationSeconds = 0` produce
+    /// singleton IDs that `TranscriptSegmenter` then renders as their own
+    /// bubble. A word between two different speakers is left alone: that is
+    /// the two-talker short, not a bubble.
+    private static func smoothIsolatedAssignments(_ words: [WordTimestamp]) -> [WordTimestamp] {
+        guard words.count >= 3 else { return words }
+
+        var result = words
+        var index = 0
+        while index < words.count {
+            let runID = words[index].speakerId
+            var end = index + 1
+            while end < words.count && words[end].speakerId == runID {
+                end += 1
+            }
+
+            let previous = index > 0 ? words[index - 1].speakerId : nil
+            let next = end < words.count ? words[end].speakerId : nil
+            let runLength = end - index
+            let fill: String?
+            if let previous, previous == next {
+                if runID == nil {
+                    fill = previous
+                } else if runLength == 1, runID != previous {
+                    fill = previous
+                } else {
+                    fill = nil
+                }
+            } else {
+                fill = nil
+            }
+
+            if let fill {
+                for wordIndex in index..<end {
+                    result[wordIndex].speakerId = fill
+                }
+            }
+            index = end
+        }
         return result
     }
 }

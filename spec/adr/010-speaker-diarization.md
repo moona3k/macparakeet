@@ -2,7 +2,7 @@
 
 > Status: **Accepted**
 > Date: 2026-03-04
-> Current scope (2026-09-13): offline file/URL transcription and optional isolated system-track meeting refinement. The original comparison tables and performance rationale below are historical; the 2026-09-06 amendment governs the high-accuracy preset, and the 2026-09-13 amendment records the FluidAudio 0.15.7 pin.
+> Current scope (2026-09-15): offline file/URL transcription and optional isolated system-track meeting refinement. The original comparison tables and performance rationale below are historical; the 2026-09-06 amendment governs the high-accuracy preset, the 2026-09-13 amendment records the FluidAudio 0.15.7 pin, and the 2026-09-15 amendment records conservative word-assignment smoothing (#1046).
 
 ## Context
 
@@ -269,6 +269,27 @@ Skip diarization for: dictation (single speaker by design), or when the correspo
 > `benchmarks/diarization/2026-09-13-fluidaudio-0.15.7-eval.md`. This does not
 > close Auto 1:1 over-splits (#944); `MeetingSpeakerPrior` is still
 > `max = n + 1`.
+
+> **Amendment (2026-09-15, issue #1046):** `SpeakerMerger` now collapses
+> a singleton word (or an unlabeled run) when both neighboring runs share
+> a speaker. A short between two different speakers remains assigned by
+> overlap or unlabeled; transcript edges and multi-word speaker runs are
+> unchanged. This presentation-layer post-pass does not change FluidAudio
+> clusters, speaker rosters, `clustering.threshold`, or voice-profile
+> behavior.
+>
+> Centroid consolidation at the independently frozen voiceprint tau 0.25
+> was evaluated and rejected for this change. It changed zero rosters on
+> the seven-file VoxConverse Auto gate. The one-speaker `wibky` over-split
+> centroids were distance 0.474, so making that pair merge would require
+> entering the measured different-speaker range (0.47–0.84). The threshold
+> was not fitted to the gate. Benchmark and diagnostic details:
+> `benchmarks/diarization/2026-09-15-issue-1046-baseline.md`.
+>
+> Remaining follow-ups from the 2026-09-06 list: nearest-turn fallback for
+> sub-second words that are not isolated flips, a safer over-split
+> consolidation signal, stable IDs across re-runs, in-person microphone
+> diarization, and Nemotron-3 Diarization.
 
 **Model preparation (2026-09-07):** The service shares one model-loading task
 across speaker constraints and initializes each configured manager from those

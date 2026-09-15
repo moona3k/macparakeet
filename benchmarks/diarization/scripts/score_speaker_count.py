@@ -40,6 +40,42 @@ def roster(doc: dict) -> dict[str, object]:
     }
 
 
+def word_smoothing_stats(doc: dict) -> dict[str, int]:
+    speaker_ids = [word.get("speakerId") for word in doc.get("wordTimestamps") or []]
+    isolated_flips = sum(
+        speaker_ids[index] is not None
+        and speaker_ids[index - 1] is not None
+        and speaker_ids[index - 1] == speaker_ids[index + 1]
+        and speaker_ids[index] != speaker_ids[index - 1]
+        for index in range(1, len(speaker_ids) - 1)
+    )
+
+    nil_words = sum(speaker_id is None for speaker_id in speaker_ids)
+    bounded_nil_words = 0
+    index = 0
+    while index < len(speaker_ids):
+        if speaker_ids[index] is not None:
+            index += 1
+            continue
+        end = index + 1
+        while end < len(speaker_ids) and speaker_ids[end] is None:
+            end += 1
+        if (
+            index > 0
+            and end < len(speaker_ids)
+            and speaker_ids[index - 1] is not None
+            and speaker_ids[index - 1] == speaker_ids[end]
+        ):
+            bounded_nil_words += end - index
+        index = end
+
+    return {
+        "isolated_flips": isolated_flips,
+        "bounded_nil_words": bounded_nil_words,
+        "nil_words": nil_words,
+    }
+
+
 def runs_for(role: str, rttm_n: int) -> list[tuple[str, int | None]]:
     runs: list[tuple[str, int | None]] = [("unconstrained", None)]
     if role.startswith("exact1"):
@@ -64,6 +100,11 @@ def main() -> int:
     ap.add_argument("--selected", type=Path, default=HERE / "selected_files.tsv")
     ap.add_argument("--results-dir", type=Path, required=True)
     ap.add_argument("--arm", required=True, help="baseline or candidate directory name")
+    ap.add_argument(
+        "--unconstrained-only",
+        action="store_true",
+        help="Score Auto roster only (issue #1046). Skip Exact/max cap runs.",
+    )
     args = ap.parse_args()
 
     rows = list(csv.DictReader(args.selected.open(), delimiter="\t"))
@@ -73,6 +114,8 @@ def main() -> int:
         rttm_n = int(row["rttm_speakers"])
         role = row["role"]
         for run, cap in runs_for(role, rttm_n):
+            if args.unconstrained_only and run != "unconstrained":
+                continue
             path = args.results_dir / args.arm / f"{fid}.{run}.json"
             rec = {
                 "arm": args.arm,
@@ -85,8 +128,11 @@ def main() -> int:
                 "exists": path.is_file(),
             }
             if path.is_file():
-                counts = roster(load_json(path))
+                doc = load_json(path)
+                counts = roster(doc)
                 rec.update(counts)
+                if args.unconstrained_only:
+                    rec.update(word_smoothing_stats(doc))
                 observed = int(counts["roster"])
                 rec["pass"] = pass_for(run, observed, rttm_n, cap)
             else:
@@ -105,6 +151,7 @@ def main() -> int:
         "word_speakers",
         "segment_speakers",
         "pass",
+        *(["isolated_flips", "bounded_nil_words", "nil_words"] if args.unconstrained_only else []),
         "labels",
         "exists",
         "json_path",

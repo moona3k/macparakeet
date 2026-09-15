@@ -9,6 +9,9 @@ This is **not** a DER harness and does **not** close Auto 1:1 over-splits
 ([#944](https://github.com/moona3k/macparakeet/issues/944)). Auto still allows
 `max = n + 1`. This suite tests the constraint path ([#1023](https://github.com/moona3k/macparakeet/issues/1023)).
 
+Unconstrained Auto over-split on the same seven files is a separate gate:
+[2026-09-15-issue-1046-baseline.md](2026-09-15-issue-1046-baseline.md) ([#1046](https://github.com/moona3k/macparakeet/issues/1046)).
+
 ## Layout
 
 | Path | What it is |
@@ -18,7 +21,9 @@ This is **not** a DER harness and does **not** close Auto 1:1 over-splits
 | `rttm/*.rttm` | Copied v0.3 labels for that slice |
 | `scripts/download_selected_wavs.py` | Fetches only those WAVs |
 | `scripts/run_speaker_count_ab.sh` | Same files on two CLI binaries |
-| `scripts/score_speaker_count.py` | Roster vs RTTM / vs requested cap |
+| `scripts/run_issue_1046_unconstrained_ab.sh` | Frozen 0.15.7 Auto baseline vs one candidate CLI |
+| `scripts/score_speaker_count.py` | Roster vs RTTM / requested cap; `--unconstrained-only` also reports isolated flips and bounded nil words |
+| `test_score_speaker_count.py` | Pure-Python correctness tests for the word-smoothing metrics |
 
 Default audio root: `$HOME/asr-bench/voxconverse` (same pattern as LibriSpeech).
 

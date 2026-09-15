@@ -1459,7 +1459,7 @@ are unaffected.
 - Three-stage pipeline: pyannote community-1 (segmentation) + WeSpeaker v2 (embeddings) + VBx (clustering)
 - Current source pins FluidAudio 0.15.7 and uses `DiarizationService.highAccuracyConfig`. Older DER figures predate clustering fixes and are not a quality measurement of this build; see ADR-010.
 - ~130 MB additional model download (one-time, cached alongside ASR models)
-- Runs after ASR completes, merges speaker segments with word-level timestamps by time overlap
+- Runs after ASR completes and merges speaker segments with word-level timestamps by time overlap. Isolated one-word flips and unlabeled gaps inherit a speaker only when both neighboring runs agree (ADR-010 2026-09-15).
 - Diarization is non-fatal — if it fails, ASR result is still persisted without speaker data
 - Automatic IDs (`"S1"`, `"S2"`) belong to one transcript version. User corrections are stored separately and resolved into effective attribution for display, search, exports, artifacts and AI; IDs are not cross-file or retranscription identity.
 - Overlapping speech regions are trimmed (exclusive output) — words in overlap zones may lack speaker assignment
