@@ -120,13 +120,24 @@ relaunch.
 
 - Skip is a user decision stored as preference IDs, not an EventKit cache and
   not SQLite (extends §6). Keys: occurrence = `CalendarEvent.dedupeKey`;
-  series = `externalId`. Never title.
-- `MeetingMonitor` owns eligibility. Upcoming, CLI, and the coordinator share
-  one `candidates(...)` function. Skipped events remain visible (annotated)
-  and drop out of `evaluate` (no reminder, no auto-start).
-- Toast ✕ and Upcoming "Don't auto-record this meeting" write the same
-  occurrence skip. Series skip is a separate menu item when `externalId` is
-  present. Undo is **Auto-record again** on the still-visible Upcoming row.
+  meeting/series = `eventKey` (`externalId ?? id`). Never title.
+  `externalId` is not a recurrence flag. Ingest `isRecurring` from
+  `hasRecurrenceRules || isDetached`. Series skip is offered only when
+  `isRecurring` is true.
+- Upcoming default is the whole meeting for one-off events and this
+  occurrence for recurring events. Toast ✕ is always this occurrence.
+- `MeetingMonitor.candidates` is shared by Upcoming and the coordinator.
+  Skipped events remain visible (annotated) and drop out of `evaluate`
+  (no reminder, no auto-start). CLI `calendar upcoming` keeps today's
+  membership and only annotates skips.
+- Undo: occurrence undo removes that `dedupeKey`. Event/series undo removes
+  the `eventKey` and the selected occurrence key; other occurrence skips
+  for that series stay.
+- Effect boundary: a skip prevents effects not yet committed. Recheck
+  eligibility after awaits and immediately before notify/start. Close only
+  the countdown owned by a now-skipped occurrence. Unrelated countdowns
+  continue. Programmatic close never writes a skip. Skip never stops a live
+  recording.
 - Skip blocks automation only. Manual Record / hotkey / menu bar still work
   (same independence as §10).
 - Do **not** auto-exclude EventKit optional `participantRole`. Optional invite
@@ -265,7 +276,7 @@ Repo: `https://github.com/moona3k/oatmeal` (same owner, GPL-3.0).
 1. **Phase 1 — Notify only ✅ IMPLEMENTED (2026-04-25; onboarding amended 2026-06-13):** Ported `CalendarService`, `MeetingLinkParser`, `MeetingMonitor`, `CalendarEvent` from Oatmeal. Built `MeetingAutoStartCoordinator` (`@MainActor`, adaptive 60s/15s/5s polling, `.EKEventStoreChanged` observer, daily stale-id cleanup). The Settings subsection and per-calendar include list are implemented and enabled (`AppFeatures.calendarEnabled = true`). CLI surface (`macparakeet-cli calendar upcoming` + `health` extension) ships alongside for headless verification. Mode defaults to `.off` and is enabled from Settings. The original onboarding step was removed by ADR-005's dictation-first amendment.
 2. **Phase 2 — Auto-start with countdown ✅ IMPLEMENTED (2026-04-25):** Built `MeetingCountdownToastController` for the pre-meeting auto-start countdown. **Superseded by the 2026-05-22 amendment:** the original end-of-meeting auto-stop countdown was removed, and the auto-start toast was redesigned as a minimal top-right "countdown halo" (sacred-geometry rosette inside a coral ring, ✕ to cancel / ↵ to start now). Current coordinator behavior handles `.autoStartDue` -> toast -> `MeetingRecordingFlowCoordinator.startFromCalendar()` and never stops recordings from calendar end times. Settings exposes all three modes but no auto-stop toggle. Current telemetry events are `calendar_reminder_shown`, `calendar_auto_start_triggered`, `calendar_auto_start_cancelled`, and `calendar_auto_start_failed`; removed auto-stop events are historical only. `meeting_recording_started` gained an optional `trigger` prop. `CalendarServicing` protocol + `MockCalendarService` extracted for `MeetingAutoStartCoordinatorTests`.
    - **Post-#318 reliability hardening (2026-05-21) — flag enabled:** countdowns are closed/ignored when calendar settings or permissions disable the action mid-flight; auto-start is gated on RSVP (declined/pending excluded) and zero-duration/inverted events are dropped; rescheduled occurrences re-fire via `CalendarEvent.dedupeKey`; and `pollAsync` is reentrancy-guarded with coalescing.
-3. **Phase 2b — Per-event skip (ACCEPTED 2026-09-14; not implemented):** Persist occurrence/series skips in `CalendarAutoStartPreferences`. `MeetingMonitor.candidates` is the shared filter; toast ✕ and Upcoming context menu write the same store. Issue #609. See §11.
+3. **Phase 2b — Per-event skip (ACCEPTED 2026-09-14; review-corrected the same day; not implemented):** Persist occurrence (`dedupeKey`) and meeting/series (`eventKey`) skips. Offer series skip only when `isRecurring`. Upcoming + coordinator share `candidates`; CLI annotates without changing membership. Toast ✕ is this occurrence. Effect-boundary: don't close unrelated countdowns. Issue #609. See §11.
 4. **Phase 3 — Refinements (PROPOSED):** Better URL extraction (Phone/FaceTime/generic URLs), `.lateJoinAvailable` UI (separate `lateJoinShownEventIds` set in `MeetingMonitor.evaluate(...)` so dismissed countdowns don't suppress late-join), optional retro-link (match a manually-started recording back to a calendar event), concurrent-event choice when two meetings share a start window, notification Record/Skip actions, menu-bar next event (#875). These reuse Phase 2b identity and `candidates`; they are not part of the #609 skip amendment.
 
 ## Open Questions

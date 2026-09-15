@@ -87,11 +87,15 @@ recording state, recent meetings, recovery states, and intelligence readiness.
 Upcoming calendar rows are informational until ADR-017 Phase 2b. After that
 change they stay list-like: no persistent Skip button. A context menu offers
 **Don't auto-record this meeting**, and **Don't auto-record this repeating
-meeting** when the event has an `externalId`. Skipped rows remain visible at
-reduced opacity with **Won't auto-record** and **Auto-record again**. The
-auto-start toast ✕ is the same occurrence skip, not a session-only dismiss.
-Skip never lives as a Settings list of events; per-calendar include stays the
-coarse filter.
+meeting** only when `event.isRecurring` is true (`externalId` alone is not
+enough). Skipped rows remain visible at reduced opacity: **Won't auto-record
+this time** for an occurrence skip on a collapsed series row, **Won't
+auto-record this series** for a series skip, **Won't auto-record** for a
+one-off. Undo is **Auto-record again**, or **Auto-record this repeating
+meeting again** for series. The auto-start toast ✕ is always this occurrence,
+not a session-only dismiss. Skip never lives as a Settings list of events;
+per-calendar include stays the coarse filter. Collapse plus the Upcoming cap
+means not every fetched occurrence is reachable from this list.
 
 Column width: `min: 160, ideal: 180, max: 220`. Window minimum width: 800pt.
 

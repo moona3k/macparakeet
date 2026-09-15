@@ -19,8 +19,9 @@ count.
 - `CalendarService.swift` / `CalendarServicing.swift` — permission, fetch,
   calendar list.
 - `CalendarEvent.swift` — EventKit snapshot. Occurrence identity is
-  `dedupeKey` (`id` + start time); series identity is `externalId`. Do not
-  key suppression on title or on `id` alone.
+  `dedupeKey` (`id` + start time). Meeting/series identity is `eventKey`
+  (`externalId ?? id`). Recurrence is `isRecurring`, not a non-nil
+  `externalId`. Do not key suppression on title.
 - `MeetingMonitor.swift` — candidate filter + remind / auto-start /
   late-join windows. RSVP: declined is dropped; pending reminds but does not
   auto-start; tentative auto-starts.
@@ -34,11 +35,14 @@ mode, reminder lead, trigger filter, excluded calendar IDs.
 
 ## Accepted, not implemented — per-event skip (#609)
 
-Users can mute one occurrence or a repeating series. Skip is a UserDefaults
-set of IDs, not an event repository. Upcoming / CLI / coordinator must share
-`MeetingMonitor.candidates`. Toast ✕ and Upcoming "Don't auto-record" write
-the same store. Skip blocks reminders and auto-start only; manual Record
-still works. Do not auto-exclude optional attendee role.
+Users can mute this occurrence (`dedupeKey`) or this meeting/series
+(`eventKey`). Series skip is offered only when `isRecurring`. Skip is a
+UserDefaults set of IDs, not an event repository. Upcoming and the
+coordinator share `MeetingMonitor.candidates`. CLI `calendar upcoming`
+annotates skips without changing membership. Toast ✕ is this occurrence.
+Skip must not close an unrelated countdown. Skip blocks reminders and
+auto-start only; manual Record still works. Do not auto-exclude optional
+attendee role.
 
 Governing docs:
 
@@ -54,9 +58,10 @@ coordinator) and Upcoming rows have no mute.
 a recording at start is allowed (ADR-017 §6 amendment). Attendee names/emails
 never go to telemetry.
 
-**Candidate filters must not fork.** If Upcoming, CLI `calendar upcoming`, and
-the coordinator disagree, Upcoming is lying. Add the rule to `MeetingMonitor`
-once.
+**Candidate filters must not fork between Upcoming and the coordinator.**
+CLI `calendar upcoming` is an inspection list for #609 and may keep a
+narrower membership; annotate skips there instead of switching it onto
+`candidates` membership.
 
 **Fail open on missing calendar identifiers** when applying the per-calendar
 exclude list (better to over-notify than silently miss).
