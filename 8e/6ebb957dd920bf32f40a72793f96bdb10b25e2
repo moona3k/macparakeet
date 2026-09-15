@@ -1,0 +1,50 @@
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_5050a2f8f7378a::t_06bf8989efc20c 571-575,931-933
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  s_5050a2f8f7378a::t_6908eda98c901e 2294,2296,2298,2302,2304-2305,2313-2316,2319-2322,2324-2326,2329-2330,2332-2362,2365-2410,4993-5004
+  s_5050a2f8f7378a::t_77bef233862555 2306-2307,2363-2364
+  s_5050a2f8f7378a::t_de0ec9ddf36b01 5005-5006
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_5050a2f8f7378a::t_06bf8989efc20c 319
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_5050a2f8f7378a::t_06bf8989efc20c 1290-1291
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_5050a2f8f7378a::t_06bf8989efc20c 234-237,1181-1192
+  s_5050a2f8f7378a::t_d89fa379c447ca 1193-1194
+spec/contracts/meeting-artifacts-v1.md
+  s_5050a2f8f7378a::t_e80d4557a28d89 80-82
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_5050a2f8f7378a::t_4f8462c7f3bdce 783,1529,1555-1556
+Sources/MacParakeetCore/STT/README.md
+  s_5050a2f8f7378a::t_e8e03a15498ec6 26-29
+Sources/MacParakeetViewModels/MeetingRecordingPanelViewModel.swift
+  s_5050a2f8f7378a::t_61d1c3c77082c5 20,347,365-366,384,394-395
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_5050a2f8f7378a::t_d7a1343e898cf4 964,993,1000-1001,1054-1080,1082-1083,1085-1090,1093-1103
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_5050a2f8f7378a::t_f95d40d92f7438 1886,1898,1900
+Tests/MacParakeetTests/ViewModels/MeetingRecordingPanelViewModelTests.swift
+  s_5050a2f8f7378a::t_0ba109721af9d8 361,365,367,374,406
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_5050a2f8f7378a::t_9a436c29e999fe 226-237,360
+spec/04-ui-patterns.md
+  s_5050a2f8f7378a::t_bb98b20eb2e8e5 1246
+spec/adr/014-meeting-recording.md
+  s_5050a2f8f7378a::t_9cf203472c695e 180-185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8e6ebb957dd920bf32f40a72793f96bdb10b25e2",
+  "prompts": {},
+  "sessions": {
+    "s_5050a2f8f7378a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a397-830f-7083-b465-f411b2921797",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
