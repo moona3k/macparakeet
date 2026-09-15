@@ -1,0 +1,45 @@
+spec/contracts/audio-speaker-timeline-v1.md
+  s_e0577a605fd8a5::t_c0992ae3e14eeb 1-138
+spec/adr/010-speaker-diarization.md
+  s_e0577a605fd8a5::t_826f2fa2a396fc 325-347
+spec/contracts/README.md
+  s_e0577a605fd8a5::t_826f2fa2a396fc 38-39,54-57
+plans/README.md
+  s_e0577a605fd8a5::t_826f2fa2a396fc 20-24
+spec/02-features.md
+  s_e0577a605fd8a5::t_826f2fa2a396fc 1400-1406
+spec/06-stt-engine.md
+  s_e0577a605fd8a5::t_826f2fa2a396fc 75-79
+spec/01-data-model.md
+  s_e0577a605fd8a5::t_826f2fa2a396fc 355,362-368
+  s_7877b8f1c73fc0::t_283326f22ca340 369
+docs/plans/2026-09-14-2147-feat-audio-speaker-timeline-plan.md
+  s_e0577a605fd8a5::t_ef32762136cdee 22,244
+  s_e0577a605fd8a5::t_c0992ae3e14eeb 1-21,23-243,245-261
+spec/README.md
+  s_e0577a605fd8a5::t_826f2fa2a396fc 46-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "901ee31b5415f715401983c91f304352f2db8646",
+  "prompts": {},
+  "sessions": {
+    "s_7877b8f1c73fc0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "f20b262c-fcad-468e-8ba0-b799744b4e51",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_e0577a605fd8a5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a35c-153e-78a2-b1cf-8eca453b46a5",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
