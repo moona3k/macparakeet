@@ -5,10 +5,10 @@
 > Governs: [ADR-017](../../spec/adr/017-calendar-meeting-auto-start.md) amendment 2026-09-14, [F48](../../spec/02-features.md)
 > Priority: P2
 >
-> Independent reviews (Fable 5.1 xhigh, GPT-6 Astra via Codex) were **NOT LGTM**
-> on the first draft. This revision settles persisted keys, recurrence gating,
-> CLI membership, in-flight effects, and undo. Do not implement against the
-> pre-review draft.
+> Independent reviews (Fable 5.1, GPT-6 Astra via Codex) were **NOT LGTM**
+> on the first two drafts. This revision settles persisted keys, recurrence
+> gating, CLI membership, owning-countdown re-eval (post-#318), immediate
+> skip/unskip rearm, and undo. Do not implement against earlier drafts.
 
 ## Original ask
 
@@ -104,7 +104,8 @@ compatibility change, not #609.
 
 Reuse `CalendarEvent` keys. Do not key on title. Ingest
 `isRecurring: Bool` (`EKEvent.hasRecurrenceRules || EKEvent.isDetached`) in
-`CalendarService.convertEvent`. `externalId` is **not** a recurrence flag.
+`CalendarService.convertEvent`, defaulting to `false` on `CalendarEvent.init`
+so existing fixtures compile. `externalId` is **not** a recurrence flag.
 
 | Scope | Key | When |
 | --- | --- | --- |
@@ -131,10 +132,10 @@ the same way it already re-resolves other calendar keys (multi-instance).
 
 **Janitor:** event-level skips live until the user unskips. Occurrence skips
 older than 14 days may be pruned (they can never re-fire). Parse `dedupeKey`
-on the last `|` in a **pure Core helper**. The existing 24-hour coordinator
-cleanup task is the runner. Do not intersect event-level skips against the
-7-day fetch — a series skip must survive weeks without that event in the
-look-ahead window.
+on the last `|` in a **pure Core helper**. Run once from coordinator
+`start()` and on the existing 24-hour cleanup task (daily relaunch otherwise
+never prunes). Do not intersect event-level skips against the 7-day fetch —
+a series skip must survive weeks without that event in the look-ahead window.
 
 Telemetry may send counts and scope (`occurrence` / `event`), never titles,
 attendees, or URLs. Add a `TelemetrySettingName` case; it is a value of the
@@ -186,18 +187,27 @@ enum MeetingMonitor {
 }
 ```
 
-`candidates` applies: not all-day, not declined, calendar not excluded,
-passes trigger filter. It **includes skipped events** and annotates them.
-It does **not** drop `.pending` RSVPs (reminders stay lenient).
+`candidates` applies: not all-day, not declined, calendar not excluded
+(fail open when `calendarIdentifier` is missing, same as today's
+coordinator and Upcoming), passes trigger filter. It **includes skipped
+events** and annotates them. It does **not** drop `.pending` RSVPs
+(reminders stay lenient).
 
 `evaluate` ignores skipped candidates. It does not need a separate
 session-dismissed set for user cancel: toast ✕ is an occurrence skip.
 
 `countdownShownEventIds` / `remindedEventIds` stay session-only so a delivered
-reminder or shown toast does not repeat every poll tick. Each poll subtracts
-keys for events that are currently skipped (occurrence or event-level) so an
-unskip inside the auto-start window can re-fire. Do not require the settings
-notification `userInfo` to name the key; every current poster uses `object: nil`.
+reminder or shown toast does not repeat every poll tick. Skip/unskip of an
+occurrence must reconcile that occurrence’s key in `countdownShownEventIds`
+**immediately**, without requiring a successful intervening calendar fetch.
+Closing a countdown because its occurrence became skipped clears that
+occurrence’s countdown suppression immediately. Preserve the transition
+across awaited notification handling and coalesced polls. Unrelated
+occurrences retain their suppression. Undo re-evaluates current eligibility
+and time windows; it does not directly start recording. Do **not** clear
+`remindedEventIds` on skip/unskip — a delivered reminder must not re-fire
+inside the same window. Do not require the settings notification `userInfo`
+to name the key; every current poster uses `object: nil`.
 
 Helper for UI, CLI annotation, and persistence:
 
@@ -233,13 +243,17 @@ Thin effects, with an **effect-boundary contract**:
 - Skipping never stops an existing recording.
 
 A persisted skip prevents **effects not yet committed**. Recheck current
-shared eligibility after any awaited preparation and immediately before
-notification submission or recording confirmation. Track the occurrence that
-owns the visible countdown; a skip change closes that countdown only if that
-occurrence (or its event-level key) is now skipped. Unrelated countdowns
-continue. Today's "any calendar settings change closes the toast" is too
-broad for skip writes and must not drop an in-flight auto-start for meeting A
-when the user skips meeting B.
+shared eligibility (mode, permission, trigger filter, excluded calendar,
+and skip) after any awaited preparation and immediately before notification
+submission or recording confirmation. Track the occurrence that owns the
+visible countdown. On any calendar settings change, re-evaluate **only that
+owning occurrence** under the new policy and close it if it is no longer
+eligible; otherwise keep it. This preserves the post-#318 rule that a mode,
+filter, or permission change still closes the owning countdown. Countdowns
+for other occurrences are never closed by a skip write. Skipping never stops
+an existing recording. Today's "any calendar settings change closes the
+toast" is too broad for skip writes and must not drop an in-flight auto-start
+for meeting A when the user skips meeting B.
 
 `probableSnapshotForManualStart` continues to consider overlapping events
 that pass candidate rules **including skipped ones** if the user is starting
@@ -275,13 +289,23 @@ disclosure is allowed if undo from Upcoming proves insufficient).
 For #609, preserve existing `calendar upcoming` membership, `--filter`
 semantics, defaults, and the flat event-array JSON shape. Reuse the existing
 local trigger predicate and `CalendarSkip.matches` for annotations only.
+Read skip sets through `macParakeetAppDefaults()` (`CLIHelpers.swift`).
 Do **not** encode `CalendarCandidate` (that would nest fields under `event`).
 Do **not** newly drop declined or excluded-calendar events in this feature.
+(Declined events are already absent from `CalendarService` fetch when
+`excludeDeclined` is true; excluded-calendar preferences are not applied.)
+
+Encode a CLI-local flat DTO that carries today's `CalendarEvent` fields plus
+the additive skip annotations. Adding `isRecurring` to `CalendarEvent` will
+appear automatically because today's command encodes `CalendarEvent`
+directly; the new contract entry must list `isRecurring`, `skipped`, and
+`skipScope`.
 
 Additive JSON fields (MINOR, when implemented):
 
 - `skipped: Bool`
 - `skipScope: "occurrence" | "event" | null`
+- `isRecurring: Bool` (new `CalendarEvent` field; list it in the contract)
 
 Human output marks skipped rows. Add a `calendar upcoming --json` entry to
 [`spec/contracts/cli-json-v1.md`](../../spec/contracts/cli-json-v1.md)
@@ -297,13 +321,24 @@ The control lives on the meeting, not in Settings.
 Keep the current title + time + calendar + people line. Do not add a
 persistent Skip button on every row.
 
-- Context menu (right-click / menu-indicator on hover):
-  - **Don't auto-record this meeting**
-  - **Don't auto-record this repeating meeting** — only when
-    `event.isRecurring == true`
+- Context menu (right-click / menu-indicator on hover). Six cells:
+
+  | Row | Skip state | Menu |
+  | --- | --- | --- |
+  | One-off | none | Don't auto-record this meeting |
+  | One-off | occurrence | Auto-record again |
+  | One-off | event | Auto-record again |
+  | Recurring | none | Don't auto-record this meeting; Don't auto-record this repeating meeting |
+  | Recurring | occurrence | Auto-record again; Don't auto-record this repeating meeting |
+  | Recurring | event | Auto-record this repeating meeting again |
+
+  Series item is hidden when `isRecurring == false`. Occurrence undo never
+  offers the series undo label.
 - Skipped row: reduced opacity. Caption **Won't auto-record this time** for
   an occurrence skip on a collapsed recurring row; **Won't auto-record this
-  series** for event-level skip; **Won't auto-record** for a one-off.
+  series** for a **recurring** event-level skip; **Won't auto-record** for a
+  one-off (occurrence or event-level). In notify-only mode the caption
+  states that MacParakeet won't remind you or start recording.
 - Recurring preview still collapses to the soonest occurrence
   (`collapseRecurringOccurrences`). Event-level skip applies to that row and
   future occurrences sharing `eventKey`. Collapse plus the Upcoming cap means
@@ -322,11 +357,14 @@ in the accessibility label.
 No second button. ✕ / Escape = skip this occurrence, then close. Return still
 starts now. Copy and layout stay the current countdown halo. The shared
 view's `.autoStop` kind is untouched. Accessibility may keep
-"Cancel auto-start"; behavior is occurrence skip.
+"Cancel auto-start"; behavior is occurrence skip. Keep firing
+`calendarAutoStartCancelled(reason: "user_cancel")` alongside the new
+`settingChanged` so the existing dashboard series stays continuous.
 
 If the user skips and later unskips while still inside the auto-start window,
-evaluate may emit `.autoStartDue` again because each poll subtracts currently
-skipped keys from `countdownShownEventIds`.
+evaluate may emit `.autoStartDue` again because skip/unskip immediately
+clears that occurrence’s `countdownShownEventIds` mark. Undo does not
+directly start recording.
 
 ### Notify-only mode
 
@@ -373,7 +411,9 @@ by default). Skip is inert until someone mutes a meeting.
 
 ## Tests
 
-Primary surface: `MeetingMonitorTests`.
+Primary surface: `MeetingMonitorTests`. Every current call site already
+passes `dismissedEventIds:`; rewrite all of them off that parameter, not
+only the two named cancel tests.
 
 - Skipped occurrence: no reminder, no auto-start; still in `candidates` with
   `isSkipped == true`.
@@ -395,6 +435,11 @@ Coordinator tests:
 - `.programmaticClose` does not skip.
 - Notify mode does not reminder-fire a skipped event.
 - Skipping B while A's countdown is visible does not close or suppress A.
+- Mode change to notify, trigger-filter change, and excluding the owning
+  calendar while A's countdown is visible still close A.
+- Hold a fetch, skip the visible countdown, undo before releasing the fetch:
+  one eligible countdown can reappear and unrelated suppression stays intact
+  (`MockCalendarService` held-fetch seam).
 - Recheck after skip: countdown completion and reminder submit do not fire
   for a now-skipped event. Reminder tests need a controllable authorization/
   delivery seam; under XCTest the current helper returns false, so "no

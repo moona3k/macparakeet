@@ -90,12 +90,14 @@ change they stay list-like: no persistent Skip button. A context menu offers
 meeting** only when `event.isRecurring` is true (`externalId` alone is not
 enough). Skipped rows remain visible at reduced opacity: **Won't auto-record
 this time** for an occurrence skip on a collapsed series row, **Won't
-auto-record this series** for a series skip, **Won't auto-record** for a
-one-off. Undo is **Auto-record again**, or **Auto-record this repeating
-meeting again** for series. The auto-start toast ✕ is always this occurrence,
-not a session-only dismiss. Skip never lives as a Settings list of events;
-per-calendar include stays the coarse filter. Collapse plus the Upcoming cap
-means not every fetched occurrence is reachable from this list.
+auto-record this series** for a recurring event-level skip, **Won't
+auto-record** for a one-off (occurrence or event-level). Undo is
+**Auto-record again**, or **Auto-record this repeating meeting again** for
+series. In notify-only mode the row caption states that MacParakeet won't
+remind you or start recording. The auto-start toast ✕ is always this
+occurrence, not a session-only dismiss. Skip never lives as a Settings list
+of events; per-calendar include stays the coarse filter. Collapse plus the
+Upcoming cap means not every fetched occurrence is reachable from this list.
 
 Column width: `min: 160, ideal: 180, max: 220`. Window minimum width: 800pt.
 

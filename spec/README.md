@@ -304,7 +304,7 @@ Calendar-related code is implemented and **enabled** (`AppFeatures.calendarEnabl
 - [x] Activity-based auto-stop replacement (ADR-023 Phases A+B): enabled in the v0.7 release train, with a separate per-user setting defaulting off; scheduled end times remain removed, and app-quit or sustained dual-channel silence must persist through grace and a veto countdown
 - [x] Calendar event title applied to auto-started recordings instead of date-based default
 - [x] Rich pre-meeting countdown toast for calendar starts (ADR-020): attendees + service icon row + steering hint pointing the user at the Notes tab. Manual-trigger toasts unchanged
-- [ ] Per-event skip (ADR-017 Phase 2b / #609 / F48): persist occurrence (`dedupeKey`) or meeting/series (`eventKey`) mute; series skip only when `isRecurring`; Upcoming + coordinator share `candidates`; CLI annotates without changing membership; toast ✕ is this occurrence and must not close an unrelated countdown; no optional-invite auto-exclude. Plan: [`plans/active/2026-09-14-issue-609-calendar-event-skip.md`](../plans/active/2026-09-14-issue-609-calendar-event-skip.md)
+- [ ] Per-event skip (ADR-017 Phase 2b / #609 / F48): persist occurrence (`dedupeKey`) or meeting/series (`eventKey`) mute; series skip only when `isRecurring`; Upcoming + coordinator share `candidates`; CLI annotates without changing membership; owning countdown re-evaluated under the full new policy; skip/unskip rearms without a fetch; no optional-invite auto-exclude. Plan: [`plans/active/2026-09-14-issue-609-calendar-event-skip.md`](../plans/active/2026-09-14-issue-609-calendar-event-skip.md)
 
 ### Optional Local STT Engines
 
