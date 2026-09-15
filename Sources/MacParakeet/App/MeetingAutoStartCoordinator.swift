@@ -49,7 +49,10 @@ final class MeetingAutoStartCoordinator {
     /// Injected so tests can authorize and capture reminders without
     /// `UNUserNotificationCenter` (that API crashes inside the xctest helper).
     private let isNotificationAuthorized: @MainActor () async -> Bool
-    private let postReminderNotification: @MainActor (UNNotificationRequest) async throws -> Void
+    /// Production posting stays in `showReminder`. A `@MainActor` default
+    /// closure that calls `UNUserNotificationCenter.add` fails Swift 6:
+    /// the isolated `request` cannot be sent to that nonisolated method.
+    private let postReminderNotification: (@MainActor (UNNotificationRequest) async throws -> Void)?
     private let toastController: MeetingCountdownToastController
     private let logger = Logger(subsystem: "com.macparakeet", category: "MeetingAutoStart")
 
@@ -92,9 +95,7 @@ final class MeetingAutoStartCoordinator {
         isNotificationAuthorized: @escaping @MainActor () async -> Bool = {
             await CalendarNotificationAuthorization.isAuthorized()
         },
-        postReminderNotification: @escaping @MainActor (UNNotificationRequest) async throws -> Void = { request in
-            try await UNUserNotificationCenter.current().add(request)
-        },
+        postReminderNotification: (@MainActor (UNNotificationRequest) async throws -> Void)? = nil,
         toastController: MeetingCountdownToastController? = nil
     ) {
         self.calendarService = calendarService
@@ -677,7 +678,11 @@ private extension MeetingAutoStartCoordinator {
         // poll tick when delivery transiently fails — better to miss a single
         // reminder than spam the user.
         do {
-            try await postReminderNotification(request)
+            if let postReminderNotification {
+                try await postReminderNotification(request)
+            } else {
+                try await UNUserNotificationCenter.current().add(request)
+            }
             Telemetry.send(.calendarReminderShown(
                 mode: mode.rawValue,
                 leadMinutes: leadMinutes,
