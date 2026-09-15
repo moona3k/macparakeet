@@ -476,9 +476,11 @@ final class MeetingAutoStartCoordinator {
     func handleAutoStartOutcome(_ outcome: MeetingCountdownToastOutcome, for event: CalendarEvent) {
         switch outcome {
         case .completed, .primedEarly:
+            // Toast is gone. Drop ownership so a later settings change cannot
+            // close an unrelated toast via reconcileSkipAndOwningCountdown.
+            countdownOwningEvent = nil
             guard isEventStillEligibleForAutoStart(event) else {
                 countdownShownEventIds.remove(event.dedupeKey)
-                countdownOwningEvent = nil
                 logger.info("Auto-start completion ignored — calendar auto-start is no longer enabled")
                 return
             }
