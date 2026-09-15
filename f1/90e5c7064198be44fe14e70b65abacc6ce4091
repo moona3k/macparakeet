@@ -1,0 +1,23 @@
+spec/06-stt-engine.md
+  s_522037b26be2dc::t_2ed54d9b0f0441 655-657
+benchmarks/diarization/scripts/run_issue_1046_unconstrained_ab.sh
+  s_522037b26be2dc::t_27761c7d0bdc81 23
+docs/audits/2026-09-15-issue-1046-speaker-detection.md
+  s_522037b26be2dc::t_6299dc7847de3b 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f190e5c7064198be44fe14e70b65abacc6ce4091",
+  "prompts": {},
+  "sessions": {
+    "s_522037b26be2dc": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3a3ba01a-90c6-4a39-b310-33a6c6f51502",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
