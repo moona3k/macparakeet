@@ -1,0 +1,57 @@
+Sources/CLI/Commands/SpeakerConsolidationSimCommand.swift
+  s_8fa5d602e173bc::t_732b4f40607977 1-528
+Sources/CLI/MacParakeetCLI.swift
+  s_8fa5d602e173bc::t_1046f1ca59ce69 40
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_8fa5d602e173bc::t_a9033bfbacafec 1316-1327,1369-1374
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_8fa5d602e173bc::t_093a28db1c5fbb 4047,4639-4650,4795-4807
+Sources/MacParakeetCore/Database/SpeakerProfileRepository.swift
+  s_8fa5d602e173bc::t_f9387b81375931 77-87,405-460
+Sources/MacParakeetCore/Models/SpeakerProfile.swift
+  s_8fa5d602e173bc::t_b232a8d7905ad8 186-192
+Sources/MacParakeetCore/Services/Diarization/SpeakerVoiceprintService.swift
+  s_8fa5d602e173bc::t_1bfbe027442f23 22-31,121-137,537-630
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_8fa5d602e173bc::t_72330f104cb036 154-155,2024-2028,2241-2245,2262-2280,2313-2439,2488-2489,2521-2522,2666-2667,2684-2687,2689-2692,2698-2701,2703-2706
+Sources/MacParakeetViewModels/VoiceProfilesViewModel.swift
+  s_8fa5d602e173bc::t_d46df6631ede40 39-49,53-56,59,70,145,158-164
+Tests/MacParakeetTests/Database/SpeakerProfileRepositoryTests.swift
+  s_8fa5d602e173bc::t_cb9d016300ba69 947-997
+Tests/MacParakeetTests/Services/Diarization/SpeakerVoiceprintServiceTests.swift
+  s_8fa5d602e173bc::t_b2d6b6d46277db 1602-1831,1966-1971
+Tests/MacParakeetTests/Services/Diarization/SpeakerVoiceprintTelemetryTests.swift
+  s_8fa5d602e173bc::t_5a787fc306c90f 1-140
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_8fa5d602e173bc::t_0c6cf5700b5f63 150-155,186-192
+Tests/MacParakeetTests/ViewModels/TranscriptionVoiceEnrollmentTests.swift
+  s_8fa5d602e173bc::t_5c33b6769d9f2e 40-45,56-63,71-76,78-82,136-153,202-212,214,803-941,944-972
+Tests/MacParakeetTests/ViewModels/VoiceProfilesViewModelTests.swift
+  s_8fa5d602e173bc::t_2164d1a0a29695 12,37,44,49-52,54,138-141,174-217,320-338
+Tests/MacParakeetTests/VoiceProfileFeatureGateTests.swift
+  s_8fa5d602e173bc::t_120fc2a9c3886b 4-55,58-100
+docs/voice-profiles-privacy.md
+  s_8fa5d602e173bc::t_fcc1f278b0344a 1-91
+spec/02-features.md
+  s_8fa5d602e173bc::t_48210f5c746923 1509-1573
+spec/adr/010-speaker-diarization.md
+  s_8fa5d602e173bc::t_3185a2ada05193 356,415,455-490
+spec/contracts/speaker-voiceprints.md
+  s_8fa5d602e173bc::t_7aec7d6f8847ab 25-28,61-69,92,114-116,167-176
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6c91fb0f5b9ac6f7af34dc83338506a9195e92e7",
+  "prompts": {},
+  "sessions": {
+    "s_8fa5d602e173bc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a63c-0ead-7bc2-9ca2-d8e8537b939f",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
