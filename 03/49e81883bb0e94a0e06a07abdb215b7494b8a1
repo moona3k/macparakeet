@@ -1,0 +1,19 @@
+docs/qa/2026-09-15-pr-1041-screen-share-ab/README.md
+  s_5050a2f8f7378a::t_d3191110ff1c70 50-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0349e81883bb0e94a0e06a07abdb215b7494b8a1",
+  "prompts": {},
+  "sessions": {
+    "s_5050a2f8f7378a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a397-830f-7083-b465-f411b2921797",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
