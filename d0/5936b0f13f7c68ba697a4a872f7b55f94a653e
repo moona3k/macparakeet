@@ -1,0 +1,45 @@
+.gitignore
+  s_8fa5d602e173bc::t_00ecad1fd3998d 94-97
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_8fa5d602e173bc::t_8eb2753554c5f9 118-122
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_8fa5d602e173bc::t_9eca0557939ea3 1303-1309,1401-1433
+Sources/MacParakeet/Views/Settings/VoiceProfileConsentSheet.swift
+  s_8fa5d602e173bc::t_36dc8260da4ee7 1-99
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_8fa5d602e173bc::t_121c8fa5da3b52 589-596,848-851,2024-2025,3968-4170,4401,4689,4893-4896
+Sources/MacParakeet/Views/Transcription/TranscriptTimestampedContentView.swift
+  s_8fa5d602e173bc::t_3f5923cc8e51cb 186-211,218-221,322-340,370-403,524-525,530
+Sources/MacParakeetCore/Models/Transcription.swift
+  s_8fa5d602e173bc::t_4d5a35f4709e33 279-295
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_8fa5d602e173bc::t_2de64683366760 553-554
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_8fa5d602e173bc::t_bd52154ac91153 578-634,1007-1013
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_8fa5d602e173bc::t_14f78a3b019d62 147-152,327,409-410,422,2014-2018,2041-2047,2049-2055,2058-2059,2207-2394,2412-2435
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_8fa5d602e173bc::t_2d511adf4307c0 3362-3456
+Tests/MacParakeetTests/ViewModels/TranscriptionVoiceEnrollmentTests.swift
+  s_8fa5d602e173bc::t_c0c862d2f680e9 1-499
+Tests/MacParakeetTests/Views/SpeakerTurnBannerAnchorTests.swift
+  s_8fa5d602e173bc::t_f9497d75322e76 1-105
+Tests/MacParakeetTests/Views/TranscriptTimestampedLayoutSmokeTests.swift
+  s_8fa5d602e173bc::t_34e336a8ddf2ce 134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d05936b0f13f7c68ba697a4a872f7b55f94a653e",
+  "prompts": {},
+  "sessions": {
+    "s_8fa5d602e173bc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a63c-0ead-7bc2-9ca2-d8e8537b939f",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
