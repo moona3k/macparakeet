@@ -105,7 +105,9 @@ compatibility change, not #609.
 Reuse `CalendarEvent` keys. Do not key on title. Ingest
 `isRecurring: Bool` (`EKEvent.hasRecurrenceRules || EKEvent.isDetached`) in
 `CalendarService.convertEvent`, defaulting to `false` on `CalendarEvent.init`
-so existing fixtures compile. `externalId` is **not** a recurrence flag.
+so existing fixtures compile. Decode with `decodeIfPresent` defaulting to
+`false` so older snapshots without the field still load. `externalId` is
+**not** a recurrence flag.
 
 | Scope | Key | When |
 | --- | --- | --- |
@@ -244,16 +246,17 @@ Thin effects, with an **effect-boundary contract**:
 
 A persisted skip prevents **effects not yet committed**. Recheck current
 shared eligibility (mode, permission, trigger filter, excluded calendar,
-and skip) after any awaited preparation and immediately before notification
-submission or recording confirmation. Track the occurrence that owns the
-visible countdown. On any calendar settings change, re-evaluate **only that
-owning occurrence** under the new policy and close it if it is no longer
-eligible; otherwise keep it. This preserves the post-#318 rule that a mode,
-filter, or permission change still closes the owning countdown. Countdowns
-for other occurrences are never closed by a skip write. Skipping never stops
-an existing recording. Today's "any calendar settings change closes the
-toast" is too broad for skip writes and must not drop an in-flight auto-start
-for meeting A when the user skips meeting B.
+and skip) after any awaited preparation, immediately before countdown
+presentation, and immediately before notification submission or recording
+confirmation. Track the occurrence that owns the visible countdown. On any
+calendar settings change, re-evaluate **only that owning occurrence** under
+the new policy and close it if it is no longer eligible; otherwise keep
+it. This preserves the post-#318 rule that a mode, filter, or permission
+change still closes the owning countdown. Countdowns for other occurrences
+are never closed by a skip write. Skipping never stops an existing
+recording. Today's "any calendar settings change closes the toast" is too
+broad for skip writes and must not drop an in-flight auto-start for meeting
+A when the user skips meeting B.
 
 `probableSnapshotForManualStart` continues to consider overlapping events
 that pass candidate rules **including skipped ones** if the user is starting
@@ -303,6 +306,10 @@ internal to the calendar policy and UI for #609. Today's command encodes
 Preserve existing field names, values, date encoding, and optional-field
 omission behavior. Do not nest the event under an `event` key.
 
+Map through a **pure function** over `[CalendarEvent]` plus the skip sets
+(no EventKit, no `CalendarService.shared`) so CLI tests can assert the DTO
+without a live store. `run()` stays the EventKit adapter.
+
 Additive JSON fields (MINOR, when implemented):
 
 - `skipped: Bool`
@@ -310,7 +317,8 @@ Additive JSON fields (MINOR, when implemented):
 
 Human output marks skipped rows. Add a `calendar upcoming --json` entry to
 [`spec/contracts/cli-json-v1.md`](../../spec/contracts/cli-json-v1.md)
-(there is none today) and a CHANGELOG line. Aligning CLI membership with
+(there is none today), list the new test in that file's "Tests that
+enforce this", and a CHANGELOG line. Aligning CLI membership with
 `candidates` is a separately documented compatibility change.
 
 ## UI
@@ -442,10 +450,10 @@ Coordinator tests:
 - Hold a fetch, skip the visible countdown, undo before releasing the fetch:
   one eligible countdown can reappear and unrelated suppression stays intact
   (`MockCalendarService` held-fetch seam).
-- Recheck after skip: countdown completion and reminder submit do not fire
-  for a now-skipped event. Reminder tests need a controllable authorization/
-  delivery seam; under XCTest the current helper returns false, so "no
-  delivery" alone does not prove skip.
+- Recheck after skip: countdown presentation, countdown completion, and
+  reminder submit do not fire for a now-skipped event. Reminder tests need a
+  controllable authorization/delivery seam; under XCTest the current helper
+  returns false, so "no delivery" alone does not prove skip.
 - `probableSnapshotForManualStart` still skips `.pending`.
 - Existing `dismissedEventIds` tests are rewritten for occurrence skip.
 

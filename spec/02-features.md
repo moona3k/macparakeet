@@ -2062,7 +2062,7 @@ The existing completion handler reads the auto-open preference before presenting
 - [ ] Upcoming: "Don't auto-record this meeting"; "Don't auto-record this repeating meeting" only when recurring; occurrence-skip caption on a collapsed series row is "Won't auto-record this time"
 - [ ] Occurrence undo removes that key; series undo removes `eventKey` plus the selected occurrence key; other occurrence skips remain
 - [ ] Auto-start toast ✕ persists an occurrence skip; programmatic toast close does not skip; skip does not close an unrelated countdown or stop a live recording
-- [ ] Recheck full eligibility, including skip, after awaited preparation and immediately before notification submit or recording confirm
+- [ ] Recheck full eligibility, including skip, after awaited preparation, immediately before countdown presentation, and immediately before notification submit or recording confirm
 - [ ] On calendar settings change, close the owning countdown only if it is no longer eligible under the new policy (mode, permission, trigger, excluded calendar, skip); skipping B never closes A
 - [ ] Skip/unskip of the owning occurrence clears that occurrence’s countdown-shown suppression immediately (no fetch required) so undo inside the auto-start window can re-fire; do not re-fire a delivered reminder
 - [ ] Notify-only mode: skip suppresses the reminder (otherwise mute is a no-op)

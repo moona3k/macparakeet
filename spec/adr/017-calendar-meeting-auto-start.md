@@ -135,16 +135,16 @@ relaunch.
   for that series stay.
 - Effect boundary: a skip prevents effects not yet committed. Recheck full
   eligibility (mode, permission, trigger filter, excluded calendar, and skip)
-  after awaits and immediately before notify/start. On any calendar settings
-  change, re-evaluate only the occurrence that owns the visible countdown
-  under the new policy: close it if it is no longer eligible, otherwise keep
-  it. Countdowns for other occurrences are never closed by a skip write
-  (preserves post-#318 mid-flight teardown). Skip/unskip of the owning
-  occurrence must clear that occurrence’s `countdownShownEventIds` mark
-  immediately, without waiting for a calendar fetch, so undo inside the
-  auto-start window can re-fire. Do not clear `remindedEventIds` on skip
-  (avoids a duplicate reminder). Programmatic close never writes a skip.
-  Skip never stops a live recording.
+  after awaits, immediately before countdown presentation, and immediately
+  before notify/start. On any calendar settings change, re-evaluate only the
+  occurrence that owns the visible countdown under the new policy: close it
+  if it is no longer eligible, otherwise keep it. Countdowns for other
+  occurrences are never closed by a skip write (preserves post-#318
+  mid-flight teardown). Skip/unskip of the owning occurrence must clear that
+  occurrence’s `countdownShownEventIds` mark immediately, without waiting for
+  a calendar fetch, so undo inside the auto-start window can re-fire. Do not
+  clear `remindedEventIds` on skip (avoids a duplicate reminder).
+  Programmatic close never writes a skip. Skip never stops a live recording.
 - Skip blocks automation only. Manual Record / hotkey / menu bar still work
   (same independence as §10).
 - Do **not** auto-exclude EventKit optional `participantRole`. Optional invite
