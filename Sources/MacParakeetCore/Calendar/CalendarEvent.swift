@@ -205,7 +205,7 @@ public extension CalendarEvent {
     /// occurrence that can re-fire — keying on `id` alone permanently
     /// suppressed a same-day reschedule. Whole-second granularity is plenty;
     /// meetings don't move by sub-second amounts.
-    public var dedupeKey: String {
+    var dedupeKey: String {
         "\(id)|\(Int(startTime.timeIntervalSinceReferenceDate))"
     }
 
@@ -219,7 +219,7 @@ public extension CalendarEvent {
 
     /// Meeting/series identity for event-level skip. `externalId` when
     /// present, otherwise `id`.
-    public var eventKey: String {
+    var eventKey: String {
         CalendarSkip.eventKey(for: self)
     }
 }

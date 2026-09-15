@@ -154,20 +154,21 @@ beside the fields `evaluate` already uses. Do **not** drop
 `countdownSeconds` or `lateJoinGraceMinutes`.
 
 ```swift
-struct CalendarAutomationPolicy: Codable, Sendable, Equatable {
+// Nested in MeetingMonitor.
+struct Config: Codable, Sendable, Equatable {
     var mode: CalendarAutoStartMode
     var reminderMinutes: Int
     var countdownSeconds: Int
     var triggerFilter: MeetingTriggerFilter
     var lateJoinGraceMinutes: Int
-    var excludedCalendarIds: Set<String>
+    var excludedCalendarIdentifiers: Set<String>
     var skippedOccurrences: Set<String>
     var skippedEvents: Set<String>
 }
 
 struct CalendarCandidate: Equatable, Sendable {
     var event: CalendarEvent
-    var isSkipped: Bool
+    var isSkipped: Bool { skipScope != nil }
     var skipScope: CalendarSkipScope?   // .occurrence / .event
 }
 
@@ -179,13 +180,13 @@ enum CalendarSkipScope: String, Sendable {
 enum MeetingMonitor {
     static func candidates(
         events: [CalendarEvent],
-        policy: CalendarAutomationPolicy
+        config: Config
     ) -> [CalendarCandidate]
 
     static func evaluate(
         candidates: [CalendarCandidate],
         now: Date,
-        policy: CalendarAutomationPolicy,
+        config: Config,
         activeRecording: Bool,
         remindedEventIds: Set<String>,
         countdownShownEventIds: Set<String>
@@ -219,9 +220,6 @@ Helper for UI, CLI annotation, and persistence:
 
 ```swift
 enum CalendarSkip {
-    case occurrence(dedupeKey: String)
-    case event(eventKey: String)  // externalId ?? id
-
     static func eventKey(for event: CalendarEvent) -> String {
         event.externalId ?? event.id
     }
@@ -241,7 +239,7 @@ or whole meeting).
 
 Thin effects, with an **effect-boundary contract**:
 
-- Build `CalendarAutomationPolicy` from `SettingsViewModel`.
+- Build `MeetingMonitor.Config` from `SettingsViewModel`.
 - `candidates` → `evaluate` → existing reminder / auto-start paths.
 - Toast `.userDismissed` → occurrence skip (`dedupeKey`).
 - Stop treating user cancel as in-memory `dismissedEventIds`.
@@ -262,6 +260,11 @@ recording. Today's "any calendar settings change closes the toast" is too
 broad for skip writes and must not drop an in-flight auto-start for meeting
 A when the user skips meeting B.
 
+Settings-change reconciliation runs synchronously on the main queue and
+reloads persisted settings before evaluating. A skip followed by undo in
+the same actor turn must not disappear behind a queued observer task, and
+writes from another SettingsViewModel must not depend on observer order.
+
 `probableSnapshotForManualStart` continues to consider overlapping events
 that pass candidate rules **including skipped ones** if the user is starting
 manually, and it **keeps its local `.pending` exclusion** (candidates do not
@@ -274,7 +277,7 @@ Mirror `calendarExcludedIdentifiers`:
 - `calendarSkippedOccurrences: Set<String>`
 - `calendarSkippedEvents: Set<String>`
 - `skipOccurrence(_:)`, `skipEvent(_:)`, `unskipOccurrence(_:)`,
-  `unskipEvent(removingOccurrence:)`
+  `unskipEvent(_:)`
 - Persist + post `.macParakeetCalendarSettingsDidChange` +
   `.settingChanged` telemetry
 - Re-resolve from defaults when that notification arrives (same as other
@@ -302,11 +305,11 @@ Do **not** newly drop declined or excluded-calendar events in this feature.
 (Declined events are already absent from `CalendarService` fetch when
 `excludeDeclined` is true; excluded-calendar preferences are not applied.)
 
-Encode a CLI-local flat DTO that explicitly carries today's `CalendarEvent`
-JSON fields plus only the two skip annotations below. Keep `isRecurring`
-internal to the calendar policy and UI for #609. Today's command encodes
-`CalendarEvent` directly, so introduce the DTO in the same slice that adds
-`isRecurring`; otherwise that internal field would leak into CLI output.
+The CLI-local flat DTO carries the pre-feature `CalendarEvent` JSON fields
+plus only the two skip annotations below. `isRecurring` stays internal to
+the calendar policy and UI for #609. Before this feature the command encoded
+`CalendarEvent` directly; the DTO prevents the new internal recurrence field
+from leaking into CLI output.
 Preserve existing field names, values, date encoding, and optional-field
 omission behavior. Do not nest the event under an `event` key.
 
@@ -314,15 +317,15 @@ Map through a **pure function** over `[CalendarEvent]` plus the skip sets
 (no EventKit, no `CalendarService.shared`) so CLI tests can assert the DTO
 without a live store. `run()` stays the EventKit adapter.
 
-Additive JSON fields (MINOR, when implemented):
+Implemented additive JSON fields (MINOR):
 
 - `skipped: Bool`
 - `skipScope: "occurrence" | "event" | null`
 
-Human output marks skipped rows. Add a `calendar upcoming --json` entry to
+Human output marks skipped rows. The `calendar upcoming --json` entry in
 [`spec/contracts/cli-json-v1.md`](../../spec/contracts/cli-json-v1.md)
-(there is none today), list the new test in that file's "Tests that
-enforce this", and a CHANGELOG line. Aligning CLI membership with
+and the CLI CHANGELOG document the additions; the contract lists
+`CalendarUpcomingJSONTests` under "Tests that enforce this". Aligning CLI membership with
 `candidates` is a separately documented compatibility change.
 
 ## UI
@@ -334,7 +337,7 @@ The control lives on the meeting, not in Settings.
 Keep the current title + time + calendar + people line. Do not add a
 persistent Skip button on every row.
 
-- Context menu (right-click / menu-indicator on hover). Six cells:
+- Context menu (right-click / Control-click). Six cells:
 
   | Row | Skip state | Menu |
   | --- | --- | --- |
@@ -425,9 +428,8 @@ by default). Skip is inert until someone mutes a meeting.
 
 ## Tests
 
-Primary surface: `MeetingMonitorTests`. Every current call site already
-passes `dismissedEventIds:`; rewrite all of them off that parameter, not
-only the two named cancel tests.
+Primary surface: `MeetingMonitorTests`. Call sites now use persisted skip
+sets in `Config` instead of the former `dismissedEventIds:` parameter.
 
 - Skipped occurrence: no reminder, no auto-start; still in `candidates` with
   `isSkipped == true`.
@@ -482,7 +484,7 @@ Verification command (after implementation):
 swift test --filter MeetingMonitorTests
 swift test --filter MeetingAutoStartCoordinatorTests
 swift test --filter MeetingsWorkspaceViewModelTests
-swift test --filter CalendarCommand
+swift test --filter CalendarUpcomingJSONTests
 ```
 
 Full `swift test` once at the end of the task, not per slice, unless the

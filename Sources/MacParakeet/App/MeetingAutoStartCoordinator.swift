@@ -166,9 +166,9 @@ final class MeetingAutoStartCoordinator {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            // queue: .main lands the closure on the main thread but Swift 6
-            // strict isolation still requires an explicit @MainActor hop.
-            Task { @MainActor [weak self] in self?.handleSettingsChanged() }
+            // queue: .main is the main thread. Reconcile synchronously:
+            // a Task hop can lose a skip followed by undo in the same turn.
+            MainActor.assumeIsolated { self?.handleSettingsChanged() }
         }
     }
 
@@ -203,6 +203,9 @@ final class MeetingAutoStartCoordinator {
     }
 
     private func handleSettingsChanged() {
+        // Another SettingsViewModel may have posted this notification. Read
+        // its persisted values without depending on observer delivery order.
+        settingsViewModel.reloadCalendarSettings()
         // Setting changes can disable a feature mid-flight (e.g., toggling
         // mode to .off). Re-evaluate the owning countdown under the new
         // policy instead of closing every toast — skip of B must not kill A.

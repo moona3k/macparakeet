@@ -538,18 +538,23 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
         calendarService.stubPermissionStatus = .granted
         seedSettings(mode: .autoStart)
 
-        let coordinator = makeCoordinator()
+        let toast = MeetingCountdownToastController()
+        let coordinator = makeCoordinator(toastController: toast)
         coordinator.start()
         await waitForPoll()
 
         let meetingA = event(id: "A", title: "Keep")
         let meetingB = event(id: "B", title: "Skip")
         coordinator.testHook_markCountdownShown(meetingA)
+        var closeCount = 0
+        toast.showAutoStart(title: meetingA.title, duration: 60) { _ in closeCount += 1 }
         settingsViewModel.skipOccurrence(meetingB)
         await waitForPoll()
 
         XCTAssertTrue(coordinator.testHook_isCountdownShown(meetingA))
+        XCTAssertEqual(closeCount, 0, "Skipping B must preserve A's visible toast")
         coordinator.stop()
+        XCTAssertEqual(closeCount, 1, "The assertion must observe a real, closable toast")
     }
 
     func testSkipThenUnskipDuringHeldFetchRearmsCountdown() async {
@@ -582,17 +587,67 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
         coordinator.stop()
     }
 
+    func testSkipThenUnskipWithoutActorHopRearmsCountdown() async {
+        calendarService.stubPermissionStatus = .granted
+        seedSettings(mode: .autoStart, reminderMinutes: 0)
+        let coordinator = makeCoordinator()
+        coordinator.start()
+        await waitForPoll()
+        defer { coordinator.stop() }
+
+        let meeting = event()
+        coordinator.testHook_markCountdownShown(meeting)
+        settingsViewModel.skipOccurrence(meeting)
+        XCTAssertFalse(coordinator.testHook_isCountdownShown(meeting),
+                       "Skip must clear suppression before returning, even without a fetch or actor hop")
+        settingsViewModel.unskipOccurrence(meeting)
+        await waitForPoll()
+        XCTAssertFalse(coordinator.testHook_isCountdownShown(meeting),
+                       "Queued observers must not lose the skip/undo transition")
+        XCTAssertEqual(autoStartConfirmedCount, 0, "Undo must not directly start recording")
+    }
+
+    func testSkipFromAnotherSettingsInstanceImmediatelyClosesOwningToast() async {
+        calendarService.stubPermissionStatus = .granted
+        seedSettings(mode: .autoStart, reminderMinutes: 0)
+        let toast = MeetingCountdownToastController()
+        let coordinator = makeCoordinator(toastController: toast)
+        coordinator.start()
+        await waitForPoll()
+        defer { coordinator.stop() }
+
+        let otherSettings = SettingsViewModel(defaults: defaults)
+        var meeting = event()
+        meeting.isRecurring = true
+        meeting.externalId = "series"
+        coordinator.testHook_markCountdownShown(meeting)
+        var closeCount = 0
+        toast.showAutoStart(title: meeting.title, duration: 60) { _ in closeCount += 1 }
+
+        otherSettings.skipEvent(meeting)
+        XCTAssertEqual(closeCount, 1)
+        XCTAssertFalse(coordinator.testHook_isCountdownShown(meeting))
+        XCTAssertEqual(settingsViewModel.calendarSkippedEvents, [meeting.eventKey])
+        otherSettings.unskipEvent(meeting)
+        XCTAssertFalse(coordinator.testHook_isCountdownShown(meeting))
+        XCTAssertEqual(autoStartConfirmedCount, 0)
+    }
+
     func testModeChangeToNotifyClosesOwningCountdownSuppressionPath() async {
         calendarService.stubPermissionStatus = .granted
         seedSettings(mode: .autoStart)
 
-        let coordinator = makeCoordinator()
+        let toast = MeetingCountdownToastController()
+        let coordinator = makeCoordinator(toastController: toast)
         coordinator.start()
         await waitForPoll()
         let meetingA = event(id: "A")
         coordinator.testHook_markCountdownShown(meetingA)
+        var closeCount = 0
+        toast.showAutoStart(title: meetingA.title, duration: 60) { _ in closeCount += 1 }
         settingsViewModel.calendarAutoStartMode = .notify
         await waitForPoll()
+        XCTAssertEqual(closeCount, 1, "Changing mode must close the visible toast")
         XCTAssertTrue(coordinator.testHook_isCountdownShown(meetingA),
                       "Mode change closes the toast but keeps countdown-shown (post-#318)")
         coordinator.stop()

@@ -1000,7 +1000,9 @@ public final class SettingsViewModel {
         }
     }
 
-    private func reloadCalendarSettings() {
+    /// Refresh persisted policy synchronously before a calendar effect or
+    /// reconciliation; notification observers may run in either order.
+    public func reloadCalendarSettings() {
         // Avoid the `didSet` → post-notification → reload → `didSet` loop:
         // re-resolving has to skip the `didSet` write-through. The flag
         // guards the entire batch so partial updates can't fire telemetry
