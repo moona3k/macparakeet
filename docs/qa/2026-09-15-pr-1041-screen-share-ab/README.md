@@ -30,7 +30,7 @@ and the governing specifications.
 | Hosted CI | [Run 34934659543](https://github.com/moona3k/macparakeet/actions/runs/34934659543) passed Release build, CLI smoke, packaged-app smoke, concurrency checks, Swift 6 compilation, and all 6,655 tests. |
 | Independent correctness review | No findings. |
 | CodeRabbit | No actionable findings; final status succeeded. |
-| Claude Fable 5.1 | Medium-effort final source review returned LGTM with no actionable findings. See [the review](fable-final-review.md). |
+| Claude Fable 5.1 | Medium-effort final source review returned LGTM with no actionable findings. |
 
 The hosted run tested GitHub merge `32ceacf9`, combining source head
 `8e6ebb95` with then-main `8cc3c209`. The later integration run covered the
@@ -71,8 +71,6 @@ the next arm began.
 
 Zoom's native sender statistics supplied an active-share transport check:
 1728x1118, 5 FPS, 24 to 26 ms latency, 2 to 6 ms jitter, and 0.0% packet loss.
-The [24 ms](evidence/zoom-statistics-24ms.png) and
-[26 ms](evidence/zoom-statistics-26ms.png) captures preserve those readings.
 Opening Zoom's statistics window replaces the high-motion foreground content,
 so these readings are a transport check rather than an A/B metric.
 
@@ -87,15 +85,17 @@ so these readings are a transport check rather than an A/B metric.
 - Every arm completed its post-stop transcript using Parakeet Unified.
 - macOS reported no thermal or performance warnings before or after the run.
 
-The [structured receipt](evidence/evidence.json) records the per-arm metrics,
-runtime routing, capture outcome, and transcript completion. Raw process samples,
-frame traces, and app-produced recording metadata are under `evidence/`.
+The aggregate table and recording checks were derived from forty process
+samples per arm, browser frame traces, app logs, artifact manifests, and
+app-produced recording metadata. Those inputs were audited against this report
+before being left out of Git.
 
 ## Temporary-file audit
 
 The task-owned temporary files were reviewed before this report was committed.
-The durable evidence here includes the measurements, safe native Zoom
-statistics, exact review result, test/CI receipts, and source provenance.
+The durable report includes the method, aggregate measurements, native Zoom
+statistics, final review results, test/CI receipts, source provenance, and
+limits needed to interpret the result.
 
 The following data did not add durable review value and remains outside Git:
 
@@ -104,6 +104,8 @@ The following data did not add durable review value and remains outside Git:
 - the 123 MB Chrome profile and browser automation state;
 - synthetic source and meeting audio, generated summaries, and the isolated
   SQLite database;
+- raw process samples, frame traces, recording metadata, app logs, artifact
+  manifests, Zoom statistics screenshots, and the separate Fable transcript;
 - duplicate, blank, setup, and picker screenshots, including captures that
   contained the tester's face or desktop content;
 - stale review snapshots, CI polling output, full hosted logs already retained
