@@ -1,0 +1,24 @@
+spec/adr/017-calendar-meeting-auto-start.md
+  s_7877b8f1c73fc0::t_1fdd77e8551fa2 175-176
+  s_7877b8f1c73fc0::t_b834b5eb0a1449 234
+Sources/MacParakeetCore/Calendar/README.md
+  s_7877b8f1c73fc0::t_65b105240fa846 22-24
+spec/04-ui-patterns.md
+  s_7877b8f1c73fc0::t_b2796865351828 18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b7234c28bd9bba81bfb65bdfc65f8086fc730c4d",
+  "prompts": {},
+  "sessions": {
+    "s_7877b8f1c73fc0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "f20b262c-fcad-468e-8ba0-b799744b4e51",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
