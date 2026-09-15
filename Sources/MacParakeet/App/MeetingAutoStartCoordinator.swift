@@ -46,6 +46,10 @@ final class MeetingAutoStartCoordinator {
     /// rejected (state busy) — the coordinator only needs the non-nil/nil
     /// distinction.
     private let onAutoStartConfirmed: @MainActor (_ snapshot: MeetingCalendarSnapshot) -> Int?
+    /// Injected so tests can authorize and capture reminders without
+    /// `UNUserNotificationCenter` (that API crashes inside the xctest helper).
+    private let isNotificationAuthorized: @MainActor () async -> Bool
+    private let postReminderNotification: @MainActor (UNNotificationRequest) async throws -> Void
     private let toastController: MeetingCountdownToastController
     private let logger = Logger(subsystem: "com.macparakeet", category: "MeetingAutoStart")
 
@@ -85,12 +89,20 @@ final class MeetingAutoStartCoordinator {
         settingsViewModel: SettingsViewModel,
         isRecordingActive: @escaping @MainActor () -> Bool = { false },
         onAutoStartConfirmed: @escaping @MainActor (_ snapshot: MeetingCalendarSnapshot) -> Int? = { _ in nil },
+        isNotificationAuthorized: @escaping @MainActor () async -> Bool = {
+            await CalendarNotificationAuthorization.isAuthorized()
+        },
+        postReminderNotification: @escaping @MainActor (UNNotificationRequest) async throws -> Void = { request in
+            try await UNUserNotificationCenter.current().add(request)
+        },
         toastController: MeetingCountdownToastController? = nil
     ) {
         self.calendarService = calendarService
         self.settingsViewModel = settingsViewModel
         self.isRecordingActive = isRecordingActive
         self.onAutoStartConfirmed = onAutoStartConfirmed
+        self.isNotificationAuthorized = isNotificationAuthorized
+        self.postReminderNotification = postReminderNotification
         // The toast controller is `@MainActor`-isolated, so its default
         // can't be expressed as a parameter default (initializer evaluation
         // happens in the caller's actor context). Construct here when the
@@ -609,6 +621,10 @@ extension MeetingAutoStartCoordinator {
     func testHook_forcePoll() {
         Task { @MainActor [weak self] in await self?.pollAsync() }
     }
+
+    func testHook_isReminded(_ event: CalendarEvent) -> Bool {
+        remindedEventIds.contains(event.dedupeKey)
+    }
 }
 
 private extension MeetingAutoStartCoordinator {
@@ -622,7 +638,7 @@ private extension MeetingAutoStartCoordinator {
         // time, but the user may have revoked notifications since. Without
         // this check macOS silently drops `add()` and the user sees no
         // reminder despite Calendar being granted.
-        guard await CalendarNotificationAuthorization.isAuthorized() else {
+        guard await isNotificationAuthorized() else {
             logger.warning("Notification authorization missing — reminder for event id=\(event.id, privacy: .public) not delivered")
             return
         }
@@ -661,7 +677,7 @@ private extension MeetingAutoStartCoordinator {
         // poll tick when delivery transiently fails — better to miss a single
         // reminder than spam the user.
         do {
-            try await UNUserNotificationCenter.current().add(request)
+            try await postReminderNotification(request)
             Telemetry.send(.calendarReminderShown(
                 mode: mode.rawValue,
                 leadMinutes: leadMinutes,

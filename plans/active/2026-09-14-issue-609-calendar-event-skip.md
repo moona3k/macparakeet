@@ -457,9 +457,9 @@ Coordinator tests:
   one eligible countdown can reappear and unrelated suppression stays intact
   (`MockCalendarService` held-fetch seam).
 - Recheck after skip: countdown presentation, countdown completion, and
-  reminder submit do not fire for a now-skipped event. Reminder tests need a
-  controllable authorization/delivery seam; under XCTest the current helper
-  returns false, so "no delivery" alone does not prove skip.
+  reminder submit do not fire for a now-skipped event. Coordinator tests
+  inject an authorization/delivery seam so skip across the reminder wait
+  is proven without `UNUserNotificationCenter` (that API crashes in XCTest).
 - `probableSnapshotForManualStart` still skips `.pending`.
 - Existing `dismissedEventIds` tests are rewritten for occurrence skip.
 

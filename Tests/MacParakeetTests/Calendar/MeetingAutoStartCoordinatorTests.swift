@@ -1,4 +1,5 @@
 import XCTest
+import UserNotifications
 @testable import MacParakeet
 @testable import MacParakeetCore
 @testable import MacParakeetViewModels
@@ -63,7 +64,8 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
     }
 
     private func makeCoordinator(
-        toastController: MeetingCountdownToastController? = nil
+        toastController: MeetingCountdownToastController? = nil,
+        reminderDelivery: ReminderDeliveryStub? = nil
     ) -> MeetingAutoStartCoordinator {
         MeetingAutoStartCoordinator(
             calendarService: calendarService,
@@ -79,6 +81,12 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
                     return nil
                 }
                 return 1
+            },
+            isNotificationAuthorized: {
+                await reminderDelivery?.isAuthorized() ?? false
+            },
+            postReminderNotification: { request in
+                try await reminderDelivery?.post(request)
             },
             toastController: toastController
         )
@@ -653,4 +661,72 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
         coordinator.stop()
     }
 
+    func testAuthorizedReminderPostsWhenEventIsNotSkipped() async {
+        calendarService.stubPermissionStatus = .granted
+        let meeting = event(startsIn: 5 * 60)
+        calendarService.stubEvents = [meeting]
+        seedSettings(mode: .notify, reminderMinutes: 5)
+        let delivery = ReminderDeliveryStub()
+        delivery.authorized = true
+
+        let coordinator = makeCoordinator(reminderDelivery: delivery)
+        coordinator.start()
+        await waitForPoll()
+        defer { coordinator.stop() }
+
+        XCTAssertEqual(delivery.posted.count, 1)
+        XCTAssertEqual(delivery.posted.first?.identifier, "macparakeet.calendar.\(meeting.id)")
+        XCTAssertTrue(coordinator.testHook_isReminded(meeting))
+    }
+
+    func testSkipDuringReminderAuthWaitDoesNotPost() async {
+        calendarService.stubPermissionStatus = .granted
+        let meeting = event(startsIn: 5 * 60)
+        calendarService.stubEvents = [meeting]
+        seedSettings(mode: .notify, reminderMinutes: 5)
+        let delivery = ReminderDeliveryStub()
+        delivery.authorized = true
+        delivery.holdNext = true
+
+        let coordinator = makeCoordinator(reminderDelivery: delivery)
+        coordinator.start()
+        await waitForPoll()
+        defer { coordinator.stop() }
+
+        XCTAssertTrue(coordinator.testHook_isReminded(meeting),
+                      "The reminded mark is set before the authorization wait")
+        settingsViewModel.skipOccurrence(meeting)
+        delivery.release()
+        await waitForPoll()
+
+        XCTAssertTrue(delivery.posted.isEmpty,
+                      "Skip during the authorization wait must prevent reminder submit")
+        XCTAssertEqual(autoStartConfirmedCount, 0)
+    }
+
+}
+
+@MainActor
+private final class ReminderDeliveryStub {
+    var authorized = false
+    var holdNext = false
+    private var continuation: CheckedContinuation<Bool, Never>?
+    private(set) var posted: [UNNotificationRequest] = []
+
+    func isAuthorized() async -> Bool {
+        if holdNext {
+            holdNext = false
+            return await withCheckedContinuation { continuation = $0 }
+        }
+        return authorized
+    }
+
+    func release() {
+        continuation?.resume(returning: authorized)
+        continuation = nil
+    }
+
+    func post(_ request: UNNotificationRequest) async throws {
+        posted.append(request)
+    }
 }
