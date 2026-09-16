@@ -467,9 +467,17 @@ final class DictationServiceTests: XCTestCase {
 
         try await service.startRecording()
         await service.cancelRecording(reason: .escape)
-        try await Task.sleep(for: .milliseconds(80))
 
-        let saved = try dictationRepo.fetchAll()
+        // Expiry persist is an unstructured Task after `cancelWindow`. A
+        // fixed 80ms sleep races STT on a loaded CI runner.
+        let deadline = ContinuousClock.now + .seconds(2)
+        var saved: [Dictation] = []
+        while ContinuousClock.now < deadline {
+            saved = try dictationRepo.fetchAll()
+            if saved.count == 1 { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
         XCTAssertEqual(saved.count, 1)
         XCTAssertEqual(saved.first?.status, .cancelled)
         XCTAssertEqual(saved.first?.rawTranscript, "expired cancel still kept")
