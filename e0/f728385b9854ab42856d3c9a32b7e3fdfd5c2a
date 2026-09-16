@@ -1,0 +1,38 @@
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_16625ca395d674::t_5d3bb7d23ebd52 3118
+  s_16625ca395d674::t_3781ecb0738173 2932-2934,2946-2952
+  s_16625ca395d674::t_f79ff09be5c174 3075-3084,3086-3095,3098-3104,3116-3117
+Tests/MacParakeetTests/STT/MockSTTClient.swift
+  s_16625ca395d674::t_50d7b4320eae88 138-156
+  s_16625ca395d674::t_4135d3bc8449e7 36-37
+  s_16625ca395d674::t_bd467f5a394504 560-569
+Sources/MacParakeetCore/STT/STTRuntime.swift
+  s_16625ca395d674::t_cfe5085b2774d4 1595-1601
+  s_16625ca395d674::t_b6b1a39a9b160d 1647-1650
+Tests/MacParakeetTests/ViewModels/EngineSettingsViewModelTests.swift
+  s_16625ca395d674::t_f17dd608c93b0e 881-975
+Sources/MacParakeetViewModels/EngineSettingsViewModel.swift
+  s_16625ca395d674::t_e357483bf20021 1082-1091,1093,1096-1099,1102,1106,1130-1132,1136,1152,1169,1171-1175,1195-1251
+  s_16625ca395d674::t_8fb82e14900334 941-979
+  s_16625ca395d674::t_4494a8602d0831 83-90
+  s_16625ca395d674::t_42dc05253a65fd 226-236
+  s_16625ca395d674::t_3bd69607a12f55 1252
+spec/08-error-handling.md
+  s_16625ca395d674::t_6af4523f9b4975 28,34,71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e0f728385b9854ab42856d3c9a32b7e3fdfd5c2a",
+  "prompts": {},
+  "sessions": {
+    "s_16625ca395d674": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "50a31c9a-e072-42da-b153-189c3e78ba52",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
