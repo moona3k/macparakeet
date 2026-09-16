@@ -188,6 +188,8 @@ final class DictationFlowCoordinator {
 
     /// Telemetry trigger for the current dictation flow.
     private var currentTrigger: TelemetryDictationTrigger = .hotkey
+    /// Per-invocation AI Formatter gate captured at start. `nil` follows Settings.
+    private var sessionAIFormatterEnabled: Bool?
     /// The Dictation object from the most recent transcription, used for paste + DB save.
     private var currentDictation: Dictation?
     /// Insertion style used to shape the most recent dictation result, used for paste spacing.
@@ -343,12 +345,14 @@ final class DictationFlowCoordinator {
 
     func startDictation(
         mode: FnKeyStateMachine.RecordingMode,
-        trigger: TelemetryDictationTrigger = .hotkey
+        trigger: TelemetryDictationTrigger = .hotkey,
+        aiFormatterEnabled: Bool? = nil
     ) {
         // Suppressed while onboarding is up — the speech model isn't ready and
         // the hotkey step runs its own no-STT rehearsal. Covers hotkey + pill.
         guard !isStartSuppressed() else { return }
         currentTrigger = trigger
+        sessionAIFormatterEnabled = aiFormatterEnabled
         sendEvent(.startRequested(mode: mode))
     }
 
@@ -950,6 +954,7 @@ final class DictationFlowCoordinator {
         sessionID: Int
     ) {
         let trigger = currentTrigger
+        let aiFormatterOverride = sessionAIFormatterEnabled
         recordingTask = Task { @MainActor in
             do {
                 try Task.checkCancellation()
@@ -979,7 +984,8 @@ final class DictationFlowCoordinator {
                     context: DictationTelemetryContext(
                         trigger: trigger,
                         mode: self.telemetryMode(for: mode)
-                    )
+                    ),
+                    aiFormatterEnabled: aiFormatterOverride
                 )
                 await self.serviceSession.updateAIFormatterAppContext(
                     startContext,

@@ -1261,6 +1261,21 @@ final class SettingsViewModelTests: XCTestCase {
     func testTranscriptionHotkeysDefaultToDisabled() {
         XCTAssertEqual(viewModel.fileTranscriptionHotkeyTrigger, .disabled)
         XCTAssertEqual(viewModel.youtubeTranscriptionHotkeyTrigger, .disabled)
+        XCTAssertEqual(viewModel.dictationAIPolishHotkeyTrigger, .disabled)
+    }
+
+    func testDictationAIPolishHotkeyPersistsToDedicatedDefaultsKey() {
+        let trigger = HotkeyTrigger.chord(modifiers: ["control", "option"], keyCode: 35)
+        viewModel.dictationAIPolishHotkeyTrigger = trigger
+
+        XCTAssertEqual(
+            HotkeyTrigger.current(
+                defaults: testDefaults,
+                defaultsKey: HotkeyTrigger.dictationAIPolishDefaultsKey,
+                fallback: .disabled
+            ),
+            trigger
+        )
     }
 
     func testFileTranscriptionHotkeyPersistsToDedicatedDefaultsKey() {
@@ -1318,6 +1333,7 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.meetingHotkeyTrigger = .chord(modifiers: ["control", "option"], keyCode: 46)
         viewModel.fileTranscriptionHotkeyTrigger = .disabled
         viewModel.youtubeTranscriptionHotkeyTrigger = .fromKeyCode(16)
+        viewModel.dictationAIPolishHotkeyTrigger = .chord(modifiers: ["control", "option"], keyCode: 35)
 
         let events = telemetry.snapshot()
         let hotkeyEvents = events.compactMap { event -> String? in
@@ -1339,6 +1355,7 @@ final class SettingsViewModelTests: XCTestCase {
             "meeting:chord",
             "file_transcription:disabled",
             "youtube_transcription:key_code",
+            "dictation_ai_polish:chord",
         ])
         XCTAssertTrue(hotkeySettingEvents.isEmpty)
     }

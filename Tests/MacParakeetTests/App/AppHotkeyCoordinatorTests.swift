@@ -23,7 +23,7 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
     ) -> AppHotkeyCoordinator {
         AppHotkeyCoordinator(
             settingsViewModel: settingsViewModel,
-            onStartDictation: { _ in },
+            onStartDictation: { _, _ in },
             onStopDictation: {},
             onCancelDictation: {},
             onDiscardRecording: { _ in },
@@ -255,6 +255,32 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             ),
             AppHotkeyCoordinator.DictationHotkeyPlan(specs: [], conflict: nil)
         )
+    }
+
+    func testDictationHotkeyPlanAddsAIPolishAsSeparateTapToggle() {
+        let polish = HotkeyTrigger.chord(modifiers: ["control", "option"], keyCode: 35)
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .fn,
+            pushToTalk: .fn,
+            aiPolish: polish
+        )
+
+        XCTAssertEqual(plan.specs.count, 2)
+        XCTAssertEqual(plan.specs.last?.trigger, polish)
+        XCTAssertEqual(plan.specs.last?.gestureMode, .singleTapToggle)
+        XCTAssertEqual(plan.specs.last?.aiFormatterEnabled, true)
+        XCTAssertNil(plan.conflict)
+    }
+
+    func testDictationHotkeyPlanReportsConflictWhenAIPolishOverlapsHandsFree() {
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .control,
+            pushToTalk: .option,
+            aiPolish: .control
+        )
+
+        XCTAssertEqual(plan.conflict?.trigger, .control)
+        XCTAssertFalse(plan.specs.contains(where: { $0.aiFormatterEnabled == true }))
     }
 
     // MARK: - Suspend / Resume

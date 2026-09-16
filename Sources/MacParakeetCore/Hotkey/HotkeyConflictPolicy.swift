@@ -67,6 +67,7 @@ public enum HotkeyConflictPolicy {
         case meetingRecording
         case fileTranscription
         case youtubeTranscription
+        case dictationAIPolish
     }
 
     public struct Candidate: Equatable, Sendable {
@@ -114,6 +115,7 @@ public enum HotkeyConflictPolicy {
         public let meeting: HotkeyTrigger
         public let fileTranscription: HotkeyTrigger
         public let youtubeTranscription: HotkeyTrigger
+        public let dictationAIPolish: HotkeyTrigger
         public let transformHotkeys: [Prompt]
         public let meetingRecordingEnabled: Bool
 
@@ -123,6 +125,7 @@ public enum HotkeyConflictPolicy {
             meeting: HotkeyTrigger,
             fileTranscription: HotkeyTrigger,
             youtubeTranscription: HotkeyTrigger,
+            dictationAIPolish: HotkeyTrigger = .disabled,
             transformHotkeys: [Prompt],
             meetingRecordingEnabled: Bool
         ) {
@@ -131,6 +134,7 @@ public enum HotkeyConflictPolicy {
             self.meeting = meeting
             self.fileTranscription = fileTranscription
             self.youtubeTranscription = youtubeTranscription
+            self.dictationAIPolish = dictationAIPolish
             self.transformHotkeys = transformHotkeys
             self.meetingRecordingEnabled = meetingRecordingEnabled
         }
@@ -199,10 +203,17 @@ public enum HotkeyConflictPolicy {
             ) {
                 return conflict
             }
+            if let conflict = overlappingConflict(
+                candidate: trigger,
+                peer: snapshot.dictationAIPolish,
+                peerName: "AI polish this dictation"
+            ) {
+                return conflict
+            }
             return firstConflict(
                 for: trigger,
                 selfMode: .bareModifierDictation,
-                among: dictationPeerCandidates(snapshot: snapshot)
+                among: dictationPeerCandidates(snapshot: snapshot, includeAIPolish: false)
             )
 
         case .pushToTalk:
@@ -213,10 +224,17 @@ public enum HotkeyConflictPolicy {
             ) {
                 return conflict
             }
+            if let conflict = overlappingConflict(
+                candidate: trigger,
+                peer: snapshot.dictationAIPolish,
+                peerName: "AI polish this dictation"
+            ) {
+                return conflict
+            }
             return firstConflict(
                 for: trigger,
                 selfMode: .bareModifierDictation,
-                among: dictationPeerCandidates(snapshot: snapshot)
+                among: dictationPeerCandidates(snapshot: snapshot, includeAIPolish: false)
             )
 
         case .meetingRecording:
@@ -227,6 +245,10 @@ public enum HotkeyConflictPolicy {
                     NamedCandidate(name: "push to talk", trigger: snapshot.pushToTalk, mode: .bareModifierDictation),
                     NamedCandidate(name: "file transcription", trigger: snapshot.fileTranscription),
                     NamedCandidate(name: "video URL transcription", trigger: snapshot.youtubeTranscription),
+                    NamedCandidate(
+                        name: "AI polish this dictation",
+                        trigger: snapshot.dictationAIPolish
+                    ),
                 ] + transformCandidates(snapshot.transformHotkeys)
             )
 
@@ -249,6 +271,26 @@ public enum HotkeyConflictPolicy {
                     snapshot: snapshot
                 )
             )
+
+        case .dictationAIPolish:
+            if let conflict = overlappingConflict(
+                candidate: trigger,
+                peer: snapshot.handsFree,
+                peerName: "hands-free mode"
+            ) {
+                return conflict
+            }
+            if let conflict = overlappingConflict(
+                candidate: trigger,
+                peer: snapshot.pushToTalk,
+                peerName: "push to talk"
+            ) {
+                return conflict
+            }
+            return firstConflict(
+                for: trigger,
+                among: dictationPeerCandidates(snapshot: snapshot, includeAIPolish: false)
+            )
         }
     }
 
@@ -261,6 +303,18 @@ public enum HotkeyConflictPolicy {
         if HotkeyTrigger.isSharedDictationGesture(handsFree: candidate, pushToTalk: peer) {
             return nil
         }
+        return Conflict(name: peerName, trigger: peer)
+    }
+
+    /// Same overlap as `appendingAIPolish` / runtime dictation managers.
+    /// Unlike `dictationPeerConflict`, exact duplicates are conflicts — polish
+    /// cannot share a trigger with hands-free or push-to-talk.
+    private static func overlappingConflict(
+        candidate: HotkeyTrigger,
+        peer: HotkeyTrigger,
+        peerName: String
+    ) -> Conflict? {
+        guard candidate.overlaps(with: peer) else { return nil }
         return Conflict(name: peerName, trigger: peer)
     }
 
@@ -302,13 +356,19 @@ public enum HotkeyConflictPolicy {
         !(surface == .handsFreeDictation && conflict.name == "push to talk")
     }
 
-    private static func dictationPeerCandidates(snapshot: SettingsSnapshot) -> [NamedCandidate] {
+    private static func dictationPeerCandidates(
+        snapshot: SettingsSnapshot,
+        includeAIPolish: Bool = true
+    ) -> [NamedCandidate] {
         var candidates: [NamedCandidate] = []
         if snapshot.meetingRecordingEnabled {
             candidates.append(NamedCandidate(name: "meeting recording", trigger: snapshot.meeting))
         }
         candidates.append(NamedCandidate(name: "file transcription", trigger: snapshot.fileTranscription))
         candidates.append(NamedCandidate(name: "video URL transcription", trigger: snapshot.youtubeTranscription))
+        if includeAIPolish {
+            candidates.append(NamedCandidate(name: "AI polish this dictation", trigger: snapshot.dictationAIPolish))
+        }
         candidates.append(contentsOf: transformCandidates(snapshot.transformHotkeys))
         return candidates
     }
@@ -326,6 +386,12 @@ public enum HotkeyConflictPolicy {
             candidates.append(NamedCandidate(name: "meeting recording", trigger: snapshot.meeting))
         }
         candidates.append(NamedCandidate(name: otherTranscriptionName, trigger: otherTranscriptionTrigger))
+        candidates.append(
+            NamedCandidate(
+                name: "AI polish this dictation",
+                trigger: snapshot.dictationAIPolish
+            )
+        )
         candidates.append(contentsOf: transformCandidates(snapshot.transformHotkeys))
         return candidates
     }

@@ -148,6 +148,7 @@ Dictation defaults to a built-in shared `Fn` gesture preset: hold `Fn` for push-
 |------|---------|----------|
 | **Hands-free** | Double-tap the shared Fn/custom trigger when both dictation roles share one, or tap the configured hands-free shortcut when roles are distinct | Persistent recording. Tap the shortcut again to stop. |
 | **Press-and-hold** | Hold the push-to-talk shortcut | Hold-to-talk. Release auto-stops and pastes. |
+| **AI polish this dictation** | Optional extra shortcut, default unset | Tap to start/stop like hands-free (no hold-to-talk variant). Requires the AI Formatter master switch. Always runs cleanup for that utterance even when *Use for dictation* is off. The choice is snapshotted at recording start. |
 
 Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migrate to the shared `Fn` gesture preset. Legacy single-hotkey installs are migrated to the shared default gesture when the stored trigger is `Fn`. Otherwise the old trigger becomes push-to-talk, while hands-free moves to the default `Fn` preset or disables itself if that would conflict.
 
@@ -973,7 +974,7 @@ Important constraints:
 - formatter uses the shared `LLMService`
 - formatter runs for dictation, file/URL, and meeting transcription flows — every transcription finalization path shares `completeTranscription`, which invokes the formatter (`TelemetryFormatterSource` emits `.dictation` and `.transcription`; meetings report as `.transcription`)
 - formatter skips empty or whitespace-only input before prompt resolution or any provider call, so a model response can never become transcript content when STT produces no transcript text (#855)
-- formatter routing is per-surface: "Use for transcripts" (file/URL/meeting, default on) and "Use for dictation" (default off) toggles in AI settings, each ANDed with provider availability (#408, #493). Those toggles are enablement, not model selection. If a later change lets cleanup and meeting AI use different models, follow [ADR-032](adr/032-llm-task-group-routing.md): per-task inherit / general route / specialist recipe, not a picker per feature.
+- formatter routing is per-surface: "Use for transcripts" (file/URL/meeting, default on) and "Use for dictation" (default off) toggles in AI settings, each ANDed with provider availability (#408, #493). Those toggles are enablement, not model selection. An optional **AI polish this dictation** shortcut (default unset) starts a dictation session with the formatter forced on for that utterance when the AI Formatter master switch is on, snapshotted at recording start so a Settings change mid-utterance cannot flip it. If a later change lets cleanup and meeting AI use different models, follow [ADR-032](adr/032-llm-task-group-routing.md): per-task inherit / general route / specialist recipe, not a picker per feature.
 - transcription formatter input is capped at `AIFormatter.maxTranscriptionInputChars` (20k chars); longer transcripts (hour-long meetings) skip straight to deterministic cleanup because a full-rewrite response can stall slow providers until timeout (#493)
 - dictation formatter prompts route through local exact-app profiles, local coarse-category profiles, built-in coarse-category smart defaults, and then the fallback formatter prompt
 - built-in smart defaults are user-controllable: a master switch plus per-category switches (UserDefaults-backed `AIFormatterSmartDefaultsPolicy`), and every built-in prompt is readable in Settings even when the master switch is off; with the tier off, zero-profile prompt selection is byte-for-byte the legacy fallback-prompt behavior
@@ -1000,6 +1001,7 @@ Important constraints:
 - [x] Smart defaults are inspectable and toggleable (master + per-category); disabling them restores legacy fallback-prompt selection
 - [x] Graceful fallback to deterministic cleanup if formatting fails
 - [x] Persisted formatter runs write local metadata-only `llm_runs` records linked to the saved source row
+- [x] Optional dictation shortcut can force AI cleanup for one utterance; the choice is snapshotted at recording start (#840)
 
 ---
 

@@ -7,7 +7,7 @@ final class AppHotkeyCoordinator {
     static let holdToTalkStopTailMs = 200
 
     private let settingsViewModel: SettingsViewModel
-    private let onStartDictation: (FnKeyStateMachine.RecordingMode) -> Void
+    private let onStartDictation: (FnKeyStateMachine.RecordingMode, Bool?) -> Void
     private let onStopDictation: () -> Void
     private let onCancelDictation: () -> Void
     private let onDiscardRecording: (Bool) -> Void
@@ -35,7 +35,7 @@ final class AppHotkeyCoordinator {
 
     init(
         settingsViewModel: SettingsViewModel,
-        onStartDictation: @escaping (FnKeyStateMachine.RecordingMode) -> Void,
+        onStartDictation: @escaping (FnKeyStateMachine.RecordingMode, Bool?) -> Void,
         onStopDictation: @escaping () -> Void,
         onCancelDictation: @escaping () -> Void,
         onDiscardRecording: @escaping (Bool) -> Void,
@@ -80,17 +80,20 @@ final class AppHotkeyCoordinator {
             let gestureMode: HotkeyGestureController.Mode
             let startupDebounceMs: Int
             let holdToTalkStopTailMs: Int
+            let aiFormatterEnabled: Bool?
 
             init(
                 trigger: HotkeyTrigger,
                 gestureMode: HotkeyGestureController.Mode,
                 startupDebounceMs: Int = FnKeyStateMachine.defaultStartupDebounceMs,
-                holdToTalkStopTailMs: Int = 0
+                holdToTalkStopTailMs: Int = 0,
+                aiFormatterEnabled: Bool? = nil
             ) {
                 self.trigger = trigger
                 self.gestureMode = gestureMode
                 self.startupDebounceMs = startupDebounceMs
                 self.holdToTalkStopTailMs = max(0, holdToTalkStopTailMs)
+                self.aiFormatterEnabled = aiFormatterEnabled
             }
         }
 
@@ -133,31 +136,29 @@ final class AppHotkeyCoordinator {
 
     static func dictationHotkeyPlan(
         handsFree handsFreeTrigger: HotkeyTrigger,
-        pushToTalk pushToTalkTrigger: HotkeyTrigger
+        pushToTalk pushToTalkTrigger: HotkeyTrigger,
+        aiPolish aiPolishTrigger: HotkeyTrigger = .disabled
     ) -> DictationHotkeyPlan {
-        guard !handsFreeTrigger.isDisabled || !pushToTalkTrigger.isDisabled else {
-            return DictationHotkeyPlan(specs: [], conflict: nil)
-        }
-
-        if HotkeyTrigger.isSharedDictationGesture(
-            handsFree: handsFreeTrigger,
-            pushToTalk: pushToTalkTrigger
-        ) {
-            return DictationHotkeyPlan(
-                specs: [
-                    DictationHotkeyPlan.Spec(
-                        trigger: handsFreeTrigger,
-                        gestureMode: .doubleTapAndHold,
-                        holdToTalkStopTailMs: holdToTalkStopTailMs
-                    ),
-                ],
-                conflict: nil
-            )
-        }
-
-        if !handsFreeTrigger.isDisabled, !pushToTalkTrigger.isDisabled {
-            if handsFreeTrigger.overlaps(with: pushToTalkTrigger) {
-                return DictationHotkeyPlan(
+        let base: DictationHotkeyPlan
+        if !handsFreeTrigger.isDisabled || !pushToTalkTrigger.isDisabled {
+            if HotkeyTrigger.isSharedDictationGesture(
+                handsFree: handsFreeTrigger,
+                pushToTalk: pushToTalkTrigger
+            ) {
+                base = DictationHotkeyPlan(
+                    specs: [
+                        DictationHotkeyPlan.Spec(
+                            trigger: handsFreeTrigger,
+                            gestureMode: .doubleTapAndHold,
+                            holdToTalkStopTailMs: holdToTalkStopTailMs
+                        ),
+                    ],
+                    conflict: nil
+                )
+            } else if !handsFreeTrigger.isDisabled, !pushToTalkTrigger.isDisabled,
+                handsFreeTrigger.overlaps(with: pushToTalkTrigger)
+            {
+                base = DictationHotkeyPlan(
                     specs: [
                         DictationHotkeyPlan.Spec(
                             trigger: handsFreeTrigger,
@@ -169,32 +170,62 @@ final class AppHotkeyCoordinator {
                         conflicts: [handsFreeTrigger]
                     )
                 )
+            } else {
+                var specs: [DictationHotkeyPlan.Spec] = []
+                if !handsFreeTrigger.isDisabled {
+                    specs.append(
+                        DictationHotkeyPlan.Spec(
+                            trigger: handsFreeTrigger,
+                            gestureMode: .singleTapToggle
+                        )
+                    )
+                }
+                if !pushToTalkTrigger.isDisabled {
+                    specs.append(
+                        DictationHotkeyPlan.Spec(
+                            trigger: pushToTalkTrigger,
+                            gestureMode: .holdOnly,
+                            startupDebounceMs: pushToTalkStartupDebounceMs(
+                                handsFree: handsFreeTrigger,
+                                pushToTalk: pushToTalkTrigger
+                            ),
+                            holdToTalkStopTailMs: holdToTalkStopTailMs
+                        )
+                    )
+                }
+                base = DictationHotkeyPlan(specs: specs, conflict: nil)
             }
+        } else {
+            base = DictationHotkeyPlan(specs: [], conflict: nil)
         }
 
-        var specs: [DictationHotkeyPlan.Spec] = []
-        if !handsFreeTrigger.isDisabled {
-            specs.append(
-                DictationHotkeyPlan.Spec(
-                    trigger: handsFreeTrigger,
-                    gestureMode: .singleTapToggle
+        return appendingAIPolish(aiPolishTrigger, to: base)
+    }
+
+    private static func appendingAIPolish(
+        _ polish: HotkeyTrigger,
+        to plan: DictationHotkeyPlan
+    ) -> DictationHotkeyPlan {
+        guard !polish.isDisabled else { return plan }
+        let conflicting = plan.specs.map(\.trigger).filter { polish.overlaps(with: $0) }
+        if !conflicting.isEmpty {
+            return DictationHotkeyPlan(
+                specs: plan.specs,
+                conflict: plan.conflict ?? DictationHotkeyPlan.Conflict(
+                    trigger: polish,
+                    conflicts: conflicting
                 )
             )
         }
-        if !pushToTalkTrigger.isDisabled {
-            specs.append(
-                DictationHotkeyPlan.Spec(
-                    trigger: pushToTalkTrigger,
-                    gestureMode: .holdOnly,
-                    startupDebounceMs: pushToTalkStartupDebounceMs(
-                        handsFree: handsFreeTrigger,
-                        pushToTalk: pushToTalkTrigger
-                    ),
-                    holdToTalkStopTailMs: holdToTalkStopTailMs
-                )
+        var specs = plan.specs
+        specs.append(
+            DictationHotkeyPlan.Spec(
+                trigger: polish,
+                gestureMode: .singleTapToggle,
+                aiFormatterEnabled: true
             )
-        }
-        return DictationHotkeyPlan(specs: specs, conflict: nil)
+        )
+        return DictationHotkeyPlan(specs: specs, conflict: plan.conflict)
     }
 
     private static func pushToTalkStartupDebounceMs(
@@ -213,7 +244,8 @@ final class AppHotkeyCoordinator {
     func setupDictationHotkeys() {
         let plan = Self.dictationHotkeyPlan(
             handsFree: settingsViewModel.hotkeyTrigger,
-            pushToTalk: settingsViewModel.pushToTalkHotkeyTrigger
+            pushToTalk: settingsViewModel.pushToTalkHotkeyTrigger,
+            aiPolish: settingsViewModel.dictationAIPolishHotkeyTrigger
         )
         if let conflict = plan.conflict {
             onHotkeyConflict(conflict.trigger, conflict.conflicts)
@@ -221,13 +253,19 @@ final class AppHotkeyCoordinator {
 
         let activeRecordingMode = dictationRecordingModeProvider()
         let managers = plan.specs.compactMap { spec in
-            startDictationHotkey(
+            let isPolish = spec.aiFormatterEnabled == true
+            let suppressPolishWhileRecording = isPolish && activeRecordingMode != nil
+            return startDictationHotkey(
                 trigger: spec.trigger,
                 gestureMode: spec.gestureMode,
                 startupDebounceMs: spec.startupDebounceMs,
                 holdToTalkStopTailMs: spec.holdToTalkStopTailMs,
-                resumeMode: Self.resumeMode(activeRecordingMode, for: spec.gestureMode),
-                suppressUntilReset: Self.shouldSuppressPeer(activeRecordingMode, for: spec.gestureMode)
+                resumeMode: suppressPolishWhileRecording
+                    ? nil
+                    : Self.resumeMode(activeRecordingMode, for: spec.gestureMode),
+                suppressUntilReset: suppressPolishWhileRecording
+                    || Self.shouldSuppressPeer(activeRecordingMode, for: spec.gestureMode),
+                aiFormatterEnabled: spec.aiFormatterEnabled
             )
         }
         dictationHotkeyManagers = managers
@@ -246,7 +284,8 @@ final class AppHotkeyCoordinator {
         startupDebounceMs: Int = FnKeyStateMachine.defaultStartupDebounceMs,
         holdToTalkStopTailMs: Int = 0,
         resumeMode: FnKeyStateMachine.RecordingMode? = nil,
-        suppressUntilReset: Bool = false
+        suppressUntilReset: Bool = false,
+        aiFormatterEnabled: Bool? = nil
     ) -> HotkeyManager? {
         guard !trigger.isDisabled else { return nil }
 
@@ -260,7 +299,7 @@ final class AppHotkeyCoordinator {
             if let manager {
                 self?.suppressOtherDictationHotkeys(activeManager: manager)
             }
-            self?.onStartDictation(mode)
+            self?.onStartDictation(mode, aiFormatterEnabled)
         }
         manager.onStopRecording = { [weak self] in
             self?.resetDictationHotkeyGestures()
@@ -316,6 +355,7 @@ final class AppHotkeyCoordinator {
                 .init(settingsViewModel.pushToTalkHotkeyTrigger, mode: .bareModifierDictation),
                 .init(settingsViewModel.fileTranscriptionHotkeyTrigger),
                 .init(settingsViewModel.youtubeTranscriptionHotkeyTrigger),
+                .init(settingsViewModel.dictationAIPolishHotkeyTrigger, mode: .bareModifierDictation),
             ],
             onTrigger: { [weak self] in
                 self?.onToggleMeetingRecording()
@@ -331,6 +371,7 @@ final class AppHotkeyCoordinator {
                 .init(settingsViewModel.pushToTalkHotkeyTrigger, mode: .bareModifierDictation),
                 .init(settingsViewModel.meetingHotkeyTrigger),
                 .init(settingsViewModel.youtubeTranscriptionHotkeyTrigger),
+                .init(settingsViewModel.dictationAIPolishHotkeyTrigger, mode: .bareModifierDictation),
             ],
             onTrigger: { [weak self] in
                 self?.onTriggerFileTranscription()
@@ -346,6 +387,7 @@ final class AppHotkeyCoordinator {
                 .init(settingsViewModel.pushToTalkHotkeyTrigger, mode: .bareModifierDictation),
                 .init(settingsViewModel.meetingHotkeyTrigger),
                 .init(settingsViewModel.fileTranscriptionHotkeyTrigger),
+                .init(settingsViewModel.dictationAIPolishHotkeyTrigger, mode: .bareModifierDictation),
             ],
             onTrigger: { [weak self] in
                 self?.onTriggerYouTubeTranscription()
