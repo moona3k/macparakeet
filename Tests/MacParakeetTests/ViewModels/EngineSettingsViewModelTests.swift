@@ -71,9 +71,8 @@ final class EngineSettingsViewModelTests: XCTestCase {
         line: UInt = #line
     ) async throws {
         try await waitUntil(file: file, line: line) {
-            vm.nemotronModelStatus != .checking &&
-                vm.whisperModelStatus != .checking &&
-                vm.cohereModelStatus != .checking
+            vm.nemotronModelStatus != .checking && vm.whisperModelStatus != .checking
+                && vm.cohereModelStatus != .checking
         }
     }
 
@@ -89,7 +88,8 @@ final class EngineSettingsViewModelTests: XCTestCase {
         XCTAssertNil(defaults.string(forKey: SpeechEnginePreference.transcriptionDefaultsKey))
         XCTAssertEqual(vm.parakeetModelVariant, SpeechEnginePreference.parakeetModelVariant(defaults: defaults))
         XCTAssertEqual(vm.nemotronModelVariant, SpeechEnginePreference.nemotronModelVariant(defaults: defaults))
-        XCTAssertEqual(vm.whisperDefaultLanguage, SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults) ?? "auto")
+        XCTAssertEqual(
+            vm.whisperDefaultLanguage, SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults) ?? "auto")
         XCTAssertEqual(vm.whisperDefaultLanguage, "auto")
         XCTAssertEqual(vm.cohereComputePolicy, CohereTranscribeEngine.ComputePolicy.current(defaults: defaults))
         XCTAssertEqual(vm.cohereComputePolicy, .ane)
@@ -892,17 +892,20 @@ final class EngineSettingsViewModelTests: XCTestCase {
         vm.speechEnginePreference = .whisper
 
         try await waitUntil { vm.speechEngineSwitchStalled }
-        XCTAssertTrue(vm.speechEngineSwitching, "Core ML is still compiling; Settings must not pretend the switch finished")
+        XCTAssertTrue(
+            vm.speechEngineSwitching, "Core ML is still compiling; Settings must not pretend the switch finished")
+        XCTAssertFalse(vm.speechEngineSwitchFinishingInBackground)
         XCTAssertEqual(vm.speechEnginePreference, .whisper)
         XCTAssertEqual(SpeechEnginePreference.current(defaults: defaults), .parakeet)
         XCTAssertTrue(
-            vm.speechEngineSwitchDetail?.localizedCaseInsensitiveContains("cannot be cancelled") == true
-                || vm.speechEngineSwitchDetail?.localizedCaseInsensitiveContains("cannot be interrupted") == true,
+            vm.speechEngineSwitchDetail?.localizedCaseInsensitiveContains("cannot be interrupted") == true,
             "stalled copy must not pretend Core ML was cancelled, got: \(vm.speechEngineSwitchDetail ?? "nil")"
         )
 
         await stt.completeHungSpeechEngineSwitch()
         try await waitUntil { !vm.speechEngineSwitching }
+        let committed = await stt.committedSpeechEnginePreferenceSnapshot()
+        XCTAssertEqual(committed, .whisper)
     }
 
     func testLeavingStalledWhisperSwitchRestoresPreviousEngineWithoutAwaitingCoreML() async throws {
@@ -920,12 +923,20 @@ final class EngineSettingsViewModelTests: XCTestCase {
 
         XCTAssertFalse(vm.speechEngineSwitching)
         XCTAssertFalse(vm.speechEngineSwitchStalled)
+        XCTAssertTrue(vm.speechEngineSwitchFinishingInBackground)
+        XCTAssertEqual(vm.abandonedSpeechEngineSwitchTarget, .whisper)
+        XCTAssertEqual(vm.speechEngineSwitchAvailability, .switchInProgress)
         XCTAssertEqual(vm.speechEnginePreference, .parakeet)
         XCTAssertEqual(SpeechEnginePreference.current(defaults: defaults), .parakeet)
         let switches = await stt.speechEngineSwitchesSnapshot()
         XCTAssertEqual(switches, [.whisper])
+        let committedBeforeResume = await stt.committedSpeechEnginePreferenceSnapshot()
+        XCTAssertNil(committedBeforeResume)
 
         await stt.completeHungSpeechEngineSwitch()
+        try await waitUntil { !vm.speechEngineSwitchFinishingInBackground }
+        let committedAfterResume = await stt.committedSpeechEnginePreferenceSnapshot()
+        XCTAssertNil(committedAfterResume)
     }
 
     func testLateHungWhisperSwitchSuccessDoesNotOverrideLeave() async throws {
@@ -939,13 +950,19 @@ final class EngineSettingsViewModelTests: XCTestCase {
         vm.speechEnginePreference = .whisper
         try await waitUntil { vm.speechEngineSwitchStalled }
         vm.leaveStalledSpeechEngineSwitch()
+        XCTAssertTrue(vm.speechEngineSwitchFinishingInBackground)
 
         await stt.completeHungSpeechEngineSwitch()
-        try await Task.sleep(for: .milliseconds(50))
+        try await waitUntil { !vm.speechEngineSwitchFinishingInBackground }
 
         XCTAssertEqual(vm.speechEnginePreference, .parakeet)
         XCTAssertEqual(SpeechEnginePreference.current(defaults: defaults), .parakeet)
         XCTAssertFalse(vm.speechEngineSwitching)
+        let committed = await stt.committedSpeechEnginePreferenceSnapshot()
+        XCTAssertNil(
+            committed,
+            "Late Core ML success after leave must not persist Whisper"
+        )
     }
 
     func testHealthyWhisperSwitchWithShortStallTimeoutDoesNotStall() async throws {
@@ -972,6 +989,7 @@ final class EngineSettingsViewModelTests: XCTestCase {
 
         XCTAssertTrue(vm.speechEngineSwitching)
         XCTAssertEqual(vm.speechEnginePreference, .parakeet)
+        XCTAssertFalse(vm.speechEngineSwitchFinishingInBackground)
     }
 }
 

@@ -35,6 +35,10 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
     public var speechEngineSwitchProgressMessages: [String] = []
     public var speechEngineSwitchHangIndefinitely = false
     private var speechEngineSwitchHangContinuations: [CheckedContinuation<Void, Error>] = []
+    /// Set only after a hung switch resumes and cooperative cancellation is
+    /// checked — models `STTRuntime` persisting the new engine. Leave-then-late
+    /// success must leave this nil.
+    public var committedSpeechEnginePreference: SpeechEnginePreference?
     public var parakeetModelVariantSwitches: [ParakeetModelVariant] = []
     public var parakeetModelVariantSwitchError: Error?
     public var nemotronModelVariantSwitches: [NemotronModelVariant] = []
@@ -152,6 +156,10 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
                 continuation.resume()
             }
         }
+    }
+
+    public func committedSpeechEnginePreferenceSnapshot() -> SpeechEnginePreference? {
+        committedSpeechEnginePreference
     }
 
     public func transcribe(
@@ -558,18 +566,17 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
         onProgress?("Preparing \(preference.displayName)...")
         speechEngineSwitchProgressMessages.append("Preparing \(preference.displayName)...")
         if speechEngineSwitchHangIndefinitely {
-            try await withTaskCancellationHandler {
-                try await withCheckedThrowingContinuation { continuation in
-                    speechEngineSwitchHangContinuations.append(continuation)
-                }
-            } onCancel: {
-                Task { await self.completeHungSpeechEngineSwitch(error: CancellationError()) }
+            // Uncancellable wait, like Core ML / `aned`. Cancellation is observed
+            // only after the test resumes the continuation.
+            try await withCheckedThrowingContinuation { continuation in
+                speechEngineSwitchHangContinuations.append(continuation)
             }
         }
         try Task.checkCancellation()
         if let speechEngineSwitchError {
             throw speechEngineSwitchError
         }
+        committedSpeechEnginePreference = preference
         ready = true
     }
 

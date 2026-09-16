@@ -84,6 +84,9 @@ public final class EngineSettingsViewModel {
     /// `speechEngineSwitchStallTimeout`. The underlying Core ML compile is
     /// still running; this flag only changes what Settings shows.
     public var speechEngineSwitchStalled = false
+    /// True after **Use previous engine** while Core ML is still compiling.
+    public var speechEngineSwitchFinishingInBackground = false
+    public var abandonedSpeechEngineSwitchTarget: SpeechEnginePreference?
     /// Injected so tests can prove the stalled UI with a loader that has not
     /// returned yet. Production default matches Whisper's last prepare-watchdog
     /// milestone (issue #952).
@@ -945,6 +948,8 @@ public final class EngineSettingsViewModel {
     public func leaveStalledSpeechEngineSwitch() {
         guard speechEngineSwitching, speechEngineSwitchStalled else { return }
         let inFlight = inFlightSpeechEngineSwitch
+        abandonedSpeechEngineSwitchTarget = inFlight?.toEngine ?? speechEngineSwitchTarget
+        speechEngineSwitchFinishingInBackground = true
         speechEngineSwitchGeneration += 1
         speechEngineSwitchStallWatchdogTask?.cancel()
         speechEngineSwitchStallWatchdogTask = nil
@@ -975,6 +980,7 @@ public final class EngineSettingsViewModel {
         speechEngineSwitchStalled = false
         speechEngineSwitchTarget = nil
         speechEngineSwitchDetail = nil
+        speechEngineSwitchAvailability = .switchInProgress
     }
 
     private func applySpeechEngineChange(_ preference: SpeechEnginePreference) {
@@ -1222,15 +1228,29 @@ public final class EngineSettingsViewModel {
     }
 
     private func finishSpeechEngineSwitchUI(generation: Int) {
-        guard isCurrentSpeechEngineSwitch(generation) else { return }
+        guard isCurrentSpeechEngineSwitch(generation) else {
+            clearAbandonedSpeechEngineSwitchIfNeeded()
+            return
+        }
         speechEngineSwitchStallWatchdogTask?.cancel()
         speechEngineSwitchStallWatchdogTask = nil
         speechEngineSwitchTask = nil
         inFlightSpeechEngineSwitch = nil
         speechEngineSwitching = false
         speechEngineSwitchStalled = false
+        speechEngineSwitchFinishingInBackground = false
+        abandonedSpeechEngineSwitchTarget = nil
         speechEngineSwitchTarget = nil
         speechEngineSwitchDetail = nil
+    }
+
+    private func clearAbandonedSpeechEngineSwitchIfNeeded() {
+        guard speechEngineSwitchFinishingInBackground else { return }
+        speechEngineSwitchFinishingInBackground = false
+        abandonedSpeechEngineSwitchTarget = nil
+        Task { @MainActor [weak self] in
+            _ = await self?.refreshSpeechEngineSwitchAvailabilityNow()
+        }
     }
 
     private func startSpeechEngineSwitchStallWatchdog(generation: Int) {
@@ -1247,7 +1267,13 @@ public final class EngineSettingsViewModel {
     }
 
     public static func stalledSpeechEngineSwitchDetail(for engine: SpeechEnginePreference) -> String {
-        "\(engine.displayName) has been compiling for several minutes. Core ML cannot be cancelled. You can keep waiting, or return to your previous engine. Speech stays paused until this finishes. If it never finishes, quit and relaunch."
+        "\(engine.displayName) has been preparing for several minutes and cannot be interrupted. You can keep waiting, or return to your previous engine. Speech stays paused until this finishes. Relaunching MacParakeet does not always recover a stuck compiler."
+    }
+
+    public static func finishingAbandonedSpeechEngineSwitchDetail(
+        for engine: SpeechEnginePreference
+    ) -> String {
+        "\(engine.displayName) is still compiling in the background and cannot be interrupted. Speech stays paused until that finishes. Settings is back on your previous engine. Relaunching MacParakeet does not always recover a stuck compiler."
     }
 
     /// Applies a Parakeet variant toggle (`v3`, `v2`, or `unified`). Mirrors

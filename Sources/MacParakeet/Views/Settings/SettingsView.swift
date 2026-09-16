@@ -2932,6 +2932,9 @@ struct SettingsView: View {
         if viewModel.engine.speechEngineSwitchStalled {
             return SettingsCardStatus(.required, label: "Taking too long")
         }
+        if viewModel.engine.speechEngineSwitchFinishingInBackground {
+            return SettingsCardStatus(.recommended, label: "Still compiling")
+        }
         if viewModel.engine.speechEngineSwitching {
             return SettingsCardStatus(.recommended, label: speechEngineSwitchTitle)
         }
@@ -2942,6 +2945,15 @@ struct SettingsView: View {
     }
 
     private var speechEngineSwitchBannerState: (title: String, detail: String)? {
+        if viewModel.engine.speechEngineSwitchFinishingInBackground,
+           !viewModel.engine.speechEngineSwitching,
+           let target = viewModel.engine.abandonedSpeechEngineSwitchTarget
+        {
+            return (
+                "Still compiling in the background",
+                EngineSettingsViewModel.finishingAbandonedSpeechEngineSwitchDetail(for: target)
+            )
+        }
         guard viewModel.engine.speechEngineSwitching else { return nil }
         if viewModel.engine.speechEngineSwitchStalled {
             let detail = viewModel.engine.speechEngineSwitchDetail
@@ -3100,7 +3112,7 @@ struct SettingsView: View {
                     viewModel.engine.leaveStalledSpeechEngineSwitch()
                 }
                 .parakeetAction(.secondary)
-                .help("Restores the previous engine in Settings. Core ML keeps compiling and is not cancelled.")
+                .help("Restores the previous engine in Settings. Core ML keeps compiling and is not cancelled. Speech stays paused until that finishes.")
             }
         }
         .padding(.horizontal, DesignSystem.Spacing.md)
