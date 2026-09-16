@@ -23,7 +23,7 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
     ) -> AppHotkeyCoordinator {
         AppHotkeyCoordinator(
             settingsViewModel: settingsViewModel,
-            onStartDictation: { _ in },
+            onStartDictation: { _, _ in },
             onStopDictation: {},
             onCancelDictation: {},
             onDiscardRecording: { _ in },
@@ -254,6 +254,51 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
                 pushToTalk: .disabled
             ),
             AppHotkeyCoordinator.DictationHotkeyPlan(specs: [], conflict: nil)
+        )
+    }
+
+    func testDictationHotkeyPlanAddsClipboardOnlyAsSeparateTapToggle() {
+        let clipboard = HotkeyTrigger.chord(modifiers: ["control", "option"], keyCode: 8)
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .fn,
+            pushToTalk: .fn,
+            clipboard: clipboard
+        )
+
+        XCTAssertEqual(plan.specs.count, 2)
+        XCTAssertEqual(plan.specs.last?.trigger, clipboard)
+        XCTAssertEqual(plan.specs.last?.gestureMode, .singleTapToggle)
+        XCTAssertEqual(plan.specs.last?.clipboardOnly, true)
+        XCTAssertNil(plan.conflict)
+    }
+
+    func testDictationHotkeyPlanReportsConflictWhenClipboardOnlyOverlapsHandsFree() {
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .control,
+            pushToTalk: .option,
+            clipboard: .control
+        )
+
+        XCTAssertEqual(plan.conflict?.trigger, .control)
+        XCTAssertFalse(plan.specs.contains(where: \.clipboardOnly))
+    }
+
+    func testDictationHotkeyPlanAllowsClipboardOnlyWhenOtherRolesDisabled() {
+        let clipboard = HotkeyTrigger.shift
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .disabled,
+            pushToTalk: .disabled,
+            clipboard: clipboard
+        )
+
+        XCTAssertEqual(
+            plan,
+            AppHotkeyCoordinator.DictationHotkeyPlan(
+                specs: [
+                    .init(trigger: clipboard, gestureMode: .singleTapToggle, clipboardOnly: true)
+                ],
+                conflict: nil
+            )
         )
     }
 

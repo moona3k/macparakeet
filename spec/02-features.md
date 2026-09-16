@@ -148,6 +148,7 @@ Dictation defaults to a built-in shared `Fn` gesture preset: hold `Fn` for push-
 |------|---------|----------|
 | **Hands-free** | Double-tap the shared Fn/custom trigger when both dictation roles share one, or tap the configured hands-free shortcut when roles are distinct | Persistent recording. Tap the shortcut again to stop. |
 | **Press-and-hold** | Hold the push-to-talk shortcut | Hold-to-talk. Release auto-stops and pastes. |
+| **Clipboard-only dictation** | Optional extra shortcut, default unset | Tap to start/stop like hands-free. The transcript is copied and not pasted into the focused field. Destination is snapshotted at recording start. Distinct from *Keep dictation on clipboard*, which still pastes and then leaves a copy behind. |
 
 Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migrate to the shared `Fn` gesture preset. Legacy single-hotkey installs are migrated to the shared default gesture when the stored trigger is `Fn`. Otherwise the old trigger becomes push-to-talk, while hands-free moves to the default `Fn` preset or disables itself if that would conflict.
 

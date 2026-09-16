@@ -1261,6 +1261,21 @@ final class SettingsViewModelTests: XCTestCase {
     func testTranscriptionHotkeysDefaultToDisabled() {
         XCTAssertEqual(viewModel.fileTranscriptionHotkeyTrigger, .disabled)
         XCTAssertEqual(viewModel.youtubeTranscriptionHotkeyTrigger, .disabled)
+        XCTAssertEqual(viewModel.dictationClipboardHotkeyTrigger, .disabled)
+    }
+
+    func testDictationClipboardHotkeyPersistsToDedicatedDefaultsKey() {
+        let trigger = HotkeyTrigger.chord(modifiers: ["control", "option"], keyCode: 8)
+        viewModel.dictationClipboardHotkeyTrigger = trigger
+
+        XCTAssertEqual(
+            HotkeyTrigger.current(
+                defaults: testDefaults,
+                defaultsKey: HotkeyTrigger.dictationClipboardDefaultsKey,
+                fallback: .disabled
+            ),
+            trigger
+        )
     }
 
     func testFileTranscriptionHotkeyPersistsToDedicatedDefaultsKey() {
@@ -1318,6 +1333,7 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.meetingHotkeyTrigger = .chord(modifiers: ["control", "option"], keyCode: 46)
         viewModel.fileTranscriptionHotkeyTrigger = .disabled
         viewModel.youtubeTranscriptionHotkeyTrigger = .fromKeyCode(16)
+        viewModel.dictationClipboardHotkeyTrigger = .shift
 
         let events = telemetry.snapshot()
         let hotkeyEvents = events.compactMap { event -> String? in
@@ -1339,6 +1355,7 @@ final class SettingsViewModelTests: XCTestCase {
             "meeting:chord",
             "file_transcription:disabled",
             "youtube_transcription:key_code",
+            "dictation_clipboard:modifier",
         ])
         XCTAssertTrue(hotkeySettingEvents.isEmpty)
     }
@@ -1346,13 +1363,16 @@ final class SettingsViewModelTests: XCTestCase {
     func testTranscriptionHotkeysLoadFromUserDefaults() {
         let fileTrigger = HotkeyTrigger.chord(modifiers: ["control", "shift"], keyCode: 3)
         let youtubeTrigger = HotkeyTrigger.chord(modifiers: ["control", "shift"], keyCode: 16)
+        let clipboardTrigger = HotkeyTrigger.chord(modifiers: ["control", "option"], keyCode: 8)
         fileTrigger.save(to: testDefaults, defaultsKey: HotkeyTrigger.fileTranscriptionDefaultsKey)
         youtubeTrigger.save(to: testDefaults, defaultsKey: HotkeyTrigger.youtubeTranscriptionDefaultsKey)
+        clipboardTrigger.save(to: testDefaults, defaultsKey: HotkeyTrigger.dictationClipboardDefaultsKey)
 
         let vm = SettingsViewModel(defaults: testDefaults)
 
         XCTAssertEqual(vm.fileTranscriptionHotkeyTrigger, fileTrigger)
         XCTAssertEqual(vm.youtubeTranscriptionHotkeyTrigger, youtubeTrigger)
+        XCTAssertEqual(vm.dictationClipboardHotkeyTrigger, clipboardTrigger)
     }
 
     func testShowIdlePillDefaultsToTrue() {

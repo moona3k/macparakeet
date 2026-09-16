@@ -407,7 +407,7 @@ zero frames remains distinct from a Stop whose start never completed.
 
 | Event | Props | Question It Answers |
 |---|---|---|
-| `hotkey_customized` | `surface` (`dictation`, `meeting`, `file_transcription`, `youtube_transcription`), `kind` (`disabled`, `modifier`, `key_code`, `chord`) | Which capture surface gets its hotkey customized, and is the binding a single modifier vs a full chord vs a key? (still **not** which specific key — see Q&A item 10) |
+| `hotkey_customized` | `surface` (`dictation`, `meeting`, `file_transcription`, `youtube_transcription`, `dictation_clipboard`), `kind` (`disabled`, `modifier`, `key_code`, `chord`) | Which capture surface gets its hotkey customized, and is the binding a single modifier vs a full chord vs a key? (still **not** which specific key — see Q&A item 10) |
 | `processing_mode_changed` | `mode` (raw, clean) | Is the clean pipeline valued? |
 | `custom_word_added` | — | Are custom words used? (NOT the word itself) |
 | `custom_word_deleted` | — | Are custom words removed often? |

@@ -1090,7 +1090,19 @@ struct SettingsView: View {
                     }
                 }
 
-                if !viewModel.hotkeyTrigger.isDisabled || !viewModel.pushToTalkHotkeyTrigger.isDisabled {
+                Divider()
+
+                transcriptionHotkeyRow(
+                    title: "Clipboard-only dictation",
+                    detail: "Optional extra shortcut. Tap to start or stop like hands-free. Copies the transcript instead of pasting into the focused field.",
+                    surface: .dictationClipboard,
+                    trigger: $viewModel.dictationClipboardHotkeyTrigger
+                )
+
+                if !viewModel.hotkeyTrigger.isDisabled
+                    || !viewModel.pushToTalkHotkeyTrigger.isDisabled
+                    || !viewModel.dictationClipboardHotkeyTrigger.isDisabled
+                {
                     Divider()
 
                     dictationModeGuide
@@ -1207,7 +1219,7 @@ struct SettingsView: View {
 
                 settingsToggleRow(
                     title: "Keep dictation on clipboard",
-                    detail: "Leaves the same text MacParakeet pastes on the clipboard, useful when remote desktops need a manual ⌘V.",
+                    detail: "Leaves the same text MacParakeet pastes on the clipboard, useful when remote desktops need a manual ⌘V. To skip paste entirely, use the Clipboard-only dictation shortcut.",
                     isOn: $viewModel.keepDictationOnClipboard
                 )
             }
@@ -1628,6 +1640,7 @@ struct SettingsView: View {
             meeting: viewModel.meetingHotkeyTrigger,
             fileTranscription: viewModel.fileTranscriptionHotkeyTrigger,
             youtubeTranscription: viewModel.youtubeTranscriptionHotkeyTrigger,
+            dictationClipboard: viewModel.dictationClipboardHotkeyTrigger,
             transformHotkeys: transformHotkeys,
             meetingRecordingEnabled: AppFeatures.meetingRecordingEnabled
         )
@@ -3886,6 +3899,23 @@ struct SettingsView: View {
                     verb: usesSharedDictationGesture ? "Double-tap" : "Tap",
                     action: "Hands-free mode",
                     detail: "Tap again to stop"
+                )
+            }
+
+            if (!viewModel.pushToTalkHotkeyTrigger.isDisabled || !viewModel.hotkeyTrigger.isDisabled)
+                && !viewModel.dictationClipboardHotkeyTrigger.isDisabled
+            {
+                Divider()
+                    .padding(.leading, 108)
+            }
+
+            if !viewModel.dictationClipboardHotkeyTrigger.isDisabled {
+                modeShortcutRow(
+                    keys: [viewModel.dictationClipboardHotkeyTrigger.shortSymbol],
+                    separator: nil,
+                    verb: "Tap",
+                    action: "Clipboard-only",
+                    detail: "Copies; does not paste"
                 )
             }
         }

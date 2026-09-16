@@ -341,6 +341,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         onYouTubeTranscriptionHotkeyTriggerChanged: { [weak self] in
             self?.handleYouTubeTranscriptionHotkeyTriggerChange()
         },
+        onDictationClipboardHotkeyTriggerChanged: { [weak self] in
+            self?.handleHotkeyTriggerChange()
+        },
         onAppearanceModeChanged: { [weak self] in
             self?.applyAppAppearance()
         },
@@ -859,6 +862,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 name: "push to talk",
                 trigger: settingsViewModel.pushToTalkHotkeyTrigger,
                 conflictMode: .bareModifierDictation
+            ),
+            TransformShortcutReservedHotkey(
+                name: "clipboard-only dictation",
+                trigger: settingsViewModel.dictationClipboardHotkeyTrigger
             ),
             TransformShortcutReservedHotkey(
                 name: "file transcription", trigger: settingsViewModel.fileTranscriptionHotkeyTrigger),
