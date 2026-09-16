@@ -1,0 +1,50 @@
+Sources/CLI/Commands/HistoryCommand.swift
+  s_39c024c3820e2a::t_357475e63d08e3 69-70
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_39c024c3820e2a::t_813ce27d2e7b5a 331-335,338-340
+  s_39c024c3820e2a::t_18defef9506849 866-873,876,879,883-897,899-905
+Tests/MacParakeetTests/Database/DictationRepositoryTests.swift
+  s_39c024c3820e2a::t_ccd6824d64a226 203-225
+  s_f4309a7384ad77::t_a01f592562cecd 192-196,352-353
+Sources/MacParakeet/App/MenuBarCoordinator.swift
+  s_39c024c3820e2a::t_1e47cb9e288d89 819
+  s_39c024c3820e2a::t_0e5feb324d2a3e 726-727
+  s_39c024c3820e2a::t_44059e5ac6fe23 715
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_39c024c3820e2a::t_cd47f1b04fcc7a 542-572
+spec/02-features.md
+  s_39c024c3820e2a::t_86d270f32dd395 351
+  s_39c024c3820e2a::t_e165f161f6e4f4 2168
+Sources/CLI/CHANGELOG.md
+  s_39c024c3820e2a::t_b5d320f1b802f5 96-99
+Tests/CLITests/HistoryCommandTests.swift
+  s_39c024c3820e2a::t_a712f9d49be5af 8-31
+Sources/MacParakeetCore/Database/DictationRepository.swift
+  s_f4309a7384ad77::t_a01f592562cecd 202-215,220-222
+spec/01-data-model.md
+  s_39c024c3820e2a::t_2a028dabf3959d 1088
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "26088a605a9e7a087238578058d537d5d8af3903",
+  "prompts": {},
+  "sessions": {
+    "s_39c024c3820e2a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "f8336241-dad5-43d1-a0fd-21b808b32964",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_f4309a7384ad77": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "46f38da1-c549-46d3-8749-72ca72ef2018",
+        "model": "unknown"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
