@@ -1,0 +1,58 @@
+spec/08-error-handling.md
+  s_98055c15bb2fcb::t_2e0fde489110e8 34
+Tests/MacParakeetTests/STT/STTSchedulerTests.swift
+  s_98055c15bb2fcb::t_07ad29fac59da6 1875-1882
+  s_98055c15bb2fcb::t_7e48d3d7983bd9 1722-1724,1728-1736
+  s_98055c15bb2fcb::t_3a36c816e8aa13 907
+  s_98055c15bb2fcb::t_d43c04219e0be1 1465-1467
+  s_98055c15bb2fcb::t_6a5dc40a449f16 896-906,908-923
+Tests/MacParakeetTests/ViewModels/EngineSettingsViewModelTests.swift
+  s_98055c15bb2fcb::t_5a1f0528e407bc 961,963
+  s_98055c15bb2fcb::t_1744dfd84ec4da 926-927,937
+  s_98055c15bb2fcb::t_4c9440f3e89e0e 992
+  s_98055c15bb2fcb::t_0af16ed62b5abb 907-908
+  s_98055c15bb2fcb::t_d26a6b822a8fb9 953,956,962,964-965
+  s_98055c15bb2fcb::t_675666e90203d0 933-934,938-939
+  s_98055c15bb2fcb::t_51f60baf5e3fe2 897,901
+  s_98055c15bb2fcb::t_bdf04d8f341f1f 928
+  s_673be8b32d8d6a::t_c1f21a083ad97c 74-75,91-92,895-896
+Sources/MacParakeetViewModels/EngineSettingsViewModel.swift
+  s_98055c15bb2fcb::t_77dee3d4c0d55b 1231-1234,1241-1242,1247-1253
+  s_98055c15bb2fcb::t_5b41ca8ed76cd0 87-89
+  s_98055c15bb2fcb::t_fcabcaa2cc942d 1254,1270-1276
+  s_98055c15bb2fcb::t_d4adaa266511c8 951-952
+  s_98055c15bb2fcb::t_85cb247a62547b 983
+  s_98055c15bb2fcb::t_cfd2dc977f0187 1255
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_98055c15bb2fcb::t_c530090d4c4e10 2948-2956
+  s_98055c15bb2fcb::t_feabcb805fba88 2935-2937
+  s_98055c15bb2fcb::t_ec3a815415fa08 3115
+Tests/MacParakeetTests/STT/MockSTTClient.swift
+  s_98055c15bb2fcb::t_af830220499653 161-164
+  s_98055c15bb2fcb::t_371cc5b148298e 569-572,579
+  s_98055c15bb2fcb::t_1f30e76b16f769 38-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f1b0b581b8a8c68c7d61cf2876a2550ae18144b7",
+  "prompts": {},
+  "sessions": {
+    "s_673be8b32d8d6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_98055c15bb2fcb": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "21918ab9-8631-4330-b622-7207f329d908",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}

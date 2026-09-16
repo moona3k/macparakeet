@@ -1,0 +1,19 @@
+Sources/MacParakeetViewModels/EngineSettingsViewModel.swift
+  s_b7f614e6a04753::t_f5fafa66018500 992-1010
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a0ebe785b067f7d15ce40025724e05e3ae27bf61",
+  "prompts": {},
+  "sessions": {
+    "s_b7f614e6a04753": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e0e0a3b-0915-47e7-affc-d2319548eb8c",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
