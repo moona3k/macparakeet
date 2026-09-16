@@ -240,6 +240,7 @@ final class MeetingArtifactStoreTests: XCTestCase {
         XCTAssertTrue(resultMarkdown.contains("# Executive Summary"))
         XCTAssertTrue(resultMarkdown.contains("Ship the artifact contract."))
         XCTAssertTrue(resultMarkdown.contains("Automatic meeting notes context: enabled"))
+        XCTAssertTrue(resultMarkdown.contains("Content edited: no"))
     }
 
     func testMaterializeProjectionPreservesCorrectedSplitSpeakerSpans() async throws {

@@ -101,6 +101,8 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 - `config get|set|list` includes `escape-cancels-dictation` (`on`/`off`,
   default on). When off, Escape is left for other apps and does not cancel
   a live dictation.
+- Saved prompt-result JSON includes additive nullable `contentEditedAt`, the
+  timestamp of the last in-place user edit of result content.
 
 ## [4.5.0] — 2026-09-20
 
@@ -183,7 +185,6 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   standalone `um` by default. The previous multilingual-safe default is the
   off value of `remove-um-filler`. Meetings stay verbatim: they do not run
   filler removal.
-
 ## [4.2.0] — 2026-09-15
 
 ### Added

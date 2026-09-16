@@ -917,6 +917,17 @@ final class DatabaseManagerTests: XCTestCase {
         }
     }
 
+    func testPromptResultContentEditedAtColumnExistsOnSummaries() throws {
+        let manager = try DatabaseManager()
+        try manager.dbQueue.read { db in
+            let columns = try db.columns(in: "summaries").map(\.name)
+            XCTAssertTrue(
+                columns.contains("contentEditedAt"),
+                "summaries should have contentEditedAt column (issue #884)"
+            )
+        }
+    }
+
     func testTranscriptionUserNotesRoundTrips() throws {
         let manager = try DatabaseManager()
         let transcriptionID = UUID()

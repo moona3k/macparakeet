@@ -201,6 +201,9 @@ with human progress/status kept off stdout.
   CLI/app generation populates those execution receipts. Historical and
   externally imported results may omit them; omission never means the current
   prompt/provider/model should be inferred.
+- Saved prompt-result JSON objects include additive nullable `contentEditedAt`.
+  When present it is the timestamp of the last in-place user edit of `content`.
+  Omission means the displayed content was last written by generation.
 - `meetings show --json` and `meetings transcript --format json` expose
   `transcriptSegments` when the meeting row has durable segments. Each segment
   contains `id`, `startMs`, `endMs`, `speakerId`, `speakerLabel`, `text`, and

@@ -13,6 +13,9 @@
 > Every transcription can carry multiple labels. Result prompts can target
 > labels to control availability; auto-run remains the prompt's source-aware
 > setting and only runs when the prompt is available. See the amendment below.
+> In-Place Content Edit Amendment (2026-09-16): Users can edit `content` in
+> place with Cancel/Save. That mutates the same row and sets `contentEditedAt`;
+> regenerate remains the only path that replaces the row.
 
 ## Context
 
@@ -97,7 +100,7 @@ The table is named `prompts` (not `summary_presets`) because the model is genera
 
 Each transcript can have multiple summaries, stored in a new `summaries` table with a one-to-many relationship to `transcriptions`. This follows the same pattern as multi-conversation chat (`chat_conversations` table, introduced in v0.5).
 
-Generating a summary appends a new record and preserves earlier results, even when the same prompt is used with different per-run instructions. Regenerate is the only replacement path: it replaces the specific summary the user chose, and only after the new result has been durably saved. Users navigate between summaries via tabs on the summary screen.
+Generating a summary appends a new record and preserves earlier results, even when the same prompt is used with different per-run instructions. Regenerating a result is the only path that **replaces the row**. Users may also edit `content` in place with Cancel/Save; that updates the same row, sets `contentEditedAt`, and leaves prompt snapshots unchanged. Users navigate between summaries via tabs on the summary screen.
 
 ### 3. Prompt snapshots on summaries
 
