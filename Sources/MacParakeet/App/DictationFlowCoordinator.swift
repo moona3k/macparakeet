@@ -246,6 +246,7 @@ final class DictationFlowCoordinator {
         self.onPresentEntitlementsAlert = onPresentEntitlementsAlert
         observeFormatterNotifications()
         observePreviewTextSizeNotifications()
+        observeDictationCaptureSoundNotifications()
     }
 
     // MARK: - AI Formatter pill transitions
@@ -309,8 +310,28 @@ final class DictationFlowCoordinator {
         }
     }
 
-    // NOTE: no `deinit` cleanup for `formatterDidStartObserver` or
-    // `previewTextSizeObserver`. This coordinator is effectively a singleton
+    private var dictationCaptureDidStopObserver: NSObjectProtocol?
+
+    private func observeDictationCaptureSoundNotifications() {
+        dictationCaptureDidStopObserver = NotificationCenter.default.addObserver(
+            forName: .macParakeetDictationCaptureDidStop,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.playDictationCaptureSoundIfEnabled(.recordStop)
+            }
+        }
+    }
+
+    private func playDictationCaptureSoundIfEnabled(_ sound: AppSound) {
+        guard runtimePreferences.playDictationCaptureSounds else { return }
+        SoundManager.shared.play(sound)
+    }
+
+    // NOTE: no `deinit` cleanup for `formatterDidStartObserver`,
+    // `previewTextSizeObserver`, or `dictationCaptureDidStopObserver`. This
+    // coordinator is effectively a singleton
     // for the app's lifetime, both observer blocks capture `[weak self]`, and
     // Swift 6 forbids touching `@MainActor`-isolated stored properties from a
     // nonisolated deinit. NotificationCenter cleans up automatically when the
@@ -998,6 +1019,11 @@ final class DictationFlowCoordinator {
                 }
                 guard !Task.isCancelled else { return }
                 self.sendEvent(.recordingStarted(generation: generation))
+                if case .recording = self.stateMachine.state,
+                    self.stateMachine.generation == generation
+                {
+                    self.playDictationCaptureSoundIfEnabled(.recordStart)
+                }
                 await self.runRecordingLevelLoop()
             } catch is CancellationError {
                 await self.mediaPauseCoordinator.resumeAfterDictationCapture()

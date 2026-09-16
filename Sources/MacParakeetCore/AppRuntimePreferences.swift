@@ -26,6 +26,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var openAppAfterMeetingEnd: Bool { get }
     var notifyOnMeetingEnd: Bool { get }
     var pauseMediaDuringDictation: Bool { get }
+    var playDictationCaptureSounds: Bool { get }
     var instantDictationEnabled: Bool { get }
     var customVocabularyRecognitionBoostingEnabled: Bool { get }
     var showLiveDictationPreview: Bool { get }
@@ -546,6 +547,8 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let meetingAudioSourceModeKey = "meetingAudioSourceMode"
     public static let meetingAutoStopEnabledKey = "meetingAutoStopEnabled"
     public static let pauseMediaDuringDictationKey = "pauseMediaDuringDictation"
+    /// Short start/stop cues when dictation capture is live (default off).
+    public static let playDictationCaptureSoundsKey = "playDictationCaptureSounds"
     public static let instantDictationEnabledKey = "instantDictationEnabled"
     public static let customVocabularyRecognitionBoostingEnabledKey = "customVocabularyRecognitionBoostingEnabled"
     public static let showLiveDictationPreviewKey = "showLiveDictationPreview"
@@ -745,6 +748,14 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public var pauseMediaDuringDictation: Bool {
         defaults.object(forKey: Self.pauseMediaDuringDictationKey) as? Bool ?? false
+    }
+
+    public var playDictationCaptureSounds: Bool {
+        Self.playDictationCaptureSounds(defaults: defaults)
+    }
+
+    public static func playDictationCaptureSounds(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: playDictationCaptureSoundsKey) as? Bool ?? false
     }
 
     public var instantDictationEnabled: Bool {

@@ -567,6 +567,36 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(operation["language"], "ko")
     }
 
+    func testStopRecordingPostsCaptureDidStopAfterMicCloses() async throws {
+        await mockSTT.configure(result: STTResult(text: "hello"))
+        let posted = expectation(description: "capture did stop")
+        let observer = NotificationCenter.default.addObserver(
+            forName: .macParakeetDictationCaptureDidStop,
+            object: nil,
+            queue: nil
+        ) { _ in posted.fulfill() }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        try await service.startRecording()
+        _ = try await service.stopRecording()
+        await fulfillment(of: [posted], timeout: 1.0)
+    }
+
+    func testCancelRecordingDoesNotPostCaptureDidStop() async throws {
+        var posted = false
+        let observer = NotificationCenter.default.addObserver(
+            forName: .macParakeetDictationCaptureDidStop,
+            object: nil,
+            queue: nil
+        ) { _ in posted = true }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        try await service.startRecording()
+        await service.cancelRecording(reason: .hotkey)
+        await service.confirmCancel()
+        XCTAssertFalse(posted)
+    }
+
     func testDurationUsesCapturedAudioDurationWhenWordsAreMissing() {
         let result = STTResult(text: "cohere final", words: [], engine: .cohere)
 

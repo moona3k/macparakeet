@@ -570,6 +570,7 @@ public enum TelemetrySettingName: String, Sendable, Equatable {
     case openAppAfterMeetingEnd = "open_app_after_meeting_end"
     case notifyOnMeetingEnd = "notify_on_meeting_end"
     case pauseMediaDuringDictation = "pause_media_during_dictation"
+    case playDictationCaptureSounds = "play_dictation_capture_sounds"
     case instantDictation = "instant_dictation"
     case liveDictationPreview = "live_dictation_preview"
     case dictationUndoCountdown = "dictation_undo_countdown"
