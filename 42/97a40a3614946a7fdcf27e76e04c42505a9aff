@@ -1,0 +1,95 @@
+Sources/MacParakeet/App/AppHotkeyCoordinator.swift
+  s_673be8b32d8d6a::t_fa486f4bb54037 10
+  s_673be8b32d8d6a::t_3c7850d8f6f7f2 139-140,142-161,173-196,198-199,202-216,220-225,227-228
+  s_673be8b32d8d6a::t_5654907b4f71cb 374
+  s_673be8b32d8d6a::t_334087ad4b833a 38
+  s_673be8b32d8d6a::t_1ab0c98d2e1552 247-248,256-258,263-268
+  s_673be8b32d8d6a::t_1a202ffc2b627b 358
+  s_673be8b32d8d6a::t_c49a3b43352831 390
+  s_673be8b32d8d6a::t_c99ebf91d19512 83,89-90,96
+  s_673be8b32d8d6a::t_c25442865cdd06 287-288,302
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_673be8b32d8d6a::t_0af0fd81b878d9 1219
+  s_673be8b32d8d6a::t_63cda57373e1be 1640
+  s_673be8b32d8d6a::t_afe0e7822d9ada 1093-1101
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_673be8b32d8d6a::t_77f2c750357ed0 1336
+  s_673be8b32d8d6a::t_475204fb8b9105 1264-1278
+  s_673be8b32d8d6a::t_0cb6390715a4ff 1358
+  s_673be8b32d8d6a::t_84ebaecb666f66 1366,1369,1375
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_673be8b32d8d6a::t_e8059764ec3135 71-91
+docs/telemetry.md
+  s_673be8b32d8d6a::t_5c091cd250ce88 410
+Sources/MacParakeet/AppDelegate.swift
+  s_673be8b32d8d6a::t_3c9c92e4cc39ea 344-346
+  s_673be8b32d8d6a::t_8b61699d5c31ad 867-869
+  s_673be8b32d8d6a::t_e2361a3cb75617 866
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_673be8b32d8d6a::t_386f774a271a03 191-192
+  s_673be8b32d8d6a::t_001733e1e8e323 600,623-650
+  s_673be8b32d8d6a::t_89ac29e35ac705 348-349,355
+  s_673be8b32d8d6a::t_130a92586fa657 651-653
+Tests/MacParakeetTests/App/AppHotkeyCoordinatorTests.swift
+  s_673be8b32d8d6a::t_4b6796391e7064 26
+  s_673be8b32d8d6a::t_d95d6da81c45dc 260-304
+Sources/MacParakeet/Views/MainWindowView.swift
+  s_673be8b32d8d6a::t_4c18926e9ba07e 374-377
+Tests/MacParakeetTests/TelemetryServiceTests.swift
+  s_673be8b32d8d6a::t_dbbfcfd9887f60 1896
+Tests/MacParakeetTests/App/AppSettingsObserverCoordinatorTests.swift
+  s_673be8b32d8d6a::t_f72b1f7cd9f2b3 68-71
+  s_673be8b32d8d6a::t_dde982dae84c2d 195
+  s_673be8b32d8d6a::t_1417cc30d1f3df 216,302
+  s_673be8b32d8d6a::t_fe5b28cb4d3d1b 116
+  s_673be8b32d8d6a::t_1bc98cf9d8a0a5 127
+  s_673be8b32d8d6a::t_c7fe8558ee84a5 148
+  s_673be8b32d8d6a::t_d34beb38bf6e5f 25
+Sources/MacParakeetCore/STT/HotkeyTrigger.swift
+  s_673be8b32d8d6a::t_76b459dec445e7 693
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_673be8b32d8d6a::t_938b282447b120 522
+Sources/MacParakeetCore/AppNotifications.swift
+  s_673be8b32d8d6a::t_715921c40f7d10 13
+Sources/MacParakeet/App/AppSettingsObserverCoordinator.swift
+  s_673be8b32d8d6a::t_fdad452a58409e 16
+  s_673be8b32d8d6a::t_536f9438fb09dd 56
+  s_673be8b32d8d6a::t_43d0a4ec04d249 75
+  s_673be8b32d8d6a::t_53ba04a802dd2f 36
+Sources/MacParakeetCore/Hotkey/HotkeyConflictPolicy.swift
+  s_673be8b32d8d6a::t_520450f3112fca 271-290
+  s_673be8b32d8d6a::t_179fabe5ffe9ed 206-212,216,227-233,237
+  s_673be8b32d8d6a::t_ae709fb1de6ffe 70
+  s_673be8b32d8d6a::t_43bc9a6067980e 248
+  s_673be8b32d8d6a::t_971d96fcfb816e 356-359,366-370
+  s_673be8b32d8d6a::t_1f716c3fb3d5a0 388-390
+  s_673be8b32d8d6a::t_63cf9429ab11be 306-317
+  s_673be8b32d8d6a::t_be00c7e62efd09 118,128,137
+spec/02-features.md
+  s_673be8b32d8d6a::t_db73d9c0796082 151
+Tests/MacParakeetTests/Hotkey/HotkeyConflictPolicyTests.swift
+  s_673be8b32d8d6a::t_0cf4e39f2a8dd9 35
+  s_673be8b32d8d6a::t_fcacc665a5f47a 25
+  s_673be8b32d8d6a::t_87a3f424fb5ace 275-306
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_673be8b32d8d6a::t_2902b203516854 213-225
+  s_673be8b32d8d6a::t_3ae33181b4e556 977-980
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_673be8b32d8d6a::t_13fdbba3db0d2e 454-459
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4297a40a3614946a7fdcf27e76e04c42505a9aff",
+  "prompts": {},
+  "sessions": {
+    "s_673be8b32d8d6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
