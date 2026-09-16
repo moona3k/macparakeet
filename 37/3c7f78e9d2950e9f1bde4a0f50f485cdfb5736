@@ -1,0 +1,53 @@
+Sources/CLI/Commands/ConfigCommand.swift
+  s_673be8b32d8d6a::t_0d9e9b78971af5 149
+spec/12-processing-layer.md
+  s_673be8b32d8d6a::t_d2e3d32fcac655 278-282
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_673be8b32d8d6a::t_a7d7c79f633403 468-471
+Sources/MacParakeet/Views/Settings/LLMSettingsView.swift
+  s_673be8b32d8d6a::t_90eac2ca5b5da6 733
+  s_673be8b32d8d6a::t_4fe2c670e665be 718
+Tests/CLITests/ConfigCommandTests.swift
+  s_673be8b32d8d6a::t_b9efb217c0f0fa 594-608
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_673be8b32d8d6a::t_e6b97ddeef97e2 465
+  s_673be8b32d8d6a::t_5471b5c482c01a 468
+spec/02-features.md
+  s_673be8b32d8d6a::t_6a3c0dd5c8fb28 2165
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_673be8b32d8d6a::t_d5a06e8b00d299 306,308
+Sources/CLI/CHANGELOG.md
+  s_673be8b32d8d6a::t_b52e6ec59c6141 96-98
+Sources/CLI/Commands/CLIHelpers.swift
+  s_673be8b32d8d6a::t_e3bb17f03e03cb 22-27
+spec/contracts/meeting-artifacts-v1.md
+  s_673be8b32d8d6a::t_7ee1c54a49c6c3 148-150
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingArtifactStoreTests.swift
+  s_673be8b32d8d6a::t_ce687d6c22a9ed 230
+  s_673be8b32d8d6a::t_5f8e23a73b18a3 245
+  s_673be8b32d8d6a::t_3a030e20720f6d 102-103
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingArtifactStore.swift
+  s_673be8b32d8d6a::t_653ff4978492a6 803,817,830
+Sources/CLI/Commands/PromptsCommand.swift
+  s_673be8b32d8d6a::t_408b330c0a522d 1054
+Tests/MacParakeetTests/ViewModels/PromptResultsViewModelTests.swift
+  s_673be8b32d8d6a::t_959a145413b70c 700-736
+Sources/CLI/Commands/SavedMeetingProcessingContext.swift
+  s_673be8b32d8d6a::t_5482b09a10071a 73-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "373c7f78e9d2950e9f1bde4a0f50f485cdfb5736",
+  "prompts": {},
+  "sessions": {
+    "s_673be8b32d8d6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
