@@ -2929,6 +2929,9 @@ struct SettingsView: View {
     }
 
     private var engineSelectorCardStatus: SettingsCardStatus? {
+        if viewModel.engine.speechEngineSwitchStalled {
+            return SettingsCardStatus(.required, label: "Taking too long")
+        }
         if viewModel.engine.speechEngineSwitching {
             return SettingsCardStatus(.recommended, label: speechEngineSwitchTitle)
         }
@@ -2940,6 +2943,13 @@ struct SettingsView: View {
 
     private var speechEngineSwitchBannerState: (title: String, detail: String)? {
         guard viewModel.engine.speechEngineSwitching else { return nil }
+        if viewModel.engine.speechEngineSwitchStalled {
+            let detail = viewModel.engine.speechEngineSwitchDetail
+                ?? EngineSettingsViewModel.stalledSpeechEngineSwitchDetail(
+                    for: currentSpeechEngineSwitchTarget
+                )
+            return ("This is taking too long", detail)
+        }
         let phase = viewModel.engine.speechEngineSwitchDetail ?? "Preparing speech engine..."
         return (
             speechEngineSwitchTitle,
@@ -3062,20 +3072,36 @@ struct SettingsView: View {
     }
 
     private func speechEngineSwitchBanner(title: String, detail: String) -> some View {
-        HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
-            ParakeetSpinner(.inline)
-                .frame(width: 18, height: 18)
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                if viewModel.engine.speechEngineSwitchStalled {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(DesignSystem.Colors.warningAmber)
+                        .frame(width: 18, height: 18)
+                } else {
+                    ParakeetSpinner(.inline)
+                        .frame(width: 18, height: 18)
+                }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(DesignSystem.Typography.bodySmall.weight(.semibold))
-                Text(detail)
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(DesignSystem.Typography.bodySmall.weight(.semibold))
+                    Text(detail)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: DesignSystem.Spacing.md)
             }
 
-            Spacer(minLength: DesignSystem.Spacing.md)
+            if viewModel.engine.speechEngineSwitchStalled {
+                Button("Use previous engine") {
+                    viewModel.engine.leaveStalledSpeechEngineSwitch()
+                }
+                .parakeetAction(.secondary)
+                .help("Restores the previous engine in Settings. Core ML keeps compiling and is not cancelled.")
+            }
         }
         .padding(.horizontal, DesignSystem.Spacing.md)
         .padding(.vertical, DesignSystem.Spacing.sm)
@@ -3087,7 +3113,9 @@ struct SettingsView: View {
             RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
                 .strokeBorder(DesignSystem.Colors.warningAmber.opacity(0.28), lineWidth: 0.5)
         )
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(
+            children: viewModel.engine.speechEngineSwitchStalled ? .contain : .combine
+        )
     }
 
     /// Routes a tile click through a confirmation step. The VM's eventual

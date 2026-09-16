@@ -878,6 +878,101 @@ final class EngineSettingsViewModelTests: XCTestCase {
         vm.cohereModelStatus = .ready
         XCTAssertTrue(vm.isCohereModelDownloaded)
     }
+
+    // MARK: - Stalled engine switch (issue #952)
+
+    func testNeverReturningWhisperSwitchBecomesStalledWithoutClearingBusy() async throws {
+        let stt = MockSTTClient()
+        await stt.configureSpeechEngineSwitchHang()
+        let vm = makeViewModel()
+        vm.configure(sttClient: stt, speechEngineSwitcher: stt)
+        vm.whisperModelStatus = .notLoaded
+        vm.speechEngineSwitchStallTimeout = .milliseconds(40)
+
+        vm.speechEnginePreference = .whisper
+
+        try await waitUntil { vm.speechEngineSwitchStalled }
+        XCTAssertTrue(vm.speechEngineSwitching, "Core ML is still compiling; Settings must not pretend the switch finished")
+        XCTAssertEqual(vm.speechEnginePreference, .whisper)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: defaults), .parakeet)
+        XCTAssertTrue(
+            vm.speechEngineSwitchDetail?.localizedCaseInsensitiveContains("cannot be cancelled") == true
+                || vm.speechEngineSwitchDetail?.localizedCaseInsensitiveContains("cannot be interrupted") == true,
+            "stalled copy must not pretend Core ML was cancelled, got: \(vm.speechEngineSwitchDetail ?? "nil")"
+        )
+
+        await stt.completeHungSpeechEngineSwitch()
+        try await waitUntil { !vm.speechEngineSwitching }
+    }
+
+    func testLeavingStalledWhisperSwitchRestoresPreviousEngineWithoutAwaitingCoreML() async throws {
+        let stt = MockSTTClient()
+        await stt.configureSpeechEngineSwitchHang()
+        let vm = makeViewModel()
+        vm.configure(sttClient: stt, speechEngineSwitcher: stt)
+        vm.whisperModelStatus = .notLoaded
+        vm.speechEngineSwitchStallTimeout = .milliseconds(40)
+
+        vm.speechEnginePreference = .whisper
+        try await waitUntil { vm.speechEngineSwitchStalled }
+
+        vm.leaveStalledSpeechEngineSwitch()
+
+        XCTAssertFalse(vm.speechEngineSwitching)
+        XCTAssertFalse(vm.speechEngineSwitchStalled)
+        XCTAssertEqual(vm.speechEnginePreference, .parakeet)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: defaults), .parakeet)
+        let switches = await stt.speechEngineSwitchesSnapshot()
+        XCTAssertEqual(switches, [.whisper])
+
+        await stt.completeHungSpeechEngineSwitch()
+    }
+
+    func testLateHungWhisperSwitchSuccessDoesNotOverrideLeave() async throws {
+        let stt = MockSTTClient()
+        await stt.configureSpeechEngineSwitchHang()
+        let vm = makeViewModel()
+        vm.configure(sttClient: stt, speechEngineSwitcher: stt)
+        vm.whisperModelStatus = .notLoaded
+        vm.speechEngineSwitchStallTimeout = .milliseconds(40)
+
+        vm.speechEnginePreference = .whisper
+        try await waitUntil { vm.speechEngineSwitchStalled }
+        vm.leaveStalledSpeechEngineSwitch()
+
+        await stt.completeHungSpeechEngineSwitch()
+        try await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertEqual(vm.speechEnginePreference, .parakeet)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: defaults), .parakeet)
+        XCTAssertFalse(vm.speechEngineSwitching)
+    }
+
+    func testHealthyWhisperSwitchWithShortStallTimeoutDoesNotStall() async throws {
+        let stt = MockSTTClient()
+        let vm = makeViewModel()
+        vm.configure(sttClient: stt, speechEngineSwitcher: stt)
+        vm.whisperModelStatus = .notLoaded
+        vm.speechEngineSwitchStallTimeout = .seconds(60)
+
+        vm.speechEnginePreference = .whisper
+        try await waitUntil(timeout: .milliseconds(300)) { !vm.speechEngineSwitching }
+
+        XCTAssertFalse(vm.speechEngineSwitchStalled)
+        XCTAssertEqual(vm.speechEnginePreference, .whisper)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: defaults), .whisper)
+    }
+
+    func testLeaveStalledSwitchIsNoOpWhenNotStalled() {
+        let vm = makeViewModel()
+        vm.speechEngineSwitching = true
+        vm.speechEnginePreference = .parakeet
+
+        vm.leaveStalledSpeechEngineSwitch()
+
+        XCTAssertTrue(vm.speechEngineSwitching)
+        XCTAssertEqual(vm.speechEnginePreference, .parakeet)
+    }
 }
 
 private final class NemotronCacheCheckRecorder: @unchecked Sendable {

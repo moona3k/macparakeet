@@ -33,6 +33,8 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
     public var speechEngineSwitches: [SpeechEnginePreference] = []
     public var speechEngineSwitchError: Error?
     public var speechEngineSwitchProgressMessages: [String] = []
+    public var speechEngineSwitchHangIndefinitely = false
+    private var speechEngineSwitchHangContinuations: [CheckedContinuation<Void, Error>] = []
     public var parakeetModelVariantSwitches: [ParakeetModelVariant] = []
     public var parakeetModelVariantSwitchError: Error?
     public var nemotronModelVariantSwitches: [NemotronModelVariant] = []
@@ -131,6 +133,25 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
     /// download. Lets the onboarding stall watchdog be tested deterministically.
     public func configureWarmUpHangIndefinitely() {
         self.warmUpHangIndefinitely = true
+    }
+
+    /// Make `setSpeechEngine` wait on a continuation until
+    /// `completeHungSpeechEngineSwitch` resumes it. Models a Core ML compile
+    /// that has not returned yet (issue #952).
+    public func configureSpeechEngineSwitchHang() {
+        speechEngineSwitchHangIndefinitely = true
+    }
+
+    public func completeHungSpeechEngineSwitch(error: Error? = nil) {
+        let continuations = speechEngineSwitchHangContinuations
+        speechEngineSwitchHangContinuations.removeAll()
+        for continuation in continuations {
+            if let error {
+                continuation.resume(throwing: error)
+            } else {
+                continuation.resume()
+            }
+        }
     }
 
     public func transcribe(
@@ -536,6 +557,16 @@ public actor MockSTTClient: STTClientProtocol, STTDictationPreviewTranscribing, 
         speechEngineSwitches.append(preference)
         onProgress?("Preparing \(preference.displayName)...")
         speechEngineSwitchProgressMessages.append("Preparing \(preference.displayName)...")
+        if speechEngineSwitchHangIndefinitely {
+            try await withTaskCancellationHandler {
+                try await withCheckedThrowingContinuation { continuation in
+                    speechEngineSwitchHangContinuations.append(continuation)
+                }
+            } onCancel: {
+                Task { await self.completeHungSpeechEngineSwitch(error: CancellationError()) }
+            }
+        }
+        try Task.checkCancellation()
         if let speechEngineSwitchError {
             throw speechEngineSwitchError
         }

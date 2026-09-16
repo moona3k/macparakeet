@@ -1592,6 +1592,13 @@ public actor STTRuntime: STTRuntimeProtocol {
             AudioCaptureDiagnostics.append(
                 "speech_engine_switch_complete from=\(previous.rawValue) to=\(preference.rawValue) duration_s=\(Self.formatSeconds(duration))"
             )
+        } catch is CancellationError {
+            let duration = Observability.durationSeconds(since: startedAt)
+            logger.notice("speech_engine_switch_cancelled from=\(previous.rawValue, privacy: .public) to=\(preference.rawValue, privacy: .public) duration_s=\(duration, privacy: .public)")
+            AudioCaptureDiagnostics.append(
+                "speech_engine_switch_cancelled from=\(previous.rawValue) to=\(preference.rawValue) duration_s=\(Self.formatSeconds(duration))"
+            )
+            throw CancellationError()
         } catch {
             let duration = Observability.durationSeconds(since: startedAt)
             logger.error("speech_engine_switch_failed from=\(previous.rawValue, privacy: .public) to=\(preference.rawValue, privacy: .public) duration_s=\(duration, privacy: .public) error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
@@ -1636,6 +1643,10 @@ public actor STTRuntime: STTRuntimeProtocol {
             let engine = try ensureCohereEngine()
             try await engine.prepare(onProgress: onProgress)
         }
+
+        // Prepare is not cancellable (Core ML / `aned`). If Settings already
+        // left a stalled switch, refuse to persist the abandoned engine.
+        try Task.checkCancellation()
 
         if let preparedWhisper {
             whisperEngine = preparedWhisper

@@ -31,6 +31,7 @@
 | Model download failed | Network error during CoreML model download | "Check internet connection and retry" |
 | Whisper model missing | Whisper selected before its local model is downloaded | Keep Parakeet available; show Whisper download action |
 | Engine busy | STT jobs are queued/running or a meeting speech-engine lease is active | Disable engine switch; retry after work finishes |
+| Engine switch stalled | WhisperKit/Core ML compile (`aned`) can block Settings far longer than the usual 3–5 minute first-load estimate; the prepare watchdog only reports at 15/60/180/300 seconds and cannot interrupt the load | After 5 minutes, Settings shows an honest stalled state and **Use previous engine** restores the prior selection without cancelling Core ML, killing `aned`, or deleting shared caches. Speech stays paused until the compiler finishes; a late success after leave is not persisted. If it never finishes, quit and relaunch. |
 
 ### Processing Errors
 
