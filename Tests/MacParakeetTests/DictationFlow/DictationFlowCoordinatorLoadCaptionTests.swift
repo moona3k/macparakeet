@@ -72,21 +72,34 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
     }
 
     func testFirstInstallShowsPreparingThenClearsOnSuccess() async throws {
-        let harness = try makeHarness(isReady: false, transcribeDelayMs: 90, hasCompletedFirstDictation: false)
+        // Hold transcription open until the caption is observed. On a loaded
+        // CI runner the 20ms grace timer can fire after the take already
+        // completed, which marks first-dictation done and records
+        // first_install=false.
+        let transcribeGate = AsyncGate()
+        let harness = try makeHarness(
+            isReady: false,
+            transcribeDelayMs: 0,
+            hasCompletedFirstDictation: false,
+            transcribeGate: transcribeGate
+        )
 
         try await harness.startAndStop()
-        let shown = await harness.captionSignal.wait(for: .preparing)
+        let shown = await harness.captionSignal.wait(for: .preparing, timeout: .seconds(3))
         XCTAssertTrue(shown)
-        let cleared = await waitUntil { harness.coordinator.processingLoadCaptionForTesting == nil }
+        XCTAssertTrue(harness.telemetry.snapshot().containsCaptionShown(firstInstall: true))
+
+        await transcribeGate.release()
+        let cleared = await waitUntil(timeoutMs: 3_000) {
+            harness.coordinator.processingLoadCaptionForTesting == nil
+        }
         XCTAssertTrue(cleared)
 
-        let recordedSuccess = await waitUntil {
+        let recordedSuccess = await waitUntil(timeoutMs: 3_000) {
             harness.telemetry.snapshot().containsCaptionDuration(outcome: "success")
         }
         XCTAssertTrue(recordedSuccess)
-        let events = harness.telemetry.snapshot()
-        XCTAssertTrue(events.containsCaptionShown(firstInstall: true))
-        XCTAssertTrue(events.containsCaptionDuration(outcome: "success"))
+        XCTAssertTrue(harness.telemetry.snapshot().containsCaptionDuration(outcome: "success"))
     }
 
     func testFirstInstallEscalatesToSubcopyAfterDelay() async throws {

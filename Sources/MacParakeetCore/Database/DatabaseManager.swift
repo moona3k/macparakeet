@@ -2317,6 +2317,18 @@ public final class DatabaseManager: Sendable {
                     """)
         }
 
+        // v0.45 — User edits of saved prompt-result content (issue #884).
+        // Prompt snapshots stay the generation receipt; contentEditedAt marks
+        // that `content` was last written by the user.
+        migrator.registerMigration("v0.45-prompt-result-content-edits") { db in
+            let summaryColumns = try db.columns(in: "summaries").map(\.name)
+            if !summaryColumns.contains("contentEditedAt") {
+                try db.alter(table: "summaries") { t in
+                    t.add(column: "contentEditedAt", .text)
+                }
+            }
+        }
+
         return migrator
     }
 

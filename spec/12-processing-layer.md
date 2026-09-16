@@ -204,6 +204,7 @@ public struct PromptResult: Codable, Identifiable, Sendable {
     public var userNotesSnapshot: String?  // exact bounded notes value supplied to assembly
     public var includeMeetingNotesSnapshot: Bool  // captured automatic-context opt-in
     public var inferenceSettingsSnapshot: PromptInferenceSettings?  // normalized effective settings sent
+    public var contentEditedAt: Date?  // last in-place user edit of content; nil = generated
     public var createdAt: Date
     public var updatedAt: Date
 }
@@ -220,6 +221,7 @@ CREATE TABLE summaries (
     userNotesSnapshot TEXT,
     includeMeetingNotesSnapshot INTEGER NOT NULL DEFAULT 0,
     inferenceSettingsSnapshot TEXT,
+    contentEditedAt   TEXT,
     createdAt         TEXT NOT NULL,
     updatedAt         TEXT NOT NULL
 );
@@ -227,7 +229,7 @@ CREATE TABLE summaries (
 CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
 ```
 
-**Why snapshot instead of reference:** Prompts can be edited or deleted after a result is generated. The result should always know exactly what instructions produced it. `promptName` is for display; `promptContent`, `userNotesSnapshot`, `includeMeetingNotesSnapshot`, and `inferenceSettingsSnapshot` are request provenance, not a promise of identical future AI output. The settings snapshot records the effective provider/model-filtered receipt. The Boolean remains meaningful when the generation had no notes, because regenerate can apply that captured preference to notes added later.
+**Why snapshot instead of reference:** Prompts can be edited or deleted after a result is generated. The result should always know exactly what instructions produced it. `promptName` is for display; `promptContent`, `userNotesSnapshot`, `includeMeetingNotesSnapshot`, and `inferenceSettingsSnapshot` are request provenance, not a promise of identical future AI output. In-place user edits of `content` set `contentEditedAt` and do not rewrite those snapshots. The settings snapshot records the effective provider/model-filtered receipt. The Boolean remains meaningful when the generation had no notes, because regenerate can apply that captured preference to notes added later.
 
 Result and Transform prompts may carry typed generation settings. The active immutable version
 stores the requested `PromptInferenceSettings`; a queued generation copies that

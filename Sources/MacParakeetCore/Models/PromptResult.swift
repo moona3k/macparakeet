@@ -29,8 +29,14 @@ public struct PromptResult: Codable, Identifiable, Sendable {
     /// These are receipts, not live references to the current LLM settings.
     public var providerSnapshot: String?
     public var modelSnapshot: String?
+    /// When set, `content` was last written by the user rather than by
+    /// generation. Prompt snapshots stay the generation receipt. Nil for
+    /// unedited results, including rows created before this column existed.
+    public var contentEditedAt: Date?
     public var createdAt: Date
     public var updatedAt: Date
+
+    public var isContentUserEdited: Bool { contentEditedAt != nil }
 
     /// Legacy JSON predates the meeting-notes preference. Only an absent key
     /// defaults to false; malformed or null values remain decoding errors.
@@ -52,6 +58,7 @@ public struct PromptResult: Codable, Identifiable, Sendable {
             PromptInferenceSettings.self, forKey: .inferenceSettingsSnapshot)
         providerSnapshot = try container.decodeIfPresent(String.self, forKey: .providerSnapshot)
         modelSnapshot = try container.decodeIfPresent(String.self, forKey: .modelSnapshot)
+        contentEditedAt = try container.decodeIfPresent(Date.self, forKey: .contentEditedAt)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
@@ -70,6 +77,7 @@ public struct PromptResult: Codable, Identifiable, Sendable {
         inferenceSettingsSnapshot: PromptInferenceSettings? = nil,
         providerSnapshot: String? = nil,
         modelSnapshot: String? = nil,
+        contentEditedAt: Date? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -86,6 +94,7 @@ public struct PromptResult: Codable, Identifiable, Sendable {
         self.inferenceSettingsSnapshot = inferenceSettingsSnapshot?.normalized
         self.providerSnapshot = providerSnapshot
         self.modelSnapshot = modelSnapshot
+        self.contentEditedAt = contentEditedAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -98,7 +107,7 @@ extension PromptResult: FetchableRecord, PersistableRecord {
         case id, transcriptionId, promptId, promptVersionId
         case promptName, promptContent, extraInstructions, content
         case userNotesSnapshot, includeMeetingNotesSnapshot, inferenceSettingsSnapshot
-        case providerSnapshot, modelSnapshot
+        case providerSnapshot, modelSnapshot, contentEditedAt
         case createdAt, updatedAt
     }
 }

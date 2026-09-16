@@ -3126,9 +3126,29 @@ struct TranscriptResultView: View {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
                 if let promptResult {
                     HStack {
+                        if promptResult.isContentUserEdited && !promptResultsViewModel.isEditingPromptResult(promptResult.id) {
+                            Text("Edited")
+                                .font(DesignSystem.Typography.caption.weight(.medium))
+                                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        }
+
                         Spacer()
 
-                        Button {
+                        if promptResultsViewModel.isEditingPromptResult(promptResult.id) {
+                            Button("Cancel") {
+                                promptResultsViewModel.cancelEditingPromptResult()
+                            }
+                            .parakeetAction(.secondary)
+                            .controlSize(.small)
+
+                            Button("Save") {
+                                _ = promptResultsViewModel.saveEditingPromptResult()
+                            }
+                            .parakeetAction(.primary)
+                            .controlSize(.small)
+                            .disabled(!promptResultsViewModel.canSaveEditingPromptResult)
+                        } else {
+                            Button {
                             startPromptContextAction { context in
                                 if let generationID = promptResultsViewModel.regeneratePromptResult(
                                     promptResult,
@@ -3210,10 +3230,41 @@ struct TranscriptResultView: View {
                         }
                         .parakeetAction(.destructive)
                         .controlSize(.small)
+
+                            Button {
+                                promptResultsViewModel.beginEditingPromptResult(promptResult)
+                            } label: {
+                                HStack(spacing: DesignSystem.Spacing.xs) {
+                                    Image(systemName: "pencil")
+                                    Text("Edit")
+                                }
+                                .font(DesignSystem.Typography.caption)
+                            }
+                            .parakeetAction(.secondary)
+                            .controlSize(.small)
+                        }
                     }
 
-                    MarkdownContentView(promptResult.content, font: DesignSystem.Typography.bodyLarge)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if promptResultsViewModel.isEditingPromptResult(promptResult.id) {
+                        TextEditor(text: $promptResultsViewModel.editingDraft)
+                            .font(DesignSystem.Typography.body)
+                            .foregroundStyle(DesignSystem.Colors.textPrimary)
+                            .scrollContentBackground(.hidden)
+                            .frame(minHeight: 280, maxHeight: .infinity)
+                            .padding(DesignSystem.Spacing.sm)
+                            .background(
+                                RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                                    .fill(DesignSystem.Colors.surface)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                                    .strokeBorder(DesignSystem.Colors.border.opacity(0.7), lineWidth: 1)
+                            )
+                            .accessibilityLabel("Edit \(promptResult.promptName)")
+                    } else {
+                        MarkdownContentView(promptResult.content, font: DesignSystem.Typography.bodyLarge)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

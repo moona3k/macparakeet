@@ -89,6 +89,12 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- Saved prompt-result JSON includes additive `contentEditedAt` when the user
+  last edited result content in place. The key is omitted when content was
+  last written by generation.
+
 ## [4.2.0] — 2026-09-15
 
 ### Added

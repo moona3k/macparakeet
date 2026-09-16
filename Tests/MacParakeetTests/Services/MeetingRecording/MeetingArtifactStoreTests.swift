@@ -240,6 +240,31 @@ final class MeetingArtifactStoreTests: XCTestCase {
         XCTAssertTrue(resultMarkdown.contains("# Executive Summary"))
         XCTAssertTrue(resultMarkdown.contains("Ship the artifact contract."))
         XCTAssertTrue(resultMarkdown.contains("Automatic meeting notes context: enabled"))
+        XCTAssertTrue(resultMarkdown.contains("Content edited: no"))
+    }
+
+    func testMaterializePromptResultMarkdownRecordsContentEditedTimestamp() async throws {
+        let transcription = makeMeeting(notes: nil)
+        let editedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let result = PromptResult(
+            transcriptionId: transcription.id,
+            promptName: "Executive Summary",
+            promptContent: "Summarize.",
+            content: "Ship Friday.",
+            contentEditedAt: editedAt
+        )
+        let snapshot = try await MeetingArtifactStore().materialize(
+            transcription: transcription,
+            promptResults: [result]
+        )
+        let resultFiles = try XCTUnwrap(
+            try jsonObject(at: URL(fileURLWithPath: snapshot.manifestPath))["promptResults"] as? [[String: Any]]
+        )
+        let resultMarkdownPath = try XCTUnwrap(resultFiles.first?["path"] as? String)
+        let resultMarkdown = try String(contentsOfFile: resultMarkdownPath, encoding: .utf8)
+        XCTAssertTrue(resultMarkdown.contains("Content edited: \(ISO8601DateFormatter().string(from: editedAt))"))
+        let promptResults = try jsonArray(at: URL(fileURLWithPath: snapshot.promptResultsPath))
+        XCTAssertNotNil(try XCTUnwrap(promptResults.first)["contentEditedAt"])
     }
 
     func testMaterializeProjectionPreservesCorrectedSplitSpeakerSpans() async throws {

@@ -689,6 +689,7 @@ CREATE TABLE summaries (
     userNotesSnapshot TEXT,                                -- v0.8: notes used when generating this result
     includeMeetingNotesSnapshot INTEGER NOT NULL DEFAULT 0, -- v0.33-prompt-meeting-notes-context
     inferenceSettingsSnapshot TEXT,                       -- v0.31: JSON effective settings actually sent
+    contentEditedAt   TEXT,                                -- v0.45: when the user last edited `content`
     createdAt         TEXT NOT NULL,                       -- ISO 8601 timestamp
     updatedAt         TEXT NOT NULL                        -- ISO 8601 timestamp
 );
@@ -702,6 +703,10 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
 - `userNotesSnapshot` captures the exact normalized and 8,000-word-capped notes
   value supplied to prompt assembly, not the unbounded canonical DB value, so
   later note edits do not rewrite historical prompt results.
+- `contentEditedAt` (v0.45) is set when the user saves an in-place edit of
+  `content`. Prompt snapshots stay the generation receipt. `NULL` means the
+  displayed content was last written by generation (including pre-edit rows).
+  Cancel discards the draft; Save persists and refreshes meeting artifacts.
 - `includeMeetingNotesSnapshot` records the opt-in preference captured for that
   generation, including the meaningful case where it was enabled but no notes
   existed yet. Retry reuses its queued snapshot; regenerate reuses this Boolean
@@ -1319,6 +1324,7 @@ struct PromptResult: Codable, Identifiable, Sendable {
     var userNotesSnapshot: String?
     var includeMeetingNotesSnapshot: Bool
     var inferenceSettingsSnapshot: PromptInferenceSettings?
+    var contentEditedAt: Date?
     var createdAt: Date
     var updatedAt: Date
 }
@@ -1684,6 +1690,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 // v0.42-share-publications — local sharing ledger + durable outbox
 // v0.43-meeting-audio-retention — optional managed-audio retention clock
 // v0.44-timed-transcript-corrections — widen correction operations without discarding history
+// v0.45-prompt-result-content-edits — summaries.contentEditedAt
 ```
 
 ### Migration Rules
@@ -1737,6 +1744,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `speaker_embedding_candidates` | v0.41-speaker-embedding-candidates | Consent-gated temporary vectors with per-row seven-day expiry |
 | `prompts.includeMeetingNotes` | v0.33-prompt-meeting-notes-context | Result-prompt opt-in for automatic meeting-notes context; non-null, default false |
 | `summaries.includeMeetingNotesSnapshot` | v0.33-prompt-meeting-notes-context | Generation-time receipt of the prompt's notes-context opt-in; non-null, default false |
+| `summaries.contentEditedAt` | v0.45-prompt-result-content-edits | When the user last saved an in-place content edit; nullable for generated/unedited rows |
 | `lifetime_dictation_stats` | v0.7.4 | Singleton lifetime voice-stat counters |
 | `daily_dictation_stats` | v0.11 | Per-day rollup powering Stats-tab heatmap + daily streaks |
 | `transcriptions.recoveredFromCrash` | v0.7.5 | Interrupted meeting recovery marker |

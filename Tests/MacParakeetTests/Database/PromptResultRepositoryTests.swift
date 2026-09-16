@@ -100,6 +100,25 @@ final class PromptResultRepositoryTests: XCTestCase {
         XCTAssertEqual(fetched.modelSnapshot, "gpt-test")
     }
 
+    func testContentEditedAtRoundTripsWithoutChangingPromptSnapshots() throws {
+        let transcription = try makeTranscription()
+        let editedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let result = PromptResult(
+            transcriptionId: transcription.id,
+            promptName: "Summary",
+            promptContent: "Summarize this.",
+            content: "User corrected typo",
+            contentEditedAt: editedAt
+        )
+        try repo.save(result)
+
+        let fetched = try XCTUnwrap(repo.fetchAll(transcriptionId: transcription.id).first)
+        XCTAssertEqual(fetched.content, "User corrected typo")
+        XCTAssertEqual(fetched.contentEditedAt, editedAt)
+        XCTAssertEqual(fetched.promptContent, "Summarize this.")
+        XCTAssertTrue(fetched.isContentUserEdited)
+    }
+
     func testInferenceSettingsSnapshotRoundTripAndDefaultNormalization() throws {
         let transcription = try makeTranscription()
         var result = PromptResult(

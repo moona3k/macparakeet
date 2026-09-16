@@ -873,6 +873,8 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertEqual(saved[0].content, "Decision: ship the parser.")
         XCTAssertNil(saved[0].userNotesSnapshot)
         XCTAssertFalse(saved[0].includeMeetingNotesSnapshot)
+        XCTAssertNil(payload["contentEditedAt"])
+        XCTAssertNil(saved[0].contentEditedAt)
     }
 
     func testMeetingSurfacesExposePromptResultAvailability() async throws {
@@ -899,7 +901,8 @@ final class MeetingsCommandTests: XCTestCase {
                     maxTokens: 300,
                     thinkingMode: .enabled,
                     reasoningEffort: .low
-                )
+                ),
+                contentEditedAt: Date(timeIntervalSince1970: 1_700_000_000)
             ))
 
         let resultsCommand = try MeetingsCommand.ResultsSubcommand.ListSubcommand.parse([
@@ -919,6 +922,7 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertEqual(settings["temperature"] as? Double, 0.15)
         XCTAssertEqual(settings["reasoningEffort"] as? String, "low")
         XCTAssertEqual(settings["maxTokens"] as? Int, 300)
+        XCTAssertNotNil(resultsPayload.first?["contentEditedAt"])
 
         let listCommand = try MeetingsCommand.ListSubcommand.parse([
             "--json",

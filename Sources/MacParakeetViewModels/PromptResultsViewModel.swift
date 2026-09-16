@@ -114,6 +114,9 @@ public final class PromptResultsViewModel {
     public var onGenerationCompleted: ((UUID, UUID) -> Void)?
     public var onDeletedPromptResult: ((UUID) -> Void)?
     public var shouldMarkPromptResultUnread: ((UUID) -> Bool)?
+    /// In-place editor for a saved result. Nil means the pane is read-only.
+    public var editingPromptResultID: UUID?
+    public var editingDraft: String = ""
 
     private var llmService: LLMServiceProtocol?
     private var cardGenerator: CardGenerating?
@@ -402,6 +405,7 @@ public final class PromptResultsViewModel {
 
     public func loadPromptResults(transcriptionId: UUID) {
         if currentTranscriptionID != transcriptionId {
+            cancelEditingPromptResult()
             // User-initiated generations belong to the current visit. Quiet
             // meeting auto-prompts belong to the completed meeting instead.
             if let activeStreamingGeneration, !activeStreamingGeneration.runsInBackground {
@@ -453,6 +457,9 @@ public final class PromptResultsViewModel {
     }
 
     public func deletePromptResult(_ promptResult: PromptResult) {
+        if editingPromptResultID == promptResult.id {
+            cancelEditingPromptResult()
+        }
         guard let promptResultRepo else { return }
         do {
             _ = try promptResultRepo.delete(id: promptResult.id)
@@ -472,6 +479,62 @@ public final class PromptResultsViewModel {
         }
     }
 
+    public func isEditingPromptResult(_ id: UUID) -> Bool {
+        editingPromptResultID == id
+    }
+
+    public var hasUnsavedPromptResultEdits: Bool {
+        guard let id = editingPromptResultID,
+            let original = promptResults.first(where: { $0.id == id })
+        else { return false }
+        return editingDraft != original.content
+    }
+
+    public var canSaveEditingPromptResult: Bool {
+        hasUnsavedPromptResultEdits && editingDraft.contains(where: { !$0.isWhitespace })
+    }
+
+    public func beginEditingPromptResult(_ promptResult: PromptResult) {
+        editingPromptResultID = promptResult.id
+        editingDraft = promptResult.content
+        errorMessage = nil
+    }
+
+    public func cancelEditingPromptResult() {
+        editingPromptResultID = nil
+        editingDraft = ""
+        errorMessage = nil
+    }
+
+    @discardableResult
+    public func saveEditingPromptResult(now: Date = Date()) -> Bool {
+        guard let promptResultRepo,
+            let id = editingPromptResultID,
+            let index = promptResults.firstIndex(where: { $0.id == id })
+        else { return false }
+        guard editingDraft.contains(where: { !$0.isWhitespace }) else {
+            errorMessage = "Result cannot be empty."
+            return false
+        }
+        var updated = promptResults[index]
+        updated.content = editingDraft
+        updated.contentEditedAt = now
+        updated.updatedAt = now
+        do {
+            try promptResultRepo.save(updated)
+            promptResults[index] = updated
+            cancelEditingPromptResult()
+            onPromptResultsChanged?(updated.transcriptionId, true)
+            Task { [weak self] in
+                await self?.refreshMeetingArtifacts(transcriptionId: updated.transcriptionId)
+            }
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
     @discardableResult
     public func generatePromptResult(transcript: String, transcriptionId: UUID) -> UUID? {
         guard let prompt = selectedPrompt else { return nil }
@@ -486,6 +549,9 @@ public final class PromptResultsViewModel {
 
     @discardableResult
     public func regeneratePromptResult(_ promptResult: PromptResult, transcript: String) -> UUID? {
+        if editingPromptResultID == promptResult.id {
+            cancelEditingPromptResult()
+        }
         let prompt = Prompt(
             id: promptResult.promptId ?? UUID(),
             name: promptResult.promptName,
