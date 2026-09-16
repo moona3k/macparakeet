@@ -1,0 +1,30 @@
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_673be8b32d8d6a::t_0208cdd6dda69c 1087
+Tests/MacParakeetTests/ViewModels/LLMSettingsViewModelTests.swift
+  s_673be8b32d8d6a::t_b4c530391fd270 2012-2108
+Sources/MacParakeetViewModels/LLMSettingsViewModel.swift
+  s_673be8b32d8d6a::t_bae9c1a54e9d18 1248,1250-1272,1274-1275,1280-1284
+  s_673be8b32d8d6a::t_d1b8fa2de3e898 1276-1279
+Sources/MacParakeet/Views/Settings/LLMSettingsView.swift
+  s_673be8b32d8d6a::t_25f2b672ac50b8 288
+Sources/MacParakeetViewModels/LLMSettingsDraft.swift
+  s_673be8b32d8d6a::t_9a35c270087e07 13,29-30
+Tests/MacParakeetTests/Services/LLM/LLMExecutionContextResolverTests.swift
+  s_673be8b32d8d6a::t_ab406ca9f1d221 100,103-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "caea97e9a6f1b99f657f715fb8e815487af5a85d",
+  "prompts": {},
+  "sessions": {
+    "s_673be8b32d8d6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
