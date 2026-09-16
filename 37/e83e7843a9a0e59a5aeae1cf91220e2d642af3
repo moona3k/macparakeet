@@ -1,0 +1,79 @@
+Tests/MacParakeetTests/Hotkey/HotkeyManagerTests.swift
+  s_673be8b32d8d6a::t_c42daa24948d1f 219-221
+  s_673be8b32d8d6a::t_e3ffb5a715ecde 209-218,222-229
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_673be8b32d8d6a::t_aea1d8b17e0faa 189-198
+  s_32f720a047a693::t_74aa37e5f594d4 188
+Sources/MacParakeet/Hotkey/HotkeyManager.swift
+  s_673be8b32d8d6a::t_02c0d6ee3fca1a 430
+  s_673be8b32d8d6a::t_1c2e45ee117c1d 699
+  s_673be8b32d8d6a::t_023bbaa648ef7e 20-22
+  s_673be8b32d8d6a::t_4e0bc070679666 637
+  s_673be8b32d8d6a::t_eeeee5f946d726 826-830
+  s_673be8b32d8d6a::t_66dd83e75320ef 813
+spec/02-features.md
+  s_673be8b32d8d6a::t_20069b38c17bff 347
+  s_673be8b32d8d6a::t_53e3b1a36d01ac 2165
+Tests/CLITests/ConfigCommandTests.swift
+  s_673be8b32d8d6a::t_0fa111c8615506 43
+  s_673be8b32d8d6a::t_f11151a716f0a0 214-219
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_673be8b32d8d6a::t_13f657484eb720 995
+  s_673be8b32d8d6a::t_5e5500a7ee771f 322-333
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_673be8b32d8d6a::t_3d26f07c673dc5 573
+Tests/MacParakeetTests/AppRuntimePreferencesTests.swift
+  s_673be8b32d8d6a::t_79cdd75f5535b7 466-477
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_673be8b32d8d6a::t_e7edb792f03275 48-56
+docs/cli-testing.md
+  s_673be8b32d8d6a::t_60235a9e207a31 275-276
+Sources/CLI/CHANGELOG.md
+  s_673be8b32d8d6a::t_5b56e0608e0dc7 92-97
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_673be8b32d8d6a::t_8e4411aacaa15d 315
+  s_673be8b32d8d6a::t_4c12cfb7bd9137 219
+  s_673be8b32d8d6a::t_b60d29c5985b36 284
+  s_673be8b32d8d6a::t_d92faecc023ed9 433-451
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_673be8b32d8d6a::t_57a4d72793ef2c 1162-1168
+  s_32f720a047a693::t_3ba001c73fb6fe 1161
+docs/telemetry.md
+  s_673be8b32d8d6a::t_5ae5f38f1b5d36 420
+Sources/MacParakeet/App/AppHotkeyCoordinator.swift
+  s_673be8b32d8d6a::t_e056624b00673b 281-283
+Sources/MacParakeetCore/AppRuntimePreferences.swift
+  s_673be8b32d8d6a::t_6d7d3db73a5147 29
+  s_673be8b32d8d6a::t_7f7d6b534fda9d 550
+  s_673be8b32d8d6a::t_fe538a68a51840 752-760
+Sources/CLI/Commands/ConfigCommand.swift
+  s_673be8b32d8d6a::t_fac397dc47a256 351-352
+  s_673be8b32d8d6a::t_f1a91012bf9544 48
+  s_673be8b32d8d6a::t_58647b0bffeab8 457-460
+  s_673be8b32d8d6a::t_3e5a19c352c75d 157-161
+  s_673be8b32d8d6a::t_525b52898fd8df 156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "37e83e7843a9a0e59a5aeae1cf91220e2d642af3",
+  "prompts": {},
+  "sessions": {
+    "s_32f720a047a693": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e8e7bcbd-c4d2-4d47-af6c-1c17af5b7971",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_673be8b32d8d6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
