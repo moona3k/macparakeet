@@ -1,0 +1,52 @@
+Sources/MacParakeet/Views/Vocabulary/VocabularyImportPreviewSheet.swift
+  s_673be8b32d8d6a::t_ead8e5fc43a42d 306-307,310-312
+  s_673be8b32d8d6a::t_67e0088d5dc839 17-21
+  s_673be8b32d8d6a::t_41fa45470986c5 371-373
+  s_673be8b32d8d6a::t_ca21ce4f644c91 132-206,208,219,222,225,228,243-259
+  s_673be8b32d8d6a::t_f0f3243eefca28 361-362
+  s_673be8b32d8d6a::t_26a32f6d9f82d2 260,375,380-394
+  s_673be8b32d8d6a::t_8a53a9acde8ab5 261-262,313-314,321,336,341,363-364,395
+Tests/CLITests/VocabCommandTests.swift
+  s_673be8b32d8d6a::t_8f72c141414ae0 482-556
+Sources/CLI/CHANGELOG.md
+  s_673be8b32d8d6a::t_c0416b79581a75 92-98
+Sources/MacParakeetCore/Services/VocabularyImportExportService.swift
+  s_673be8b32d8d6a::t_fde9351dba1e6d 249-268,271
+  s_673be8b32d8d6a::t_0eeb8afa0ef240 104-105,113-115,123-124,372
+  s_673be8b32d8d6a::t_5e59f605a26dfc 57,68-73,81-84,239,373
+  s_673be8b32d8d6a::t_a9ed4ddc6be87c 203-208,218-229,238
+  s_673be8b32d8d6a::t_0472632a898212 42-43,240-241,269-270,287,333,374
+Sources/CLI/Commands/VocabBundleCommands.swift
+  s_673be8b32d8d6a::t_81827c787c8e5a 17,66-69,430
+  s_673be8b32d8d6a::t_c59f5d6ebf379f 181-189,191-196,214
+  s_673be8b32d8d6a::t_5b28bbadc3b707 149-150
+  s_673be8b32d8d6a::t_2d20700cdf33e5 465
+  s_673be8b32d8d6a::t_136b9bdb2f96bb 76-79
+  s_673be8b32d8d6a::t_a8658b78a507c6 234,238-239,250-252,264-265
+  s_673be8b32d8d6a::t_18db99b11ced5b 127-129
+  s_673be8b32d8d6a::t_acc4a02f4780f4 92-94,100
+  s_673be8b32d8d6a::t_8259fd17185130 14-16,45-47,63-65,70,205-207,212-213,219-221,233,278-281,317-323,325-381,393-401,404-411,421-429,431-464,466-470
+spec/02-features.md
+  s_673be8b32d8d6a::t_34e9f76c432131 910-913
+  s_673be8b32d8d6a::t_69096bc7525a1a 1083
+Sources/MacParakeet/Views/Vocabulary/VocabularyBackupSection.swift
+  s_673be8b32d8d6a::t_7a9613f4da50fc 65-70,115-116,165-167,175-180
+Tests/MacParakeetTests/Services/VocabularyImportExportServiceTests.swift
+  s_673be8b32d8d6a::t_8a339352264620 70,114,138,142,216,235,258,262,289-297,327-329,338-341,370,373-375,466-606
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a24a5435ce0192dee5b4734feb042ddc8055abf7",
+  "prompts": {},
+  "sessions": {
+    "s_673be8b32d8d6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
