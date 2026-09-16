@@ -1,0 +1,77 @@
+Tests/MacParakeetTests/Services/LLM/LLMServiceTests.swift
+  s_32f720a047a693::t_f513e34fdbbcc0 958-959
+  s_32f720a047a693::t_a48f953e6fa57d 931-932
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorLoadCaptionTests.swift
+  s_32f720a047a693::t_21ed8cf5f917ef 287-297
+Sources/MacParakeetCore/Models/DictationResult.swift
+  s_32f720a047a693::t_ab497a41fa676c 8-12,17-20,25-27
+Tests/MacParakeetTests/TelemetryServiceTests.swift
+  s_32f720a047a693::t_ca446b9c8039f0 2092-2101
+  s_32f720a047a693::t_4eb09edec6042b 1268-1297
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_32f720a047a693::t_de03ca75cbbc36 568-574
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_32f720a047a693::t_bc48b4aaf87c88 640
+  s_32f720a047a693::t_301f8d4a2f6e96 197
+  s_32f720a047a693::t_69aa6e241d7fa9 620
+  s_32f720a047a693::t_d7db42f828f5ad 613
+  s_32f720a047a693::t_8542396ca8a70a 639,641
+  s_32f720a047a693::t_ddff682f2f29bb 667
+  s_32f720a047a693::t_ecb8f0e5465cb1 695
+  s_32f720a047a693::t_4f20f3bf7028d1 1163-1183
+  s_32f720a047a693::t_1ea716a9095b9f 784
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_32f720a047a693::t_c5644796f4e187 1840-1844
+  s_32f720a047a693::t_f9d747d9c706d7 635-646
+  s_32f720a047a693::t_03511f49cf99fa 1212-1214,1231-1233,1235-1242
+  s_32f720a047a693::t_f16a296d7724f0 18-19
+  s_32f720a047a693::t_329c1dbad196ff 1903
+  s_32f720a047a693::t_759655ed1d2386 1027
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_32f720a047a693::t_74e750a9e050a8 871,944,976,1010
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_32f720a047a693::t_b5bed53a70730f 499-500
+  s_32f720a047a693::t_9203584f4fb160 738-739
+  s_32f720a047a693::t_2557d4bd9f1816 760-762
+  s_32f720a047a693::t_c2d1887e6b87ad 1514-1516
+  s_32f720a047a693::t_b2722a77658185 1650-1652
+  s_32f720a047a693::t_871ce681208cd1 1295-1296,1298
+  s_32f720a047a693::t_89c1cb64234c55 1465-1468
+  s_32f720a047a693::t_79ab75f42ae0c0 1513
+  s_32f720a047a693::t_4b20e0c8e88f6f 851
+  s_32f720a047a693::t_f3390cb766306b 519-521
+  s_32f720a047a693::t_21197073e803f5 484,486
+  s_32f720a047a693::t_f0804a7b3177ea 649,654
+  s_32f720a047a693::t_acf771af0d1397 132
+  s_32f720a047a693::t_2f0b70f5d07442 714
+  s_32f720a047a693::t_5298d97a036d69 725-726
+  s_32f720a047a693::t_e5271913bc9630 1619-1621
+spec/contracts/telemetry-v1.md
+  s_32f720a047a693::t_5e5359b843d6a4 234-239
+plans/active/2026-09-16-telemetry-observability-followthrough.md
+  s_32f720a047a693::t_6371c95317d8cf 6-47,50-66
+  s_32f720a047a693::t_99a7aed27c028e 1-3,5
+  s_32f720a047a693::t_3cc3e5a010dcaa 4
+  s_32f720a047a693::t_c5256e4474f2f6 48-49
+plans/README.md
+  s_32f720a047a693::t_86b87cbc0f6779 79
+docs/telemetry.md
+  s_32f720a047a693::t_0c30bccecc63b3 256-257
+  s_32f720a047a693::t_9f230fd9a23a1c 346
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5f442273ab14138c4a44c2430a43b9a718b94448",
+  "prompts": {},
+  "sessions": {
+    "s_32f720a047a693": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e8e7bcbd-c4d2-4d47-af6c-1c17af5b7971",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
