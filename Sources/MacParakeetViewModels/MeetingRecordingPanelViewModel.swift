@@ -389,6 +389,14 @@ public final class MeetingRecordingPanelViewModel {
         }
     }
 
+    /// Transcript empty-state seed-of-life sits still and faded when live
+    /// preview is off. Pause is a different "held breath" freeze that keeps
+    /// full color and the current animation frame. Notes keeps the living
+    /// rosette because the meeting is still recording.
+    public var isTranscriptRosetteQuiet: Bool {
+        liveTranscriptStatus == .previewOff
+    }
+
     private var livePreviewStatusMessage: String? {
         switch liveTranscriptStatus {
         case .previewOff:

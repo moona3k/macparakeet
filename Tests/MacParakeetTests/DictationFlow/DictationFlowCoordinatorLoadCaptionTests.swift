@@ -284,6 +284,19 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         XCTAssertEqual(clipboard.lastPastedText, "Mock transcription ")
         XCTAssertEqual(clipboard.lastRestoresClipboard, false)
         XCTAssertNil(clipboard.lastCopiedText)
+        let insert = harness.telemetry.snapshot().compactMap { event -> [String: String]? in
+            guard case .dictationInsert = event else { return nil }
+            return event.props
+        }.last
+        XCTAssertNotNil(insert)
+        let captureMs = Int(insert?["capture_ms"] ?? "") ?? -1
+        let transcribeMs = Int(insert?["transcribe_ms"] ?? "") ?? -1
+        let pasteMs = Int(insert?["paste_ms"] ?? "") ?? -1
+        let e2eMs = Int(insert?["e2e_ms"] ?? "") ?? -1
+        XCTAssertEqual(e2eMs, captureMs + transcribeMs + pasteMs)
+        XCTAssertGreaterThanOrEqual(captureMs, 0)
+        XCTAssertGreaterThanOrEqual(transcribeMs, 0)
+        XCTAssertGreaterThanOrEqual(pasteMs, 0)
     }
 
     func testInlineInsertionStyleDoesNotAppendTrailingPasteSpace() async throws {
@@ -362,6 +375,7 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         XCTAssertNil(clipboard.lastPastedText)
         XCTAssertNil(clipboard.lastCopiedText)
         XCTAssertNil(clipboard.lastRestoresClipboard)
+        XCTAssertFalse(harness.telemetry.snapshot().containsDictationInsert)
     }
 
     private func makeHarness(
@@ -701,6 +715,13 @@ private extension Array where Element == TelemetryEventSpec {
     var containsCaptionShown: Bool {
         contains { event in
             if case .dictationFirstLoadCaptionShown = event { return true }
+            return false
+        }
+    }
+
+    var containsDictationInsert: Bool {
+        contains { event in
+            if case .dictationInsert = event { return true }
             return false
         }
     }

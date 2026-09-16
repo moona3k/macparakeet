@@ -130,6 +130,7 @@ public actor DictationService: DictationServiceProtocol {
     private var cancelGeneration: Int = 0
     private var pendingCancelledAudioURL: URL?
     private var pendingCancelledDurationMs: Int?
+    private var pendingCancelledCaptureMs: Int?
     private var currentTelemetryContext = DictationTelemetryContext()
     private var recordingStartedAt: Date?
     private var currentOperationID: String?
@@ -483,7 +484,9 @@ public actor DictationService: DictationServiceProtocol {
         // finalization/STT latency. Mirrors cancelRecording's capture point.
         let capturedDurationMs = currentRecordingDurationMs()
         do {
+            let captureStartedAt = Date()
             let audioURL = try await audioProcessor.stopCapture()
+            let captureMs = Self.elapsedMilliseconds(since: captureStartedAt)
             let captureHealth = await audioProcessor.lastCaptureHealth
             try rejectUnavailableCaptureIfNeeded(captureHealth, audioURL: audioURL)
             let device = await audioProcessor.recordingDeviceInfo
@@ -496,7 +499,8 @@ public actor DictationService: DictationServiceProtocol {
                 try await processCapturedAudio(
                     audioURL: audioURL,
                     capturedDurationMs: capturedDurationMs,
-                    formatterContext: formatterContext
+                    formatterContext: formatterContext,
+                    captureMs: captureMs
                 )
             }
             // Guard against reentrancy: a new session may have started during
@@ -515,7 +519,9 @@ public actor DictationService: DictationServiceProtocol {
                 speechEngine: result.dictation.engine,
                 engineVariant: result.dictation.engineVariant,
                 language: result.dictation.language,
-                device: device
+                device: device,
+                captureMs: result.captureMs,
+                transcribeMs: result.transcribeMs
             )
             Telemetry.send(
                 .dictationCompleted(
@@ -643,10 +649,15 @@ public actor DictationService: DictationServiceProtocol {
         await cancelLiveDictationTranscription(sessionID: activeSessionID)
         await cancelDisplayPreview(sessionID: activeSessionID, clearText: true)
         let capturedDurationMs = currentRecordingDurationMs()
+        let captureStartedAt = Date()
         let audioURL = try? await audioProcessor.stopCapture()
+        // Capture finalization ends when stopCapture returns. Do not include the
+        // later recordingDeviceInfo hop in pendingCancelledCaptureMs / undo e2e.
+        let captureMs = audioURL == nil ? nil : Self.elapsedMilliseconds(since: captureStartedAt)
         let device = await audioProcessor.recordingDeviceInfo
         pendingCancelledAudioURL = audioURL
         pendingCancelledDurationMs = capturedDurationMs
+        pendingCancelledCaptureMs = captureMs
         _state = .cancelled
         Telemetry.send(
             .dictationCancelled(
@@ -706,6 +717,7 @@ public actor DictationService: DictationServiceProtocol {
         }
         guard let audioURL = pendingCancelledAudioURL else {
             pendingCancelledDurationMs = nil
+            pendingCancelledCaptureMs = nil
             _state = .idle
             throw DictationServiceError.noPendingCancelledAudio
         }
@@ -716,6 +728,8 @@ public actor DictationService: DictationServiceProtocol {
         pendingCancelledAudioURL = nil
         let capturedDurationMs = pendingCancelledDurationMs
         pendingCancelledDurationMs = nil
+        let captureMs = pendingCancelledCaptureMs
+        pendingCancelledCaptureMs = nil
 
         let currentSession = activeSessionID
         let formatterContext = currentAIFormatterFinishContext ?? currentAIFormatterStartContext
@@ -727,7 +741,8 @@ public actor DictationService: DictationServiceProtocol {
                 try await processCapturedAudio(
                     audioURL: audioURL,
                     capturedDurationMs: capturedDurationMs,
-                    formatterContext: formatterContext
+                    formatterContext: formatterContext,
+                    captureMs: captureMs
                 )
             }
             let device = await audioProcessor.recordingDeviceInfo
@@ -748,7 +763,9 @@ public actor DictationService: DictationServiceProtocol {
                 speechEngine: result.dictation.engine,
                 engineVariant: result.dictation.engineVariant,
                 language: result.dictation.language,
-                device: device
+                device: device,
+                captureMs: result.captureMs,
+                transcribeMs: result.transcribeMs
             )
             Telemetry.send(
                 .dictationCompleted(
@@ -837,6 +854,7 @@ public actor DictationService: DictationServiceProtocol {
         }
         pendingCancelledAudioURL = nil
         pendingCancelledDurationMs = nil
+        pendingCancelledCaptureMs = nil
     }
 
     private func withCurrentObservabilityContextIfAny<T: Sendable>(
@@ -1280,8 +1298,10 @@ public actor DictationService: DictationServiceProtocol {
     private func processCapturedAudio(
         audioURL: URL,
         capturedDurationMs: Int?,
-        formatterContext: AppPromptContext?
+        formatterContext: AppPromptContext?,
+        captureMs: Int?
     ) async throws -> DictationResult {
+        let transcribeStartedAt = Date()
         // Track whether the audio file is consumed (moved or explicitly deleted).
         // If an error occurs before that point, clean up the temp file.
         var audioConsumed = false
@@ -1450,7 +1470,10 @@ public actor DictationService: DictationServiceProtocol {
         return DictationResult(
             dictation: dictation,
             insertionStyle: insertionStyle,
-            postPasteAction: refinement.postPasteAction
+            postPasteAction: refinement.postPasteAction,
+            captureMs: captureMs,
+            transcribeMs: Self.elapsedMilliseconds(since: transcribeStartedAt),
+            operationID: currentOperationID
         )
     }
 
@@ -1493,6 +1516,10 @@ public actor DictationService: DictationServiceProtocol {
             return capturedDurationMs
         }
         return result.text.split(separator: " ").count * 150
+    }
+
+    public static func elapsedMilliseconds(since date: Date, now: Date = Date()) -> Int {
+        max(0, Int((now.timeIntervalSince(date) * 1000).rounded()))
     }
 
     private func resetAfterCancelIfStillCurrent(generation: Int) {
@@ -1597,7 +1624,9 @@ public actor DictationService: DictationServiceProtocol {
         speechEngine: String? = nil,
         engineVariant: String? = nil,
         language: String? = nil,
-        device: RecordingDeviceInfo? = nil
+        device: RecordingDeviceInfo? = nil,
+        captureMs: Int? = nil,
+        transcribeMs: Int? = nil
     ) {
         guard let id = operationID ?? currentOperationID else { return }
         if id == currentOperationID {
@@ -1626,7 +1655,9 @@ public actor DictationService: DictationServiceProtocol {
                 engineVariant: engineVariant ?? attribution?.engineVariant,
                 language: language ?? attribution?.language,
                 appCategory: context.appCategory,
-                device: device
+                device: device,
+                captureMs: captureMs,
+                transcribeMs: transcribeMs
             ))
     }
 
