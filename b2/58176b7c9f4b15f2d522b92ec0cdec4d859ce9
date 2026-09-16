@@ -1,0 +1,102 @@
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_673be8b32d8d6a::t_0e0b10abb54ece 2282-2286
+  s_673be8b32d8d6a::t_fc40ffa50b1e26 1547-1596
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_673be8b32d8d6a::t_e6512ae200a78d 213-222
+  s_673be8b32d8d6a::t_6292b31f98e1e1 974-977
+Sources/MacParakeetCore/STT/HotkeyTrigger.swift
+  s_673be8b32d8d6a::t_631955c63bddd2 693
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_673be8b32d8d6a::t_7465446774cdf5 522
+Sources/MacParakeetCore/Services/Dictation/DictationServiceSession.swift
+  s_673be8b32d8d6a::t_25ae3ab1314ae9 52-53,56-60
+Sources/MacParakeet/App/AppSettingsObserverCoordinator.swift
+  s_673be8b32d8d6a::t_11ed7431ff0265 16
+  s_673be8b32d8d6a::t_eb6c4daec041e5 75
+  s_673be8b32d8d6a::t_7b11e2ffbd1eb2 36
+  s_673be8b32d8d6a::t_0b3f3389fc03f9 56
+Sources/MacParakeetCore/Hotkey/HotkeyConflictPolicy.swift
+  s_673be8b32d8d6a::t_3fb10ed42000a7 324-327,334-336
+  s_673be8b32d8d6a::t_e4f181b89e34ec 118,128,137
+  s_673be8b32d8d6a::t_f41b8ae612b5a5 234-238
+  s_673be8b32d8d6a::t_413b79ac47233b 354-360
+  s_673be8b32d8d6a::t_6d173af4d9f4da 70
+  s_673be8b32d8d6a::t_c9fa2671bb87d4 261-270
+Tests/MacParakeetTests/App/AppHotkeyCoordinatorTests.swift
+  s_673be8b32d8d6a::t_5445608b08f6a5 26
+  s_673be8b32d8d6a::t_cd6345ef6fbe63 260-285
+Tests/MacParakeetTests/App/AppSettingsObserverCoordinatorTests.swift
+  s_673be8b32d8d6a::t_00f5dd46a49606 302
+  s_673be8b32d8d6a::t_b3560d060568a3 148
+  s_673be8b32d8d6a::t_65911c06eb88a8 25
+  s_673be8b32d8d6a::t_249bc02b342ebe 68-71
+  s_673be8b32d8d6a::t_1c672d9ba9242f 116
+  s_673be8b32d8d6a::t_3f371e5d16e2ca 127
+  s_673be8b32d8d6a::t_53a0777fa96d18 216
+  s_673be8b32d8d6a::t_769c27bdf3b66c 195
+spec/02-features.md
+  s_673be8b32d8d6a::t_30d54b1b334f0c 1004
+  s_673be8b32d8d6a::t_ed1b402655762f 151
+  s_673be8b32d8d6a::t_72a655dded438a 977
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_673be8b32d8d6a::t_c91f36ae05e839 1640
+  s_673be8b32d8d6a::t_a2d6c49bd4fb9e 1093-1101
+Sources/MacParakeet/AppDelegate.swift
+  s_673be8b32d8d6a::t_ad2dced2e4c239 345-347
+  s_673be8b32d8d6a::t_ea677c5fce71d0 871-875
+  s_673be8b32d8d6a::t_aa604ab48db4e9 142-143
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_673be8b32d8d6a::t_f0ea55964e06af 454-459
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_673be8b32d8d6a::t_25407dc0f9e100 1264-1278
+  s_673be8b32d8d6a::t_17aa6d88253a09 1336,1358
+Tests/MacParakeetTests/Hotkey/HotkeyConflictPolicyTests.swift
+  s_673be8b32d8d6a::t_e681044938b0e3 25
+  s_673be8b32d8d6a::t_ea1fc9f47bbd48 35
+  s_673be8b32d8d6a::t_31355f13e6f465 275-284
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_673be8b32d8d6a::t_8a73d276fadc7e 348-349,355
+  s_673be8b32d8d6a::t_6be2d1f25865dd 191-192
+  s_673be8b32d8d6a::t_e22eb57047f836 986-987
+Sources/MacParakeet/App/AppHotkeyCoordinator.swift
+  s_673be8b32d8d6a::t_87c6d28cc5c72d 247-248
+  s_673be8b32d8d6a::t_4b836346d7df93 10
+  s_673be8b32d8d6a::t_23e3e4b6dbd858 38
+  s_673be8b32d8d6a::t_0e0105b9373062 385
+  s_673be8b32d8d6a::t_19766a9d351ee6 369
+  s_673be8b32d8d6a::t_f6c91729832b15 262-263
+  s_673be8b32d8d6a::t_a5e38b0f19cc57 282-283,297
+  s_673be8b32d8d6a::t_dd30b3151e8963 83,89-90,96
+  s_673be8b32d8d6a::t_c011b43f5fcc7b 353
+  s_673be8b32d8d6a::t_84d62fb20fc4d6 139-140,142-161,173-196,198-199,202-216,220-225,227-228
+Sources/MacParakeet/Views/MainWindowView.swift
+  s_673be8b32d8d6a::t_27380400853554 376-380
+Sources/MacParakeetCore/AppNotifications.swift
+  s_673be8b32d8d6a::t_1890633f070370 13
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_673be8b32d8d6a::t_9572069892df9a 342
+  s_673be8b32d8d6a::t_3a85168c493067 723-726
+  s_673be8b32d8d6a::t_9af2db257d6c45 1591
+  s_673be8b32d8d6a::t_3266313d57401d 653
+  s_673be8b32d8d6a::t_3c8b254617bf1b 132
+  s_673be8b32d8d6a::t_1dcdebffe6faef 280-281
+  s_673be8b32d8d6a::t_ff169c33c9b7d8 142-144
+  s_673be8b32d8d6a::t_eeaf6f216e02f7 848
+  s_673be8b32d8d6a::t_93bd51961e2228 1378,1381
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b258176b7c9f4b15f2d522b92ec0cdec4d859ce9",
+  "prompts": {},
+  "sessions": {
+    "s_673be8b32d8d6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
