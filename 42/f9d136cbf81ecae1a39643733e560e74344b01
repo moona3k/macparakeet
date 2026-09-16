@@ -1,0 +1,70 @@
+Sources/MacParakeetCore/Services/Transforms/TransformExecutor.swift
+  s_673be8b32d8d6a::t_a15529a641704f 125,130-137
+Sources/MacParakeetViewModels/TransformsViewModel.swift
+  s_673be8b32d8d6a::t_f43d9446284c5c 127-134,136-137,139-141
+  s_673be8b32d8d6a::t_b8ce1e7fc86a02 75-76,82
+  s_673be8b32d8d6a::t_17234adc5d0c0e 46
+  s_673be8b32d8d6a::t_27f7fb4ae38e30 55
+  s_673be8b32d8d6a::t_2a26ec23193a20 109,111
+  s_673be8b32d8d6a::t_a132ed37f0efef 110
+  s_673be8b32d8d6a::t_7daaaa41882a0b 135,138
+Sources/MacParakeetCore/Services/Transforms/MenuBarTransformCatalog.swift
+  s_673be8b32d8d6a::t_4d79616f2420ef 1-33
+Tests/MacParakeetTests/Services/System/SelectionCaptureServiceTests.swift
+  s_673be8b32d8d6a::t_43487881b90ce6 215
+Tests/MacParakeetTests/ViewModels/TransformsViewModelTests.swift
+  s_673be8b32d8d6a::t_baa79588fc9c73 39-49
+Sources/MacParakeet/AppDelegate.swift
+  s_673be8b32d8d6a::t_1ed209bd96fbd6 679-690
+Sources/MacParakeet/Views/Transforms/TransformsView.swift
+  s_673be8b32d8d6a::t_5b228acd988b19 233,244-249
+  s_673be8b32d8d6a::t_c431cb14cb9a91 979-980
+  s_673be8b32d8d6a::t_3710e72746cc61 880,884
+Sources/MacParakeet/App/MenuBarCoordinator.swift
+  s_673be8b32d8d6a::t_ab8c4128739bec 71
+  s_673be8b32d8d6a::t_aa6ceb1d888949 57-60
+  s_673be8b32d8d6a::t_a6e264715dfeb6 842-848,850-854
+  s_673be8b32d8d6a::t_40cdf2f2b57cc4 914-975
+  s_673be8b32d8d6a::t_4800611f1f067f 590
+  s_673be8b32d8d6a::t_1cc84febfc816a 830
+  s_673be8b32d8d6a::t_8e2775363d8a9c 442-450
+Sources/MacParakeet/App/TransformsCoordinator.swift
+  s_673be8b32d8d6a::t_d5a4b60cd63dfe 196-245
+  s_673be8b32d8d6a::t_fbee41f8bdfc24 106-118
+  s_673be8b32d8d6a::t_df0a770bf6f1a6 51-54
+  s_673be8b32d8d6a::t_c2ebda02a87215 132-136
+  s_673be8b32d8d6a::t_1bf5fd30789fb1 294-304,310-313
+spec/02-features.md
+  s_673be8b32d8d6a::t_5c4437b87864b0 2052
+  s_673be8b32d8d6a::t_e32ed0213ea92a 2042-2043
+Sources/MacParakeetCore/Services/System/SelectionCaptureService.swift
+  s_673be8b32d8d6a::t_ccad06f170d062 232-240,250-252,254-255,258-259,261-265
+  s_673be8b32d8d6a::t_126102015f8dac 140
+  s_673be8b32d8d6a::t_293cccafb51692 383-390,393
+  s_673be8b32d8d6a::t_1fd1b9074ef805 241-249,253,256-257,260
+Sources/MacParakeetCore/AppRuntimePreferences.swift
+  s_673be8b32d8d6a::t_42e9d1fe9083aa 641-666
+  s_673be8b32d8d6a::t_5700afb5afa4ea 559-561
+Tests/MacParakeetTests/Services/Transforms/TransformExecutorTests.swift
+  s_673be8b32d8d6a::t_753d3c5e501c9c 394-447
+Tests/MacParakeetTests/Services/Transforms/MenuBarTransformCatalogTests.swift
+  s_673be8b32d8d6a::t_948324024fda39 1-58
+spec/adr/022-transforms-system-wide-rewrite.md
+  s_673be8b32d8d6a::t_da055acdb35b2a 98-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "42f9d136cbf81ecae1a39643733e560e74344b01",
+  "prompts": {},
+  "sessions": {
+    "s_673be8b32d8d6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
