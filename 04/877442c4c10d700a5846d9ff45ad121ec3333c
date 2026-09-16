@@ -1,0 +1,22 @@
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorLoadCaptionTests.swift
+  s_673be8b32d8d6a::t_1b4b29c9cba7bc 75-84,87,89-94,97,101
+Tests/MacParakeetTests/ViewModels/TranscriptionDeletionCleanupTests.swift
+  s_673be8b32d8d6a::t_80f3cd67ce74f8 462-473
+  s_673be8b32d8d6a::t_6055830257f4be 348,367,393
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "04877442c4c10d700a5846d9ff45ad121ec3333c",
+  "prompts": {},
+  "sessions": {
+    "s_673be8b32d8d6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
