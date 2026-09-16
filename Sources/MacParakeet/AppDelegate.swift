@@ -676,6 +676,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         transforms.start()
         transformsCoordinator = transforms
+        menuBarCoordinator.onPrepareMenuBarTransforms = { [weak transforms] in
+            transforms?.prepareMenuBarCapture()
+        }
+        menuBarCoordinator.onRunMenuBarTransform = { [weak transforms] id in
+            transforms?.runFromMenuBar(promptID: id)
+        }
+        menuBarCoordinator.menuBarTransformsProvider = { [weak transforms] in
+            transforms?.menuBarListings() ?? []
+        }
 
         menuBarCoordinator.refreshHotkeyTitle()
         menuBarCoordinator.refreshMeetingHotkeyShortcut()

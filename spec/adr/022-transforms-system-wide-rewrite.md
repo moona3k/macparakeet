@@ -95,6 +95,8 @@ The reference (WisprFlow) gates the entire Transforms surface behind a global *O
 
 The mental model: a Transform is "on" if and only if a hotkey is bound to it. Built-ins ship with default hotkeys bound; users can clear them. There is no second-order gate. This is consistent with how the dictation hotkey, the meeting-toggle hotkey, and the global shortcuts in other surfaces work.
 
+The menu-bar **Transforms** submenu (issue #821) is a second trigger that does not require a bound hotkey. Unbound Transforms are still listed and runnable from that submenu unless the user hides them; the "on iff hotkey bound" rule stays the hotkey-path gate, not a menu-bar gate. The submenu lists every visible Transform by default (opt-out hide, not opt-in empty) so the first click works, then users curate via Hide from Menu Bar. Selection is captured when the status menu opens — before MacParakeet becomes frontmost — and replacement targets that captured app (`.replaceSelection`), not whatever is focused after the menu closes.
+
 The product-level feature flag `AppFeatures.transformsEnabled` exists as a release gate (replaces `transformsSpikeEnabled`) — when false, the Transforms tab is hidden and the hotkey registry isn't initialized at all. It is not a user preference. It is enabled on `main` after the website telemetry allowlist deploy landed.
 
 ### 6. BYO-key only (no first-party LLM)

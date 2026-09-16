@@ -177,6 +177,50 @@ final class SelectionCaptureServiceTests: XCTestCase {
 
         XCTAssertEqual(backend.restoreCount(), 0, "User clipboard writes after capture must not be clobbered by abandoned-transform cleanup")
     }
+
+    func testCaptureAXSelectionNeverPostsCmdC() async {
+        let backend = FakeSelectionCaptureBackend(
+            isTrusted: true,
+            focusedElement: AXUIElementCreateSystemWide(),
+            selectedText: "Hello world"
+        )
+        let service = SelectionCaptureService(backend: backend)
+
+        _ = await service.captureAXSelection()
+
+        XCTAssertEqual(backend.postCmdCCount(), 0)
+    }
+
+    func testCaptureAXSelectionSkipsOwnBundleSystemFocusAndUsesPreferredProcess() async {
+        let systemElement = AXUIElementCreateSystemWide()
+        let processElement = AXUIElementCreateApplication(99)
+        let backend = FakeSelectionCaptureBackend(
+            isTrusted: true,
+            focusedElement: systemElement,
+            selectedText: "MacParakeet draft",
+            processFocusedElement: processElement,
+            processSelectedText: "Mail selection",
+            frontmostBundleIdentifier: Bundle.main.bundleIdentifier ?? "com.macparakeet.tests"
+        )
+        let service = SelectionCaptureService(backend: backend)
+        let preferred = SelectionCaptureTarget(
+            processIdentifier: 99,
+            bundleIdentifier: "com.apple.mail",
+            localizedName: "Mail"
+        )
+
+        let result = await service.captureAXSelection(preferring: preferred)
+
+        switch result {
+        case .ax(let text, _, let target):
+            XCTAssertEqual(text, "Mail selection")
+            XCTAssertEqual(target?.processIdentifier, 99)
+            XCTAssertEqual(target?.bundleIdentifier, "com.apple.mail")
+        default:
+            XCTFail("Expected .ax from the preferred process, got \(result.pathTag)")
+        }
+        XCTAssertEqual(backend.postCmdCCount(), 0)
+    }
 }
 
 // MARK: - Fake Backend
@@ -189,8 +233,12 @@ final class FakeSelectionCaptureBackend: SelectionCaptureBackend, @unchecked Sen
     private let pasteboardAfterCmdC: String?
     private let changeCountAfterCmdC: Int?
     private let snapshotItems: [NSPasteboardItem]?
+    private let processFocused: AXUIElement?
+    private let processSelectedTextValue: String?
+    private let frontmostBundle: String
     private var restoreCalls: Int = 0
     private var frontmostTargetCalls: Int = 0
+    private var postCmdCCalls: Int = 0
 
     init(
         isTrusted: Bool,
@@ -199,7 +247,10 @@ final class FakeSelectionCaptureBackend: SelectionCaptureBackend, @unchecked Sen
         initialChangeCount: Int = 0,
         snapshotItems: [NSPasteboardItem]? = nil,
         pasteboardAfterCmdC: String? = nil,
-        changeCountAfterCmdC: Int? = nil
+        changeCountAfterCmdC: Int? = nil,
+        processFocusedElement: AXUIElement? = nil,
+        processSelectedText: String? = nil,
+        frontmostBundleIdentifier: String = "com.example.Source"
     ) {
         self.trusted = isTrusted
         self.focused = focusedElement
@@ -208,18 +259,27 @@ final class FakeSelectionCaptureBackend: SelectionCaptureBackend, @unchecked Sen
         self.snapshotItems = snapshotItems
         self.pasteboardAfterCmdC = pasteboardAfterCmdC
         self.changeCountAfterCmdC = changeCountAfterCmdC
+        self.processFocused = processFocusedElement
+        self.processSelectedTextValue = processSelectedText
+        self.frontmostBundle = frontmostBundleIdentifier
     }
 
     func isAccessibilityTrusted() -> Bool { trusted }
     func focusedElement() -> AXUIElement? { focused }
-    func selectedText(of element: AXUIElement) -> String? { selectedTextValue }
+    func focusedElement(ofProcess pid: pid_t) -> AXUIElement? { processFocused ?? focused }
+    func selectedText(of element: AXUIElement) -> String? {
+        if let processFocused, CFEqual(element, processFocused) {
+            return processSelectedTextValue
+        }
+        return selectedTextValue
+    }
 
     @MainActor
     func frontmostApplicationTarget() -> SelectionCaptureTarget? {
         frontmostTargetCalls += 1
         return SelectionCaptureTarget(
             processIdentifier: 1234,
-            bundleIdentifier: "com.example.Source",
+            bundleIdentifier: frontmostBundle,
             localizedName: "Source"
         )
     }
@@ -243,10 +303,13 @@ final class FakeSelectionCaptureBackend: SelectionCaptureBackend, @unchecked Sen
 
     @MainActor
     func postCmdC() throws {
+        postCmdCCalls += 1
         if let newCount = changeCountAfterCmdC {
             changeCount = newCount
         }
     }
+
+    func postCmdCCount() -> Int { postCmdCCalls }
 
     @MainActor
     func restoreSnapshot(_ snapshot: PasteboardSnapshot) {
