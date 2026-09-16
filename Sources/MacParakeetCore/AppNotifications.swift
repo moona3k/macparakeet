@@ -14,6 +14,11 @@ public extension Notification.Name {
     static let macParakeetMenuBarOnlyModeDidChange = Notification.Name("macparakeet.menuBarOnlyModeDidChange")
     static let macParakeetMenuBarIconVisibilityDidChange = Notification.Name("macparakeet.menuBarIconVisibilityDidChange")
     static let macParakeetShowIdlePillDidChange = Notification.Name("macparakeet.showIdlePillDidChange")
+    /// Posted when idle-pill / live-overlay screen placement changes so both
+    /// panels can move without waiting for the next show.
+    static let macParakeetDictationOverlayPlacementDidChange = Notification.Name(
+        "macparakeet.dictationOverlayPlacementDidChange"
+    )
     static let macParakeetShowDiscoverDidChange = Notification.Name("macparakeet.showDiscoverDidChange")
     static let macParakeetShowMeetingRecordingPillDidChange = Notification.Name("macparakeet.showMeetingRecordingPillDidChange")
     static let macParakeetInstantDictationDidChange = Notification.Name("macparakeet.instantDictationDidChange")

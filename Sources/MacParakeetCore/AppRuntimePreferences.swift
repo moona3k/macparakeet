@@ -486,6 +486,7 @@ public enum VoiceReturnTriggerPhrases: Sendable {
 public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProtocol, @unchecked Sendable {
     public static let defaultVoiceReturnTrigger = VoiceReturnTriggerPhrases.defaultTrigger
     public static let showIdlePillKey = "showIdlePill"
+    public static let dictationOverlayPlacementKey = "dictationOverlayPlacement"
     public static let showDiscoverKey = "showDiscover"
     public static let showMeetingRecordingPillKey = "showMeetingRecordingPill"
     /// Open the main window on the finished meeting when its transcription

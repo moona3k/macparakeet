@@ -429,7 +429,7 @@ Persistent floating pill at the bottom-center of the screen, always visible when
 
 - **Collapsed:** 48×10pt dark grey capsule (subtle nub)
 - **Expanded (hover):** 148×30pt dark capsule with dots + tooltip above
-- **Position:** Bottom-center, 12pt above dock (same location as dictation overlay)
+- **Position:** User-chosen screen edge (default bottom-center, 12pt inside `visibleFrame` so the Dock and menu bar stay clear). Idle pill and live overlay share this placement.
 - **Panel:** NSPanel, `.nonactivatingPanel`, `.borderless`, `.floating` level
 
 ### States
@@ -488,14 +488,14 @@ Persistent floating pill at the bottom-center of the screen, always visible when
 
 ## Dictation Overlay / Pill (v0.1)
 
-Compact dark pill overlay, always-on-top, bottom-center of screen. This is the primary recording UI and must be polished from day one.
+Compact dark pill overlay, always-on-top at the same user-chosen screen edge as the idle pill. This is the primary recording UI and must be polished from day one.
 
 ### Dimensions
 
 - **Height:** 36px
 - **Corner radius:** 18px (fully rounded)
 - **Width:** Dynamic, fits content + 16px horizontal padding
-- **Position:** Bottom-center of main screen, 48px from bottom edge
+- **Position:** Same user-chosen edge as the idle pill (default bottom-center, 12pt inside the visible frame)
 - **Background:** `#1C1C1E` (system dark) at 95% opacity
 - **Shadow:** 0 4px 12px rgba(0,0,0,0.3)
 

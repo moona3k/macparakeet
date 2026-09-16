@@ -234,29 +234,50 @@ struct DictationOverlayView: View {
     }
 
     var body: some View {
-        VStack(spacing: 4) {
-            // Tooltip — changes per hovered element via NSTrackingArea
-            tooltipLabel
-                .frame(maxWidth: .infinity, alignment: tooltipAlignment)
-                .padding(.horizontal, 30)
-                .opacity(viewModel.isHovered && viewModel.hoverTooltip != nil ? 1 : 0)
-                .animation(.easeInOut(duration: 0.15), value: viewModel.isHovered)
-                .animation(.easeInOut(duration: 0.1), value: viewModel.hoverTooltip)
-                .frame(height: 36)
+        Group {
+            if viewModel.anchorsToTop {
+                VStack(spacing: 4) {
+                    overlayContent
+                    liveTranscriptPreviewPanel
+                    if let caption = viewModel.processingLoadCaption {
+                        LoadingCaptionView(caption: caption)
+                            .transition(LoadingCaptionView.transition(reduceMotion: reduceMotion))
+                            .padding(.top, 2)
+                    }
+                    tooltipLabel
+                        .frame(maxWidth: .infinity, alignment: tooltipAlignment)
+                        .padding(.horizontal, 30)
+                        .opacity(viewModel.isHovered && viewModel.hoverTooltip != nil ? 1 : 0)
+                        .animation(.easeInOut(duration: 0.15), value: viewModel.isHovered)
+                        .animation(.easeInOut(duration: 0.1), value: viewModel.hoverTooltip)
+                        .frame(height: 36)
+                }
+                .padding(.top, 8)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            } else {
+                VStack(spacing: 4) {
+                    tooltipLabel
+                        .frame(maxWidth: .infinity, alignment: tooltipAlignment)
+                        .padding(.horizontal, 30)
+                        .opacity(viewModel.isHovered && viewModel.hoverTooltip != nil ? 1 : 0)
+                        .animation(.easeInOut(duration: 0.15), value: viewModel.isHovered)
+                        .animation(.easeInOut(duration: 0.1), value: viewModel.hoverTooltip)
+                        .frame(height: 36)
 
-            // Content with state-appropriate shape
-            if let caption = viewModel.processingLoadCaption {
-                LoadingCaptionView(caption: caption)
-                    .transition(LoadingCaptionView.transition(reduceMotion: reduceMotion))
-                    .padding(.bottom, 2)
+                    if let caption = viewModel.processingLoadCaption {
+                        LoadingCaptionView(caption: caption)
+                            .transition(LoadingCaptionView.transition(reduceMotion: reduceMotion))
+                            .padding(.bottom, 2)
+                    }
+
+                    liveTranscriptPreviewPanel
+
+                    overlayContent
+                }
+                .padding(.bottom, 8)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
-
-            liveTranscriptPreviewPanel
-
-            overlayContent
         }
-        .padding(.bottom, 8)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .animation(.easeInOut(duration: 0.22), value: viewModel.processingLoadCaption)
         .onChange(of: viewModel.pillStateKey) { _, newKey in
             handlePillStateChange(to: newKey)
@@ -566,7 +587,11 @@ struct DictationOverlayView: View {
             // changes live in Settings) instead of snapping between heights.
             .animation(.easeInOut(duration: 0.18), value: viewportHeight)
             .animation(.easeInOut(duration: 0.2), value: viewModel.previewTextSize)
-            .transition(.move(edge: .bottom).combined(with: .opacity).animation(.easeInOut(duration: 0.16)))
+            .transition(
+                .move(edge: viewModel.anchorsToTop ? .top : .bottom)
+                    .combined(with: .opacity)
+                    .animation(.easeInOut(duration: 0.16))
+            )
         }
     }
 

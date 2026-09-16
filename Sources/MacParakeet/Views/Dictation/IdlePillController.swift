@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import MacParakeetCore
 import MacParakeetViewModels
 
 // MARK: - Mouse Tracking (click-aware)
@@ -23,11 +24,12 @@ private final class IdlePillTrackingView: NSView {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         trackingAreas.forEach { removeTrackingArea($0) }
-        addTrackingArea(NSTrackingArea(
-            rect: bounds,
-            options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
-            owner: self
-        ))
+        addTrackingArea(
+            NSTrackingArea(
+                rect: bounds,
+                options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
+                owner: self
+            ))
     }
 
     override func mouseEntered(with event: NSEvent) {
@@ -96,6 +98,7 @@ final class IdlePillController {
     func show() {
         if panel != nil { return }
 
+        viewModel.anchorsToTop = DictationOverlayPlacement.current().anchorsToTop
         let view = IdlePillView(viewModel: viewModel)
         // No `.tint(...)` — pill is fully custom-drawn (no .borderedProminent /
         // Toggle / ProgressView), and `hostingView: NSHostingView<IdlePillView>`
@@ -132,28 +135,10 @@ final class IdlePillController {
             Task { @MainActor in self?.viewModel.onStartDictation?() }
         }
 
-        // Collapsed pill: small centered nub at bottom (48×10 pill + padding for targeting)
-        let collapsedW: CGFloat = 60  // slightly larger than 48pt pill for easy hover
-        let collapsedH: CGFloat = 24
-        let collapsedX = (panelWidth - collapsedW) / 2
-        tracker.collapsedPillRect = NSRect(x: collapsedX, y: 0, width: collapsedW, height: collapsedH)
-
-        // Expanded: pill + tooltip area
-        let expandedW: CGFloat = 320
-        let expandedH: CGFloat = 80
-        let expandedX = (panelWidth - expandedW) / 2
-        tracker.expandedPillRect = NSRect(x: expandedX, y: 0, width: expandedW, height: expandedH)
-
         hosting.addSubview(tracker)
         trackingView = tracker
-
-        // Position at bottom-center, just above the Dock
-        if let screen = NSScreen.main {
-            let screenFrame = screen.visibleFrame
-            let x = screenFrame.midX - panelWidth / 2
-            let y = screenFrame.origin.y + 12
-            panel.setFrameOrigin(NSPoint(x: x, y: y))
-        }
+        applyPlacement(to: tracker, panelWidth: panelWidth, panelHeight: panelHeight)
+        position(panel, width: panelWidth, height: panelHeight)
 
         panel.orderFront(nil)
         self.panel = panel
@@ -165,5 +150,46 @@ final class IdlePillController {
         panel = nil
         hostingView = nil
         trackingView = nil
+    }
+
+    func reposition() {
+        guard let panel, let hostingView else { return }
+        applyPlacement(
+            to: trackingView,
+            panelWidth: hostingView.frame.width,
+            panelHeight: hostingView.frame.height
+        )
+        position(panel, width: hostingView.frame.width, height: hostingView.frame.height)
+    }
+
+    private func applyPlacement(
+        to tracker: IdlePillTrackingView?,
+        panelWidth: CGFloat,
+        panelHeight: CGFloat
+    ) {
+        let placement = DictationOverlayPlacement.current()
+        viewModel.anchorsToTop = placement.anchorsToTop
+        guard let tracker else { return }
+
+        let collapsedW: CGFloat = 60
+        let collapsedH: CGFloat = 24
+        let collapsedX = (panelWidth - collapsedW) / 2
+        let expandedW: CGFloat = 320
+        let expandedH: CGFloat = 80
+        let expandedX = (panelWidth - expandedW) / 2
+        let collapsedY: CGFloat = placement.anchorsToTop ? panelHeight - collapsedH : 0
+        let expandedY: CGFloat = placement.anchorsToTop ? panelHeight - expandedH : 0
+        tracker.collapsedPillRect = NSRect(x: collapsedX, y: collapsedY, width: collapsedW, height: collapsedH)
+        tracker.expandedPillRect = NSRect(x: expandedX, y: expandedY, width: expandedW, height: expandedH)
+    }
+
+    private func position(_ panel: NSPanel, width: CGFloat, height: CGFloat) {
+        guard let screen = NSScreen.main else { return }
+        let origin = DictationOverlayLayout.origin(
+            in: screen.visibleFrame,
+            panelSize: CGSize(width: width, height: height),
+            placement: DictationOverlayPlacement.current()
+        )
+        panel.setFrameOrigin(origin)
     }
 }

@@ -124,6 +124,22 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .hidePill, value: Self.settingValue(!showIdlePill)))
         }
     }
+    public var dictationOverlayPlacement: DictationOverlayPlacement {
+        didSet {
+            guard dictationOverlayPlacement != oldValue else { return }
+            defaults.set(
+                dictationOverlayPlacement.rawValue,
+                forKey: UserDefaultsAppRuntimePreferences.dictationOverlayPlacementKey
+            )
+            NotificationCenter.default.post(
+                name: .macParakeetDictationOverlayPlacementDidChange,
+                object: nil
+            )
+            Telemetry.send(
+                .settingChanged(setting: .overlayPlacement, value: dictationOverlayPlacement.rawValue)
+            )
+        }
+    }
     /// Show the Discover card in the main sidebar. Defaults to `true`, so
     /// nothing changes for existing users until they turn it off.
     ///
@@ -938,6 +954,7 @@ public final class SettingsViewModel {
         }
         appAppearanceMode = AppPreferences.appearanceMode(defaults: defaults)
         showIdlePill = defaults.object(forKey: UserDefaultsAppRuntimePreferences.showIdlePillKey) as? Bool ?? true
+        dictationOverlayPlacement = DictationOverlayPlacement.current(defaults: defaults)
         showDiscover = defaults.object(forKey: UserDefaultsAppRuntimePreferences.showDiscoverKey) as? Bool ?? true
         telemetryEnabled = AppPreferences.isTelemetryEnabled(defaults: defaults)
         notifyOnTranscriptionComplete = defaults.object(

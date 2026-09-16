@@ -246,6 +246,7 @@ final class DictationFlowCoordinator {
         self.onPresentEntitlementsAlert = onPresentEntitlementsAlert
         observeFormatterNotifications()
         observePreviewTextSizeNotifications()
+        observeOverlayPlacementNotifications()
     }
 
     // MARK: - AI Formatter pill transitions
@@ -309,8 +310,40 @@ final class DictationFlowCoordinator {
         }
     }
 
-    // NOTE: no `deinit` cleanup for `formatterDidStartObserver` or
-    // `previewTextSizeObserver`. This coordinator is effectively a singleton
+    /// Move idle + live overlays when Settings placement changes or the
+    /// screen layout changes (built-in display vs external, Dock side).
+    private var overlayPlacementObserver: NSObjectProtocol?
+    private var screenParametersObserver: NSObjectProtocol?
+
+    private func observeOverlayPlacementNotifications() {
+        overlayPlacementObserver = NotificationCenter.default.addObserver(
+            forName: .macParakeetDictationOverlayPlacementDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.repositionDictationOverlays()
+            }
+        }
+        screenParametersObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.repositionDictationOverlays()
+            }
+        }
+    }
+
+    private func repositionDictationOverlays() {
+        idlePillController?.reposition()
+        overlayController?.reposition()
+    }
+
+    // NOTE: no `deinit` cleanup for `formatterDidStartObserver`,
+    // `previewTextSizeObserver`, `overlayPlacementObserver`, or
+    // `screenParametersObserver`. This coordinator is effectively a singleton
     // for the app's lifetime, both observer blocks capture `[weak self]`, and
     // Swift 6 forbids touching `@MainActor`-isolated stored properties from a
     // nonisolated deinit. NotificationCenter cleans up automatically when the

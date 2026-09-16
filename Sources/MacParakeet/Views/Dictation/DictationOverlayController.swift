@@ -15,11 +15,12 @@ private final class MouseTrackingView: NSView {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         trackingAreas.forEach { removeTrackingArea($0) }
-        addTrackingArea(NSTrackingArea(
-            rect: bounds,
-            options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
-            owner: self
-        ))
+        addTrackingArea(
+            NSTrackingArea(
+                rect: bounds,
+                options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
+                owner: self
+            ))
     }
 
     override func mouseEntered(with event: NSEvent) {
@@ -52,6 +53,11 @@ protocol DictationOverlayControlling: AnyObject {
     func show()
     func hide()
     func resignKeyWindow()
+    func reposition()
+}
+
+extension DictationOverlayControlling {
+    func reposition() {}
 }
 
 // MARK: - Overlay Controller
@@ -73,6 +79,7 @@ final class DictationOverlayController: DictationOverlayControlling {
     func show() {
         if panel != nil { return }
 
+        applyAnchors()
         let view = DictationOverlayView(viewModel: overlayViewModel)
         // No `.tint(...)` here — the overlay's controls are all custom-drawn,
         // so cascading the brand accent has no visible effect, and the typed
@@ -93,7 +100,7 @@ final class DictationOverlayController: DictationOverlayControlling {
         )
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = false // SwiftUI handles shadows; system shadow creates visible outline
+        panel.hasShadow = false  // SwiftUI handles shadows; system shadow creates visible outline
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.contentView = hosting
@@ -112,13 +119,7 @@ final class DictationOverlayController: DictationOverlayControlling {
         hosting.addSubview(tracker)
         trackingView = tracker
 
-        // Position at bottom-center, just above the Dock
-        if let screen = NSScreen.main {
-            let screenFrame = screen.visibleFrame
-            let x = screenFrame.midX - panelWidth / 2
-            let y = screenFrame.origin.y + 12
-            panel.setFrameOrigin(NSPoint(x: x, y: y))
-        }
+        position(panel, width: panelWidth, height: panelHeight)
 
         panel.orderFront(nil)
         self.panel = panel
@@ -132,6 +133,26 @@ final class DictationOverlayController: DictationOverlayControlling {
         trackingView = nil
     }
 
+    func reposition() {
+        applyAnchors()
+        guard let panel, let hostingView else { return }
+        position(panel, width: hostingView.frame.width, height: hostingView.frame.height)
+    }
+
+    private func applyAnchors() {
+        overlayViewModel.anchorsToTop = DictationOverlayPlacement.current().anchorsToTop
+    }
+
+    private func position(_ panel: NSPanel, width: CGFloat, height: CGFloat) {
+        guard let screen = NSScreen.main else { return }
+        let origin = DictationOverlayLayout.origin(
+            in: screen.visibleFrame,
+            panelSize: CGSize(width: width, height: height),
+            placement: DictationOverlayPlacement.current()
+        )
+        panel.setFrameOrigin(origin)
+    }
+
     /// Resign key window so CGEvent paste targets the user's app, not the overlay panel.
     /// Call this before any simulated Cmd+V when the overlay was clicked (e.g. Undo, Stop button).
     func resignKeyWindow() {
@@ -142,14 +163,15 @@ final class DictationOverlayController: DictationOverlayControlling {
     /// The pill is centered in the panel. Left zone = cancel, right zone = stop.
     private func updateHoverTooltip(at point: NSPoint, in bounds: NSRect) {
         guard case .recording = overlayViewModel.state,
-              overlayViewModel.recordingMode == .persistent else {
+            overlayViewModel.recordingMode == .persistent
+        else {
             // No hover tooltips in hold-to-talk (no buttons), ready, cancelled, processing, success, noSpeech, or error states
             overlayViewModel.hoverTooltip = nil
             return
         }
 
         let panelWidth = bounds.width
-        let pillWidth: CGFloat = 210 // approximate pill content width
+        let pillWidth: CGFloat = 210  // approximate pill content width
         let pillLeft = (panelWidth - pillWidth) / 2
         let pillRight = pillLeft + pillWidth
 
@@ -161,22 +183,14 @@ final class DictationOverlayController: DictationOverlayControlling {
                 overlayViewModel.hoverTooltip = "Stop & apply (Fn+Control)"
             } else {
                 let trigger = HotkeyTrigger.current
-                overlayViewModel.hoverTooltip = trigger.isDisabled
+                overlayViewModel.hoverTooltip =
+                    trigger.isDisabled
                     ? "Stop & paste"
                     : "Stop & paste (\(trigger.displayName))"
             }
         } else {
             overlayViewModel.hoverTooltip = nil
         }
-    }
-
-    func updateSize(width: CGFloat) {
-        guard let panel else { return }
-        var frame = panel.frame
-        let oldWidth = frame.width
-        frame.size.width = width
-        frame.origin.x += (oldWidth - width) / 2
-        panel.setFrame(frame, display: true, animate: true)
     }
 }
 
@@ -227,6 +241,7 @@ final class DictationOverlayViewModel {
     var processingLoadCaption: ProcessingLoadCaption?
     var liveTranscript: String = ""
     var previewTextSize: DictationPreviewTextSize = .medium
+    var anchorsToTop: Bool = false
     var commandPromptText: String = "Speak your command..."
     var commandSelectedText: String = ""
 
