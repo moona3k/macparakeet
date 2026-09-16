@@ -1,0 +1,75 @@
+docs/telemetry.md
+  s_606c608689ba0b::t_98a57917420fb9 421
+Sources/CLI/CHANGELOG.md
+  s_606c608689ba0b::t_a221f3f8c45ab8 97-102
+Sources/CLI/Commands/ConfigCommand.swift
+  s_606c608689ba0b::t_079e3fc1aaf39a 51,165-170,363-364,473-476
+Sources/CLI/Commands/HistoryCommand.swift
+  s_606c608689ba0b::t_ec8d703772b72d 69-70
+Sources/CLI/Commands/RetranscribeCommand.swift
+  s_606c608689ba0b::t_211c0b4786255f 402-404
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_606c608689ba0b::t_f5d683215006a3 386-388
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_606c608689ba0b::t_d90842eabad786 63,222-230
+Sources/MacParakeet/App/MenuBarCoordinator.swift
+  s_606c608689ba0b::t_37e0822902faa2 715,726-727,819
+Sources/MacParakeet/Views/History/DictationHistoryView.swift
+  s_606c608689ba0b::t_effffddf28819a 417-426
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_606c608689ba0b::t_881083286b3a34 1161-1168
+Sources/MacParakeetCore/AppNotifications.swift
+  s_606c608689ba0b::t_902cb3fdf43e86 52-53
+Sources/MacParakeetCore/AppRuntimePreferences.swift
+  s_606c608689ba0b::t_cdf505f7f753f0 30,555,765-772
+Sources/MacParakeetCore/Database/DictationRepository.swift
+  s_606c608689ba0b::t_25b6444ef300c4 185-186,202-215,220-222
+Sources/MacParakeetCore/Models/Dictation.swift
+  s_606c608689ba0b::t_d8ca650237d018 68,70-79
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_606c608689ba0b::t_cecbf75f923db7 38-39,108,181,209,334-338,341-343,682,705-706,708-710,712,715,726-729,869-879,882,884,886-929,1374-1375,1464-1484,1503,1536-1538,1545-1547,1549
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_606c608689ba0b::t_70262c5dad7615 575
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_606c608689ba0b::t_f922af721c9cc9 188-198
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_606c608689ba0b::t_13159a346a2b2b 322-333,1001
+Tests/CLITests/ConfigCommandTests.swift
+  s_606c608689ba0b::t_c14d9a0da33459 44,222-227
+Tests/CLITests/HistoryCommandTests.swift
+  s_606c608689ba0b::t_5ed30b101c8d31 8-31
+Tests/MacParakeetTests/AppRuntimePreferencesTests.swift
+  s_606c608689ba0b::t_e88937190fa129 480-491
+Tests/MacParakeetTests/Database/DictationRepositoryTests.swift
+  s_606c608689ba0b::t_ce6db89d8cae62 192-196,203-225,352-353
+Tests/MacParakeetTests/Models/DictationModelTests.swift
+  s_606c608689ba0b::t_5c20548aa70c39 61,65-70
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_606c608689ba0b::t_b40a81fc7268f9 428-572
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_606c608689ba0b::t_d70f323e590dff 48-56
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_606c608689ba0b::t_7794a490711f86 219,286,318,436-454
+docs/cli-testing.md
+  s_606c608689ba0b::t_08377583a26483 275-276
+spec/01-data-model.md
+  s_606c608689ba0b::t_b1c793731f77ed 1088
+spec/02-features.md
+  s_606c608689ba0b::t_8aadd516524f38 351,2169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "34392711e9afc748e1d0a07183ee7f0664df3d22",
+  "prompts": {},
+  "sessions": {
+    "s_606c608689ba0b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cca3cbd4-a0af-46d3-8951-f73076dc7480",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
