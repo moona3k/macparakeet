@@ -237,6 +237,7 @@ final class SettingsViewModelTests: XCTestCase {
         )
         XCTAssertEqual(viewModel.meetingHotkeyTrigger, .chord(modifiers: ["command", "shift"], keyCode: 46))
         XCTAssertEqual(viewModel.meetingAudioSourceMode, .microphoneAndSystem)
+        XCTAssertFalse(viewModel.startMeetingsMuted, "start meetings muted should default to false")
         XCTAssertTrue(viewModel.showMeetingRecordingPill, "showMeetingRecordingPill should default to true")
         XCTAssertTrue(viewModel.openAppAfterMeetingEnd, "openAppAfterMeetingEnd should default to true")
         XCTAssertTrue(viewModel.notifyOnMeetingEnd, "notifyOnMeetingEnd should default to true")
@@ -275,6 +276,7 @@ final class SettingsViewModelTests: XCTestCase {
             MeetingAudioSourceMode.systemOnly.rawValue,
             forKey: UserDefaultsAppRuntimePreferences.meetingAudioSourceModeKey
         )
+        testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.startMeetingsMutedKey)
         testDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.showMeetingRecordingPillKey)
         testDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.openAppAfterMeetingEndKey)
         testDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.notifyOnMeetingEndKey)
@@ -305,6 +307,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(vm.meetingSpeakerDiarization)
         XCTAssertEqual(vm.selectedMicrophoneDeviceUID, "usb-mic-uid")
         XCTAssertEqual(vm.meetingAudioSourceMode, .systemOnly)
+        XCTAssertTrue(vm.startMeetingsMuted)
         XCTAssertFalse(vm.showMeetingRecordingPill)
         XCTAssertFalse(vm.openAppAfterMeetingEnd)
         XCTAssertFalse(vm.notifyOnMeetingEnd)
@@ -351,6 +354,25 @@ final class SettingsViewModelTests: XCTestCase {
             return setting
         }
         XCTAssertEqual(settings, [.notifyOnMeetingEnd, .notifyOnMeetingEnd])
+    }
+
+    func testStartMeetingsMutedPersistsAndEmitsTelemetry() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        viewModel.startMeetingsMuted = true
+
+        XCTAssertTrue(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.startMeetingsMutedKey))
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences.startMeetingsMuted(defaults: testDefaults))
+
+        viewModel.startMeetingsMuted = false
+
+        XCTAssertFalse(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.startMeetingsMutedKey))
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting, _) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.startMeetingsMuted, .startMeetingsMuted])
     }
 
     func testMeetingAutoStopPersistsEmitsTelemetryAndPostsNotification() {

@@ -105,6 +105,21 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertTrue(preferences.meetingLiveTranscriptionEnabled)
     }
 
+    func testStartMeetingsMutedDefaultsToFalseWhenUnset() {
+        let preferences = makePreferences()
+        XCTAssertFalse(preferences.startMeetingsMuted)
+    }
+
+    func testStartMeetingsMutedRespectsExplicitTrue() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.startMeetingsMutedKey)
+
+        let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
+        XCTAssertTrue(preferences.startMeetingsMuted)
+    }
+
     func testMeetingLiveTranscriptionEnabledRespectsExplicitFalse() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

@@ -22,6 +22,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var transcriptAIContextMode: TranscriptAIContextMode { get }
     var selectedMicrophoneDeviceUID: String? { get }
     var meetingAudioSourceMode: MeetingAudioSourceMode { get }
+    var startMeetingsMuted: Bool { get }
     var shouldShowMeetingRecordingPill: Bool { get }
     var openAppAfterMeetingEnd: Bool { get }
     var notifyOnMeetingEnd: Bool { get }
@@ -544,6 +545,9 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let transcriptFontScaleKey = "com.macparakeet.transcriptFontScale"
     public static let selectedMicrophoneDeviceUIDKey = "selectedMicrophoneDeviceUID"
     public static let meetingAudioSourceModeKey = "meetingAudioSourceMode"
+    /// Start the next meeting with the microphone muted (default off).
+    /// Unmute from the live panel; system-only capture ignores this.
+    public static let startMeetingsMutedKey = "startMeetingsMuted"
     public static let meetingAutoStopEnabledKey = "meetingAutoStopEnabled"
     public static let pauseMediaDuringDictationKey = "pauseMediaDuringDictation"
     public static let instantDictationEnabledKey = "instantDictationEnabled"
@@ -691,6 +695,14 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public var meetingLiveTranscriptionEnabled: Bool {
         Self.meetingLiveTranscriptionEnabled(defaults: defaults)
+    }
+
+    public var startMeetingsMuted: Bool {
+        Self.startMeetingsMuted(defaults: defaults)
+    }
+
+    public static func startMeetingsMuted(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: startMeetingsMutedKey) as? Bool ?? false
     }
 
     public var aiFormatterEnabled: Bool {

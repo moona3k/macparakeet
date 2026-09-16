@@ -43,6 +43,7 @@ final class ConfigCommandTests: XCTestCase {
             "save-transcription-audio",
             "meeting-audio-retention",
             "meeting-audio-source",
+            "start-meetings-muted",
             "save-meeting-audio",
             "youtube-audio-quality",
             "meeting-artifacts-folder",
@@ -94,6 +95,7 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(try ConfigCommand.read(key: "save-transcription-audio", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "meeting-audio-retention", defaults: defaults), "keep-forever")
         XCTAssertEqual(try ConfigCommand.read(key: "meeting-audio-source", defaults: defaults), "microphone-and-system")
+        XCTAssertEqual(try ConfigCommand.read(key: "start-meetings-muted", defaults: defaults), "off")
         XCTAssertEqual(try ConfigCommand.read(key: "save-meeting-audio", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "youtube-audio-quality", defaults: defaults), "m4a")
         XCTAssertEqual(try ConfigCommand.read(key: "meeting-artifacts-folder", defaults: defaults), AppPaths.defaultMeetingRecordingsDir)
@@ -231,6 +233,8 @@ final class ConfigCommandTests: XCTestCase {
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.meetingAudioSourceModeKey),
             MeetingAudioSourceMode.microphoneOnly.rawValue
         )
+        XCTAssertEqual(try ConfigCommand.write(key: "start-meetings-muted", value: "on", defaults: defaults), "on")
+        XCTAssertEqual(defaults.object(forKey: UserDefaultsAppRuntimePreferences.startMeetingsMutedKey) as? Bool, true)
 
         XCTAssertEqual(try ConfigCommand.write(key: "save-meeting-audio", value: "off", defaults: defaults), "off")
         XCTAssertEqual(defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey) as? Bool, false)

@@ -310,6 +310,17 @@ public enum SettingsSearchIndex {
             cardAnchor: "meeting"
         ),
         SettingsSearchEntry(
+            id: "meeting.startMuted",
+            tab: .capture,
+            title: "Start meetings muted",
+            subtitle: "in Meeting Recording",
+            keywords: [
+                "start muted", "mute microphone", "mic off", "unmute later",
+                "join muted", "begin muted", "silence microphone",
+            ],
+            cardAnchor: "meeting"
+        ),
+        SettingsSearchEntry(
             id: "meeting.liveTranscription",
             tab: .capture,
             title: "Live transcription during recording",

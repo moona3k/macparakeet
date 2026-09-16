@@ -4130,6 +4130,120 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(counts.system, 1)
     }
 
+    func testStartMicrophoneMutedSilencesFirstBufferAndUnmuteRestoresMic() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let audioConverter = MockMeetingAudioFileConverter()
+        let sttClient = CountingMeetingSTTClient()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: audioConverter,
+            sttTranscriber: sttClient,
+            lockFileStore: RecordingLockFileStore(),
+            startMicrophoneMuted: { true }
+        )
+
+        try await service.startRecording()
+        let muteState = await service.microphoneMuteState
+        XCTAssertEqual(muteState, MeetingMicrophoneMuteState(isMuted: true, canMute: true))
+
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.5))
+        let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.5))
+        await captureService.yield(
+            .microphoneBuffer(
+                microphoneBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: ProcessInfo.processInfo.systemUptime + 0.1))
+            ))
+        await captureService.yield(
+            .systemBuffer(
+                systemBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: ProcessInfo.processInfo.systemUptime + 0.1))
+            ))
+
+        var systemLevel = await service.systemLevel
+        let levelDeadline = Date().addingTimeInterval(2)
+        while systemLevel == 0, Date() < levelDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+            systemLevel = await service.systemLevel
+        }
+
+        var micLevel = await service.micLevel
+        XCTAssertEqual(micLevel, 0)
+        XCTAssertGreaterThan(systemLevel, 0)
+        var counts = await sttClient.callCounts
+        XCTAssertEqual(counts.microphone, 0)
+
+        let unmuteState = await service.setMicrophoneMuted(false)
+        XCTAssertEqual(unmuteState, MeetingMicrophoneMuteState(isMuted: false, canMute: true))
+
+        let unmutedBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        await captureService.yield(
+            .microphoneBuffer(
+                unmutedBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: ProcessInfo.processInfo.systemUptime + 0.3))
+            ))
+        let unmuteDeadline = Date().addingTimeInterval(2)
+        counts = await sttClient.callCounts
+        while counts.microphone == 0, Date() < unmuteDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+            counts = await sttClient.callCounts
+        }
+        micLevel = await service.micLevel
+        XCTAssertGreaterThan(micLevel, 0)
+        XCTAssertGreaterThanOrEqual(counts.microphone, 1)
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+        XCTAssertGreaterThan(output.sourceAlignment.microphone?.writtenFrameCount ?? 0, 0)
+    }
+
+    func testStartMicrophoneMutedReportsMutedWhileMicrophoneIsStillStarting() async throws {
+        let captureService = MockMeetingAudioCaptureService(
+            startReport: MeetingAudioCaptureStartReport(sourceMode: .microphoneAndSystem)
+        )
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: RecordingLockFileStore(),
+            startMicrophoneMuted: { true }
+        )
+
+        try await service.startRecording()
+        defer {
+            Task { await service.cancelRecording() }
+        }
+
+        let canMute = await service.canMuteMicrophone
+        let muteState = await service.microphoneMuteState
+        XCTAssertFalse(canMute)
+        XCTAssertEqual(muteState, MeetingMicrophoneMuteState(isMuted: true, canMute: false))
+        let isMuted = await service.isMicrophoneMuted
+        XCTAssertTrue(isMuted)
+    }
+
+    func testStartMicrophoneMutedIsIgnoredForSystemOnlyRecordings() async throws {
+        let captureService = MockMeetingAudioCaptureService(
+            startReport: MeetingAudioCaptureStartReport(sourceMode: .systemOnly)
+        )
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: RecordingLockFileStore(),
+            startMicrophoneMuted: { true }
+        )
+
+        try await service.startRecording(sourceMode: .systemOnly)
+        defer {
+            Task { await service.cancelRecording() }
+        }
+
+        let muteState = await service.microphoneMuteState
+        XCTAssertEqual(muteState, MeetingMicrophoneMuteState(isMuted: false, canMute: false))
+        let isMuted = await service.isMicrophoneMuted
+        XCTAssertFalse(isMuted)
+    }
+
     func testMicrophoneMutePreservesQueuedPreMuteAudioByHostTime() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let sttClient = CountingMeetingSTTClient()

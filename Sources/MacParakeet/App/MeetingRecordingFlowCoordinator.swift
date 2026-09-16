@@ -88,6 +88,7 @@ final class MeetingRecordingFlowCoordinator {
     private let sttManager: (any STTRuntimeManaging)?
     private let speechEngineSelectionProvider: (@Sendable () async -> SpeechEngineSelection?)?
     private let meetingAudioSourceModeProvider: @MainActor @Sendable () -> MeetingAudioSourceMode
+    private let startMeetingsMutedProvider: @MainActor @Sendable () -> Bool
     private let meetingTypeIDProvider: @MainActor @Sendable () -> UUID?
     private let meetingTypesProvider: @MainActor @Sendable () -> [MeetingType]
     private let meetingTypeIDSetter: @MainActor @Sendable (UUID?) -> Void
@@ -157,6 +158,7 @@ final class MeetingRecordingFlowCoordinator {
         meetingAudioSourceModeProvider: @escaping @MainActor @Sendable () -> MeetingAudioSourceMode = {
             .microphoneAndSystem
         },
+        startMeetingsMutedProvider: @escaping @MainActor @Sendable () -> Bool = { false },
         meetingTypeIDProvider: @escaping @MainActor @Sendable () -> UUID? = { nil },
         meetingTypesProvider: @escaping @MainActor @Sendable () -> [MeetingType] = { [] },
         meetingTypeIDSetter: @escaping @MainActor @Sendable (UUID?) -> Void = { _ in },
@@ -190,6 +192,7 @@ final class MeetingRecordingFlowCoordinator {
         self.sttManager = sttManager
         self.speechEngineSelectionProvider = speechEngineSelectionProvider
         self.meetingAudioSourceModeProvider = meetingAudioSourceModeProvider
+        self.startMeetingsMutedProvider = startMeetingsMutedProvider
         self.meetingTypeIDProvider = meetingTypeIDProvider
         self.meetingTypesProvider = meetingTypesProvider
         self.meetingTypeIDSetter = meetingTypeIDSetter
@@ -619,7 +622,8 @@ final class MeetingRecordingFlowCoordinator {
             panelVM.systemLevel = 0
             panelVM.captureHealth = initialCaptureHealth
             panelVM.isPaused = false
-            panelVM.isMicrophoneMuted = false
+            panelVM.isMicrophoneMuted =
+                startMeetingsMutedProvider() && initialSourceMode.capturesMicrophone
             panelVM.canToggleMicrophoneMute = false
             panelVM.updateLiveTranscriptStatus(.startingAudio)
             panelVM.updatePreviewLines([], isTranscriptionLagging: false)

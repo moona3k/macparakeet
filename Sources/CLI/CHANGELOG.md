@@ -89,6 +89,12 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- `config get|set|list` includes `start-meetings-muted` (`on`/`off`, default
+  off). When on, the next meeting that captures a microphone starts muted;
+  unmute from the live meeting panel. System-audio-only capture ignores it.
+
 ## [4.2.0] — 2026-09-15
 
 ### Added

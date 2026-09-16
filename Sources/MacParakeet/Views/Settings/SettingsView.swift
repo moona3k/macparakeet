@@ -1292,6 +1292,15 @@ struct SettingsView: View {
                 Divider()
 
                 settingsToggleRow(
+                    title: "Start meetings muted",
+                    detail: "Begin recording with your microphone off. Unmute from the meeting panel when you want to speak. System-audio-only capture ignores this. Changes apply to your next recording.",
+                    isOn: $viewModel.startMeetingsMuted
+                )
+                .disabled(viewModel.meetingAudioSourceMode == .systemOnly)
+
+                Divider()
+
+                settingsToggleRow(
                     title: "Live transcription during recording",
                     detail: "Show a transcript as you record. Turn off to reduce processing during meetings; "
                         + "the full transcript is still created after you stop. Changes apply to your next recording.",

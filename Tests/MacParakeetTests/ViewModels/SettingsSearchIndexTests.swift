@@ -235,6 +235,18 @@ final class SettingsSearchIndexTests: XCTestCase {
         }
     }
 
+    func testStartMeetingsMutedQueriesFindMeetingToggle() {
+        for query in ["start muted", "join muted", "mic off"] {
+            let entry = SettingsSearchIndex.matches(query).first { $0.id == "meeting.startMuted" }
+            if AppFeatures.meetingRecordingEnabled {
+                XCTAssertEqual(entry?.tab, .capture, "Query \(query) should find start meetings muted")
+                XCTAssertEqual(entry?.cardAnchor, "meeting")
+            } else {
+                XCTAssertNil(entry)
+            }
+        }
+    }
+
     func testMeetingSpeakerDetectionQueriesFindMeetingSetting() {
         let queries = ["system audio", "participants", "others", "speaker labels"]
 
@@ -358,6 +370,7 @@ final class SettingsSearchIndexTests: XCTestCase {
             "meeting.notifyOnEnd",
             "meeting.speakerDetection",
             "meeting.liveTranscription",
+            "meeting.startMuted",
             "meeting.autoStop",
             "meeting.calendar",
             "system.permissions.screen"
