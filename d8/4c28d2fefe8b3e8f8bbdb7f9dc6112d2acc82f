@@ -1,0 +1,62 @@
+spec/adr/032-llm-task-group-routing.md
+  s_673be8b32d8d6a::t_6ce324a6601561 178,181,183
+  s_673be8b32d8d6a::t_d37c6e41064f3e 3
+spec/README.md
+  s_673be8b32d8d6a::t_500556623a2ec4 154
+Tests/MacParakeetTests/Services/LLM/LLMExecutionContextResolverTests.swift
+  s_673be8b32d8d6a::t_97a0aaea5f0d2e 63-114
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_673be8b32d8d6a::t_2e7b985319fa67 1087,1095
+  s_673be8b32d8d6a::t_26ed8964caf85c 1432-1433
+  s_673be8b32d8d6a::t_f8e281ea4bdb14 1439-1444
+  s_673be8b32d8d6a::t_8c55fc697cb0ab 1477
+  s_673be8b32d8d6a::t_df5a85295c6193 1341
+  s_673be8b32d8d6a::t_a5c92a9d46cc75 1225
+Tests/MacParakeetTests/Services/LLM/LLMServiceTests.swift
+  s_673be8b32d8d6a::t_3812b51442bf93 238-252
+  s_673be8b32d8d6a::t_b2932515213d3b 190
+Sources/MacParakeet/Views/Settings/LLMSettingsView.swift
+  s_673be8b32d8d6a::t_717f96aa5a2dcc 54-58
+  s_673be8b32d8d6a::t_383e3fd9095cf2 265-314
+spec/11-llm-integration.md
+  s_673be8b32d8d6a::t_4be3157a5a0c76 38
+  s_673be8b32d8d6a::t_6529cce7df9037 5
+  s_673be8b32d8d6a::t_0427753f1daaab 27
+Sources/MacParakeetViewModels/LLMSettingsViewModel.swift
+  s_673be8b32d8d6a::t_d30708c9bc52bc 271-274
+  s_673be8b32d8d6a::t_d214fef28ab15b 1185
+  s_673be8b32d8d6a::t_4d36dde647c41f 1197
+  s_673be8b32d8d6a::t_e485b3dc329be7 1198,1200-1264
+  s_673be8b32d8d6a::t_a70f2b87ee78fd 599-602
+  s_673be8b32d8d6a::t_d1a7548e448ab0 165-170
+  s_673be8b32d8d6a::t_70ea0d9a228778 677
+  s_673be8b32d8d6a::t_229f9fd8369f98 778
+  s_673be8b32d8d6a::t_186e139adc8bab 1199
+Sources/MacParakeetCore/Services/LLM/LLMConfigStore.swift
+  s_673be8b32d8d6a::t_6118add1a7e46d 29-32
+  s_673be8b32d8d6a::t_ed05d9c594dc41 86-87
+  s_673be8b32d8d6a::t_660beda05bd790 14-20
+  s_673be8b32d8d6a::t_8d1025c5c3fad9 131-157
+spec/02-features.md
+  s_673be8b32d8d6a::t_c9b4ac3e00121c 976
+Sources/MacParakeetCore/Services/LLM/LLMExecutionContext.swift
+  s_673be8b32d8d6a::t_7295753562ced4 3-12,25-31,59-64,66-70
+Tests/MacParakeetTests/Services/LLM/LLMConfigStoreTests.swift
+  s_673be8b32d8d6a::t_9a80c8ab11d527 225-244
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d84c28d2fefe8b3e8f8bbdb7f9dc6112d2acc82f",
+  "prompts": {},
+  "sessions": {
+    "s_673be8b32d8d6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
