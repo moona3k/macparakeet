@@ -62,6 +62,12 @@ final class DictationModelTests: XCTestCase {
         XCTAssertEqual(Dictation.DictationStatus.error.rawValue, "error")
     }
 
+    func testDictationStatusUnknownValueDecodesAsCompleted() throws {
+        let json = Data(#""future-status""#.utf8)
+        let decoded = try JSONDecoder().decode(Dictation.DictationStatus.self, from: json)
+        XCTAssertEqual(decoded, .completed)
+    }
+
     func testProcessingModeHelpers() {
         XCTAssertFalse(Dictation.ProcessingMode.raw.usesDeterministicPipeline)
         XCTAssertTrue(Dictation.ProcessingMode.clean.usesDeterministicPipeline)

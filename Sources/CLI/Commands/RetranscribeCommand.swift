@@ -398,7 +398,9 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
         updated.rawTranscript = sttResult.text
         updated.cleanTranscript = refinement.text
         updated.processingMode = processingMode
-        updated.status = .completed
+        if original.status != .cancelled {
+            updated.status = .completed
+        }
         updated.errorMessage = nil
         updated.updatedAt = Date()
         updated.wordCount = Observability.wordCount(finalText)
