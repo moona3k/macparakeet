@@ -1,0 +1,81 @@
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_39c024c3820e2a::t_0bc9104984c07d 1362-1363
+  s_39c024c3820e2a::t_ad341d4b9b58bf 504,729,740-741,754,869,875-876,884-885,917
+  s_39c024c3820e2a::t_27f945c10c7dd8 488,697,701
+  s_39c024c3820e2a::t_a3ace2050c9fcb 503
+  s_39c024c3820e2a::t_abc8c964594859 753
+README.md
+  s_39c024c3820e2a::t_0cfb7d509a1eeb 58,66-67,75-76,82,84
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_39c024c3820e2a::t_56904e3152e453 197,613,620,622,639-645,671,699,788,1167-1187
+Sources/MacParakeet/Views/MeetingRecording/MeetingRecordingPanelView.swift
+  s_39c024c3820e2a::t_583addef4cdc0e 294-299,464-474,477,483,488,521-526,535-548,575-581,583-585,587-589,594-595,600-601,611,614,641-650,734-747
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_39c024c3820e2a::t_8af4adf9b84b48 2940-2945,2956-2964,2966-2972,3095-3104,3106-3115,3118-3124,3136-3138
+Sources/MacParakeetCore/Models/DictationResult.swift
+  s_39c024c3820e2a::t_1731fafb15da46 8-12,17-20,25-27
+Sources/MacParakeetCore/STT/STTRuntime.swift
+  s_39c024c3820e2a::t_4b2be6e50a1ab6 1595-1601,1647-1650
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_39c024c3820e2a::t_079433e48c242d 871,944,976,1010
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_39c024c3820e2a::t_9313c5e606574f 18-19,636-647,1028,1213-1215,1232-1234,1236-1243,1841-1845,1904
+Sources/MacParakeetViewModels/EngineSettingsViewModel.swift
+  s_39c024c3820e2a::t_19fe31f42f7355 83-93,229-239,944-985,992-1010,1107-1116,1118,1121-1124,1127,1131,1155-1157,1161,1177,1194,1196-1200,1220-1297
+Sources/MacParakeetViewModels/MeetingRecordingPanelViewModel.swift
+  s_39c024c3820e2a::t_a209039aeba676 392-399
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorLoadCaptionTests.swift
+  s_39c024c3820e2a::t_7a76fffba0ad0f 287-299,378,722-728
+Tests/MacParakeetTests/STT/MockSTTClient.swift
+  s_39c024c3820e2a::t_e0765606b51f7c 36-41,142-164,568-575,579
+Tests/MacParakeetTests/STT/STTSchedulerTests.swift
+  s_39c024c3820e2a::t_9966e0fc76702e 896-923,1465-1467,1722-1724,1728-1736,1875-1882
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_39c024c3820e2a::t_5105839cf534b6 682-688
+Tests/MacParakeetTests/Services/LLM/LLMServiceTests.swift
+  s_39c024c3820e2a::t_e5a10bce0d99d0 931-932,958-959
+Tests/MacParakeetTests/TelemetryServiceTests.swift
+  s_39c024c3820e2a::t_56086ed691c92c 1268-1297,2092-2101
+Tests/MacParakeetTests/ViewModels/EngineSettingsViewModelTests.swift
+  s_39c024c3820e2a::t_2316b62e34bb40 74-75,91-92,881-1030
+Tests/MacParakeetTests/ViewModels/MeetingRecordingPanelViewModelTests.swift
+  s_39c024c3820e2a::t_5c338ff11c6d0b 376-410
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_39c024c3820e2a::t_0d9a8502fa4498 2685-2690
+Tests/MacParakeetTests/Views/BreathingSeedOfLifeViewTests.swift
+  s_39c024c3820e2a::t_5e6ef39c7a440e 1-112
+docs/telemetry.md
+  s_39c024c3820e2a::t_d9b0374233a8e5 256-257,346,441-443,454-458,466-469
+plans/README.md
+  s_39c024c3820e2a::t_9158e3390003cd 79
+plans/active/2026-09-16-telemetry-observability-followthrough.md
+  s_39c024c3820e2a::t_899902605ce4ed 1-66
+spec/00-vision.md
+  s_39c024c3820e2a::t_e4041c364de37d 501,511-520
+spec/04-ui-patterns.md
+  s_39c024c3820e2a::t_35a69b717b6b48 761,1266
+spec/08-error-handling.md
+  s_39c024c3820e2a::t_be89ef424537f8 28,34,71
+spec/14-per-prompt-inference-settings.md
+  s_39c024c3820e2a::t_c1fe23f7fbc9ef 3
+spec/README.md
+  s_39c024c3820e2a::t_a77d04be3014d5 26,85,168-169,341-354
+spec/contracts/telemetry-v1.md
+  s_39c024c3820e2a::t_e6f246f2f28fc5 234-239
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "46ba9e96be1345478398ece3c3d08ddb5707a0cc",
+  "prompts": {},
+  "sessions": {
+    "s_39c024c3820e2a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "f8336241-dad5-43d1-a0fd-21b808b32964",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
