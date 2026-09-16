@@ -1,0 +1,28 @@
+Tests/CLITests/MeetingsCommandTests.swift
+  s_673be8b32d8d6a::t_fb382129533a10 904-905
+  s_673be8b32d8d6a::t_a9d160df675f44 925
+  s_673be8b32d8d6a::t_06b621e0fc3a72 876-877
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingArtifactStoreTests.swift
+  s_673be8b32d8d6a::t_ddfb12aaec6ff2 246-269
+spec/adr/013-prompt-library-multi-summary.md
+  s_673be8b32d8d6a::t_e679502745ccb3 106
+  s_673be8b32d8d6a::t_a4314cec580c24 18-21
+Sources/CLI/CHANGELOG.md
+  s_673be8b32d8d6a::t_34f76d474babf4 94-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5463b49233dfdcfd94b6a58cb87677d5fa87df04",
+  "prompts": {},
+  "sessions": {
+    "s_673be8b32d8d6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
