@@ -1492,8 +1492,9 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
             // Raw/Clean dictation mode: the corrections drive the
             // speaker-segmented view and the word-timestamp exports, and the
             // default processing mode is `.raw`. `completeTranscription` below
-            // still receives the *uncorrected* `finalized.rawTranscript`, so its
-            // Clean-mode pass derives `cleanTranscript` without double-applying.
+            // still receives the *uncorrected* `finalized.rawTranscript` and skips
+            // the dictation Clean pipeline, so filler removal cannot rewrite the
+            // verbatim meeting record.
             let corrected = MeetingTranscriptVocabularyApplier.apply(
                 rawTranscript: finalized.rawTranscript,
                 words: finalized.words,
@@ -2170,9 +2171,13 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
     ) async throws -> Transcription {
         let originalFileName = transcription.fileName
         let mode = processingMode()
+        // Meetings keep a verbatim record: custom words already ran through
+        // `MeetingTranscriptVocabularyApplier`. Filler removal, snippets, and
+        // insertion styling stay dictation/file-only (spec/07).
+        let appliesCleanPipeline = source != .meeting && mode.usesDeterministicPipeline
         var customWords: [CustomWord] = []
         var snippets: [TextSnippet] = []
-        if mode.usesDeterministicPipeline {
+        if appliesCleanPipeline {
             do { customWords = try customWordRepo?.fetchEnabled() ?? [] }
             catch { logger.error("transcription_custom_words_fetch_failed error_type=\(Self.errorType(for: error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)") }
             do { snippets = try snippetRepo?.fetchEnabled() ?? [] }
@@ -2181,10 +2186,10 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
 
         let refinement = await textRefinementService.refine(
             rawText: rawText,
-            mode: mode,
+            mode: appliesCleanPipeline ? mode : .raw,
             customWords: customWords,
             snippets: snippets,
-            removeUmFiller: removeUmFiller()
+            removeUmFiller: appliesCleanPipeline && removeUmFiller()
         )
         let baseText = refinement.text ?? rawText
         let transcriptFormatter = TranscriptFormatter(

@@ -113,7 +113,13 @@ public struct TextProcessingPipeline: Sendable {
     /// STT often punctuates fillers (`Um, I think`, `I think, um, we`).
     /// Removing the token alone leaves a leading comma/period or `,,`.
     private static let doubledCommaRegex = try? NSRegularExpression(pattern: ",\\s*,+")
-    private static let leadingFillerPunctuationRegex = try? NSRegularExpression(pattern: "^\\s*[,.]\\s+")
+    private static let leadingFillerPunctuationRegex = try? NSRegularExpression(
+        pattern: "^\\s*[,.]\\s+",
+        options: .anchorsMatchLines
+    )
+    private static let leftoverCommaAfterSentenceRegex = try? NSRegularExpression(
+        pattern: "([.!?])[ \\t]+,[ \\t]*"
+    )
 
     private func cleanupFillerPunctuation(in text: String) -> String {
         var result = text
@@ -122,6 +128,13 @@ public struct TextProcessingPipeline: Sendable {
                 in: result,
                 range: NSRange(result.startIndex..., in: result),
                 withTemplate: ","
+            )
+        }
+        if let regex = Self.leftoverCommaAfterSentenceRegex {
+            result = regex.stringByReplacingMatches(
+                in: result,
+                range: NSRange(result.startIndex..., in: result),
+                withTemplate: "$1 "
             )
         }
         if let regex = Self.leadingFillerPunctuationRegex {
@@ -149,7 +162,8 @@ public struct TextProcessingPipeline: Sendable {
         guard !actionSnippets.isEmpty else { return (text, nil) }
 
         // Sort longest-trigger-first (same as expandSnippets)
-        let sorted = actionSnippets
+        let sorted =
+            actionSnippets
             .filter { $0.isEnabled }
             .sorted { $0.trigger.count > $1.trigger.count }
 
@@ -185,7 +199,8 @@ public struct TextProcessingPipeline: Sendable {
         var expandedIDs = Set<UUID>()
 
         // Sort longest-trigger-first to prevent partial matches
-        let sorted = snippets
+        let sorted =
+            snippets
             .filter { $0.isEnabled }
             .sorted { $0.trigger.count > $1.trigger.count }
 
@@ -279,10 +294,12 @@ public struct TextProcessingPipeline: Sendable {
         textSnippets: [TextSnippet],
         expandedSnippetIDs: Set<UUID>
     ) -> [String] {
-        let customTerms = customWords
+        let customTerms =
+            customWords
             .filter(\.isEnabled)
             .map { $0.replacement ?? $0.word }
-        let snippetTerms = textSnippets
+        let snippetTerms =
+            textSnippets
             .filter { $0.isEnabled && expandedSnippetIDs.contains($0.id) }
             .map(\.expansion)
         return customTerms + snippetTerms

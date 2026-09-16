@@ -99,7 +99,8 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 - `vocab process` and Clean-mode dictation/file transcription now strip
   standalone `um` by default. The previous multilingual-safe default is the
-  off value of `remove-um-filler`.
+  off value of `remove-um-filler`. Meetings stay verbatim: they do not run
+  filler removal.
 
 ## [4.2.0] — 2026-09-15
 

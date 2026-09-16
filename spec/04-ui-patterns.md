@@ -1093,8 +1093,9 @@ The Vocabulary sidebar item is a dedicated panel for managing the text processin
 │                                                           │
 │  HOW IT WORKS                                             │
 │  ─────────────────────────────────────────────────────    │
-│  1. Filler Removal — Strips uh, um, umm, uhh            │
-│     [Also remove “um” ●]  Off for Portuguese/German     │
+│  1. Filler Removal — Always strips uh, umm, uhh.        │
+│     Standalone um is on by default; turn off for PT/DE. │
+│     [Also remove “um” ●]  User toggle, not auto-detect  │
 │  2. Custom Words — Fixes domain terms STT gets wrong      │
 │  3. Text Snippets — Expands trigger phrases to full text  │
 │  4. Whitespace Cleanup — Normalizes spacing/punctuation   │
