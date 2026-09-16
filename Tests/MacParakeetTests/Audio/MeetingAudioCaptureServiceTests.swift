@@ -241,7 +241,8 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
             systemAudioCaptureFactory: { systemCapture }
         )
         let startTask = Task { try await service.startForTesting(sourceMode: .systemOnly) }
-        await systemCapture.waitForStopCall()
+        let stopCallObserved = await systemCapture.waitForStopCall()
+        XCTAssertTrue(stopCallObserved, "Timed out waiting for failed-start cleanup to call stop()")
 
         let completion = CompletionFlag()
         let stopTask = Task {
@@ -267,7 +268,8 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         defer { capture.releaseStop() }
         let first = Task { await capture.stop() }
         let second = Task { await capture.stop() }
-        await capture.waitForStopCall()
+        let stopCallObserved = await capture.waitForStopCall()
+        XCTAssertTrue(stopCallObserved, "Timed out waiting for concurrent stop() callers")
         try? await Task.sleep(for: .milliseconds(20))
         capture.releaseStop()
         await first.value
@@ -2187,7 +2189,7 @@ private final class BlockingMeetingSystemAudioCapture: MeetingSystemAudioCapturi
 private final class FailingStartBlockingStopCapture: MeetingSystemAudioCapturing, @unchecked Sendable {
     private let lock = NSLock()
     private var stopContinuations: [CheckedContinuation<Void, Never>] = []
-    private var stopWaiters: [CheckedContinuation<Void, Never>] = []
+    private var stopWaiters: [CheckedContinuation<Bool, Never>] = []
     private var stopCalled = false
     private var stopReleased = false
 
@@ -2196,13 +2198,13 @@ private final class FailingStartBlockingStopCapture: MeetingSystemAudioCapturing
     }
 
     func stop() async {
-        let waiters = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+        let waiters = lock.withLock { () -> [CheckedContinuation<Bool, Never>] in
             stopCalled = true
             let waiters = stopWaiters
             stopWaiters.removeAll()
             return waiters
         }
-        waiters.forEach { $0.resume() }
+        waiters.forEach { $0.resume(returning: true) }
 
         let shouldWait = lock.withLock { !stopReleased }
         guard shouldWait else { return }
@@ -2220,8 +2222,9 @@ private final class FailingStartBlockingStopCapture: MeetingSystemAudioCapturing
         }
     }
 
-    func waitForStopCall() async {
-        await withCheckedContinuation { continuation in
+    @discardableResult
+    func waitForStopCall() async -> Bool {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
             let alreadyStopped = lock.withLock { () -> Bool in
                 if stopCalled {
                     return true
@@ -2230,18 +2233,18 @@ private final class FailingStartBlockingStopCapture: MeetingSystemAudioCapturing
                 return false
             }
             if alreadyStopped {
-                continuation.resume()
+                continuation.resume(returning: true)
                 return
             }
             DispatchQueue.global().asyncAfter(deadline: .now() + 2) { [weak self] in
                 guard let self else { return }
-                let waiters = self.lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+                let waiters = self.lock.withLock { () -> [CheckedContinuation<Bool, Never>] in
                     guard !self.stopCalled else { return [] }
                     let waiters = self.stopWaiters
                     self.stopWaiters.removeAll()
                     return waiters
                 }
-                waiters.forEach { $0.resume() }
+                waiters.forEach { $0.resume(returning: false) }
             }
         }
     }
