@@ -1,6 +1,8 @@
 # Branching recording covers — implementation plan
 
-Status: v1 merged to development; Recursive Canopy refinement approved before release on September 8, 2026.
+Status: **Superseded by Seed of Life v2** on 2026-09-16. See
+[`docs/design/2026-09-15-cover-geometry/philosophy.md`](../design/2026-09-15-cover-geometry/philosophy.md).
+v1 Recursive Canopy remains historical evidence below.
 Base: origin/main 5760cec90394ec9ed3fe7fd15e1d557c0677994e.
 
 ## Goal

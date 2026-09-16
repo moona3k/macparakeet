@@ -1,73 +1,67 @@
 import Foundation
 
-/// The fixed v1, UUID-only recipe for a missing-recording cover.
+/// The frozen v2, UUID-only recipe for a missing-recording cover.
 ///
-/// The recipe deliberately holds normalized geometry and palette decisions rather
-/// than a raster. SwiftUI owns drawing it in the app target; callers can reuse
-/// this small value without reading audio, transcript, database, or cache state.
+/// Version 2 draws a Seed of Life: seven equal circles on a locked night
+/// field. The UUID may rotate the figure, light one or two rings, drift the
+/// center slightly, and shift sage ink by at most 12°. It does not choose a
+/// second palette family, a gold nucleus, or branches.
+///
+/// The recipe holds normalized geometry and ink rather than a raster.
+/// SwiftUI owns drawing it in the app target; callers can reuse this small
+/// value without reading audio, transcript, database, or cache state.
 public struct BranchingRecordingCoverRecipe: Sendable, Equatable {
-    static let version = 1
-    static let maximumLimbCount = 192
-    static let maximumDepth = 4
-    /// A bounded amount of off-canvas growth keeps the clipped composition
-    /// organic without making a Canvas redraw unbounded.
-    static let maximumNormalizedCoordinateMagnitude = 2.0
+    public static let version = 2
+    public static let ringCount = 7
+    public static let presentScale = 0.76
+    public static let maximumHueShiftDegrees = 12.0
+    public static let nightBackground = BranchingRecordingCoverColor(
+        red: 20.0 / 255.0,
+        green: 25.0 / 255.0,
+        blue: 27.0 / 255.0
+    )
+    private static let sageInk = BranchingRecordingCoverColor(
+        red: 126.0 / 255.0,
+        green: 168.0 / 255.0,
+        blue: 154.0 / 255.0
+    )
+    private static let paleInk = BranchingRecordingCoverColor(
+        red: 186.0 / 255.0,
+        green: 214.0 / 255.0,
+        blue: 204.0 / 255.0
+    )
 
-    public let palette: BranchingRecordingCoverPalette
-    public let focalPoint: BranchingRecordingCoverPoint
-    public let limbs: [BranchingRecordingCoverLimb]
+    public let center: BranchingRecordingCoverPoint
+    /// Fraction of `min(width, height)` at draw time.
+    public let radius: Double
+    public let rotation: Double
+    /// Sorted unique indexes into the seven Seed of Life circles.
+    public let litRingIndexes: [Int]
+    public let hueShiftDegrees: Double
+    public let ink: BranchingRecordingCoverColor
+    public let pale: BranchingRecordingCoverColor
 
     public init(recordingID: UUID) {
-        var paletteFamilyRandom = SplitMix64(
-            seed: Self.stableSeed(for: recordingID, domain: "palette-family")
-        )
-        var paletteVariantRandom = SplitMix64(
-            seed: Self.stableSeed(for: recordingID, domain: "palette-variant")
-        )
-        palette = BranchingRecordingCoverPalette(
-            family: BranchingRecordingCoverPalette.Family.allCases[
-                paletteFamilyRandom.nextInt(upperBound: BranchingRecordingCoverPalette.Family.allCases.count)
-            ],
-            variant: paletteVariantRandom.nextInt(upperBound: BranchingRecordingCoverPalette.variantCount)
-        )
-
         var geometryRandom = SplitMix64(
             seed: Self.stableSeed(for: recordingID, domain: "geometry")
         )
-        focalPoint = BranchingRecordingCoverPoint(
-            x: 0.43 + geometryRandom.nextUnit() * 0.14,
-            y: 0.42 + geometryRandom.nextUnit() * 0.16
+        var inkRandom = SplitMix64(
+            seed: Self.stableSeed(for: recordingID, domain: "ink")
         )
 
-        var generatedLimbs: [BranchingRecordingCoverLimb] = []
-        // Six roots remain below the 192-limb cap even when every descendant
-        // splits at each of the five bounded generations (6 × 31 = 186). The
-        // cap is therefore a hard safety guard, not a traversal order that can
-        // erase a late root's fine structure.
-        let primaryCount = 5 + geometryRandom.nextInt(upperBound: 2)
-        let phase = geometryRandom.nextUnit() * Double.pi * 2
+        center = BranchingRecordingCoverPoint(
+            x: 0.50 + (geometryRandom.nextUnit() - 0.5) * 0.02,
+            y: 0.40 + (geometryRandom.nextUnit() - 0.5) * 0.02
+        )
+        radius = (0.168 + geometryRandom.nextUnit() * 0.012) * Self.presentScale
+        rotation = geometryRandom.nextUnit() * (Double.pi / 3)
+        let firstLit = geometryRandom.nextInt(upperBound: Self.ringCount)
+        let secondLit = geometryRandom.nextInt(upperBound: Self.ringCount)
+        litRingIndexes = Array(Set([firstLit, secondLit])).sorted()
 
-        for index in 0..<primaryCount {
-            let angle =
-                phase
-                + (Double(index) / Double(primaryCount)) * Double.pi * 2
-                + (geometryRandom.nextUnit() - 0.5) * 0.30
-            Self.appendLimb(
-                from: focalPoint,
-                angle: angle,
-                // The focal mass stays legible at card scale while four
-                // smaller generations give the cover its recursive canopy.
-                length: 0.155 + geometryRandom.nextUnit() * 0.055,
-                width: 0.032 + geometryRandom.nextUnit() * 0.016,
-                depth: 0,
-                random: &geometryRandom,
-                limbs: &generatedLimbs
-            )
-        }
-
-        // Canvas receives this back-to-front order directly; do not sort in its
-        // drawing closure while a library grid is scrolling.
-        limbs = generatedLimbs.sorted { $0.depth > $1.depth }
+        hueShiftDegrees = (inkRandom.nextUnit() - 0.5) * (Self.maximumHueShiftDegrees * 2)
+        ink = Self.hueShifted(Self.sageInk, degrees: hueShiftDegrees)
+        pale = Self.hueShifted(Self.paleInk, degrees: hueShiftDegrees)
     }
 
     /// FNV-1a over the recipe domain followed by the UUID's RFC 4122 bytes,
@@ -95,69 +89,72 @@ public struct BranchingRecordingCoverRecipe: Sendable, Equatable {
         ]
     }
 
-    private static func appendLimb(
-        from start: BranchingRecordingCoverPoint,
-        angle: Double,
-        length: Double,
-        width: Double,
-        depth: Int,
-        random: inout SplitMix64,
-        limbs: inout [BranchingRecordingCoverLimb]
-    ) {
-        guard limbs.count < maximumLimbCount, depth <= maximumDepth, length >= 0.012 else { return }
+    private static func hueShifted(
+        _ color: BranchingRecordingCoverColor,
+        degrees: Double
+    ) -> BranchingRecordingCoverColor {
+        let hsl = rgbToHSL(color)
+        var hue = hsl.hue + degrees / 360.0
+        hue = hue.truncatingRemainder(dividingBy: 1)
+        if hue < 0 { hue += 1 }
+        return hslToRGB(hue: hue, saturation: hsl.saturation, lightness: hsl.lightness)
+    }
 
-        let bend = (random.nextUnit() - 0.5) * (0.36 + Double(depth) * 0.08)
-        let endAngle = angle + bend
-        let endpoint = start.translated(
-            x: cos(endAngle) * length,
-            y: sin(endAngle) * length * (16.0 / 9.0)
-        )
-        let controlAngle = angle + bend * 0.35
-        let control = start.translated(
-            x: cos(controlAngle) * length * 0.53,
-            y: sin(controlAngle) * length * 0.53 * (16.0 / 9.0)
-        )
-        let pigment: BranchingRecordingCoverPigment
-        switch (depth + random.nextInt(upperBound: 3)) % 3 {
-        case 0: pigment = .field
-        case 1: pigment = .branch
-        default: pigment = .accent
+    private static func rgbToHSL(
+        _ color: BranchingRecordingCoverColor
+    ) -> (hue: Double, saturation: Double, lightness: Double) {
+        let maxChannel = max(color.red, color.green, color.blue)
+        let minChannel = min(color.red, color.green, color.blue)
+        let lightness = (maxChannel + minChannel) / 2
+        let delta = maxChannel - minChannel
+        guard delta > 0 else {
+            return (0, 0, lightness)
         }
 
-        limbs.append(
-            BranchingRecordingCoverLimb(
-                start: start,
-                control: control,
-                end: endpoint,
-                startWidth: width,
-                endWidth: width * (0.34 + random.nextUnit() * 0.14),
-                depth: depth,
-                pigment: pigment,
-                opacity: 0.82 - Double(depth) * 0.10
-            )
-        )
-
-        guard depth < maximumDepth else { return }
-        let childCount: Int
-        if depth == 0 {
-            childCount = 2
+        let saturation =
+            lightness > 0.5
+            ? delta / (2 - maxChannel - minChannel)
+            : delta / (maxChannel + minChannel)
+        let hue: Double
+        if maxChannel == color.red {
+            hue = (color.green - color.blue) / delta + (color.green < color.blue ? 6 : 0)
+        } else if maxChannel == color.green {
+            hue = (color.blue - color.red) / delta + 2
         } else {
-            childCount = random.nextUnit() < 0.83 ? 2 : 1
+            hue = (color.red - color.green) / delta + 4
+        }
+        return (hue / 6, saturation, lightness)
+    }
+
+    private static func hslToRGB(
+        hue: Double,
+        saturation: Double,
+        lightness: Double
+    ) -> BranchingRecordingCoverColor {
+        guard saturation > 0 else {
+            return BranchingRecordingCoverColor(red: lightness, green: lightness, blue: lightness)
         }
 
-        for childIndex in 0..<childCount where limbs.count < maximumLimbCount {
-            let side = childCount == 1 ? (random.nextUnit() - 0.5) : (childIndex == 0 ? -1.0 : 1.0)
-            let spread = 0.32 + random.nextUnit() * 0.28
-            appendLimb(
-                from: endpoint,
-                angle: endAngle + side * spread,
-                length: length * (0.55 + random.nextUnit() * 0.08),
-                width: width * (0.54 + random.nextUnit() * 0.08),
-                depth: depth + 1,
-                random: &random,
-                limbs: &limbs
-            )
-        }
+        let q =
+            lightness < 0.5
+            ? lightness * (1 + saturation)
+            : lightness + saturation - lightness * saturation
+        let p = 2 * lightness - q
+        return BranchingRecordingCoverColor(
+            red: hueChannel(p: p, q: q, t: hue + 1.0 / 3.0),
+            green: hueChannel(p: p, q: q, t: hue),
+            blue: hueChannel(p: p, q: q, t: hue - 1.0 / 3.0)
+        )
+    }
+
+    private static func hueChannel(p: Double, q: Double, t: Double) -> Double {
+        var wrapped = t
+        if wrapped < 0 { wrapped += 1 }
+        if wrapped > 1 { wrapped -= 1 }
+        if wrapped < 1.0 / 6.0 { return p + (q - p) * 6 * wrapped }
+        if wrapped < 1.0 / 2.0 { return q }
+        if wrapped < 2.0 / 3.0 { return p + (q - p) * (2.0 / 3.0 - wrapped) * 6 }
+        return p
     }
 }
 
@@ -165,31 +162,10 @@ public struct BranchingRecordingCoverPoint: Sendable, Equatable {
     public let x: Double
     public let y: Double
 
-    init(x: Double, y: Double) {
+    public init(x: Double, y: Double) {
         self.x = x
         self.y = y
     }
-
-    func translated(x: Double, y: Double) -> Self {
-        Self(x: self.x + x, y: self.y + y)
-    }
-}
-
-public struct BranchingRecordingCoverLimb: Sendable, Equatable {
-    public let start: BranchingRecordingCoverPoint
-    public let control: BranchingRecordingCoverPoint
-    public let end: BranchingRecordingCoverPoint
-    public let startWidth: Double
-    public let endWidth: Double
-    public let depth: Int
-    public let pigment: BranchingRecordingCoverPigment
-    public let opacity: Double
-}
-
-public enum BranchingRecordingCoverPigment: Sendable, Equatable {
-    case field
-    case branch
-    case accent
 }
 
 public struct BranchingRecordingCoverColor: Sendable, Equatable {
@@ -197,112 +173,11 @@ public struct BranchingRecordingCoverColor: Sendable, Equatable {
     public let green: Double
     public let blue: Double
 
-    init(red: Double, green: Double, blue: Double) {
+    public init(red: Double, green: Double, blue: Double) {
         self.red = red
         self.green = green
         self.blue = blue
     }
-}
-
-public struct BranchingRecordingCoverPalette: Sendable, Equatable {
-    enum Family: String, CaseIterable, Sendable {
-        case tidalStone
-        case lichenDusk
-        case plumMineral
-    }
-
-    static let variantCount = 3
-
-    let family: Family
-    let variant: Int
-    public let colors: BranchingRecordingCoverPaletteColors
-
-    init(family: Family, variant: Int) {
-        self.family = family
-        self.variant = min(max(variant, 0), Self.variantCount - 1)
-        colors = Self.resolvedColors(family: family, variant: self.variant)
-    }
-
-    private static func resolvedColors(
-        family: Family,
-        variant: Int
-    ) -> BranchingRecordingCoverPaletteColors {
-        let variants: [BranchingRecordingCoverPaletteColors]
-        switch family {
-        case .tidalStone:
-            variants = [
-                .init(
-                    background: .init(red: 0.063, green: 0.125, blue: 0.145),
-                    field: .init(red: 0.094, green: 0.318, blue: 0.345),
-                    branch: .init(red: 0.263, green: 0.651, blue: 0.647),
-                    accent: .init(red: 0.894, green: 0.643, blue: 0.376),
-                    line: .init(red: 0.718, green: 0.847, blue: 0.804)),
-                .init(
-                    background: .init(red: 0.078, green: 0.125, blue: 0.153),
-                    field: .init(red: 0.192, green: 0.322, blue: 0.376),
-                    branch: .init(red: 0.373, green: 0.624, blue: 0.714),
-                    accent: .init(red: 0.843, green: 0.604, blue: 0.408),
-                    line: .init(red: 0.761, green: 0.808, blue: 0.816)),
-                .init(
-                    background: .init(red: 0.075, green: 0.129, blue: 0.129),
-                    field: .init(red: 0.176, green: 0.333, blue: 0.314),
-                    branch: .init(red: 0.400, green: 0.678, blue: 0.596),
-                    accent: .init(red: 0.851, green: 0.651, blue: 0.396),
-                    line: .init(red: 0.769, green: 0.824, blue: 0.714)),
-            ]
-        case .lichenDusk:
-            variants = [
-                .init(
-                    background: .init(red: 0.082, green: 0.133, blue: 0.114),
-                    field: .init(red: 0.192, green: 0.365, blue: 0.282),
-                    branch: .init(red: 0.475, green: 0.706, blue: 0.553),
-                    accent: .init(red: 0.859, green: 0.647, blue: 0.392),
-                    line: .init(red: 0.765, green: 0.835, blue: 0.635)),
-                .init(
-                    background: .init(red: 0.106, green: 0.129, blue: 0.106),
-                    field: .init(red: 0.290, green: 0.353, blue: 0.212),
-                    branch: .init(red: 0.612, green: 0.698, blue: 0.459),
-                    accent: .init(red: 0.788, green: 0.604, blue: 0.400),
-                    line: .init(red: 0.835, green: 0.812, blue: 0.631)),
-                .init(
-                    background: .init(red: 0.090, green: 0.129, blue: 0.118),
-                    field: .init(red: 0.192, green: 0.337, blue: 0.314),
-                    branch: .init(red: 0.416, green: 0.667, blue: 0.616),
-                    accent: .init(red: 0.867, green: 0.631, blue: 0.408),
-                    line: .init(red: 0.722, green: 0.816, blue: 0.694)),
-            ]
-        case .plumMineral:
-            variants = [
-                .init(
-                    background: .init(red: 0.129, green: 0.098, blue: 0.145),
-                    field: .init(red: 0.388, green: 0.243, blue: 0.376),
-                    branch: .init(red: 0.678, green: 0.459, blue: 0.635),
-                    accent: .init(red: 0.886, green: 0.631, blue: 0.443),
-                    line: .init(red: 0.839, green: 0.706, blue: 0.792)),
-                .init(
-                    background: .init(red: 0.129, green: 0.106, blue: 0.145),
-                    field: .init(red: 0.318, green: 0.235, blue: 0.408),
-                    branch: .init(red: 0.549, green: 0.467, blue: 0.714),
-                    accent: .init(red: 0.851, green: 0.616, blue: 0.459),
-                    line: .init(red: 0.780, green: 0.725, blue: 0.855)),
-                .init(
-                    background: .init(red: 0.145, green: 0.106, blue: 0.125),
-                    field: .init(red: 0.412, green: 0.275, blue: 0.314),
-                    branch: .init(red: 0.725, green: 0.478, blue: 0.518),
-                    accent: .init(red: 0.886, green: 0.627, blue: 0.427),
-                    line: .init(red: 0.851, green: 0.722, blue: 0.733)),
-            ]
-        }
-        return variants[variant]
-    }
-}
-
-public struct BranchingRecordingCoverPaletteColors: Sendable, Equatable {
-    public let background: BranchingRecordingCoverColor
-    public let field: BranchingRecordingCoverColor
-    public let branch: BranchingRecordingCoverColor
-    public let accent: BranchingRecordingCoverColor
-    public let line: BranchingRecordingCoverColor
 }
 
 private struct SplitMix64 {

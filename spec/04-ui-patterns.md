@@ -188,12 +188,15 @@ routine state icon.
 When a grid card has locally cached or successfully loaded remote artwork, that
 real artwork remains first. A remote image that is still loading keeps its loading
 surface. When no artwork exists or remote loading fails, the 16:9 area shows a
-static Branching Field cover derived only from the transcription UUID and fixed
-v1 recipe. Its legible focal mass grows into a bounded, fine recursive canopy;
-the selected curated palette is decorative and does not encode source,
-status, audio, transcript, confidence, title, duration, or time. The cover has no
+static Seed of Life cover derived only from the transcription UUID and fixed
+v2 recipe. Seven equal circles share one night field; the UUID rotates the
+figure, lights one or two rings, and shifts sage ink by at most 12°. The cover
+does not encode source, status, audio, transcript, confidence, title, duration,
+or time, and it does not use brand coral or a gold nucleus. The cover has no
 text or animation, so existing title, duration, source, and lifecycle chrome stay
-legible and authoritative outside the artwork.
+legible and authoritative outside the artwork. The construction and input rules
+are recorded in
+[`docs/design/2026-09-15-cover-geometry/philosophy.md`](../docs/design/2026-09-15-cover-geometry/philosophy.md).
 List rows retain their existing snippet-first preview behavior, including while
 a meeting with saved transcript text is being retranscribed.
 

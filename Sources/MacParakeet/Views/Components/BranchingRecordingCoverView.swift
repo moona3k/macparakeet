@@ -1,11 +1,11 @@
 import SwiftUI
 import MacParakeetCore
 
-/// Static, UUID-seeded artwork for a recording with no available image.
+/// Static, UUID-seeded Seed of Life artwork for a recording with no image.
 ///
-/// `BranchingRecordingCoverRecipe` is intentionally computed before `Canvas`
-/// draws. The canvas closure only maps its bounded, normalized geometry to the
-/// card's current size; it does not inspect recording content or schedule work.
+/// `BranchingRecordingCoverRecipe` is computed before `Canvas` draws. The
+/// canvas closure only maps its bounded, normalized geometry to the card's
+/// current size; it does not inspect recording content or schedule work.
 struct BranchingRecordingCoverView: View {
     @State private var recipe: BranchingRecordingCoverRecipe
 
@@ -15,177 +15,81 @@ struct BranchingRecordingCoverView: View {
 
     var body: some View {
         Canvas { context, size in
-            let colors = recipe.palette.colors
-            let background = Color(colors.background)
-            let field = Color(colors.field)
-            let branch = Color(colors.branch)
-            let accent = Color(colors.accent)
-            let line = Color(colors.line)
+            let background = Color(BranchingRecordingCoverRecipe.nightBackground)
+            let ink = Color(recipe.ink)
+            let pale = Color(recipe.pale)
             let bounds = CGRect(origin: .zero, size: size)
+            let minimumSide = min(size.width, size.height)
+            let radius = minimumSide * CGFloat(recipe.radius)
+            let origin = point(recipe.center, in: size)
 
             context.fill(Path(bounds), with: .color(background))
             context.fill(
                 Path(bounds),
-                with: .linearGradient(
-                    Gradient(colors: [field.opacity(0.58), background.opacity(0.15), branch.opacity(0.18)]),
-                    startPoint: CGPoint(x: 0, y: size.height),
-                    endPoint: CGPoint(x: size.width, y: 0)
+                with: .radialGradient(
+                    Gradient(colors: [ink.opacity(0.14), .clear]),
+                    center: origin,
+                    startRadius: 6,
+                    endRadius: size.width * 0.46
                 )
             )
 
-            for limb in recipe.limbs {
-                let pigment = color(for: limb.pigment, field: field, branch: branch, accent: accent)
-                let bodyPath = taperedPath(for: limb, in: size)
-                let start = point(limb.start, in: size)
-                let end = point(limb.end, in: size)
-                let centerline = curvedPath(for: limb, in: size)
-
-                context.fill(
-                    bodyPath,
-                    with: .linearGradient(
-                        Gradient(colors: [
-                            pigment.opacity(limb.opacity * 0.22),
-                            pigment.opacity(limb.opacity * 0.72),
-                        ]),
-                        startPoint: start,
-                        endPoint: end
+            let lit = Set(recipe.litRingIndexes)
+            for (index, ringCenter) in ringCenters(origin: origin, radius: radius).enumerated() {
+                let ring = Path(
+                    ellipseIn: CGRect(
+                        x: ringCenter.x - radius,
+                        y: ringCenter.y - radius,
+                        width: radius * 2,
+                        height: radius * 2
                     )
                 )
+                let emphasis = lit.contains(index)
+                context.fill(ring, with: .color(ink.opacity(emphasis ? 0.16 : 0.06)))
                 context.stroke(
-                    centerline,
-                    with: .color(line.opacity(0.20 + limb.opacity * 0.24)),
-                    lineWidth: max(0.45, min(size.width, size.height) * CGFloat(limb.endWidth) * 0.18)
+                    ring,
+                    with: .color((emphasis ? pale : ink).opacity(emphasis ? 0.82 : 0.48)),
+                    lineWidth: max(1, minimumSide * (emphasis ? 0.0054 : 0.0041))
                 )
             }
 
-            let focalPoint = point(recipe.focalPoint, in: size)
-            let focalRadius = max(2, min(size.width, size.height) * 0.055)
-            let aura = Path(
-                ellipseIn: CGRect(
-                    x: focalPoint.x - focalRadius * 2.5,
-                    y: focalPoint.y - focalRadius * 2.5,
-                    width: focalRadius * 5,
-                    height: focalRadius * 5
-                ))
-            context.fill(
-                aura,
-                with: .radialGradient(
-                    Gradient(colors: [accent.opacity(0.42), accent.opacity(0.06), .clear]),
-                    center: focalPoint,
-                    startRadius: 0,
-                    endRadius: focalRadius * 2.5
-                )
-            )
+            let beadRadius = max(1.3, radius * 0.06)
             context.fill(
                 Path(
                     ellipseIn: CGRect(
-                        x: focalPoint.x - focalRadius * 0.28,
-                        y: focalPoint.y - focalRadius * 0.28,
-                        width: focalRadius * 0.56,
-                        height: focalRadius * 0.56
-                    )),
-                with: .color(accent.opacity(0.92))
+                        x: origin.x - beadRadius,
+                        y: origin.y - beadRadius,
+                        width: beadRadius * 2,
+                        height: beadRadius * 2
+                    )
+                ),
+                with: .color(pale.opacity(0.72))
             )
         }
         .accessibilityHidden(true)
-    }
-
-    private func color(
-        for pigment: BranchingRecordingCoverPigment,
-        field: Color,
-        branch: Color,
-        accent: Color
-    ) -> Color {
-        switch pigment {
-        case .field: field
-        case .branch: branch
-        case .accent: accent
-        }
-    }
-
-    private func taperedPath(for limb: BranchingRecordingCoverLimb, in size: CGSize) -> Path {
-        let start = point(limb.start, in: size)
-        let control = point(limb.control, in: size)
-        let end = point(limb.end, in: size)
-        let minimumSize = min(size.width, size.height)
-        let startOffset = normal(from: start, to: control).scaled(by: minimumSize * CGFloat(limb.startWidth) * 0.5)
-        let endOffset = normal(from: control, to: end).scaled(by: minimumSize * CGFloat(limb.endWidth) * 0.5)
-        let controlOffset = (startOffset + endOffset).scaled(by: 0.5)
-        let outerControls = cubicControls(
-            from: start + startOffset,
-            through: control + controlOffset,
-            to: end + endOffset
-        )
-        let innerControls = cubicControls(
-            from: end - endOffset,
-            through: control - controlOffset,
-            to: start - startOffset
-        )
-
-        var path = Path()
-        path.move(to: start + startOffset)
-        path.addCurve(
-            to: end + endOffset,
-            control1: outerControls.0,
-            control2: outerControls.1
-        )
-        path.addLine(to: end - endOffset)
-        path.addCurve(
-            to: start - startOffset,
-            control1: innerControls.0,
-            control2: innerControls.1
-        )
-        path.closeSubpath()
-        return path
-    }
-
-    private func curvedPath(for limb: BranchingRecordingCoverLimb, in size: CGSize) -> Path {
-        let start = point(limb.start, in: size)
-        let end = point(limb.end, in: size)
-        let controls = cubicControls(from: start, through: point(limb.control, in: size), to: end)
-        var path = Path()
-        path.move(to: start)
-        path.addCurve(to: end, control1: controls.0, control2: controls.1)
-        return path
-    }
-
-    /// Converts the shared quadratic shape model into equivalent cubic controls
-    /// so filled tapered limbs and their center strokes bend together.
-    private func cubicControls(from start: CGPoint, through control: CGPoint, to end: CGPoint) -> (CGPoint, CGPoint) {
-        (
-            start + (control - start).scaled(by: 2.0 / 3.0),
-            end + (control - end).scaled(by: 2.0 / 3.0)
-        )
     }
 
     private func point(_ point: BranchingRecordingCoverPoint, in size: CGSize) -> CGPoint {
         CGPoint(x: point.x * size.width, y: point.y * size.height)
     }
 
-    private func normal(from start: CGPoint, to end: CGPoint) -> CGPoint {
-        let dx = end.x - start.x
-        let dy = end.y - start.y
-        let length = max(0.0001, hypot(dx, dy))
-        return CGPoint(x: -dy / length, y: dx / length)
+    private func ringCenters(origin: CGPoint, radius: CGFloat) -> [CGPoint] {
+        var centers = [origin]
+        for index in 0..<6 {
+            let angle = recipe.rotation + Double(index) * (Double.pi / 3)
+            centers.append(
+                CGPoint(
+                    x: origin.x + CGFloat(cos(angle)) * radius,
+                    y: origin.y + CGFloat(sin(angle)) * radius
+                )
+            )
+        }
+        return centers
     }
 }
 
 private extension Color {
     init(_ color: BranchingRecordingCoverColor) {
         self.init(.sRGB, red: color.red, green: color.green, blue: color.blue, opacity: 1)
-    }
-}
-
-private extension CGPoint {
-    static func + (lhs: CGPoint, rhs: CGPoint) -> CGPoint {
-        CGPoint(x: lhs.x + rhs.x, y: lhs.y + rhs.y)
-    }
-
-    static func - (lhs: CGPoint, rhs: CGPoint) -> CGPoint {
-        CGPoint(x: lhs.x - rhs.x, y: lhs.y - rhs.y)
-    }
-
-    func scaled(by factor: CGFloat) -> CGPoint {
-        CGPoint(x: x * factor, y: y * factor)
     }
 }

@@ -12,7 +12,7 @@ final class BranchingRecordingCoverRecipeTests: XCTestCase {
         )
         XCTAssertEqual(
             BranchingRecordingCoverRecipe.stableSeed(for: id, domain: "geometry"),
-            0x65B5_0BE2_B5BB_4987
+            0x3044_DA66_0D98_BF10
         )
     }
 
@@ -25,18 +25,21 @@ final class BranchingRecordingCoverRecipeTests: XCTestCase {
         )
     }
 
-    func testRepresentativeUUIDPinsV1PaletteFocalPointAndGeometry() throws {
+    func testRepresentativeUUIDPinsV2SeedGeometryAndInk() throws {
         let id = try XCTUnwrap(UUID(uuidString: "85B4897C-4F5D-4ED1-94EB-C0B5841B1EF5"))
         let recipe = BranchingRecordingCoverRecipe(recordingID: id)
 
-        XCTAssertEqual(recipe.palette.family, .tidalStone)
-        XCTAssertEqual(recipe.palette.variant, 0)
-        XCTAssertEqual(quantized(recipe.focalPoint.x), 453_199)
-        XCTAssertEqual(quantized(recipe.focalPoint.y), 435_403)
-        XCTAssertEqual(recipeDigest(recipe), 0x03F0_77C3_64BF_6AB9)
+        XCTAssertEqual(BranchingRecordingCoverRecipe.version, 2)
+        XCTAssertEqual(quantized(recipe.center.x), 499_299)
+        XCTAssertEqual(quantized(recipe.center.y), 398_408)
+        XCTAssertEqual(quantized(recipe.radius), 136_002)
+        XCTAssertEqual(quantized(recipe.rotation), 390_388)
+        XCTAssertEqual(recipe.litRingIndexes, [5, 6])
+        XCTAssertEqual(quantized(recipe.hueShiftDegrees), 11_053_110)
+        XCTAssertEqual(recipeDigest(recipe), 0x449C_A376_7EE5_1680)
     }
 
-    func testRepresentativeUUIDsProduceDistinctBoundedFiniteGeometry() throws {
+    func testRepresentativeUUIDsProduceDistinctBoundedSeedGeometry() throws {
         let recipes = try [
             "00112233-4455-6677-8899-AABBCCDDEEFF",
             "11112233-4455-6677-8899-AABBCCDDEEFF",
@@ -49,23 +52,25 @@ final class BranchingRecordingCoverRecipeTests: XCTestCase {
         }
 
         for recipe in recipes {
-            XCTAssertLessThanOrEqual(recipe.limbs.count, BranchingRecordingCoverRecipe.maximumLimbCount)
-            XCTAssertFalse(recipe.limbs.isEmpty)
-            XCTAssertTrue((5...6).contains(recipe.limbs.filter { $0.depth == 0 }.count))
-            XCTAssertEqual(recipe.limbs.map(\.depth).max(), BranchingRecordingCoverRecipe.maximumDepth)
-            XCTAssertGreaterThan(
-                recipe.limbs.filter { $0.depth == BranchingRecordingCoverRecipe.maximumDepth }.count,
-                recipe.limbs.filter { $0.depth == 0 }.count
-            )
-            XCTAssertTrue(recipe.focalPoint.x.isFinite)
-            XCTAssertTrue(recipe.focalPoint.y.isFinite)
+            XCTAssertTrue((0.49...0.51).contains(recipe.center.x))
+            XCTAssertTrue((0.39...0.41).contains(recipe.center.y))
+            XCTAssertTrue((0.127...0.137).contains(recipe.radius))
+            XCTAssertTrue((0..<(Double.pi / 3)).contains(recipe.rotation) || recipe.rotation == Double.pi / 3)
+            XCTAssertTrue((1...2).contains(recipe.litRingIndexes.count))
+            XCTAssertEqual(recipe.litRingIndexes, recipe.litRingIndexes.sorted())
             XCTAssertTrue(
-                recipe.limbs.allSatisfy { limb in
-                    [
-                        limb.start.x, limb.start.y, limb.control.x, limb.control.y,
-                        limb.end.x, limb.end.y, limb.startWidth, limb.endWidth, limb.opacity,
-                    ].allSatisfy(\.isFinite)
-                })
+                recipe.litRingIndexes.allSatisfy { (0..<BranchingRecordingCoverRecipe.ringCount).contains($0) })
+            XCTAssertLessThanOrEqual(
+                abs(recipe.hueShiftDegrees),
+                BranchingRecordingCoverRecipe.maximumHueShiftDegrees + 0.000_001
+            )
+            XCTAssertTrue(
+                [
+                    recipe.center.x, recipe.center.y, recipe.radius, recipe.rotation,
+                    recipe.hueShiftDegrees, recipe.ink.red, recipe.ink.green, recipe.ink.blue,
+                    recipe.pale.red, recipe.pale.green, recipe.pale.blue,
+                ].allSatisfy(\.isFinite)
+            )
         }
 
         for (left, right) in zip(recipes, recipes.dropFirst()) {
@@ -73,35 +78,26 @@ final class BranchingRecordingCoverRecipeTests: XCTestCase {
         }
     }
 
-    func testUUIDPaletteSelectionCoversTheThreeCuratedFamiliesWithoutQuotas() throws {
-        let recipes = try (0..<96).map { value in
-            let id = try XCTUnwrap(UUID(uuidString: String(format: "00000000-0000-0000-0000-%012X", value)))
-            return BranchingRecordingCoverRecipe(recordingID: id)
-        }
+    func testSampledCoversStayOnOneNightFieldWithoutASecondBrand() throws {
+        var litCounts: Set<Int> = []
+        var hueShifts: [Double] = []
 
-        XCTAssertEqual(Set(recipes.map(\.palette.family)), Set(BranchingRecordingCoverPalette.Family.allCases))
-        XCTAssertTrue(recipes.allSatisfy { 0..<BranchingRecordingCoverPalette.variantCount ~= $0.palette.variant })
-    }
-
-    func testSampledGeometryStaysWithinTheAcceptedClippedCoordinateBound() throws {
         for value in 0..<512 {
             let id = try XCTUnwrap(UUID(uuidString: String(format: "00000000-0000-0000-0000-%012X", value)))
             let recipe = BranchingRecordingCoverRecipe(recordingID: id)
-            let coordinates = recipe.limbs.flatMap { limb in
-                [
-                    limb.start.x, limb.start.y,
-                    limb.control.x, limb.control.y,
-                    limb.end.x, limb.end.y,
-                ]
-            }
+            litCounts.insert(recipe.litRingIndexes.count)
+            hueShifts.append(recipe.hueShiftDegrees)
 
-            XCTAssertTrue(
-                coordinates.allSatisfy {
-                    abs($0) <= BranchingRecordingCoverRecipe.maximumNormalizedCoordinateMagnitude
-                },
-                "UUID \(id) exceeded the static Canvas composition bound"
-            )
+            XCTAssertTrue((0.49...0.51).contains(recipe.center.x))
+            XCTAssertTrue((0.39...0.41).contains(recipe.center.y))
+            XCTAssertTrue((0.127...0.137).contains(recipe.radius))
+            XCTAssertLessThanOrEqual(abs(recipe.hueShiftDegrees), 12.000_001)
+            XCTAssertNotEqual(recipe.ink.red, recipe.pale.red)
         }
+
+        XCTAssertEqual(litCounts, [1, 2])
+        XCTAssertLessThan(hueShifts.min() ?? 0, -4)
+        XCTAssertGreaterThan(hueShifts.max() ?? 0, 4)
     }
 
     private func recipeDigest(_ recipe: BranchingRecordingCoverRecipe) -> UInt64 {
@@ -113,38 +109,25 @@ final class BranchingRecordingCoverRecipeTests: XCTestCase {
         }
 
         append(UInt64(BranchingRecordingCoverRecipe.version))
-        append(UInt64(BranchingRecordingCoverPalette.Family.allCases.firstIndex(of: recipe.palette.family)!))
-        append(UInt64(recipe.palette.variant))
-        append(UInt64(recipe.limbs.count))
-        append(UInt64(bitPattern: quantized(recipe.focalPoint.x)))
-        append(UInt64(bitPattern: quantized(recipe.focalPoint.y)))
-
-        for limb in recipe.limbs {
-            append(UInt64(bitPattern: quantized(limb.start.x)))
-            append(UInt64(bitPattern: quantized(limb.start.y)))
-            append(UInt64(bitPattern: quantized(limb.control.x)))
-            append(UInt64(bitPattern: quantized(limb.control.y)))
-            append(UInt64(bitPattern: quantized(limb.end.x)))
-            append(UInt64(bitPattern: quantized(limb.end.y)))
-            append(UInt64(bitPattern: quantized(limb.startWidth)))
-            append(UInt64(bitPattern: quantized(limb.endWidth)))
-            append(UInt64(limb.depth))
-            append(UInt64(pigmentIndex(limb.pigment)))
-            append(UInt64(bitPattern: quantized(limb.opacity)))
+        append(UInt64(bitPattern: quantized(recipe.center.x)))
+        append(UInt64(bitPattern: quantized(recipe.center.y)))
+        append(UInt64(bitPattern: quantized(recipe.radius)))
+        append(UInt64(bitPattern: quantized(recipe.rotation)))
+        append(UInt64(recipe.litRingIndexes.count))
+        for index in recipe.litRingIndexes {
+            append(UInt64(index))
         }
-
+        append(UInt64(bitPattern: quantized(recipe.hueShiftDegrees)))
+        append(UInt64(bitPattern: quantized(recipe.ink.red)))
+        append(UInt64(bitPattern: quantized(recipe.ink.green)))
+        append(UInt64(bitPattern: quantized(recipe.ink.blue)))
+        append(UInt64(bitPattern: quantized(recipe.pale.red)))
+        append(UInt64(bitPattern: quantized(recipe.pale.green)))
+        append(UInt64(bitPattern: quantized(recipe.pale.blue)))
         return digest
     }
 
     private func quantized(_ value: Double) -> Int64 {
         Int64((value * 1_000_000).rounded())
-    }
-
-    private func pigmentIndex(_ pigment: BranchingRecordingCoverPigment) -> Int {
-        switch pigment {
-        case .field: 0
-        case .branch: 1
-        case .accent: 2
-        }
     }
 }
