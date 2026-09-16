@@ -160,8 +160,12 @@ struct VocabularyView: View {
 
                 dividerLine
 
+                spokenPunctuationRow
+
+                dividerLine
+
                 pipelineStep(
-                    number: 4,
+                    number: 5,
                     title: "Shape text",
                     detail: "Spacing, casing, and ending punctuation",
                     actionTitle: nil,
@@ -219,6 +223,35 @@ struct VocabularyView: View {
                             .fill(DesignSystem.Colors.surfaceElevated)
                     )
             }
+        }
+        .padding(.horizontal, DesignSystem.Spacing.lg)
+        .padding(.vertical, DesignSystem.Spacing.md)
+    }
+
+    private var spokenPunctuationRow: some View {
+        HStack(spacing: DesignSystem.Spacing.md) {
+            Text("4")
+                .font(DesignSystem.Typography.caption.weight(.semibold))
+                .foregroundStyle(DesignSystem.Colors.accent)
+                .frame(width: 24, height: 24)
+                .background(
+                    Circle()
+                        .fill(DesignSystem.Colors.accent.opacity(0.12))
+                )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Spoken punctuation")
+                    .font(DesignSystem.Typography.body)
+                Text("“question mark” → ? · “literal question mark” keeps the words. Dictation and files only; meetings stay verbatim.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Toggle("Spoken punctuation", isOn: $settingsViewModel.spokenPunctuationEnabled)
+                .toggleStyle(.switch)
+                .labelsHidden()
         }
         .padding(.horizontal, DesignSystem.Spacing.lg)
         .padding(.vertical, DesignSystem.Spacing.md)

@@ -109,6 +109,7 @@ public actor DictationService: DictationServiceProtocol {
     private let snippetRepo: TextSnippetRepositoryProtocol?
     private let voiceReturnTriggers: @Sendable () -> [String]
     private let processingMode: @Sendable () -> Dictation.ProcessingMode
+    private let spokenPunctuationEnabled: @Sendable () -> Bool
     private let dictationInsertionStyle: @Sendable () -> DictationInsertionStyle
     private let textRefinementService: TextRefinementService
     private let llmService: LLMServiceProtocol?
@@ -181,6 +182,7 @@ public actor DictationService: DictationServiceProtocol {
         voiceReturnTriggers: (@Sendable () -> [String])? = nil,
         voiceReturnTrigger: (@Sendable () -> String?)? = nil,
         processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil,
+        spokenPunctuationEnabled: (@Sendable () -> Bool)? = nil,
         dictationInsertionStyle: (@Sendable () -> DictationInsertionStyle)? = nil,
         llmService: LLMServiceProtocol? = nil,
         llmRunRepo: LLMRunRepositoryProtocol? = nil,
@@ -215,6 +217,7 @@ public actor DictationService: DictationServiceProtocol {
             self.voiceReturnTriggers = { [] }
         }
         self.processingMode = processingMode ?? { .raw }
+        self.spokenPunctuationEnabled = spokenPunctuationEnabled ?? { true }
         self.dictationInsertionStyle = dictationInsertionStyle ?? { .sentence }
         self.textRefinementService = TextRefinementService()
         self.llmService = llmService
@@ -1371,7 +1374,8 @@ public actor DictationService: DictationServiceProtocol {
             mode: mode,
             customWords: words,
             snippets: snippets,
-            insertionStyle: insertionStyle
+            insertionStyle: insertionStyle,
+            spokenPunctuationEnabled: spokenPunctuationEnabled()
         )
         let cleanTranscript = refinement.text
         let expandedSnippetIDs = refinement.expandedSnippetIDs

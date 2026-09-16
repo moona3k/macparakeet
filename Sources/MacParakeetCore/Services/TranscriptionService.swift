@@ -306,6 +306,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
     private let customWordRepo: CustomWordRepositoryProtocol?
     private let snippetRepo: TextSnippetRepositoryProtocol?
     private let processingMode: @Sendable () -> Dictation.ProcessingMode
+    private let spokenPunctuationEnabled: @Sendable () -> Bool
     private let textRefinementService: TextRefinementService
     private let llmService: LLMServiceProtocol?
     private let llmRunRecorder: LLMRunRecorder
@@ -343,6 +344,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         customWordRepo: CustomWordRepositoryProtocol? = nil,
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
         processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil,
+        spokenPunctuationEnabled: (@Sendable () -> Bool)? = nil,
         llmService: LLMServiceProtocol? = nil,
         llmRunRepo: LLMRunRepositoryProtocol? = nil,
         shouldUseAIFormatter: (@Sendable () -> Bool)? = nil,
@@ -377,6 +379,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
             processingMode: processingMode,
+            spokenPunctuationEnabled: spokenPunctuationEnabled,
             llmService: llmService,
             llmRunRepo: llmRunRepo,
             shouldUseAIFormatter: shouldUseAIFormatter,
@@ -414,6 +417,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         customWordRepo: CustomWordRepositoryProtocol? = nil,
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
         processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil,
+        spokenPunctuationEnabled: (@Sendable () -> Bool)? = nil,
         llmService: LLMServiceProtocol? = nil,
         llmRunRepo: LLMRunRepositoryProtocol? = nil,
         shouldUseAIFormatter: (@Sendable () -> Bool)? = nil,
@@ -447,6 +451,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         self.customWordRepo = customWordRepo
         self.snippetRepo = snippetRepo
         self.processingMode = processingMode ?? { .raw }
+        self.spokenPunctuationEnabled = spokenPunctuationEnabled ?? { true }
         self.textRefinementService = TextRefinementService()
         self.llmService = llmService
         self.llmRunRecorder = LLMRunRecorder(repository: llmRunRepo)
@@ -2178,7 +2183,8 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
             rawText: rawText,
             mode: mode,
             customWords: customWords,
-            snippets: snippets
+            snippets: snippets,
+            spokenPunctuationEnabled: source == .meeting ? false : spokenPunctuationEnabled()
         )
         let baseText = refinement.text ?? rawText
         let transcriptFormatter = TranscriptFormatter(

@@ -658,6 +658,9 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 processingMode: {
                     processingMode
                 },
+                spokenPunctuationEnabled: {
+                    UserDefaultsAppRuntimePreferences.spokenPunctuationEnabled(defaults: defaults)
+                },
                 shouldKeepDownloadedAudio: {
                     shouldKeepDownloadedAudio
                 },

@@ -28,7 +28,14 @@ struct VocabProcessCommand: AsyncParsableCommand {
         let snippets = try snippetRepo.fetchEnabled()
 
         let pipeline = TextProcessingPipeline()
-        let result = pipeline.process(text: text, customWords: words, snippets: snippets)
+        let result = pipeline.process(
+            text: text,
+            customWords: words,
+            snippets: snippets,
+            spokenPunctuationEnabled: UserDefaultsAppRuntimePreferences.spokenPunctuationEnabled(
+                defaults: macParakeetAppDefaults()
+            )
+        )
 
         print(result.text)
 

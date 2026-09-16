@@ -1405,6 +1405,15 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.processingMode, Dictation.ProcessingMode.raw.rawValue)
     }
 
+    func testSpokenPunctuationDefaultsOnAndPersistsOff() {
+        XCTAssertTrue(viewModel.spokenPunctuationEnabled)
+        viewModel.spokenPunctuationEnabled = false
+        XCTAssertEqual(
+            testDefaults.object(forKey: UserDefaultsAppRuntimePreferences.spokenPunctuationEnabledKey) as? Bool,
+            false
+        )
+    }
+
     // MARK: - Permissions
 
     func testAccessibilityGrantRetriesShortcutsOnlyOnGrantTransitions() async throws {
