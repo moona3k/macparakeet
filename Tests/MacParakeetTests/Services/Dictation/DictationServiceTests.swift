@@ -425,6 +425,55 @@ final class DictationServiceTests: XCTestCase {
             })
     }
 
+    func testConfirmCancelPreservesDiscardedDictationWhenEnabled() async throws {
+        await mockSTT.configure(result: STTResult(text: "keep this cancelled take"))
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldPreserveDiscardedDictations: { true }
+        )
+
+        try await service.startRecording()
+        await service.cancelRecording(reason: .escape)
+        await service.confirmCancel()
+
+        let saved = try dictationRepo.fetchAll()
+        XCTAssertEqual(saved.count, 1)
+        XCTAssertEqual(saved.first?.status, .cancelled)
+        XCTAssertEqual(saved.first?.rawTranscript, "keep this cancelled take")
+        XCTAssertFalse(saved.first?.hidden ?? true)
+    }
+
+    func testConfirmCancelDoesNotSaveWhenPreserveDiscardedIsOff() async throws {
+        await mockSTT.configure(result: STTResult(text: "should not be saved"))
+        try await service.startRecording()
+        await service.cancelRecording(reason: .escape)
+        await service.confirmCancel()
+
+        XCTAssertTrue(try dictationRepo.fetchAll().isEmpty)
+    }
+
+    func testUndoWindowExpiryPreservesDiscardedDictationWhenEnabled() async throws {
+        await mockSTT.configure(result: STTResult(text: "expired cancel still kept"))
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldPreserveDiscardedDictations: { true },
+            cancelWindow: .milliseconds(20)
+        )
+
+        try await service.startRecording()
+        await service.cancelRecording(reason: .escape)
+        try await Task.sleep(for: .milliseconds(80))
+
+        let saved = try dictationRepo.fetchAll()
+        XCTAssertEqual(saved.count, 1)
+        XCTAssertEqual(saved.first?.status, .cancelled)
+        XCTAssertEqual(saved.first?.rawTranscript, "expired cancel still kept")
+    }
+
     func testCancelThenConfirmEmitsCancelledTelemetryAndOperationReason() async throws {
         let telemetry = DictationTelemetrySpy()
         Telemetry.configure(telemetry)

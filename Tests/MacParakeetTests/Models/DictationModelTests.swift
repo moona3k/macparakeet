@@ -58,6 +58,7 @@ final class DictationModelTests: XCTestCase {
         XCTAssertEqual(Dictation.DictationStatus.recording.rawValue, "recording")
         XCTAssertEqual(Dictation.DictationStatus.processing.rawValue, "processing")
         XCTAssertEqual(Dictation.DictationStatus.completed.rawValue, "completed")
+        XCTAssertEqual(Dictation.DictationStatus.cancelled.rawValue, "cancelled")
         XCTAssertEqual(Dictation.DictationStatus.error.rawValue, "error")
     }
 

@@ -35,7 +35,8 @@ public protocol DictationServiceProtocol: Sendable {
     func startRecording(context: DictationTelemetryContext) async throws
     func stopRecording() async throws -> DictationResult
     func cancelRecording(reason: TelemetryDictationCancelReason?) async
-    /// Confirm cancel immediately (discard any pending audio and reset to idle).
+    /// Confirm cancel immediately. Default deletes pending audio. When
+    /// preserve-discarded is on, the take is transcribed into History instead.
     func confirmCancel() async
     /// Undo a soft-cancel: transcribe the cancelled recording and return a DictationResult.
     func undoCancel() async throws -> DictationResult
@@ -104,6 +105,7 @@ public actor DictationService: DictationServiceProtocol {
     private let dictationRepo: DictationRepositoryProtocol
     private let shouldSaveAudio: (@Sendable () -> Bool)?
     private let shouldSaveDictationHistory: (@Sendable () -> Bool)?
+    private let shouldPreserveDiscardedDictations: (@Sendable () -> Bool)?
     private let entitlements: EntitlementsChecking?
     private let customWordRepo: CustomWordRepositoryProtocol?
     private let snippetRepo: TextSnippetRepositoryProtocol?
@@ -174,6 +176,7 @@ public actor DictationService: DictationServiceProtocol {
         dictationRepo: DictationRepositoryProtocol,
         shouldSaveAudio: (@Sendable () -> Bool)? = nil,
         shouldSaveDictationHistory: (@Sendable () -> Bool)? = nil,
+        shouldPreserveDiscardedDictations: (@Sendable () -> Bool)? = nil,
         entitlements: EntitlementsChecking? = nil,
         customWordRepo: CustomWordRepositoryProtocol? = nil,
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
@@ -200,6 +203,7 @@ public actor DictationService: DictationServiceProtocol {
         self.dictationRepo = dictationRepo
         self.shouldSaveAudio = shouldSaveAudio
         self.shouldSaveDictationHistory = shouldSaveDictationHistory
+        self.shouldPreserveDiscardedDictations = shouldPreserveDiscardedDictations
         self.entitlements = entitlements
         self.customWordRepo = customWordRepo
         self.snippetRepo = snippetRepo
@@ -655,7 +659,7 @@ public actor DictationService: DictationServiceProtocol {
         cancelResetTask?.cancel()
         cancelResetTask = Task { [generation] in
             try? await Task.sleep(for: cancelWindow)
-            resetAfterCancelIfStillCurrent(generation: generation)
+            await expireCancelIfStillCurrent(generation: generation)
         }
     }
 
@@ -673,17 +677,21 @@ public actor DictationService: DictationServiceProtocol {
         cancelGeneration += 1
         cancelResetTask?.cancel()
         cancelResetTask = nil
-        let cancelledDurationSeconds = resolvedDurationSeconds(capturedMs: pendingCancelledDurationMs)
-        discardPendingCancelledAudio()
 
         if case .recording = _state {
             cancellationRequestedDuringStartSessionID = activeSessionID
             await cancelLiveDictationTranscription(sessionID: activeSessionID)
             await cancelDisplayPreview(sessionID: activeSessionID, clearText: true)
+            let capturedDurationMs = currentRecordingDurationMs()
             if let url = try? await audioProcessor.stopCapture() {
-                try? FileManager.default.removeItem(at: url)
+                pendingCancelledAudioURL = url
+                pendingCancelledDurationMs = capturedDurationMs
             }
+            _state = .cancelled
         }
+
+        let cancelledDurationSeconds = resolvedDurationSeconds(capturedMs: pendingCancelledDurationMs)
+        await persistOrDiscardPendingCancelledAudio()
 
         let device = await audioProcessor.recordingDeviceInfo
         sendDictationOperation(
@@ -826,6 +834,51 @@ public actor DictationService: DictationServiceProtocol {
             return false
         }
         return reason == "interrupted during subscribe"
+    }
+
+    private func persistOrDiscardPendingCancelledAudio() async {
+        guard shouldPreserveDiscardedDictations?() ?? false else {
+            discardPendingCancelledAudio()
+            return
+        }
+        guard let audioURL = pendingCancelledAudioURL else {
+            pendingCancelledDurationMs = nil
+            return
+        }
+        pendingCancelledAudioURL = nil
+        let capturedDurationMs = pendingCancelledDurationMs
+        pendingCancelledDurationMs = nil
+        let formatterContext = currentAIFormatterFinishContext ?? currentAIFormatterStartContext
+        do {
+            _ = try await withCurrentObservabilityContextIfAny {
+                try await processCapturedAudio(
+                    audioURL: audioURL,
+                    capturedDurationMs: capturedDurationMs,
+                    formatterContext: formatterContext,
+                    status: .cancelled
+                )
+            }
+            NotificationCenter.default.post(name: .macParakeetDictationHistoryDidChange, object: nil)
+        } catch {
+            logger.notice(
+                "discarded_dictation_persist_failed error_type=\(Self.errorType(for: error), privacy: .public)"
+            )
+        }
+    }
+
+    private func expireCancelIfStillCurrent(generation: Int) async {
+        guard generation == cancelGeneration else { return }
+        guard case .cancelled = _state else { return }
+        sendDictationOperation(
+            outcome: .cancelled,
+            durationSeconds: resolvedDurationSeconds(capturedMs: pendingCancelledDurationMs),
+            cancelReason: pendingCancelReason
+        )
+        await persistOrDiscardPendingCancelledAudio()
+        recordingStartedAt = nil
+        clearCurrentOperation()
+        _state = .idle
+        cancelResetTask = nil
     }
 
     private func discardPendingCancelledAudio() {
@@ -1277,7 +1330,8 @@ public actor DictationService: DictationServiceProtocol {
     private func processCapturedAudio(
         audioURL: URL,
         capturedDurationMs: Int?,
-        formatterContext: AppPromptContext?
+        formatterContext: AppPromptContext?,
+        status: Dictation.DictationStatus = .completed
     ) async throws -> DictationResult {
         // Track whether the audio file is consumed (moved or explicitly deleted).
         // If an error occurs before that point, clean up the temp file.
@@ -1363,21 +1417,27 @@ public actor DictationService: DictationServiceProtocol {
         let baseText = cleanTranscript ?? result.text
         let saveHistory = shouldSaveDictationHistory?() ?? true
         let dictationID = UUID()
-        let transcriptFormatter = TranscriptFormatter(
-            llmService: llmService,
-            shouldUseAIFormatter: shouldUseAIFormatter,
-            logger: logger
-        )
-        let promptResolver = aiFormatterPromptResolver
-        let formatterOutcome = try await transcriptFormatter.format(
-            baseText,
-            runSource: saveHistory ? LLMRunSource(dictationId: dictationID) : nil,
-            lane: .dictation,
-            resolvePrompt: {
-                let resolution = await promptResolver.resolvePrompt(for: formatterContext)
-                return (resolution.promptTemplate, resolution)
-            }
-        )
+        let formatterOutcome: FormatterOutcome
+        if status == .cancelled {
+            // Recovery only: don't send discarded speech to a cloud formatter.
+            formatterOutcome = .skipped
+        } else {
+            let transcriptFormatter = TranscriptFormatter(
+                llmService: llmService,
+                shouldUseAIFormatter: shouldUseAIFormatter,
+                logger: logger
+            )
+            let promptResolver = aiFormatterPromptResolver
+            formatterOutcome = try await transcriptFormatter.format(
+                baseText,
+                runSource: saveHistory ? LLMRunSource(dictationId: dictationID) : nil,
+                lane: .dictation,
+                resolvePrompt: {
+                    let resolution = await promptResolver.resolvePrompt(for: formatterContext)
+                    return (resolution.promptTemplate, resolution)
+                }
+            )
+        }
         let formattedTranscript = formatterOutcome.text.map {
             guard insertionStyle == .inline else { return $0 }
             let normalizedFormatterText = $0.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1396,8 +1456,8 @@ public actor DictationService: DictationServiceProtocol {
             rawTranscript: result.text,
             cleanTranscript: formattedTranscript ?? cleanTranscript,
             processingMode: mode,
-            status: .completed,
-            hidden: !saveHistory,
+            status: status,
+            hidden: status == .cancelled ? false : !saveHistory,
             wordCount: wc,
             engine: result.engine.rawValue,
             engineVariant: result.engineVariant,
@@ -1410,7 +1470,7 @@ public actor DictationService: DictationServiceProtocol {
             dictation.aiFormatterProfileMatchKind = resolution.matchKind
         }
 
-        if saveHistory, shouldSaveAudio?() ?? false {
+        if (status == .cancelled || saveHistory), shouldSaveAudio?() ?? false {
             do { try AppPaths.ensureDirectories() } catch {
                 logger.error(
                     "dictation_directory_create_failed error_type=\(Self.errorType(for: error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
@@ -1427,16 +1487,20 @@ public actor DictationService: DictationServiceProtocol {
         }
         // If not saving audio, defer will clean up the temp file
 
-        if saveHistory {
+        if status == .cancelled || saveHistory {
             try dictationRepo.save(dictation)
-            await llmRunRecorder.record(formatterOutcome.run)
+            if saveHistory {
+                await llmRunRecorder.record(formatterOutcome.run)
+            }
         } else {
             var privateCopy = dictation
             privateCopy.rawTranscript = ""
             privateCopy.cleanTranscript = nil
             try dictationRepo.save(privateCopy)
         }
-        markFirstDictationCompleted?()
+        if status == .completed {
+            markFirstDictationCompleted?()
+        }
 
         if !expandedSnippetIDs.isEmpty {
             try? snippetRepo?.incrementUseCount(ids: refinement.expandedSnippetIDs)
@@ -1488,22 +1552,6 @@ public actor DictationService: DictationServiceProtocol {
             return capturedDurationMs
         }
         return result.text.split(separator: " ").count * 150
-    }
-
-    private func resetAfterCancelIfStillCurrent(generation: Int) {
-        guard generation == cancelGeneration else { return }
-        if case .cancelled = _state {
-            sendDictationOperation(
-                outcome: .cancelled,
-                durationSeconds: resolvedDurationSeconds(capturedMs: pendingCancelledDurationMs),
-                cancelReason: pendingCancelReason
-            )
-            discardPendingCancelledAudio()
-            recordingStartedAt = nil
-            clearCurrentOperation()
-            _state = .idle
-        }
-        cancelResetTask = nil
     }
 
     private func currentRecordingDurationSeconds() -> Double? {

@@ -40,6 +40,7 @@ final class ConfigCommandTests: XCTestCase {
             "auto-meeting-titles",
             "voice-return-enabled",
             "voice-return-triggers",
+            "preserve-discarded-dictations",
             "save-transcription-audio",
             "meeting-audio-retention",
             "meeting-audio-source",
@@ -209,6 +210,12 @@ final class ConfigCommandTests: XCTestCase {
             ["press return", "submit"]
         )
         XCTAssertEqual(defaults.string(forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey), "press return")
+
+        XCTAssertEqual(try ConfigCommand.write(key: "preserve-discarded-dictations", value: "on", defaults: defaults), "on")
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.preserveDiscardedDictationsKey) as? Bool,
+            true
+        )
 
         XCTAssertEqual(try ConfigCommand.write(key: "save-transcription-audio", value: "off", defaults: defaults), "off")
         XCTAssertEqual(defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey) as? Bool, false)

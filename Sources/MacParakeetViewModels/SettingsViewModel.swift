@@ -319,6 +319,18 @@ public final class SettingsViewModel {
             ))
         }
     }
+    public var preserveDiscardedDictations: Bool {
+        didSet {
+            defaults.set(
+                preserveDiscardedDictations,
+                forKey: UserDefaultsAppRuntimePreferences.preserveDiscardedDictationsKey
+            )
+            Telemetry.send(.settingChanged(
+                setting: .preserveDiscardedDictations,
+                value: Self.settingValue(preserveDiscardedDictations)
+            ))
+        }
+    }
     public var instantDictationEnabled: Bool {
         didSet {
             defaults.set(
@@ -980,6 +992,7 @@ public final class SettingsViewModel {
         pauseMediaDuringDictation = defaults.object(
             forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey
         ) as? Bool ?? false
+        preserveDiscardedDictations = UserDefaultsAppRuntimePreferences.preserveDiscardedDictations(defaults: defaults)
         instantDictationEnabled = defaults.object(
             forKey: UserDefaultsAppRuntimePreferences.instantDictationEnabledKey
         ) as? Bool ?? false

@@ -45,6 +45,15 @@ final class SettingsSearchIndexTests: XCTestCase {
         )
     }
 
+    func testPreserveDiscardedQueryFindsDictationToggle() {
+        let results = SettingsSearchIndex.matches("accidental cancel")
+
+        XCTAssertTrue(
+            results.contains(where: { $0.id == "dictation.preserve.discarded" }),
+            "Accidental cancel recovery should find the preserve discarded setting"
+        )
+    }
+
     func testLivePreviewQueryFindsDictationPreviewSetting() {
         let results = SettingsSearchIndex.matches("live preview")
 

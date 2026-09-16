@@ -182,10 +182,8 @@ public final class DictationRepository: DictationRepositoryProtocol {
                     wordCount: persisted.wordCount
                 )
             default:
-                // Target status isn't .completed — no-op. In practice the app
-                // only saves dictations at .completed (DictationService.save),
-                // so this branch is defensive: if a future code path ever writes
-                // a non-completed status it won't perturb lifetime counters.
+                // Target status isn't .completed — no-op, including cancelled
+                // recoveries that should not inflate lifetime/voice stats.
                 // Note: "lifetime totalCount" is defined as rows that reached
                 // .completed — consistent with `recomputeLifetimeStats`, which
                 // filters on `status = 'completed'`.

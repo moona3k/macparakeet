@@ -89,6 +89,12 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- `config get|set|list` includes `preserve-discarded-dictations` (`on`/`off`,
+  default off). When on, cancelled dictations are transcribed into History
+  instead of being deleted. Nothing is pasted.
+
 ## [4.2.0] — 2026-09-15
 
 ### Added

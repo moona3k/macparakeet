@@ -26,6 +26,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var openAppAfterMeetingEnd: Bool { get }
     var notifyOnMeetingEnd: Bool { get }
     var pauseMediaDuringDictation: Bool { get }
+    var preserveDiscardedDictations: Bool { get }
     var instantDictationEnabled: Bool { get }
     var customVocabularyRecognitionBoostingEnabled: Bool { get }
     var showLiveDictationPreview: Bool { get }
@@ -546,6 +547,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let meetingAudioSourceModeKey = "meetingAudioSourceMode"
     public static let meetingAutoStopEnabledKey = "meetingAutoStopEnabled"
     public static let pauseMediaDuringDictationKey = "pauseMediaDuringDictation"
+    public static let preserveDiscardedDictationsKey = "preserveDiscardedDictations"
     public static let instantDictationEnabledKey = "instantDictationEnabled"
     public static let customVocabularyRecognitionBoostingEnabledKey = "customVocabularyRecognitionBoostingEnabled"
     public static let showLiveDictationPreviewKey = "showLiveDictationPreview"
@@ -745,6 +747,14 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public var pauseMediaDuringDictation: Bool {
         defaults.object(forKey: Self.pauseMediaDuringDictationKey) as? Bool ?? false
+    }
+
+    public var preserveDiscardedDictations: Bool {
+        Self.preserveDiscardedDictations(defaults: defaults)
+    }
+
+    public static func preserveDiscardedDictations(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: preserveDiscardedDictationsKey) as? Bool ?? false
     }
 
     public var instantDictationEnabled: Bool {

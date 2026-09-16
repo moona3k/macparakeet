@@ -216,6 +216,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.silenceAutoStop, "silenceAutoStop should default to false")
         XCTAssertEqual(viewModel.silenceDelay, 2.0, "silenceDelay should default to 2.0")
         XCTAssertFalse(viewModel.pauseMediaDuringDictation, "pauseMediaDuringDictation should default to false")
+        XCTAssertFalse(viewModel.preserveDiscardedDictations, "preserve discarded dictations should default to false")
         XCTAssertFalse(viewModel.instantDictationEnabled, "instantDictationEnabled should default to false")
         XCTAssertTrue(viewModel.showLiveDictationPreview, "showLiveDictationPreview should default to true")
         XCTAssertEqual(viewModel.dictationUndoCountdown, .fiveSeconds)
@@ -280,6 +281,7 @@ final class SettingsViewModelTests: XCTestCase {
         testDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.notifyOnMeetingEndKey)
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.meetingAutoStopEnabledKey)
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey)
+        testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.preserveDiscardedDictationsKey)
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.instantDictationEnabledKey)
         testDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.showLiveDictationPreviewKey)
         HotkeyTrigger.chord(modifiers: ["control", "option"], keyCode: 46)
@@ -310,6 +312,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(vm.notifyOnMeetingEnd)
         XCTAssertTrue(vm.meetingAutoStopEnabled)
         XCTAssertTrue(vm.pauseMediaDuringDictation)
+        XCTAssertTrue(vm.preserveDiscardedDictations)
         XCTAssertTrue(vm.instantDictationEnabled)
         XCTAssertFalse(vm.showLiveDictationPreview)
         XCTAssertEqual(vm.meetingHotkeyTrigger, .chord(modifiers: ["control", "option"], keyCode: 46))
@@ -425,6 +428,25 @@ final class SettingsViewModelTests: XCTestCase {
             return setting
         }
         XCTAssertEqual(settings, [.pauseMediaDuringDictation, .pauseMediaDuringDictation])
+    }
+
+    func testPreserveDiscardedDictationsPersistsAndEmitsTelemetry() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        viewModel.preserveDiscardedDictations = true
+
+        XCTAssertTrue(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.preserveDiscardedDictationsKey))
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences.preserveDiscardedDictations(defaults: testDefaults))
+
+        viewModel.preserveDiscardedDictations = false
+
+        XCTAssertFalse(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.preserveDiscardedDictationsKey))
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting, _) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.preserveDiscardedDictations, .preserveDiscardedDictations])
     }
 
     func testInstantDictationPersistsEmitsTelemetryAndPostsNotification() {

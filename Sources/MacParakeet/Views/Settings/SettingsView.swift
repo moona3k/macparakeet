@@ -1159,6 +1159,14 @@ struct SettingsView: View {
                 Divider()
 
                 settingsToggleRow(
+                    title: "Preserve discarded dictations",
+                    detail: "When you cancel or the undo window expires, keep the transcript and audio in History instead of deleting them. Off by default. Nothing is pasted.",
+                    isOn: $viewModel.preserveDiscardedDictations
+                )
+
+                Divider()
+
+                settingsToggleRow(
                     title: "Auto-stop after silence",
                     detail: "Stops recording when speech pauses for the selected delay.",
                     isOn: $viewModel.silenceAutoStop
