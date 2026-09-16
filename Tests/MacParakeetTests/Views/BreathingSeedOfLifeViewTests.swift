@@ -3,12 +3,14 @@ import XCTest
 
 @MainActor
 final class BreathingSeedOfLifeViewTests: XCTestCase {
-    func testListeningStateRotatesAtFullCoral() {
+    func testListeningStateRotatesAndBreathesAtFullCoral() {
         let view = makeView()
 
         view.update(animating: true, frozen: false, quiet: false)
 
         XCTAssertTrue(view.testHook_hasRotationAnimation)
+        XCTAssertTrue(view.testHook_hasBreathingAnimation)
+        XCTAssertEqual(view.testHook_flowerLayerSpeed, 1, accuracy: 0.01)
         XCTAssertFalse(view.testHook_isQuiet)
         XCTAssertEqual(
             view.testHook_centerRingStrokeAlpha,
@@ -17,12 +19,15 @@ final class BreathingSeedOfLifeViewTests: XCTestCase {
         )
     }
 
-    func testQuietStateStopsRotationAndFadesCoral() {
+    func testQuietStateStopsMotionAndFadesCoralEvenIfCallerAsksToAnimate() {
         let view = makeView()
 
-        view.update(animating: false, frozen: false, quiet: true)
+        // Pass animating: true on purpose. Quiet must still win, otherwise a
+        // faded spin would ship if the representable forgot to AND the flags.
+        view.update(animating: true, frozen: false, quiet: true)
 
         XCTAssertFalse(view.testHook_hasRotationAnimation)
+        XCTAssertFalse(view.testHook_hasBreathingAnimation)
         XCTAssertTrue(view.testHook_isQuiet)
         XCTAssertEqual(
             view.testHook_centerRingStrokeAlpha,
@@ -32,7 +37,7 @@ final class BreathingSeedOfLifeViewTests: XCTestCase {
         )
     }
 
-    func testPauseFreezeKeepsFullColorAndAttachedRotation() {
+    func testPauseFreezeKeepsFullColorAndHoldsAttachedMotion() {
         let view = makeView()
 
         view.update(animating: true, frozen: true, quiet: false)
@@ -40,6 +45,13 @@ final class BreathingSeedOfLifeViewTests: XCTestCase {
         XCTAssertTrue(
             view.testHook_hasRotationAnimation,
             "Pause freezes the listening animation in place rather than removing it"
+        )
+        XCTAssertTrue(view.testHook_hasBreathingAnimation)
+        XCTAssertEqual(
+            view.testHook_flowerLayerSpeed,
+            0,
+            accuracy: 0.01,
+            "Pause must stop the layer clock so the current frame holds"
         )
         XCTAssertFalse(view.testHook_isQuiet)
         XCTAssertEqual(
@@ -53,10 +65,29 @@ final class BreathingSeedOfLifeViewTests: XCTestCase {
         let view = makeView()
         view.update(animating: true, frozen: false, quiet: false)
         XCTAssertTrue(view.testHook_hasRotationAnimation)
+        XCTAssertTrue(view.testHook_hasBreathingAnimation)
 
-        view.update(animating: false, frozen: false, quiet: true)
+        view.update(animating: true, frozen: false, quiet: true)
 
         XCTAssertFalse(view.testHook_hasRotationAnimation)
+        XCTAssertFalse(view.testHook_hasBreathingAnimation)
+        XCTAssertTrue(view.testHook_isQuiet)
+        XCTAssertEqual(
+            view.testHook_centerRingStrokeAlpha,
+            BreathingSeedOfLifeNSView.listeningCenterRingAlpha
+                * BreathingSeedOfLifeNSView.quietColorFactor,
+            accuracy: 0.02
+        )
+    }
+
+    func testPauseDoesNotRestoreMotionOrFullColorWhileQuiet() {
+        let view = makeView()
+        view.update(animating: true, frozen: false, quiet: true)
+
+        view.update(animating: true, frozen: true, quiet: true)
+
+        XCTAssertFalse(view.testHook_hasRotationAnimation)
+        XCTAssertFalse(view.testHook_hasBreathingAnimation)
         XCTAssertTrue(view.testHook_isQuiet)
         XCTAssertEqual(
             view.testHook_centerRingStrokeAlpha,

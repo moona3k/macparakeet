@@ -467,6 +467,8 @@ private struct AskStreamingDot: View {
 /// `quiet`: rest pose, no rotation or pulse, faded coral. Used when live
 /// transcription is off so the empty state does not look like it is listening.
 /// Matches the recording pill's idle/paused dim rather than the pause freeze.
+/// Quiet forces motion off inside the NSView even if the caller still passes
+/// `animating: true` — a faded spin would still read as "listening."
 ///
 /// `reduceMotion` renders a still rosette (same shape and color, no rotation
 /// or pulse) — accessibility, not "off".
@@ -478,12 +480,12 @@ struct BreathingSeedOfLifeView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> BreathingSeedOfLifeNSView {
         let view = BreathingSeedOfLifeNSView()
-        view.update(animating: !reduceMotion && !quiet, frozen: freeze, quiet: quiet)
+        view.update(animating: !reduceMotion, frozen: freeze, quiet: quiet)
         return view
     }
 
     func updateNSView(_ nsView: BreathingSeedOfLifeNSView, context: Context) {
-        nsView.update(animating: !reduceMotion && !quiet, frozen: freeze, quiet: quiet)
+        nsView.update(animating: !reduceMotion, frozen: freeze, quiet: quiet)
     }
 
     func sizeThatFits(
@@ -536,6 +538,12 @@ final class BreathingSeedOfLifeNSView: NSView {
         flowerLayer.animation(forKey: "rotation") != nil
     }
 
+    var testHook_hasBreathingAnimation: Bool {
+        glowLayer.animation(forKey: "breathOpacity") != nil
+    }
+
+    var testHook_flowerLayerSpeed: Float { flowerLayer.speed }
+
     var testHook_isQuiet: Bool { isQuiet }
     private(set) var testHook_centerRingStrokeAlpha: CGFloat = -1
 
@@ -567,14 +575,18 @@ final class BreathingSeedOfLifeNSView: NSView {
     func update(animating: Bool, frozen: Bool, quiet: Bool = false) {
         let quietChanged = quiet != isQuiet
         isQuiet = quiet
+        // Quiet is a complete presentation mode, not a color-only flag: a
+        // faded listening spin would still read as "on." Force motion off
+        // here so callers cannot accidentally combine them.
+        let shouldAnimate = animating && !quiet
         buildIfNeeded()
         if quietChanged {
             applyColors()
         }
 
-        if animating != isAnimating {
-            isAnimating = animating
-            if animating {
+        if shouldAnimate != isAnimating {
+            isAnimating = shouldAnimate
+            if shouldAnimate {
                 startAnimations()
             } else {
                 stopAnimations()
@@ -585,8 +597,8 @@ final class BreathingSeedOfLifeNSView: NSView {
 
         isFrozen = frozen
         // Freezing is only meaningful while animations are attached.
-        setPaused(animating && frozen, flowerLayer)
-        setPaused(animating && frozen, glowLayer)
+        setPaused(shouldAnimate && frozen, flowerLayer)
+        setPaused(shouldAnimate && frozen, glowLayer)
     }
 
     // MARK: - Layer construction
