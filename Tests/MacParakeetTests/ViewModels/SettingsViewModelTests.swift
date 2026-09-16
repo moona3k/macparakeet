@@ -2660,7 +2660,12 @@ final class SettingsViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.engine.speechEnginePreference, .parakeet)
         XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .parakeet)
-        XCTAssertEqual(viewModel.engine.speechEngineError, STTError.engineBusy.localizedDescription)
+        // Engine-switch `engineBusy` is shown as the in-progress-switch copy,
+        // not the transcription-busy STTError string.
+        XCTAssertEqual(
+            viewModel.engine.speechEngineError,
+            EngineSettingsViewModel.speechEngineSwitchUnavailableMessage(for: .switchInProgress)
+        )
     }
 
     private func waitForSpeechEngineSwitchingToFinish(
