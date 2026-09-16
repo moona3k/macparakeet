@@ -1,0 +1,37 @@
+Sources/MacParakeetCore/TextProcessing/README.md
+  s_673be8b32d8d6a::t_e1ce0e931dc795 75-78
+Sources/MacParakeet/Views/Vocabulary/VocabularyView.swift
+  s_673be8b32d8d6a::t_cd105d710695ad 168
+  s_673be8b32d8d6a::t_bf23382f5496ac 233-234,245
+Sources/CLI/Commands/ConfigCommand.swift
+  s_673be8b32d8d6a::t_45acc026284cb2 34
+  s_673be8b32d8d6a::t_a02d2794e91b39 95
+Tests/MacParakeetTests/TextProcessing/TextRefinementServiceTests.swift
+  s_673be8b32d8d6a::t_6d36aaffe32db3 106-129
+Tests/MacParakeetTests/TextProcessing/SpokenPunctuationTests.swift
+  s_673be8b32d8d6a::t_5f9d8455bc23e8 43-45
+  s_673be8b32d8d6a::t_5a3f8ead4ad7f6 9-13
+  s_673be8b32d8d6a::t_ca100d8c0264f5 76-80
+  s_673be8b32d8d6a::t_506f83df718e36 32-33
+Sources/MacParakeetCore/TextProcessing/SpokenPunctuation.swift
+  s_673be8b32d8d6a::t_9a1a1b97a6e674 126
+  s_673be8b32d8d6a::t_5f5fa304a51949 8-9,19,29,36-41,52-54,56,60,62,70-71,83,87-92,94,120-121,123-125,127-133
+Sources/CLI/CHANGELOG.md
+  s_673be8b32d8d6a::t_9c498ea7aeaa73 95-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0dfd9ec70f100b04d95da9c07619dfe6a4619bef",
+  "prompts": {},
+  "sessions": {
+    "s_673be8b32d8d6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
