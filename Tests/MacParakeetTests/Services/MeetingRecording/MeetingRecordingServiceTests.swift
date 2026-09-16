@@ -4337,6 +4337,29 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertFalse(isMuted)
     }
 
+    func testStartMicrophoneMutedClearsWhenNilSourceModeResolvesToSystemOnly() async throws {
+        let captureService = MockMeetingAudioCaptureService(
+            startReport: MeetingAudioCaptureStartReport(sourceMode: .systemOnly)
+        )
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: RecordingLockFileStore(),
+            startMicrophoneMuted: { true }
+        )
+
+        try await service.startRecording()
+        defer {
+            Task { await service.cancelRecording() }
+        }
+
+        let muteState = await service.microphoneMuteState
+        XCTAssertEqual(muteState, MeetingMicrophoneMuteState(isMuted: false, canMute: false))
+        let isMuted = await service.isMicrophoneMuted
+        XCTAssertFalse(isMuted)
+    }
+
     func testMicrophoneMuteStateClearsAfterCaptureFailure() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let service = MeetingRecordingService(

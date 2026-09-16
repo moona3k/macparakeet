@@ -724,7 +724,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             recoveringSources = []
             sourceCaptureMetrics = [:]
             captureHealthMetrics = CaptureHealthMetrics()
-            captureHealthMetrics.sourceMode = sourceMode
+            let resolvedSourceMode = sourceMode ?? .microphoneAndSystem
+            captureHealthMetrics.sourceMode = resolvedSourceMode
             sourceStartupStates = [:]
             sourceHealthLastBufferAt = [:]
             sourceHealthLastBufferActiveSeconds = [:]
@@ -740,7 +741,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             microphoneMuted = false
             microphoneMutedHostTime = nil
             completedMicrophoneMuteHostTimeRanges = []
-            if (sourceMode ?? .microphoneAndSystem).capturesMicrophone, startMicrophoneMuted() {
+            if resolvedSourceMode.capturesMicrophone, startMicrophoneMuted() {
                 microphoneMuted = true
                 // Host time 0 covers the first tap callbacks, which can arrive
                 // before `setMicrophoneMuted` would have a real host-time origin.
@@ -778,6 +779,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             let captureStartReport = try await audioCaptureService.start(sourceMode: sourceMode)
             try await validateStartStillCurrent(session)
             captureHealthMetrics.sourceMode = captureStartReport.sourceMode
+            clearStartMicrophoneMuteIfNeeded(for: captureStartReport.sourceMode)
             captureHealthMetrics.captureStartCompleted = true
             if captureHealthMetrics.captureStartedAt == nil {
                 captureHealthMetrics.captureStartedAt = wallClockNow()
@@ -1494,6 +1496,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         switch event {
         case .captureStarting(let sourceMode):
             captureHealthMetrics.sourceMode = sourceMode
+            clearStartMicrophoneMuteIfNeeded(for: sourceMode)
             sourceStartupStates = [
                 .microphone: sourceMode.capturesMicrophone ? .starting : .notSelected,
                 .system: sourceMode.capturesSystemAudio ? .starting : .notSelected,
@@ -1984,6 +1987,13 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             end: end,
             to: &completedMicrophoneMuteHostTimeRanges
         )
+    }
+
+    private func clearStartMicrophoneMuteIfNeeded(for sourceMode: MeetingAudioSourceMode) {
+        guard !sourceMode.capturesMicrophone else { return }
+        microphoneMuted = false
+        microphoneMutedHostTime = nil
+        completedMicrophoneMuteHostTimeRanges = []
     }
 
     private func appendBoundedCompletedHostTimeRange(

@@ -2155,7 +2155,7 @@ The existing completion handler reads the auto-open preference before presenting
 - [x] `UserDefaultsAppRuntimePreferences.startMeetingsMuted` uses `object as? Bool ?? false` (not `bool(forKey:)`)
 - [x] `MeetingRecordingService` applies mute with host time `0` before `audioCaptureService.start`
 - [x] `microphoneMuteState.isMuted` reports the mute intent while capture is still starting (`canMute` may still be false)
-- [x] The live panel shows muted during `.starting` when the preference is on and the source captures a microphone
+- [x] The live panel view model carries muted intent during `.starting` when the preference is on and the source captures a microphone (the mute control stays disabled until the mic is ready)
 - [x] Unmute after start writes live microphone audio again
 - [x] CLI `config get|set|list` exposes `start-meetings-muted`
 - [x] Focused tests cover first-buffer silence, unmute, system-only ignore, and the default-off preference
