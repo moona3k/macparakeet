@@ -619,7 +619,7 @@ final class DictationFlowCoordinator {
 
                     let pasteStartedAt = Date()
                     if let action {
-                        // Action mode: no trailing space, action replaces the space role
+                        // Action mode: no trailing space, action replaces the role of the space
                         let keystrokeFired = try await self.clipboardService.pasteTextWithAction(
                             transcript,
                             postPasteAction: action,
@@ -636,7 +636,11 @@ final class DictationFlowCoordinator {
                         )
                     }
 
-                    self.emitDictationInsertIfPossible(pasteStartedAt: pasteStartedAt)
+                    // Cmd+V-posted breadcrumb. Action-only Voice Return (empty text +
+                    // Return keystroke) is not a paste and must not enter e2e_ms.
+                    if transcriptHasText {
+                        self.emitDictationInsertIfPossible(pasteStartedAt: pasteStartedAt)
+                    }
                     self.pendingInsertTimings = nil
 
                     // Save pastedToApp metadata

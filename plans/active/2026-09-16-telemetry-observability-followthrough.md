@@ -31,9 +31,9 @@ event name before the website allowlist.
 
 `dictation_operation` carries `capture_ms` / `transcribe_ms`.
 `dictation_insert` is a latency breadcrumb (not a second outcome) with all four
-fields, emitted only after a successful paste. Empty skip and paste failure omit
-it. Website `ALLOWED_EVENTS` must include `dictation_insert` before the app
-ships.
+fields, emitted only after a successful paste of text. Empty skip, action-only
+Voice Return (keystroke with no Cmd+V), and paste failure omit it. Website
+`ALLOWED_EVENTS` must include `dictation_insert` before the app ships.
 
 ## 2. Cheap snapshot SQL
 

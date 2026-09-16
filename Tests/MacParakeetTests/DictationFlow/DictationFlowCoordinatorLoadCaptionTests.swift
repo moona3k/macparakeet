@@ -375,6 +375,7 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         XCTAssertNil(clipboard.lastPastedText)
         XCTAssertNil(clipboard.lastCopiedText)
         XCTAssertNil(clipboard.lastRestoresClipboard)
+        XCTAssertFalse(harness.telemetry.snapshot().containsDictationInsert)
     }
 
     private func makeHarness(
@@ -714,6 +715,13 @@ private extension Array where Element == TelemetryEventSpec {
     var containsCaptionShown: Bool {
         contains { event in
             if case .dictationFirstLoadCaptionShown = event { return true }
+            return false
+        }
+    }
+
+    var containsDictationInsert: Bool {
+        contains { event in
+            if case .dictationInsert = event { return true }
             return false
         }
     }
