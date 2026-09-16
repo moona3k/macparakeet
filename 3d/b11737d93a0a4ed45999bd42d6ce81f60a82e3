@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_673be8b32d8d6a::t_319bbd6ef51f8b 2663-2668
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3db11737d93a0a4ed45999bd42d6ce81f60a82e3",
+  "prompts": {},
+  "sessions": {
+    "s_673be8b32d8d6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
