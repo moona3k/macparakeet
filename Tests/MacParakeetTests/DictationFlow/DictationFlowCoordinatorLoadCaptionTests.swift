@@ -284,6 +284,17 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         XCTAssertEqual(clipboard.lastPastedText, "Mock transcription ")
         XCTAssertEqual(clipboard.lastRestoresClipboard, false)
         XCTAssertNil(clipboard.lastCopiedText)
+        let insert = harness.telemetry.snapshot().compactMap { event -> [String: String]? in
+            guard case .dictationInsert = event else { return nil }
+            return event.props
+        }.last
+        XCTAssertNotNil(insert)
+        XCTAssertEqual(Int(insert?["e2e_ms"] ?? "") ?? -1, (Int(insert?["capture_ms"] ?? "") ?? 0)
+            + (Int(insert?["transcribe_ms"] ?? "") ?? 0)
+            + (Int(insert?["paste_ms"] ?? "") ?? 0))
+        XCTAssertGreaterThanOrEqual(Int(insert?["capture_ms"] ?? "-1") ?? -1, 0)
+        XCTAssertGreaterThanOrEqual(Int(insert?["transcribe_ms"] ?? "-1") ?? -1, 0)
+        XCTAssertGreaterThanOrEqual(Int(insert?["paste_ms"] ?? "-1") ?? -1, 0)
     }
 
     func testInlineInsertionStyleDoesNotAppendTrailingPasteSpace() async throws {
