@@ -66,7 +66,8 @@ struct DictationsSubcommand: ParsableCommand {
                 // the CLI matches what the GUI shows for the same row.
                 let text = d.displayText
                 let preview = text.count > 80 ? String(text.prefix(80)) + "..." : text
-                print("[\(date)] (\(seconds)s) \(preview)  (\(d.id.uuidString.prefix(8)))")
+                let statusLabel = d.status == .cancelled ? " [cancelled]" : ""
+                print("[\(date)] (\(seconds)s)\(statusLabel) \(preview)  (\(d.id.uuidString.prefix(8)))")
             }
 
             let stats = try repo.stats()

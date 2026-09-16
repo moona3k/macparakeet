@@ -425,6 +425,151 @@ final class DictationServiceTests: XCTestCase {
             })
     }
 
+    func testConfirmCancelPreservesDiscardedDictationWhenEnabled() async throws {
+        await mockSTT.configure(result: STTResult(text: "keep this cancelled take"))
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldPreserveDiscardedDictations: { true }
+        )
+
+        try await service.startRecording()
+        await service.cancelRecording(reason: .escape)
+        await service.confirmCancel()
+
+        let saved = try dictationRepo.fetchAll()
+        XCTAssertEqual(saved.count, 1)
+        XCTAssertEqual(saved.first?.status, .cancelled)
+        XCTAssertEqual(saved.first?.rawTranscript, "keep this cancelled take")
+        XCTAssertFalse(saved.first?.hidden ?? true)
+        XCTAssertEqual(try dictationRepo.stats().totalCount, 0)
+    }
+
+    func testConfirmCancelDoesNotSaveWhenPreserveDiscardedIsOff() async throws {
+        await mockSTT.configure(result: STTResult(text: "should not be saved"))
+        try await service.startRecording()
+        await service.cancelRecording(reason: .escape)
+        await service.confirmCancel()
+
+        XCTAssertTrue(try dictationRepo.fetchAll().isEmpty)
+    }
+
+    func testUndoWindowExpiryPreservesDiscardedDictationWhenEnabled() async throws {
+        await mockSTT.configure(result: STTResult(text: "expired cancel still kept"))
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldPreserveDiscardedDictations: { true },
+            cancelWindow: .milliseconds(20)
+        )
+
+        try await service.startRecording()
+        await service.cancelRecording(reason: .escape)
+
+        // Expiry persist is an unstructured Task after `cancelWindow`. A
+        // fixed 80ms sleep races STT on a loaded CI runner.
+        let deadline = ContinuousClock.now + .seconds(2)
+        var saved: [Dictation] = []
+        while ContinuousClock.now < deadline {
+            saved = try dictationRepo.fetchAll()
+            if saved.count == 1 { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        XCTAssertEqual(saved.count, 1)
+        XCTAssertEqual(saved.first?.status, .cancelled)
+        XCTAssertEqual(saved.first?.rawTranscript, "expired cancel still kept")
+    }
+
+    func testConfirmCancelDoesNotSaveWhenHistoryIsOffEvenIfPreserveDiscardedIsOn() async throws {
+        await mockSTT.configure(result: STTResult(text: "privacy wins"))
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldSaveDictationHistory: { false },
+            shouldPreserveDiscardedDictations: { true }
+        )
+
+        try await service.startRecording()
+        await service.cancelRecording(reason: .escape)
+        await service.confirmCancel()
+
+        XCTAssertTrue(try dictationRepo.fetchAll().isEmpty)
+    }
+
+    func testConfirmCancelPersistDoesNotClobberANewRecording() async throws {
+        let enteredTranscribe = DictationSuccessDisplayGate()
+        let releaseTranscribe = DictationSuccessDisplayGate()
+        await mockSTT.configure(result: STTResult(text: "cancelled take recovered later"))
+        await mockSTT.setTranscribeHook {
+            await enteredTranscribe.release()
+            await releaseTranscribe.wait()
+        }
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldPreserveDiscardedDictations: { true }
+        )
+
+        try await service.startRecording()
+        await service.cancelRecording(reason: .escape)
+        let persistTask = Task { await self.service.confirmCancel() }
+        await enteredTranscribe.wait()
+        try await service.startRecording()
+        let stateDuringPersist = await service.state
+        guard case .recording = stateDuringPersist else {
+            XCTFail("Expected recording during cancelled persist, got \(stateDuringPersist)")
+            await releaseTranscribe.release()
+            await persistTask.value
+            return
+        }
+        await releaseTranscribe.release()
+        await persistTask.value
+
+        let stateAfterPersist = await service.state
+        guard case .recording = stateAfterPersist else {
+            XCTFail("Expected recording after cancelled persist, got \(stateAfterPersist)")
+            return
+        }
+        let saved = try dictationRepo.fetchAll()
+        XCTAssertEqual(saved.first?.status, .cancelled)
+    }
+
+    func testStartRecordingFromCancelledPreservesDiscardedDictation() async throws {
+        await mockSTT.configure(result: STTResult(text: "restart from cancel still kept"))
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            shouldPreserveDiscardedDictations: { true }
+        )
+
+        try await service.startRecording()
+        await service.cancelRecording(reason: .escape)
+        try await service.startRecording()
+
+        let deadline = ContinuousClock.now + .seconds(2)
+        var saved: [Dictation] = []
+        while ContinuousClock.now < deadline {
+            saved = try dictationRepo.fetchAll()
+            if saved.count == 1 { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        XCTAssertEqual(saved.count, 1)
+        XCTAssertEqual(saved.first?.status, .cancelled)
+        XCTAssertEqual(saved.first?.rawTranscript, "restart from cancel still kept")
+        let state = await service.state
+        guard case .recording = state else {
+            XCTFail("Expected recording after restart from cancel, got \(state)")
+            return
+        }
+    }
+
     func testCancelThenConfirmEmitsCancelledTelemetryAndOperationReason() async throws {
         let telemetry = DictationTelemetrySpy()
         Telemetry.configure(telemetry)

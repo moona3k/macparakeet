@@ -712,7 +712,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     @objc private func pasteLastDictation() {
         guard let env = environmentProvider() else { return }
         Task {
-            guard let dictation = (try? env.dictationRepo.fetchAll(limit: 1))?.first else { return }
+            guard let dictation = (try? env.dictationRepo.fetchCompleted(limit: 1))?.first else { return }
             // displayText honors the per-row "Undo AI edit" override.
             let text = dictation.displayText
             await pasteFromMenu(text: text, clipboardService: env.clipboardService)
@@ -723,7 +723,8 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         guard let env = environmentProvider(),
               let id = sender.representedObject as? UUID else { return }
         Task {
-            guard let dictation = try? env.dictationRepo.fetch(id: id) else { return }
+            guard let dictation = try? env.dictationRepo.fetch(id: id),
+                  dictation.status == .completed else { return }
             let text = dictation.displayText
             await pasteFromMenu(text: text, clipboardService: env.clipboardService)
         }
@@ -815,7 +816,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
             return
         }
 
-        let dictations = (try? env.dictationRepo.fetchAll(limit: 5)) ?? []
+        let dictations = (try? env.dictationRepo.fetchCompleted(limit: 5)) ?? []
         pasteLastMenuItem?.isEnabled = !dictations.isEmpty
         rebuildRecentDictationsSubmenu(with: dictations)
 
