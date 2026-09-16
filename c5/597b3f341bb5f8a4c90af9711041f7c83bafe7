@@ -1,0 +1,147 @@
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_673be8b32d8d6a::t_d4187f5353d279 195,219-220,405,418,432,446,458,463-474,506
+  s_673be8b32d8d6a::t_375ee813769d63 193-194,221,237-239,267,290,302,314,354,390,462,482,501,580,623,626
+Sources/MacParakeetCore/Models/PromptSystemPromptAssembler.swift
+  s_673be8b32d8d6a::t_3b5e83e9b066f2 18-19,26-27
+  s_673be8b32d8d6a::t_133b49f4671db7 79-80,106
+  s_673be8b32d8d6a::t_64145ebc1e5904 38-39,51-52
+  s_32f720a047a693::t_abf76c23d8cf42 107
+Sources/MacParakeetCore/Models/MeetingAIOutputLanguagePolicy.swift
+  s_673be8b32d8d6a::t_028e33e51970b6 1-85,87-121
+  s_673be8b32d8d6a::t_f393e2e1c98cac 86
+  s_673be8b32d8d6a::t_ffb64bdbb6d684 122-125
+Sources/CLI/Commands/PromptsCommand.swift
+  s_673be8b32d8d6a::t_fa998266a53f8f 1139-1140
+  s_673be8b32d8d6a::t_e3667879d52fa8 1170-1171,1185-1186
+  s_673be8b32d8d6a::t_95ff36d2f4a228 1054,1060-1061
+spec/02-features.md
+  s_673be8b32d8d6a::t_446defa76ba4f5 2165
+Tests/MacParakeetTests/Models/MeetingAIOutputLanguagePolicyTests.swift
+  s_673be8b32d8d6a::t_02f308d2518cd4 1-49
+Tests/CLITests/ConfigCommandTests.swift
+  s_673be8b32d8d6a::t_016c5aa1247a45 41
+  s_673be8b32d8d6a::t_78ab16cab075be 93
+  s_673be8b32d8d6a::t_7747d990abdf6d 589-591
+  s_673be8b32d8d6a::t_ddf2b185fa7a23 202-210
+docs/cli-testing.md
+  s_673be8b32d8d6a::t_a5eb6ac7ce6fe7 273
+  s_673be8b32d8d6a::t_6894edfd1e2f78 259
+Sources/MacParakeet/Views/Settings/LLMSettingsView.swift
+  s_673be8b32d8d6a::t_133159a31b3c6b 714-720,725-750
+  s_673be8b32d8d6a::t_d637383e07003f 194-197
+  s_673be8b32d8d6a::t_4658f494b138b7 721-724
+Tests/MacParakeetTests/Models/PromptTemplateRendererTests.swift
+  s_673be8b32d8d6a::t_639ee6d52d242f 51-54
+  s_673be8b32d8d6a::t_7e2defe2447780 83-85,87-89,91-96
+  s_673be8b32d8d6a::t_e80ee3f4c288d2 124
+  s_673be8b32d8d6a::t_29229535a989f4 109
+  s_673be8b32d8d6a::t_b059f8bff6fba3 278,280-303
+  s_673be8b32d8d6a::t_c9eefb84a3d97d 5-16
+  s_673be8b32d8d6a::t_93bd2be54539ae 67
+  s_673be8b32d8d6a::t_7ba46ff5c5992b 279
+Tests/MacParakeetTests/Database/DatabaseManagerTests.swift
+  s_673be8b32d8d6a::t_b0dffe0ec128be 919-929
+Tests/MacParakeetTests/Database/PromptResultRepositoryTests.swift
+  s_673be8b32d8d6a::t_745a8b328b915b 103-117
+spec/contracts/meeting-artifacts-v1.md
+  s_673be8b32d8d6a::t_26a924d64b9ac5 150-152
+spec/01-data-model.md
+  s_673be8b32d8d6a::t_e8056026ed457b 1748
+  s_673be8b32d8d6a::t_235e3f6ba0e075 692
+  s_673be8b32d8d6a::t_bd0e70abe39f65 711-715
+  s_673be8b32d8d6a::t_1bdac6820c7bb6 1328
+  s_673be8b32d8d6a::t_cab9471f0ab31f 1694
+Sources/MacParakeetViewModels/LLMSettingsViewModel.swift
+  s_673be8b32d8d6a::t_f0100205176ffc 476-485
+  s_673be8b32d8d6a::t_52185ff001b81d 620
+Sources/MacParakeetCore/AppRuntimePreferences.swift
+  s_673be8b32d8d6a::t_fd036f108387b7 23
+  s_673be8b32d8d6a::t_bb24ebb003601b 728-731
+  s_673be8b32d8d6a::t_28cddf918fd95b 545
+Sources/MacParakeetCore/Models/PromptResult.swift
+  s_673be8b32d8d6a::t_a34dda1a78bba9 32-35
+  s_673be8b32d8d6a::t_015c5dfba165f7 109
+  s_673be8b32d8d6a::t_0f9b70a352f2b7 96
+  s_673be8b32d8d6a::t_965034f80554eb 79
+  s_673be8b32d8d6a::t_71b652626b0642 59-60
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  s_673be8b32d8d6a::t_96e67dca62f262 2320-2331
+Tests/MacParakeetTests/ViewModels/LLMSettingsViewModelTests.swift
+  s_673be8b32d8d6a::t_8be81513b5493c 191-206
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_673be8b32d8d6a::t_0da9d719203797 302-311
+spec/contracts/cli-json-v1.md
+  s_673be8b32d8d6a::t_36375c52fe6699 197-200
+Sources/CLI/Commands/ConfigCommand.swift
+  s_673be8b32d8d6a::t_0517444b990492 449-452
+  s_673be8b32d8d6a::t_fec71799a33993 46-47
+  s_673be8b32d8d6a::t_e2b9dee838df23 663-671
+  s_673be8b32d8d6a::t_5421b41064fd9c 146-150
+  s_673be8b32d8d6a::t_33cfe0bbc641c2 345-346
+  s_673be8b32d8d6a::t_b45ed0f8453591 145
+spec/12-processing-layer.md
+  s_673be8b32d8d6a::t_23f348ad0f74d4 224
+  s_673be8b32d8d6a::t_b3ee91234071cc 232
+  s_673be8b32d8d6a::t_7d8ee0815127d2 207
+  s_673be8b32d8d6a::t_2f799917c123e2 267-269
+  s_673be8b32d8d6a::t_4edbdcf276af65 277-282
+Sources/CLI/Commands/MeetingsCommand.swift
+  s_673be8b32d8d6a::t_790d5db5053e8b 1161
+  s_673be8b32d8d6a::t_e90feafdf87599 1136
+Tests/MacParakeetTests/ViewModels/PromptResultsViewModelTests.swift
+  s_673be8b32d8d6a::t_4e0ea8569d42a2 1844
+  s_673be8b32d8d6a::t_fb36c473fdfa59 20
+  s_673be8b32d8d6a::t_3d9fe94e5436e2 195
+  s_673be8b32d8d6a::t_d93550410129c6 1519
+  s_673be8b32d8d6a::t_2ad5704dbef7d1 41-52
+  s_673be8b32d8d6a::t_e8d2686793f640 1559-1625
+  s_673be8b32d8d6a::t_b825a7ae2b154c 1712
+  s_673be8b32d8d6a::t_1568f9bb121b95 1747
+  s_673be8b32d8d6a::t_cea20088e91d24 1421
+Tests/MacParakeetTests/AppRuntimePreferencesTests.swift
+  s_673be8b32d8d6a::t_6b51df4058c4e8 558-585
+Sources/CLI/CHANGELOG.md
+  s_673be8b32d8d6a::t_257a9fe12216c8 92-100
+Sources/MacParakeetViewModels/PromptResultsViewModel.swift
+  s_673be8b32d8d6a::t_a18b372017cbe2 523-526
+  s_673be8b32d8d6a::t_c79b9e81ca74b1 92
+  s_673be8b32d8d6a::t_dcbe3ac4c0e6a6 638-639
+  s_673be8b32d8d6a::t_50274a4237ac78 53-54
+  s_673be8b32d8d6a::t_58bec32da9d6dc 121-125
+  s_673be8b32d8d6a::t_a36085c46f1cee 767
+  s_673be8b32d8d6a::t_59dae54eb2664a 74
+  s_673be8b32d8d6a::t_f5bbc72bfc4fa8 695-696
+  s_673be8b32d8d6a::t_592260b7ddaf50 672
+  s_673be8b32d8d6a::t_72fee5552dd943 858-859
+  s_673be8b32d8d6a::t_be38c2d4abd83a 880-881,888-889
+Sources/MacParakeetCore/Services/SavedAudioAutoPromptCompletionService.swift
+  s_673be8b32d8d6a::t_495190a2127e70 109,121-124
+  s_673be8b32d8d6a::t_0961bf9a53edac 253-254
+  s_673be8b32d8d6a::t_400eef5197fb9f 136
+  s_673be8b32d8d6a::t_75e1642dd36c71 223,229-230
+  s_673be8b32d8d6a::t_bacf9081178027 168-169,173-178,181-186,191-194,198-201,205-210,262,297,311-312,315-316
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c5597b3f341bb5f8a4c90af9711041f7c83bafe7",
+  "prompts": {},
+  "sessions": {
+    "s_32f720a047a693": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e8e7bcbd-c4d2-4d47-af6c-1c17af5b7971",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_673be8b32d8d6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
