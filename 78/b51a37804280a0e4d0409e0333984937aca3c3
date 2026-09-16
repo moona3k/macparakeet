@@ -1,0 +1,26 @@
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorLoadCaptionTests.swift
+  s_32f720a047a693::t_21f27c4a668ca5 378
+  s_32f720a047a693::t_3bd961dc6bed20 722-728
+docs/telemetry.md
+  s_32f720a047a693::t_b1c042c708a496 257
+plans/active/2026-09-16-telemetry-observability-followthrough.md
+  s_32f720a047a693::t_7a6ec32f9461f7 34-36
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_32f720a047a693::t_fdb9967b4ccf6d 622,639-643
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "78b51a37804280a0e4d0409e0333984937aca3c3",
+  "prompts": {},
+  "sessions": {
+    "s_32f720a047a693": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e8e7bcbd-c4d2-4d47-af6c-1c17af5b7971",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
