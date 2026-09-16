@@ -1,0 +1,42 @@
+docs/design/2026-09-15-cover-geometry/philosophy.md
+  s_606c608689ba0b::t_8f0e74c9b84d44 1-91
+Tests/MacParakeetTests/Models/BranchingRecordingCoverRecipeTests.swift
+  s_606c608689ba0b::t_7c218e29c919a1 15
+  s_606c608689ba0b::t_48b24a65891265 28,32,42,55-65,68-73,81-83,88-95,97-100,112-118,120-125
+  s_606c608689ba0b::t_da9250686d8d26 33-39
+  s_606c608689ba0b::t_ee6a3aa30a8ce7 126
+Sources/MacParakeetCore/Models/BranchingRecordingCoverRecipe.swift
+  s_606c608689ba0b::t_2c33deba25d8ab 98
+  s_606c608689ba0b::t_f067b4d01a354a 3,5-12,19-42,48-49,52-64,92-97,99-101,103-111,114-122,124,126-127,129-135,137-156
+  s_606c608689ba0b::t_15937ec086337e 14-18
+  s_606c608689ba0b::t_763202e54eb26c 157,165,176
+docs/design/2026-09-15-cover-geometry/notes.md
+  s_606c608689ba0b::t_f282bd9daf6a25 3-47
+  s_606c608689ba0b::t_dcf8610838b313 1-2
+docs/plans/2026-09-08-recording-branching-covers.md
+  s_606c608689ba0b::t_8336efc89e0b76 3-5
+spec/04-ui-patterns.md
+  s_606c608689ba0b::t_b15be6f57fe107 191-195,197-199
+Sources/MacParakeet/Views/Components/BranchingRecordingCoverView.swift
+  s_606c608689ba0b::t_81aa231db26a43 76-87
+  s_606c608689ba0b::t_e74418722a9fd0 4,6-8,18-20,22-24,29-33,37,39-40,43-44,47-48,50-52,56,60-66
+  s_606c608689ba0b::t_d0f28b9d06649f 38,41-42
+docs/design/2026-09-15-cover-geometry/index.html
+  s_606c608689ba0b::t_c398f018018394 1-445
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "eb96910090f652c3ab0dde8abaa43f28437c30cc",
+  "prompts": {},
+  "sessions": {
+    "s_606c608689ba0b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cca3cbd4-a0af-46d3-8951-f73076dc7480",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
