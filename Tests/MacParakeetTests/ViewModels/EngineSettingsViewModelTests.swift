@@ -980,6 +980,43 @@ final class EngineSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(SpeechEnginePreference.current(defaults: defaults), .whisper)
     }
 
+    func testNewSwitchAttemptWhileFinishingInBackgroundIsBlockedAtViewModelBoundary() async throws {
+        let stt = MockSTTClient()
+        await stt.configureSpeechEngineSwitchHang()
+        let vm = makeViewModel()
+        vm.configure(sttClient: stt, speechEngineSwitcher: stt)
+        vm.whisperModelStatus = .notLoaded
+        vm.speechEngineSwitchStallTimeout = .milliseconds(40)
+
+        vm.speechEnginePreference = .whisper
+        try await waitUntil { vm.speechEngineSwitchStalled }
+        vm.leaveStalledSpeechEngineSwitch()
+        XCTAssertTrue(vm.speechEngineSwitchFinishingInBackground)
+
+        // A caller that sets the public preference directly, bypassing the
+        // View-layer availability pre-check, must still be refused.
+        vm.speechEnginePreference = .cohere
+
+        XCTAssertTrue(
+            vm.speechEngineSwitchFinishingInBackground,
+            "the residual still-compiling banner must survive an attempted switch while Core ML is finishing"
+        )
+        XCTAssertEqual(vm.speechEnginePreference, .parakeet)
+        XCTAssertEqual(vm.speechEngineSwitchAvailability, .switchInProgress)
+        XCTAssertEqual(
+            vm.speechEngineError,
+            EngineSettingsViewModel.speechEngineSwitchUnavailableMessage(for: .switchInProgress)
+        )
+        let switches = await stt.speechEngineSwitchesSnapshot()
+        XCTAssertEqual(
+            switches, [.whisper],
+            "no second engine switch should have been started while one was finishing in background"
+        )
+
+        await stt.completeHungSpeechEngineSwitch()
+        try await waitUntil { !vm.speechEngineSwitchFinishingInBackground }
+    }
+
     func testLeaveStalledSwitchIsNoOpWhenNotStalled() {
         let vm = makeViewModel()
         vm.speechEngineSwitching = true
