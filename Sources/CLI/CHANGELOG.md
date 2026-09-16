@@ -93,9 +93,10 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 - `config get|set|list` includes `preserve-discarded-dictations` (`on`/`off`,
   default off). When on, cancelled dictations are transcribed into History
-  instead of being deleted. Nothing is pasted. History JSON may now include
-  `"status": "cancelled"`; older CLI builds that decode `DictationStatus`
-  strictly will fail on those rows until upgraded.
+  instead of being deleted. Nothing is pasted, including menu-bar Paste Last.
+  History JSON may now include `"status": "cancelled"`; the human-readable
+  list marks those rows `[cancelled]`. Older CLI builds that decode
+  `DictationStatus` strictly will fail on those rows until upgraded.
 
 ## [4.2.0] — 2026-09-15
 

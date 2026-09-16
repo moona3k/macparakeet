@@ -199,10 +199,27 @@ public final class DictationRepository: DictationRepositoryProtocol {
     }
 
     public func fetchAll(limit: Int? = nil) throws -> [Dictation] {
+        try fetchVisible(limit: limit, status: nil)
+    }
+
+    /// Recent non-hidden completed takes. Menu-bar Paste Last / Recent Dictations
+    /// use this so a preserved cancelled row is recoverable in History without
+    /// becoming the next paste target.
+    public func fetchCompleted(limit: Int? = nil) throws -> [Dictation] {
+        try fetchVisible(limit: limit, status: .completed)
+    }
+
+    private func fetchVisible(
+        limit: Int?,
+        status: Dictation.DictationStatus?
+    ) throws -> [Dictation] {
         try dbQueue.read { db in
             var request = Dictation
                 .filter(Dictation.Columns.hidden == false)
                 .order(Dictation.Columns.createdAt.desc)
+            if let status {
+                request = request.filter(Dictation.Columns.status == status.rawValue)
+            }
             if let limit {
                 request = request.limit(limit)
             }

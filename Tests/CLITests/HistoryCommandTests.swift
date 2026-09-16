@@ -5,6 +5,30 @@ import XCTest
 
 final class HistoryCommandTests: XCTestCase {
 
+    func testDictationsListMarksCancelledRows() throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let db = try DatabaseManager(path: dbURL.path)
+        let repo = DictationRepository(dbQueue: db.dbQueue)
+        try repo.save(
+            Dictation(
+                durationMs: 2000,
+                rawTranscript: "kept after cancel",
+                status: .cancelled
+            )
+        )
+
+        let command = try DictationsSubcommand.parse([
+            "--database", dbURL.path,
+        ])
+        let output = try captureStandardOutput {
+            try command.run()
+        }
+
+        XCTAssertTrue(output.contains("[cancelled]"), output)
+        XCTAssertTrue(output.contains("kept after cancel"), output)
+    }
+
     // MARK: - Delete Dictation
 
     func testDeleteDictationRemovesRecord() throws {

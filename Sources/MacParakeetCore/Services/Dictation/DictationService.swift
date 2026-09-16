@@ -328,10 +328,16 @@ public actor DictationService: DictationServiceProtocol {
             return
         }
 
-        discardPendingCancelledAudio()
-
+        // Steal before the new take starts. A hotkey restart from the cancel
+        // countdown races confirmCancel; discarding here would delete the
+        // recovered file even when preserve-discarded is on. Persist off the
+        // actor wait so STT of the cancelled take cannot delay capture.
+        let stolenCancelled = stealPendingCancelledAudio()
         cancelResetTask?.cancel()
         cancelResetTask = nil
+        if let stolenCancelled {
+            Task { await self.persistOrDiscardCancelledAudio(stolenCancelled) }
+        }
 
         let requestedSessionID = sessionID ?? activeSessionID + 1
         activeSessionID = requestedSessionID
@@ -857,34 +863,46 @@ public actor DictationService: DictationServiceProtocol {
         return reason == "interrupted during subscribe"
     }
 
-    private func persistOrDiscardPendingCancelledAudio() async {
-        guard shouldPreserveDiscardedDictations?() ?? false,
-            shouldSaveDictationHistory?() ?? true
-        else {
-            discardPendingCancelledAudio()
-            return
-        }
-        guard let audioURL = pendingCancelledAudioURL else {
+    private struct StolenCancelledAudio: Sendable {
+        let url: URL
+        let durationMs: Int?
+        let captureMs: Int?
+    }
+
+    private func stealPendingCancelledAudio() -> StolenCancelledAudio? {
+        guard let url = pendingCancelledAudioURL else {
             pendingCancelledDurationMs = nil
             pendingCancelledCaptureMs = nil
-            return
+            return nil
         }
         pendingCancelledAudioURL = nil
-        let capturedDurationMs = pendingCancelledDurationMs
+        let durationMs = pendingCancelledDurationMs
         pendingCancelledDurationMs = nil
         let captureMs = pendingCancelledCaptureMs
         pendingCancelledCaptureMs = nil
-        let formatterContext = currentAIFormatterFinishContext ?? currentAIFormatterStartContext
+        return StolenCancelledAudio(url: url, durationMs: durationMs, captureMs: captureMs)
+    }
+
+    private func persistOrDiscardPendingCancelledAudio() async {
+        guard let stolen = stealPendingCancelledAudio() else { return }
+        await persistOrDiscardCancelledAudio(stolen)
+    }
+
+    private func persistOrDiscardCancelledAudio(_ stolen: StolenCancelledAudio) async {
+        guard shouldPreserveDiscardedDictations?() ?? false,
+            shouldSaveDictationHistory?() ?? true
+        else {
+            try? FileManager.default.removeItem(at: stolen.url)
+            return
+        }
         do {
-            _ = try await withCurrentObservabilityContextIfAny {
-                try await processCapturedAudio(
-                    audioURL: audioURL,
-                    capturedDurationMs: capturedDurationMs,
-                    formatterContext: formatterContext,
-                    status: .cancelled,
-                    captureMs: captureMs
-                )
-            }
+            _ = try await processCapturedAudio(
+                audioURL: stolen.url,
+                capturedDurationMs: stolen.durationMs,
+                formatterContext: nil,
+                status: .cancelled,
+                captureMs: stolen.captureMs
+            )
             NotificationCenter.default.post(name: .macParakeetDictationHistoryDidChange, object: nil)
         } catch {
             logger.notice(
@@ -906,15 +924,6 @@ public actor DictationService: DictationServiceProtocol {
         _state = .idle
         cancelResetTask = nil
         await persistOrDiscardPendingCancelledAudio()
-    }
-
-    private func discardPendingCancelledAudio() {
-        if let url = pendingCancelledAudioURL {
-            try? FileManager.default.removeItem(at: url)
-        }
-        pendingCancelledAudioURL = nil
-        pendingCancelledDurationMs = nil
-        pendingCancelledCaptureMs = nil
     }
 
     private func withCurrentObservabilityContextIfAny<T: Sendable>(
