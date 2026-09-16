@@ -456,6 +456,7 @@ final class DictationServiceTests: XCTestCase {
     }
 
     func testUndoWindowExpiryPreservesDiscardedDictationWhenEnabled() async throws {
+        let persistTranscribe = await expectCancelledPersistTranscribe()
         await mockSTT.configure(result: STTResult(text: "expired cancel still kept"))
         service = DictationService(
             audioProcessor: mockAudio,
@@ -468,16 +469,7 @@ final class DictationServiceTests: XCTestCase {
         try await service.startRecording()
         await service.cancelRecording(reason: .escape)
 
-        // Expiry persist is an unstructured Task after `cancelWindow`. A
-        // fixed 80ms sleep races STT on a loaded CI runner.
-        let deadline = ContinuousClock.now + .seconds(2)
-        var saved: [Dictation] = []
-        while ContinuousClock.now < deadline {
-            saved = try dictationRepo.fetchAll()
-            if saved.count == 1 { break }
-            try await Task.sleep(for: .milliseconds(10))
-        }
-
+        let saved = try await waitForSavedCancelledDictation(after: persistTranscribe)
         XCTAssertEqual(saved.count, 1)
         XCTAssertEqual(saved.first?.status, .cancelled)
         XCTAssertEqual(saved.first?.rawTranscript, "expired cancel still kept")
@@ -540,6 +532,7 @@ final class DictationServiceTests: XCTestCase {
     }
 
     func testStartRecordingFromCancelledPreservesDiscardedDictation() async throws {
+        let persistTranscribe = await expectCancelledPersistTranscribe()
         await mockSTT.configure(result: STTResult(text: "restart from cancel still kept"))
         service = DictationService(
             audioProcessor: mockAudio,
@@ -552,14 +545,7 @@ final class DictationServiceTests: XCTestCase {
         await service.cancelRecording(reason: .escape)
         try await service.startRecording()
 
-        let deadline = ContinuousClock.now + .seconds(2)
-        var saved: [Dictation] = []
-        while ContinuousClock.now < deadline {
-            saved = try dictationRepo.fetchAll()
-            if saved.count == 1 { break }
-            try await Task.sleep(for: .milliseconds(10))
-        }
-
+        let saved = try await waitForSavedCancelledDictation(after: persistTranscribe)
         XCTAssertEqual(saved.count, 1)
         XCTAssertEqual(saved.first?.status, .cancelled)
         XCTAssertEqual(saved.first?.rawTranscript, "restart from cancel still kept")
@@ -2100,6 +2086,27 @@ final class DictationServiceTests: XCTestCase {
                 && props["trigger"] == trigger.rawValue
                 && props["mode"] == mode.rawValue
         }
+    }
+
+    private func expectCancelledPersistTranscribe() async -> XCTestExpectation {
+        let persistTranscribe = expectation(description: "cancelled persist transcribe")
+        persistTranscribe.assertForOverFulfill = false
+        await mockSTT.setTranscribeHook {
+            persistTranscribe.fulfill()
+        }
+        return persistTranscribe
+    }
+
+    private func waitForSavedCancelledDictation(
+        after persistTranscribe: XCTestExpectation
+    ) async throws -> [Dictation] {
+        await fulfillment(of: [persistTranscribe], timeout: 2)
+        let saved = await waitForCondition {
+            _ = await self.service.state
+            return (try? self.dictationRepo.fetchAll().count) == 1
+        }
+        XCTAssertTrue(saved, "cancelled persist did not save a History row after STT")
+        return try dictationRepo.fetchAll()
     }
 
     private func waitForCondition(
