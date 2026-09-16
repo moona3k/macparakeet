@@ -1,0 +1,24 @@
+Tests/MacParakeetTests/Views/BreathingSeedOfLifeViewTests.swift
+  s_606c608689ba0b::t_bc2cc816546815 6,12-13,22,25-27,30,40,49-55,68-85,87,90
+Sources/MacParakeet/Views/MeetingRecording/MeetingRecordingPanelView.swift
+  s_606c608689ba0b::t_6a9138783f4266 578-581,587-589,600-601
+  s_606c608689ba0b::t_562521b23046e0 470-471
+  s_606c608689ba0b::t_6a36cd9e60f2c8 541-546
+  s_606c608689ba0b::t_f2ebb825d715b9 483,488
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6e50933e7e3420d85bbf5fcea6349c596d9f4800",
+  "prompts": {},
+  "sessions": {
+    "s_606c608689ba0b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cca3cbd4-a0af-46d3-8951-f73076dc7480",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
