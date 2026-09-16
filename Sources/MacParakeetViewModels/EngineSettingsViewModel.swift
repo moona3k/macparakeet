@@ -989,6 +989,25 @@ public final class EngineSettingsViewModel {
         let operationContext = Observability.childOperationContext()
         let switchWasCold = SpeechEnginePreference.isColdSwitch(to: preference, defaults: defaults)
 
+        if speechEngineSwitchFinishingInBackground {
+            speechEngineError = Self.speechEngineSwitchUnavailableMessage(for: .switchInProgress)
+            Telemetry.send(.speechEngineSwitchOperation(
+                operationID: operationContext.operationID,
+                operationContext: operationContext,
+                fromEngine: previousPreference,
+                toEngine: preference,
+                outcome: .unavailable,
+                durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
+                blockedReason: .switchInProgress,
+                errorType: "switch_in_progress",
+                wasCold: switchWasCold
+            ))
+            isApplyingSpeechEngineState = true
+            speechEnginePreference = previousPreference
+            isApplyingSpeechEngineState = false
+            return
+        }
+
         if preference == .nemotron && !isNemotronModelAvailable {
             speechEngineError = "Download the Nemotron model before switching engines."
             Telemetry.send(.speechEngineSwitchOperation(
