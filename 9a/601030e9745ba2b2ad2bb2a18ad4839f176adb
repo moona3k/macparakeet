@@ -1,0 +1,41 @@
+Tests/MacParakeetTests/Models/DictationModelTests.swift
+  s_673be8b32d8d6a::t_f5a8ea248f18f8 65-70
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_673be8b32d8d6a::t_ef5eb18809957e 1163
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_673be8b32d8d6a::t_a2d86733b628c9 842-844
+  s_673be8b32d8d6a::t_0cc920b61f2d18 1464
+  s_673be8b32d8d6a::t_15972eb235fcb4 1477
+  s_673be8b32d8d6a::t_c14d00d6703772 885
+  s_673be8b32d8d6a::t_7b04161da6d0be 704-707
+  s_673be8b32d8d6a::t_7311bfb2628c8e 1494,1496,1509
+spec/02-features.md
+  s_673be8b32d8d6a::t_5c4975aaa10fbc 2166
+  s_673be8b32d8d6a::t_f7d01e7b7217dd 351
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_673be8b32d8d6a::t_3a5a256cc8719f 478-517,519-521,523-533
+  s_673be8b32d8d6a::t_1aa4be51e7a9dd 518,522
+  s_673be8b32d8d6a::t_5273c5636e6f08 446
+Sources/CLI/CHANGELOG.md
+  s_673be8b32d8d6a::t_6df5d735927d2b 96-98
+Sources/MacParakeetCore/Models/Dictation.swift
+  s_673be8b32d8d6a::t_f613afc8f00537 70-79
+Sources/CLI/Commands/RetranscribeCommand.swift
+  s_673be8b32d8d6a::t_23d4009dda19e8 401-403
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9a601030e9745ba2b2ad2bb2a18ad4839f176adb",
+  "prompts": {},
+  "sessions": {
+    "s_673be8b32d8d6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
