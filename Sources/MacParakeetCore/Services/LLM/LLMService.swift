@@ -1107,7 +1107,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         AsyncThrowingStream { continuation in
             let operationID = Observability.operationID()
             let startedAt = Date()
-                            let promptDefaultUsed = systemPrompt?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
+            let promptDefaultUsed = systemPrompt?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
             let task = Task {
                 var provider = "unknown"
                 var outputChars = 0

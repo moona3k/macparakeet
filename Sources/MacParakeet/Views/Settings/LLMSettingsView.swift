@@ -293,7 +293,7 @@ struct LLMSettingsView: View {
         provider: Binding<LLMProviderID?>,
         model: Binding<String>
     ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)

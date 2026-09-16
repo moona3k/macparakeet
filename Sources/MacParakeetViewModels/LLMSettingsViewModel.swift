@@ -1364,13 +1364,43 @@ public final class LLMSettingsViewModel {
         }
         let trimmed = modelName.trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedModel = trimmed.isEmpty ? providerID.defaultModelName : trimmed
-        let apiKey = try configStore.loadAPIKey(for: providerID)
-        let baseURL: URL
+
         if let current = try configStore.loadConfig(), current.id == providerID {
-            baseURL = current.baseURL
-        } else {
-            baseURL = URL(string: providerID.defaultBaseURL)!
+            try configStore.saveTaskOverride(
+                LLMProviderConfig(
+                    id: current.id,
+                    baseURL: current.baseURL,
+                    apiKey: current.apiKey,
+                    modelName: resolvedModel,
+                    isLocal: current.isLocal
+                ),
+                for: task
+            )
+            return
         }
+
+        if providerID == .localCLI {
+            guard cliConfigStore?.load() != nil else {
+                throw LLMSettingsDraft.ValidationError.taskOverrideUnavailable
+            }
+            try configStore.saveTaskOverride(.localCLI(), for: task)
+            return
+        }
+
+        if providerID.requiresCustomEndpoint || providerID.defaultBaseURL.isEmpty {
+            throw LLMSettingsDraft.ValidationError.taskOverrideUnavailable
+        }
+
+        let apiKey = try configStore.loadAPIKey(for: providerID)
+        if providerID.requiresAPIKey {
+            guard let apiKey, !apiKey.isEmpty else {
+                throw LLMSettingsDraft.ValidationError.taskOverrideUnavailable
+            }
+        }
+        guard let baseURL = URL(string: providerID.defaultBaseURL) else {
+            throw LLMSettingsDraft.ValidationError.taskOverrideUnavailable
+        }
+
         try configStore.saveTaskOverride(
             LLMProviderConfig(
                 id: providerID,

@@ -97,10 +97,11 @@ final class LLMExecutionContextResolverTests: XCTestCase {
         XCTAssertEqual(try resolver.resolveContext(for: .transform)?.providerConfig.id, .anthropic)
     }
 
-    func testTransformIgnoresCleanupOverride() throws {
+    func testTransformIgnoresStoredOverrides() throws {
         let configStore = MockLLMConfigStore()
         configStore.config = .openai(apiKey: "sk-test", model: "gpt-5.4")
-        configStore.taskOverrides[.transform] = .ollama(model: "llama3.2")
+        configStore.taskOverrides[.cleanup] = .ollama(model: "llama3.2")
+        configStore.taskOverrides[.transform] = .gemini(apiKey: "gemini-key")
         let suiteName = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
