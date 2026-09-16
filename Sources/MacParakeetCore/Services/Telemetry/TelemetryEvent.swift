@@ -15,6 +15,8 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case dictationEmpty = "dictation_empty"
     case dictationFailed = "dictation_failed"
     case dictationOperation = "dictation_operation"
+    /// Latency breadcrumb after a successful Cmd+V post. Not a second outcome.
+    case dictationInsert = "dictation_insert"
     case dictationFirstLoadCaptionShown = "dictation_first_load_caption_shown"
     case dictationFirstLoadCaptionDuration = "dictation_first_load_caption_duration"
     case transcriptionStarted = "transcription_started"
@@ -631,7 +633,18 @@ public enum TelemetryEventSpec: Sendable {
         engineVariant: String? = nil,
         language: String? = nil,
         appCategory: TelemetryAppCategory? = nil,
-        device: RecordingDeviceInfo? = nil
+        device: RecordingDeviceInfo? = nil,
+        captureMs: Int? = nil,
+        transcribeMs: Int? = nil
+    )
+    /// Stop request → Cmd+V posted. `e2eMs` is the phase sum and excludes the
+    /// success-overlay pause. Emitted only after a successful paste.
+    case dictationInsert(
+        operationID: String? = nil,
+        captureMs: Int,
+        transcribeMs: Int,
+        pasteMs: Int,
+        e2eMs: Int
     )
     case dictationFirstLoadCaptionShown(firstInstall: Bool)
     case dictationFirstLoadCaptionDuration(durationMs: Int, outcome: String)
@@ -1012,6 +1025,7 @@ extension TelemetryEventSpec {
         case .dictationEmpty: return .dictationEmpty
         case .dictationFailed: return .dictationFailed
         case .dictationOperation: return .dictationOperation
+        case .dictationInsert: return .dictationInsert
         case .dictationFirstLoadCaptionShown: return .dictationFirstLoadCaptionShown
         case .dictationFirstLoadCaptionDuration: return .dictationFirstLoadCaptionDuration
         case .transcriptionStarted: return .transcriptionStarted
@@ -1196,7 +1210,9 @@ extension TelemetryEventSpec {
             let engineVariant,
             let language,
             let appCategory,
-            let device
+            let device,
+            let captureMs,
+            let transcribeMs
         ):
             return Self.mergeDevice(
                 Self.compactProps(
@@ -1213,8 +1229,18 @@ extension TelemetryEventSpec {
                     ("language", Self.safeLanguageCode(language)),
                     ("app_category", appCategory?.rawValue),
                     ("error_type", errorType),
-                    ("cancel_reason", cancelReason?.rawValue)
+                    ("cancel_reason", cancelReason?.rawValue),
+                    ("capture_ms", Self.formatNonNegativeMilliseconds(captureMs)),
+                    ("transcribe_ms", Self.formatNonNegativeMilliseconds(transcribeMs))
                 ), device)
+        case .dictationInsert(let operationID, let captureMs, let transcribeMs, let pasteMs, let e2eMs):
+            return Self.compactProps(
+                ("operation_id", operationID),
+                ("capture_ms", Self.formatNonNegativeMilliseconds(captureMs)),
+                ("transcribe_ms", Self.formatNonNegativeMilliseconds(transcribeMs)),
+                ("paste_ms", Self.formatNonNegativeMilliseconds(pasteMs)),
+                ("e2e_ms", Self.formatNonNegativeMilliseconds(e2eMs))
+            )
         case .dictationFirstLoadCaptionShown(let firstInstall):
             return ["first_install": Self.boolString(firstInstall)]
         case .dictationFirstLoadCaptionDuration(let durationMs, let outcome):
@@ -1812,6 +1838,11 @@ extension TelemetryEventSpec {
         String(format: "%.1f", value)
     }
 
+    private static func formatNonNegativeMilliseconds(_ value: Int?) -> String? {
+        guard let value, value >= 0 else { return nil }
+        return "\(value)"
+    }
+
     private static func boolString(_ value: Bool) -> String {
         value ? "true" : "false"
     }
@@ -1870,6 +1901,7 @@ public enum TelemetryImplementedContract {
         .dictationEmpty: [],
         .dictationFailed: ["error_type"],
         .dictationOperation: ["operation_id", "outcome"],
+        .dictationInsert: ["capture_ms", "transcribe_ms", "paste_ms", "e2e_ms"],
         .dictationFirstLoadCaptionShown: ["first_install"],
         .dictationFirstLoadCaptionDuration: ["duration_ms", "outcome"],
         .transcriptionStarted: ["source"],

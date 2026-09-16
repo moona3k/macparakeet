@@ -231,6 +231,12 @@ clients ship. Preserve existing aggregate fields and the local query's
 `schema_version: 1`; breaking changes need an explicit compatibility/version
 plan. App-repo tests do not verify the deployed website contract or ingestion.
 
+`dictation_insert` is a success-only latency breadcrumb (`capture_ms`,
+`transcribe_ms`, `paste_ms`, `e2e_ms`). Website `ALLOWED_EVENTS` and nonnegative
+integer ingest rules must deploy before any client emits it. Formatter
+`llm_operation.feature` is `formatter`; older `formatter_dictation` /
+`formatter_transcription` values are remapped at ingest.
+
 ## Rollout
 
 App changes require a new app/CLI build. Website changes are in the separate

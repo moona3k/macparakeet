@@ -679,6 +679,13 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(operation["speech_engine"], "whisper")
         XCTAssertEqual(operation["engine_variant"], SpeechEnginePreference.defaultWhisperModelVariant)
         XCTAssertEqual(operation["language"], "ko")
+        XCTAssertNotNil(operation["capture_ms"])
+        XCTAssertNotNil(operation["transcribe_ms"])
+        XCTAssertGreaterThanOrEqual(Int(operation["capture_ms"] ?? "-1") ?? -1, 0)
+        XCTAssertGreaterThanOrEqual(Int(operation["transcribe_ms"] ?? "-1") ?? -1, 0)
+        XCTAssertEqual(result.captureMs.map(String.init), operation["capture_ms"])
+        XCTAssertEqual(result.transcribeMs.map(String.init), operation["transcribe_ms"])
+        XCTAssertEqual(result.operationID, operation["operation_id"])
     }
 
     func testDurationUsesCapturedAudioDurationWhenWordsAreMissing() {
