@@ -1,0 +1,45 @@
+spec/README.md
+  s_606c608689ba0b::t_a93179ff316be6 168
+  s_606c608689ba0b::t_0f2ff3764aad83 26
+  s_606c608689ba0b::t_9bf20a72821947 85
+  s_606c608689ba0b::t_e381b98ea79568 169
+  s_606c608689ba0b::t_39c309aa6ab7c4 341-354
+spec/14-per-prompt-inference-settings.md
+  s_606c608689ba0b::t_64bfaace6f7e8f 3
+README.md
+  s_606c608689ba0b::t_c724d961cb165d 58
+  s_606c608689ba0b::t_77613c1e85f4a5 67
+  s_606c608689ba0b::t_5d76d733af8adb 66
+  s_606c608689ba0b::t_6cea39405eeb53 75-76
+  s_606c608689ba0b::t_ab91cb06cb2a4d 82,84
+spec/02-features.md
+  s_606c608689ba0b::t_cf3579f4cb5aa8 2149
+  s_606c608689ba0b::t_2390a5b3226a38 2151-2154
+docs/telemetry.md
+  s_606c608689ba0b::t_f02c05aad49418 454-458
+  s_606c608689ba0b::t_153eb07f070cfc 466-469
+  s_606c608689ba0b::t_ed1fc7a337c082 441-443
+spec/00-vision.md
+  s_606c608689ba0b::t_c0c20bffdfdfea 501,511-519
+  s_606c608689ba0b::t_7d25911854e9d7 520
+plans/active/2026-09-16-telemetry-observability-followthrough.md
+  s_606c608689ba0b::t_cf74687acd1e05 4
+plans/README.md
+  s_606c608689ba0b::t_bac374a94989dc 79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bb32fefd3e9a04239ba602f36831be9bdc521eb9",
+  "prompts": {},
+  "sessions": {
+    "s_606c608689ba0b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cca3cbd4-a0af-46d3-8951-f73076dc7480",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
