@@ -418,7 +418,7 @@ final class VocabCommandTests: XCTestCase {
     // MARK: - Import (dry-run JSON)
 
     func testImportDryRunJSONReportsConflicts() async throws {
-        try seedDatabase(words: [("kubernetes", "Kubernetes")], snippets: [])
+        try seedDatabase(words: [("kubernetes", "Kubernetes"), ("old-only", nil)], snippets: [])
 
         let bundlePath = tempDir.appendingPathComponent("bundle.json").path
         try writeBundle(
@@ -447,6 +447,10 @@ final class VocabCommandTests: XCTestCase {
         XCTAssertEqual(decoded["wordsTotal"] as? Int, 2)
         XCTAssertEqual(decoded["snippetsTotal"] as? Int, 0)
         XCTAssertEqual((decoded["wordConflicts"] as? [String])?.count, 1)
+        XCTAssertEqual(decoded["wordsRemoved"] as? [String], [])
+        XCTAssertEqual(decoded["snippetsRemoved"] as? [String], [])
+        XCTAssertEqual(decoded["learnedWordsPreserved"] as? Int, 0)
+        XCTAssertEqual(decoded["policy"] as? String, "skip")
     }
 
     func testImportApplyJSONReturnsCounts() async throws {
@@ -477,6 +481,81 @@ final class VocabCommandTests: XCTestCase {
         XCTAssertEqual(decoded["wordsAdded"] as? Int, 1)
         XCTAssertEqual(decoded["snippetsAdded"] as? Int, 1)
         XCTAssertEqual(decoded["wordsSkipped"] as? Int, 0)
+    }
+
+    func testImportReplaceAllJSONRemovesAbsentEntries() async throws {
+        try seedDatabase(
+            words: [("old-manual", nil), ("keep", "Keep")],
+            snippets: [("old phrase", "gone"), ("keep phrase", "stay")]
+        )
+
+        let bundlePath = tempDir.appendingPathComponent("bundle.json").path
+        try writeBundle(
+            to: bundlePath,
+            customWords: [
+                .init(word: "keep", replacement: "Updated", isEnabled: true, createdAt: nil)
+            ],
+            textSnippets: [
+                .init(trigger: "keep phrase", expansion: "updated", isEnabled: true, action: nil, createdAt: nil)
+            ]
+        )
+
+        let cmd = try VocabImportCommand.parse([
+            "--database", dbPath,
+            "--input", bundlePath,
+            "--policy", "replace-all",
+            "--json",
+        ])
+        let output = try await capturingStdout {
+            try await cmd.run()
+        }
+        let decoded = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(decoded["ok"] as? Bool, true)
+        XCTAssertEqual(decoded["policy"] as? String, "replace-all")
+        XCTAssertEqual(decoded["wordsAdded"] as? Int, 0)
+        XCTAssertEqual(decoded["wordsReplaced"] as? Int, 1)
+        XCTAssertEqual(decoded["wordsRemoved"] as? Int, 1)
+        XCTAssertEqual(decoded["snippetsAdded"] as? Int, 0)
+        XCTAssertEqual(decoded["snippetsReplaced"] as? Int, 1)
+        XCTAssertEqual(decoded["snippetsRemoved"] as? Int, 1)
+    }
+
+    func testImportDryRunReplaceAllJSONReportsRemovals() async throws {
+        try seedDatabase(words: [("old-manual", nil)], snippets: [("old phrase", "gone")])
+
+        let manager = try DatabaseManager(path: dbPath)
+        try CustomWordRepository(dbQueue: manager.dbQueue)
+            .save(CustomWord(word: "keep-learned", source: .learned))
+
+        let bundlePath = tempDir.appendingPathComponent("bundle.json").path
+        try writeBundle(
+            to: bundlePath,
+            customWords: [
+                .init(word: "fresh", replacement: nil, isEnabled: true, createdAt: nil)
+            ],
+            textSnippets: []
+        )
+
+        let cmd = try VocabImportCommand.parse([
+            "--database", dbPath,
+            "--input", bundlePath,
+            "--policy", "replace-all",
+            "--dry-run",
+            "--json",
+        ])
+        let output = try await capturingStdout {
+            try await cmd.run()
+        }
+        let decoded = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(decoded["ok"] as? Bool, true)
+        XCTAssertEqual(decoded["policy"] as? String, "replace-all")
+        XCTAssertEqual(decoded["wordsRemoved"] as? [String], ["old-manual"])
+        XCTAssertEqual(decoded["snippetsRemoved"] as? [String], ["old phrase"])
+        XCTAssertEqual(decoded["learnedWordsPreserved"] as? Int, 1)
     }
 
     func testImportInvalidSchemaThrows() async throws {

@@ -907,7 +907,10 @@ Each snippet has a trigger phrase, expansion text, and use count for tracking.
 Users can export the combined vocabulary (manual custom words + text snippets)
 to a versioned JSON file, and import on the same or another Mac. Import shows
 a preview sheet with counts and case-insensitive conflict detection;
-duplicates can be skipped (default) or replaced. Surfaced from the Vocabulary
+duplicates can be skipped (default) or replaced, or the entire vocabulary can
+be replaced in one transaction (issue #766). Replace-all removes manual words
+and snippets that aren't in the file, keeps unmatched learned recognition
+terms, and rolls back if any write fails. Surfaced from the Vocabulary
 panel and via `macparakeet-cli vocab {export,import,schema}`. The
 `schema` subcommand prints an LLM-readable spec so a local coding agent can
 generate valid bundles from natural-language input.
@@ -1077,6 +1080,7 @@ Important constraints:
 - [x] Settings link opens management views
 - [x] Default processing mode configurable
 - [x] Combined vocabulary import/export is available from the Vocabulary panel and CLI
+- [x] Import can replace the entire vocabulary in one transaction, with a preview of removals and rollback on failure
 
 ---
 
