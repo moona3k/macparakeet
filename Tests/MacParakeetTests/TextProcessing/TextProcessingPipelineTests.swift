@@ -50,6 +50,29 @@ final class TextProcessingPipelineTests: XCTestCase {
         XCTAssertEqual(result.text, "I think we should ship it")
     }
 
+    func testPipelineStripsSentenceInitialUmWithComma() {
+        let result = pipeline.process(
+            text: "Um, I think we should ship it",
+            customWords: [],
+            snippets: []
+        )
+        XCTAssertEqual(result.text, "I think we should ship it")
+    }
+
+    func testPipelineStripsUmBetweenCommas() {
+        let result = pipeline.process(
+            text: "I think, um, we should ship it",
+            customWords: [],
+            snippets: []
+        )
+        XCTAssertEqual(result.text, "I think, we should ship it")
+    }
+
+    func testPipelineStripsSentenceInitialUhWithComma() {
+        let result = pipeline.process(text: "Uh, I think we should ship it", customWords: [], snippets: [])
+        XCTAssertEqual(result.text, "I think we should ship it")
+    }
+
     func testPipelinePreservesGermanUmWhenUmFillerIsOff() {
         let result = pipeline.process(
             text: "treffe dich um drei",

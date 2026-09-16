@@ -107,6 +107,30 @@ public struct TextProcessingPipeline: Sendable {
             )
         }
 
+        return cleanupFillerPunctuation(in: result)
+    }
+
+    /// STT often punctuates fillers (`Um, I think`, `I think, um, we`).
+    /// Removing the token alone leaves a leading comma/period or `,,`.
+    private static let doubledCommaRegex = try? NSRegularExpression(pattern: ",\\s*,+")
+    private static let leadingFillerPunctuationRegex = try? NSRegularExpression(pattern: "^\\s*[,.]\\s+")
+
+    private func cleanupFillerPunctuation(in text: String) -> String {
+        var result = text
+        if let regex = Self.doubledCommaRegex {
+            result = regex.stringByReplacingMatches(
+                in: result,
+                range: NSRange(result.startIndex..., in: result),
+                withTemplate: ","
+            )
+        }
+        if let regex = Self.leadingFillerPunctuationRegex {
+            result = regex.stringByReplacingMatches(
+                in: result,
+                range: NSRange(result.startIndex..., in: result),
+                withTemplate: ""
+            )
+        }
         return result
     }
 

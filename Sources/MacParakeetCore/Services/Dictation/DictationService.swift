@@ -1324,7 +1324,7 @@ public actor DictationService: DictationServiceProtocol {
 
         let mode = processingMode()
         let insertionStyle = mode.usesDeterministicPipeline ? dictationInsertionStyle() : .sentence
-        let shouldRemoveUmFiller = mode.usesDeterministicPipeline ? removeUmFiller() : true
+        let shouldRemoveUmFiller = removeUmFiller()
         var words: [CustomWord] = []
         var snippets: [TextSnippet] = []
         if mode.usesDeterministicPipeline {
