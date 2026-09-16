@@ -1,0 +1,106 @@
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_16625ca395d674::t_285318315ef961 347,420
+  s_16625ca395d674::t_b1cacb86cde92e 382
+  s_16625ca395d674::t_bebe991ed63183 454
+  s_16625ca395d674::t_18348cc33acf7b 2186-2187
+  s_16625ca395d674::t_d627279c8e2e4b 309
+Sources/MacParakeetCore/AppRuntimePreferences.swift
+  s_16625ca395d674::t_f695d47fcb9e4e 507-510
+  s_16625ca395d674::t_78e1615794547e 6
+  s_16625ca395d674::t_5e592de970e349 652-659
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_16625ca395d674::t_9ea2a3cb2428c9 1047-1063
+  s_16625ca395d674::t_b6a545ad0595e6 227
+  s_16625ca395d674::t_88287711f74121 301
+  s_16625ca395d674::t_2bcddb40c7bd09 265
+Sources/MacParakeetCore/TextProcessing/TextProcessingPipeline.swift
+  s_16625ca395d674::t_20286d609d026e 16-17,29
+  s_16625ca395d674::t_6cb8a0e92af9c6 71,77-80,83-86,91,102-103
+  s_16625ca395d674::t_ed038d51cc2c44 82
+  s_16625ca395d674::t_a65e2a824e9862 104-106
+Sources/CLI/Commands/TranscribeCommand.swift
+  s_16625ca395d674::t_857cc0bd68c5b7 661-663
+Sources/CLI/Commands/ConfigCommand.swift
+  s_16625ca395d674::t_65b3b4c3376926 33-35
+  s_16625ca395d674::t_b7f40b5fcd6ea8 405-408
+  s_16625ca395d674::t_1bb49dfc6d4d89 325-327
+  s_16625ca395d674::t_36f0098eb2c008 93-97
+  s_16625ca395d674::t_0e628959218fe1 92
+Tests/CLITests/ConfigCommandTests.swift
+  s_16625ca395d674::t_cf3fccf66a739b 164-169
+  s_16625ca395d674::t_cc067654eaa78e 84
+  s_16625ca395d674::t_5fa95e73d778f4 32
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_16625ca395d674::t_4764a0882b9045 1001
+  s_16625ca395d674::t_32072335e81dd1 482-487
+spec/04-ui-patterns.md
+  s_16625ca395d674::t_d9358c6f60815c 1096-1097
+README.md
+  s_16625ca395d674::t_67589c9df77f47 270
+Tests/MacParakeetTests/TextProcessing/TextRefinementServiceTests.swift
+  s_16625ca395d674::t_e6018743b36a67 106-125
+Sources/CLI/CHANGELOG.md
+  s_16625ca395d674::t_b1e00fef7d1bda 92-103
+Sources/CLI/Commands/RetranscribeCommand.swift
+  s_16625ca395d674::t_47edc744615cbe 393-394
+  s_16625ca395d674::t_59146a7c26b55d 547-549
+Sources/MacParakeet/Views/Vocabulary/VocabularyView.swift
+  s_16625ca395d674::t_05879473cc3579 173-205
+  s_16625ca395d674::t_c01a7f4a166f71 127
+  s_16625ca395d674::t_6f35fd0c623651 206
+Sources/CLI/Commands/VocabProcessCommand.swift
+  s_16625ca395d674::t_b19ae045c010b0 34-39
+  s_16625ca395d674::t_e72441966df11b 29-31
+Sources/MacParakeetCore/TextProcessing/TextRefinementService.swift
+  s_16625ca395d674::t_fdfc0f8dc1236a 35-36
+  s_16625ca395d674::t_cd7afe448e2de3 66-67
+Tests/MacParakeetTests/AppRuntimePreferencesTests.swift
+  s_16625ca395d674::t_d45a74a36da218 405-418
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_16625ca395d674::t_597403fc3def83 293-296
+  s_16625ca395d674::t_2d1555e1873353 441
+  s_16625ca395d674::t_baaa4206eb5944 392
+Tests/MacParakeetTests/Services/Dictation/DictationServiceTests.swift
+  s_16625ca395d674::t_736cb16213ac61 1566-1598
+spec/07-text-processing.md
+  s_16625ca395d674::t_e95c7aed2cd261 19,21-23,25,125-129
+  s_16625ca395d674::t_7a7b2967860a94 103-106
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_16625ca395d674::t_ac2f35fb4d5dbf 577
+spec/02-features.md
+  s_16625ca395d674::t_b0bde969ef1327 857
+  s_16625ca395d674::t_7b7371c1ba149a 944-945
+integrations/README.md
+  s_16625ca395d674::t_7f8737a691cac9 361
+spec/adr/004-deterministic-pipeline.md
+  s_16625ca395d674::t_6499cd8f800358 30,79
+Tests/MacParakeetTests/TextProcessing/TextProcessingPipelineTests.swift
+  s_16625ca395d674::t_2e0bdad7130b7c 39-44,48-60
+  s_16625ca395d674::t_a0d9bed5cc9af7 61,90-105
+  s_16625ca395d674::t_f33f572d9aa5ff 62
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_16625ca395d674::t_2e7a96672c6a80 220
+  s_16625ca395d674::t_8aeb5e73c76676 185
+  s_16625ca395d674::t_411538a6d3a3e5 1358-1359
+  s_16625ca395d674::t_01ca0a5de3aa77 1327
+  s_16625ca395d674::t_1217f84fb4f89c 113
+Sources/MacParakeetCore/TextProcessing/README.md
+  s_16625ca395d674::t_ab2d576ca4672a 94-98
+  s_16625ca395d674::t_5766a5ea230564 58-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "be95886641bde64763baf8bfa8f308cdf3bc03fb",
+  "prompts": {},
+  "sessions": {
+    "s_16625ca395d674": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "50a31c9a-e072-42da-b153-189c3e78ba52",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
