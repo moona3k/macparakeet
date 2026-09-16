@@ -1,0 +1,83 @@
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_16625ca395d674::t_936567745c09a4 986
+  s_16625ca395d674::t_5d0c44d53f85f2 263-274
+Sources/MacParakeetCore/AppRuntimePreferences.swift
+  s_16625ca395d674::t_598683d953027e 548-550
+  s_16625ca395d674::t_d297972c4290f9 700-707
+  s_16625ca395d674::t_92c24839a99279 25
+Tests/CLITests/ConfigCommandTests.swift
+  s_16625ca395d674::t_9bf06e1d838aa7 46
+  s_16625ca395d674::t_12698804b1054d 98
+  s_16625ca395d674::t_c96c3d3d80b39d 236-237
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_16625ca395d674::t_5341aaa76058e6 236-237
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  s_16625ca395d674::t_fd8b0c949f87df 4133-4246
+Sources/CLI/CHANGELOG.md
+  s_16625ca395d674::t_4f9838b54c2663 92-97
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_16625ca395d674::t_875d870d07cd5d 1295-1302
+  s_16625ca395d674::t_57f4a9b441fdb8 1294
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_16625ca395d674::t_dd27bf857b5bfe 568
+docs/telemetry.md
+  s_16625ca395d674::t_47b970bc6590de 420
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_16625ca395d674::t_48feef550edbb8 195
+  s_16625ca395d674::t_27be5cf830f6c4 91
+  s_16625ca395d674::t_e53d6bfc57e20a 161
+  s_16625ca395d674::t_e5ea4e3055c02c 625-626
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_16625ca395d674::t_0021f42841c164 373
+  s_16625ca395d674::t_63767c91b2e806 238-249
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_16625ca395d674::t_c1086e64263b83 408
+  s_16625ca395d674::t_8b69380fe167e5 435-465
+spec/02-features.md
+  s_16625ca395d674::t_e92de111eb8f3e 2147-2162
+  s_16625ca395d674::t_5ad9e12b34e8d2 2181
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_16625ca395d674::t_b11e6845ec1b4e 240
+  s_16625ca395d674::t_70decd49cc37ef 359-377
+  s_16625ca395d674::t_d571de207eeaac 310
+  s_16625ca395d674::t_fb729bfe6d4636 279
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_16625ca395d674::t_cda3e07f05c532 362
+Tests/MacParakeetTests/AppRuntimePreferencesTests.swift
+  s_16625ca395d674::t_af59635768cfb4 108-122
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_16625ca395d674::t_be38b681660826 313-322
+  s_16625ca395d674::t_e72c71af1ee762 312
+docs/cli-testing.md
+  s_16625ca395d674::t_967a8441776c7a 273
+Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingService.swift
+  s_16625ca395d674::t_94b7f2ed07d6e0 374,387
+  s_16625ca395d674::t_91dea328cfc8a8 740-742,744-755
+  s_16625ca395d674::t_b507d53447a0d3 440
+  s_16625ca395d674::t_f1e30c64433571 258
+  s_16625ca395d674::t_0d2f9cd27cd3f8 406
+  s_16625ca395d674::t_7c44ff7eeebd86 505-509
+  s_16625ca395d674::t_09f71d7c9547ac 743
+Sources/CLI/Commands/ConfigCommand.swift
+  s_16625ca395d674::t_a0dbf2405d01ab 56
+  s_16625ca395d674::t_1a7bc6d6567e38 175-179
+  s_16625ca395d674::t_58ee5635cc5902 358-359
+  s_16625ca395d674::t_32fafaf9eae184 469-472
+  s_16625ca395d674::t_92dc263ae39271 174
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8e3cf7bd59e5bbe083c0141e898d392591649f21",
+  "prompts": {},
+  "sessions": {
+    "s_16625ca395d674": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "50a31c9a-e072-42da-b153-189c3e78ba52",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
