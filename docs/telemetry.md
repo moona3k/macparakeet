@@ -438,8 +438,9 @@ zero frames remains distinct from a Stop whose start never completed.
 ### 5c. Meeting Auto-Stop — "Does conservative meeting-end detection work?"
 
 > ADR-023 auto-stop is implemented behind `AppFeatures.meetingAutoStopEnabled
-> = false`. These events should remain low/no-volume until a validation build
-> flips the compile-time flag and users opt in through Settings.
+> = true`. The compile-time flag shipped in the v0.7 train; the per-user
+> setting still defaults off, so volume reflects only users who opt in through
+> Settings.
 
 | Event | Props | Question It Answers |
 |---|---|---|
@@ -450,8 +451,11 @@ zero frames remains distinct from a Stop whose start never completed.
 ### 5d. Meeting Capture Reliability — "Does the mic-health watchdog catch silent stalls?"
 
 > ADR-025 Phase A is implemented behind
-> `AppFeatures.meetingCaptureReliabilityEnabled = true`. It is detection-only:
-> no audio/transcript content, no UI yet, and no recording behavior change.
+> `AppFeatures.meetingCaptureReliabilityEnabled = true`. `mic_stall_detected`
+> is a detection/telemetry event: no audio or transcript content. Routine
+> source-health chips stay behind `meetingSourceHealthUIEnabled = false`;
+> actionable recovering, stalled, interrupted, or unavailable warnings still
+> surface. Direct source-lifecycle recovery is independent of this event.
 
 | Event | Props | Question It Answers |
 |---|---|---|
@@ -459,10 +463,10 @@ zero frames remains distinct from a Stop whose start never completed.
 
 ### 5e. Microphone engine lifecycle
 
-Implemented in the development source; availability in the stable app requires
-a release after the paired website allowlist deployment. This event observes
-the shared microphone used by dictation and meetings, including idle preparation.
-It does not observe ScreenCaptureKit's separate system-audio lifecycle.
+Shipped in 0.8.1 and later after the paired website allowlist deployed.
+This event observes the shared microphone used by dictation and meetings,
+including idle preparation. It does not observe ScreenCaptureKit's separate
+system-audio lifecycle.
 
 | Event | Props | Question It Answers |
 |---|---|---|

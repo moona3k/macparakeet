@@ -1,7 +1,7 @@
 # Telemetry observability follow-through
 
 Date: 2026-09-16
-Status: **IMPLEMENTED** (website deployed 2026-09-16; app PR pending)
+Status: **PARTIAL** (website deployed 2026-09-16; app [#1059](https://github.com/moona3k/macparakeet/pull/1059) merged 2026-09-16, not in the 0.8.3 DMG; retention worker not deployed)
 Repos: app (`feat/telemetry-observability-followthrough`) + website (same branch name)
 
 ## Context zone

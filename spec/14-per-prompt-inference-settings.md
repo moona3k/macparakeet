@@ -1,6 +1,6 @@
 # Per-Prompt LLM Inference Settings
 
-> Status: **IMPLEMENTED ON MAIN; UNRELEASED** — merged through
+> Status: **IMPLEMENTED** — shipped in 0.8.0 through
 > [PR #968](https://github.com/moona3k/macparakeet/pull/968), integrating the work
 > from [PR #956](https://github.com/moona3k/macparakeet/pull/956).
 > Default semantics and the conditional reasoning-effort extension are recorded in
