@@ -1,0 +1,39 @@
+Sources/MacParakeet/Views/MeetingRecording/MeetingRecordingPanelView.swift
+  s_606c608689ba0b::t_39aa2ac5e36da2 519-524,533-539
+  s_606c608689ba0b::t_cde19fa9a30ece 540
+  s_606c608689ba0b::t_32c9a6c03ddd1c 599,602
+  s_606c608689ba0b::t_ad28b5854c4173 722-734
+  s_606c608689ba0b::t_0ef88c53fa843c 464-472,475,481,486
+  s_606c608689ba0b::t_0f634988f4b86e 632-637
+  s_606c608689ba0b::t_6c58b1a9476702 294-299
+  s_606c608689ba0b::t_3f4155c764657a 629-631
+  s_606c608689ba0b::t_41fd94799e1320 567-569,571-573,582-583
+  s_606c608689ba0b::t_072d2647b33f99 638,735
+Tests/MacParakeetTests/ViewModels/MeetingRecordingPanelViewModelTests.swift
+  s_606c608689ba0b::t_76d662ac78362e 376-410
+Tests/MacParakeetTests/Views/BreathingSeedOfLifeViewTests.swift
+  s_606c608689ba0b::t_897d7b62784704 1-81
+spec/02-features.md
+  s_606c608689ba0b::t_e2bec6862355c8 2166
+Sources/MacParakeetViewModels/MeetingRecordingPanelViewModel.swift
+  s_606c608689ba0b::t_8eb5e51fe39f4c 392-399
+spec/04-ui-patterns.md
+  s_606c608689ba0b::t_9506d27ba35292 761
+  s_606c608689ba0b::t_6644d581dcc260 1266
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "af3112ee3f511ff43708ab154c163d035928f004",
+  "prompts": {},
+  "sessions": {
+    "s_606c608689ba0b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cca3cbd4-a0af-46d3-8951-f73076dc7480",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
