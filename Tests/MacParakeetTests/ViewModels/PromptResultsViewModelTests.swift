@@ -180,6 +180,81 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.promptResults.isEmpty)
     }
 
+    func testRegeneratePromptResultDoesNotCancelUnrelatedEdit() {
+        let transcriptionID = UUID()
+        let editing = PromptResult(
+            transcriptionId: transcriptionID,
+            promptName: "Summary",
+            promptContent: "Summarize.",
+            content: "Original"
+        )
+        let other = PromptResult(
+            transcriptionId: transcriptionID,
+            promptName: "Actions",
+            promptContent: "List actions.",
+            content: "Ship it"
+        )
+        promptResultRepo.promptResults = [editing, other]
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo
+        )
+        viewModel.loadPromptResults(transcriptionId: transcriptionID)
+        viewModel.beginEditingPromptResult(editing)
+        viewModel.editingDraft = "Corrected typo"
+        _ = viewModel.regeneratePromptResult(other, transcript: "Transcript")
+
+        XCTAssertTrue(viewModel.isEditingPromptResult(editing.id))
+        XCTAssertEqual(viewModel.editingDraft, "Corrected typo")
+        XCTAssertTrue(viewModel.hasUnsavedPromptResultEdits)
+    }
+
+    func testRegeneratePromptResultCancelsEditOfTheSameResult() {
+        let existing = PromptResult(
+            transcriptionId: UUID(),
+            promptName: "Summary",
+            promptContent: "Summarize.",
+            content: "Original"
+        )
+        promptResultRepo.promptResults = [existing]
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo
+        )
+        viewModel.loadPromptResults(transcriptionId: existing.transcriptionId)
+        viewModel.beginEditingPromptResult(existing)
+        viewModel.editingDraft = "Corrected typo"
+        _ = viewModel.regeneratePromptResult(existing, transcript: "Transcript")
+
+        XCTAssertFalse(viewModel.isEditingPromptResult(existing.id))
+        XCTAssertFalse(viewModel.hasUnsavedPromptResultEdits)
+    }
+
+    func testCanSaveEditingPromptResultRequiresNonBlankDirtyDraft() {
+        let existing = PromptResult(
+            transcriptionId: UUID(),
+            promptName: "Summary",
+            promptContent: "Summarize.",
+            content: "Original"
+        )
+        promptResultRepo.promptResults = [existing]
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo
+        )
+        viewModel.loadPromptResults(transcriptionId: existing.transcriptionId)
+        viewModel.beginEditingPromptResult(existing)
+        XCTAssertFalse(viewModel.canSaveEditingPromptResult)
+        viewModel.editingDraft = "   \n"
+        XCTAssertTrue(viewModel.hasUnsavedPromptResultEdits)
+        XCTAssertFalse(viewModel.canSaveEditingPromptResult)
+        viewModel.editingDraft = "Fixed typo"
+        XCTAssertTrue(viewModel.canSaveEditingPromptResult)
+    }
+
     func testConfigureLoadsVisiblePromptsAndDefaultSelection() {
         viewModel.configure(
             llmService: llm,

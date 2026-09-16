@@ -493,6 +493,10 @@ public final class PromptResultsViewModel {
         return editingDraft != original.content
     }
 
+    public var canSaveEditingPromptResult: Bool {
+        hasUnsavedPromptResultEdits && editingDraft.contains(where: { !$0.isWhitespace })
+    }
+
     public func beginEditingPromptResult(_ promptResult: PromptResult) {
         editingPromptResultID = promptResult.id
         editingDraft = promptResult.content
@@ -557,7 +561,9 @@ public final class PromptResultsViewModel {
         transcript: String,
         sourceCorrectionRevision: Int? = nil
     ) -> UUID? {
-        cancelEditingPromptResult()
+        if editingPromptResultID == promptResult.id {
+            cancelEditingPromptResult()
+        }
         let prompt = Prompt(
             id: promptResult.promptId ?? UUID(),
             name: promptResult.promptName,
