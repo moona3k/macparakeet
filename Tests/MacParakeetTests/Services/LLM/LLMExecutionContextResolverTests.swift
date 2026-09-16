@@ -60,4 +60,56 @@ final class LLMExecutionContextResolverTests: XCTestCase {
         )
         XCTAssertEqual(context?.localCLIConfig?.timeoutSeconds, 90)
     }
+
+    func testStoredResolverInheritsDefaultWhenTaskHasNoOverride() throws {
+        let configStore = MockLLMConfigStore()
+        configStore.config = .openai(apiKey: "sk-test", model: "gpt-5.4")
+        let suiteName = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let resolver = StoredLLMExecutionContextResolver(
+            configStore: configStore,
+            cliConfigStore: LocalCLIConfigStore(defaults: defaults)
+        )
+
+        XCTAssertEqual(try resolver.resolveContext(for: .cleanup)?.providerConfig.modelName, "gpt-5.4")
+        XCTAssertEqual(try resolver.resolveContext(for: .analysis)?.providerConfig.modelName, "gpt-5.4")
+        XCTAssertEqual(try resolver.resolveContext(for: .transform)?.providerConfig.modelName, "gpt-5.4")
+    }
+
+    func testStoredResolverUsesCleanupOverrideWithoutMutatingDefault() throws {
+        let configStore = MockLLMConfigStore()
+        configStore.config = .anthropic(apiKey: "sk-ant", model: "claude-sonnet-5")
+        configStore.taskOverrides[.cleanup] = .ollama(model: "llama3.2")
+        let suiteName = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let resolver = StoredLLMExecutionContextResolver(
+            configStore: configStore,
+            cliConfigStore: LocalCLIConfigStore(defaults: defaults)
+        )
+
+        XCTAssertEqual(try resolver.resolveContext(for: .cleanup)?.providerConfig.id, .ollama)
+        XCTAssertEqual(try resolver.resolveContext(for: .analysis)?.providerConfig.id, .anthropic)
+        XCTAssertEqual(try resolver.resolveContext()?.providerConfig.id, .anthropic)
+        XCTAssertEqual(try resolver.resolveContext(for: .transform)?.providerConfig.id, .anthropic)
+    }
+
+    func testTransformIgnoresCleanupOverride() throws {
+        let configStore = MockLLMConfigStore()
+        configStore.config = .openai(apiKey: "sk-test", model: "gpt-5.4")
+        configStore.taskOverrides[.transform] = .ollama(model: "llama3.2")
+        let suiteName = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let resolver = StoredLLMExecutionContextResolver(
+            configStore: configStore,
+            cliConfigStore: LocalCLIConfigStore(defaults: defaults)
+        )
+
+        XCTAssertEqual(try resolver.resolveContext(for: .transform)?.providerConfig.id, .openai)
+    }
 }

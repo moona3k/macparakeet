@@ -187,6 +187,7 @@ final class MockLLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
     var config: LLMProviderConfig?
     /// Per-provider key storage for testing provider switching.
     var storedKeys: [LLMProviderID: String] = [:]
+    var taskOverrides: [LLMTaskGroup: LLMProviderConfig] = [:]
 
     func loadConfig() throws -> LLMProviderConfig? { config }
     func saveConfig(_ config: LLMProviderConfig) throws {
@@ -233,6 +234,21 @@ final class MockLLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
             id: existing.id, baseURL: existing.baseURL, apiKey: existing.apiKey,
             modelName: modelName, isLocal: existing.isLocal
         )
+    }
+
+    func loadTaskOverride(_ task: LLMTaskGroup) throws -> LLMProviderConfig? {
+        taskOverrides[task]
+    }
+
+    func saveTaskOverride(_ config: LLMProviderConfig?, for task: LLMTaskGroup) throws {
+        if let config {
+            taskOverrides[task] = config
+            if let key = config.apiKey {
+                storedKeys[config.id] = key
+            }
+        } else {
+            taskOverrides.removeValue(forKey: task)
+        }
     }
 }
 

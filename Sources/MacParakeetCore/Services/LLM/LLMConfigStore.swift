@@ -11,6 +11,13 @@ public protocol LLMConfigStoreProtocol: Sendable {
     func saveAPIKey(_ key: String) throws
     func deleteAPIKey() throws
     func updateModelName(_ modelName: String) throws
+    func loadTaskOverride(_ task: LLMTaskGroup) throws -> LLMProviderConfig?
+    func saveTaskOverride(_ config: LLMProviderConfig?, for task: LLMTaskGroup) throws
+}
+
+extension LLMConfigStoreProtocol {
+    public func loadTaskOverride(_ task: LLMTaskGroup) throws -> LLMProviderConfig? { nil }
+    public func saveTaskOverride(_ config: LLMProviderConfig?, for task: LLMTaskGroup) throws {}
 }
 
 // MARK: - Implementation
@@ -18,6 +25,10 @@ public protocol LLMConfigStoreProtocol: Sendable {
 // @unchecked Sendable: UserDefaults and Keychain are internally thread-safe
 public final class LLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
     private static let configKey = "llm_provider_config"
+
+    private static func taskOverrideKey(_ task: LLMTaskGroup) -> String {
+        "llm_provider_config_\(task.rawValue)"
+    }
 
     private let defaults: UserDefaults
     private let keychain: KeyValueStore
@@ -72,6 +83,8 @@ public final class LLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
             try keychain.delete(Self.apiKeyKeychainKey(for: decoded.id))
         }
         defaults.removeObject(forKey: Self.configKey)
+        defaults.removeObject(forKey: Self.taskOverrideKey(.cleanup))
+        defaults.removeObject(forKey: Self.taskOverrideKey(.analysis))
     }
 
     public func loadAPIKey() throws -> String? {
@@ -114,5 +127,32 @@ public final class LLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
             isLocal: existing.isLocal
         )
         try saveConfig(updated)
+    }
+
+    public func loadTaskOverride(_ task: LLMTaskGroup) throws -> LLMProviderConfig? {
+        guard task.allowsOverride else { return nil }
+        guard let data = defaults.data(forKey: Self.taskOverrideKey(task)) else { return nil }
+        let decoded = try JSONDecoder().decode(LLMProviderConfig.self, from: data)
+        let apiKey = try keychain.getString(Self.apiKeyKeychainKey(for: decoded.id))
+        return LLMProviderConfig(
+            id: decoded.id,
+            baseURL: decoded.baseURL,
+            apiKey: apiKey,
+            modelName: decoded.modelName,
+            isLocal: decoded.isLocal
+        )
+    }
+
+    public func saveTaskOverride(_ config: LLMProviderConfig?, for task: LLMTaskGroup) throws {
+        guard task.allowsOverride else { return }
+        let key = Self.taskOverrideKey(task)
+        guard let config else {
+            defaults.removeObject(forKey: key)
+            return
+        }
+        if config.id != .localCLI, let apiKey = config.apiKey {
+            try keychain.setString(apiKey, forKey: Self.apiKeyKeychainKey(for: config.id))
+        }
+        defaults.set(try JSONEncoder().encode(config), forKey: key)
     }
 }

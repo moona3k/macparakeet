@@ -167,6 +167,12 @@ public final class LLMSettingsViewModel {
         set { applyProviderChange(to: newValue) }
     }
 
+    /// `nil` means inherit the default AI route.
+    public var cleanupOverrideProviderID: LLMProviderID?
+    public var cleanupModelName = ""
+    public var analysisOverrideProviderID: LLMProviderID?
+    public var analysisModelName = ""
+
     public var apiKeyInput: String {
         get { draft.apiKeyInput }
         set {
@@ -283,6 +289,10 @@ public final class LLMSettingsViewModel {
 
     public var hasUnsavedChanges: Bool {
         draftConfigurationSnapshot() != savedConfigurationSnapshot()
+            || cleanupOverrideProviderID != savedCleanupOverrideProviderID
+            || cleanupModelName != savedCleanupModelName
+            || analysisOverrideProviderID != savedAnalysisOverrideProviderID
+            || analysisModelName != savedAnalysisModelName
     }
 
     public var connectionSuccessMessage: String {
@@ -686,6 +696,10 @@ public final class LLMSettingsViewModel {
     private var aiFormatterProfileRepo: AIFormatterProfileRepositoryProtocol?
     private let defaults: UserDefaults
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "LLMSettingsViewModel")
+    private var savedCleanupOverrideProviderID: LLMProviderID?
+    private var savedCleanupModelName = ""
+    private var savedAnalysisOverrideProviderID: LLMProviderID?
+    private var savedAnalysisModelName = ""
 
     private enum ConfigurationSnapshot: Equatable {
         case none
@@ -764,6 +778,7 @@ public final class LLMSettingsViewModel {
             } else {
                 try configStore.saveConfig(config)
             }
+            try persistTaskOverrides()
 
             _ = persistAIFormatterPreferences(from: draft)
             // Rehydrate the exact committed payload, without a fallible credential
@@ -869,6 +884,7 @@ public final class LLMSettingsViewModel {
         }
         connectionTestState = .idle
         saveState = finalSaveState
+        loadTaskOverrides()
         inProcessModelManager.refreshSelectionState()
         onConfigurationChanged?()
     }
@@ -1285,6 +1301,7 @@ public final class LLMSettingsViewModel {
             resetDiscoveredModels()
             connectionTestState = .idle
             saveState = .idle
+            loadTaskOverrides()
             return
         }
         let cliConfig = config.id == .localCLI ? cliConfigStore?.load() : nil
@@ -1296,6 +1313,74 @@ public final class LLMSettingsViewModel {
         }
         connectionTestState = .idle
         saveState = .idle
+        loadTaskOverrides()
+    }
+
+    private func loadTaskOverrides() {
+        cleanupOverrideProviderID = nil
+        cleanupModelName = ""
+        analysisOverrideProviderID = nil
+        analysisModelName = ""
+        if let cleanup = try? configStore?.loadTaskOverride(.cleanup) {
+            cleanupOverrideProviderID = cleanup.id
+            cleanupModelName = cleanup.modelName
+        }
+        if let analysis = try? configStore?.loadTaskOverride(.analysis) {
+            analysisOverrideProviderID = analysis.id
+            analysisModelName = analysis.modelName
+        }
+        savedCleanupOverrideProviderID = cleanupOverrideProviderID
+        savedCleanupModelName = cleanupModelName
+        savedAnalysisOverrideProviderID = analysisOverrideProviderID
+        savedAnalysisModelName = analysisModelName
+    }
+
+    private func persistTaskOverrides() throws {
+        try persistOverride(
+            providerID: cleanupOverrideProviderID,
+            modelName: cleanupModelName,
+            task: .cleanup
+        )
+        try persistOverride(
+            providerID: analysisOverrideProviderID,
+            modelName: analysisModelName,
+            task: .analysis
+        )
+        savedCleanupOverrideProviderID = cleanupOverrideProviderID
+        savedCleanupModelName = cleanupModelName
+        savedAnalysisOverrideProviderID = analysisOverrideProviderID
+        savedAnalysisModelName = analysisModelName
+    }
+
+    private func persistOverride(
+        providerID: LLMProviderID?,
+        modelName: String,
+        task: LLMTaskGroup
+    ) throws {
+        guard let configStore else { return }
+        guard let providerID else {
+            try configStore.saveTaskOverride(nil, for: task)
+            return
+        }
+        let trimmed = modelName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedModel = trimmed.isEmpty ? providerID.defaultModelName : trimmed
+        let apiKey = try configStore.loadAPIKey(for: providerID)
+        let baseURL: URL
+        if let current = try configStore.loadConfig(), current.id == providerID {
+            baseURL = current.baseURL
+        } else {
+            baseURL = URL(string: providerID.defaultBaseURL)!
+        }
+        try configStore.saveTaskOverride(
+            LLMProviderConfig(
+                id: providerID,
+                baseURL: baseURL,
+                apiKey: apiKey,
+                modelName: resolvedModel,
+                isLocal: providerID.isLocal
+            ),
+            for: task
+        )
     }
 
     private func loadCommittedDraft(

@@ -1,6 +1,6 @@
 # ADR-032: LLM Task-Group Routing and Specialist Recipes
 
-> Status: **ACCEPTED** (direction; not implemented)
+> Status: **ACCEPTED** (inherit/override implemented; specialist recipes not shipped)
 > Date: 2026-09-14
 > Related: [ADR-011](011-llm-cloud-and-local-providers.md) (providers and
 > shared client), [ADR-004](004-deterministic-pipeline.md) (deterministic
@@ -176,19 +176,16 @@ The on-device local LLM plan's single-model invariant applies to the
 separate, optional, and task-bound. BYO users may still point task
 groups at different general providers or models.
 
-## Current behavior (unchanged until implemented)
+## Current behavior
 
 - One saved default provider config via `LLMConfigStore`.
-- Task-blind `StoredLLMExecutionContextResolver`.
+- Optional cleanup and analysis full-route overrides; Transforms inherit the default route.
 - Per-prompt and per-Transform `modelOverride`, plus `--model` on
-  stored-config CLI commands, overlay that saved route without replacing
+  stored-config CLI commands, overlay the resolved route without replacing
   it. Inline CLI commands that pass a full provider context are
   independent configs.
 - Per-surface formatter enablement and the transcription length cap.
 - No specialist recipes and no translation product.
-
-Treat those as the implemented contract. This ADR is the design to
-follow when that contract grows.
 
 ## Consequences
 
