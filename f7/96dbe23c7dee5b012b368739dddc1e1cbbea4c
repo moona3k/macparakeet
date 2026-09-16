@@ -1,0 +1,38 @@
+Sources/MacParakeet/AppDelegate.swift
+  s_673be8b32d8d6a::t_88338a454c1dd7 712-714
+Sources/MacParakeetViewModels/OnboardingViewModel.swift
+  s_673be8b32d8d6a::t_2a42963368c344 347
+spec/02-features.md
+  s_673be8b32d8d6a::t_87edf514ee7417 120
+spec/adr/005-onboarding-first-run.md
+  s_673be8b32d8d6a::t_e4810c4c0688e0 86-88
+  s_673be8b32d8d6a::t_b21809f0912067 89
+  s_673be8b32d8d6a::t_8b05e8a61af541 30
+Tests/MacParakeetTests/ViewModels/OnboardingViewModelTests.swift
+  s_673be8b32d8d6a::t_4b98568fb0c667 223-224
+  s_673be8b32d8d6a::t_9b6986e0ac50b1 211
+  s_673be8b32d8d6a::t_c2970a9adf2caa 457-459
+  s_673be8b32d8d6a::t_f9c1a28acd4697 445
+Sources/MacParakeet/Views/Onboarding/OnboardingFlowView.swift
+  s_673be8b32d8d6a::t_cf5b36bd0ec0dc 999-1000
+  s_673be8b32d8d6a::t_dc1456a10a9eea 1095
+  s_673be8b32d8d6a::t_0a597b31186b98 346
+  s_673be8b32d8d6a::t_9b7c894ea7d712 979
+  s_673be8b32d8d6a::t_73e5fe195e3242 1096
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f796dbe23c7dee5b012b368739dddc1e1cbbea4c",
+  "prompts": {},
+  "sessions": {
+    "s_673be8b32d8d6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
