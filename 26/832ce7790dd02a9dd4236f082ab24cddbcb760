@@ -1,0 +1,26 @@
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_16625ca395d674::t_ea9f12ad80a4b8 1327
+Sources/MacParakeetCore/TextProcessing/TextProcessingPipeline.swift
+  s_16625ca395d674::t_0d7f45a08630bf 110-133
+Tests/MacParakeetTests/TextProcessing/TextProcessingPipelineTests.swift
+  s_16625ca395d674::t_a865714d7f8277 50-51,53-72
+  s_16625ca395d674::t_1917d9b2bd3bd5 52
+docs/cli-testing.md
+  s_16625ca395d674::t_bffd3a0490ae76 269
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "26832ce7790dd02a9dd4236f082ab24cddbcb760",
+  "prompts": {},
+  "sessions": {
+    "s_16625ca395d674": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "50a31c9a-e072-42da-b153-189c3e78ba52",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
