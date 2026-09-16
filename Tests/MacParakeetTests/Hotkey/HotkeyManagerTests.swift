@@ -206,6 +206,60 @@ final class HotkeyManagerTests: XCTestCase {
         )
     }
 
+    func testEscapeDoesNotCancelWhenSettingIsOff() {
+        let manager = HotkeyManager(trigger: .fn, gestureMode: .singleTapToggle)
+        manager.shouldCancelOnEscape = { false }
+        manager.setPhysicalKeyStateProviderForTesting { _ in false }
+
+        XCTAssertEqual(
+            manager.modifierKeyDownOutputsForTesting(keyCode: 53, timestampMs: 1_000),
+            [.escapeWhileIdle]
+        )
+
+        let keyCodeManager = HotkeyManager(trigger: HotkeyTrigger.fromKeyCode(119), gestureMode: .singleTapToggle)
+        keyCodeManager.shouldCancelOnEscape = { false }
+        let decision = keyCodeManager.keyCodeEventDecisionForTesting(
+            type: .keyDown,
+            keyCode: 53,
+            timestampMs: 1_000
+        )
+        XCTAssertEqual(decision.outputs, [.escapeWhileIdle])
+        XCTAssertFalse(decision.shouldSwallow)
+    }
+
+    func testEscapeDoesNotCancelActiveRecordingWhenSettingIsOff() {
+        var cancelOnEscape = false
+        let manager = HotkeyManager(
+            trigger: HotkeyTrigger.fromKeyCode(119),
+            gestureMode: .singleTapToggle
+        )
+        manager.shouldCancelOnEscape = { cancelOnEscape }
+
+        let start = manager.keyCodeEventDecisionForTesting(
+            type: .keyDown,
+            keyCode: 119,
+            timestampMs: 1_000
+        )
+        XCTAssertEqual(start.outputs, [.startRecording(mode: .persistent)])
+
+        let ignored = manager.keyCodeEventDecisionForTesting(
+            type: .keyDown,
+            keyCode: 53,
+            timestampMs: 1_100
+        )
+        XCTAssertEqual(ignored.outputs, [])
+        XCTAssertFalse(ignored.shouldSwallow)
+
+        cancelOnEscape = true
+        let cancelled = manager.keyCodeEventDecisionForTesting(
+            type: .keyDown,
+            keyCode: 53,
+            timestampMs: 1_200
+        )
+        XCTAssertEqual(cancelled.outputs, [.cancelRecording])
+        XCTAssertFalse(cancelled.shouldSwallow)
+    }
+
     func testPassiveFnTapRecoveryReconcilesPreHeldKeyAndFailsClosed() {
         var pressedKeyCodes: Set<UInt16> = []
         let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)

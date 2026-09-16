@@ -319,6 +319,18 @@ public final class SettingsViewModel {
             ))
         }
     }
+    public var escapeCancelsDictation: Bool {
+        didSet {
+            defaults.set(
+                escapeCancelsDictation,
+                forKey: UserDefaultsAppRuntimePreferences.escapeCancelsDictationKey
+            )
+            Telemetry.send(.settingChanged(
+                setting: .escapeCancelsDictation,
+                value: Self.settingValue(escapeCancelsDictation)
+            ))
+        }
+    }
     public var instantDictationEnabled: Bool {
         didSet {
             defaults.set(
@@ -980,6 +992,7 @@ public final class SettingsViewModel {
         pauseMediaDuringDictation = defaults.object(
             forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey
         ) as? Bool ?? false
+        escapeCancelsDictation = UserDefaultsAppRuntimePreferences.escapeCancelsDictation(defaults: defaults)
         instantDictationEnabled = defaults.object(
             forKey: UserDefaultsAppRuntimePreferences.instantDictationEnabledKey
         ) as? Bool ?? false

@@ -45,6 +45,7 @@ struct ConfigCommand: ParsableCommand {
           auto-meeting-titles       on|off                          default: on
           voice-return-enabled      on|off                          default: off
           voice-return-triggers     phrase[|phrase...]              default: press return
+          escape-cancels-dictation  on|off                          default: on
           save-transcription-audio  on|off                          default: on
           meeting-audio-retention   keep-forever|                   default: keep-forever
                                     delete-after-<1-365>-days|
@@ -151,6 +152,12 @@ struct ConfigCommand: ParsableCommand {
             valueSyntax: "phrase[|phrase...]",
             allowedValues: nil,
             summary: "Voice Return trigger phrases separated by |."
+        ),
+        CLIConfigKeySpec(
+            key: "escape-cancels-dictation",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Whether Escape cancels a live dictation."
         ),
         CLIConfigKeySpec(
             key: "save-transcription-audio",
@@ -341,6 +348,8 @@ struct ConfigCommand: ParsableCommand {
             return displayVoiceReturnTriggers(
                 UserDefaultsAppRuntimePreferences.voiceReturnTriggerList(defaults: store)
             )
+        case "escape-cancels-dictation":
+            return UserDefaultsAppRuntimePreferences.escapeCancelsDictation(defaults: store) ? "on" : "off"
         case "save-transcription-audio":
             let on = store.object(forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey) as? Bool ?? true
             return on ? "on" : "off"
@@ -445,6 +454,10 @@ struct ConfigCommand: ParsableCommand {
             store.set(triggers, forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggersKey)
             store.set(triggers.first, forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey)
             return displayVoiceReturnTriggers(triggers)
+        case "escape-cancels-dictation":
+            let parsed = try parseBool(value, key: key)
+            store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.escapeCancelsDictationKey)
+            return parsed ? "on" : "off"
         case "save-transcription-audio":
             let parsed = try parseBool(value, key: key)
             store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey)

@@ -344,7 +344,7 @@ Space is always reserved for the tooltip (opacity toggle, not conditional render
 - [x] Hover tooltips display correctly on non-activating panel
 - [ ] Parakeet transcribes with <500ms end-to-end latency for short dictations
 - [x] Text auto-pastes into active app, clipboard restored afterward
-- [x] Esc triggers soft cancel with 5-second undo window
+- [x] Esc triggers soft cancel with 5-second undo window (optional via `escapeCancelsDictation`, default on)
 - [x] Undo during cancel window resumes processing
 - [x] Accessibility permission prompted gracefully on first use
 - [x] Audio saved to disk (if storage enabled in settings)
@@ -2162,6 +2162,7 @@ These are implemented in source; release availability follows the
 | DAPT export | Timed speaker-attributed events at automatic word or corrected segment alignment; untimed fallback otherwise. | [DAPT contract](contracts/dapt-export-v1.md) |
 | Split and transcribe | User-approved cuts create independently owned saved meetings while preserving the original; sequential transcription and enabled completion can continue or resume from durable receipts in the app and public CLI. | [Split contract](contracts/meeting-splitting.md) |
 | Live transcription toggle | "Live transcription during recording" in Meeting Recording settings (`meetingLiveTranscriptionEnabled`, default on). Off skips the live STT pass entirely — recording is unaffected, and the final transcript still runs a full post-stop STT pass over the saved audio, same as when an engine can't support live preview at all. | [ADR-014 §9](adr/014-meeting-recording.md) |
+| Escape cancels dictation | Default-on Dictation setting (`escapeCancelsDictation`). Off leaves Escape for other apps and does not cancel a live dictation. Overlay position stays on #604. | [F1](02-features.md#f1-system-wide-dictation) |
 
 These do not enable activity-based meeting detection, app-aware AI Formatter
 profiles or public in-process MLX. Corpus-wide Ask and cross-file speaker

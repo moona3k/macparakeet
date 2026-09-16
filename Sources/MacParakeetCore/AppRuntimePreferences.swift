@@ -26,6 +26,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var openAppAfterMeetingEnd: Bool { get }
     var notifyOnMeetingEnd: Bool { get }
     var pauseMediaDuringDictation: Bool { get }
+    var escapeCancelsDictation: Bool { get }
     var instantDictationEnabled: Bool { get }
     var customVocabularyRecognitionBoostingEnabled: Bool { get }
     var showLiveDictationPreview: Bool { get }
@@ -546,6 +547,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let meetingAudioSourceModeKey = "meetingAudioSourceMode"
     public static let meetingAutoStopEnabledKey = "meetingAutoStopEnabled"
     public static let pauseMediaDuringDictationKey = "pauseMediaDuringDictation"
+    public static let escapeCancelsDictationKey = "escapeCancelsDictation"
     public static let instantDictationEnabledKey = "instantDictationEnabled"
     public static let customVocabularyRecognitionBoostingEnabledKey = "customVocabularyRecognitionBoostingEnabled"
     public static let showLiveDictationPreviewKey = "showLiveDictationPreview"
@@ -745,6 +747,15 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public var pauseMediaDuringDictation: Bool {
         defaults.object(forKey: Self.pauseMediaDuringDictationKey) as? Bool ?? false
+    }
+
+    public var escapeCancelsDictation: Bool {
+        Self.escapeCancelsDictation(defaults: defaults)
+    }
+
+    /// Default on. Missing key keeps current Escape-cancels-dictation behavior.
+    public static func escapeCancelsDictation(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: escapeCancelsDictationKey) as? Bool ?? true
     }
 
     public var instantDictationEnabled: Bool {

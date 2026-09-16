@@ -45,6 +45,15 @@ final class SettingsSearchIndexTests: XCTestCase {
         )
     }
 
+    func testIgnoreEscapeQueryFindsDictationEscapeSetting() {
+        let results = SettingsSearchIndex.matches("ignore escape")
+
+        XCTAssertTrue(
+            results.contains(where: { $0.id == "dictation.escape.cancel" }),
+            "Ignore Escape should land on the Escape cancels dictation setting"
+        )
+    }
+
     func testLivePreviewQueryFindsDictationPreviewSetting() {
         let results = SettingsSearchIndex.matches("live preview")
 

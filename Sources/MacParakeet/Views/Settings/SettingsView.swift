@@ -1159,6 +1159,14 @@ struct SettingsView: View {
                 Divider()
 
                 settingsToggleRow(
+                    title: "Escape cancels dictation",
+                    detail: "Press Escape to cancel a live dictation. Turn off if other apps need Escape while you dictate. On by default.",
+                    isOn: $viewModel.escapeCancelsDictation
+                )
+
+                Divider()
+
+                settingsToggleRow(
                     title: "Auto-stop after silence",
                     detail: "Stops recording when speech pauses for the selected delay.",
                     isOn: $viewModel.silenceAutoStop

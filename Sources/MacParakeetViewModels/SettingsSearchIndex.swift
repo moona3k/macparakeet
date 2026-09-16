@@ -186,6 +186,17 @@ public enum SettingsSearchIndex {
             cardAnchor: "dictation"
         ),
         SettingsSearchEntry(
+            id: "dictation.escape.cancel",
+            tab: .capture,
+            title: "Escape cancels dictation",
+            subtitle: "in Dictation",
+            keywords: [
+                "escape", "esc", "cancel", "ignore escape", "safari", "fullscreen",
+                "live transcription", "don't cancel",
+            ],
+            cardAnchor: "dictation"
+        ),
+        SettingsSearchEntry(
             id: "transcription",
             tab: .capture,
             title: "Transcription",

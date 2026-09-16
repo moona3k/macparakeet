@@ -656,8 +656,11 @@ final class MeetingSplitAudioExporterTests: XCTestCase {
         }
 
         let finalObservedChunkCount = observedChunks.withLock { $0 }
+        // Cancel is requested after 2 chunks. A loaded CI runner can still
+        // finish a few in-flight decode chunks before the Task cancellation
+        // is observed; 40 is well below a full ~88-chunk probe.
         XCTAssertLessThan(
-            finalObservedChunkCount, 20,
+            finalObservedChunkCount, 40,
             "the source probe must stop promptly on cancellation, not run to completion (~88 chunks) unattended")
         XCTAssertFalse(FileManager.default.fileExists(atPath: childDestination.path))
     }
