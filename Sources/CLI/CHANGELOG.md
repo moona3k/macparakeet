@@ -101,8 +101,9 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 - `config get|set|list` includes `escape-cancels-dictation` (`on`/`off`,
   default on). When off, Escape is left for other apps and does not cancel
   a live dictation.
-- Saved prompt-result JSON includes additive nullable `contentEditedAt`, the
-  timestamp of the last in-place user edit of result content.
+- Saved prompt-result JSON includes additive `contentEditedAt` when the user
+  last edited result content in place. The key is omitted when content was
+  last written by generation.
 
 ## [4.5.0] — 2026-09-20
 
