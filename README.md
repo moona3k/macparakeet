@@ -267,7 +267,7 @@ You choose between two **processing modes**:
 
 **The Clean pipeline** applies these steps in order:
 
-1. **Filler removal** — Strips the conservative hesitation spellings "uh", "umm", and "uhh"
+1. **Filler removal** — Always strips "uh", "umm", and "uhh". Also strips standalone "um" by default (English hesitation). Turn **Also remove “um”** off in Vocabulary if you dictate Portuguese or German, where *um* is a real word.
 2. **Custom words** — Applies your word replacement rules (e.g., "aye pee eye" becomes "API", or "kubernetes" gets capitalized to "Kubernetes"). Case-insensitive, whole-word matching. Words can be toggled on/off without deleting.
 3. **Voice Return** — If you've defined one or more trigger phrases (e.g., "press return" or "zatwierdź") and speak one at the end of a dictation, it's stripped from the output and a Return keypress is simulated after paste
 4. **Snippet expansion** — Replaces short trigger phrases with longer text (e.g., "my signature" expands to "Best regards, David"). Triggers are natural language phrases because that's what the speech engine outputs. Matched longest-first to prevent collisions.

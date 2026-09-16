@@ -854,7 +854,7 @@ Audio → local STT → raw transcript → clean pipeline → paste
 
 **Step 1: Filler removal**
 
-Conservative defaults: only hesitation spellings that do not conflict with supported languages (`uh`, `umm`, `uhh`) are removed. False negatives are better than false positives, so semantic words such as Portuguese and German `um`, along with words like `like`, `so`, `right`, and phrases like `you know`, are not stripped by default.
+Always-safe hesitation spellings (`uh`, `umm`, `uhh`) are removed. Standalone `um` is also stripped by default because English speakers are the primary Clean audience. Portuguese and German speakers can turn **Also remove “um”** off in Vocabulary — `um` is a real word in those languages. False negatives are still better than false positives for longer tokens, so words like `like`, `so`, `right`, and phrases like `you know` are not stripped.
 
 **Step 2: Custom word replacements**
 
@@ -941,7 +941,8 @@ CREATE TABLE text_snippets (
 
 **Acceptance criteria:**
 - [x] Filler words removed from raw STT output
-- [x] Only always-safe hesitation sounds are removed by default
+- [x] Always-safe hesitation sounds (`uh`, `umm`, `uhh`) are removed
+- [x] Standalone `um` is stripped by default, with an opt-out for Portuguese/German
 - [x] Meaningful words such as "like", "so", and "right" are preserved
 - [x] Custom word replacements applied (case-insensitive matching)
 - [x] Trailing action snippets are extracted before text snippet expansion

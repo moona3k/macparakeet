@@ -479,6 +479,12 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .dictationInsertionStyle, value: dictationInsertionStyle.rawValue))
         }
     }
+    public var removeUmFiller: Bool {
+        didSet {
+            defaults.set(removeUmFiller, forKey: UserDefaultsAppRuntimePreferences.removeUmFillerKey)
+            Telemetry.send(.settingChanged(setting: .removeUmFiller, value: Self.settingValue(removeUmFiller)))
+        }
+    }
     public var customWordCount: Int = 0
     public var snippetCount: Int = 0
     public var customVocabularyRecognitionStatus: CustomVocabularyBoostingSupportPresentation {
@@ -992,6 +998,7 @@ public final class SettingsViewModel {
         voiceReturnTriggers = UserDefaultsAppRuntimePreferences.voiceReturnTriggerList(defaults: defaults)
         processingMode = Self.normalizedProcessingMode(defaults.string(forKey: UserDefaultsAppRuntimePreferences.processingModeKey))
         dictationInsertionStyle = DictationInsertionStyle.current(defaults: defaults)
+        removeUmFiller = UserDefaultsAppRuntimePreferences.removeUmFiller(defaults: defaults)
         saveDictationHistory = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveDictationHistoryKey) as? Bool ?? true
         saveAudioRecordings = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveAudioRecordingsKey) as? Bool ?? true
         saveTranscriptionAudio = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey) as? Bool ?? true

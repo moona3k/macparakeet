@@ -402,6 +402,20 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertEqual(UserDefaultsAppRuntimePreferences(defaults: defaults).dictationInsertionStyle, .sentence)
     }
 
+    func testRemoveUmFillerDefaultsToTrueAndReadsPersistedValue() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences(defaults: defaults).removeUmFiller)
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences.removeUmFiller(defaults: defaults))
+
+        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.removeUmFillerKey)
+
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences(defaults: defaults).removeUmFiller)
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences.removeUmFiller(defaults: defaults))
+    }
+
     func testAppAppearanceModeDefaultsToSystemAndIgnoresInvalidValues() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

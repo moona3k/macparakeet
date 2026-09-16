@@ -1563,6 +1563,39 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(result.dictation.wordCount, 2)
     }
 
+    func testStopRecordingStripsUmFillerByDefaultInCleanMode() async throws {
+        await mockSTT.configure(result: STTResult(text: "I um think we should ship it"))
+
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            processingMode: { .clean }
+        )
+
+        try await service.startRecording()
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(result.dictation.cleanTranscript, "I think we should ship it")
+    }
+
+    func testStopRecordingPreservesUmWhenFillerToggleIsOff() async throws {
+        await mockSTT.configure(result: STTResult(text: "um, dois, três"))
+
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            processingMode: { .clean },
+            removeUmFiller: { false }
+        )
+
+        try await service.startRecording()
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(result.dictation.cleanTranscript, "Um, dois, três")
+    }
+
     func testStopRecordingNormalizesAIFormatterOutputBeforeInlineInsertionStyle() async throws {
         await mockSTT.configure(result: STTResult(text: "hello world"))
         let mockLLMService = MockLLMService()

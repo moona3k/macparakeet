@@ -13,7 +13,8 @@ public struct TextProcessingPipeline: Sendable {
         text: String,
         customWords: [CustomWord],
         snippets: [TextSnippet],
-        insertionStyle: DictationInsertionStyle = .sentence
+        insertionStyle: DictationInsertionStyle = .sentence,
+        removeUmFiller: Bool = true
     ) -> TextProcessingResult {
         guard !text.isEmpty else {
             return TextProcessingResult(text: "")
@@ -25,7 +26,7 @@ public struct TextProcessingPipeline: Sendable {
         var result = text
 
         // Step 1: Filler removal
-        result = removeFillers(from: result)
+        result = removeFillers(from: result, removeUmFiller: removeUmFiller)
 
         // Step 2: Custom word replacements
         result = applyCustomWords(to: result, words: customWords)
@@ -67,23 +68,39 @@ public struct TextProcessingPipeline: Sendable {
 
     // MARK: - Step 1: Filler Removal
 
-    /// Always-safe fillers (always removed)
+    /// Always-safe fillers (always removed).
     /// Conservative hesitation spellings that do not conflict with supported languages.
     private static let alwaysSafeFillers = [
         "uh", "umm", "uhh",
     ]
 
+    /// English hesitation `um`. On by default; Portuguese/German speakers can
+    /// turn it off because `um` is a real word in those languages.
+    private static let englishUmFiller = "um"
+
     /// Pre-compiled filler regexes — avoids recompilation on every dictation.
-    private static let fillerRegexes: [NSRegularExpression] = alwaysSafeFillers.compactMap { filler in
+    private static let fillerRegexes: [NSRegularExpression] = alwaysSafeFillers.compactMap { fillerRegex(for: $0) }
+
+    private static let umFillerRegex: NSRegularExpression? = fillerRegex(for: englishUmFiller)
+
+    private static func fillerRegex(for filler: String) -> NSRegularExpression? {
         let pattern = "\\b\(NSRegularExpression.escapedPattern(for: filler))\\b"
         return try? NSRegularExpression(pattern: pattern, options: .caseInsensitive)
     }
 
-    func removeFillers(from text: String) -> String {
+    func removeFillers(from text: String, removeUmFiller: Bool = true) -> String {
         var result = text
 
         for regex in Self.fillerRegexes {
             result = regex.stringByReplacingMatches(
+                in: result,
+                range: NSRange(result.startIndex..., in: result),
+                withTemplate: ""
+            )
+        }
+
+        if removeUmFiller, let umRegex = Self.umFillerRegex {
+            result = umRegex.stringByReplacingMatches(
                 in: result,
                 range: NSRange(result.startIndex..., in: result),
                 withTemplate: ""

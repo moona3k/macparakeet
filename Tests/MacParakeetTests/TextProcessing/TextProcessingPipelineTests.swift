@@ -36,8 +36,28 @@ final class TextProcessingPipelineTests: XCTestCase {
     }
 
     func testPipelinePreservesPortugueseUmWhenCounting() {
-        let result = pipeline.process(text: "um, dois, três", customWords: [], snippets: [])
+        let result = pipeline.process(
+            text: "um, dois, três",
+            customWords: [],
+            snippets: [],
+            removeUmFiller: false
+        )
         XCTAssertEqual(result.text, "Um, dois, três")
+    }
+
+    func testPipelineStripsEnglishUmByDefault() {
+        let result = pipeline.process(text: "I um think we should ship it", customWords: [], snippets: [])
+        XCTAssertEqual(result.text, "I think we should ship it")
+    }
+
+    func testPipelinePreservesGermanUmWhenUmFillerIsOff() {
+        let result = pipeline.process(
+            text: "treffe dich um drei",
+            customWords: [],
+            snippets: [],
+            removeUmFiller: false
+        )
+        XCTAssertEqual(result.text, "Treffe dich um drei")
     }
 
     // MARK: - Step 1: Filler Removal
@@ -65,6 +85,22 @@ final class TextProcessingPipelineTests: XCTestCase {
         let result = pipeline.removeFillers(from: "umm this is uhh interesting")
         XCTAssertFalse(result.contains("umm"))
         XCTAssertFalse(result.contains("uhh"))
+    }
+
+    func testEnglishUmFillerRemovalIsOptOut() {
+        XCTAssertEqual(pipeline.removeFillers(from: "I um think"), "I  think")
+        XCTAssertEqual(
+            pipeline.removeFillers(from: "I um think", removeUmFiller: false),
+            "I um think"
+        )
+    }
+
+    func testAlwaysSafeFillersStillStripWhenUmIsOff() {
+        let result = pipeline.removeFillers(from: "uh um umm uhh hello", removeUmFiller: false)
+        XCTAssertFalse(result.contains("uh"))
+        XCTAssertFalse(result.contains("umm"))
+        XCTAssertFalse(result.contains("uhh"))
+        XCTAssertTrue(result.contains("um"))
     }
 
     // MARK: - Step 2: Custom Words

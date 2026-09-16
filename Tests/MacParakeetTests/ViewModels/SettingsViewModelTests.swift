@@ -224,6 +224,7 @@ final class SettingsViewModelTests: XCTestCase {
             "keepDictationOnClipboard should default to false (opt-in)"
         )
         XCTAssertEqual(viewModel.dictationInsertionStyle, .sentence)
+        XCTAssertTrue(viewModel.removeUmFiller, "removeUmFiller should default to true")
         XCTAssertTrue(viewModel.saveAudioRecordings, "saveAudioRecordings should default to true")
         XCTAssertTrue(viewModel.saveTranscriptionAudio, "saveTranscriptionAudio should default to true")
         XCTAssertEqual(viewModel.meetingAudioRetention, .keepForever)
@@ -261,6 +262,7 @@ final class SettingsViewModelTests: XCTestCase {
             DictationInsertionStyle.inline.rawValue,
             forKey: UserDefaultsAppRuntimePreferences.dictationInsertionStyleKey
         )
+        testDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.removeUmFillerKey)
         testDefaults.set(false, forKey: "saveAudioRecordings")
         testDefaults.set(false, forKey: "saveTranscriptionAudio")
         UserDefaultsAppRuntimePreferences.saveMeetingAudioRetention(.deleteImmediately, defaults: testDefaults)
@@ -296,6 +298,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.silenceDelay, 3.0)
         XCTAssertTrue(vm.keepDictationOnClipboard)
         XCTAssertEqual(vm.dictationInsertionStyle, .inline)
+        XCTAssertFalse(vm.removeUmFiller)
         XCTAssertFalse(vm.saveAudioRecordings)
         XCTAssertFalse(vm.saveTranscriptionAudio)
         XCTAssertEqual(vm.meetingAudioRetention, .deleteImmediately)
@@ -1039,6 +1042,23 @@ final class SettingsViewModelTests: XCTestCase {
             return setting
         }
         XCTAssertEqual(settings, [.dictationInsertionStyle])
+    }
+
+    func testSettingRemoveUmFillerPersistsAndEmitsTelemetry() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        viewModel.removeUmFiller = false
+
+        XCTAssertEqual(
+            testDefaults.object(forKey: UserDefaultsAppRuntimePreferences.removeUmFillerKey) as? Bool,
+            false
+        )
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting, _) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.removeUmFiller])
     }
 
     func testSettingSaveAudioRecordingsPersists() {

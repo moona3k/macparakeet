@@ -89,6 +89,18 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- `config` key `remove-um-filler` (`on|off`, default `on`). Clean processing
+  strips standalone English hesitation `um`. Portuguese and German users
+  should set this to `off`.
+
+### Changed
+
+- `vocab process` and Clean-mode dictation/file transcription now strip
+  standalone `um` by default. The previous multilingual-safe default is the
+  off value of `remove-um-filler`.
+
 ## [4.2.0] — 2026-09-15
 
 ### Added

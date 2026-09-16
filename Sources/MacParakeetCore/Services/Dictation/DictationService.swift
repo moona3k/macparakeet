@@ -110,6 +110,7 @@ public actor DictationService: DictationServiceProtocol {
     private let voiceReturnTriggers: @Sendable () -> [String]
     private let processingMode: @Sendable () -> Dictation.ProcessingMode
     private let dictationInsertionStyle: @Sendable () -> DictationInsertionStyle
+    private let removeUmFiller: @Sendable () -> Bool
     private let textRefinementService: TextRefinementService
     private let llmService: LLMServiceProtocol?
     private let llmRunRecorder: LLMRunRecorder
@@ -181,6 +182,7 @@ public actor DictationService: DictationServiceProtocol {
         voiceReturnTrigger: (@Sendable () -> String?)? = nil,
         processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil,
         dictationInsertionStyle: (@Sendable () -> DictationInsertionStyle)? = nil,
+        removeUmFiller: (@Sendable () -> Bool)? = nil,
         llmService: LLMServiceProtocol? = nil,
         llmRunRepo: LLMRunRepositoryProtocol? = nil,
         shouldUseAIFormatter: (@Sendable () -> Bool)? = nil,
@@ -215,6 +217,7 @@ public actor DictationService: DictationServiceProtocol {
         }
         self.processingMode = processingMode ?? { .raw }
         self.dictationInsertionStyle = dictationInsertionStyle ?? { .sentence }
+        self.removeUmFiller = removeUmFiller ?? { true }
         self.textRefinementService = TextRefinementService()
         self.llmService = llmService
         self.llmRunRecorder = LLMRunRecorder(repository: llmRunRepo)
@@ -1321,6 +1324,7 @@ public actor DictationService: DictationServiceProtocol {
 
         let mode = processingMode()
         let insertionStyle = mode.usesDeterministicPipeline ? dictationInsertionStyle() : .sentence
+        let shouldRemoveUmFiller = mode.usesDeterministicPipeline ? removeUmFiller() : true
         var words: [CustomWord] = []
         var snippets: [TextSnippet] = []
         if mode.usesDeterministicPipeline {
@@ -1351,7 +1355,8 @@ public actor DictationService: DictationServiceProtocol {
             mode: mode,
             customWords: words,
             snippets: snippets,
-            insertionStyle: insertionStyle
+            insertionStyle: insertionStyle,
+            removeUmFiller: shouldRemoveUmFiller
         )
         let cleanTranscript = refinement.text
         let expandedSnippetIDs = refinement.expandedSnippetIDs

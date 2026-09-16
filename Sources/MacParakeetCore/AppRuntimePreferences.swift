@@ -3,6 +3,7 @@ import Foundation
 public protocol AppRuntimePreferencesProtocol: Sendable {
     var processingMode: Dictation.ProcessingMode { get }
     var dictationInsertionStyle: DictationInsertionStyle { get }
+    var removeUmFiller: Bool { get }
     var voiceReturnTriggers: [String] { get }
     var voiceReturnTrigger: String? { get }
     var shouldSaveAudioRecordings: Bool { get }
@@ -503,6 +504,10 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let voiceReturnTriggersKey = "voiceReturnTriggers"
     public static let processingModeKey = "processingMode"
     public static let dictationInsertionStyleKey = "dictationInsertionStyle"
+    /// Clean processing strips standalone English hesitation `um` (default on).
+    /// Portuguese and German speakers can turn this off; `um` is a real word.
+    public static let removeUmFillerKey = "removeUmFiller"
+    public static let defaultRemoveUmFiller = true
     public static let saveDictationHistoryKey = "saveDictationHistory"
     public static let saveAudioRecordingsKey = "saveAudioRecordings"
     public static let saveTranscriptionAudioKey = "saveTranscriptionAudio"
@@ -642,6 +647,14 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public var dictationInsertionStyle: DictationInsertionStyle {
         DictationInsertionStyle.current(defaults: defaults)
+    }
+
+    public var removeUmFiller: Bool {
+        Self.removeUmFiller(defaults: defaults)
+    }
+
+    public static func removeUmFiller(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: removeUmFillerKey) as? Bool ?? defaultRemoveUmFiller
     }
 
     public var voiceReturnTriggers: [String] {
