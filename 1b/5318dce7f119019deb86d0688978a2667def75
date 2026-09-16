@@ -1,0 +1,37 @@
+Tests/MacParakeetTests/TextProcessing/TextProcessingPipelineTests.swift
+  s_606c608689ba0b::t_98b0fc2ec5ce00 71-88
+  s_606c608689ba0b::t_7ec56e748e12e3 338,381,470-471,599
+Sources/CLI/CHANGELOG.md
+  s_606c608689ba0b::t_1c6fe32894bbbe 102-103
+Sources/MacParakeetCore/Services/TranscriptionService.swift
+  s_606c608689ba0b::t_b146230d872f19 1495-1497
+  s_606c608689ba0b::t_644f4c6a760f45 2174-2177,2180,2189,2192
+spec/04-ui-patterns.md
+  s_606c608689ba0b::t_f4941ec0a7cd95 1096-1098
+Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift
+  s_606c608689ba0b::t_461c5005597319 1084-1142
+docs/telemetry.md
+  s_606c608689ba0b::t_8010712cb2bf1e 421
+Sources/MacParakeetCore/TextProcessing/TextProcessingPipeline.swift
+  s_606c608689ba0b::t_b63ac611049d13 121
+  s_606c608689ba0b::t_538ca73165c436 116-120,122,133-137
+  s_606c608689ba0b::t_38fcf0d5b0b7c1 138-139,165-166,202-203,297-298,301-302
+Sources/CLI/Commands/SavedMeetingProcessingContext.swift
+  s_606c608689ba0b::t_97a4aa1826913e 48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1b5318dce7f119019deb86d0688978a2667def75",
+  "prompts": {},
+  "sessions": {
+    "s_606c608689ba0b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cca3cbd4-a0af-46d3-8951-f73076dc7480",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
