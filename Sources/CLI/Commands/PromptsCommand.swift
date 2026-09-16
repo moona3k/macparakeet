@@ -1051,12 +1051,14 @@ extension PromptsCommand {
 
                 let trimmedExtra = extra?.trimmingCharacters(in: .whitespacesAndNewlines)
                 let normalizedExtra = (trimmedExtra?.isEmpty == false) ? trimmedExtra : nil
+                let outputLanguagePolicy = currentMeetingAIOutputLanguagePolicy()
                 let assembly = PromptSystemPromptAssembler.assembleDetailed(
                     promptContent: prompt.content,
                     extraInstructions: normalizedExtra,
                     includeMeetingNotes: prompt.includeMeetingNotes,
                     userNotes: transcript.userNotes,
-                    transcript: transcriptText
+                    transcript: transcriptText,
+                    outputLanguagePolicy: outputLanguagePolicy
                 )
                 let systemPrompt = assembly.systemPrompt
 
@@ -1134,7 +1136,8 @@ extension PromptsCommand {
                         userNotesSnapshot: assembly.effectiveUserNotes,
                         effectiveSettings: effectiveSettings,
                         providerSnapshot: providerSnapshot,
-                        modelSnapshot: modelSnapshot
+                        modelSnapshot: modelSnapshot,
+                        outputLanguagePolicySnapshot: outputLanguagePolicy.configurationValue
                     )
                     try resultRepo.save(result)
                     await refreshMeetingArtifacts(
@@ -1164,7 +1167,8 @@ func makeStoredPromptRunResult(
     userNotesSnapshot: String?,
     effectiveSettings: PromptInferenceSettings?,
     providerSnapshot: String? = nil,
-    modelSnapshot: String? = nil
+    modelSnapshot: String? = nil,
+    outputLanguagePolicySnapshot: String? = nil
 ) -> PromptResult {
     PromptResult(
         transcriptionId: transcript.id,
@@ -1178,7 +1182,8 @@ func makeStoredPromptRunResult(
         includeMeetingNotesSnapshot: prompt.includeMeetingNotes,
         inferenceSettingsSnapshot: effectiveSettings,
         providerSnapshot: providerSnapshot,
-        modelSnapshot: modelSnapshot
+        modelSnapshot: modelSnapshot,
+        outputLanguagePolicySnapshot: outputLanguagePolicySnapshot
     )
 }
 

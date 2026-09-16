@@ -100,6 +100,21 @@ final class PromptResultRepositoryTests: XCTestCase {
         XCTAssertEqual(fetched.modelSnapshot, "gpt-test")
     }
 
+    func testOutputLanguagePolicySnapshotRoundTrips() throws {
+        let transcription = try makeTranscription()
+        let result = PromptResult(
+            transcriptionId: transcription.id,
+            promptName: "Summary",
+            promptContent: "Summarize this.",
+            content: "Summary",
+            outputLanguagePolicySnapshot: "follow-transcript"
+        )
+        try repo.save(result)
+
+        let fetched = try XCTUnwrap(repo.fetchAll(transcriptionId: transcription.id).first)
+        XCTAssertEqual(fetched.outputLanguagePolicySnapshot, "follow-transcript")
+    }
+
     func testInferenceSettingsSnapshotRoundTripAndDefaultNormalization() throws {
         let transcription = try makeTranscription()
         var result = PromptResult(

@@ -2317,6 +2317,18 @@ public final class DatabaseManager: Sendable {
                     """)
         }
 
+        // v0.45 — Snapshot the meeting AI output-language policy used for a
+        // prompt result so regeneration can replay the same language request
+        // even if Settings later change (issue #975).
+        migrator.registerMigration("v0.45-meeting-ai-output-language") { db in
+            let summaryColumns = try db.columns(in: "summaries").map(\.name)
+            if !summaryColumns.contains("outputLanguagePolicySnapshot") {
+                try db.alter(table: "summaries") { t in
+                    t.add(column: "outputLanguagePolicySnapshot", .text)
+                }
+            }
+        }
+
         return migrator
     }
 

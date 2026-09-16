@@ -89,6 +89,16 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- `config get|set|list` includes `meeting-ai-output-language`
+  (`follow-transcript` or `en|pl|de|es|fr|pt|ja|zh`, default `en`). This
+  controls the language of generated AI results, not speech recognition.
+  `prompts run` and saved-meeting completion read the same app defaults
+  suite as `config set`.
+- Saved prompt-result JSON includes additive nullable
+  `outputLanguagePolicySnapshot`.
+
 ## [4.2.0] — 2026-09-15
 
 ### Added

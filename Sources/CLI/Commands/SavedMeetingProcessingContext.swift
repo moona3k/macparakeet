@@ -70,7 +70,8 @@ struct SavedMeetingProcessingContext {
                 cardRepository: cardRepository,
                 speakerAttributionReader: speakerAttributionReader,
                 completionProvider: llmService
-            )
+            ),
+            outputLanguagePolicyProvider: { preferences.meetingAIOutputLanguagePolicy }
         )
         recordingsRootURL = meetingRecordingsRootURL(defaults: defaults)
     }

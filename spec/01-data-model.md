@@ -689,6 +689,7 @@ CREATE TABLE summaries (
     userNotesSnapshot TEXT,                                -- v0.8: notes used when generating this result
     includeMeetingNotesSnapshot INTEGER NOT NULL DEFAULT 0, -- v0.33-prompt-meeting-notes-context
     inferenceSettingsSnapshot TEXT,                       -- v0.31: JSON effective settings actually sent
+    outputLanguagePolicySnapshot TEXT,                    -- v0.45: meeting AI output-language policy used for this result
     createdAt         TEXT NOT NULL,                       -- ISO 8601 timestamp
     updatedAt         TEXT NOT NULL                        -- ISO 8601 timestamp
 );
@@ -707,6 +708,11 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
   existed yet. Retry reuses its queued snapshot; regenerate reuses this Boolean
   receipt with the meeting's current committed notes. The column defaults false
   for historical results and is installed by migration v0.33.
+- `outputLanguagePolicySnapshot` (v0.45) records the meeting AI output-language
+  policy used for that generation (`follow-transcript` or a language code).
+  `NULL` covers results created before the policy existed; regenerate then uses
+  the current Settings value. Extra instructions still override the injected
+  language request.
 - `inferenceSettingsSnapshot` (v0.31) stores the normalized effective settings
   actually sent after provider/model capability filtering, not merely the
   settings requested on the prompt. `NULL` preserves historical rows and means
@@ -1319,6 +1325,7 @@ struct PromptResult: Codable, Identifiable, Sendable {
     var userNotesSnapshot: String?
     var includeMeetingNotesSnapshot: Bool
     var inferenceSettingsSnapshot: PromptInferenceSettings?
+    var outputLanguagePolicySnapshot: String?
     var createdAt: Date
     var updatedAt: Date
 }
@@ -1684,6 +1691,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 // v0.42-share-publications — local sharing ledger + durable outbox
 // v0.43-meeting-audio-retention — optional managed-audio retention clock
 // v0.44-timed-transcript-corrections — widen correction operations without discarding history
+// v0.45-meeting-ai-output-language — summaries.outputLanguagePolicySnapshot
 ```
 
 ### Migration Rules
@@ -1737,6 +1745,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `speaker_embedding_candidates` | v0.41-speaker-embedding-candidates | Consent-gated temporary vectors with per-row seven-day expiry |
 | `prompts.includeMeetingNotes` | v0.33-prompt-meeting-notes-context | Result-prompt opt-in for automatic meeting-notes context; non-null, default false |
 | `summaries.includeMeetingNotesSnapshot` | v0.33-prompt-meeting-notes-context | Generation-time receipt of the prompt's notes-context opt-in; non-null, default false |
+| `summaries.outputLanguagePolicySnapshot` | v0.45-meeting-ai-output-language | Generation-time receipt of the meeting AI output-language policy (`follow-transcript` or a language code); nullable for pre-policy rows |
 | `lifetime_dictation_stats` | v0.7.4 | Singleton lifetime voice-stat counters |
 | `daily_dictation_stats` | v0.11 | Per-day rollup powering Stats-tab heatmap + daily streaks |
 | `transcriptions.recoveredFromCrash` | v0.7.5 | Interrupted meeting recovery marker |

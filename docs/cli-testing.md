@@ -256,6 +256,7 @@ swift run macparakeet-cli config set whisper-language ko
 swift run macparakeet-cli config set speaker-detection off
 swift run macparakeet-cli config set meeting-speaker-detection off
 swift run macparakeet-cli config set auto-meeting-titles on
+swift run macparakeet-cli config set meeting-ai-output-language en
 swift run macparakeet-cli config set save-transcription-audio off
 swift run macparakeet-cli config set meeting-audio-retention keep-forever
 swift run macparakeet-cli config set meeting-audio-source microphone-and-system
@@ -269,7 +270,7 @@ swift run macparakeet-cli config set voice-return-triggers "hey parakeet|okay pa
 Supported keys: `telemetry`, `processing-mode`, `speech-engine`,
 `parakeet-model`, `nemotron-model`, `nemotron-language`, `whisper-language`,
 `cohere-language`, `speaker-detection`, `meeting-speaker-detection`,
-`auto-meeting-titles`, `save-transcription-audio`, `meeting-audio-retention`,
+`auto-meeting-titles`, `meeting-ai-output-language`, `save-transcription-audio`, `meeting-audio-retention`,
 `meeting-audio-source`, `save-meeting-audio`, `youtube-audio-quality`,
 `meeting-artifacts-folder`, `meeting-hook-enabled`, `meeting-hook-path`,
 `meeting-hook-timeout`, `voice-return-enabled`, `voice-return-triggers`.

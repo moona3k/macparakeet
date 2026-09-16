@@ -188,6 +188,22 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(LLMSettingsViewModel(defaults: defaults).transcriptAIContextMode, .plainTranscript)
     }
 
+    func testMeetingAIOutputLanguagePolicyDefaultsToEnglish() {
+        XCTAssertEqual(viewModel.meetingAIOutputLanguagePolicy, .english)
+    }
+
+    func testMeetingAIOutputLanguagePolicyPersistsThroughInjectedDefaults() {
+        let key = UserDefaultsAppRuntimePreferences.meetingAIOutputLanguagePolicyKey
+
+        viewModel.meetingAIOutputLanguagePolicy = .followTranscript
+
+        XCTAssertEqual(defaults.string(forKey: key), "follow-transcript")
+        XCTAssertEqual(
+            LLMSettingsViewModel(defaults: defaults).meetingAIOutputLanguagePolicy,
+            .followTranscript
+        )
+    }
+
     func testClearConfigurationRestoresDictationRoutingDefault() {
         mockConfigStore.config = .lmstudio(model: "local-model")
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)

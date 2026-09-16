@@ -15,14 +15,16 @@ public enum PromptSystemPromptAssembler {
         extraInstructions: String?,
         includeMeetingNotes: Bool = false,
         userNotes: String? = nil,
-        transcript: String? = nil
+        transcript: String? = nil,
+        outputLanguagePolicy: MeetingAIOutputLanguagePolicy = .default
     ) -> String {
         assembleDetailed(
             promptContent: promptContent,
             extraInstructions: extraInstructions,
             includeMeetingNotes: includeMeetingNotes,
             userNotes: userNotes,
-            transcript: transcript
+            transcript: transcript,
+            outputLanguagePolicy: outputLanguagePolicy
         ).systemPrompt
     }
 
@@ -33,7 +35,8 @@ public enum PromptSystemPromptAssembler {
         extraInstructions: String?,
         includeMeetingNotes: Bool = false,
         userNotes: String? = nil,
-        transcript: String? = nil
+        transcript: String? = nil,
+        outputLanguagePolicy: MeetingAIOutputLanguagePolicy = .default
     ) -> Assembly {
         let effectiveNotes = effectiveUserNotes(
             promptContent: promptContent,
@@ -45,7 +48,8 @@ public enum PromptSystemPromptAssembler {
             extraInstructions: extraInstructions,
             includeMeetingNotes: includeMeetingNotes,
             effectiveUserNotes: effectiveNotes,
-            transcript: transcript
+            transcript: transcript,
+            outputLanguagePolicy: outputLanguagePolicy
         )
         return Assembly(systemPrompt: systemPrompt, effectiveUserNotes: effectiveNotes)
     }
@@ -72,7 +76,8 @@ public enum PromptSystemPromptAssembler {
         extraInstructions: String?,
         includeMeetingNotes: Bool,
         effectiveUserNotes: String?,
-        transcript: String? = nil
+        transcript: String? = nil,
+        outputLanguagePolicy: MeetingAIOutputLanguagePolicy = .default
     ) -> String {
         let hasExplicitNotesToken = promptContent.contains("{{userNotes}}")
         let renderedPrompt = PromptTemplateRenderer.render(
@@ -97,6 +102,8 @@ public enum PromptSystemPromptAssembler {
                 </meeting_notes>
                 """
         }
+
+        assembledPrompt += "\n\n" + outputLanguagePolicy.assemblyInstruction
 
         let trimmedInstructions = extraInstructions?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let trimmedInstructions, !trimmedInstructions.isEmpty else {

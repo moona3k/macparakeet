@@ -20,6 +20,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var aiFormatterEnabledForTranscriptions: Bool { get }
     var aiFormatterPrompt: String { get }
     var transcriptAIContextMode: TranscriptAIContextMode { get }
+    var meetingAIOutputLanguagePolicy: MeetingAIOutputLanguagePolicy { get }
     var selectedMicrophoneDeviceUID: String? { get }
     var meetingAudioSourceMode: MeetingAudioSourceMode { get }
     var shouldShowMeetingRecordingPill: Bool { get }
@@ -541,6 +542,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     /// turned off individually (default empty).
     public static let aiFormatterDisabledSmartDefaultCategoriesKey = "aiFormatterDisabledSmartDefaultCategories"
     public static let transcriptAIContextModeKey = "transcriptAIContextMode"
+    public static let meetingAIOutputLanguagePolicyKey = "meetingAIOutputLanguagePolicy"
     public static let transcriptFontScaleKey = "com.macparakeet.transcriptFontScale"
     public static let selectedMicrophoneDeviceUIDKey = "selectedMicrophoneDeviceUID"
     public static let meetingAudioSourceModeKey = "meetingAudioSourceMode"
@@ -721,6 +723,10 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public var transcriptAIContextMode: TranscriptAIContextMode {
         TranscriptAIContextMode.current(defaults: defaults)
+    }
+
+    public var meetingAIOutputLanguagePolicy: MeetingAIOutputLanguagePolicy {
+        MeetingAIOutputLanguagePolicy.current(defaults: defaults)
     }
 
     public var selectedMicrophoneDeviceUID: String? {

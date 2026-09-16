@@ -465,7 +465,10 @@ final class AppEnvironment {
             transcriptionLabelRepository: transcriptionMeetingLabelRepo,
             speakerAttributionReader: speakerAttributionReader,
             meetingArtifactStore: meetingArtifactStore,
-            cardGenerator: cardGenerationService
+            cardGenerator: cardGenerationService,
+            outputLanguagePolicyProvider: { [runtimePreferences] in
+                runtimePreferences.meetingAIOutputLanguagePolicy
+            }
         )
         meetingSplitService = MeetingSplitService(
             transcriptionRepo: transcriptionRepo,

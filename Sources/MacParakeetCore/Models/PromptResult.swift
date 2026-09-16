@@ -29,6 +29,10 @@ public struct PromptResult: Codable, Identifiable, Sendable {
     /// These are receipts, not live references to the current LLM settings.
     public var providerSnapshot: String?
     public var modelSnapshot: String?
+    /// Meeting AI output-language policy captured for this generation
+    /// (`follow-transcript` or a language code). Nil for results created
+    /// before the policy existed; regeneration then uses the current setting.
+    public var outputLanguagePolicySnapshot: String?
     public var createdAt: Date
     public var updatedAt: Date
 
@@ -52,6 +56,8 @@ public struct PromptResult: Codable, Identifiable, Sendable {
             PromptInferenceSettings.self, forKey: .inferenceSettingsSnapshot)
         providerSnapshot = try container.decodeIfPresent(String.self, forKey: .providerSnapshot)
         modelSnapshot = try container.decodeIfPresent(String.self, forKey: .modelSnapshot)
+        outputLanguagePolicySnapshot = try container.decodeIfPresent(
+            String.self, forKey: .outputLanguagePolicySnapshot)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
@@ -70,6 +76,7 @@ public struct PromptResult: Codable, Identifiable, Sendable {
         inferenceSettingsSnapshot: PromptInferenceSettings? = nil,
         providerSnapshot: String? = nil,
         modelSnapshot: String? = nil,
+        outputLanguagePolicySnapshot: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -86,6 +93,7 @@ public struct PromptResult: Codable, Identifiable, Sendable {
         self.inferenceSettingsSnapshot = inferenceSettingsSnapshot?.normalized
         self.providerSnapshot = providerSnapshot
         self.modelSnapshot = modelSnapshot
+        self.outputLanguagePolicySnapshot = outputLanguagePolicySnapshot
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -98,7 +106,7 @@ extension PromptResult: FetchableRecord, PersistableRecord {
         case id, transcriptionId, promptId, promptVersionId
         case promptName, promptContent, extraInstructions, content
         case userNotesSnapshot, includeMeetingNotesSnapshot, inferenceSettingsSnapshot
-        case providerSnapshot, modelSnapshot
+        case providerSnapshot, modelSnapshot, outputLanguagePolicySnapshot
         case createdAt, updatedAt
     }
 }

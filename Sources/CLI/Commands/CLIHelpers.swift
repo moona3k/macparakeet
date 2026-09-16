@@ -19,6 +19,12 @@ func macParakeetAppDefaults(
     AppPaths.appDefaults(bundleIdentifier: bundleIdentifier)
 }
 
+func currentMeetingAIOutputLanguagePolicy(
+    defaults: UserDefaults = macParakeetAppDefaults()
+) -> MeetingAIOutputLanguagePolicy {
+    MeetingAIOutputLanguagePolicy.current(defaults: defaults)
+}
+
 func validateCLISpeechEngineMemoryRequirement(
     for engine: SpeechEnginePreference,
     physicalMemoryBytes: UInt64 = ProcessInfo.processInfo.physicalMemory

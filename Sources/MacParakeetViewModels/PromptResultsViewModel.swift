@@ -50,6 +50,8 @@ public final class PromptResultsViewModel {
         public var userNotes: String?
         /// Per-prompt automatic meeting-note preference captured at enqueue.
         public var includeMeetingNotes: Bool
+        /// Meeting AI output-language policy captured at enqueue.
+        public var outputLanguagePolicy: MeetingAIOutputLanguagePolicy
         public var replacingPromptResultID: UUID?
         /// Completion-owned work survives navigation without selecting its meeting.
         public var runsInBackground: Bool
@@ -69,6 +71,7 @@ public final class PromptResultsViewModel {
             modelSnapshot: String? = nil,
             userNotes: String? = nil,
             includeMeetingNotes: Bool = false,
+            outputLanguagePolicy: MeetingAIOutputLanguagePolicy = .default,
             replacingPromptResultID: UUID? = nil,
             runsInBackground: Bool = false,
             state: State = .queued,
@@ -86,6 +89,7 @@ public final class PromptResultsViewModel {
             self.modelSnapshot = modelSnapshot
             self.userNotes = userNotes
             self.includeMeetingNotes = includeMeetingNotes
+            self.outputLanguagePolicy = outputLanguagePolicy
             self.replacingPromptResultID = replacingPromptResultID
             self.runsInBackground = runsInBackground
             self.state = state
@@ -114,6 +118,11 @@ public final class PromptResultsViewModel {
     public var onGenerationCompleted: ((UUID, UUID) -> Void)?
     public var onDeletedPromptResult: ((UUID) -> Void)?
     public var shouldMarkPromptResultUnread: ((UUID) -> Bool)?
+    /// Reads the current Settings policy. Tests override this so enqueue
+    /// snapshots do not depend on process-wide UserDefaults.
+    public var outputLanguagePolicyProvider: () -> MeetingAIOutputLanguagePolicy = {
+        MeetingAIOutputLanguagePolicy.current()
+    }
 
     private var llmService: LLMServiceProtocol?
     private var cardGenerator: CardGenerating?
@@ -511,7 +520,10 @@ public final class PromptResultsViewModel {
                 promptId: promptResult.promptId,
                 promptVersionId: promptResult.promptVersionId
             ),
-            replacingPromptResultID: promptResult.id
+            replacingPromptResultID: promptResult.id,
+            outputLanguagePolicy: promptResult.outputLanguagePolicySnapshot
+                .flatMap(MeetingAIOutputLanguagePolicy.init(configurationValue:))
+                ?? outputLanguagePolicyProvider()
         )
     }
 
@@ -623,7 +635,8 @@ public final class PromptResultsViewModel {
         userNotesAreEffective: Bool = false,
         provenanceOverride: PromptProvenance? = nil,
         replacingPromptResultID: UUID? = nil,
-        runInBackground: Bool = false
+        runInBackground: Bool = false,
+        outputLanguagePolicy: MeetingAIOutputLanguagePolicy? = nil
     ) -> UUID? {
         guard llmService != nil else { return nil }
 
@@ -656,6 +669,7 @@ public final class PromptResultsViewModel {
                     userNotes: userNotes
                 ),
             includeMeetingNotes: prompt.includeMeetingNotes,
+            outputLanguagePolicy: outputLanguagePolicy ?? outputLanguagePolicyProvider(),
             replacingPromptResultID: replacingPromptResultID,
             runsInBackground: runInBackground
         )
@@ -678,7 +692,8 @@ public final class PromptResultsViewModel {
             extraInstructions: generation.extraInstructions,
             includeMeetingNotes: generation.includeMeetingNotes,
             userNotes: generation.userNotes,
-            transcript: generation.transcript
+            transcript: generation.transcript,
+            outputLanguagePolicy: generation.outputLanguagePolicy
         )
 
         streamingTask = Task { @MainActor [weak self] in
@@ -749,6 +764,7 @@ public final class PromptResultsViewModel {
             inferenceSettingsSnapshot: terminal.effectiveSettings,
             providerSnapshot: terminal.provider,
             modelSnapshot: terminal.model,
+            outputLanguagePolicySnapshot: generation.outputLanguagePolicy.configurationValue,
             createdAt: timestamp,
             updatedAt: timestamp
         )
@@ -839,7 +855,8 @@ public final class PromptResultsViewModel {
                 promptVersionId: failed.promptVersionId
             ),
             replacingPromptResultID: failed.replacingPromptResultID,
-            runInBackground: failed.runsInBackground
+            runInBackground: failed.runsInBackground,
+            outputLanguagePolicy: failed.outputLanguagePolicy
         )
     }
 
@@ -860,14 +877,16 @@ public final class PromptResultsViewModel {
         extraInstructions: String?,
         includeMeetingNotes: Bool = false,
         userNotes: String? = nil,
-        transcript: String? = nil
+        transcript: String? = nil,
+        outputLanguagePolicy: MeetingAIOutputLanguagePolicy = .default
     ) -> String {
         PromptSystemPromptAssembler.assembleUsingEffectiveNotes(
             promptContent: promptContent,
             extraInstructions: extraInstructions,
             includeMeetingNotes: includeMeetingNotes,
             effectiveUserNotes: userNotes,
-            transcript: transcript
+            transcript: transcript,
+            outputLanguagePolicy: outputLanguagePolicy
         )
     }
 

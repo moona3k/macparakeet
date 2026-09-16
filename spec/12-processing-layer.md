@@ -204,6 +204,7 @@ public struct PromptResult: Codable, Identifiable, Sendable {
     public var userNotesSnapshot: String?  // exact bounded notes value supplied to assembly
     public var includeMeetingNotesSnapshot: Bool  // captured automatic-context opt-in
     public var inferenceSettingsSnapshot: PromptInferenceSettings?  // normalized effective settings sent
+    public var outputLanguagePolicySnapshot: String?  // follow-transcript or language code
     public var createdAt: Date
     public var updatedAt: Date
 }
@@ -220,6 +221,7 @@ CREATE TABLE summaries (
     userNotesSnapshot TEXT,
     includeMeetingNotesSnapshot INTEGER NOT NULL DEFAULT 0,
     inferenceSettingsSnapshot TEXT,
+    outputLanguagePolicySnapshot TEXT,
     createdAt         TEXT NOT NULL,
     updatedAt         TEXT NOT NULL
 );
@@ -227,7 +229,7 @@ CREATE TABLE summaries (
 CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
 ```
 
-**Why snapshot instead of reference:** Prompts can be edited or deleted after a result is generated. The result should always know exactly what instructions produced it. `promptName` is for display; `promptContent`, `userNotesSnapshot`, `includeMeetingNotesSnapshot`, and `inferenceSettingsSnapshot` are request provenance, not a promise of identical future AI output. The settings snapshot records the effective provider/model-filtered receipt. The Boolean remains meaningful when the generation had no notes, because regenerate can apply that captured preference to notes added later.
+**Why snapshot instead of reference:** Prompts can be edited or deleted after a result is generated. The result should always know exactly what instructions produced it. `promptName` is for display; `promptContent`, `userNotesSnapshot`, `includeMeetingNotesSnapshot`, `inferenceSettingsSnapshot`, and `outputLanguagePolicySnapshot` are request provenance, not a promise of identical future AI output. The settings snapshot records the effective provider/model-filtered receipt. The Boolean remains meaningful when the generation had no notes, because regenerate can apply that captured preference to notes added later. The language snapshot records the meeting AI output-language policy used for that run; omitted/NULL rows predate the policy and regenerate with the current setting.
 
 Result and Transform prompts may carry typed generation settings. The active immutable version
 stores the requested `PromptInferenceSettings`; a queued generation copies that
@@ -262,7 +264,9 @@ When generating a result, the system prompt is assembled from the selected promp
 
 {delimited_meeting_notes_context}  ← only for enabled result prompts with notes and no {{userNotes}} token
 
-{extraInstructions}       ← only if user provided extra instructions
+{outputLanguagePolicy}    ← follow-transcript or a fixed language; default English
+
+{extraInstructions}       ← only if user provided extra instructions; last so they can override language
 ```
 
 For meeting recordings, `Transcription.userNotes` is normalized and capped only
@@ -270,7 +274,12 @@ for prompt input (8,000-word soft cap); the stored notes are not truncated. The
 same effective value is supplied to assembly and stored in
 `PromptResult.userNotesSnapshot`. The queued request also captures
 `Prompt.includeMeetingNotes`; the completed result persists it as
-`includeMeetingNotesSnapshot`.
+`includeMeetingNotesSnapshot`. The queued request also captures the current
+AI output-language policy; the completed result persists it as
+`outputLanguagePolicySnapshot`. Extra instructions are appended last so they
+can ask the model to override that language request. This is prompt text, not
+a guaranteed runtime filter. Language is inferred from transcript text when
+following the transcript; Parakeet detected-language metadata is not used.
 
 Automatic notes context is opt-in and result-prompt-only. Existing, built-in,
 and new prompts default false; Transforms cannot enable it. Assembly follows

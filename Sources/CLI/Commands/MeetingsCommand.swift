@@ -1133,6 +1133,7 @@ private struct MeetingPromptResultRecord: Encodable {
     let inferenceSettingsSnapshot: PromptInferenceSettings?
     let providerSnapshot: String?
     let modelSnapshot: String?
+    let outputLanguagePolicySnapshot: String?
     let createdAt: Date
     let updatedAt: Date
     let artifact: MeetingArtifactSnapshot?
@@ -1157,6 +1158,7 @@ private struct MeetingPromptResultRecord: Encodable {
         inferenceSettingsSnapshot = result.inferenceSettingsSnapshot
         providerSnapshot = result.providerSnapshot
         modelSnapshot = result.modelSnapshot
+        outputLanguagePolicySnapshot = result.outputLanguagePolicySnapshot
         createdAt = result.createdAt
         updatedAt = result.updatedAt
         self.artifact = artifact

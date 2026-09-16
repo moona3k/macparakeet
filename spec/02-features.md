@@ -2162,6 +2162,7 @@ These are implemented in source; release availability follows the
 | DAPT export | Timed speaker-attributed events at automatic word or corrected segment alignment; untimed fallback otherwise. | [DAPT contract](contracts/dapt-export-v1.md) |
 | Split and transcribe | User-approved cuts create independently owned saved meetings while preserving the original; sequential transcription and enabled completion can continue or resume from durable receipts in the app and public CLI. | [Split contract](contracts/meeting-splitting.md) |
 | Live transcription toggle | "Live transcription during recording" in Meeting Recording settings (`meetingLiveTranscriptionEnabled`, default on). Off skips the live STT pass entirely — recording is unaffected, and the final transcript still runs a full post-stop STT pass over the saved audio, same as when an engine can't support live preview at all. | [ADR-014 §9](adr/014-meeting-recording.md) |
+| AI result language | AI Settings picker and `meeting-ai-output-language` CLI key (`follow-transcript` or a fixed language, default English). Injected at prompt assembly from transcript text, not Parakeet metadata. Extra instructions are appended last so they can ask the model to override that request; this is not a hard runtime filter. Each result snapshots the policy used. | [Issue #975](https://github.com/moona3k/macparakeet/issues/975) |
 
 These do not enable activity-based meeting detection, app-aware AI Formatter
 profiles or public in-process MLX. Corpus-wide Ask and cross-file speaker

@@ -43,6 +43,8 @@ struct ConfigCommand: ParsableCommand {
           speaker-detection         on|off                          default: on
           meeting-speaker-detection on|off                          default: on
           auto-meeting-titles       on|off                          default: on
+          meeting-ai-output-language follow-transcript|en|pl|de|    default: en
+                                    es|fr|pt|ja|zh
           voice-return-enabled      on|off                          default: off
           voice-return-triggers     phrase[|phrase...]              default: press return
           save-transcription-audio  on|off                          default: on
@@ -139,6 +141,12 @@ struct ConfigCommand: ParsableCommand {
             valueSyntax: "on|off",
             allowedValues: ["on", "off"],
             summary: "Enable or disable automatic meeting title generation."
+        ),
+        CLIConfigKeySpec(
+            key: "meeting-ai-output-language",
+            valueSyntax: MeetingAIOutputLanguagePolicy.configurationValues.joined(separator: "|"),
+            allowedValues: MeetingAIOutputLanguagePolicy.configurationValues,
+            summary: "Language for generated AI results."
         ),
         CLIConfigKeySpec(
             key: "voice-return-enabled",
@@ -334,6 +342,8 @@ struct ConfigCommand: ParsableCommand {
         case "auto-meeting-titles":
             let on = store.object(forKey: UserDefaultsAppRuntimePreferences.autoGenerateMeetingTitlesKey) as? Bool ?? true
             return on ? "on" : "off"
+        case "meeting-ai-output-language":
+            return MeetingAIOutputLanguagePolicy.current(defaults: store).configurationValue
         case "voice-return-enabled":
             let on = store.object(forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey) as? Bool ?? false
             return on ? "on" : "off"
@@ -436,6 +446,10 @@ struct ConfigCommand: ParsableCommand {
             let parsed = try parseBool(value, key: key)
             store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.autoGenerateMeetingTitlesKey)
             return parsed ? "on" : "off"
+        case "meeting-ai-output-language":
+            let policy = try parseMeetingAIOutputLanguage(value)
+            MeetingAIOutputLanguagePolicy.save(policy, defaults: store)
+            return policy.configurationValue
         case "voice-return-enabled":
             let parsed = try parseBool(value, key: key)
             store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
@@ -644,6 +658,15 @@ struct ConfigCommand: ParsableCommand {
             throw ValidationError("Invalid value for meeting-audio-source: '\(value)'. Use microphone-and-system, microphone-only, or system-only.")
         }
         return mode
+    }
+
+    static func parseMeetingAIOutputLanguage(_ value: String) throws -> MeetingAIOutputLanguagePolicy {
+        guard let policy = MeetingAIOutputLanguagePolicy(configurationValue: value) else {
+            throw ValidationError(
+                "Invalid value for meeting-ai-output-language: '\(value)'. Use \(MeetingAIOutputLanguagePolicy.configurationValues.joined(separator: ", "))."
+            )
+        }
+        return policy
     }
 
     static func parseVoiceReturnTriggers(_ value: String) throws -> [String] {
