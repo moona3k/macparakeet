@@ -289,12 +289,14 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
             return event.props
         }.last
         XCTAssertNotNil(insert)
-        XCTAssertEqual(Int(insert?["e2e_ms"] ?? "") ?? -1, (Int(insert?["capture_ms"] ?? "") ?? 0)
-            + (Int(insert?["transcribe_ms"] ?? "") ?? 0)
-            + (Int(insert?["paste_ms"] ?? "") ?? 0))
-        XCTAssertGreaterThanOrEqual(Int(insert?["capture_ms"] ?? "-1") ?? -1, 0)
-        XCTAssertGreaterThanOrEqual(Int(insert?["transcribe_ms"] ?? "-1") ?? -1, 0)
-        XCTAssertGreaterThanOrEqual(Int(insert?["paste_ms"] ?? "-1") ?? -1, 0)
+        let captureMs = Int(insert?["capture_ms"] ?? "") ?? -1
+        let transcribeMs = Int(insert?["transcribe_ms"] ?? "") ?? -1
+        let pasteMs = Int(insert?["paste_ms"] ?? "") ?? -1
+        let e2eMs = Int(insert?["e2e_ms"] ?? "") ?? -1
+        XCTAssertEqual(e2eMs, captureMs + transcribeMs + pasteMs)
+        XCTAssertGreaterThanOrEqual(captureMs, 0)
+        XCTAssertGreaterThanOrEqual(transcribeMs, 0)
+        XCTAssertGreaterThanOrEqual(pasteMs, 0)
     }
 
     func testInlineInsertionStyleDoesNotAppendTrailingPasteSpace() async throws {

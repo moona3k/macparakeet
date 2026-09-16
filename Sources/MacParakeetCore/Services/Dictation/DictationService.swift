@@ -648,10 +648,13 @@ public actor DictationService: DictationServiceProtocol {
         let capturedDurationMs = currentRecordingDurationMs()
         let captureStartedAt = Date()
         let audioURL = try? await audioProcessor.stopCapture()
+        // Capture finalization ends when stopCapture returns. Do not include the
+        // later recordingDeviceInfo hop in pendingCancelledCaptureMs / undo e2e.
+        let captureMs = audioURL == nil ? nil : Self.elapsedMilliseconds(since: captureStartedAt)
         let device = await audioProcessor.recordingDeviceInfo
         pendingCancelledAudioURL = audioURL
         pendingCancelledDurationMs = capturedDurationMs
-        pendingCancelledCaptureMs = audioURL == nil ? nil : Self.elapsedMilliseconds(since: captureStartedAt)
+        pendingCancelledCaptureMs = captureMs
         _state = .cancelled
         Telemetry.send(
             .dictationCancelled(
