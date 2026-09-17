@@ -2148,7 +2148,7 @@ The existing completion handler reads the auto-open preference before presenting
 
 ### F49: Start Meetings Muted
 
-> Status: **IMPLEMENTED** — [issue #882](https://github.com/moona3k/macparakeet/issues/882) remainder.
+> Status: **IMPLEMENTED** — [issue #882](https://github.com/moona3k/macparakeet/issues/882) remainder. Governing ADR: [ADR-014 §12](adr/014-meeting-recording.md).
 
 **What:** Optional default-off preference to start microphone-capturing meetings muted until the setting is turned off, then unmute from the live panel. Mute-during-recording already existed; this slice silences the microphone **before the first captured frame** so joining a call does not leak the first seconds of room audio. System-audio-only capture ignores the preference. Unmute still appends the completed mute host-time range so in-flight buffers stay silent.
 
@@ -2182,7 +2182,7 @@ surface against the [canonical status table](README.md#release-channels-and-feat
 | DAPT export | Timed speaker-attributed events at automatic word or corrected segment alignment; untimed fallback otherwise. | [DAPT contract](contracts/dapt-export-v1.md) |
 | Split and transcribe | User-approved cuts create independently owned saved meetings while preserving the original; sequential transcription and enabled completion can continue or resume from durable receipts in the app and public CLI. | [Split contract](contracts/meeting-splitting.md) |
 | Live transcription toggle | "Live transcription during recording" in Meeting Recording settings (`meetingLiveTranscriptionEnabled`, default on). Off skips the live STT pass entirely — recording is unaffected, and the final transcript still runs a full post-stop STT pass over the saved audio, same as when an engine can't support live preview at all. The Transcript empty-state seed-of-life sits still and faded while preview is off; it does not spin. | [ADR-014 §9](adr/014-meeting-recording.md), [UI patterns](04-ui-patterns.md#meeting-recording-panel-v06) |
-| Start meetings muted | Default-off Meeting Recording setting (`startMeetingsMuted`). While on, every microphone-capturing meeting starts with the mic off until the setting is turned off; unmute from the live panel. System-audio-only capture ignores it. | [F49](02-features.md#f49-start-meetings-muted) |
+| Start meetings muted | Default-off Meeting Recording setting (`startMeetingsMuted`). While on, every microphone-capturing meeting starts with the mic off until the setting is turned off; unmute from the live panel. System-audio-only capture ignores it. | [F49](02-features.md#f49-start-meetings-muted), [ADR-014 §12](adr/014-meeting-recording.md) |
 | Preserve discarded dictations | Default-off Dictation setting (`preserveDiscardedDictations`). Cancel and undo-window expiry transcribe into History as `cancelled` instead of deleting. Requires Save dictation history. Nothing is pasted, and menu-bar Paste Last / Recent Dictations stay completed-only. Voice stats still count only completed takes. | [F1](02-features.md#f1-system-wide-dictation) |
 
 These do not enable activity-based meeting detection, app-aware AI Formatter

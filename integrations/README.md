@@ -361,6 +361,7 @@ macparakeet-cli config set processing-mode raw
 macparakeet-cli config set remove-um-filler off
 macparakeet-cli config set speaker-detection off
 macparakeet-cli config set meeting-speaker-detection off
+macparakeet-cli config set start-meetings-muted on
 macparakeet-cli config set save-transcription-audio off
 macparakeet-cli config set youtube-audio-quality m4a
 ```
