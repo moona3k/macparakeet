@@ -1,0 +1,20 @@
+Tests/MacParakeetTests/Services/LLM/AppleIntelligenceLiveAPITests.swift
+  s_39c024c3820e2a::t_4a6fcc4a247532 95-102
+  s_39c024c3820e2a::t_8829385529d2df 123-127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "73618c8f9fa565b2a702ad5e4ae7cd59447c31d8",
+  "prompts": {},
+  "sessions": {
+    "s_39c024c3820e2a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "f8336241-dad5-43d1-a0fd-21b808b32964",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
