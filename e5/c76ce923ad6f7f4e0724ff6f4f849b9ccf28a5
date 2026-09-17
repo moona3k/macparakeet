@@ -1,0 +1,30 @@
+spec/02-features.md
+  s_606c608689ba0b::t_35d4248db3ccaf 2171
+plans/README.md
+  s_606c608689ba0b::t_e7ffdf26a76edd 79
+README.md
+  s_606c608689ba0b::t_22d620acf59cd0 58
+  s_606c608689ba0b::t_e2fbfa855ea735 66-67
+spec/00-vision.md
+  s_606c608689ba0b::t_056939b36d40e5 513,515-518
+spec/README.md
+  s_606c608689ba0b::t_9be76ac0b7551e 169
+  s_606c608689ba0b::t_18c5f434cf4af4 341,343
+  s_606c608689ba0b::t_3cdd2b1a17e207 84-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e5c76ce923ad6f7f4e0724ff6f4f849b9ccf28a5",
+  "prompts": {},
+  "sessions": {
+    "s_606c608689ba0b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cca3cbd4-a0af-46d3-8951-f73076dc7480",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
