@@ -1,0 +1,23 @@
+docs/research/2026-09-16-apple-intelligence-quality-ab.md
+  s_39c024c3820e2a::t_a25550e0af6fbc 1-148
+plans/README.md
+  s_39c024c3820e2a::t_223c1b878748a2 42
+plans/active/2026-09-16-issue-1062-apple-intelligence.md
+  s_39c024c3820e2a::t_4ec9ada0c6c1e3 54-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bb14a39ecd6996ef31ecad0736d72279e85735c0",
+  "prompts": {},
+  "sessions": {
+    "s_39c024c3820e2a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "f8336241-dad5-43d1-a0fd-21b808b32964",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
