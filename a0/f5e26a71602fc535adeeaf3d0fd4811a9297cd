@@ -1,0 +1,19 @@
+docs/audits/2026-09-17-0.8.5-release-postmortem.md
+  s_673be8b32d8d6a::t_0a93138acc6c0d 16-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a0f5e26a71602fc535adeeaf3d0fd4811a9297cd",
+  "prompts": {},
+  "sessions": {
+    "s_673be8b32d8d6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
