@@ -1,0 +1,40 @@
+spec/04-ui-patterns.md
+  s_673be8b32d8d6a::t_a7939e79eeaa28 132
+Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift
+  s_673be8b32d8d6a::t_776988c199fab7 1153-1162,1168-1177,1179,1181-1186,1190,1197-1198
+  s_673be8b32d8d6a::t_f0d465657a71a5 132
+  s_673be8b32d8d6a::t_7e0ba6669f2ba7 1163-1167,1187-1189,1191-1196
+  s_673be8b32d8d6a::t_b94589b526adb8 860
+  s_673be8b32d8d6a::t_91b8fbce82a923 1178,1180
+  s_673be8b32d8d6a::t_f599e43e52b006 1240-1241
+  s_673be8b32d8d6a::t_dcbf4a597005b9 1264-1265
+  s_673be8b32d8d6a::t_8fe38cff4a190e 142-145
+docs/audits/2026-09-17-issue-1079-wrapping-up.md
+  s_673be8b32d8d6a::t_ab9b45a81e3bfd 1-108,116-125
+  s_673be8b32d8d6a::t_a005cddea4352d 109-115
+plans/active/2026-09-17-issue-1079-wrapping-up.md
+  s_673be8b32d8d6a::t_b8528bb8c71d25 1-2,4-38
+  s_673be8b32d8d6a::t_092d034c4ceead 3
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_673be8b32d8d6a::t_00b6de8e65d7fc 1559-1560,1564
+  s_673be8b32d8d6a::t_407066455bce26 1374-1381,1384,1386-1415,1444-1447
+  s_673be8b32d8d6a::t_d032a7557442ee 1382-1383,1385,1416-1443
+plans/README.md
+  s_673be8b32d8d6a::t_9b1be8a4e28225 42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3e80bf281466270d9462eeff6e437fd84cb961b0",
+  "prompts": {},
+  "sessions": {
+    "s_673be8b32d8d6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
