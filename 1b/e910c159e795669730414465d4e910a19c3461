@@ -1,0 +1,155 @@
+spec/contracts/cli-json-v1.md
+  s_606c608689ba0b::t_7706ee0c11a54b 240-241,243-246
+docs/research/2026-09-17-cli-gui-parity/briefs/03-mutations.md
+  s_606c608689ba0b::t_3ec5e3bf24fb45 1-28
+docs/research/2026-09-17-cli-gui-parity/00-independent-review.md
+  s_606c608689ba0b::t_ac5b4c7b2bac74 61-78
+  s_606c608689ba0b::t_a75028dcfbf4f7 1-60
+Tests/CLITests/HistoryCommandTests.swift
+  s_606c608689ba0b::t_eb536ac98998c1 593-701
+docs/research/2026-09-17-cli-gui-parity/05-robustness.md
+  s_564915945972fc::t_ea938a573f6189 1-312
+docs/research/2026-09-17-cli-gui-parity/03-mutations.md
+  s_08b966b5ed7406::t_0196b6ea34d2e2 1-117
+docs/research/2026-09-17-cli-gui-parity/briefs/01-command-matrix.md
+  s_606c608689ba0b::t_df53dab6d38c4e 1-29
+Sources/CLI/Commands/VocabSnippetsCommand.swift
+  s_606c608689ba0b::t_2f2d55be6e0f57 80
+  s_606c608689ba0b::t_88639bd11a7a9f 73-75,81-83,85-86,88-93
+Sources/CLI/Commands/VocabWordsCommand.swift
+  s_606c608689ba0b::t_5291defd855d79 117
+  s_606c608689ba0b::t_d12a58ef96841e 110-112,118-120,122-123,125-131
+Tests/CLITests/MeetingsCommandTests.swift
+  s_606c608689ba0b::t_02a25274926542 211-308
+integrations/README.md
+  s_606c608689ba0b::t_b9cc82e7c8cd4e 364
+  s_606c608689ba0b::t_60bd551b2b8b69 393-394,397-399
+  s_606c608689ba0b::t_39383ece6b0b84 630-636
+  s_606c608689ba0b::t_53044ae88fae6f 400
+docs/research/2026-09-17-cli-gui-parity/06-gui-lag.md
+  s_ef3518f1cc9d56::t_0778a214eb725a 1-178
+Tests/CLITests/ConfigCommandTests.swift
+  s_606c608689ba0b::t_a52ffd3db0f2ee 210-217
+  s_606c608689ba0b::t_bb2a15f617802f 41
+  s_606c608689ba0b::t_d60941f3fd4a14 96
+docs/research/2026-09-17-cli-gui-parity/02-config-llm.md
+  s_c2756a0ed78a9f::t_90377e702de5bb 1-278
+plans/README.md
+  s_606c608689ba0b::t_3cea8be1b67aca 46
+Sources/CLI/Commands/MeetingsCommand.swift
+  s_606c608689ba0b::t_f95f618c061257 215-217
+  s_606c608689ba0b::t_aa2b0eb6f97249 339-534
+Sources/CLI/Commands/HistoryCommand.swift
+  s_606c608689ba0b::t_924e1d32ab733d 21
+  s_606c608689ba0b::t_209ad99529fc4a 691-703
+  s_606c608689ba0b::t_fe1894a8757157 542-544,549-552,554-561,574-576,581-584,586-669
+docs/research/2026-09-17-cli-gui-parity/briefs/02-config-llm.md
+  s_606c608689ba0b::t_099a594f139393 1-25
+docs/research/2026-09-17-cli-gui-parity/briefs/05-robustness.md
+  s_606c608689ba0b::t_6c91753438f348 1-28
+docs/research/2026-09-17-cli-gui-parity/01-command-matrix.md
+  s_272730e52f8234::t_d73ed5aa70ee42 1-187
+  s_272730e52f8234::t_e16994ce0ebd5b 188
+Sources/CLI/Commands/CardsCommand.swift
+  s_606c608689ba0b::t_d2c51761b7ac81 141
+docs/research/2026-09-17-cli-gui-parity/briefs/06-gui-lag.md
+  s_606c608689ba0b::t_c66ee4faee1037 1-27
+Tests/CLITests/SpecCommandTests.swift
+  s_606c608689ba0b::t_9bb6a5bed50d88 384-387
+  s_606c608689ba0b::t_53ce2915e486a3 294-296
+  s_606c608689ba0b::t_2213b387a314b8 427
+  s_606c608689ba0b::t_e18a2d3265e55c 284
+spec/02-features.md
+  s_606c608689ba0b::t_38742022aa9d18 1743
+docs/research/2026-09-17-cli-gui-parity/04-docs-drift.md
+  s_61886a61cb8f3d::t_d3115f9294aab6 1-93
+Sources/CLI/Commands/CLIHelpers.swift
+  s_606c608689ba0b::t_9900519c0e6b68 22-33
+Sources/CLI/Commands/SavedMeetingProcessingContext.swift
+  s_606c608689ba0b::t_cd6fea7d866236 17
+Sources/CLI/Commands/ConfigCommand.swift
+  s_606c608689ba0b::t_1663d87bb934e1 367-369
+  s_606c608689ba0b::t_263c61fa16edc1 479-485
+  s_606c608689ba0b::t_993adda6b8890c 48
+  s_606c608689ba0b::t_c6d2b5caec92e1 150-154
+  s_606c608689ba0b::t_11203b154871ab 149
+Sources/CLI/Commands/SpecCommand.swift
+  s_606c608689ba0b::t_1eefafc4196f96 554,562-573
+  s_606c608689ba0b::t_cdb8586c01c64d 1093
+  s_606c608689ba0b::t_b762673e373da0 243
+  s_606c608689ba0b::t_ee2e236798f934 1056
+  s_606c608689ba0b::t_2ae18d38ccf88f 1361-1420
+Sources/CLI/CHANGELOG.md
+  s_606c608689ba0b::t_9b0ccd7bfa87a5 92-112
+Tests/CLITests/VocabCommandTests.swift
+  s_606c608689ba0b::t_b7419fe2f4a96d 154-191
+docs/cli-testing.md
+  s_606c608689ba0b::t_33e073285bdce6 55-57
+  s_606c608689ba0b::t_8c5813ef825df6 438-440
+docs/research/2026-09-17-cli-gui-parity/briefs/04-docs-drift.md
+  s_606c608689ba0b::t_0b6cb81fdb00b7 1-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1be910c159e795669730414465d4e910a19c3461",
+  "prompts": {},
+  "sessions": {
+    "s_08b966b5ed7406": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f0d28423-e141-4cef-ab95-e0b8c6885c13",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_272730e52f8234": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dfdd4f35-b7c5-41d9-8280-21bb36023018",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_564915945972fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3db8715b-a484-4db5-9146-1c9fed7f84e5",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_606c608689ba0b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cca3cbd4-a0af-46d3-8951-f73076dc7480",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_61886a61cb8f3d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c114e631-62fa-454e-9944-d8d81fb0254f",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_c2756a0ed78a9f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "451c68e3-080b-44d2-9d34-03df4e03e699",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_ef3518f1cc9d56": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "40101632-101e-4121-88f0-44082d4f0e4b",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
