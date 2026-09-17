@@ -4196,6 +4196,29 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertGreaterThan(output.sourceAlignment.microphone?.writtenFrameCount ?? 0, 0)
     }
 
+    func testStartMicrophoneMutedAppliesToConsecutiveMicrophoneRecordings() async throws {
+        let captureService = MockMeetingAudioCaptureService(
+            startReport: MeetingAudioCaptureStartReport(sourceMode: .microphoneAndSystem)
+        )
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: RecordingLockFileStore(),
+            startMicrophoneMuted: { true }
+        )
+
+        try await service.startRecording()
+        var muteState = await service.microphoneMuteState
+        XCTAssertTrue(muteState.isMuted)
+        await service.cancelRecording()
+
+        try await service.startRecording()
+        muteState = await service.microphoneMuteState
+        XCTAssertTrue(muteState.isMuted)
+        await service.cancelRecording()
+    }
+
     func testStartMicrophoneMutedReportsMutedWhileMicrophoneIsStillStarting() async throws {
         let captureService = MockMeetingAudioCaptureService(
             startReport: MeetingAudioCaptureStartReport(sourceMode: .microphoneAndSystem)

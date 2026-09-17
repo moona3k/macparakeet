@@ -175,7 +175,7 @@ struct ConfigCommand: ParsableCommand {
             key: "start-meetings-muted",
             valueSyntax: "on|off",
             allowedValues: ["on", "off"],
-            summary: "Start the next meeting with the microphone muted."
+            summary: "Start microphone-capturing meetings muted until this setting is turned off."
         ),
         CLIConfigKeySpec(
             key: "save-meeting-audio",

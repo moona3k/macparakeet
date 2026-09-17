@@ -438,6 +438,19 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.previewLines, lines)
     }
 
+    func testShowsMicrophoneMuteControlWhenStartMutedEvenIfToggleDisabled() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        viewModel.state = .starting
+        viewModel.isMicrophoneMuted = true
+        viewModel.canToggleMicrophoneMute = false
+
+        XCTAssertTrue(viewModel.showsMicrophoneMuteControl)
+
+        viewModel.isMicrophoneMuted = false
+
+        XCTAssertFalse(viewModel.showsMicrophoneMuteControl)
+    }
+
     func testResetClearsTranscriptPreview() {
         let viewModel = MeetingRecordingPanelViewModel()
         viewModel.state = .recording

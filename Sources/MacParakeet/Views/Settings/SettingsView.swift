@@ -1296,7 +1296,7 @@ struct SettingsView: View {
                     detail: "Begin recording with your microphone off. Unmute from the meeting panel when you want to speak. System-audio-only capture ignores this. Changes apply to your next recording.",
                     isOn: $viewModel.startMeetingsMuted
                 )
-                .disabled(viewModel.meetingAudioSourceMode == .systemOnly)
+                .disabled(!viewModel.meetingAudioSourceMode.capturesMicrophone)
 
                 Divider()
 

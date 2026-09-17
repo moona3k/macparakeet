@@ -236,8 +236,11 @@ struct MeetingRecordingPanelView: View {
                         .foregroundStyle(DesignSystem.Colors.textTertiary.opacity(0.8))
                 }
 
-                if viewModel.canToggleMicrophoneMute {
-                    MeetingMicrophoneMuteButton(isMuted: viewModel.isMicrophoneMuted) {
+                if viewModel.showsMicrophoneMuteControl {
+                    MeetingMicrophoneMuteButton(
+                        isMuted: viewModel.isMicrophoneMuted,
+                        isEnabled: viewModel.canToggleMicrophoneMute
+                    ) {
                         viewModel.onMicrophoneMuteToggle?()
                     }
                 }
