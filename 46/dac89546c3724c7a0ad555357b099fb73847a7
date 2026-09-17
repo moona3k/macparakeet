@@ -1,0 +1,87 @@
+Sources/CLI/Commands/CLIHelpers.swift
+  s_a3d624482f5bbe::t_ec284771897b91 22-39
+Sources/CLI/Commands/CardsCommand.swift
+  s_a3d624482f5bbe::t_b33e5940183b0d 141
+Sources/CLI/Commands/ConfigCommand.swift
+  s_a3d624482f5bbe::t_8a713e065ee2f4 48,149-154,367-369,479-485
+Sources/CLI/Commands/HistoryCommand.swift
+  s_a3d624482f5bbe::t_a375447956fc6f 21,542-544,549-552,554-561,574-576,581-584,586-677,699-711
+Sources/CLI/Commands/MeetingsCommand.swift
+  s_a3d624482f5bbe::t_c46cef8ca27fe1 215-217,339-541,1432,1440-1447
+Sources/CLI/Commands/SavedMeetingProcessingContext.swift
+  s_a3d624482f5bbe::t_c231ee0206eb2a 17
+Sources/CLI/Commands/SpecCommand.swift
+  s_a3d624482f5bbe::t_47b697e0b1d264 243,554,562-573,1056,1093,1361-1420
+Sources/CLI/Commands/VocabSnippetsCommand.swift
+  s_a3d624482f5bbe::t_3b025bbbeb0fb0 73-75,80-83,85-86,88-93
+Sources/CLI/Commands/VocabWordsCommand.swift
+  s_a3d624482f5bbe::t_1b1e2079a891d3 110-112,117-120,122-123,125-131
+Tests/CLITests/CLIHelpersTests.swift
+  s_a3d624482f5bbe::t_6450c54b36fb05 386-402
+Tests/CLITests/ConfigCommandTests.swift
+  s_a3d624482f5bbe::t_a56092ae9b42b4 41,96,210-217
+Tests/CLITests/HistoryCommandTests.swift
+  s_a3d624482f5bbe::t_bc907af96ed952 593-758
+Tests/CLITests/MeetingsCommandTests.swift
+  s_a3d624482f5bbe::t_ca43f59e8a0ebe 211-368
+Tests/CLITests/SpecCommandTests.swift
+  s_a3d624482f5bbe::t_0723ef5aa3fbfa 284,294-296,384-387,427
+Tests/CLITests/VocabCommandTests.swift
+  s_a3d624482f5bbe::t_98dc8114dfa191 154-191
+Tests/MacParakeetTests/TestSupport/TemporaryManagedMeetingFolder.swift
+  s_a3d624482f5bbe::t_1465c768afc7ac 25-36
+Tests/MacParakeetTests/ViewModels/TranscriptionDeletionCleanupTests.swift
+  s_a3d624482f5bbe::t_0d42fcc4ffff9c 348,367,393
+docs/cli-testing.md
+  s_a3d624482f5bbe::t_1148b1556e846e 55-57,438-440
+docs/research/2026-09-17-cli-gui-parity/00-independent-review.md
+  s_a3d624482f5bbe::t_677b09a3deb346 1-80
+docs/research/2026-09-17-cli-gui-parity/01-command-matrix.md
+  s_a3d624482f5bbe::t_f2fca3741e9fe0 1-188
+docs/research/2026-09-17-cli-gui-parity/02-config-llm.md
+  s_a3d624482f5bbe::t_9e98895e4ad65e 1-278
+docs/research/2026-09-17-cli-gui-parity/03-mutations.md
+  s_a3d624482f5bbe::t_2b8f47d1199cf7 1-117
+docs/research/2026-09-17-cli-gui-parity/04-docs-drift.md
+  s_a3d624482f5bbe::t_b4df8ba58a8262 1-93
+docs/research/2026-09-17-cli-gui-parity/05-robustness.md
+  s_a3d624482f5bbe::t_a8b35dc1e713a5 1-312
+docs/research/2026-09-17-cli-gui-parity/06-gui-lag.md
+  s_a3d624482f5bbe::t_77f2c6c07f5efb 1-178
+docs/research/2026-09-17-cli-gui-parity/briefs/01-command-matrix.md
+  s_a3d624482f5bbe::t_994731a2b1032f 1-29
+docs/research/2026-09-17-cli-gui-parity/briefs/02-config-llm.md
+  s_a3d624482f5bbe::t_8899b746c5d801 1-25
+docs/research/2026-09-17-cli-gui-parity/briefs/03-mutations.md
+  s_a3d624482f5bbe::t_8b8de4c7df7fa1 1-28
+docs/research/2026-09-17-cli-gui-parity/briefs/04-docs-drift.md
+  s_a3d624482f5bbe::t_e41e8aa38dc39d 1-28
+docs/research/2026-09-17-cli-gui-parity/briefs/05-robustness.md
+  s_a3d624482f5bbe::t_83c717680112d5 1-28
+docs/research/2026-09-17-cli-gui-parity/briefs/06-gui-lag.md
+  s_a3d624482f5bbe::t_18ae31d0893f64 1-27
+integrations/README.md
+  s_a3d624482f5bbe::t_f95a328ace309a 364,393-394,397-400,630-636
+plans/README.md
+  s_a3d624482f5bbe::t_bfee842f7020d3 46
+spec/02-features.md
+  s_a3d624482f5bbe::t_74f991579d228c 1743
+spec/contracts/cli-json-v1.md
+  s_a3d624482f5bbe::t_22575126d0ea14 240-241,243-249,255-262
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "46dac89546c3724c7a0ad555357b099fb73847a7",
+  "prompts": {},
+  "sessions": {
+    "s_a3d624482f5bbe": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "67268fe0-0292-4141-8d2f-0055077b2ae0",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
