@@ -1,0 +1,28 @@
+README.md
+  s_673be8b32d8d6a::t_27ebb6852a92b3 66-67
+  s_673be8b32d8d6a::t_b522db875b6944 58
+spec/00-vision.md
+  s_673be8b32d8d6a::t_5a527d1c1c593d 513,518-519
+spec/02-features.md
+  s_673be8b32d8d6a::t_60c2db34507867 2171
+spec/README.md
+  s_673be8b32d8d6a::t_470a4890a56dc3 84-85
+  s_673be8b32d8d6a::t_2f533742429d34 169
+  s_673be8b32d8d6a::t_d27d10537453d6 341,343
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6ee5bcff368390bddc0eb43cf3d3a2b6338dd811",
+  "prompts": {},
+  "sessions": {
+    "s_673be8b32d8d6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
