@@ -1,0 +1,40 @@
+Tests/CLITests/MeetingsCommandTests.swift
+  s_606c608689ba0b::t_afcb7130b3fc02 297-356
+Sources/CLI/Commands/MeetingsCommand.swift
+  s_606c608689ba0b::t_60976256aa976a 1432,1440-1447
+  s_606c608689ba0b::t_5818a1205e3f38 388-399
+Sources/CLI/CHANGELOG.md
+  s_606c608689ba0b::t_90804bdeccf009 104-106
+  s_606c608689ba0b::t_47a7e25675f732 114-115
+Tests/CLITests/CLIHelpersTests.swift
+  s_606c608689ba0b::t_78b874c5bbde09 386-402
+Sources/CLI/Commands/ConfigCommand.swift
+  s_606c608689ba0b::t_cc80ed7307d4f9 153
+Sources/CLI/Commands/CLIHelpers.swift
+  s_606c608689ba0b::t_5a57be4af539b4 22-25,27-28,34-37
+  s_606c608689ba0b::t_3e04cd620358e0 38-39
+spec/contracts/cli-json-v1.md
+  s_606c608689ba0b::t_1c5e5edea0a636 247-249,255-262
+Tests/CLITests/HistoryCommandTests.swift
+  s_606c608689ba0b::t_b0c60011f49346 698-754
+Sources/CLI/Commands/HistoryCommand.swift
+  s_606c608689ba0b::t_420e0637195365 633-645,649-656
+docs/research/2026-09-17-cli-gui-parity/00-independent-review.md
+  s_606c608689ba0b::t_9497b5abe578e3 41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "eafccca0a0803ce3702ba6462585a7f8140c9acd",
+  "prompts": {},
+  "sessions": {
+    "s_606c608689ba0b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cca3cbd4-a0af-46d3-8951-f73076dc7480",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
