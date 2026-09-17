@@ -1,0 +1,102 @@
+Sources/MacParakeetCore/Services/LLM/RoutingLLMClient.swift
+  s_a3d624482f5bbe::t_57c50359e2bb0a 77-78
+Sources/CLI/Commands/SpecCommand.swift
+  s_a3d624482f5bbe::t_0463512f0ab307 155
+Tests/MacParakeetTests/Models/ChatCompletionsModelPolicyTests.swift
+  s_a3d624482f5bbe::t_5da655cf4fe7e1 1-81,83-129,140-153,155-172
+  s_a3d624482f5bbe::t_2ce92a6706b44a 82
+  s_a3d624482f5bbe::t_863570a1eb155c 154
+  s_a3d624482f5bbe::t_9b0210ce224f59 130-139
+Sources/MacParakeetCore/Models/LLMProvider.swift
+  s_a3d624482f5bbe::t_54a7c0ad3fd3a3 509-563
+  s_a3d624482f5bbe::t_c4911e987a720b 163-247
+  s_a3d624482f5bbe::t_9970708e52767f 327-331
+  s_a3d624482f5bbe::t_fc04accfbf85ee 669-670
+  s_a3d624482f5bbe::t_f7909d38c4c289 39-43
+  s_a3d624482f5bbe::t_945052d948435b 382-402
+Tests/MacParakeetTests/Models/PromptInferenceSettingsTests.swift
+  s_a3d624482f5bbe::t_0b061705ca0770 186-190,192-198
+  s_a3d624482f5bbe::t_a6ad8f530166d0 191
+README.md
+  s_a3d624482f5bbe::t_5ccad70ce10b72 88
+  s_a3d624482f5bbe::t_2df7daf08a933c 293
+Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift
+  s_a3d624482f5bbe::t_c2dcf842d7a2a1 564-646
+  s_a3d624482f5bbe::t_f5ee053db648fc 519
+  s_a3d624482f5bbe::t_bf8200fa0ee5c4 530
+Sources/CLI/CHANGELOG.md
+  s_a3d624482f5bbe::t_afa1fff48883da 92-99
+Sources/MacParakeetCore/Services/LLM/LLMHTTPTransport.swift
+  s_a3d624482f5bbe::t_a933a53df7633f 262-263
+  s_a3d624482f5bbe::t_8afb5f2f2f569e 347
+Sources/MacParakeetCore/Services/LLM/LLMClient.swift
+  s_a3d624482f5bbe::t_7b13c7825f4e1a 250
+  s_a3d624482f5bbe::t_3b20d00aa99706 47-48,50
+  s_a3d624482f5bbe::t_1323773f738eae 92-98
+Sources/MacParakeetViewModels/LLMSettingsViewModel.swift
+  s_a3d624482f5bbe::t_39064a52939989 222-231
+  s_a3d624482f5bbe::t_954369e9f2830e 662-663
+docs/research/2026-09-17-issue-1085-kimi-temperature.md
+  s_a3d624482f5bbe::t_6f4c40a6dec96d 1-19,21-36
+  s_a3d624482f5bbe::t_76fa5d54f7c18f 20
+spec/11-llm-integration.md
+  s_a3d624482f5bbe::t_c34926f547c6ea 187-191
+  s_a3d624482f5bbe::t_fecbb596c500d7 45
+  s_a3d624482f5bbe::t_5545905b6af365 107-121
+  s_a3d624482f5bbe::t_fa84fbb5ff53eb 310-311
+  s_a3d624482f5bbe::t_b0227e91230c11 95-99
+  s_a3d624482f5bbe::t_465871ae063692 738-740
+  s_a3d624482f5bbe::t_f87cd338863fc9 71
+  s_a3d624482f5bbe::t_8d96b0d1750f35 17
+Sources/MacParakeetCore/Models/ChatCompletionsModelPolicy.swift
+  s_a3d624482f5bbe::t_730f804e439de0 116-118
+  s_a3d624482f5bbe::t_39e4bcf33424a8 71,73
+  s_a3d624482f5bbe::t_ac0ae71fb6b50a 1-70,72,74-115,119-165
+spec/adr/011-llm-cloud-and-local-providers.md
+  s_a3d624482f5bbe::t_da5c460df2a947 194-197
+  s_a3d624482f5bbe::t_369d54e12b0a37 46-50
+  s_a3d624482f5bbe::t_635334e9b769b6 61-62
+integrations/README.md
+  s_a3d624482f5bbe::t_2b821890bccd12 84-86
+Sources/MacParakeetCore/Models/PromptInferenceSettings.swift
+  s_a3d624482f5bbe::t_364c5495cb1c72 369,384,389-395,399,403-410
+  s_a3d624482f5bbe::t_5661f1fb3a3d9b 493
+  s_a3d624482f5bbe::t_1a79997c381dba 411,510-511,515-516,520-521
+Sources/MacParakeetCore/Services/LLM/OpenAICompatibleLLMHTTPAdapter.swift
+  s_a3d624482f5bbe::t_9b0f4ff2a9d727 318,320-324,326,332-333,336-342,347,360-381,392-394
+  s_a3d624482f5bbe::t_a8b9b87e94b1a6 409-412,414
+  s_a3d624482f5bbe::t_b261142602a736 551-552,558-559
+  s_a3d624482f5bbe::t_a30f809c236896 162-165,560-561
+Tests/MacParakeetTests/Models/LLMProviderDescriptorTests.swift
+  s_a3d624482f5bbe::t_c767d71c5af89a 112-115
+  s_a3d624482f5bbe::t_7cbb0fe25df8fc 33-35
+  s_a3d624482f5bbe::t_b30cb5f3322ecd 84-92
+  s_a3d624482f5bbe::t_fe612f33a7f524 36,93,116
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_a3d624482f5bbe::t_2eb54cb20a0434 462-464
+spec/14-per-prompt-inference-settings.md
+  s_a3d624482f5bbe::t_aaba53d673e871 224,228-229
+Sources/CLI/Commands/LLMInlineConfig.swift
+  s_a3d624482f5bbe::t_147a517ae0e8dd 117,147-148,150,207-237,247
+  s_a3d624482f5bbe::t_0866e1a2f26324 71
+  s_a3d624482f5bbe::t_af8c93102c2c84 115-116
+  s_a3d624482f5bbe::t_030509542072f6 23-26,72-75,78-82,96-97,118-120,126,141-146,149,238-241,246,257-258,280-283,350-352,354
+Tests/CLITests/LLMConfigCommandTests.swift
+  s_a3d624482f5bbe::t_5a9be3d8e697ce 39,51,65,79,87-110,209,221,235,249,269,298
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "37d42bddbb73964629eeb24d30f631a3db4f5842",
+  "prompts": {},
+  "sessions": {
+    "s_a3d624482f5bbe": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "67268fe0-0292-4141-8d2f-0055077b2ae0",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
