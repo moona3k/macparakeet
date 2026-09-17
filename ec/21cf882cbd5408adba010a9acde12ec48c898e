@@ -1,0 +1,19 @@
+docs/research/2026-09-17-cli-gui-parity/00-independent-review.md
+  s_606c608689ba0b::t_8ab6bba7b750ca 77-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ec21cf882cbd5408adba010a9acde12ec48c898e",
+  "prompts": {},
+  "sessions": {
+    "s_606c608689ba0b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cca3cbd4-a0af-46d3-8951-f73076dc7480",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
