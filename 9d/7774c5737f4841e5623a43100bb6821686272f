@@ -1,0 +1,59 @@
+Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift
+  s_a3d624482f5bbe::t_ac1b3653eb09fc 625
+  s_a3d624482f5bbe::t_b7908505bd2f33 647-701
+Sources/MacParakeetCore/Services/LLM/LLMClient.swift
+  s_a3d624482f5bbe::t_8618ea1b2c9b1b 47-49
+  s_a3d624482f5bbe::t_0fb8062f69cd07 163-166
+Sources/MacParakeetCore/Services/LLM/OpenAICompatibleLLMHTTPAdapter.swift
+  s_a3d624482f5bbe::t_1af73d257bde3b 339,344-347,352
+Tests/MacParakeetTests/Services/LLM/LLMClientTests.swift
+  s_a3d624482f5bbe::t_69a72226f1a0d0 856,872
+  s_a3d624482f5bbe::t_6321a7d8e2094e 869
+spec/11-llm-integration.md
+  s_a3d624482f5bbe::t_14646a318482f4 739-740
+spec/14-per-prompt-inference-settings.md
+  s_a3d624482f5bbe::t_7a1cd6b85e9f8f 224
+  s_a3d624482f5bbe::t_b65162c5058038 229
+Sources/MacParakeetCore/Models/PromptInferenceSettings.swift
+  s_a3d624482f5bbe::t_d80bd888b0db05 471-472,476-480,488-489,491
+  s_a3d624482f5bbe::t_b9d69fcb1add6e 324-327
+  s_a3d624482f5bbe::t_5d9bc7ea85e268 394-396,401-403,413-415,421-423
+  s_a3d624482f5bbe::t_6e1982e03063fe 310-314
+  s_a3d624482f5bbe::t_13346ef505dcbb 371-372,377-379
+Sources/MacParakeetCore/Models/ChatCompletionsModelPolicy.swift
+  s_a3d624482f5bbe::t_eb5191a0d98a6a 62-65
+  s_a3d624482f5bbe::t_1aafb280c14b86 85-105,109,118
+  s_a3d624482f5bbe::t_7d2c66c80db9fc 140,158-161
+  s_a3d624482f5bbe::t_ada3d45335670b 76-78
+  s_a3d624482f5bbe::t_0ae3bef7060382 119-120
+Sources/MacParakeetCore/Services/LLM/LLMHTTPTransport.swift
+  s_a3d624482f5bbe::t_13ef36dc59bdc0 253-254,256-257
+  s_a3d624482f5bbe::t_00da09cbddf7c2 262,264
+Tests/MacParakeetTests/Models/ChatCompletionsModelPolicyTests.swift
+  s_a3d624482f5bbe::t_12d07845f81836 107
+  s_a3d624482f5bbe::t_eb301aa22667bc 87-88
+  s_a3d624482f5bbe::t_b553c48d730d63 117-125
+  s_a3d624482f5bbe::t_98ac07193c5ddf 97,108,130,141,152,163,177-188,199,207-209
+  s_a3d624482f5bbe::t_3b4819d85c8499 66-68
+  s_a3d624482f5bbe::t_13c7ce38750302 115-116
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_a3d624482f5bbe::t_f3d724b87a8429 463
+Tests/MacParakeetTests/Models/PromptInferenceSettingsTests.swift
+  s_a3d624482f5bbe::t_88a8c54d9bc57c 199-211
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9d7774c5737f4841e5623a43100bb6821686272f",
+  "prompts": {},
+  "sessions": {
+    "s_a3d624482f5bbe": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "67268fe0-0292-4141-8d2f-0055077b2ae0",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
