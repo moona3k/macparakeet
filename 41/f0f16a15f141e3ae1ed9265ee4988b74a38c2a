@@ -1,0 +1,44 @@
+Sources/MacParakeet/Views/MeetingRecording/MeetingRecordingPanelView.swift
+  s_39c024c3820e2a::t_5041126a71c299 239-243
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_39c024c3820e2a::t_14be2e4de90f48 1299
+Sources/MacParakeetViewModels/MeetingRecordingPanelViewModel.swift
+  s_39c024c3820e2a::t_9d237dbe4746ec 52-56
+Tests/MacParakeetTests/Views/MeetingRecordingTileTests.swift
+  s_39c024c3820e2a::t_cb6aa907ea1b6a 121-124
+Tests/MacParakeetTests/ViewModels/MeetingRecordingPanelViewModelTests.swift
+  s_39c024c3820e2a::t_89692c67e0a98a 441-453
+Sources/MacParakeet/Views/MeetingRecording/MeetingRecordingStopButton.swift
+  s_39c024c3820e2a::t_9489cfe1ac22ca 115,127-130,134-137,174,179-183,186
+Tests/MacParakeetTests/MeetingRecordingFlow/MeetingRecordingFlowCoordinatorTests.swift
+  s_39c024c3820e2a::t_3a3872ced6d3b6 461-493
+Sources/CLI/CHANGELOG.md
+  s_39c024c3820e2a::t_48957672d7760f 95-97
+Sources/MacParakeetCore/AppRuntimePreferences.swift
+  s_39c024c3820e2a::t_7773fcd54db882 548-550
+Sources/CLI/Commands/ConfigCommand.swift
+  s_39c024c3820e2a::t_a6980a7283a9c7 178
+Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingServiceTests.swift
+  s_39c024c3820e2a::t_992f6e1ac4b900 4199-4213,4215-4218,4220-4221
+  s_39c024c3820e2a::t_71452aa7b14f10 4214,4219
+spec/02-features.md
+  s_39c024c3820e2a::t_9b39add5739abc 2181
+  s_39c024c3820e2a::t_15910427dcbac5 2158
+  s_39c024c3820e2a::t_aba1228dfc47ea 2151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "41f0f16a15f141e3ae1ed9265ee4988b74a38c2a",
+  "prompts": {},
+  "sessions": {
+    "s_39c024c3820e2a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "f8336241-dad5-43d1-a0fd-21b808b32964",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
