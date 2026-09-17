@@ -1,0 +1,30 @@
+spec/adr/014-meeting-recording.md
+  s_39c024c3820e2a::t_7f86afe5c3c229 19
+  s_39c024c3820e2a::t_f1149e3c6eb41f 257-268
+spec/04-ui-patterns.md
+  s_39c024c3820e2a::t_531e23efe868c9 130
+  s_39c024c3820e2a::t_2bc680afb3f579 763
+  s_39c024c3820e2a::t_433abb7831077a 1269
+  s_39c024c3820e2a::t_1e090daf348e2a 719
+spec/02-features.md
+  s_39c024c3820e2a::t_01fc6a9a4be234 2151
+  s_39c024c3820e2a::t_fdd4429287dade 2185
+integrations/README.md
+  s_39c024c3820e2a::t_7ba550ed2b39e5 364
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4c4e75178af54f8728e005128da4868158a319db",
+  "prompts": {},
+  "sessions": {
+    "s_39c024c3820e2a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "f8336241-dad5-43d1-a0fd-21b808b32964",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
