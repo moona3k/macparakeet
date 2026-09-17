@@ -348,6 +348,7 @@ Space is always reserved for the tooltip (opacity toggle, not conditional render
 - [x] Undo during cancel window resumes processing
 - [x] Accessibility permission prompted gracefully on first use
 - [x] Audio saved to disk (if storage enabled in settings)
+- [x] Optional default-off preserve of cancelled dictations (`preserveDiscardedDictations`) saves the transcript to History without pasting. Requires Save dictation history. Menu-bar Paste Last stays completed-only.
 
 ---
 
@@ -854,7 +855,7 @@ Audio → local STT → raw transcript → clean pipeline → paste
 
 **Step 1: Filler removal**
 
-Conservative defaults: only hesitation spellings that do not conflict with supported languages (`uh`, `umm`, `uhh`) are removed. False negatives are better than false positives, so semantic words such as Portuguese and German `um`, along with words like `like`, `so`, `right`, and phrases like `you know`, are not stripped by default.
+Always-safe hesitation spellings (`uh`, `umm`, `uhh`) are removed. Standalone `um` is also stripped by default because English speakers are the primary Clean audience. Portuguese and German speakers can turn **Also remove “um”** off in Vocabulary — `um` is a real word in those languages. False negatives are still better than false positives for longer tokens, so words like `like`, `so`, `right`, and phrases like `you know` are not stripped.
 
 **Step 2: Custom word replacements**
 
@@ -941,7 +942,8 @@ CREATE TABLE text_snippets (
 
 **Acceptance criteria:**
 - [x] Filler words removed from raw STT output
-- [x] Only always-safe hesitation sounds are removed by default
+- [x] Always-safe hesitation sounds (`uh`, `umm`, `uhh`) are removed
+- [x] Standalone `um` is stripped by default, with an opt-out for Portuguese/German
 - [x] Meaningful words such as "like", "so", and "right" are preserved
 - [x] Custom word replacements applied (case-insensitive matching)
 - [x] Trailing action snippets are extracted before text snippet expansion
@@ -2162,10 +2164,12 @@ The existing completion handler reads the auto-open preference before presenting
 
 ---
 
-## Development additions after 0.7.3
+## Library, meetings, and transcript workflow
 
-These are implemented in source; release availability follows the
-[canonical status table](README.md#release-channels-and-feature-flags).
+These are implemented in current source. Meeting import/split, timed
+corrections, DAPT, per-prompt settings, and the live-transcription toggle
+shipped in 0.8.0–0.8.3; local retrieval predates that train. Confirm each
+surface against the [canonical status table](README.md#release-channels-and-feature-flags).
 
 | Surface | Current behavior | Governing reference |
 |---|---|---|
@@ -2177,8 +2181,9 @@ These are implemented in source; release availability follows the
 | Vocabulary cleanup | Confirmed deletion of selected rules, including all search matches, without rewriting existing transcripts. | [Deletion contract](contracts/custom-word-deletion.md) |
 | DAPT export | Timed speaker-attributed events at automatic word or corrected segment alignment; untimed fallback otherwise. | [DAPT contract](contracts/dapt-export-v1.md) |
 | Split and transcribe | User-approved cuts create independently owned saved meetings while preserving the original; sequential transcription and enabled completion can continue or resume from durable receipts in the app and public CLI. | [Split contract](contracts/meeting-splitting.md) |
-| Live transcription toggle | "Live transcription during recording" in Meeting Recording settings (`meetingLiveTranscriptionEnabled`, default on). Off skips the live STT pass entirely — recording is unaffected, and the final transcript still runs a full post-stop STT pass over the saved audio, same as when an engine can't support live preview at all. | [ADR-014 §9](adr/014-meeting-recording.md) |
+| Live transcription toggle | "Live transcription during recording" in Meeting Recording settings (`meetingLiveTranscriptionEnabled`, default on). Off skips the live STT pass entirely — recording is unaffected, and the final transcript still runs a full post-stop STT pass over the saved audio, same as when an engine can't support live preview at all. The Transcript empty-state seed-of-life sits still and faded while preview is off; it does not spin. | [ADR-014 §9](adr/014-meeting-recording.md), [UI patterns](04-ui-patterns.md#meeting-recording-panel-v06) |
 | Start meetings muted | Default-off Meeting Recording setting (`startMeetingsMuted`). While on, every microphone-capturing meeting starts with the mic off until the setting is turned off; unmute from the live panel. System-audio-only capture ignores it. | [F49](02-features.md#f49-start-meetings-muted) |
+| Preserve discarded dictations | Default-off Dictation setting (`preserveDiscardedDictations`). Cancel and undo-window expiry transcribe into History as `cancelled` instead of deleting. Requires Save dictation history. Nothing is pasted, and menu-bar Paste Last / Recent Dictations stay completed-only. Voice stats still count only completed takes. | [F1](02-features.md#f1-system-wide-dictation) |
 
 These do not enable activity-based meeting detection, app-aware AI Formatter
 profiles or public in-process MLX. Corpus-wide Ask and cross-file speaker

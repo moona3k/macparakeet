@@ -658,6 +658,9 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 processingMode: {
                     processingMode
                 },
+                removeUmFiller: {
+                    UserDefaultsAppRuntimePreferences.removeUmFiller(defaults: defaults)
+                },
                 shouldKeepDownloadedAudio: {
                     shouldKeepDownloadedAudio
                 },

@@ -91,10 +91,26 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Added
 
+- `config` key `remove-um-filler` (`on|off`, default `on`). Clean processing
+  strips standalone English hesitation `um`. Portuguese and German users
+  should set this to `off`.
+- `config get|set|list` includes `preserve-discarded-dictations` (`on`/`off`,
+  default off). When on, cancelled dictations are transcribed into History
+  instead of being deleted. Nothing is pasted, including menu-bar Paste Last.
+  History JSON may now include `"status": "cancelled"`; the human-readable
+  list marks those rows `[cancelled]`. Older CLI builds that decode
+  `DictationStatus` strictly will fail on those rows until upgraded.
 - `config get|set|list` includes `start-meetings-muted` (`on`/`off`, default
   off). While on, every microphone-capturing meeting starts muted until the
   setting is turned off; unmute from the live meeting panel.
   System-audio-only capture ignores it.
+
+### Changed
+
+- `vocab process` and Clean-mode dictation/file transcription now strip
+  standalone `um` by default. The previous multilingual-safe default is the
+  off value of `remove-um-filler`. Meetings stay verbatim: they do not run
+  filler removal.
 
 ## [4.2.0] — 2026-09-15
 

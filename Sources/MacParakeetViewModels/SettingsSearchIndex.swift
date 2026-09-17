@@ -186,6 +186,17 @@ public enum SettingsSearchIndex {
             cardAnchor: "dictation"
         ),
         SettingsSearchEntry(
+            id: "dictation.preserve.discarded",
+            tab: .capture,
+            title: "Preserve discarded dictations",
+            subtitle: "in Dictation",
+            keywords: [
+                "preserve", "discarded", "cancelled", "canceled", "recover",
+                "accidental cancel", "keep cancelled", "history",
+            ],
+            cardAnchor: "dictation"
+        ),
+        SettingsSearchEntry(
             id: "transcription",
             tab: .capture,
             title: "Transcription",

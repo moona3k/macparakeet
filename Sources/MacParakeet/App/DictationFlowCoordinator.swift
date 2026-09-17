@@ -194,6 +194,7 @@ final class DictationFlowCoordinator {
     private var currentDictationInsertionStyle: DictationInsertionStyle = .sentence
     /// Ephemeral post-paste action from the text processing pipeline (e.g., simulate Return key).
     private var pendingPostPasteAction: KeyAction?
+    private var pendingInsertTimings: (operationID: String?, captureMs: Int?, transcribeMs: Int?)?
     /// Error from the most recent entitlements check failure, consumed by presentEntitlementsAlert effect.
     private var lastEntitlementsError: Error?
     /// Suppresses repeat mic-permission alerts within a session once the user has been shown the recovery prompt.
@@ -609,14 +610,16 @@ final class DictationFlowCoordinator {
                 do {
                     if action == nil && !transcriptHasText {
                         self.dictationLog.notice("dictation_paste_skipped gen=\(gen) reason=empty_transcript")
+                        self.pendingInsertTimings = nil
                         guard self.stateMachine.generation == gen else { return }
                         self.dismissCaption(outcome: .success)
                         self.sendEvent(.pasteSucceeded(generation: gen))
                         return
                     }
 
+                    let pasteStartedAt = Date()
                     if let action {
-                        // Action mode: no trailing space, action replaces the space role
+                        // Action mode: no trailing space, action replaces the role of the space
                         let keystrokeFired = try await self.clipboardService.pasteTextWithAction(
                             transcript,
                             postPasteAction: action,
@@ -632,6 +635,13 @@ final class DictationFlowCoordinator {
                             restoresClipboard: !keepDictationOnClipboard
                         )
                     }
+
+                    // Cmd+V-posted breadcrumb. Action-only Voice Return (empty text +
+                    // Return keystroke) is not a paste and must not enter e2e_ms.
+                    if transcriptHasText {
+                        self.emitDictationInsertIfPossible(pasteStartedAt: pasteStartedAt)
+                    }
+                    self.pendingInsertTimings = nil
 
                     // Save pastedToApp metadata
                     if let pastedToApp = pastedToAppAtDispatch {
@@ -658,6 +668,7 @@ final class DictationFlowCoordinator {
                 } catch {
                     let bucket = Self.commandFailureBucket(for: error)
                     self.dictationLog.error("dictation_paste_failed gen=\(gen) bucket=\(bucket, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+                    self.pendingInsertTimings = nil
                     guard self.stateMachine.generation == gen else { return }
                     self.dismissCaption(outcome: .failure)
                     if !transcriptHasText {
@@ -685,6 +696,7 @@ final class DictationFlowCoordinator {
             currentDictation = nil
             currentDictationInsertionStyle = .sentence
             pendingPostPasteAction = nil
+            pendingInsertTimings = nil
 
         // MARK: App integration
 
@@ -773,6 +785,7 @@ final class DictationFlowCoordinator {
             actionTask?.cancel()
             actionTask = nil
             pendingPostPasteAction = nil
+            pendingInsertTimings = nil
         }
     }
 
@@ -1151,6 +1164,27 @@ final class DictationFlowCoordinator {
         currentDictation = result.dictation
         currentDictationInsertionStyle = result.insertionStyle
         pendingPostPasteAction = result.postPasteAction
+        pendingInsertTimings = (
+            operationID: result.operationID,
+            captureMs: result.captureMs,
+            transcribeMs: result.transcribeMs
+        )
+    }
+
+    private func emitDictationInsertIfPossible(pasteStartedAt: Date) {
+        guard let timings = pendingInsertTimings,
+            let captureMs = timings.captureMs,
+            let transcribeMs = timings.transcribeMs
+        else { return }
+        let pasteMs = DictationService.elapsedMilliseconds(since: pasteStartedAt)
+        Telemetry.send(
+            .dictationInsert(
+                operationID: timings.operationID,
+                captureMs: captureMs,
+                transcribeMs: transcribeMs,
+                pasteMs: pasteMs,
+                e2eMs: captureMs + transcribeMs + pasteMs
+            ))
     }
 
     private func handleTranscriptionFailure(_ error: Error, generation: Int, phase: String) {

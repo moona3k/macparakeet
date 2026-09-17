@@ -390,7 +390,8 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
             rawText: sttResult.text,
             mode: processingMode,
             customWords: customWords,
-            snippets: snippets
+            snippets: snippets,
+            removeUmFiller: UserDefaultsAppRuntimePreferences.removeUmFiller(defaults: defaults)
         )
         let finalText = refinement.text ?? sttResult.text
         var updated = Self.clearingDictationFormatterMetadata(original)
@@ -398,7 +399,9 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
         updated.rawTranscript = sttResult.text
         updated.cleanTranscript = refinement.text
         updated.processingMode = processingMode
-        updated.status = .completed
+        if original.status != .cancelled {
+            updated.status = .completed
+        }
         updated.errorMessage = nil
         updated.updatedAt = Date()
         updated.wordCount = Observability.wordCount(finalText)
@@ -543,6 +546,9 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
             processingMode: { processingMode },
+            removeUmFiller: {
+                UserDefaultsAppRuntimePreferences.removeUmFiller(defaults: defaults)
+            },
             shouldDiarize: { resolvedSpeakerDetection.enabled },
             shouldDiarizeMeetings: { resolvedSpeakerDetection.enabled },
             diarizationService: TranscribeCommand.makeDiarizationService(for: resolvedSpeakerDetection)

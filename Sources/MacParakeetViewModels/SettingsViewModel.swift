@@ -331,6 +331,18 @@ public final class SettingsViewModel {
             ))
         }
     }
+    public var preserveDiscardedDictations: Bool {
+        didSet {
+            defaults.set(
+                preserveDiscardedDictations,
+                forKey: UserDefaultsAppRuntimePreferences.preserveDiscardedDictationsKey
+            )
+            Telemetry.send(.settingChanged(
+                setting: .preserveDiscardedDictations,
+                value: Self.settingValue(preserveDiscardedDictations)
+            ))
+        }
+    }
     public var instantDictationEnabled: Bool {
         didSet {
             defaults.set(
@@ -489,6 +501,12 @@ public final class SettingsViewModel {
                 forKey: UserDefaultsAppRuntimePreferences.dictationInsertionStyleKey
             )
             Telemetry.send(.settingChanged(setting: .dictationInsertionStyle, value: dictationInsertionStyle.rawValue))
+        }
+    }
+    public var removeUmFiller: Bool {
+        didSet {
+            defaults.set(removeUmFiller, forKey: UserDefaultsAppRuntimePreferences.removeUmFillerKey)
+            Telemetry.send(.settingChanged(setting: .removeUmFiller, value: Self.settingValue(removeUmFiller)))
         }
     }
     public var customWordCount: Int = 0
@@ -993,6 +1011,7 @@ public final class SettingsViewModel {
         pauseMediaDuringDictation = defaults.object(
             forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey
         ) as? Bool ?? false
+        preserveDiscardedDictations = UserDefaultsAppRuntimePreferences.preserveDiscardedDictations(defaults: defaults)
         instantDictationEnabled = defaults.object(
             forKey: UserDefaultsAppRuntimePreferences.instantDictationEnabledKey
         ) as? Bool ?? false
@@ -1005,6 +1024,7 @@ public final class SettingsViewModel {
         voiceReturnTriggers = UserDefaultsAppRuntimePreferences.voiceReturnTriggerList(defaults: defaults)
         processingMode = Self.normalizedProcessingMode(defaults.string(forKey: UserDefaultsAppRuntimePreferences.processingModeKey))
         dictationInsertionStyle = DictationInsertionStyle.current(defaults: defaults)
+        removeUmFiller = UserDefaultsAppRuntimePreferences.removeUmFiller(defaults: defaults)
         saveDictationHistory = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveDictationHistoryKey) as? Bool ?? true
         saveAudioRecordings = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveAudioRecordingsKey) as? Bool ?? true
         saveTranscriptionAudio = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey) as? Bool ?? true

@@ -30,6 +30,9 @@ struct ConfigCommand: ParsableCommand {
         Supported keys:
           telemetry                 on|off                         default: on
           processing-mode           raw|clean                       default: raw
+          remove-um-filler          on|off                          default: on
+                                    (Clean processing; off keeps
+                                    Portuguese/German um)
           speech-engine             parakeet|nemotron|whisper|cohere default: parakeet
           parakeet-model            v3|v2|unified                   default: v3
                                     (v3=supported languages, v2=English
@@ -45,6 +48,7 @@ struct ConfigCommand: ParsableCommand {
           auto-meeting-titles       on|off                          default: on
           voice-return-enabled      on|off                          default: off
           voice-return-triggers     phrase[|phrase...]              default: press return
+          preserve-discarded-dictations on|off                      default: off
           save-transcription-audio  on|off                          default: on
           meeting-audio-retention   keep-forever|                   default: keep-forever
                                     delete-after-<1-365>-days|
@@ -86,6 +90,12 @@ struct ConfigCommand: ParsableCommand {
             valueSyntax: "raw|clean",
             allowedValues: ["raw", "clean"],
             summary: "Default dictation text processing mode."
+        ),
+        CLIConfigKeySpec(
+            key: "remove-um-filler",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Clean processing strips standalone English hesitation um. Turn off to keep Portuguese/German um."
         ),
         CLIConfigKeySpec(
             key: "speech-engine",
@@ -152,6 +162,12 @@ struct ConfigCommand: ParsableCommand {
             valueSyntax: "phrase[|phrase...]",
             allowedValues: nil,
             summary: "Voice Return trigger phrases separated by |."
+        ),
+        CLIConfigKeySpec(
+            key: "preserve-discarded-dictations",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Save cancelled dictations to History instead of deleting them."
         ),
         CLIConfigKeySpec(
             key: "save-transcription-audio",
@@ -320,6 +336,9 @@ struct ConfigCommand: ParsableCommand {
         case "processing-mode":
             let raw = store.string(forKey: UserDefaultsAppRuntimePreferences.processingModeKey)
             return (Dictation.ProcessingMode(rawValue: raw ?? Dictation.ProcessingMode.raw.rawValue) ?? .raw).rawValue
+        case "remove-um-filler":
+            let on = UserDefaultsAppRuntimePreferences.removeUmFiller(defaults: store)
+            return on ? "on" : "off"
         case "speech-engine":
             return SpeechEnginePreference.current(defaults: store).rawValue
         case "parakeet-model":
@@ -348,6 +367,8 @@ struct ConfigCommand: ParsableCommand {
             return displayVoiceReturnTriggers(
                 UserDefaultsAppRuntimePreferences.voiceReturnTriggerList(defaults: store)
             )
+        case "preserve-discarded-dictations":
+            return UserDefaultsAppRuntimePreferences.preserveDiscardedDictations(defaults: store) ? "on" : "off"
         case "save-transcription-audio":
             let on = store.object(forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey) as? Bool ?? true
             return on ? "on" : "off"
@@ -399,6 +420,10 @@ struct ConfigCommand: ParsableCommand {
             let mode = try parseProcessingMode(value)
             store.set(mode.rawValue, forKey: UserDefaultsAppRuntimePreferences.processingModeKey)
             return mode.rawValue
+        case "remove-um-filler":
+            let parsed = try parseBool(value, key: key)
+            store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.removeUmFillerKey)
+            return parsed ? "on" : "off"
         case "speech-engine":
             let engine = try parseSpeechEngine(value)
             try validateCLISpeechEngineMemoryRequirement(
@@ -454,6 +479,10 @@ struct ConfigCommand: ParsableCommand {
             store.set(triggers, forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggersKey)
             store.set(triggers.first, forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey)
             return displayVoiceReturnTriggers(triggers)
+        case "preserve-discarded-dictations":
+            let parsed = try parseBool(value, key: key)
+            store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.preserveDiscardedDictationsKey)
+            return parsed ? "on" : "off"
         case "save-transcription-audio":
             let parsed = try parseBool(value, key: key)
             store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey)

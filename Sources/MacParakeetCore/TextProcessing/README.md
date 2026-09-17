@@ -55,10 +55,11 @@ mode.
 **The five pipeline steps run in this fixed order:**
 
 1. **Filler removal.** Strip conservative hesitation spellings (`uh`,
-   `umm`, `uhh`) only. Word-boundary regex, case-insensitive,
-   pre-compiled at type level. The list is intentionally short —
-   anything longer ("like", "you know", "kind of") changes meaning
-   too often to delete by default.
+   `umm`, `uhh`) always, plus standalone `um` by default. Word-boundary
+   regex, case-insensitive, pre-compiled at type level. Portuguese and
+   German speakers can turn `um` removal off — it is a real word in those
+   languages. The remaining list stays short: anything longer ("like",
+   "you know", "kind of") changes meaning too often to delete.
 2. **Custom word replacement.** User-defined `CustomWord` entries.
    Replaces matches whole-word, case-insensitive, in the order
    provided. Nil or blank replacements restore the stored word's casing;
@@ -90,11 +91,11 @@ state. This makes it trivial to test exhaustively (see
 file/network/logging into the steps. If you need observability, do
 it at the call site, not inside the pipeline.
 
-**Filler removal is intentionally narrow.** Any expansion of the
-`alwaysSafeFillers` list needs a thoughtful test case demonstrating
-it doesn't change meaning in every supported language. Portuguese and
-German use `um` semantically, so it is preserved even though English
-speakers may use the same spelling as a hesitation.
+**Filler removal is intentionally narrow.** Expanding the always-safe
+list (`uh`, `umm`, `uhh`) still needs a thoughtful test case for every
+supported language. Standalone English `um` is on by default because
+that is the primary Clean audience; Portuguese and German `um` is
+preserved when the Vocabulary toggle **Also remove “um”** is off.
 
 **The AI formatter is a different code path.** `TextRefinementService`
 does not call an LLM. It returns deterministic cleanup (plus any

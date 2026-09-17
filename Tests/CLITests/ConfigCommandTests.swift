@@ -29,6 +29,7 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(ConfigCommand.supportedKeys, [
             "telemetry",
             "processing-mode",
+            "remove-um-filler",
             "speech-engine",
             "parakeet-model",
             "nemotron-model",
@@ -40,6 +41,7 @@ final class ConfigCommandTests: XCTestCase {
             "auto-meeting-titles",
             "voice-return-enabled",
             "voice-return-triggers",
+            "preserve-discarded-dictations",
             "save-transcription-audio",
             "meeting-audio-retention",
             "meeting-audio-source",
@@ -81,6 +83,7 @@ final class ConfigCommandTests: XCTestCase {
 
     func testReadAgentDefaultsReflectGUIFallbacks() throws {
         XCTAssertEqual(try ConfigCommand.read(key: "processing-mode", defaults: defaults), "raw")
+        XCTAssertEqual(try ConfigCommand.read(key: "remove-um-filler", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "speech-engine", defaults: defaults), "parakeet")
         XCTAssertEqual(try ConfigCommand.read(key: "parakeet-model", defaults: defaults), "v3")
         XCTAssertEqual(try ConfigCommand.read(key: "nemotron-model", defaults: defaults), "multilingual-1120ms")
@@ -161,6 +164,12 @@ final class ConfigCommandTests: XCTestCase {
             Dictation.ProcessingMode.clean.rawValue
         )
 
+        XCTAssertEqual(try ConfigCommand.write(key: "remove-um-filler", value: "off", defaults: defaults), "off")
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.removeUmFillerKey) as? Bool,
+            false
+        )
+
         XCTAssertEqual(try ConfigCommand.write(key: "speech-engine", value: "whisper", defaults: defaults), "whisper")
         XCTAssertEqual(defaults.string(forKey: SpeechEnginePreference.defaultsKey), SpeechEnginePreference.whisper.rawValue)
 
@@ -211,6 +220,12 @@ final class ConfigCommandTests: XCTestCase {
             ["press return", "submit"]
         )
         XCTAssertEqual(defaults.string(forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey), "press return")
+
+        XCTAssertEqual(try ConfigCommand.write(key: "preserve-discarded-dictations", value: "on", defaults: defaults), "on")
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.preserveDiscardedDictationsKey) as? Bool,
+            true
+        )
 
         XCTAssertEqual(try ConfigCommand.write(key: "save-transcription-audio", value: "off", defaults: defaults), "off")
         XCTAssertEqual(defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey) as? Bool, false)

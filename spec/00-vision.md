@@ -498,7 +498,7 @@ Ship-quality polish. Direct distribution via notarized DMG.
 
 ### v0.7: Post-v0.6 polish
 
-- Stable v0.7.3 adds System Default microphone-routing repair, split live/final
+- v0.7.3 added System Default microphone-routing repair, split live/final
   speech-engine routes, bounded meeting-capture lifecycle handling, meeting
   auto-save feedback, CLI 3.0, and post-v0.6 reliability polish.
 - Meeting echo cancellation ships as a fail-soft derived cleaned-microphone
@@ -507,6 +507,16 @@ Ship-quality polish. Direct distribution via notarized DMG.
 - Direction per [ADR-027](adr/027-product-north-star.md): continue Library
   convergence and safe agent access through the CLI. Developer-gated local MLX
   groundwork is not a normal-user v0.7 feature.
+
+### v0.8: Library, meetings, and transcript workflow
+
+- Stable v0.8.3 is the current user-facing DMG. The train adds meeting import
+  and split, timed transcript corrections, live transcription during recording,
+  independent capture-source startup, per-event calendar skip, Microsoft
+  365/Exchange calendar setup, Library labels/layouts, Seed of Life covers,
+  DAPT export, and CLI 4.2.0.
+- Voice profiles, encrypted share links, activity-based meeting detection,
+  app-aware AI Formatter profiles, and in-process MLX remain gated.
 
 ---
 

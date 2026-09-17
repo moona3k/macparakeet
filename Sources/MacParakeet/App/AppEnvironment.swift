@@ -291,6 +291,10 @@ final class AppEnvironment {
             runtimePreferences.dictationInsertionStyle
         }
 
+        let removeUmFillerClosure: @Sendable () -> Bool = { [runtimePreferences] in
+            runtimePreferences.removeUmFiller
+        }
+
         let binaryBootstrap = BinaryBootstrap()
         youtubeDownloader = YouTubeDownloader(
             binaryBootstrap: binaryBootstrap,
@@ -380,12 +384,16 @@ final class AppEnvironment {
             dictationRepo: dictationRepo,
             shouldSaveAudio: { [runtimePreferences] in runtimePreferences.shouldSaveAudioRecordings },
             shouldSaveDictationHistory: { [runtimePreferences] in runtimePreferences.shouldSaveDictationHistory },
+            shouldPreserveDiscardedDictations: { [runtimePreferences] in
+                runtimePreferences.preserveDiscardedDictations
+            },
             entitlements: entitlementsService,
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
             voiceReturnTriggers: voiceReturnTriggersClosure,
             processingMode: processingModeClosure,
             dictationInsertionStyle: dictationInsertionStyleClosure,
+            removeUmFiller: removeUmFillerClosure,
             llmService: llmService,
             llmRunRepo: llmRunRepo,
             shouldUseAIFormatter: dictationAIFormatterEnabledClosure,
@@ -434,6 +442,7 @@ final class AppEnvironment {
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
             processingMode: processingModeClosure,
+            removeUmFiller: removeUmFillerClosure,
             llmService: llmService,
             llmRunRepo: llmRunRepo,
             shouldUseAIFormatter: transcriptionAIFormatterEnabledClosure,

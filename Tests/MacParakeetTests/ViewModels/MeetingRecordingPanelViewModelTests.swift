@@ -373,6 +373,41 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
             viewModel.statusMessage,
             "Audio is recording. Your transcript will be ready after you stop."
         )
+        XCTAssertTrue(
+            viewModel.isTranscriptRosetteQuiet,
+            "Live-off empty state should sit the seed-of-life still and faded"
+        )
+    }
+
+    func testTranscriptRosetteIsQuietOnlyWhenLivePreviewIsOff() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        viewModel.state = .recording
+
+        XCTAssertFalse(viewModel.isTranscriptRosetteQuiet)
+
+        viewModel.updateLiveTranscriptStatus(.startingAudio)
+        XCTAssertFalse(viewModel.isTranscriptRosetteQuiet)
+
+        viewModel.updateLiveTranscriptStatus(.listening)
+        XCTAssertFalse(viewModel.isTranscriptRosetteQuiet)
+
+        viewModel.updateLiveTranscriptStatus(.live)
+        XCTAssertFalse(viewModel.isTranscriptRosetteQuiet)
+
+        viewModel.updateLiveTranscriptStatus(.previewUnavailable)
+        XCTAssertFalse(
+            viewModel.isTranscriptRosetteQuiet,
+            "Unavailable preview is still a waiting/recovering state, not a quiet opt-out"
+        )
+
+        viewModel.updateLiveTranscriptStatus(.previewOff)
+        XCTAssertTrue(viewModel.isTranscriptRosetteQuiet)
+
+        viewModel.isPaused = true
+        XCTAssertTrue(
+            viewModel.isTranscriptRosetteQuiet,
+            "Pause is a separate freeze; live-off remains the quiet mark"
+        )
     }
 
     func testDifferingSpeechRoutesExposePreviewAndFinalAttribution() {
