@@ -151,7 +151,7 @@ accepted direction is not proof that every phase is implemented or released.
 | [ADR-029](adr/029-encrypted-shareable-transcript-snapshots.md) | Explicit encrypted, expiring transcript-derived snapshots as a hosted export rather than Library sync |
 | [ADR-030](adr/030-external-meeting-import.md) | Import external recordings as managed meetings with historical chronology, fresh audio retention, and ordinary recovery |
 | [ADR-031](adr/031-timed-transcript-corrections.md) | One effective transcript from immutable automatic evidence plus reversible segment-timed text and speaker corrections |
-| [ADR-032](adr/032-llm-task-group-routing.md) | Per-task LLM selection — define cleanup/analysis(/transform) tasks, then inherit default, pick a general route, or pick a specialist recipe; not a per-feature picker (accepted direction; current runtime remains one saved config) |
+| [ADR-032](adr/032-llm-task-group-routing.md) | Per-task LLM selection — cleanup/analysis inherit default or pick a general route; Transforms inherit default; specialists not shipped |
 
 The [meeting import v1 contract](contracts/meeting-import-v1.md) defines the shared app/CLI input, ownership, and durable-result boundary.
 

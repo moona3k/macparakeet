@@ -51,6 +51,11 @@ struct LLMSettingsView: View {
 
             selectedAIOptionSection
 
+            if viewModel.selectedProviderID != nil {
+                Divider()
+                taskRouteSection
+            }
+
             if viewModel.shouldShowInProcessLocalSetup {
                 Divider()
 
@@ -253,6 +258,56 @@ struct LLMSettingsView: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(Capsule().fill(DesignSystem.Colors.successGreen.opacity(0.10)))
+            }
+        }
+    }
+
+    private var taskRouteSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            taskRouteRow(
+                title: "Dictation & cleanup",
+                detail: "Formatter for dictation and transcripts.",
+                provider: $viewModel.cleanupOverrideProviderID,
+                model: $viewModel.cleanupModelName
+            )
+            taskRouteRow(
+                title: "Meetings & library",
+                detail: "Summaries, Ask, and knowledge cards.",
+                provider: $viewModel.analysisOverrideProviderID,
+                model: $viewModel.analysisModelName
+            )
+        }
+    }
+
+    private func taskRouteRow(
+        title: String,
+        detail: String,
+        provider: Binding<LLMProviderID?>,
+        model: Binding<String>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(DesignSystem.Typography.body)
+                    Text(detail)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: DesignSystem.Spacing.md)
+                Picker(title, selection: provider) {
+                    Text("Use default AI").tag(LLMProviderID?.none)
+                    ForEach(providerOrder, id: \.self) { option in
+                        Text(option.displayName).tag(Optional(option))
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(width: 190)
+            }
+            if provider.wrappedValue != nil {
+                TextField("Model", text: model)
+                    .textFieldStyle(.roundedBorder)
             }
         }
     }

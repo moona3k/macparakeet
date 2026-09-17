@@ -1092,7 +1092,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                 do {
                     let context: LLMExecutionContext
                     do {
-                        let baseContext = try self.loadContext()
+                        let baseContext = try self.loadContext(for: .analysis)
                         context = try self.context(baseContext, overridingModelWith: modelOverride)
                     } catch {
                         self.sendLLMOperation(
@@ -1222,7 +1222,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                 do {
                     let context: LLMExecutionContext
                     do {
-                        context = try self.loadContext()
+                        context = try self.loadContext(for: .analysis)
                     } catch {
                         self.sendLLMOperation(
                             operationID: operationID,
@@ -1338,7 +1338,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                 do {
                     let context: LLMExecutionContext
                     do {
-                        let baseContext = try self.loadContext()
+                        let baseContext = try self.loadContext(for: .transform)
                         context = try self.context(baseContext, overridingModelWith: modelOverride)
                     } catch {
                         self.sendLLMOperation(
@@ -1429,11 +1429,17 @@ public final class LLMService: LLMServiceProtocol, Sendable {
 
     // MARK: - Private Helpers
 
-    private func loadContext() throws -> LLMExecutionContext {
-        guard let context = try contextResolver.resolveContext() else {
+    private func loadContext(for task: LLMTaskGroup) throws -> LLMExecutionContext {
+        guard let context = try contextResolver.resolveContext(for: task) else {
             throw LLMError.notConfigured
         }
         return context
+    }
+
+    private static func taskGroup(forFeature feature: String) -> LLMTaskGroup {
+        if feature.hasPrefix("formatter_") { return .cleanup }
+        if feature == "transform" { return .transform }
+        return .analysis
     }
 
     /// Returns a request-scoped context with the requested model while keeping
@@ -1468,7 +1474,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         messageCount: Int? = nil
     ) throws -> LLMExecutionContext {
         do {
-            return try loadContext()
+            return try loadContext(for: Self.taskGroup(forFeature: feature))
         } catch {
             sendLLMOperation(
                 operationID: operationID,

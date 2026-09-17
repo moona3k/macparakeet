@@ -2009,6 +2009,103 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(saved?.id, .openaiCompatible)
         XCTAssertEqual(saved?.isLocal, true)
     }
+
+    // MARK: - Task-group overrides
+
+    func testTaskOverrideSaveLeavesDefaultUnchanged() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .anthropic
+        viewModel.apiKeyInput = "sk-ant"
+        viewModel.saveConfiguration()
+        mockConfigStore.storedKeys[.openai] = "sk-openai"
+
+        viewModel.cleanupOverrideProviderID = .openai
+        viewModel.cleanupModelName = ""
+        viewModel.saveConfiguration()
+
+        XCTAssertEqual(viewModel.saveState, .saved)
+        XCTAssertEqual(mockConfigStore.config?.id, .anthropic)
+        XCTAssertEqual(mockConfigStore.config?.apiKey, "sk-ant")
+        XCTAssertEqual(mockConfigStore.taskOverrides[.cleanup]?.id, .openai)
+        XCTAssertEqual(
+            mockConfigStore.taskOverrides[.cleanup]?.modelName,
+            LLMProviderID.openai.defaultModelName
+        )
+        XCTAssertEqual(mockConfigStore.taskOverrides[.cleanup]?.apiKey, "sk-openai")
+        XCTAssertFalse(viewModel.hasUnsavedChanges)
+    }
+
+    func testClearingTaskOverrideRemovesStoredRoute() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openai
+        viewModel.apiKeyInput = "sk-test"
+        viewModel.saveConfiguration()
+        viewModel.cleanupOverrideProviderID = .openai
+        viewModel.cleanupModelName = "gpt-4.1-mini"
+        viewModel.saveConfiguration()
+        XCTAssertNotNil(mockConfigStore.taskOverrides[.cleanup])
+
+        viewModel.cleanupOverrideProviderID = nil
+        viewModel.cleanupModelName = ""
+        viewModel.saveConfiguration()
+
+        XCTAssertEqual(viewModel.saveState, .saved)
+        XCTAssertNil(mockConfigStore.taskOverrides[.cleanup])
+        XCTAssertEqual(mockConfigStore.config?.id, .openai)
+        XCTAssertFalse(viewModel.hasUnsavedChanges)
+    }
+
+    func testTaskOverrideToOpenAICompatibleWithoutEndpointFailsInsteadOfCrashing() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openai
+        viewModel.apiKeyInput = "sk-test"
+        viewModel.saveConfiguration()
+
+        viewModel.cleanupOverrideProviderID = .openaiCompatible
+        viewModel.saveConfiguration()
+
+        XCTAssertEqual(
+            viewModel.saveState,
+            .error(LLMSettingsDraft.ValidationError.taskOverrideUnavailable.localizedDescription)
+        )
+        XCTAssertNil(mockConfigStore.taskOverrides[.cleanup])
+        XCTAssertEqual(mockConfigStore.config?.id, .openai)
+    }
+
+    func testTaskOverrideWithoutStoredKeyFailsInsteadOfSavingEmptyCredentials() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openai
+        viewModel.apiKeyInput = "sk-test"
+        viewModel.saveConfiguration()
+
+        viewModel.analysisOverrideProviderID = .anthropic
+        viewModel.saveConfiguration()
+
+        XCTAssertEqual(
+            viewModel.saveState,
+            .error(LLMSettingsDraft.ValidationError.taskOverrideUnavailable.localizedDescription)
+        )
+        XCTAssertNil(mockConfigStore.taskOverrides[.analysis])
+        XCTAssertEqual(mockConfigStore.config?.id, .openai)
+    }
+
+    func testTaskOverrideToLocalProviderUsesDefaultEndpoint() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openai
+        viewModel.apiKeyInput = "sk-test"
+        viewModel.saveConfiguration()
+
+        viewModel.cleanupOverrideProviderID = .ollama
+        viewModel.saveConfiguration()
+
+        XCTAssertEqual(viewModel.saveState, .saved)
+        XCTAssertEqual(mockConfigStore.taskOverrides[.cleanup]?.id, .ollama)
+        XCTAssertEqual(
+            mockConfigStore.taskOverrides[.cleanup]?.baseURL.absoluteString,
+            LLMProviderID.ollama.defaultBaseURL
+        )
+        XCTAssertEqual(mockConfigStore.config?.id, .openai)
+    }
 }
 
 private actor SettingsFakeInProcessModelDownloader: InProcessModelDownloading {

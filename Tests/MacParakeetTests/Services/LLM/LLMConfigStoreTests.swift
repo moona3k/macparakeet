@@ -222,4 +222,24 @@ final class LLMConfigStoreTests: XCTestCase {
         XCTAssertEqual(try store.loadConfig()?.modelName, "working-model")
         XCTAssertEqual(try store.loadAPIKey(), "working-key")
     }
+
+    func testTaskOverrideRoundTripDoesNotReplaceDefault() throws {
+        try store.saveConfig(.anthropic(apiKey: "sk-ant", model: "claude-sonnet-5"))
+        try store.saveTaskOverride(.ollama(model: "llama3.2"), for: .cleanup)
+
+        XCTAssertEqual(try store.loadConfig()?.id, .anthropic)
+        XCTAssertEqual(try store.loadTaskOverride(.cleanup)?.id, .ollama)
+        XCTAssertEqual(try store.loadTaskOverride(.cleanup)?.modelName, "llama3.2")
+        XCTAssertNil(try store.loadTaskOverride(.analysis))
+        XCTAssertNil(try store.loadTaskOverride(.transform))
+    }
+
+    func testDeleteConfigClearsTaskOverrides() throws {
+        try store.saveConfig(.openai(apiKey: "sk-test", model: "gpt-5.4"))
+        try store.saveTaskOverride(.ollama(model: "llama3.2"), for: .cleanup)
+        try store.deleteConfig()
+
+        XCTAssertNil(try store.loadConfig())
+        XCTAssertNil(try store.loadTaskOverride(.cleanup))
+    }
 }
