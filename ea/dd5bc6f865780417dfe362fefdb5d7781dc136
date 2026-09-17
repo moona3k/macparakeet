@@ -1,0 +1,19 @@
+spec/README.md
+  s_606c608689ba0b::t_99b43fb8d4c03c 352
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "eadd5bc6f865780417dfe362fefdb5d7781dc136",
+  "prompts": {},
+  "sessions": {
+    "s_606c608689ba0b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cca3cbd4-a0af-46d3-8951-f73076dc7480",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
