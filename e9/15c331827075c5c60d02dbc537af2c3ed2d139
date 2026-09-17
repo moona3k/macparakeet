@@ -1,0 +1,46 @@
+Sources/MacParakeetCore/Models/PromptInferenceSettings.swift
+  s_a3d624482f5bbe::t_8a5091b7415157 320
+  s_a3d624482f5bbe::t_264cfdafb2a59f 384,389,399,405
+  s_a3d624482f5bbe::t_e8d4363d75deb6 364,369
+  s_a3d624482f5bbe::t_d8e9dc3993e570 310
+  s_a3d624482f5bbe::t_6dbe527c0d8f5a 453,457,465,467
+spec/14-per-prompt-inference-settings.md
+  s_a3d624482f5bbe::t_37c16472aeb8f1 228
+  s_a3d624482f5bbe::t_62f0b6867f6c24 224
+Sources/MacParakeetCore/Services/LLM/OpenAICompatibleLLMHTTPAdapter.swift
+  s_a3d624482f5bbe::t_762a189dc14bb4 318
+  s_a3d624482f5bbe::t_ff04c39fa64962 321
+  s_a3d624482f5bbe::t_32af705a75d561 405-408
+Sources/MacParakeetCore/Models/ChatCompletionsModelPolicy.swift
+  s_a3d624482f5bbe::t_dedb6674e92bb1 4-6,8,26,34-38,42-45,48-49,51-52,54,71-72,94-98,100,130-132,135-136
+Tests/MacParakeetTests/Models/PromptInferenceSettingsTests.swift
+  s_a3d624482f5bbe::t_5e064ea88cffa2 200,202,204-206,211
+spec/adr/011-llm-cloud-and-local-providers.md
+  s_a3d624482f5bbe::t_8e1a9debee8355 61
+Tests/MacParakeetTests/Models/ChatCompletionsModelPolicyTests.swift
+  s_a3d624482f5bbe::t_6e7c8be117a907 16-21,31,40-41,57-58,62,64,68,72,75-77,82-83,87-89,93-95,99-112
+spec/11-llm-integration.md
+  s_a3d624482f5bbe::t_5e926e77a9d181 107-113
+  s_a3d624482f5bbe::t_e07abe612dd28e 308
+Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift
+  s_a3d624482f5bbe::t_00fcd81db0a2c3 652,655,665
+  s_a3d624482f5bbe::t_0ab45e7c52d59e 519
+  s_a3d624482f5bbe::t_b7f02a2f0deff5 589-598,601-602,607-611
+  s_a3d624482f5bbe::t_5e1a56c6fed920 530
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e915c331827075c5c60d02dbc537af2c3ed2d139",
+  "prompts": {},
+  "sessions": {
+    "s_a3d624482f5bbe": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "67268fe0-0292-4141-8d2f-0055077b2ae0",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
