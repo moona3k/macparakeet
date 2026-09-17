@@ -159,9 +159,10 @@ struct OpenAICompatibleLLMHTTPAdapter: LLMHTTPAdapter {
                                 usage = LLMUsage(
                                     promptTokens: value.prompt_tokens,
                                     completionTokens: value.completion_tokens,
-                                    totalTokens: value.total_tokens ?? LLMUsage.derivedTotal(
-                                        promptTokens: value.prompt_tokens, completionTokens: value.completion_tokens
-                                    )
+                                    totalTokens: value.total_tokens
+                                        ?? LLMUsage.derivedTotal(
+                                            promptTokens: value.prompt_tokens, completionTokens: value.completion_tokens
+                                        )
                                 )
                             }
                         }
@@ -324,7 +325,8 @@ struct OpenAICompatibleLLMHTTPAdapter: LLMHTTPAdapter {
         switch config.id {
         case .openai, .openaiCompatible:
             topP = shouldOmitSampling ? nil : options.topP
-        case .anthropic, .gemini, .openrouter, .ollama, .lmstudio, .localCLI, .inProcessLocal:
+        case .anthropic, .gemini, .openrouter, .ollama, .lmstudio, .localCLI, .inProcessLocal,
+            .appleIntelligence:
             topP = nil
         }
         let supportsCustomOpenAICompatibleOptions =

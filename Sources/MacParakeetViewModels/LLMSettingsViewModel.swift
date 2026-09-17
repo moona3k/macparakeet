@@ -219,7 +219,7 @@ public final class LLMSettingsViewModel {
             return "Optional API key"
         case .openai:
             return "sk-..."
-        case .ollama, .localCLI, .inProcessLocal, nil:
+        case .ollama, .localCLI, .inProcessLocal, .appleIntelligence, nil:
             return ""
         }
     }
@@ -356,8 +356,26 @@ public final class LLMSettingsViewModel {
 
     public var selectableProviderIDs: [LLMProviderID] {
         LLMProviderID.userSelectableProviderIDs(
-            inProcessLocalLLMVisible: shouldShowInProcessLocalSetup
+            inProcessLocalLLMVisible: shouldShowInProcessLocalSetup,
+            appleIntelligenceVisible: appleIntelligenceAvailability.isUserSelectable
+                || draft.providerID == .appleIntelligence
+                || savedProviderID == .appleIntelligence
         )
+    }
+
+    public private(set) var appleIntelligenceAvailability: AppleIntelligenceAvailability =
+        AppleIntelligenceAvailability.current()
+
+    public var appleIntelligenceStatusMessage: String {
+        appleIntelligenceAvailability.userMessage
+    }
+
+    public var appleIntelligenceSettingsURL: URL? {
+        appleIntelligenceAvailability.settingsURL
+    }
+
+    public func refreshAppleIntelligenceAvailability() {
+        appleIntelligenceAvailability = AppleIntelligenceAvailability.current()
     }
 
     private var isInProcessLocalLLMRuntimeAvailable: Bool {
@@ -636,6 +654,7 @@ public final class LLMSettingsViewModel {
         )
         loadExistingConfig()
         loadAIFormatterProfiles()
+        refreshAppleIntelligenceAvailability()
         Task {
             await inProcessModelManager.refresh()
         }
@@ -649,7 +668,8 @@ public final class LLMSettingsViewModel {
         }
         do {
             guard let config = try buildConfig(from: draft) else { return }
-            let cliConfig = draft.providerID == .localCLI
+            let cliConfig =
+                draft.providerID == .localCLI
                 ? LocalCLIConfig(
                     commandTemplate: draft.trimmedCommandTemplate,
                     timeoutSeconds: draft.cliTimeoutSeconds
@@ -1139,6 +1159,7 @@ public final class LLMSettingsViewModel {
             return
         }
         resetDiscoveredModels()
+        refreshAppleIntelligenceAvailability()
         let apiKey = providerID.supportsAPIKey ? ((try? configStore?.loadAPIKey(for: providerID)) ?? "") : ""
         let cliConfig = providerID == .localCLI ? cliConfigStore?.load() : nil
         var nextDraft = LLMSettingsDraft.defaults(

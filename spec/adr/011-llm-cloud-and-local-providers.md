@@ -48,6 +48,7 @@ The current implementation supports these provider/runtime types through one sha
 | LM Studio | Local | `http://localhost:1234/v1` | Optional API token (`Authorization: Bearer`) |
 | Local CLI | CLI | N/A (subprocess) | N/A (tool manages its own auth) |
 | Local MLX | In-process local, developer-gated | `inprocess://local` | N/A |
+| Apple Intelligence | On-device OS model, macOS 26+ | `appleintelligence://system` | N/A |
 
 **Amendment (2026-04-03): Local CLI provider.** Users with Claude Code or Codex subscriptions can use their CLI tools (`claude -p`, `codex exec`, or any custom command) for summaries, chat, and transforms — no separate API key needed. The CLI tool runs as a subprocess via `posix_spawn` with process group management. Prompts are delivered via stdin and `MACPARAKEET_*` environment variables. This extends the provider model without changing the `LLMClientProtocol` — a `RoutingLLMClient` dispatches `.localCLI` contexts to `LocalCLILLMClient` and everything else to the HTTP `LLMClient`. See PR #47.
 
@@ -66,6 +67,8 @@ The current implementation supports these provider/runtime types through one sha
 **Amendment (2026-07-05): developer-gated Local MLX foundation.** The provider seam, gated MLX runtime wiring, verified model downloader, and one-click Settings card may exist in `main` as non-public infrastructure. `AppFeatures.inProcessLocalLLMEnabled` stays `false`; developers expose the option with `MacParakeetEnableInProcessLocalLLM` or `--enable-local-ai`. Public one-click setup remains blocked by runtime capability gating, setup UX, release readiness, and Phase 0 quality evidence. The first plausible public scope is single-transcript cleanup/summarization/Q&A; cross-meeting or whole-library analysis remains future-gated. The app still never bundles a model, never downloads one automatically, and never recommends Local MLX over cloud/frontier quality until surface-specific evidence justifies that change.
 
 **Amendment (2026-09-14): per-task selection, if split.** The current runtime still stores one `LLMProviderConfig` and resolves it for every LLM call. If model selection is later split, it follows [ADR-032](032-llm-task-group-routing.md): a few tasks with inherit / general-LLM route / specialist recipe, not a picker per AI feature. Specialists are task-bound recipes, not default-list model IDs. That ADR does not change this ADR's provider, privacy, or shared-client decisions, and it does not schedule the work.
+
+**Amendment (2026-09-16): Apple Intelligence short-task provider.** Eligible macOS 26+ Macs may select Apple's on-device Foundation Models as an explicit LLM provider (`LLMProviderID.appleIntelligence`). It is not auto-selected, not a bundled MacParakeet model, and not a fallback for other providers. The OS owns the ~3B weights and the ~4096-token window; MacParakeet uses a dedicated ~12k-character English-calibrated budget and maps overflow/guardrail failures instead of silently stitching chunks. The app floor stays macOS 14.2; the tile is hidden when the device is ineligible or the OS is older. See issue #1062.
 
 ### Features Enabled
 
@@ -94,6 +97,7 @@ No GPU memory, model downloads, or ANE contention in the public/default product 
 | Provider | Audio leaves device? | Transcript text leaves device? |
 |----------|---------------------|-------------------------------|
 | None (default) | No | No |
+| Apple Intelligence | No | No (on-device) |
 | Ollama | No | No (localhost) |
 | Local CLI | No | Depends on the CLI tool |
 | Cloud API | No | **Yes (user action or enabled automation, text only)** |
@@ -151,6 +155,7 @@ Users who want local-only LLM can install Ollama (`brew install ollama && ollama
 │  │ RoutingLLMClient │───▶│  LLMExecutionContext      │   │
 │  │                  │    │  - providerConfig          │   │
 │  │  .inProcessLocal ──▶ InProcessLLMClient (gated)    │   │
+│  │  .appleIntelligence ──▶ AppleIntelligenceLLMClient │   │
 │  │  .localCLI ──▶ LocalCLILLMClient                  │   │
 │  │  .other ────▶ LLMClient (HTTP)                    │   │
 │  └──────────────────┘    └──────────────────────────┘   │
@@ -184,9 +189,10 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
 }
 
 public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
-    case anthropic, openai, openaiCompatible, gemini, openrouter, ollama, lmstudio, localCLI, inProcessLocal
+    case anthropic, openai, openaiCompatible, gemini, openrouter, ollama, lmstudio, localCLI, inProcessLocal, appleIntelligence
     // localCLI runs CLI tools (claude -p, codex exec) as subprocesses — no HTTP, no API key.
     // inProcessLocal is developer-gated Local MLX — no HTTP, no API key.
+    // appleIntelligence is macOS 26+ on-device Foundation Models — no HTTP, no API key.
 }
 
 /// Client — routes provider-specific HTTP or CLI transport behind one interface

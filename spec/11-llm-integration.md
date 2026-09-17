@@ -38,6 +38,7 @@ User triggers LLM action (Summary / Chat / Formatter / Transform)
     → LLMExecutionContextResolver (resolves provider config + CLI config; currently task-blind)
     → RoutingLLMClient
         → .inProcessLocal: InProcessLLMClient → LocalLLMRuntime (MLX only in gated app builds)
+        → .appleIntelligence: AppleIntelligenceLLMClient → FoundationModels (macOS 26+)
         → .localCLI: LocalCLILLMClient → LocalCLIExecutor (posix_spawn)
         → .other:    LLMClient (URLSession)
             → .anthropic: POST /v1/messages
@@ -71,6 +72,7 @@ The current implementation does not flatten every provider into one wire protoco
 - **OpenAI, Gemini, OpenRouter, and LM Studio** use the OpenAI-compatible chat completions API (`POST /chat/completions` off each provider's configured base URL).
 - **Local CLI** is not HTTP at all; prompts are passed to a subprocess via stdin/environment.
 - **Local MLX** is in-process through `InProcessLLMClient` and `LocalLLMRuntime`; the concrete MLX target is compiled only for gated app builds.
+- **Apple Intelligence** is on-device through `AppleIntelligenceLLMClient` and `FoundationModels` on macOS 26+. It is user-selected, never auto-defaulted, and uses a dedicated ~12k-character budget. The option is hidden on ineligible Macs and older OS versions.
 
 Streaming is provider-specific under the hood:
 
@@ -78,6 +80,7 @@ Streaming is provider-specific under the hood:
 - OpenAI-compatible providers stream SSE `data:` lines.
 - Ollama streams NDJSON chat chunks.
 - Local CLI yields stdout incrementally.
+- Apple Intelligence diffs cumulative `streamResponse` snapshots into deltas.
 
 The service boundary stays stable even though the transport is mixed.
 
@@ -94,6 +97,7 @@ The service boundary stays stable even though the transport is mixed.
 | OpenRouter | Cloud | `https://openrouter.ai/api/v1` | `Authorization: Bearer` |
 | Local CLI | CLI | N/A (subprocess) | N/A (tool manages its own auth) |
 | Local MLX | In-process local, developer-gated | `inprocess://local` | N/A |
+| Apple Intelligence | On-device OS model, macOS 26+ | `appleintelligence://system` | N/A |
 
 **OpenAI-Compatible** is the path for aggregators such as Vercel AI Gateway.
 OpenAI-family model IDs (`gpt-5.x`, `o3`, and prefixed forms such as
@@ -104,6 +108,8 @@ keep the broader compatible mapping. OpenRouter shares this adapter, so the
 same model-ID policy applies there.
 
 **Local CLI:** Users with Claude Code or Codex subscriptions can use their CLI tools directly. The app runs the configured command as a subprocess via `posix_spawn`, delivering prompts via stdin and `MACPARAKEET_*` environment variables. No API key needed — the CLI tool manages its own authentication. Built-in presets for Claude Code (`claude -p --model haiku`) and Codex (`codex exec --model gpt-5.4-mini`), or any custom command. See PR #47.
+
+**Apple Intelligence:** On macOS 26 Tahoe or later, eligible Macs can use the on-device Foundation Models ~3B system model with no API key and no MacParakeet download. The user must enable Apple Intelligence in System Settings; MacParakeet does not auto-select this provider. The 4096-token window is a poor fit for full meeting summaries; Transforms, dictation cleanup, and short Ask turns are the intended workloads. The dedicated ~12k-character input budget is English-calibrated (~3.5 chars/token with output reserve); CJK and other dense scripts can overflow earlier and surface as a context-limit error rather than silent chunking. Inline CLI accepts `--provider appleIntelligence`. See issue #1062.
 
 ### OpenCode Go (custom endpoint)
 
@@ -171,6 +177,7 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     case lmstudio
     case localCLI    // CLI tools (claude -p, codex exec) — no HTTP, no API key
     case inProcessLocal // Developer-gated Local MLX option; no HTTP, no API key
+    case appleIntelligence // On-device Foundation Models; macOS 26+; no HTTP, no API key
 }
 ```
 

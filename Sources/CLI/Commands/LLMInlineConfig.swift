@@ -20,9 +20,10 @@ private enum InlineLLMCompatibilityDefaults {
 
 func validateBaseURL(_ value: String) throws -> URL {
     guard let url = URL(string: value),
-          let scheme = url.scheme?.lowercased(),
-          ["http", "https"].contains(scheme),
-          url.host != nil else {
+        let scheme = url.scheme?.lowercased(),
+        ["http", "https"].contains(scheme),
+        url.host != nil
+    else {
         throw ValidationError("--base-url must be an absolute http:// or https:// URL")
     }
     return url
@@ -67,10 +68,18 @@ func readInput(_ path: String) throws -> String {
 
 /// Shared options for CLI commands that call an LLM provider directly (no Keychain).
 struct LLMInlineOptions: ParsableArguments {
-    @Option(name: .long, help: "Provider: anthropic, openai, openaiCompatible, gemini, openrouter, ollama, lmstudio, cli.")
+    @Option(
+        name: .long,
+        help:
+            "Provider: anthropic, openai, openaiCompatible, gemini, openrouter, ollama, lmstudio, appleIntelligence, cli."
+    )
     var provider: String
 
-    @Option(name: .long, help: "API key literal. Prefer --api-key-env or provider env vars to avoid exposing secrets in process arguments.")
+    @Option(
+        name: .long,
+        help:
+            "API key literal. Prefer --api-key-env or provider env vars to avoid exposing secrets in process arguments."
+    )
     var apiKey: String?
 
     @Option(name: .long, help: "Environment variable name containing the API key.")
@@ -84,7 +93,8 @@ struct LLMInlineOptions: ParsableArguments {
 
     @Flag(
         name: .long,
-        help: "Allow non-loopback http:// base URLs for non-local providers. Prompt content and API keys may be sent without TLS."
+        help:
+            "Allow non-loopback http:// base URLs for non-local providers. Prompt content and API keys may be sent without TLS."
     )
     var allowInsecureHTTP: Bool = false
 
@@ -102,12 +112,14 @@ struct LLMInlineOptions: ParsableArguments {
             normalized = "localCLI"
         case "openaicompatible", "openai-compatible":
             normalized = "openaiCompatible"
+        case "apple", "apple-intelligence", "appleintelligence":
+            normalized = "appleIntelligence"
         default:
             normalized = provider
         }
         guard let providerID = LLMProviderID(rawValue: normalized) else {
             throw ValidationError(
-                "Unknown provider '\(provider)'. Options: anthropic, openai, openaiCompatible, gemini, openrouter, ollama, lmstudio, cli"
+                "Unknown provider '\(provider)'. Options: anthropic, openai, openaiCompatible, gemini, openrouter, ollama, lmstudio, appleIntelligence, cli"
             )
         }
         if providerID == .inProcessLocal {
@@ -121,16 +133,20 @@ struct LLMInlineOptions: ParsableArguments {
         emitWarnings: Bool = true
     ) throws -> InlineLLMExecutionContext {
         let providerID = try providerID()
-
-        let overrideURL: URL? = if let urlStr = baseURL {
-            try validateBaseURL(
-                urlStr,
-                providerID: providerID,
-                allowInsecureHTTP: allowInsecureHTTP
-            )
-        } else {
-            nil
+        if providerID == .appleIntelligence {
+            try validateAppleIntelligenceFlags()
         }
+
+        let overrideURL: URL? =
+            if let urlStr = baseURL {
+                try validateBaseURL(
+                    urlStr,
+                    providerID: providerID,
+                    allowInsecureHTTP: allowInsecureHTTP
+                )
+            } else {
+                nil
+            }
         let client = RoutingLLMClient()
 
         var providerConfig: LLMProviderConfig
@@ -191,7 +207,8 @@ struct LLMInlineOptions: ParsableArguments {
             providerConfig = .ollama(model: model ?? providerID.defaultModelName, baseURL: overrideURL)
         case .lmstudio:
             guard let rawModel = model?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !rawModel.isEmpty else {
+                !rawModel.isEmpty
+            else {
                 throw ValidationError("--model is required for LM Studio")
             }
             providerConfig = .lmstudio(
@@ -201,7 +218,8 @@ struct LLMInlineOptions: ParsableArguments {
             )
         case .localCLI:
             guard let rawCommand = command,
-                  !rawCommand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                !rawCommand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else {
                 throw ValidationError("--command is required for cli provider (e.g. 'claude -p')")
             }
             providerConfig = .localCLI()
@@ -210,6 +228,8 @@ struct LLMInlineOptions: ParsableArguments {
             )
         case .inProcessLocal:
             throw ValidationError("The in-process local provider is not exposed through inline CLI configuration yet.")
+        case .appleIntelligence:
+            providerConfig = .appleIntelligence()
         }
 
         if local && !providerConfig.isLocal {
@@ -223,9 +243,10 @@ struct LLMInlineOptions: ParsableArguments {
         }
 
         if emitWarnings,
-           allowInsecureHTTP,
-           let overrideURL,
-           Self.usesNonLoopbackHTTP(overrideURL, providerID: providerID) {
+            allowInsecureHTTP,
+            let overrideURL,
+            Self.usesNonLoopbackHTTP(overrideURL, providerID: providerID)
+        {
             Self.emitInsecureHTTPWarning(url: overrideURL, providerID: providerID)
         }
 
@@ -236,6 +257,23 @@ struct LLMInlineOptions: ParsableArguments {
             ),
             client: client
         )
+    }
+
+    private func validateAppleIntelligenceFlags() throws {
+        if let model {
+            let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty, trimmed != LLMProviderID.appleIntelligence.defaultModelName {
+                throw ValidationError(
+                    "Apple Intelligence uses the on-device system model. Omit --model."
+                )
+            }
+        }
+        if baseURL != nil {
+            throw ValidationError("--base-url is not supported for Apple Intelligence.")
+        }
+        if apiKey != nil || apiKeyEnv != nil {
+            throw ValidationError("Apple Intelligence does not use an API key.")
+        }
     }
 
     private func requiredAPIKey(
@@ -292,11 +330,11 @@ struct LLMInlineOptions: ParsableArguments {
 
     static func insecureHTTPWarning(url: URL, providerID: LLMProviderID) -> String {
         """
-            Warning: --allow-insecure-http is sending \(providerID.displayName) LLM traffic to \
-            \(url.absoluteString) without TLS. Prompt content and API keys may be visible on \
-            the network.
+        Warning: --allow-insecure-http is sending \(providerID.displayName) LLM traffic to \
+        \(url.absoluteString) without TLS. Prompt content and API keys may be visible on \
+        the network.
 
-            """
+        """
     }
 
     func buildConfig(

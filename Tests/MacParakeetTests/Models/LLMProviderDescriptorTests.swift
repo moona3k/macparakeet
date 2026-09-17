@@ -26,6 +26,7 @@ final class LLMProviderDescriptorTests: XCTestCase {
     func testModelListEndpointPolicy() {
         XCTAssertEqual(LLMProviderID.localCLI.modelListEndpoint, .none)
         XCTAssertEqual(LLMProviderID.inProcessLocal.modelListEndpoint, .none)
+        XCTAssertEqual(LLMProviderID.appleIntelligence.modelListEndpoint, .none)
         XCTAssertEqual(LLMProviderID.anthropic.modelListEndpoint, .anthropic)
         XCTAssertEqual(LLMProviderID.gemini.modelListEndpoint, .gemini)
         XCTAssertEqual(LLMProviderID.ollama.modelListEndpoint, .ollama)
@@ -83,12 +84,35 @@ final class LLMProviderDescriptorTests: XCTestCase {
         XCTAssertEqual(LLMProviderConfig.inProcessLocal().modelName, LLMProviderID.inProcessLocal.defaultModelName)
         XCTAssertEqual(
             LLMProviderConfig.inProcessLocal().baseURL.absoluteString, LLMProviderID.inProcessLocal.defaultBaseURL)
+        XCTAssertEqual(
+            LLMProviderConfig.appleIntelligence().modelName, LLMProviderID.appleIntelligence.defaultModelName)
+        XCTAssertEqual(
+            LLMProviderConfig.appleIntelligence().baseURL.absoluteString,
+            LLMProviderID.appleIntelligence.defaultBaseURL)
+        XCTAssertTrue(LLMProviderID.appleIntelligence.isLocal)
+        XCTAssertFalse(LLMProviderID.appleIntelligence.supportsAPIKey)
+    }
+
+    func testAppleIntelligenceRejectsModelOverrides() {
+        let config = LLMProviderConfig.appleIntelligence()
+        let rejected = config.resolvingModelOverride("gpt-5.5")
+        guard case .invalid(let model, let reason) = rejected else {
+            return XCTFail("Expected an invalid Apple Intelligence override")
+        }
+        XCTAssertEqual(model, "gpt-5.5")
+        XCTAssertTrue(reason.contains("on-device system model"))
+
+        let sameModel = config.resolvingModelOverride("apple-intelligence")
+        XCTAssertEqual(sameModel, .resolved(config))
     }
 
     func testInProcessLocalProviderIsHiddenWhileFeatureFlagIsOff() {
         XCTAssertFalse(AppFeatures.inProcessLocalLLMEnabled)
         XCTAssertEqual(
-            LLMProviderID.userSelectableProviderIDs(inProcessLocalLLMVisible: false),
+            LLMProviderID.userSelectableProviderIDs(
+                inProcessLocalLLMVisible: false,
+                appleIntelligenceVisible: false
+            ),
             [
                 .lmstudio,
                 .ollama,
@@ -101,7 +125,17 @@ final class LLMProviderDescriptorTests: XCTestCase {
             ]
         )
         XCTAssertFalse(
-            LLMProviderID.userSelectableProviderIDs(inProcessLocalLLMVisible: false).contains(.inProcessLocal))
+            LLMProviderID.userSelectableProviderIDs(
+                inProcessLocalLLMVisible: false,
+                appleIntelligenceVisible: false
+            ).contains(.inProcessLocal))
+        XCTAssertEqual(
+            LLMProviderID.userSelectableProviderIDs(
+                inProcessLocalLLMVisible: false,
+                appleIntelligenceVisible: true
+            ).first,
+            .appleIntelligence
+        )
     }
 
     func testDeveloperOverrideCanExposeInProcessLocalProviderWithoutFlippingPublicFlag() {

@@ -47,7 +47,7 @@ public extension LLMClientProtocol {
         switch context.providerConfig.id {
         case .openai, .openaiCompatible, .gemini, .openrouter, .lmstudio:
             .nativeJSONSchema
-        case .anthropic, .ollama, .localCLI, .inProcessLocal:
+        case .anthropic, .ollama, .localCLI, .inProcessLocal, .appleIntelligence:
             .promptEmbeddedJSONSchema
         }
     }
@@ -91,11 +91,13 @@ public extension LLMClientProtocol {
                     for try await text in source {
                         continuation.yield(.text(text))
                     }
-                    continuation.yield(.completed(LLMStreamTerminal(
-                        provider: context.providerConfig.id.rawValue,
-                        model: context.providerConfig.modelName,
-                        effectiveSettings: options.effectiveInferenceSettings
-                    )))
+                    continuation.yield(
+                        .completed(
+                            LLMStreamTerminal(
+                                provider: context.providerConfig.id.rawValue,
+                                model: context.providerConfig.modelName,
+                                effectiveSettings: options.effectiveInferenceSettings
+                            )))
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -253,6 +255,8 @@ public final class LLMClient: LLMClientProtocol, Sendable {
             throw LLMError.connectionFailed("HTTP LLM client does not support Local CLI provider.")
         case .inProcessLocal:
             throw LLMError.connectionFailed("HTTP LLM client does not support Local MLX provider.")
+        case .appleIntelligence:
+            throw LLMError.connectionFailed("HTTP LLM client does not support Apple Intelligence.")
         }
     }
 }

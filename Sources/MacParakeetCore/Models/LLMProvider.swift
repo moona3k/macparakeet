@@ -40,6 +40,7 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     case lmstudio
     case localCLI
     case inProcessLocal
+    case appleIntelligence
 
     public var descriptor: LLMProviderDescriptor {
         switch self {
@@ -217,6 +218,19 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
                     "mlx-community/Qwen3-4B-Instruct-2507-DDWQ"
                 ]
             )
+        case .appleIntelligence:
+            return LLMProviderDescriptor(
+                id: self,
+                displayName: "Apple Intelligence",
+                defaultBaseURL: "appleintelligence://system",
+                isLocal: true,
+                supportsAPIKey: false,
+                requiresAPIKey: false,
+                requiresCustomEndpoint: false,
+                modelListEndpoint: .none,
+                defaultModelName: "apple-intelligence",
+                fallbackModels: ["apple-intelligence"]
+            )
         }
     }
 
@@ -225,9 +239,10 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     }
 
     public static func userSelectableProviderIDs(
-        inProcessLocalLLMVisible: Bool = AppFeatures.isInProcessLocalLLMVisible()
+        inProcessLocalLLMVisible: Bool = AppFeatures.isInProcessLocalLLMVisible(),
+        appleIntelligenceVisible: Bool = AppleIntelligenceAvailability.current().isUserSelectable
     ) -> [LLMProviderID] {
-        [
+        (appleIntelligenceVisible ? [.appleIntelligence] : []) + [
             .lmstudio,
             .ollama,
             .anthropic,
@@ -436,6 +451,18 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
         )
     }
 
+    public static func appleIntelligence(
+        model: String = LLMProviderID.appleIntelligence.defaultModelName
+    ) -> LLMProviderConfig {
+        LLMProviderConfig(
+            id: .appleIntelligence,
+            baseURL: URL(string: LLMProviderID.appleIntelligence.defaultBaseURL)!,
+            apiKey: nil,
+            modelName: model,
+            isLocal: true
+        )
+    }
+
     public static func isLoopbackEndpoint(_ url: URL) -> Bool {
         guard let host = url.host?.lowercased() else { return false }
         return host == "localhost" || host == "::1" || host.hasPrefix("127.")
@@ -474,6 +501,13 @@ public extension LLMProviderConfig {
                     + "Remove the override or change the command in Settings."
             )
         }
+        guard id != .appleIntelligence else {
+            return .invalid(
+                model: modelOverride,
+                reason: "Apple Intelligence uses the on-device system model. "
+                    + "Remove the override or choose a different provider."
+            )
+        }
         return .resolved(
             LLMProviderConfig(
                 id: id,
@@ -495,7 +529,8 @@ public extension LLMProviderConfig {
         case .openrouter:
             let components = model.split(separator: "/", omittingEmptySubsequences: false)
             return components.count == 2 && components.allSatisfy { !$0.isEmpty }
-        case .openai, .openaiCompatible, .ollama, .lmstudio, .localCLI, .inProcessLocal:
+        case .openai, .openaiCompatible, .ollama, .lmstudio, .localCLI, .inProcessLocal,
+            .appleIntelligence:
             return true
         }
     }

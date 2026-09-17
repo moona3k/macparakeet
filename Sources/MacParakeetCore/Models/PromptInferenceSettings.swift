@@ -397,7 +397,7 @@ public enum PromptInferenceCapabilityResolver {
             return [.temperature, .maxTokens]
         case .localCLI:
             return []
-        case .inProcessLocal:
+        case .inProcessLocal, .appleIntelligence:
             return [.temperature, .maxTokens]
         }
     }
@@ -491,15 +491,18 @@ public enum PromptInferenceCapabilityResolver {
         let reason: String?
         switch availability {
         case .supported:
-            reason = isGemini3Temperature
+            reason =
+                isGemini3Temperature
                 ? "Gemini 3 recommends automatic sampling for this setting."
                 : nil
         case .unsupported:
-            reason = field == .thinkingMode || field == .reasoningEffort
+            reason =
+                field == .thinkingMode || field == .reasoningEffort
                 ? "Not available with this provider or model."
                 : "This provider or model does not support this setting."
         case .unverified:
-            reason = config.id == .ollama
+            reason =
+                config.id == .ollama
                 ? "Thinking support depends on the selected Ollama model; sent as requested."
                 : "Custom endpoint support is unverified; sent as requested."
         }
