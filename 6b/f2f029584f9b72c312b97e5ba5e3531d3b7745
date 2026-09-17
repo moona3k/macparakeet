@@ -1,0 +1,37 @@
+docs/audits/2026-09-17-0.8.5-release-postmortem.md
+  s_673be8b32d8d6a::t_59598b16b97442 1-214
+docs/solutions/workflow-issues/notarytool-crash-incomplete-upload.md
+  s_673be8b32d8d6a::t_52e3f3eeda6750 1-94
+scripts/dist/homebrew-tap-scaffold/HOWTO.md
+  s_673be8b32d8d6a::t_291dd114b13140 80-82,87-89
+scripts/dist/sign_notarize.sh
+  s_673be8b32d8d6a::t_3a663cc52b7794 21-26
+  s_673be8b32d8d6a::t_6987cdc324812d 92-154
+  s_673be8b32d8d6a::t_486ae2f7f10740 78-80
+  s_673be8b32d8d6a::t_db8f1b7b6da706 356
+  s_673be8b32d8d6a::t_7d7fdda32036e3 256
+docs/distribution.md
+  s_673be8b32d8d6a::t_58e76bb52967e4 434
+  s_673be8b32d8d6a::t_6f4368f9a2cf82 449,451-457,459-460,463-467,469-470,473,475-478,480-483,485,487-489,491-494,496-500,503-526
+  s_673be8b32d8d6a::t_1b16f31758b9c7 376-378
+  s_673be8b32d8d6a::t_95300b189df284 438-441
+  s_673be8b32d8d6a::t_0a144d44b4d142 168
+  s_673be8b32d8d6a::t_27fa6b712ee23d 423-424
+  s_673be8b32d8d6a::t_aaf771b4ee827e 284
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6bf2f029584f9b72c312b97e5ba5e3531d3b7745",
+  "prompts": {},
+  "sessions": {
+    "s_673be8b32d8d6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3d0966e2-2ea0-4765-89f5-138ac379e81b",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
