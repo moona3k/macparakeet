@@ -1,0 +1,23 @@
+Sources/MacParakeet/Views/Dictation/DictationOverlayView.swift
+  s_606c608689ba0b::t_4ef095fce284eb 319-324
+Sources/MacParakeet/Views/Dictation/DictationOverlayController.swift
+  s_606c608689ba0b::t_43d4f8d3399368 152-157
+spec/04-ui-patterns.md
+  s_606c608689ba0b::t_d771d49ad97e92 497
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3816ad7aa5635556a97e850dfc38908efe427e7c",
+  "prompts": {},
+  "sessions": {
+    "s_606c608689ba0b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cca3cbd4-a0af-46d3-8951-f73076dc7480",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
