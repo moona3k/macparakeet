@@ -1,0 +1,23 @@
+Tests/MacParakeetTests/ViewModels/TranscriptionDeletionCleanupTests.swift
+  s_606c608689ba0b::t_c63532fdc9c68c 393
+  s_606c608689ba0b::t_2df53d8d43d590 348
+  s_606c608689ba0b::t_9fcbaa90c10a8d 367
+Tests/MacParakeetTests/TestSupport/TemporaryManagedMeetingFolder.swift
+  s_606c608689ba0b::t_9994458d8d21bf 25-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1ddb4c27d19374338bfc665753b5b27e691c883f",
+  "prompts": {},
+  "sessions": {
+    "s_606c608689ba0b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cca3cbd4-a0af-46d3-8951-f73076dc7480",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
