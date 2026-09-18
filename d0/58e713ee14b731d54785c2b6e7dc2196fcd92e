@@ -1,0 +1,48 @@
+Sources/MacParakeetCore/Services/System/PermissionService.swift
+  s_8b0c8e423cebfe::t_8d153cdfb833a7 18
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_8b0c8e423cebfe::t_6832341d3cccae 1047-1068
+  s_8b0c8e423cebfe::t_0bc81bea00fb00 926-940,942
+  s_8b0c8e423cebfe::t_5f8c3f9ce053e3 536-548
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_8b0c8e423cebfe::t_7aac1b62e64f8d 1612-1646
+Tests/MacParakeetTests/DictationFlow/DictationFlowStateMachineTests.swift
+  s_8b0c8e423cebfe::t_fcf1f717552bcc 289-302
+Sources/MacParakeetCore/DictationFlow/DictationFlowStateMachine.swift
+  s_8b0c8e423cebfe::t_0693dbcdb27f96 209-213
+spec/02-features.md
+  s_8b0c8e423cebfe::t_28b852d1640093 120
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_8b0c8e423cebfe::t_78b6cfa1d71f26 792-795
+  s_8b0c8e423cebfe::t_4c02a1c5a63037 3521-3522
+  s_8b0c8e423cebfe::t_556b377b2ec599 3564,3567-3570
+  s_8b0c8e423cebfe::t_c7644ab9c0b9ac 934-938
+  s_8b0c8e423cebfe::t_8bff9a31635012 3532-3535
+  s_8b0c8e423cebfe::t_dcb594be7d3cca 4130-4144
+Tests/MacParakeetTests/Views/Settings/SettingsStatusRulesTests.swift
+  s_8b0c8e423cebfe::t_b56be92446cb9e 173-184
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_8b0c8e423cebfe::t_73b77a885718e6 1430
+  s_8b0c8e423cebfe::t_e921cd11bc693a 1551-1571
+  s_8b0c8e423cebfe::t_dd51d5c02bea36 798-802
+spec/adr/005-onboarding-first-run.md
+  s_8b0c8e423cebfe::t_1b9d0aa64588d9 89
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_8b0c8e423cebfe::t_175b5fcde9440a 108,122-124,127-128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d058e713ee14b731d54785c2b6e7dc2196fcd92e",
+  "prompts": {},
+  "sessions": {
+    "s_8b0c8e423cebfe": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "863ab0d0-641e-4dbe-9876-6fbcfc82fad6",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
