@@ -655,12 +655,13 @@ context and falling back to the start-time context when the finish context is
 missing or points at MacParakeet itself.
 
 Profiles apply only to Dictation AI Formatter in V1. File/URL and meeting
-transcription formatting continues to use the fallback formatter prompt
+transcription formatting continues to use the transcript formatter prompt
 (all transcription finalization paths share `completeTranscription`, which
-invokes the formatter). The transcripts-side formatter has its own
-"Use for transcripts" toggle (default on) and an input-length cap that
-skips formatting for transcripts too long to rewrite inside realistic
-provider timeouts (#493).
+invokes the formatter). Dictation uses the dictation formatter prompt as
+its fallback after profiles/smart defaults. The transcripts-side formatter
+has its own "Use for transcripts" toggle (default off) and an input-length
+cap that skips formatting for transcripts too long to rewrite inside
+realistic provider timeouts (#493).
 
 Browser hostname/domain matching is intentionally deferred. In V1, Gmail in
 Chrome can match an exact Chrome profile or the coarse `browser` category, but

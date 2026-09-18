@@ -114,13 +114,13 @@ Dictation AI Formatter app/category profile code is deliberately separate from
 the Prompt Library, but `AppFeatures.aiFormatterProfilesEnabled = false` keeps
 its routing and management out of the normal product surface. The
 `ai_formatter_profiles` table still migrates. When enabled, profiles resolve
-through `AIFormatterProfileMatcher`; otherwise dictation uses the global
+through `AIFormatterProfileMatcher`; otherwise dictation uses the dictation
 formatter prompt.
 
 Reasoning:
 
-- The AI Formatter fallback prompt is a runtime preference, not a Prompt
-  Library row.
+- The AI Formatter fallback prompts (transcript vs dictation) are runtime
+  preferences, not Prompt Library rows.
 - Formatter profiles are keyed by local app context, not by a reusable
   summary/transform prompt card.
 - Transform prompts already use `Prompt.Category.transform`; future per-app

@@ -975,14 +975,14 @@ Important constraints:
 - formatter uses the shared `LLMService`
 - formatter runs for dictation, file/URL, and meeting transcription flows — every transcription finalization path shares `completeTranscription`, which invokes the formatter (`TelemetryFormatterSource` emits `.dictation` and `.transcription`; meetings report as `.transcription`)
 - formatter skips empty or whitespace-only input before prompt resolution or any provider call, so a model response can never become transcript content when STT produces no transcript text (#855)
-- formatter routing is per-surface: "Use for transcripts" (file/URL/meeting, default on) and "Use for dictation" (default off) toggles in AI settings, each ANDed with provider availability (#408, #493). Those toggles are enablement, not model selection. If a later change lets cleanup and meeting AI use different models, follow [ADR-032](adr/032-llm-task-group-routing.md): per-task inherit / general route / specialist recipe, not a picker per feature.
+- formatter routing is per-surface: "Use for transcripts" (file/URL/meeting, default off) and "Use for dictation" (default off) toggles in AI settings, each ANDed with provider availability (#408, #493). Those toggles are enablement, not model selection. If a later change lets cleanup and meeting AI use different models, follow [ADR-032](adr/032-llm-task-group-routing.md): per-task inherit / general route / specialist recipe, not a picker per feature.
 - transcription formatter input is capped at `AIFormatter.maxTranscriptionInputChars` (20k chars); longer transcripts (hour-long meetings) skip straight to deterministic cleanup because a full-rewrite response can stall slow providers until timeout (#493)
-- dictation formatter prompts route through local exact-app profiles, local coarse-category profiles, built-in coarse-category smart defaults, and then the fallback formatter prompt
-- built-in smart defaults are user-controllable: a master switch plus per-category switches (UserDefaults-backed `AIFormatterSmartDefaultsPolicy`), and every built-in prompt is readable in Settings even when the master switch is off; with the tier off, zero-profile prompt selection is byte-for-byte the legacy fallback-prompt behavior
-- file/YouTube transcription formatter prompts continue to use the fallback formatter prompt in V1
+- dictation formatter prompts route through local exact-app profiles, local coarse-category profiles, built-in coarse-category smart defaults, and then the dictation formatter prompt
+- built-in smart defaults are user-controllable: a master switch plus per-category switches (UserDefaults-backed `AIFormatterSmartDefaultsPolicy`), and every built-in prompt is readable in Settings even when the master switch is off; with the tier off, zero-profile prompt selection is byte-for-byte the dictation fallback-prompt behavior
+- file/URL/meeting transcription uses a separate transcript formatter prompt (paragraph-oriented built-in default). A customized pre-split shared prompt is copied into both; new installs get two different built-ins. Both remain opt-in via the routing toggles and share the cleanup model route ([ADR-032](adr/032-llm-task-group-routing.md))
 - browser hostname/domain matching is not attempted in V1; browser apps can match exact browser profiles or the coarse `browser` category only
 - formatter falls back to deterministic cleanup if the provider errors or times out
-- formatter prompt is user-editable in AI settings
+- formatter prompts are user-editable in AI settings (transcript vs dictation)
 - formatter profiles are managed in AI settings with built-in smart defaults, app selection, manual bundle ID entry, and category selection
 - persisted formatter runs record metadata in `llm_runs` (source row, feature, status, provider/model, latency, token usage when available, character counts, and error type); transcript text, prompts, and formatter output are not duplicated into the ledger
 - saved dictation rows can record local formatter routing provenance (`aiFormatterProfileID`, `aiFormatterProfileName`, `aiFormatterProfileMatchKind`); this data is local history/debug metadata, not telemetry, and History rows surface it as a small provenance chip for profile/smart-default-routed dictations
@@ -997,6 +997,7 @@ Important constraints:
 - [x] Transcription formatter skips inputs over the length cap instead of stalling finalization for the full provider timeout (#493)
 - [x] Formatter uses the configured provider or local CLI through shared LLM infrastructure
 - [x] Formatter prompt is editable and resettable from settings
+- [x] Transcripts and dictation have independent formatter prompts in AI settings
 - [x] Dictation formatter profiles support exact-app and category prompt routing
 - [x] Dictation profile routing preserves smart defaults and fallback prompt routing
 - [x] Smart defaults are inspectable and toggleable (master + per-category); disabling them restores legacy fallback-prompt selection

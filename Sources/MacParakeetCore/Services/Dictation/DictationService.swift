@@ -227,7 +227,7 @@ public actor DictationService: DictationServiceProtocol {
         self.llmService = llmService
         self.llmRunRecorder = LLMRunRecorder(repository: llmRunRepo)
         self.shouldUseAIFormatter = shouldUseAIFormatter ?? { false }
-        let promptTemplate = aiFormatterPromptTemplate ?? { AIFormatter.defaultPromptTemplate }
+        let promptTemplate = aiFormatterPromptTemplate ?? { AIFormatter.defaultDictationPromptTemplate }
         self.aiFormatterPromptResolver =
             aiFormatterPromptResolver
             ?? AIFormatterGlobalPromptResolver(promptTemplate: promptTemplate)
