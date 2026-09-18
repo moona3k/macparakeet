@@ -1,0 +1,31 @@
+name: Upload 0.8.7 DMG
+
+on:
+  push:
+    branches: [chore/upload-0.8.7-dmg]
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified R2 object
+        run: |
+          curl -fsSL "https://downloads.macparakeet.com/MacParakeet.dmg?v=20260918190255" -o MacParakeet.dmg
+          test "$(stat -c%s MacParakeet.dmg)" = "174324672"
+          echo "ce1c2ef47a3ee122f2fbe091094e08b603acd1ecc3ab7cd21b6d6144a3595496  MacParakeet.dmg" | sha256sum -c
+      - name: Attach to GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          UPLOAD_URL="$(gh api repos/moona3k/macparakeet/releases/tags/v0.8.7 --jq .upload_url | sed 's/{.*}//')"
+          curl --fail --show-error --retry 3 --retry-all-errors \
+            -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @MacParakeet.dmg \
+            "${UPLOAD_URL}?name=MacParakeet.dmg"
