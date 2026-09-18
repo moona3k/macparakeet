@@ -117,7 +117,7 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 
 **Flow (6 steps, dictation-first):**
 1. Welcome
-2. Microphone permission
+2. Microphone permission (skippable; dictation and mic-backed meetings request it on first use; persistent dictation continues that same press, hold-to-talk waits for the next hold after the system sheet)
 3. Accessibility permission
 4. Hotkey instructions (configurable trigger + Esc)
 5. Speech stack setup (Parakeet; speaker detection defaults on where supported and remains user-controllable in Settings; locale-aware Whisper setup for CJK macOS languages; Nemotron remains an explicit Beta choice after setup; Cohere remains an explicit batch-only choice after setup)

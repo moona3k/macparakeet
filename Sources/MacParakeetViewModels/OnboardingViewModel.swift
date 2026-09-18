@@ -344,14 +344,10 @@ public final class OnboardingViewModel {
 
     public func canContinueFromCurrentStep() -> Bool {
         switch step {
-        case .welcome:
+        case .welcome, .microphone, .hotkey, .done:
             return true
-        case .microphone:
-            return micStatus == .granted
         case .accessibility:
             return accessibilityGranted
-        case .hotkey:
-            return true
         case .engine:
             switch engineState {
             case .ready:
@@ -359,8 +355,6 @@ public final class OnboardingViewModel {
             case .idle, .working(_, _), .failed:
                 return false
             }
-        case .done:
-            return true
         }
     }
 

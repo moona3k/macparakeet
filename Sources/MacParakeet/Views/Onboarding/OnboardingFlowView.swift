@@ -211,14 +211,12 @@ struct OnboardingFlowView: View {
 
     private func stepIsCompleted(_ step: OnboardingViewModel.Step) -> Bool {
         switch step {
-        case .welcome:
+        case .welcome, .hotkey:
             return viewModel.step.rawValue > step.rawValue
         case .microphone:
-            return viewModel.micStatus == .granted
+            return viewModel.micStatus == .granted || viewModel.step.rawValue > step.rawValue
         case .accessibility:
             return viewModel.accessibilityGranted
-        case .hotkey:
-            return viewModel.step.rawValue > step.rawValue
         case .engine:
             if case .ready = viewModel.engineState { return true }
             return false
@@ -343,7 +341,7 @@ struct OnboardingFlowView: View {
                 title: "Microphone access",
                 status: micStatusText(viewModel.micStatus),
                 statusStyle: micStatusStyle(viewModel.micStatus),
-                detail: "Required to record your voice for dictation."
+                detail: "Skip if you only transcribe files."
             ) {
                 accentButton(
                     viewModel.isBusy ? "Requesting..." : "Grant Microphone Access",
@@ -976,7 +974,7 @@ struct OnboardingFlowView: View {
         case .welcome:
             return "Set up the permissions and local speech model that make dictation reliable."
         case .microphone:
-            return "MacParakeet needs microphone permission to record your voice."
+            return "Used for dictation. File transcription does not need a microphone."
         case .accessibility:
             return "Accessibility is required for the global hotkey and reliable paste automation."
         case .hotkey:
@@ -996,7 +994,8 @@ struct OnboardingFlowView: View {
     private func primaryButtonTitle(for step: OnboardingViewModel.Step) -> String {
         switch step {
         case .welcome: return "Continue"
-        case .microphone: return "Continue"
+        case .microphone:
+            return viewModel.micStatus == .granted ? "Continue" : "Continue without microphone"
         case .accessibility: return "Continue"
         case .hotkey: return "Continue"
         case .engine: return "Continue"
@@ -1091,8 +1090,8 @@ struct OnboardingFlowView: View {
         }
 
         switch viewModel.step {
-        case .microphone:
-            return "Grant microphone access to continue."
+        case .welcome, .microphone, .hotkey, .done:
+            return nil
         case .accessibility:
             return "Enable Accessibility to continue."
         case .engine:
@@ -1101,8 +1100,6 @@ struct OnboardingFlowView: View {
                     "Preparing Whisper — first-time Core ML optimization can take 3-5 minutes on some Macs. Everything works offline after setup."
             }
             return "Downloading — this can take several minutes. Everything works offline after setup."
-        case .welcome, .hotkey, .done:
-            return nil
         }
     }
 

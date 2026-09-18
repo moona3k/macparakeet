@@ -789,6 +789,10 @@ struct SettingsView: View {
                 Spacer(minLength: DesignSystem.Spacing.md)
 
                 HStack(spacing: DesignSystem.Spacing.sm) {
+                    if !viewModel.microphoneGranted {
+                        microphonePermissionActionButton
+                    }
+
                     Picker("Microphone", selection: $viewModel.selectedMicrophoneDeviceUID) {
                         Text("System Default").tag(SettingsViewModel.systemDefaultMicrophoneSelection)
                         ForEach(viewModel.microphoneDeviceOptions) { device in
@@ -927,7 +931,11 @@ struct SettingsView: View {
     private var microphoneTestDetail: String {
         switch viewModel.microphoneTestState {
         case .idle:
-            return viewModel.microphoneGranted ? "Run a short level check before recording." : "Grant microphone permission before testing."
+            return viewModel.microphoneGranted
+                ? "Run a short level check before recording."
+                : viewModel.microphoneStatus == .notDetermined
+                    ? "Grant microphone access to test input. File transcription does not need it."
+                    : "Open System Settings → Privacy & Security → Microphone, then try again."
         case .testing:
             return "Speak into the selected microphone."
         case .succeeded:
@@ -3567,8 +3575,8 @@ struct SettingsView: View {
 
     private var permissionsCard: some View {
         let permissionsSubtitle = AppFeatures.meetingRecordingEnabled
-            ? "Microphone and Accessibility are required. Screen Recording is needed for system-audio meetings."
-            : "Microphone and Accessibility are required."
+            ? "Microphone is needed for dictation and microphone meetings. Accessibility is required for the global hotkey and paste. Screen Recording is needed for system-audio meetings."
+            : "Microphone is needed for dictation. Accessibility is required for the global hotkey and paste."
 
         return SettingsCard(
             title: "Permissions",
@@ -3578,7 +3586,10 @@ struct SettingsView: View {
         ) {
             VStack(spacing: DesignSystem.Spacing.md) {
                 HStack {
-                    rowText(title: "Microphone", detail: "Required for voice capture.")
+                    rowText(
+                        title: "Microphone",
+                        detail: "Needed for dictation and microphone meetings. File transcription does not use it."
+                    )
                     Spacer()
                     permissionPill(granted: viewModel.microphoneGranted)
                 }
@@ -3607,9 +3618,13 @@ struct SettingsView: View {
                 let needsScreenRecordingAction = AppFeatures.meetingRecordingEnabled
                     && viewModel.meetingAudioSourceMode.capturesSystemAudio
                     && !viewModel.screenRecordingGranted
-                if !viewModel.accessibilityGranted || needsScreenRecordingAction {
+                if !viewModel.microphoneGranted || !viewModel.accessibilityGranted || needsScreenRecordingAction {
                     Divider()
                     HStack(spacing: DesignSystem.Spacing.sm) {
+                        if !viewModel.microphoneGranted {
+                            microphonePermissionActionButton
+                        }
+
                         if !viewModel.accessibilityGranted {
                             Button("Open Accessibility Settings") {
                                 openAccessibilitySettings()
@@ -4166,6 +4181,21 @@ struct SettingsView: View {
             "Model setup is currently running."
         case .failed:
             "The last model setup attempt failed."
+        }
+    }
+
+    @ViewBuilder
+    private var microphonePermissionActionButton: some View {
+        if viewModel.microphoneStatus == .notDetermined {
+            Button("Grant Microphone Access") {
+                viewModel.requestMicrophoneAccess()
+            }
+            .parakeetAction(.primaryProminent)
+        } else {
+            Button("Open Microphone Settings") {
+                viewModel.openMicrophoneSystemSettings()
+            }
+            .parakeetAction(.primaryProminent)
         }
     }
 

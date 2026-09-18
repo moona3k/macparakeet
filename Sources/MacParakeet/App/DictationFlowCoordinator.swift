@@ -534,7 +534,27 @@ final class DictationFlowCoordinator {
                 do {
                     try await self.entitlementsService.assertCanTranscribe(now: Date())
                     guard !Task.isCancelled else { return }
-                    self.sendEvent(.entitlementsGranted(generation: gen))
+                    let microphoneReady = await self.ensureMicrophonePermissionForStart()
+                    guard !Task.isCancelled else { return }
+                    if microphoneReady {
+                        if case .checkingEntitlements(mode: .holdToTalk) = self.stateMachine.state {
+                            // The TCC sheet interrupts the hold. Starting capture
+                            // here orphans a hold-to-talk session if the key-up
+                            // was delivered to the sheet. Keep the grant; the
+                            // next hold starts immediately.
+                            self.sendEvent(.stopRequested)
+                            return
+                        }
+                        self.sendEvent(.entitlementsGranted(generation: gen))
+                    } else {
+                        self.sendEvent(
+                            .startFailed(
+                                generation: gen,
+                                message: Self.microphoneAccessRequiredMessage
+                            )
+                        )
+                        self.maybePresentMicPermissionAlert()
+                    }
                 } catch {
                     guard !Task.isCancelled else { return }
                     self.lastEntitlementsError = error
@@ -924,8 +944,23 @@ final class DictationFlowCoordinator {
             }
         default:
             dismissCaption(outcome: .failure)
-            overlayViewModel?.state = .error(message)
+            presentErrorOverlay(message: message)
         }
+    }
+
+    private func presentErrorOverlay(message: String) {
+        if overlayViewModel == nil {
+            let vm = DictationOverlayViewModel()
+            vm.onCancel = { [weak self] in self?.sendEvent(.dismissRequested) }
+            vm.onStop = { [weak self] in self?.stopDictation() }
+            vm.onUndo = { [weak self] in self?.sendEvent(.undoRequested) }
+            vm.onDismiss = { [weak self] in self?.sendEvent(.dismissRequested) }
+            overlayViewModel = vm
+            let controller = overlayControllerFactory(vm)
+            controller.show()
+            overlayController = controller
+        }
+        overlayViewModel?.state = .error(message)
     }
 
     /// Whether the error represents "no speech" (empty transcript or recording too short).
@@ -1027,6 +1062,28 @@ final class DictationFlowCoordinator {
                     self.sendEvent(.startFailed(generation: generation, message: error.localizedDescription))
                 }
             }
+        }
+    }
+
+    /// Ask for the microphone before capture starts so a skipped onboarding
+    /// grant can continue into the same dictation press. Meetings already do
+    /// this in their permission gate; dictation previously failed first, then
+    /// prompted, then required a second press.
+    private func ensureMicrophonePermissionForStart() async -> Bool {
+        switch await permissionService.checkMicrophonePermission() {
+        case .granted:
+            return true
+        case .notDetermined:
+            Telemetry.send(.permissionPrompted(permission: .microphone))
+            let granted = await permissionService.requestMicrophonePermission()
+            Telemetry.send(
+                granted
+                    ? .permissionGranted(permission: .microphone)
+                    : .permissionDenied(permission: .microphone)
+            )
+            return granted
+        case .denied:
+            return false
         }
     }
 

@@ -709,7 +709,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Queue microphone preparation immediately. It runs off the main
             // actor and independently of the slower speech-model warm-up, so an
             // early first dictation does not wait for model initialization.
-            env.sharedMicStream.prewarmDictation()
+            if await env.permissionService.checkMicrophonePermission() == .granted {
+                env.sharedMicStream.prewarmDictation()
+            }
 
             try? await Task.sleep(for: .milliseconds(deferralMs))
             guard !Task.isCancelled else { return }
