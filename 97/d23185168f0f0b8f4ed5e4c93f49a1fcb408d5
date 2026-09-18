@@ -1,0 +1,99 @@
+Sources/MacParakeet/Views/Settings/LLMSettingsView.swift
+  s_a2a693ee7f21a0::t_865e47a4d853a1 19
+  s_a2a693ee7f21a0::t_39713120aa2ef9 1313
+  s_a2a693ee7f21a0::t_ffe6e3227619fb 1305
+  s_a2a693ee7f21a0::t_3f4b80f0c33f19 1000-1012,1014-1052,1055-1075,1077-1080,1314-1317
+  s_a2a693ee7f21a0::t_049038ff1f5cb2 1318-1319
+Tests/MacParakeetTests/AppRuntimePreferencesTests.swift
+  s_a2a693ee7f21a0::t_ae426b9a7cd9ff 378,578,582-585,587-637
+  s_a2a693ee7f21a0::t_cccbd2b7b3e3a9 570,575-577
+  s_a2a693ee7f21a0::t_3f4c598b802bb0 682,690-691,697
+  s_a2a693ee7f21a0::t_32b5524e204628 702
+  s_a2a693ee7f21a0::t_39656e0cbab938 366-367,379,580
+Sources/MacParakeetCore/AppRuntimePreferences.swift
+  s_a2a693ee7f21a0::t_638ca437beee98 23
+  s_a2a693ee7f21a0::t_f2a4a3d582b224 777-778
+  s_a2a693ee7f21a0::t_9a93d901896e59 544
+  s_a2a693ee7f21a0::t_1198400c557b73 740-742,744,752-776
+spec/11-llm-integration.md
+  s_a2a693ee7f21a0::t_e236a4deb5571c 658,660-664
+Sources/MacParakeetViewModels/LLMSettingsViewModel.swift
+  s_a2a693ee7f21a0::t_6b88f784cd2b1a 996
+  s_a2a693ee7f21a0::t_880799bea9a881 1173,1178-1179,1192-1193
+  s_a2a693ee7f21a0::t_dfce8070e629a8 1208-1209
+  s_a2a693ee7f21a0::t_2d79bef76dad04 505-510
+  s_a2a693ee7f21a0::t_9ac26bfb06bf90 1238-1239
+  s_a2a693ee7f21a0::t_f68995410b54eb 780
+  s_a2a693ee7f21a0::t_d2922e85e7fe71 1429-1432
+  s_a2a693ee7f21a0::t_23da7969e7573e 602-605
+  s_a2a693ee7f21a0::t_3107e25f2ef3a3 773-776
+  s_a2a693ee7f21a0::t_43e7c17a18d9ba 1416
+  s_a2a693ee7f21a0::t_fc2c2a22d1d259 433-442
+  s_a2a693ee7f21a0::t_440b57182cfad9 554
+  s_a2a693ee7f21a0::t_2f35c4c4b13473 640-641
+  s_a2a693ee7f21a0::t_d69ae74c3892b5 787-788
+  s_a2a693ee7f21a0::t_dbb97837b9d0f9 841
+  s_a2a693ee7f21a0::t_c7289369d9eb70 974
+  s_a2a693ee7f21a0::t_7dab459046cfa2 1073-1074
+  s_a2a693ee7f21a0::t_6653488956ca2f 1372-1375,1377-1378,1380-1381,1394,1399-1402,1404-1405
+  s_a2a693ee7f21a0::t_319460681187e3 807-810
+  s_a2a693ee7f21a0::t_eb46a2ebefcfb3 459-461
+  s_a2a693ee7f21a0::t_3f2925553e3f46 923,1047
+spec/12-processing-layer.md
+  s_a2a693ee7f21a0::t_c33f332b21c831 117
+  s_a2a693ee7f21a0::t_baef91b631afa6 122-123
+Sources/MacParakeetCore/Services/Dictation/DictationService.swift
+  s_a2a693ee7f21a0::t_d6e02da72dad3f 230
+Sources/MacParakeetViewModels/LLMSettingsDraft.swift
+  s_a2a693ee7f21a0::t_20e10a187346c9 110-116
+  s_a2a693ee7f21a0::t_c21f852d97e606 269-270,285-286
+  s_a2a693ee7f21a0::t_ddf7a4efe1aa4f 243-244,258-259
+  s_a2a693ee7f21a0::t_f2769f8e6cd0d0 45,58-59,72-75
+Tests/MacParakeetTests/TextProcessing/AIFormatterPromptTests.swift
+  s_a2a693ee7f21a0::t_ee0d2a724d59db 1-87
+Sources/MacParakeet/App/AppEnvironment.swift
+  s_a2a693ee7f21a0::t_e68f0d5221d008 329,332-333
+  s_a2a693ee7f21a0::t_d6972f73ad2ee1 357
+  s_a2a693ee7f21a0::t_c20be25f212617 343
+  s_a2a693ee7f21a0::t_c2ec7ed79b3e4c 452
+  s_a2a693ee7f21a0::t_4454fba069ac05 334
+spec/02-features.md
+  s_a2a693ee7f21a0::t_d5a03abd114374 978
+  s_a2a693ee7f21a0::t_6c792a220fab2d 1000
+  s_a2a693ee7f21a0::t_ca0c4a3c5ffef9 980-982,985
+Tests/MacParakeetTests/ViewModels/LLMSettingsViewModelTests.swift
+  s_a2a693ee7f21a0::t_bc0960f518634b 129-130,136,138-139,143,145
+  s_a2a693ee7f21a0::t_1b0d6803c8fb18 1556-1559
+  s_a2a693ee7f21a0::t_bdcad72b8f4864 880
+  s_a2a693ee7f21a0::t_00a9085039e642 1631-1632
+  s_a2a693ee7f21a0::t_95cfa1a578c982 480-481,927,969,1637,1697-1755
+  s_a2a693ee7f21a0::t_6495221f6aec48 167,170
+  s_a2a693ee7f21a0::t_bb87fbc01381bb 179,181
+  s_a2a693ee7f21a0::t_1ffa3881bf9bb2 45-46
+  s_a2a693ee7f21a0::t_4700b53a1760bb 1643
+  s_a2a693ee7f21a0::t_e8ec66a22309e0 493-496,499
+  s_a2a693ee7f21a0::t_52c1ef4e7ad254 212,216,221
+  s_a2a693ee7f21a0::t_e13ea118d77e49 664,690,912
+  s_a2a693ee7f21a0::t_05bff6ba081086 479,606-607,907-911,913-926,966-968,970-971,1621-1623,1636
+Sources/MacParakeetCore/TextProcessing/AIFormatter.swift
+  s_a2a693ee7f21a0::t_2b0773744bc486 57-80,82-83,89-118
+  s_a2a693ee7f21a0::t_c1db721d1e6dbe 119
+spec/adr/032-llm-task-group-routing.md
+  s_a2a693ee7f21a0::t_3f308e823bd048 124-126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "97d23185168f0f0b8f4ed5e4c93f49a1fcb408d5",
+  "prompts": {},
+  "sessions": {
+    "s_a2a693ee7f21a0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "2f64e832-d85d-496d-8bf2-1d40381bbb38",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
