@@ -1,0 +1,26 @@
+Sources/MacParakeetCore/Services/System/StreamingCursorScheduler.swift
+  s_4d4a9e865990b0::t_e43e22b15dff9c 29,31
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_4d4a9e865990b0::t_06e287403ade10 1220
+  s_4d4a9e865990b0::t_f22f42f04888b5 619-621
+Tests/MacParakeetTests/Services/System/StreamingCursorSchedulerTests.swift
+  s_4d4a9e865990b0::t_833cb47e0bd727 71-72
+Sources/MacParakeetCore/Services/System/StreamingCursorInserter.swift
+  s_4d4a9e865990b0::t_5e02b7342c152a 172-173,175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "34ba84e349c3ef8c188590961cb919a965929e31",
+  "prompts": {},
+  "sessions": {
+    "s_4d4a9e865990b0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "a61f99af-3e55-48d8-9c1b-baaa41af881c",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
