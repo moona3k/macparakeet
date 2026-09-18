@@ -1,0 +1,23 @@
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_a2a693ee7f21a0::t_4d082ce30c926b 160-180
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_a2a693ee7f21a0::t_04f3df2ec46a99 557,559-562,567-569,574
+  s_a2a693ee7f21a0::t_c39ba2d72a5ebf 1123-1124
+  s_a2a693ee7f21a0::t_3a29178282ebf2 1111-1116,1121-1122,1125,1128,1137,1139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0f7d53ab15030ba2bb54ed1d11c8fc36e94ec910",
+  "prompts": {},
+  "sessions": {
+    "s_a2a693ee7f21a0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "2f64e832-d85d-496d-8bf2-1d40381bbb38",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
