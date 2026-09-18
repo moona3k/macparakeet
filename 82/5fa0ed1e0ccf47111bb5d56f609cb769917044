@@ -1,0 +1,23 @@
+Sources/MacParakeet/Hotkey/HotkeyManager.swift
+  s_a2a693ee7f21a0::t_fa6f7a39aa08ed 56-59
+  s_a2a693ee7f21a0::t_892a335c47c365 1113-1115,1122
+Tests/MacParakeetTests/Hotkey/HotkeyManagerTests.swift
+  s_a2a693ee7f21a0::t_eb29a66c214e7e 697-722
+  s_a2a693ee7f21a0::t_0ec7d767da2de4 539-583
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "825fa0ed1e0ccf47111bb5d56f609cb769917044",
+  "prompts": {},
+  "sessions": {
+    "s_a2a693ee7f21a0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "2f64e832-d85d-496d-8bf2-1d40381bbb38",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
