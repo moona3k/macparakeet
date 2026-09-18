@@ -1,0 +1,25 @@
+spec/adr/005-onboarding-first-run.md
+  s_8b0c8e423cebfe::t_39114e2e935cb8 89
+spec/02-features.md
+  s_8b0c8e423cebfe::t_01b5f22b0e170d 120
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_8b0c8e423cebfe::t_b14a32b403e754 132-159
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_8b0c8e423cebfe::t_b28d50ab948261 539-546
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d962971a1e1b14d50064598277b2063d3faa8c1a",
+  "prompts": {},
+  "sessions": {
+    "s_8b0c8e423cebfe": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "863ab0d0-641e-4dbe-9876-6fbcfc82fad6",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
