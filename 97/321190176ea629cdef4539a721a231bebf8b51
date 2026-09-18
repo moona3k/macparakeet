@@ -1,0 +1,33 @@
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_a2a693ee7f21a0::t_99ca62e494a866 1160
+  s_a2a693ee7f21a0::t_de9fcf8cdbd5c2 196-198
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_5551b191c671c8::t_a1f4fc25194808 11-15
+  s_a2a693ee7f21a0::t_b13fda42778f4b 181-183,187-272
+Tests/MacParakeetTests/Views/DictationOverlayChromeTests.swift
+  s_5551b191c671c8::t_9d95d09a2c1f8e 48-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "97321190176ea629cdef4539a721a231bebf8b51",
+  "prompts": {},
+  "sessions": {
+    "s_5551b191c671c8": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "7502d1f0-34a9-415c-b1dc-279063689f6d",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_a2a693ee7f21a0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "2f64e832-d85d-496d-8bf2-1d40381bbb38",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
