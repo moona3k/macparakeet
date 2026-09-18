@@ -1,0 +1,19 @@
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorLoadCaptionTests.swift
+  s_a2a693ee7f21a0::t_415781682a7581 75-84,87,89-94,97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8e65e306edc9517ffb89d17113e81b831190f62f",
+  "prompts": {},
+  "sessions": {
+    "s_a2a693ee7f21a0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "2f64e832-d85d-496d-8bf2-1d40381bbb38",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
