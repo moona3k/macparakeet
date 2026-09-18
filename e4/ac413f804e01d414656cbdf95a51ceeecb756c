@@ -1,0 +1,107 @@
+Sources/MacParakeet/Hotkey/HotkeyManager.swift
+  s_4d4a9e865990b0::t_19eae758f13401 214-216
+  s_4d4a9e865990b0::t_a6abca9f795c75 213
+Sources/MacParakeet/Hotkey/TransformsHotkeyRegistry.swift
+  s_4d4a9e865990b0::t_48cdf443a17be2 171-174
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_4d4a9e865990b0::t_13a7f2263e5afa 1221-1228
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_4d4a9e865990b0::t_251fe5e7afc793 1074-1090
+Tests/MacParakeetTests/Services/System/StreamingCursorInserterTests.swift
+  s_4d4a9e865990b0::t_80d25341cd531f 1-7,9-12,17-37,83-117,119-123,162-169,171-197
+  s_4d4a9e865990b0::t_9004b87d651635 124-161
+  s_4d4a9e865990b0::t_c6318101e9920d 170
+  s_4d4a9e865990b0::t_cc38a68638b7bf 55-82
+  s_4d4a9e865990b0::t_7cb5b838677b65 118
+  s_4d4a9e865990b0::t_255ee7a17929e7 38-54
+  s_4d4a9e865990b0::t_36a5ddba4ae8e7 8,13-16
+Sources/MacParakeet/Hotkey/GlobalShortcutManager.swift
+  s_4d4a9e865990b0::t_f97765bf8765cf 108-111
+Sources/MacParakeetCore/Services/System/README.md
+  s_4d4a9e865990b0::t_0a6760e02cb7de 19
+docs/telemetry.md
+  s_4d4a9e865990b0::t_6d4b15f8b5d85a 421
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_4d4a9e865990b0::t_c9a266d282b550 587
+docs/plans/2026-09-17-issue-449-streaming-cursor.md
+  s_4d4a9e865990b0::t_f5a9514738962d 1-110,124-163
+  s_4d4a9e865990b0::t_6c7b1996a3e6e3 111-123
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_4d4a9e865990b0::t_5856985dc97d62 48-55
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_4d4a9e865990b0::t_ece84c4d798334 280-294
+Tests/MacParakeetTests/AppRuntimePreferencesTests.swift
+  s_4d4a9e865990b0::t_920e2f094be456 46-58
+spec/02-features.md
+  s_4d4a9e865990b0::t_7c5719e6048894 235-236,257-261
+  s_4d4a9e865990b0::t_dce86eb41b56c3 222-224
+  s_4d4a9e865990b0::t_8e47587c07652c 262
+plans/README.md
+  s_4d4a9e865990b0::t_f55071103af122 42
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorLoadCaptionTests.swift
+  s_4d4a9e865990b0::t_29b060f8bfee4c 577-578
+  s_4d4a9e865990b0::t_96713da5107de1 415-416
+  s_4d4a9e865990b0::t_a469a0526030b6 472-473
+  s_4d4a9e865990b0::t_b9532892daebed 665-673,675-677
+  s_4d4a9e865990b0::t_7634fa483256cf 533-537
+  s_4d4a9e865990b0::t_202f04947f9e33 451-452
+  s_4d4a9e865990b0::t_3b79f3d8791eb1 491-493
+  s_4d4a9e865990b0::t_14207ac462eb70 381-414,417-450,453-471,474-490,494-495,507-511
+  s_4d4a9e865990b0::t_7136d5756f1060 674
+  s_4d4a9e865990b0::t_6deafc97551dc1 532,573,579,603,638,678
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_4d4a9e865990b0::t_3db0e400afa5e7 1012-1014
+  s_4d4a9e865990b0::t_4170391265f748 234-245
+Sources/MacParakeetCore/Services/System/StreamingCursorInserter.swift
+  s_4d4a9e865990b0::t_c05767aa998c3b 313
+  s_4d4a9e865990b0::t_5ce9ce73c58e5d 200-203,206,213,220,222,224,227,231,238,240-307
+  s_4d4a9e865990b0::t_e8527d4be0aaba 12
+  s_4d4a9e865990b0::t_40b40416a1b222 134-136
+  s_4d4a9e865990b0::t_eaeca2fd97a562 1-11,13-133,137-173,175-199,207,209-212,214-219,221,223,225-226,228-230,232-237,239,308-311,314-328
+  s_4d4a9e865990b0::t_3fe4c32feec5bf 312
+  s_4d4a9e865990b0::t_71afd63ab30abb 204-205,208
+  s_4d4a9e865990b0::t_76daf3fd0d485d 174
+  s_4d4a9e865990b0::t_2204a2e16ca493 329
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_4d4a9e865990b0::t_55cb7d51fa34d9 173-179
+  s_4d4a9e865990b0::t_6cc400c3d2192a 172
+docs/research/2026-09-17-issue-449-streaming-cursor.md
+  s_4d4a9e865990b0::t_e2962c7cd5018e 1-76
+Sources/MacParakeetCore/Services/System/StreamingCursorScheduler.swift
+  s_4d4a9e865990b0::t_6ad252b31ab8d3 99
+  s_4d4a9e865990b0::t_cee62b4e82b18c 29-30
+  s_4d4a9e865990b0::t_26ed9c4235d843 12-13,59-60,63-68,70-72,81-87,89,92-93,103-111,113,117,121,139-153
+  s_4d4a9e865990b0::t_c805b9b172eef7 1-11,14-28,31-58,61-62,69,73-80,88,90-91,94-98,100-102,112,114-116,118-120,122-138,154-167,171
+  s_4d4a9e865990b0::t_a9a17085092ba4 168-170
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_4d4a9e865990b0::t_4ba52c2c68ff2b 716,1201-1248
+  s_4d4a9e865990b0::t_6e252b39b0260c 242-244
+  s_4d4a9e865990b0::t_8b38b74cb6a405 214-220
+  s_4d4a9e865990b0::t_6859d5d02b90c4 610-625,641-647,687-693,709-715
+  s_4d4a9e865990b0::t_7acae3f9c3beac 717,1328-1334
+  s_4d4a9e865990b0::t_67dc73acaee420 142-144
+  s_4d4a9e865990b0::t_bbfbda05dbd244 718
+Tests/MacParakeetTests/Services/System/StreamingCursorSchedulerTests.swift
+  s_4d4a9e865990b0::t_681791e548241d 41
+  s_4d4a9e865990b0::t_7a37695474de8f 1-40,42-76
+Sources/MacParakeetCore/AppRuntimePreferences.swift
+  s_4d4a9e865990b0::t_c1735c11bab217 38
+  s_4d4a9e865990b0::t_c50cfc2b78ad42 568
+  s_4d4a9e865990b0::t_fc63e6a7b7490e 812-815
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e4ac413f804e01d414656cbdf95a51ceeecb756c",
+  "prompts": {},
+  "sessions": {
+    "s_4d4a9e865990b0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "a61f99af-3e55-48d8-9c1b-baaa41af881c",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
