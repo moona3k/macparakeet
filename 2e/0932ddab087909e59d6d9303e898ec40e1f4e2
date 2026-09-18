@@ -1,0 +1,37 @@
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_4d4a9e865990b0::t_9431df813d6e71 698,702
+  s_4d4a9e865990b0::t_475ecd8a631e9d 1229-1241
+  s_4d4a9e865990b0::t_428a2f22846c61 135-141
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorLoadCaptionTests.swift
+  s_4d4a9e865990b0::t_7cf7e7f98d4766 509-513,517
+  s_4d4a9e865990b0::t_f5a3440871dafa 497-508,514-516,518-521
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_4d4a9e865990b0::t_15aff9b33285e3 234-247
+docs/plans/2026-09-17-issue-449-streaming-cursor.md
+  s_4d4a9e865990b0::t_8ef84b99668843 98-99
+  s_4d4a9e865990b0::t_f18526ebe72a29 52
+Tests/MacParakeetTests/Services/System/StreamingCursorInserterTests.swift
+  s_4d4a9e865990b0::t_520fb0b855b97a 186,193
+  s_4d4a9e865990b0::t_ab1a20a85a627a 38,43,45
+  s_4d4a9e865990b0::t_613282d400d088 39-42,44,46-57
+Tests/MacParakeetTests/Services/System/MockClipboardService.swift
+  s_4d4a9e865990b0::t_a9e7458c7e87ab 22
+  s_4d4a9e865990b0::t_a801cac306a10c 65,74-75
+  s_4d4a9e865990b0::t_943a184bc7444c 76-77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2e0932ddab087909e59d6d9303e898ec40e1f4e2",
+  "prompts": {},
+  "sessions": {
+    "s_4d4a9e865990b0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "a61f99af-3e55-48d8-9c1b-baaa41af881c",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
