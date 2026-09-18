@@ -1,0 +1,44 @@
+spec/README.md
+  s_a2a693ee7f21a0::t_babb58e76ed886 84-85
+  s_a2a693ee7f21a0::t_83d661876e2c73 169
+  s_a2a693ee7f21a0::t_a8af26fc268479 341,343,353-357
+spec/00-vision.md
+  s_a2a693ee7f21a0::t_9b47f5245fdecc 513,518-522
+README.md
+  s_a2a693ee7f21a0::t_0a708ec55267c4 66-67
+  s_a2a693ee7f21a0::t_349c1a9a7ea47b 58
+spec/02-features.md
+  s_a2a693ee7f21a0::t_e2bce5ac33f684 2183
+  s_a2a693ee7f21a0::t_059612b1a53ee2 2199-2201
+Sources/CLI/MacParakeetCLI.swift
+  s_a2a693ee7f21a0::t_b8fe30daa6ba17 11
+Sources/CLI/CHANGELOG.md
+  s_a2a693ee7f21a0::t_73d83c686ce326 92-93
+Tests/MacParakeetTests/Audio/MeetingAudioCaptureServiceTests.swift
+  s_a2a693ee7f21a0::t_2ab6533b838e6f 223,225-241
+  s_a2a693ee7f21a0::t_eff229ca140977 900,905-908
+  s_a2a693ee7f21a0::t_5b8050d3408260 1823-1824
+  s_a2a693ee7f21a0::t_672b7bd6766617 175
+  s_a2a693ee7f21a0::t_1dfb43ed961390 194-201,204,213-222
+  s_a2a693ee7f21a0::t_6d95fd1965b3fd 868,872-875
+  s_a2a693ee7f21a0::t_75f315e37cb9c8 50
+  s_a2a693ee7f21a0::t_b0bbdbaaa19311 224
+integrations/README.md
+  s_a2a693ee7f21a0::t_0769af3800cf82 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "df15a31d2eb64e3b320b696c0a332089381e92a4",
+  "prompts": {},
+  "sessions": {
+    "s_a2a693ee7f21a0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "2f64e832-d85d-496d-8bf2-1d40381bbb38",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
