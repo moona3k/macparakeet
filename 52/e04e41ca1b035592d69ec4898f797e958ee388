@@ -1,0 +1,33 @@
+spec/00-vision.md
+  s_5551b191c671c8::t_9f0d98efaeda74 513,521-524
+README.md
+  s_5551b191c671c8::t_5b5292f09033e1 66
+  s_5551b191c671c8::t_1ca3cd4f6655b4 67
+  s_5551b191c671c8::t_35a6b70935441e 58
+spec/README.md
+  s_5551b191c671c8::t_a7f0d1c885b1f2 358
+  s_5551b191c671c8::t_b1f3bd7e2e51d4 341,343
+  s_5551b191c671c8::t_ff70f6bc1b4f03 85
+  s_5551b191c671c8::t_037e5ed4f5bd9f 169
+  s_5551b191c671c8::t_e047cf341c356a 84
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_5551b191c671c8::t_d26aad715d9e74 226-231
+spec/02-features.md
+  s_5551b191c671c8::t_9eae4bb1efe4c6 2183
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "52e04e41ca1b035592d69ec4898f797e958ee388",
+  "prompts": {},
+  "sessions": {
+    "s_5551b191c671c8": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "7502d1f0-34a9-415c-b1dc-279063689f6d",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
