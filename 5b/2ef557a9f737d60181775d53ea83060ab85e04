@@ -1,0 +1,61 @@
+Sources/MacParakeetCore/Audio/UncheckedSendableAudioPCMBuffer.swift
+  s_a2a693ee7f21a0::t_a532d224d45655 55-61
+Tests/MacParakeetTests/Audio/MicrophoneEnginePlatformConfigChangeRecoveryTests.swift
+  s_a2a693ee7f21a0::t_27b4e6af242cab 217,219-230
+  s_a2a693ee7f21a0::t_483d11ce0e165f 289-337
+  s_a2a693ee7f21a0::t_172dca4f118a0c 373-419
+  s_a2a693ee7f21a0::t_944e53a445718a 191-216,218,231-288,338-372
+docs/audits/2026-09-19-issue-1102-instant-dictation-mic-reacquire-loop.md
+  s_a2a693ee7f21a0::t_11bfb02c44116b 155-160,165-166,169-170,172-178,182-184
+  s_a2a693ee7f21a0::t_e27f0f36f2a096 208-289
+  s_a2a693ee7f21a0::t_04e6b7f2f0987b 139-154,161-164,167-168,171,179-181,185-204
+  s_a2a693ee7f21a0::t_3578fe9ce70888 317-319
+  s_a2a693ee7f21a0::t_025b6e18ce57f7 205-207
+  s_a2a693ee7f21a0::t_9a46feec4c501c 290-316
+  s_a2a693ee7f21a0::t_7df1d2e7ef48b2 136-138
+  s_a2a693ee7f21a0::t_e71ff8d7f0b918 133-135
+  s_a2a693ee7f21a0::t_4b9e067087ba44 130-132
+  s_a2a693ee7f21a0::t_e46fd6efc6aafb 320-322
+Sources/MacParakeetCore/Audio/MicrophoneEnginePlatform.swift
+  s_a2a693ee7f21a0::t_36175c9b066d1a 1029
+  s_a2a693ee7f21a0::t_7a3f4171c634ef 1851-1858,1860,1867
+  s_a2a693ee7f21a0::t_0f4e320f6d99df 1114-1117
+  s_a2a693ee7f21a0::t_4b90cd13950385 682
+  s_a2a693ee7f21a0::t_56f935efa7fe6e 1766-1769
+  s_a2a693ee7f21a0::t_fcc175652d1714 267-280
+  s_a2a693ee7f21a0::t_9d01819a786980 1673
+  s_a2a693ee7f21a0::t_4f5172900bf46a 1861-1863,1866,1868-1869
+  s_a2a693ee7f21a0::t_fbc0058ad1535a 1906
+  s_a2a693ee7f21a0::t_9c2305f3faf680 548,556-557
+  s_a2a693ee7f21a0::t_a149a9acc24217 990-993
+  s_a2a693ee7f21a0::t_536c364a7dc1b7 546-547,549-555,559
+  s_a2a693ee7f21a0::t_90feadb183ca86 124-128
+  s_a2a693ee7f21a0::t_227defd9844201 716,722
+  s_a2a693ee7f21a0::t_3d1e5aaf16e38b 1628
+  s_a2a693ee7f21a0::t_7dbb9ccd8f363c 1762-1765
+  s_a2a693ee7f21a0::t_56bffae9bf01fa 1715
+  s_a2a693ee7f21a0::t_a9bd0f50b7997f 183-184
+  s_a2a693ee7f21a0::t_421d9175961c42 1847-1850,1859,1864-1865
+  s_a2a693ee7f21a0::t_e1ab1a5462d29e 558
+  s_a2a693ee7f21a0::t_aa989c671489ec 1759-1761,1770-1785
+  s_a2a693ee7f21a0::t_d527886dab3519 421-422
+  s_a2a693ee7f21a0::t_20575a836801b7 1840-1846
+  s_a2a693ee7f21a0::t_838fa27bd2bbc8 511-514
+  s_a2a693ee7f21a0::t_a9214bfb57bf4f 240-243
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5b2ef557a9f737d60181775d53ea83060ab85e04",
+  "prompts": {},
+  "sessions": {
+    "s_a2a693ee7f21a0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "2f64e832-d85d-496d-8bf2-1d40381bbb38",
+        "model": "grok-4.6"
+      },
+      "human_author": null
+    }
+  }
+}
