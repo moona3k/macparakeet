@@ -285,3 +285,9 @@ real events into the controller's input shape.
   /path/to/japanese.m4a` and
   `swift run macparakeet-cli transcribe --engine whisper --language ja
   /path/to/japanese.m4a`, then confirm the requested engine is used.
+
+## Optional Orukeet preview
+
+`ParakeetModelVariant.orukeet` runs Oruk's Parakeet v3 adaptation through the same two TDT managers and inference gates. It explicitly assembles the portable Core ML components; it has no stock `AsrModelVersion` selector and its cache and result identity are separate from NVIDIA v3. Existing defaults are unchanged. Native streaming, tail-window dictation preview, and recognition-time vocabulary boosting are disabled for this preview.
+
+`OrukeetModelStore` installs the [Hugging Face model](https://huggingface.co/oruk/orukeet) at immutable revision `43142dd1897f9ddadcd70173fcb5ff45c08aa951`. It consumes the JSON integrity manifest, verifies archive size and SHA-256, and compiles the four portable components on the destination Mac. Cached loading is local. The weights use CC BY-SA 4.0.

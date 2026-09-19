@@ -5784,6 +5784,7 @@ private struct EngineOptionCard: View {
             case .v3: "Fast local default • word timestamps"
             case .v2: "English stability • word timestamps"
             case .unified: "Readable English • word timestamps"
+            case .orukeet: "Orukeet preview • 25 languages"
             }
         case .nemotron:
             nemotronVariant.isEnglishOnly
@@ -5925,6 +5926,9 @@ private struct EngineOptionCard: View {
 
     private var accessibilityLabel: String {
         var parts = [selection.engine.displayName]
+        if selection.engine == .parakeet {
+            parts.append(parakeetVariant.displayName)
+        }
         if isPrimary {
             parts.append(primaryReflectsTranscriptEngine ? "engine used for this transcript" : "current engine")
         }

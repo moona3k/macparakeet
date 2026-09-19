@@ -325,3 +325,9 @@ MacParakeet is free and open source. If it's useful to you, consider [sponsoring
 ## License
 
 GPL-3.0. Free software. [Full license](LICENSE).
+
+### Optional Orukeet Core ML preview
+
+Settings → Speech Engines offers **Orukeet (preview)** among the Parakeet variants. This local adaptation of Parakeet v3 supports 25 languages and leaves the default model unchanged. The 445 MiB download comes directly from [Hugging Face](https://huggingface.co/oruk/orukeet), is verified against a pinned integrity manifest and SHA-256, and is compiled for your Mac. Cached transcription needs no network connection. Weights are licensed [CC BY-SA 4.0](https://huggingface.co/oruk/orukeet/blob/main/LICENSE). Preview quality should be evaluated on your own recordings.
+
+The CLI can download it with `macparakeet-cli models download parakeet-orukeet`, then use it for one recording with `macparakeet-cli transcribe --parakeet-model orukeet recording.wav`. Native streaming, tail-window dictation preview, and recognition-time vocabulary boosting are disabled for this preview.

@@ -440,7 +440,7 @@ final class SpecCommandTests: XCTestCase {
         let parakeetModel = try XCTUnwrap(options.first { ($0["name"] as? String) == "--parakeet-model" })
         XCTAssertEqual(
             parakeetModel["summary"] as? String,
-            "Parakeet build: v3 supported languages, v2 English timestamps, or Unified readable English timestamps."
+            "Parakeet build: v3 supported languages, v2 English timestamps, Unified readable English timestamps, or orukeet (multilingual preview)."
         )
         let nemotronModel = try XCTUnwrap(options.first { ($0["name"] as? String) == "--nemotron-model" })
         XCTAssertEqual(nemotronModel["valueName"] as? String, "app-default|multilingual-1120ms|english-1120ms")
@@ -487,6 +487,12 @@ final class SpecCommandTests: XCTestCase {
         XCTAssertTrue(optionNames.contains("--speaker-max"))
         XCTAssertTrue(optionNames.contains("--no-diarize"))
         XCTAssertTrue(optionNames.contains("--database"))
+
+        let parakeetModel = try XCTUnwrap(options.first { ($0["name"] as? String) == "--parakeet-model" })
+        XCTAssertEqual(
+            parakeetModel["summary"] as? String,
+            "Parakeet build: v3 supported languages, v2 English timestamps, Unified readable English timestamps, or orukeet (multilingual preview)."
+        )
 
         let speakerDetection = try XCTUnwrap(options.first { ($0["name"] as? String) == "--speaker-detection" })
         XCTAssertEqual(speakerDetection["valueName"] as? String, "app-default|on|off")
