@@ -1778,6 +1778,11 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                     // in issue #1102. Absorb it. A real format/route change, a
                     // stopped engine (recovery), or any Bluetooth/unresolved
                     // route fails these gates and follows the post path below.
+                    // There is no start-in-progress case to guard: start runs
+                    // inside `queue.sync`, this block runs `queue.async` on the
+                    // same serial queue, and a failed start replaces the engine,
+                    // so a change emitted mid-start is seen either after commit
+                    // (here) or not at all (`engineBox.wraps` above).
                     AudioCaptureDiagnostics.append(
                         "shared_mic_engine_configuration_change_ignored reason=unchanged_running_route"
                     )

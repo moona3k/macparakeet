@@ -216,17 +216,7 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
             engineRunningProbe: { _ in true },
             engineStarter: { engine, _, _, tapHandler in
                 starterCalls.withLock { $0 += 1 }
-                // Deliver the first buffer in the engine's own input-node format
-                // so the committed snapshot (captured from the tap) matches the
-                // observer's `inputFormat()` read, exactly as they do in
-                // production. Using the platform's engine avoids touching a bare
-                // input node directly.
-                let format = engine.inputNode.outputFormat(forBus: 0)
-                guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 32) else {
-                    return
-                }
-                buffer.frameLength = 32
-                buffer.floatChannelData?[0][0] = 0.001
+                guard let buffer = makeLiveInputFormatBuffer(for: engine) else { return }
                 tapHandler(buffer, AVAudioTime(hostTime: 1))
             }
         )
@@ -255,7 +245,6 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
         let originalAttempt = MeetingInputDeviceAttempt(source: .builtIn, deviceID: 10)
         let changedAttempt = MeetingInputDeviceAttempt(source: .builtIn, deviceID: 20)
         let route = OSAllocatedUnfairLock(initialState: [originalAttempt])
-        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
         let posted = expectation(description: "changed running route notifies")
         let token = NotificationCenter.default.addObserver(
             forName: .macParakeetMicrophoneSelectionDidChange,
@@ -270,13 +259,15 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
             recoveryRetryDelays: [],
             bluetoothInputState: { _ in false },
             engineRunningProbe: { _ in true },
-            engineStarter: { _, _, _, tapHandler in
-                tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
+            engineStarter: { engine, _, _, tapHandler in
+                guard let buffer = makeLiveInputFormatBuffer(for: engine) else { return }
+                tapHandler(buffer, AVAudioTime(hostTime: 1))
             }
         )
         defer { platform.stopEngine() }
         try platform.configureAndStart(vpioEnabled: false, bufferSize: 256, tapHandler: { _, _ in })
 
+        // Only the route differs from the committed snapshot; format is live.
         route.withLock { $0 = [changedAttempt] }
         NotificationCenter.default.post(
             name: .AVAudioEngineConfigurationChange,
@@ -340,7 +331,6 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
     /// that re-evaluates warm-capture eligibility must still fire (#862/#481).
     func testRunningConfigurationChangeOnBluetoothRouteNotifies() throws {
         let attempt = MeetingInputDeviceAttempt(source: .builtIn, deviceID: 10)
-        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
         let posted = expectation(description: "bluetooth running route still notifies")
         let token = NotificationCenter.default.addObserver(
             forName: .macParakeetMicrophoneSelectionDidChange,
@@ -355,8 +345,11 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
             recoveryRetryDelays: [],
             bluetoothInputState: { _ in true },
             engineRunningProbe: { _ in true },
-            engineStarter: { _, _, _, tapHandler in
-                tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
+            engineStarter: { engine, _, _, tapHandler in
+                // Live format + unchanged route: only the Bluetooth flag
+                // separates this from the absorbed case.
+                guard let buffer = makeLiveInputFormatBuffer(for: engine) else { return }
+                tapHandler(buffer, AVAudioTime(hostTime: 1))
             }
         )
         defer { platform.stopEngine() }
@@ -394,12 +387,7 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
             bluetoothInputState: { _ in bluetooth.withLock { $0 } },
             engineRunningProbe: { _ in true },
             engineStarter: { engine, _, _, tapHandler in
-                let format = engine.inputNode.outputFormat(forBus: 0)
-                guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 32) else {
-                    return
-                }
-                buffer.frameLength = 32
-                buffer.floatChannelData?[0][0] = 0.001
+                guard let buffer = makeLiveInputFormatBuffer(for: engine) else { return }
                 tapHandler(buffer, AVAudioTime(hostTime: 1))
             }
         )
@@ -1559,6 +1547,18 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
         let capturedEngines = engines.withLock { $0 }
         XCTAssertFalse(capturedEngines[1] === capturedEngines[2])
     }
+}
+
+/// A nonzero buffer in the engine's own input-node format, so the committed
+/// snapshot (captured from the tap) matches the observer's `inputFormat()` read
+/// exactly as in production. Tests that must post for a reason other than
+/// format (route, Bluetooth) use this so they cannot pass on a format mismatch.
+private func makeLiveInputFormatBuffer(for engine: AVAudioEngine) -> AVAudioPCMBuffer? {
+    let format = engine.inputNode.outputFormat(forBus: 0)
+    guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 32) else { return nil }
+    buffer.frameLength = 32
+    buffer.floatChannelData?[0][0] = 0.001
+    return buffer
 }
 
 private func makeRecoveryTestBuffer(nonZero: Bool = true) -> AVAudioPCMBuffer {

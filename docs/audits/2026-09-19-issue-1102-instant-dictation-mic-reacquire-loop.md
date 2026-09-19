@@ -17,7 +17,7 @@ code regression. The vulnerable wiring shipped 2026-07-11; macOS 27's changed
 engine-start behavior is what turned it live. Root cause is confirmed with high
 confidence from static analysis and matches every measurement in the report.
 The fix is small and contained but wants on-device validation on macOS 27
-before shipping (see [Fix](#fix) and [Open questions](#open-questions)).
+before shipping (see [Fix](#fix-implemented) and [Open questions](#open-questions-settle-from-the-reporters-dictation-audiolog-before-shipping)).
 
 ## Symptom (as reported)
 
@@ -249,10 +249,15 @@ and check:
   the observer's side and would need a different fix; if those lines are present
   each cycle, the HAL listener (`:2185`) is the feeder and the config-observer
   guard closes nothing.
-- **Mid-startup variant.** Presence/absence of `dictation_warm_capture_start_failed`
-  (`AudioRecorder.swift:1118`), which would indicate the config change lands
-  before commit, the warm start throws (no retry in the catch), and the
-  already-posted notification still drives the 0.5 s loop.
+- **Mid-startup variant — resolved by construction.** `configureAndStart` runs
+  inside `queue.sync` and the observer body is `queue.async` on the same serial
+  queue, so a change emitted during start is handled only after start returns:
+  either the engine committed (`running == true`, the new guard applies) or the
+  attempt failed and `replaceEngineAfterFailureLocked` swapped the engine, so
+  `engineBox.wraps` drops the stale notification. The handler never observes
+  `!prepared && !running` on the current engine. A change landing between the
+  first usable buffer and commit fails `commitRunningIfStartupStayedCurrent`
+  (`inputRouteChangedDuringStartup`), which is the existing, intended behavior.
 - **On-device (macOS 27) only:** confirm the per-start config change is
   idempotent so the equality guard fully absorbs it (vs. the negotiated format
   legitimately differing each start).
@@ -275,7 +280,7 @@ corrections/additions that have been folded into the sections above:
    running-committed state alone misses the mid-startup variant, where commit
    fails, the warm start throws with no retry, and the already-posted
    notification still drives the loop. This motivated the both-ends fix in
-   [Fix](#fix).
+   [Fix](#fix-implemented).
 3. **False-negative risk in the naive guard.** Format-equality alone is too
    loose: a Bluetooth transport/profile flip keeps the same device ID and often
    the same format — exactly the case #862 added the post for. The guard must be
@@ -313,15 +318,12 @@ reporter's `shared_mic_engine_configuration_changed` log line's `engine_is_runni
 field before merge. **Contingency:** if `engine_is_running=false`, this guard will
 not close the issue, and the same committed-state comparison must instead gate the
 post in the stopped-engine branch (dropping the `engineIsRunning` requirement).
-Raw transcript: `/tmp/1102_fable_diff_review.md` (not committed).
 
 Both passes independently rated severity **High, not P0**, and both recommend
 pulling the reporter's `dictation-audio.log` to confirm which feeder/observer
 state fires before finalizing the fix (see
 [Open questions](#open-questions-settle-from-the-reporters-dictation-audiolog-before-shipping)).
 
-Raw review transcripts are at `/tmp/1102_fable_medium.md` and
-`/tmp/1102_fable_low.md` (not committed).
 
 ## Key references
 
