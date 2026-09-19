@@ -1,0 +1,48 @@
+Sources/MacParakeetCore/Audio/MicrophoneEnginePlatform.swift
+  s_a2a693ee7f21a0::t_421d9175961c42 1817-1820,1830,1838-1839
+  s_a2a693ee7f21a0::t_838fa27bd2bbc8 484-487
+  s_a2a693ee7f21a0::t_9d01819a786980 1646
+  s_a2a693ee7f21a0::t_56f935efa7fe6e 1736-1739
+  s_a2a693ee7f21a0::t_3d1e5aaf16e38b 1601
+  s_a2a693ee7f21a0::t_e1ab1a5462d29e 522-525,531-532
+  s_a2a693ee7f21a0::t_a149a9acc24217 963-966
+  s_a2a693ee7f21a0::t_4f5172900bf46a 1810-1816,1831-1837,1840-1843
+  s_a2a693ee7f21a0::t_56bffae9bf01fa 1688
+  s_a2a693ee7f21a0::t_227defd9844201 689,695
+  s_a2a693ee7f21a0::t_aa989c671489ec 1732-1735,1740-1755
+  s_a2a693ee7f21a0::t_a85cb6943f9c4f 1821-1829
+  s_a2a693ee7f21a0::t_36175c9b066d1a 1002
+  s_a2a693ee7f21a0::t_0f4e320f6d99df 1087-1090
+  s_a2a693ee7f21a0::t_9c2305f3faf680 519-521,526-530
+  s_a2a693ee7f21a0::t_4b90cd13950385 655
+docs/audits/2026-09-19-issue-1102-instant-dictation-mic-reacquire-loop.md
+  s_a2a693ee7f21a0::t_9a46feec4c501c 284-310
+  s_a2a693ee7f21a0::t_04e6b7f2f0987b 139-198
+  s_a2a693ee7f21a0::t_7df1d2e7ef48b2 136-138
+  s_a2a693ee7f21a0::t_025b6e18ce57f7 199-201
+  s_a2a693ee7f21a0::t_e71ff8d7f0b918 133-135
+  s_a2a693ee7f21a0::t_e27f0f36f2a096 202-204,281-283
+  s_a2a693ee7f21a0::t_3578fe9ce70888 311-313
+Tests/MacParakeetTests/Audio/MicrophoneEnginePlatformConfigChangeRecoveryTests.swift
+  s_a2a693ee7f21a0::t_483d11ce0e165f 289-337
+  s_a2a693ee7f21a0::t_27b4e6af242cab 217,219-230
+  s_a2a693ee7f21a0::t_944e53a445718a 191-216,218,231-288,338-372
+Sources/MacParakeetCore/Audio/UncheckedSendableAudioPCMBuffer.swift
+  s_a2a693ee7f21a0::t_a532d224d45655 55-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5ed9ca64f766b2ec5a9bf687885e963abe5281b5",
+  "prompts": {},
+  "sessions": {
+    "s_a2a693ee7f21a0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "2f64e832-d85d-496d-8bf2-1d40381bbb38",
+        "model": "grok-4.6"
+      },
+      "human_author": null
+    }
+  }
+}
