@@ -188,6 +188,235 @@ final class MicrophoneEnginePlatformConfigChangeRecoveryTests: XCTestCase {
         wait(for: [routeChange], timeout: 0.5)
     }
 
+    // MARK: - Running-engine self-emitted change absorption (issue #1102)
+
+    /// A running engine self-emits a configuration change as it selects and
+    /// prepares its own input device (pronounced on macOS 27). When the engine
+    /// is still running and the resolved route + negotiated format are unchanged
+    /// on a positively non-Bluetooth input, the platform must NOT re-broadcast
+    /// it as a mic-selection change — doing so drives the warm-capture rebuild
+    /// loop in issue #1102 (and needlessly rebuilds the engine).
+    func testRunningConfigurationChangeWithUnchangedRouteIsAbsorbed() throws {
+        let attempt = MeetingInputDeviceAttempt(source: .builtIn, deviceID: 10)
+        let notPosted = expectation(description: "unchanged running route must not notify")
+        notPosted.isInverted = true
+        let token = NotificationCenter.default.addObserver(
+            forName: .macParakeetMicrophoneSelectionDidChange,
+            object: nil,
+            queue: nil
+        ) { _ in notPosted.fulfill() }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        let starterCalls = OSAllocatedUnfairLock(initialState: 0)
+        let platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: { [attempt] },
+            inputDeviceSetter: { _, _ in true },
+            recoveryRetryDelays: [],
+            bluetoothInputState: { _ in false },
+            engineRunningProbe: { _ in true },
+            engineStarter: { engine, _, _, tapHandler in
+                starterCalls.withLock { $0 += 1 }
+                // Deliver the first buffer in the engine's own input-node format
+                // so the committed snapshot (captured from the tap) matches the
+                // observer's `inputFormat()` read, exactly as they do in
+                // production. Using the platform's engine avoids touching a bare
+                // input node directly.
+                let format = engine.inputNode.outputFormat(forBus: 0)
+                guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 32) else {
+                    return
+                }
+                buffer.frameLength = 32
+                buffer.floatChannelData?[0][0] = 0.001
+                tapHandler(buffer, AVAudioTime(hostTime: 1))
+            }
+        )
+        defer { platform.stopEngine() }
+        try platform.configureAndStart(vpioEnabled: false, bufferSize: 256, tapHandler: { _, _ in })
+        XCTAssertEqual(starterCalls.withLock { $0 }, 1)
+
+        NotificationCenter.default.post(
+            name: .AVAudioEngineConfigurationChange,
+            object: platform.preparedEngineStateForTesting.engine
+        )
+        _ = platform.isEngineRunning  // flush the queued observer handling
+
+        wait(for: [notPosted], timeout: 0.3)
+        XCTAssertEqual(
+            starterCalls.withLock { $0 },
+            1,
+            "an unchanged running configuration change must not rebuild the engine"
+        )
+        XCTAssertTrue(platform.isEngineRunning)
+    }
+
+    /// A real route change on a running engine must still re-broadcast so
+    /// warm-capture eligibility is re-evaluated (issue #481/#796).
+    func testRunningConfigurationChangeWithChangedRouteNotifies() throws {
+        let originalAttempt = MeetingInputDeviceAttempt(source: .builtIn, deviceID: 10)
+        let changedAttempt = MeetingInputDeviceAttempt(source: .builtIn, deviceID: 20)
+        let route = OSAllocatedUnfairLock(initialState: [originalAttempt])
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
+        let posted = expectation(description: "changed running route notifies")
+        let token = NotificationCenter.default.addObserver(
+            forName: .macParakeetMicrophoneSelectionDidChange,
+            object: nil,
+            queue: nil
+        ) { _ in posted.fulfill() }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: { route.withLock { $0 } },
+            inputDeviceSetter: { _, _ in true },
+            recoveryRetryDelays: [],
+            bluetoothInputState: { _ in false },
+            engineRunningProbe: { _ in true },
+            engineStarter: { _, _, _, tapHandler in
+                tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
+            }
+        )
+        defer { platform.stopEngine() }
+        try platform.configureAndStart(vpioEnabled: false, bufferSize: 256, tapHandler: { _, _ in })
+
+        route.withLock { $0 = [changedAttempt] }
+        NotificationCenter.default.post(
+            name: .AVAudioEngineConfigurationChange,
+            object: platform.preparedEngineStateForTesting.engine
+        )
+
+        wait(for: [posted], timeout: 0.5)
+    }
+
+    /// A real input-format change on a running engine (same route) must still
+    /// re-broadcast so consumers re-evaluate (#796 preservation).
+    func testRunningConfigurationChangeWithChangedFormatNotifies() throws {
+        let attempt = MeetingInputDeviceAttempt(source: .builtIn, deviceID: 10)
+        let posted = expectation(description: "changed format notifies")
+        let token = NotificationCenter.default.addObserver(
+            forName: .macParakeetMicrophoneSelectionDidChange,
+            object: nil,
+            queue: nil
+        ) { _ in posted.fulfill() }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: { [attempt] },
+            inputDeviceSetter: { _, _ in true },
+            recoveryRetryDelays: [],
+            bluetoothInputState: { _ in false },
+            engineRunningProbe: { _ in true },
+            engineStarter: { engine, _, _, tapHandler in
+                // Commit a first buffer whose format differs from the engine's
+                // live input-node format, so the observer's format read differs
+                // from the committed snapshot — the shape of a real format
+                // change, which must still post.
+                let live = engine.inputNode.outputFormat(forBus: 0)
+                let differentRate = live.sampleRate == 16_000 ? 48_000.0 : 16_000.0
+                let channels = live.channelCount == 0 ? 1 : live.channelCount
+                guard
+                    let format = AVAudioFormat(
+                        standardFormatWithSampleRate: differentRate,
+                        channels: channels
+                    ),
+                    let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 32)
+                else { return }
+                buffer.frameLength = 32
+                buffer.floatChannelData?[0][0] = 0.001
+                tapHandler(buffer, AVAudioTime(hostTime: 1))
+            }
+        )
+        defer { platform.stopEngine() }
+        try platform.configureAndStart(vpioEnabled: false, bufferSize: 256, tapHandler: { _, _ in })
+
+        NotificationCenter.default.post(
+            name: .AVAudioEngineConfigurationChange,
+            object: platform.preparedEngineStateForTesting.engine
+        )
+
+        wait(for: [posted], timeout: 0.5)
+    }
+
+    /// A Bluetooth (or unresolved) running route must never be absorbed: a
+    /// transport/profile flip can hide behind a stable device ID, so the post
+    /// that re-evaluates warm-capture eligibility must still fire (#862/#481).
+    func testRunningConfigurationChangeOnBluetoothRouteNotifies() throws {
+        let attempt = MeetingInputDeviceAttempt(source: .builtIn, deviceID: 10)
+        let buffer = UncheckedSendableAudioPCMBuffer(makeRecoveryTestBuffer())
+        let posted = expectation(description: "bluetooth running route still notifies")
+        let token = NotificationCenter.default.addObserver(
+            forName: .macParakeetMicrophoneSelectionDidChange,
+            object: nil,
+            queue: nil
+        ) { _ in posted.fulfill() }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: { [attempt] },
+            inputDeviceSetter: { _, _ in true },
+            recoveryRetryDelays: [],
+            bluetoothInputState: { _ in true },
+            engineRunningProbe: { _ in true },
+            engineStarter: { _, _, _, tapHandler in
+                tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
+            }
+        )
+        defer { platform.stopEngine() }
+        try platform.configureAndStart(vpioEnabled: false, bufferSize: 256, tapHandler: { _, _ in })
+
+        NotificationCenter.default.post(
+            name: .AVAudioEngineConfigurationChange,
+            object: platform.preparedEngineStateForTesting.engine
+        )
+
+        wait(for: [posted], timeout: 0.5)
+    }
+
+    /// A route that was non-Bluetooth at commit but reports Bluetooth at
+    /// observation time (transport flip behind a stable device ID/format) must
+    /// still post: Bluetooth safety is evaluated live from the committed
+    /// attempt, not cached at commit (mirrors the `prepared` branch, #862).
+    func testRunningConfigurationChangeOnRouteThatBecameBluetoothNotifies() throws {
+        let attempt = MeetingInputDeviceAttempt(source: .builtIn, deviceID: 10)
+        let bluetooth = OSAllocatedUnfairLock(initialState: false)
+        let posted = expectation(
+            description: "a route that became Bluetooth after commit still notifies"
+        )
+        let token = NotificationCenter.default.addObserver(
+            forName: .macParakeetMicrophoneSelectionDidChange,
+            object: nil,
+            queue: nil
+        ) { _ in posted.fulfill() }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: { [attempt] },
+            inputDeviceSetter: { _, _ in true },
+            recoveryRetryDelays: [],
+            bluetoothInputState: { _ in bluetooth.withLock { $0 } },
+            engineRunningProbe: { _ in true },
+            engineStarter: { engine, _, _, tapHandler in
+                let format = engine.inputNode.outputFormat(forBus: 0)
+                guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 32) else {
+                    return
+                }
+                buffer.frameLength = 32
+                buffer.floatChannelData?[0][0] = 0.001
+                tapHandler(buffer, AVAudioTime(hostTime: 1))
+            }
+        )
+        defer { platform.stopEngine() }
+        try platform.configureAndStart(vpioEnabled: false, bufferSize: 256, tapHandler: { _, _ in })
+
+        // Committed while non-Bluetooth; the same device ID/format now flips to
+        // Bluetooth. A cached safety flag would wrongly absorb this.
+        bluetooth.withLock { $0 = true }
+        NotificationCenter.default.post(
+            name: .AVAudioEngineConfigurationChange,
+            object: platform.preparedEngineStateForTesting.engine
+        )
+
+        wait(for: [posted], timeout: 0.5)
+    }
+
     // MARK: - Test 1
 
     /// Starting the engine and then posting a configuration-change notification
