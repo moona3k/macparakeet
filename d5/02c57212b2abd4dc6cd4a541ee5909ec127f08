@@ -1,0 +1,24 @@
+Sources/MacParakeetCore/Audio/MicrophoneEnginePlatform.swift
+  s_80c7aad638baaf::t_6d533af38748fe 1781-1785
+docs/audits/2026-09-19-issue-1102-instant-dictation-mic-reacquire-loop.md
+  s_80c7aad638baaf::t_1714e566fc5ebd 252-260
+  s_80c7aad638baaf::t_c1f3e7ca7423d4 20,283
+Tests/MacParakeetTests/Audio/MicrophoneEnginePlatformConfigChangeRecoveryTests.swift
+  s_80c7aad638baaf::t_a2e54d481c1020 219,262-264,270,348-352,390,1552-1563
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d502c57212b2abd4dc6cd4a541ee5909ec127f08",
+  "prompts": {},
+  "sessions": {
+    "s_80c7aad638baaf": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e59ec1e7-04b8-4373-a98f-45a166bb6eef",
+        "model": "muse-spark-1.3"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
