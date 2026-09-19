@@ -1,0 +1,27 @@
+docs/design/2026-09-18-daily-telemetry-observability.md
+  s_5551b191c671c8::t_7614319665cee0 1-797
+docs/research/2026-09-18-sparkle-dau-daily.csv
+  s_5551b191c671c8::t_6d0bfe200b8661 1-179
+docs/research/2026-09-18-sparkle-dau-measurement.md
+  s_5551b191c671c8::t_97b1ab787eedee 1-496
+docs/research/2026-09-18-telemetry-user-landscape.md
+  s_5551b191c671c8::t_18615fbb014095 1-540
+docs/telemetry.md
+  s_5551b191c671c8::t_22428cbc7f448b 883-889
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "34816317e58ce738582d1bfafa404a1194a43e28",
+  "prompts": {},
+  "sessions": {
+    "s_5551b191c671c8": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "7502d1f0-34a9-415c-b1dc-279063689f6d",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
