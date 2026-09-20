@@ -1,0 +1,73 @@
+.gitignore
+  s_65c4410d9d2f16::t_3a186d49fc9bc5 98-100
+docs/research/2026-09-19-jev-voice-control/README.md
+  s_65c4410d9d2f16::t_d8d942b2f6fdfa 1-59
+docs/research/2026-09-19-jev-voice-control/briefs/fable-review.md
+  s_65c4410d9d2f16::t_dfde8cce4a3ba8 1-3
+docs/research/2026-09-19-jev-voice-control/briefs/implementation-design-review.md
+  s_65c4410d9d2f16::t_ab0151273410e2 1-3
+docs/research/2026-09-19-jev-voice-control/briefs/jev-voice-browser.md
+  s_65c4410d9d2f16::t_6856f7685ac854 1-10
+docs/research/2026-09-19-jev-voice-control/briefs/macbrow.md
+  s_65c4410d9d2f16::t_5c4a8a3bbf6c69 1-10
+docs/research/2026-09-19-jev-voice-control/briefs/sonnet-ux.md
+  s_7b5ee2ad1f9b97::t_ff01203a52a804 1-8
+docs/research/2026-09-19-jev-voice-control/briefs/third-hand.md
+  s_65c4410d9d2f16::t_1a6b00aca40388 1-10
+docs/research/2026-09-19-jev-voice-control/evaluation.md
+  s_65c4410d9d2f16::t_720a2b7d63aa2c 1-203
+docs/research/2026-09-19-jev-voice-control/fable-review.md
+  s_65c4410d9d2f16::t_071bf7665dbea1 1-73
+docs/research/2026-09-19-jev-voice-control/implementation-log.md
+  s_65c4410d9d2f16::t_92afa4c6a19ee0 1-28
+docs/research/2026-09-19-jev-voice-control/jev-voice-browser.md
+  s_65c4410d9d2f16::t_211907796b7eff 1-201
+docs/research/2026-09-19-jev-voice-control/macbrow.md
+  s_65c4410d9d2f16::t_7e5c870c02b190 1-140
+docs/research/2026-09-19-jev-voice-control/platform-and-ecosystem.md
+  s_65c4410d9d2f16::t_64c8ffc1037693 1-87
+docs/research/2026-09-19-jev-voice-control/review-architecture.md
+  s_65c4410d9d2f16::t_98031139296a81 1-93
+docs/research/2026-09-19-jev-voice-control/review-product.md
+  s_65c4410d9d2f16::t_bacc1103707cac 1-103
+docs/research/2026-09-19-jev-voice-control/review-resolutions.md
+  s_65c4410d9d2f16::t_235dd9aa4ec955 1-45
+docs/research/2026-09-19-jev-voice-control/routing-catalog.md
+  s_65c4410d9d2f16::t_2dfa129997e69f 1-199
+docs/research/2026-09-19-jev-voice-control/sonnet-ux-research.md
+  s_65c4410d9d2f16::t_0910f417e01998 1-205
+docs/research/2026-09-19-jev-voice-control/third-hand.md
+  s_65c4410d9d2f16::t_597a380a7666a7 1-172
+docs/research/2026-09-19-jev-voice-control/ux-storyboards.md
+  s_65c4410d9d2f16::t_caf4197477bdcd 1-85
+docs/research/2026-09-19-jev-voice-control/walkthrough.html
+  s_65c4410d9d2f16::t_aa7d1e6d4a3776 1-72
+plans/README.md
+  s_65c4410d9d2f16::t_bad4e0ec271c03 184-185
+plans/active/2026-09-19-jev-voice-control.md
+  s_65c4410d9d2f16::t_260f82582713c3 1-244
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b8bc41e0512a83089d7db8a69bdfd0a3ae0a6be6",
+  "prompts": {},
+  "sessions": {
+    "s_65c4410d9d2f16": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bbf1-56cd-72a3-8953-a9198561b389",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_7b5ee2ad1f9b97": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3a853172-cc4c-43e5-9784-84958657ac20",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
