@@ -1,0 +1,19 @@
+docs/research/2026-09-19-jev-voice-control/pr-description-draft.md
+  s_8442375703aea4::t_d0fbe9a855b749 5,7,9,11,13,15-44,48,51,53,58-93,96-99,102-103,106-136,138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1ebe572bb9737096b1d923d2208a25167fce8518",
+  "prompts": {},
+  "sessions": {
+    "s_8442375703aea4": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "199e22cc-1050-4d63-ac53-0462d8a16cf4",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
