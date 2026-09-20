@@ -1,0 +1,30 @@
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_c5145bded4dd93::t_144942eeae8888 382-389
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlDiagnostics.swift
+  s_c5145bded4dd93::t_aacfd0d5b13612 50
+Tests/MacParakeetTests/VoiceControl/VoiceControlRecoveryTests.swift
+  s_c5145bded4dd93::t_b78905bd81fead 246-259
+docs/research/2026-09-19-jev-voice-control/README.md
+  s_c5145bded4dd93::t_f06d88b5dc7636 3-5
+docs/research/2026-09-19-jev-voice-control/native-browser-qualification.md
+  s_c5145bded4dd93::t_03d66007ea213d 5-6
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_c5145bded4dd93::t_d4f6f194939446 29-33
+  s_c5145bded4dd93::t_9f052626f57d31 23-28,34-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2539da9f79d0f9fa0a60ae5428c31c5a1aeda762",
+  "prompts": {},
+  "sessions": {
+    "s_c5145bded4dd93": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9a1b741-29c7-414d-b005-7c3456ad8a20",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
