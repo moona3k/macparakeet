@@ -1,0 +1,59 @@
+docs/research/2026-09-19-jev-voice-control/consult-fable-jev-outcome-choice.md
+  s_8442375703aea4::t_769705c26cd256 1-8
+  s_8442375703aea4::t_92791827dc6173 9-97
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlMachine.swift
+  s_8442375703aea4::t_d33bd73f743d71 117-118,120-121,124-126,136,146-148,151-154
+  s_8442375703aea4::t_982bba7dc9c034 139-145
+  s_8442375703aea4::t_c8f622501a8116 115-116,119,122-123,127-135,149-150
+  s_8442375703aea4::t_c8fa65e3796f05 137-138
+  s_8442375703aea4::t_3e51ec08e22e40 28-57
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlCommandRouter.swift
+  s_8442375703aea4::t_bead51d285bb9c 198-203
+Tests/MacParakeetTests/VoiceControl/VoiceControlMachineTests.swift
+  s_8442375703aea4::t_b822df540799c5 84
+  s_8442375703aea4::t_a7271325c853d6 86-87
+  s_8442375703aea4::t_54fa8e8c22e073 94
+  s_8442375703aea4::t_a00e7f46415add 138,141-142,144,147-151,154,168-174
+  s_8442375703aea4::t_2afd5bd523f87b 139-140,143,145-146,152-153,155-167,175-176
+docs/research/2026-09-19-jev-voice-control/walkthrough.html
+  s_8442375703aea4::t_62a87506f4b36e 26
+docs/research/2026-09-19-jev-voice-control/pr-description-draft.md
+  s_8442375703aea4::t_ff4e41812b9607 38
+docs/research/2026-09-19-jev-voice-control/jev-outcome-choice.md
+  s_8442375703aea4::t_c5e87a270b9b6c 1-40
+Sources/MacParakeetCore/Services/VoiceControl/README.md
+  s_8442375703aea4::t_cecfd80d1ae50a 17
+docs/research/2026-09-19-jev-voice-control/jev-decision-architecture.md
+  s_8442375703aea4::t_f82531582d802f 56
+  s_8442375703aea4::t_bec77dbd8d15ad 19
+  s_8442375703aea4::t_9e3ffffefb7b29 34
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlFlightPlan.swift
+  s_8442375703aea4::t_30a2056afde927 136-137
+  s_8442375703aea4::t_9b662c5e0e2277 138-139
+docs/research/2026-09-19-jev-voice-control/briefs/jev-outcome-choice.md
+  s_8442375703aea4::t_4020cfa4a37d97 1-59
+Sources/MacParakeetCore/Services/VoiceControl/JevDecisionClient.swift
+  s_8442375703aea4::t_b8b046e41d74a9 200,202
+  s_8442375703aea4::t_cb64e4ffc8f388 234
+  s_8442375703aea4::t_7fec9f23a6aa11 207
+  s_8442375703aea4::t_7ff2be0b2708ba 285
+docs/research/2026-09-19-jev-voice-control/README.md
+  s_8442375703aea4::t_eaa29256a1f6be 23
+  s_8442375703aea4::t_aa6fb5b73d6bee 62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "78fdac3b09f38ee0bbfb04a4eb3495f805437d42",
+  "prompts": {},
+  "sessions": {
+    "s_8442375703aea4": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "199e22cc-1050-4d63-ac53-0462d8a16cf4",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
