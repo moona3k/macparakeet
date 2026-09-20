@@ -1,0 +1,80 @@
+docs/research/2026-09-19-jev-voice-control/north-star-adoption.md
+  s_8442375703aea4::t_130040131ebbc9 25
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTurnRunner.swift
+  s_8442375703aea4::t_9f35f84432b27a 105
+  s_8442375703aea4::t_1f6e04700f1166 83
+  s_8442375703aea4::t_a04d1c9e9bbb9a 505-507
+  s_8442375703aea4::t_197fdce999bb1c 176-198
+  s_8442375703aea4::t_5f2df3e318db1c 406,411-446
+  s_8442375703aea4::t_9e486406b42923 565-566,578-579
+  s_8442375703aea4::t_291933be60a8a0 394,401
+  s_8442375703aea4::t_2fc4ee6af4d033 123
+  s_8442375703aea4::t_d46fd12f54988e 43
+docs/research/2026-09-19-jev-voice-control/pr-description-draft.md
+  s_8442375703aea4::t_32fcd21c792e41 115-116
+  s_8442375703aea4::t_aca6b6cb44009b 140
+  s_8442375703aea4::t_983dbde9c2359b 64-66
+spec/contracts/voice-control.md
+  s_8442375703aea4::t_23947a66e26ca2 239
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlLocalTools.swift
+  s_8442375703aea4::t_571f22bf8ad727 67
+  s_8442375703aea4::t_ccdadac130e0ab 66
+  s_8442375703aea4::t_217ef16b46db68 102-103
+  s_8442375703aea4::t_db791e9074b23a 101,104,109
+  s_8442375703aea4::t_4858880793fff5 1-26,31-61,72-100,105-108,110-123
+  s_8442375703aea4::t_8f40e1aa434f4a 27-30
+  s_8442375703aea4::t_d8779a7c9f013f 62-65,68-71
+docs/research/2026-09-19-jev-voice-control/fresh-eye-review-2026-09-20-tools-first.md
+  s_8442375703aea4::t_98070dcd4316b6 51
+  s_8442375703aea4::t_c0612fae85b032 1-50,52-55
+docs/research/2026-09-19-jev-voice-control/findings-2026-09-20.md
+  s_8442375703aea4::t_aa5fcce905d0c1 113-116
+  s_8442375703aea4::t_265054c4c4ef4a 86
+Tests/MacParakeetTests/VoiceControl/VoiceControlCommandRouterTests.swift
+  s_8442375703aea4::t_b8c20927d41dd4 96-97
+  s_8442375703aea4::t_ad3c9d3616e975 54-95,98-149
+  s_8442375703aea4::t_2c4ff2b4625e96 150-156
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlCommandRouter.swift
+  s_8442375703aea4::t_5c7c5e80467432 252
+  s_8442375703aea4::t_38ac0a1c314d03 190-193
+  s_8442375703aea4::t_d159edf67efd6e 257-260
+  s_8442375703aea4::t_d2f52e47547c8d 59-60
+  s_8442375703aea4::t_947954e07a340e 93-96,98-99
+  s_8442375703aea4::t_432ea93c939f93 100-101
+  s_8442375703aea4::t_377a8224cc439c 276
+  s_8442375703aea4::t_01db14a0b458d0 58,61-63
+  s_8442375703aea4::t_b38cd730ce23c6 256
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlDiagnostics.swift
+  s_8442375703aea4::t_ff414b93ffc2ff 240-241
+docs/research/2026-09-19-jev-voice-control/README.md
+  s_8442375703aea4::t_20663739762f5a 68
+  s_8442375703aea4::t_0dc69df11e56b5 26
+docs/research/2026-09-19-jev-voice-control/macos-computer-control-tools.md
+  s_8442375703aea4::t_e4009be3bdd741 21-22
+  s_8442375703aea4::t_e4a3359993b99d 1-20,23-32
+Tests/MacParakeetTests/VoiceControl/VoiceControlRecoveryTests.swift
+  s_8442375703aea4::t_623cfee1768686 293,298
+  s_8442375703aea4::t_cbba752823cc5e 239-249
+  s_8442375703aea4::t_fb276b335e056c 266-269
+  s_8442375703aea4::t_2746529990ff47 308-313
+docs/research/2026-09-19-jev-voice-control/briefs/tools-first-fable-review.md
+  s_8442375703aea4::t_c88497d9a7ed38 1-51
+docs/research/2026-09-19-jev-voice-control/consult-fable-tools-first.md
+  s_8442375703aea4::t_92f87f4969b860 1-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1cc0aeb84bc76b5025e3932f570b4b30f908132f",
+  "prompts": {},
+  "sessions": {
+    "s_8442375703aea4": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "199e22cc-1050-4d63-ac53-0462d8a16cf4",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
