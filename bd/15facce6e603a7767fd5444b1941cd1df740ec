@@ -1,0 +1,29 @@
+docs/research/2026-09-19-jev-voice-control/implementation-log.md
+  s_65c4410d9d2f16::t_4941984f7a27f7 72-90
+docs/research/2026-09-19-jev-voice-control/native-accessibility-direction.md
+  s_4dac71b1acf59a::t_01c50d16509d60 1-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bd15facce6e603a7767fd5444b1941cd1df740ec",
+  "prompts": {},
+  "sessions": {
+    "s_4dac71b1acf59a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bc46-9554-72e0-9793-8826c581f400",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_65c4410d9d2f16": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bbf1-56cd-72a3-8953-a9198561b389",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
