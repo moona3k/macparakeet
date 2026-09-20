@@ -1,0 +1,111 @@
+Package.swift
+  s_65c4410d9d2f16::t_20ebe1fb02cc30 122,128-132
+Sources/MacParakeet/App/AppEnvironmentConfigurer.swift
+  s_65c4410d9d2f16::t_b10c5969bfd7a5 330
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_65c4410d9d2f16::t_e54659e5465537 204-206,226,271,379-383,435-443,681,683-689
+Sources/MacParakeet/App/MenuBarCoordinator.swift
+  s_65c4410d9d2f16::t_d5c4052b14764b 57,250-252,420-422,719-720,851-852
+Sources/MacParakeet/App/TransformsCoordinator.swift
+  s_65c4410d9d2f16::t_f451fd88585c89 176,223-227
+Sources/MacParakeet/App/VoiceControlCoordinator.swift
+  s_65c4410d9d2f16::t_b67aec32e700a1 1-348
+Sources/MacParakeet/AppDelegate.swift
+  s_65c4410d9d2f16::t_5ba282cb3ea419 49,247,251,424,684-716,860,889,914-916
+Sources/MacParakeet/Views/VoiceControl/VoiceControlPanel.swift
+  s_65c4410d9d2f16::t_de508756ae7954 1-116
+Sources/MacParakeetCore/AppFeatures.swift
+  s_65c4410d9d2f16::t_9281220fe1710a 22-31
+Sources/MacParakeetCore/Services/VoiceControl/GUIMutationArbiter.swift
+  s_65c4410d9d2f16::t_e308daf6144d67 1-25
+Sources/MacParakeetCore/Services/VoiceControl/JevDecisionClient.swift
+  s_65c4410d9d2f16::t_7930a917d73607 1-139
+Sources/MacParakeetCore/Services/VoiceControl/NativeVoiceControlAdapter.swift
+  s_65c4410d9d2f16::t_a758269ca4797d 1-322
+Sources/MacParakeetCore/Services/VoiceControl/README.md
+  s_65c4410d9d2f16::t_31c8c0beb87270 1-25
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlBrowserAdapter.swift
+  s_65c4410d9d2f16::t_65ad34bea27ee4 1-266
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlBrowserMultiplexer.swift
+  s_65c4410d9d2f16::t_53ee9099055872 1-40
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlBrowserWire.swift
+  s_65c4410d9d2f16::t_3740dd0f6b0cf7 1-98
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlCommandRouter.swift
+  s_65c4410d9d2f16::t_4dc63acf82eb13 1-107
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlCredentialStore.swift
+  s_65c4410d9d2f16::t_7d70cd912fb6a3 1-19
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlSpeechSession.swift
+  s_65c4410d9d2f16::t_27df113c16af00 1-214
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTurnRunner.swift
+  s_65c4410d9d2f16::t_0fbb3b46294686 1-168
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTypes.swift
+  s_65c4410d9d2f16::t_190bc1cdf9bdf2 1-102
+Sources/MacParakeetViewModels/VoiceControlViewModel.swift
+  s_65c4410d9d2f16::t_0ad478ae5bffc2 1-52
+Sources/VoiceControlBrowserHost/main.swift
+  s_65c4410d9d2f16::t_4c015f5e5a5e89 1-46
+Tests/MacParakeetTests/Services/VoiceControl/VoiceControlBrowserWireTests.swift
+  s_65c4410d9d2f16::t_68bbbc0c84f60a 1-39
+Tests/MacParakeetTests/Services/VoiceControl/VoiceControlSpeechTests.swift
+  s_65c4410d9d2f16::t_01d231aac096c7 1-100
+Tests/MacParakeetTests/VoiceControl/VoiceControlCommandRouterTests.swift
+  s_65c4410d9d2f16::t_5ec4b1b0a6614e 1-52
+Tests/MacParakeetTests/VoiceControl/VoiceControlCoreTests.swift
+  s_65c4410d9d2f16::t_2022c72ffcd8a2 1-93
+docs/research/2026-09-19-jev-voice-control/briefs/browser-implementation.md
+  s_65c4410d9d2f16::t_89ac6aa6624d60 1-6
+docs/research/2026-09-19-jev-voice-control/briefs/core-implementation.md
+  s_65c4410d9d2f16::t_4508ce984a6c0e 1-6
+docs/research/2026-09-19-jev-voice-control/briefs/ui-speech-implementation.md
+  s_65c4410d9d2f16::t_85dbc29f9cfe12 1-4
+docs/research/2026-09-19-jev-voice-control/implementation-fable-review.md
+  s_65c4410d9d2f16::t_adc6b9aa4a9ed8 1-87
+docs/research/2026-09-19-jev-voice-control/implementation-log.md
+  s_65c4410d9d2f16::t_edb4a2280a0a69 29-37
+docs/research/2026-09-19-jev-voice-control/integration-findings.md
+  s_65c4410d9d2f16::t_302e2b18e354f8 1-44
+integrations/voice-control-browser/README.md
+  s_65c4410d9d2f16::t_c7a875f1631ede 1-49
+integrations/voice-control-browser/extension/background.js
+  s_65c4410d9d2f16::t_3b70288ba33fc1 1-113
+integrations/voice-control-browser/extension/content.js
+  s_65c4410d9d2f16::t_7beaa1b15c2fa0 1-154
+integrations/voice-control-browser/extension/manifest.json
+  s_65c4410d9d2f16::t_86fe3e77ef8dc1 1-9
+integrations/voice-control-browser/extension/popup.html
+  s_65c4410d9d2f16::t_192ebe5c5c9def 1-5
+integrations/voice-control-browser/extension/popup.js
+  s_65c4410d9d2f16::t_72e1bfa656ecc6 1-9
+integrations/voice-control-browser/install.py
+  s_65c4410d9d2f16::t_b819d3b7156c26 1-42
+integrations/voice-control-browser/tests/dom.test.cjs
+  s_65c4410d9d2f16::t_eacb20240dc5bb 1-62
+scripts/dev/voice-control/QualificationApp.swift
+  s_65c4410d9d2f16::t_9bc98c71a8ee63 1-46
+scripts/dev/voice-control/README.md
+  s_65c4410d9d2f16::t_154fe0f4aac709 1-11
+spec/13-agent-workflows.md
+  s_65c4410d9d2f16::t_f97745c231d4c3 264-267
+spec/adr/011-llm-cloud-and-local-providers.md
+  s_65c4410d9d2f16::t_4c1b6fdf93fc66 87
+spec/adr/027-product-north-star.md
+  s_65c4410d9d2f16::t_1ae6989581d8ce 120-123
+spec/adr/033-explicit-voice-control.md
+  s_65c4410d9d2f16::t_287aab60ccba24 1-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "36a2c33712a463e97f6736dc864bd56d43e8d2c5",
+  "prompts": {},
+  "sessions": {
+    "s_65c4410d9d2f16": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bbf1-56cd-72a3-8953-a9198561b389",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
