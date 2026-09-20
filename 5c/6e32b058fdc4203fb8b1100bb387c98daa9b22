@@ -1,0 +1,108 @@
+docs/research/2026-09-19-jev-voice-control/consult-fable-avidlive-jev-engineering.md
+  s_8442375703aea4::t_747adaec416039 1-71
+Sources/MacParakeetCore/Services/VoiceControl/README.md
+  s_8442375703aea4::t_5ccc8386720e38 17
+  s_8442375703aea4::t_459648fa98eebd 3
+docs/research/2026-09-19-jev-voice-control/release-scope.md
+  s_8442375703aea4::t_7e0ba1531dfee4 23
+  s_8442375703aea4::t_7a46143469674e 21
+docs/research/2026-09-19-jev-voice-control/walkthrough.html
+  s_8442375703aea4::t_8b2baf9f73d9b0 28
+  s_8442375703aea4::t_c8936239cb99e7 35
+  s_8442375703aea4::t_1b152f5d810915 33
+  s_8442375703aea4::t_fbee806d7740c7 27
+  s_8442375703aea4::t_71470649e507d0 25-26
+  s_8442375703aea4::t_0222bababaa134 36-37
+  s_8442375703aea4::t_a58460b0406ad5 65-67
+  s_8442375703aea4::t_658809b1d3ee39 20-22
+  s_8442375703aea4::t_a7984684b4ddf4 34
+docs/research/2026-09-19-jev-voice-control/consult-gpt6-astra-jev-architecture.md
+  s_8442375703aea4::t_7031322206b510 1-6
+  s_8442375703aea4::t_a7346268405685 7-9
+docs/research/2026-09-19-jev-voice-control/briefs/avidlive-jev-engineering-fable-review.md
+  s_8442375703aea4::t_1f1a4d054e4827 1-31
+Tests/MacParakeetTests/VoiceControl/VoiceControlCommandRouterTests.swift
+  s_8442375703aea4::t_53189076dbad68 42-51
+Sources/MacParakeetCore/Services/VoiceControl/JevDecisionClient.swift
+  s_8442375703aea4::t_9d9d6c13a74e2a 111-114
+  s_8442375703aea4::t_3d3a1f1d914698 189-253
+  s_8442375703aea4::t_bb3e076a72d99e 283-287
+  s_8442375703aea4::t_cfb9d201a02e82 36-42,45
+  s_8442375703aea4::t_9a0c40172ba57c 53
+docs/research/2026-09-19-jev-voice-control/everyday-use-cases.md
+  s_8442375703aea4::t_3de23583ab7771 9
+docs/research/2026-09-19-jev-voice-control/pr-description-draft.md
+  s_8442375703aea4::t_3c3ce8832d55f1 3,5,7,9,11,13,15,18-26,29,31-34,36,38-42,44
+docs/research/2026-09-19-jev-voice-control/jev-decision-architecture.md
+  s_8442375703aea4::t_08e6a9a7e78e7d 1-55,57-58
+  s_8442375703aea4::t_5fa19d1724ffee 56
+Tests/MacParakeetTests/VoiceControl/VoiceControlMachineTests.swift
+  s_8442375703aea4::t_8791b11e439ebd 48
+  s_8442375703aea4::t_ef3a7921c62a7b 164-168
+  s_8442375703aea4::t_ae86e9388db219 83-84,86,90-91
+  s_8442375703aea4::t_191226717bc37b 1-47,49-82,87,89,92-113,137-154,169-193
+  s_8442375703aea4::t_2e834c4c9aa707 114-136
+  s_8442375703aea4::t_0034f38557753e 85,88
+  s_8442375703aea4::t_c15e52d7fef2e9 155-163
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlCommandRouter.swift
+  s_8442375703aea4::t_0d0938403ceed9 54
+  s_8442375703aea4::t_50084e2a48af36 65
+  s_8442375703aea4::t_1a96efb92c6480 55-61
+  s_8442375703aea4::t_aafb7fe805071e 112,114-119
+docs/research/2026-09-19-jev-voice-control/briefs/jev-state-machine-architecture.md
+  s_8442375703aea4::t_8e5427ce54d1ca 1-75
+spec/adr/033-explicit-voice-control.md
+  s_8442375703aea4::t_6ec64bff198acd 69-71,75-78
+docs/research/2026-09-19-jev-voice-control/findings-2026-09-20.md
+  s_8442375703aea4::t_f24cd2a3946027 28,31
+  s_8442375703aea4::t_f4ae485227e92b 12,17
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTypes.swift
+  s_8442375703aea4::t_45cb90f8745e22 112-115
+docs/research/2026-09-19-jev-voice-control/README.md
+  s_8442375703aea4::t_26c800faa4862c 65
+  s_8442375703aea4::t_c972dd75ad2335 23
+  s_8442375703aea4::t_f82bf3e7ff63e2 61-62
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlMachine.swift
+  s_8442375703aea4::t_5ccaf632b2d9d3 1-94
+docs/research/2026-09-19-jev-voice-control/avidlive-jev-engineering.md
+  s_8442375703aea4::t_a1fe104bcf7cf5 244
+  s_8442375703aea4::t_ad1921426b72b3 250
+  s_8442375703aea4::t_2dd00fa61ff8ab 307,309
+  s_8442375703aea4::t_5f1c23307414b2 291
+  s_8442375703aea4::t_7aa3e510237bee 256
+  s_8442375703aea4::t_c16c95492f2bd2 112
+  s_8442375703aea4::t_2fb5ba328bc43a 183
+  s_8442375703aea4::t_23b29c516dd63f 1-6,22-58,60-111,113-125,127-182,184-218,220-243,245-249,251-255,257-290,292-306,308
+  s_8442375703aea4::t_04e1124f6202f1 126
+  s_8442375703aea4::t_30e6ea63564114 7-21
+  s_8442375703aea4::t_c02e314f827295 219
+  s_8442375703aea4::t_a97f697ec89a60 59
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlFlightPlan.swift
+  s_8442375703aea4::t_c002763064a814 206
+  s_8442375703aea4::t_6f90e452ec1330 34-53,139
+  s_8442375703aea4::t_7a6ef72cbfe836 110-111,119-132,134-138
+  s_8442375703aea4::t_5e2e9e5c091754 133
+  s_8442375703aea4::t_e86c2ab157b8b4 140
+spec/contracts/voice-control.md
+  s_8442375703aea4::t_c81fae63032f5e 234-236
+docs/research/2026-09-19-jev-voice-control/implementation-status.md
+  s_8442375703aea4::t_5003d103440f54 11-17
+docs/research/2026-09-19-jev-voice-control/consult-fable-jev-architecture.md
+  s_8442375703aea4::t_e75229958e3d15 1-145
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5c6e32b058fdc4203fb8b1100bb387c98daa9b22",
+  "prompts": {},
+  "sessions": {
+    "s_8442375703aea4": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "199e22cc-1050-4d63-ac53-0462d8a16cf4",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
