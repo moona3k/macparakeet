@@ -1,0 +1,115 @@
+Sources/MacParakeet/App/DictationFlowCoordinator.swift
+  s_65c4410d9d2f16::t_1438bd23164ba6 144,380,382,437,686-692
+Sources/MacParakeet/App/MenuBarCoordinator.swift
+  s_65c4410d9d2f16::t_550bff00fb3e1e 58,852
+Sources/MacParakeet/App/TransformsCoordinator.swift
+  s_65c4410d9d2f16::t_ee7b911cbfd9c4 176-180
+Sources/MacParakeet/App/VoiceControlCoordinator.swift
+  s_65c4410d9d2f16::t_68472c92e63ba5 11-12,24,34,37-39,48-56,62,65-84,108-117,128,140,142-143,146-148,154-160,162-169,171-178,183-206,218,224-226,235,239-240,242,246-317,330-337,340-344,352-355,364,368-370,373-383,386-387,389,393-395,412-442,446-453,467,485-499,504,506-507,513-518,523-525,532-536,543,547,552,556,563,565-568,570,572-574,589,591,595-599,605-607
+Sources/MacParakeet/AppDelegate.swift
+  s_65c4410d9d2f16::t_817076367143aa 704,708,712,717-718
+Sources/MacParakeet/Views/VoiceControl/VoiceControlPanel.swift
+  s_65c4410d9d2f16::t_d8a1b49bb5caa5 9-24,26-33,35,37-59,61,63-93,97,99,102-136,147,149-153,165,172
+Sources/MacParakeetCore/Services/VoiceControl/JevDecisionClient.swift
+  s_65c4410d9d2f16::t_20d93fb3c97894 11-12,26-29,33-35,39-42,47-48,50-72,76-79,81-84,89-111,113-117,128-130,132-134,136-141,151-153,158-161,163-165,177-179,186-192,198-201,209-214
+Sources/MacParakeetCore/Services/VoiceControl/NativeVoiceControlAdapter.swift
+  s_65c4410d9d2f16::t_ae084ac83d1ad8 6,12-14,36,40-41,43-48,51,78-81,93,95-97,103-107,110-111,114-115,121-122,125,128-131,135-136,139-141,143-146,148-149,151-152,154-156,159-160,167-170,172-178,184-189,193-196,202-205,209-213,216-218,221-223,227-230,234-236,240-243,246-253,257-258,260-265,267-270,274-276,281-283,291-302,304-306,308-315,318-319,324,330-332,334-336,338-339,344-346,351-379,381-386,388-391,393,416-418,421-449,452-457,468-470
+Sources/MacParakeetCore/Services/VoiceControl/README.md
+  s_65c4410d9d2f16::t_5026e1a04afbb6 8-9
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlBrowserAdapter.swift
+  s_65c4410d9d2f16::t_a0d59f7152169e 6,26,63,70-72,75-77,88,93,97-100,102-104,111-118,137,139,141,143-145,167,182-184,188-191,193-194,199-200,205-207,209-210,215-216,240,254,259-261,263-266,269-280,283,287,289,304
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlBrowserMultiplexer.swift
+  s_65c4410d9d2f16::t_bf4af7942a2b9b 33-36
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlBrowserRegistration.swift
+  s_65c4410d9d2f16::t_47ed9b5a2a85f4 1-221
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlBrowserWire.swift
+  s_65c4410d9d2f16::t_e600a14ea689e9 24-25,30-31,77-100,109-111
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlCommandRouter.swift
+  s_65c4410d9d2f16::t_2d6004d8d4a9ab 10-13,17-19,22-26,28-31,34-39,43-45,48,52-53,58-61,64-66,71-80,82-85,90-91,94-96,98-100,106-108,117-122,126-128,131-137,141-186,189-190
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlSpeechPreview.swift
+  s_65c4410d9d2f16::t_086ded8022ca99 1-56
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlSpeechRevocation.swift
+  s_65c4410d9d2f16::t_cfaf6d039654ea 1-39
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlSpeechSession.swift
+  s_65c4410d9d2f16::t_6a14afe336904a 5-10,54,65-73,78,83,89-101,112-120,125,135-136,145-147,149-150,155-169,171,173-180,183-185,187-188,190,196-210,216-230,233,238-241,244,251,256,263,265-270,273-275,277-282,287,292,298-358,362-364
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTurnRunner.swift
+  s_65c4410d9d2f16::t_a0b8dc7ac56398 20-28,42-48,56,62-63,70-72,80-84,88-94,97-102,104-107,113-114,121-135,155-156,162-171,181-189,192-194,201-202,205-212,214-220,223,228-231,234-238,245,247-250
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTypes.swift
+  s_65c4410d9d2f16::t_428c618bdf4926 18-22,36-39,52-59,80,88-91,99-102,106-107
+Sources/MacParakeetViewModels/VoiceControlViewModel.swift
+  s_65c4410d9d2f16::t_a71ba9d68084a0 5-30,33-35,37,42,49-59,76-77,80
+Sources/VoiceControlBrowserHost/main.swift
+  s_65c4410d9d2f16::t_5a53e2fac28211 10-11,26-27
+Tests/MacParakeetTests/DictationFlow/DictationFlowCoordinatorTests.swift
+  s_65c4410d9d2f16::t_4d38045fd2ce58 8-22,526,552
+Tests/MacParakeetTests/Services/VoiceControl/VoiceControlBrowserRegistrationTests.swift
+  s_65c4410d9d2f16::t_fcf0e4fd9ce7ab 1-113
+Tests/MacParakeetTests/Services/VoiceControl/VoiceControlBrowserWireTests.swift
+  s_65c4410d9d2f16::t_6e215af1a62749 28-29,40-85
+Tests/MacParakeetTests/Services/VoiceControl/VoiceControlSpeechTests.swift
+  s_65c4410d9d2f16::t_96a3846340f84c 3-4,52,61-62,68-74,76,89,91,114-218
+Tests/MacParakeetTests/VoiceControl/VoiceControlCommandRouterTests.swift
+  s_65c4410d9d2f16::t_19dc8229a7a9be 5-34,44-45,50-61,65-66,70-79,85-114,116-123,127-129
+Tests/MacParakeetTests/VoiceControl/VoiceControlCoreTests.swift
+  s_65c4410d9d2f16::t_9269f5e35779a5 16-17,20-21,23-24,28-111,117-119,125-136,139-152,182-187,189-191,197-199,208-286
+docs/research/2026-09-19-jev-voice-control/briefs/implementation-adversarial-review.md
+  s_65c4410d9d2f16::t_921c58d09de89c 1-2
+docs/research/2026-09-19-jev-voice-control/browser-implementation-evidence.md
+  s_65c4410d9d2f16::t_58ebc493850bf2 1-63
+docs/research/2026-09-19-jev-voice-control/demo/browser-evidence.json
+  s_65c4410d9d2f16::t_d378fc63a1bb08 1-23
+docs/research/2026-09-19-jev-voice-control/implementation-fable-adversarial-review.md
+  s_65c4410d9d2f16::t_5dab46a5f34d3a 1-47
+docs/research/2026-09-19-jev-voice-control/implementation-log.md
+  s_65c4410d9d2f16::t_281b96fffcaeda 38-71
+docs/research/2026-09-19-jev-voice-control/release-scope.md
+  s_65c4410d9d2f16::t_2c6b1aba5ab802 1-55
+integrations/voice-control-browser/README.md
+  s_65c4410d9d2f16::t_894acb625ac802 7-12,15-17,19,31,54-56
+integrations/voice-control-browser/extension/background.js
+  s_65c4410d9d2f16::t_86560f99fb3779 9,12,26,42,44,47-60,86
+integrations/voice-control-browser/extension/content.js
+  s_65c4410d9d2f16::t_e03c2c47f8593e 8,31,33-36,40,96,98-106,112-113,124-130,144-145,165-170
+integrations/voice-control-browser/install.py
+  s_65c4410d9d2f16::t_88e1ddfb89dc03 14,31-32
+integrations/voice-control-browser/tests/BrowserQualification.swift
+  s_65c4410d9d2f16::t_3e258fb5a2d2a3 1-116
+integrations/voice-control-browser/tests/dom.test.cjs
+  s_65c4410d9d2f16::t_82f715882e5b29 13,28,46-55,57-62,78-83
+integrations/voice-control-browser/tests/flight-fixture.html
+  s_65c4410d9d2f16::t_51852f18a20709 1-21
+integrations/voice-control-browser/tests/live-browser.test.cjs
+  s_65c4410d9d2f16::t_725f5a87461f9f 1-98
+scripts/dev/run_app.sh
+  s_65c4410d9d2f16::t_83fcbbbda166fa 20-24,97-99,129-130,137-138,160-161,259
+scripts/dev/voice-control/NativeProbe.swift
+  s_65c4410d9d2f16::t_210d594a0ac929 1-59
+scripts/dev/voice-control/QualificationApp.swift
+  s_65c4410d9d2f16::t_51c8311ce6fc95 12-13,35-38,42-43
+scripts/dist/build_app_bundle.sh
+  s_65c4410d9d2f16::t_7b08a180c31b25 87-88,95,97,210,225-240,245
+spec/02-features.md
+  s_65c4410d9d2f16::t_e586f6bb19be62 15-37
+spec/README.md
+  s_65c4410d9d2f16::t_8b8d313c0f9661 44-48,90,96
+spec/contracts/README.md
+  s_65c4410d9d2f16::t_844849b5d6f59a 40
+spec/contracts/voice-control.md
+  s_65c4410d9d2f16::t_a2f82bcc42377c 1-238
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b85642a5ca5406764b5e92238cfa76bc273631ef",
+  "prompts": {},
+  "sessions": {
+    "s_65c4410d9d2f16": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bbf1-56cd-72a3-8953-a9198561b389",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
