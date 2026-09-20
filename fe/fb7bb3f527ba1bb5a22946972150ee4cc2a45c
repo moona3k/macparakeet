@@ -1,0 +1,25 @@
+docs/research/2026-09-19-jev-voice-control/implementation-status.md
+  s_65c4410d9d2f16::t_4ded6466635dac 1-101
+docs/research/2026-09-19-jev-voice-control/pr-description-draft.md
+  s_65c4410d9d2f16::t_1ec3d1fcdb2338 1-29
+docs/research/2026-09-19-jev-voice-control/testing-handoff.md
+  s_65c4410d9d2f16::t_9dce49546fac66 127-134
+docs/research/2026-09-19-jev-voice-control/validation-intent.txt
+  s_65c4410d9d2f16::t_93ace843b08c4e 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fefb7bb3f527ba1bb5a22946972150ee4cc2a45c",
+  "prompts": {},
+  "sessions": {
+    "s_65c4410d9d2f16": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bbf1-56cd-72a3-8953-a9198561b389",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
