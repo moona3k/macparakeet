@@ -1,0 +1,34 @@
+docs/research/2026-09-19-jev-voice-control/jev-decision-architecture.md
+  s_8442375703aea4::t_d363e3f15caf8c 56
+docs/research/2026-09-19-jev-voice-control/walkthrough.html
+  s_8442375703aea4::t_0ce01708f4b615 26
+docs/research/2026-09-19-jev-voice-control/pr-description-draft.md
+  s_8442375703aea4::t_3a3885f3ba9e5e 38-39
+Tests/MacParakeetTests/VoiceControl/VoiceControlMachineTests.swift
+  s_8442375703aea4::t_898019e4763681 38-55
+  s_8442375703aea4::t_8dc3eb6d72f08c 15-37
+  s_8442375703aea4::t_3fcbb71d0e608c 14
+Tests/MacParakeetTests/VoiceControl/VoiceControlCommandRouterTests.swift
+  s_8442375703aea4::t_cc2d132d700968 516-551
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlMachine.swift
+  s_8442375703aea4::t_347196fbc9bc08 11-13,16,20
+docs/research/2026-09-19-jev-voice-control/findings-2026-09-20.md
+  s_8442375703aea4::t_a1b9536e249423 50-51
+  s_8442375703aea4::t_13f5d8cee3414a 56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "aae5171525ce2f71b29cf10891ad7bcb3e5b3569",
+  "prompts": {},
+  "sessions": {
+    "s_8442375703aea4": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "199e22cc-1050-4d63-ac53-0462d8a16cf4",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
