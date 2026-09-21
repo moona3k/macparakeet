@@ -1,0 +1,23 @@
+Sources/MacParakeetCore/Services/VoiceControl/NativeVoiceControlAdapter.swift
+  s_5cfbbde6ae255a::t_f699c59cbfb946 101,215-219,813-818,824-855,860-861,863-864
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTraceStore.swift
+  s_5cfbbde6ae255a::t_8557431f5ebd1b 26,42,147,203-205
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTypes.swift
+  s_5cfbbde6ae255a::t_9162581a5e18d2 53-62,70,73-74,77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "078f5f81cb033a958f0d7fdf64f794a0b1640f9d",
+  "prompts": {},
+  "sessions": {
+    "s_5cfbbde6ae255a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0348e91a-b2e8-41b5-8bae-fcb8272b6779",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
