@@ -1,0 +1,21 @@
+Sources/MacParakeetCore/Services/VoiceControl/JevDecisionClient.swift
+  s_6b4e1230b5d187::t_72f29191b65c61 140-141,148-162,164-169,173,183-184,188-193,198,203-212,278-280,293,474-475
+Tests/MacParakeetTests/VoiceControl/JevLeanRequestTests.swift
+  s_6b4e1230b5d187::t_b1bc6022edb38e 19,27,118-123,180-182,238-243,249-252,255-256,258-259,262-264,268-316
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "132fb04307543c11530832f90cc647fb97f13f95",
+  "prompts": {},
+  "sessions": {
+    "s_6b4e1230b5d187": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c1ab-f26d-7532-8cce-8b54feca73cc",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
