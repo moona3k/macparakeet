@@ -1,0 +1,29 @@
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlAppActivation.swift
+  s_6b4e1230b5d187::t_339fe51f519b4b 4-5,18-22,24,27-33,36-41,44-57,60-84
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlDiagnostics.swift
+  s_6b4e1230b5d187::t_d7fde26f8c78c3 236-240,306-307,318-319,331-333,341,351-353
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTurnRunner.swift
+  s_6b4e1230b5d187::t_fa6ae0b76a7186 84-85,108-109,111-112,128-133,140-142,166-167,181-182,187,196,201-206,212-214,216,231-237,254-255,310-312,320-322,338-340,358-360,363-367,374-376,380-383,397-401,407-411,414-416,418-419,442-446,502-504,511-517,520-522,529,540-542,546-549,554-557,560-569,594-600,604-606,615,626-629,650-652,663-664,666,674,691-697,703-706,710-714,718-722,766-770,776-778,783-786,789-791,794-796,825-826,828-832,842-844
+Tests/MacParakeetTests/VoiceControl/VoiceControlAppActivationTests.swift
+  s_6b4e1230b5d187::t_227dbc0cffa6fc 1-44
+Tests/MacParakeetTests/VoiceControl/VoiceControlRecoveryTests.swift
+  s_6b4e1230b5d187::t_aea01ba1683a60 10,27-29,44-46,85-87,100-102,122-126,158-177,182-183,189-191,193-194,196-197,206,254-256,266-281,285-290,296,316-366,382,387,389-398,400-402,404-406,418-420,430-432,434,441-445,447-449,462-464
+spec/contracts/voice-control.md
+  s_6b4e1230b5d187::t_2c5aa04cf297b0 340-353
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "eee27b09e94a4da007e570574d9eb2ac8ed7a87d",
+  "prompts": {},
+  "sessions": {
+    "s_6b4e1230b5d187": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c1ab-f26d-7532-8cce-8b54feca73cc",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
