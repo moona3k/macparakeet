@@ -1,0 +1,49 @@
+Sources/MacParakeetCore/Services/VoiceControl/JevDecisionClient.swift
+  s_5cfbbde6ae255a::t_91a1c5fa471338 43,55,71,74-75,79-88,90-97,99-119,123-125,127-129,131,133-331,359,384-386,406-407
+Sources/MacParakeetCore/Services/VoiceControl/README.md
+  s_5cfbbde6ae255a::t_78fe30ad0380d5 21,23
+Sources/MacParakeetCore/Services/VoiceControl/SpokenDateParser.swift
+  s_5cfbbde6ae255a::t_6bb0b512a0055c 1-125
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlDiagnostics.swift
+  s_5cfbbde6ae255a::t_71c7602efd2f7a 48-50,53,58-73
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlFlightPlan.swift
+  s_5cfbbde6ae255a::t_a38aba579bd378 275-290
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlMachine.swift
+  s_5cfbbde6ae255a::t_bd47eb22293309 13-19,21,25
+Tests/MacParakeetTests/VoiceControl/JevLeanRequestTests.swift
+  s_5cfbbde6ae255a::t_048190ccfaf279 1-214
+Tests/MacParakeetTests/VoiceControl/SpokenDateParserTests.swift
+  s_5cfbbde6ae255a::t_71f8dd754c3a5c 1-84
+Tests/MacParakeetTests/VoiceControl/VoiceControlCoreTests.swift
+  s_5cfbbde6ae255a::t_d03d2c95210c7c 87-90,123-125,186-188
+Tests/MacParakeetTests/VoiceControl/VoiceControlMachineTests.swift
+  s_5cfbbde6ae255a::t_176b0486bf4b96 15-31,125-152,181,222-226
+Tests/MacParakeetTests/VoiceControl/VoiceControlObservabilityTests.swift
+  s_5cfbbde6ae255a::t_04bf530e8d6a18 49,102
+Tests/MacParakeetTests/VoiceControl/VoiceControlRecoveryTests.swift
+  s_5cfbbde6ae255a::t_f69dd3dc37402e 154,161-164
+docs/research/2026-09-19-jev-voice-control/architecture.md
+  s_5cfbbde6ae255a::t_19a5f9cbc3eea6 11,36,50
+docs/research/2026-09-19-jev-voice-control/evidence.md
+  s_5cfbbde6ae255a::t_b32b5f7e140b78 21
+docs/research/2026-09-19-jev-voice-control/later.md
+  s_5cfbbde6ae255a::t_ae4f32b21d6815 9
+spec/contracts/voice-control.md
+  s_5cfbbde6ae255a::t_237527362ce37e 280-290
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "957d51129367c32fdb954649d54dbbcad9ab15e3",
+  "prompts": {},
+  "sessions": {
+    "s_5cfbbde6ae255a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0348e91a-b2e8-41b5-8bae-fcb8272b6779",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
