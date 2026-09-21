@@ -1,0 +1,21 @@
+Sources/MacParakeetCore/Services/VoiceControl/AXTreeWalk.swift
+  s_5cfbbde6ae255a::t_9a35c3248ea904 94-95,230-233,237
+Tests/MacParakeetTests/VoiceControl/AXTreeWalkTests.swift
+  s_5cfbbde6ae255a::t_cabb8cb777a4ca 196-206
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bcc30678845b9d068bc52602f2b74f7f38c0cbb4",
+  "prompts": {},
+  "sessions": {
+    "s_5cfbbde6ae255a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0348e91a-b2e8-41b5-8bae-fcb8272b6779",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
