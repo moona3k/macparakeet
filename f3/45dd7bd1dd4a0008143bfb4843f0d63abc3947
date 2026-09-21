@@ -1,0 +1,63 @@
+Sources/CLI/CHANGELOG.md
+  s_5cfbbde6ae255a::t_5becae4eb507db 92-104
+Sources/CLI/Commands/SpecCommand.swift
+  s_5cfbbde6ae255a::t_13e38c74f0c591 173-188
+Sources/CLI/Commands/VoiceControlCommand.swift
+  s_5cfbbde6ae255a::t_3f4c5694996998 1-262
+Sources/CLI/MacParakeetCLI.swift
+  s_5cfbbde6ae255a::t_cb48bdf9455ebe 11,41
+Sources/MacParakeet/App/VoiceControlCoordinator.swift
+  s_5cfbbde6ae255a::t_60529f7e98f89c 273,278-279,436,460,501,540,569
+Sources/MacParakeetCore/Services/VoiceControl/JevDecisionClient.swift
+  s_5cfbbde6ae255a::t_53871ceb319664 19,23-30,35-36,38-55,156,177-199,207,214,220,222,227,261,280-296,298-301
+Sources/MacParakeetCore/Services/VoiceControl/NativeVoiceControlAdapter.swift
+  s_5cfbbde6ae255a::t_7ae73434d4dc73 117,124-126,277,280-287,976-981,987-1018,1023-1024,1026-1027
+Sources/MacParakeetCore/Services/VoiceControl/README.md
+  s_5cfbbde6ae255a::t_71b61c912774fc 7,10-12,45
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlDiagnostics.swift
+  s_5cfbbde6ae255a::t_a725fdcd71528d 11-55,136-161,190-191,227,237,253-261
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlInbox.swift
+  s_5cfbbde6ae255a::t_1a487ff0fb4528 11-12,26-27
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTraceStore.swift
+  s_5cfbbde6ae255a::t_315dff41bec708 14-16,23-43,58-64,111,145-147,156-166,202-207,280-325,398-403,406-411
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTurnRunner.swift
+  s_5cfbbde6ae255a::t_46b3d5e74c6c75 25,95-97,104,523-530
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTypes.swift
+  s_5cfbbde6ae255a::t_210972294db252 53-62,70,73-74,77
+Tests/CLITests/SpecCommandTests.swift
+  s_5cfbbde6ae255a::t_8be663bb81a009 221
+Tests/CLITests/VoiceControlCommandTests.swift
+  s_5cfbbde6ae255a::t_65cfb0bd996acf 1-91
+Tests/MacParakeetTests/VoiceControl/VoiceControlObservabilityTests.swift
+  s_5cfbbde6ae255a::t_8c9fc27450e003 1-285
+docs/research/2026-09-19-jev-voice-control/evidence.md
+  s_5cfbbde6ae255a::t_3f06f47e1d70e0 47-51,58-71
+docs/research/2026-09-19-jev-voice-control/later.md
+  s_5cfbbde6ae255a::t_a6201059d14901 22,24
+docs/research/2026-09-19-jev-voice-control/references.md
+  s_5cfbbde6ae255a::t_81f6c527f119d3 35
+docs/research/2026-09-20-typesafe-computer-use/README.md
+  s_5cfbbde6ae255a::t_4fdac7959ff465 1-228
+docs/research/2026-09-20-typesafe-computer-use/walkthrough.html
+  s_5cfbbde6ae255a::t_d3ee5314394875 1-523
+plans/active/2026-09-20-voice-control-observability-perception-decision.md
+  s_5cfbbde6ae255a::t_021ed57c37cccb 1-30
+spec/contracts/voice-control.md
+  s_5cfbbde6ae255a::t_2d1aea0748917e 38,52-58,218-225,227-234
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f345dd7bd1dd4a0008143bfb4843f0d63abc3947",
+  "prompts": {},
+  "sessions": {
+    "s_5cfbbde6ae255a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0348e91a-b2e8-41b5-8bae-fcb8272b6779",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
