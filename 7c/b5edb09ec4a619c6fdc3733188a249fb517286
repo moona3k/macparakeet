@@ -1,0 +1,21 @@
+plans/active/2026-09-20-voice-control-observability-perception-decision.md
+  s_5cfbbde6ae255a::t_3fa6d845e43345 3,17-20,28-46
+docs/research/2026-09-20-typesafe-computer-use/README.md
+  s_5cfbbde6ae255a::t_067dde41e743dc 202-203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7cb5edb09ec4a619c6fdc3733188a249fb517286",
+  "prompts": {},
+  "sessions": {
+    "s_5cfbbde6ae255a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0348e91a-b2e8-41b5-8bae-fcb8272b6779",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
