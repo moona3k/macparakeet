@@ -1,0 +1,25 @@
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlInbox.swift
+  s_6b4e1230b5d187::t_30640a8cca6f75 14-33,38,40,42,44-46,49,51-52
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlPrivateFiles.swift
+  s_6b4e1230b5d187::t_0c613e10f08ed8 1-75
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTraceStore.swift
+  s_6b4e1230b5d187::t_acb48ccfde033c 13,42,146,177,183-189,193,201-202,205-207,211,218-222,231-233,237-238,242,244,246-250,396-397,412,419-420,426
+Tests/MacParakeetTests/VoiceControl/VoiceControlTraceStoreTests.swift
+  s_6b4e1230b5d187::t_226b0eb59ca822 41-43,66-137,146-147,169-170,194-195
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d920412f0ea846bbf97625451eb7d112e860646c",
+  "prompts": {},
+  "sessions": {
+    "s_6b4e1230b5d187": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c1ab-f26d-7532-8cce-8b54feca73cc",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
