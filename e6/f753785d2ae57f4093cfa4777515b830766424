@@ -1,0 +1,23 @@
+Sources/MacParakeetCore/Services/VoiceControl/AXTreeWalk.swift
+  s_6b4e1230b5d187::t_c3ae3ebfb26799 224
+Sources/MacParakeetCore/Services/VoiceControl/ScreenTextSource.swift
+  s_6b4e1230b5d187::t_a8ea375ab5b739 157-158
+Tests/MacParakeetTests/VoiceControl/AXTreeWalkTests.swift
+  s_6b4e1230b5d187::t_544b0e98217ce0 220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e6f753785d2ae57f4093cfa4777515b830766424",
+  "prompts": {},
+  "sessions": {
+    "s_6b4e1230b5d187": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c1ab-f26d-7532-8cce-8b54feca73cc",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
