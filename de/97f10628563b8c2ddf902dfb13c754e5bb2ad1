@@ -1,0 +1,27 @@
+Sources/MacParakeetCore/Services/VoiceControl/JevDecisionClient.swift
+  s_6b4e1230b5d187::t_27a61deeeedd29 48-49,74-77,79-80,90-91,96-102,126-127,143-144,151-153,163-164,187-189,267-268,281-283,286-292,298-300,314-315,338-339,358-362,375
+Sources/MacParakeetCore/Services/VoiceControl/SpokenDateParser.swift
+  s_6b4e1230b5d187::t_53fffd6cb243fb 28-40,86-89,112,118-125,144
+Tests/MacParakeetTests/VoiceControl/JevLeanRequestTests.swift
+  s_6b4e1230b5d187::t_e58413ec575317 210-226
+Tests/MacParakeetTests/VoiceControl/SpokenDateParserTests.swift
+  s_6b4e1230b5d187::t_3e83f0e3d970c1 71-81
+spec/contracts/voice-control.md
+  s_6b4e1230b5d187::t_97c27d587ed2a1 338,348-352
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "de97f10628563b8c2ddf902dfb13c754e5bb2ad1",
+  "prompts": {},
+  "sessions": {
+    "s_6b4e1230b5d187": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c1ab-f26d-7532-8cce-8b54feca73cc",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
