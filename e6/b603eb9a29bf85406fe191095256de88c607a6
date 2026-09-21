@@ -1,0 +1,19 @@
+docs/audits/2026-09-20-jev-computer-use-review.md
+  s_6b4e1230b5d187::t_e469bf9dc459c5 18-41,65,72-73,160-200,206-220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e6b603eb9a29bf85406fe191095256de88c607a6",
+  "prompts": {},
+  "sessions": {
+    "s_6b4e1230b5d187": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c1ab-f26d-7532-8cce-8b54feca73cc",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
