@@ -1,0 +1,16 @@
+docs/research/2026-09-19-jev-voice-control/architecture.md
+  h_2ab1f47fea2ced 11,50
+docs/research/2026-09-19-jev-voice-control/later.md
+  h_2ab1f47fea2ced 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e6347b38a51bb3f951dac708615323df9fff9ab2",
+  "prompts": {},
+  "humans": {
+    "h_2ab1f47fea2ced": {
+      "author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
