@@ -1,0 +1,33 @@
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlDiagnostics.swift
+  s_6b4e1230b5d187::t_f56628da4f8d0f 346
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTypes.swift
+  s_6b4e1230b5d187::t_19868f414256d4 61-62
+Tests/MacParakeetTests/VoiceControl/VoiceControlObservabilityTests.swift
+  s_6b4e1230b5d187::t_8e6096bdd57c87 49-50
+Tests/MacParakeetTests/VoiceControl/VoiceControlRecoveryTests.swift
+  s_6b4e1230b5d187::t_6de2c3a96aaccc 344
+docs/audits/2026-09-20-jev-computer-use-review.md
+  s_6b4e1230b5d187::t_1e22b256b9690b 1-143
+docs/audits/2026-09-20-jev-evidence/after-ambiguity-guard.json
+  s_6b4e1230b5d187::t_eb489447d19289 1-177
+docs/audits/2026-09-20-jev-evidence/before-ambiguity-guard.json
+  s_6b4e1230b5d187::t_8ec2a5e6dc75ba 1-213
+spec/contracts/voice-control.md
+  s_6b4e1230b5d187::t_f9f2c18e250ae0 384-396
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "42cd3c0e4504aecaca066fe8419beee67ab6b725",
+  "prompts": {},
+  "sessions": {
+    "s_6b4e1230b5d187": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c1ab-f26d-7532-8cce-8b54feca73cc",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
