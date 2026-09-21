@@ -1,0 +1,29 @@
+Sources/MacParakeetCore/Services/VoiceControl/JevDecisionClient.swift
+  s_5cfbbde6ae255a::t_e8c8d52cbf5860 219,242
+Sources/MacParakeetCore/Services/VoiceControl/NativeVoiceControlAdapter.swift
+  s_5cfbbde6ae255a::t_44320d79a8386b 164-165,190-193,234
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTraceStore.swift
+  s_5cfbbde6ae255a::t_a4f8ccb35b5939 12,41,145
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTypes.swift
+  s_5cfbbde6ae255a::t_051d4dcc82a979 23-26,31,36,40,55-63
+Tests/MacParakeetTests/VoiceControl/JevLeanRequestTests.swift
+  s_5cfbbde6ae255a::t_9e3d6b778e35db 210-232
+spec/contracts/voice-control.md
+  s_5cfbbde6ae255a::t_a8167f123e9b0a 283-285
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c98abb8215cd1fe6387a495966200d4dec0a76e9",
+  "prompts": {},
+  "sessions": {
+    "s_5cfbbde6ae255a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0348e91a-b2e8-41b5-8bae-fcb8272b6779",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
