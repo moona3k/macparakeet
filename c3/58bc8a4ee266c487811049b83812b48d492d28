@@ -1,0 +1,21 @@
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlMachine.swift
+  s_5cfbbde6ae255a::t_4c51cc30083d70 11-17,19,23
+Tests/MacParakeetTests/VoiceControl/VoiceControlMachineTests.swift
+  s_5cfbbde6ae255a::t_ac68146b11bc60 15-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c358bc8a4ee266c487811049b83812b48d492d28",
+  "prompts": {},
+  "sessions": {
+    "s_5cfbbde6ae255a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0348e91a-b2e8-41b5-8bae-fcb8272b6779",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
