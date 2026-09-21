@@ -1,0 +1,23 @@
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTurnRunner.swift
+  s_6b4e1230b5d187::t_f1582d9c5d423f 597-600
+Tests/MacParakeetTests/VoiceControl/VoiceControlObservabilityTests.swift
+  s_6b4e1230b5d187::t_f6205f5691a4b1 252-271
+spec/contracts/voice-control.md
+  s_6b4e1230b5d187::t_794cb571f3f6a2 238-240
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f6d66d67495d9cc3d00a4a19abb8f6c5d68088e8",
+  "prompts": {},
+  "sessions": {
+    "s_6b4e1230b5d187": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c1ab-f26d-7532-8cce-8b54feca73cc",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
