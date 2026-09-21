@@ -1,0 +1,101 @@
+docs/research/2026-09-19-jev-voice-control/later.md
+  s_8442375703aea4::t_703d95fc51f256 1-32
+docs/research/2026-09-19-jev-voice-control/routing-catalog.md
+  s_8442375703aea4::t_d0e0f366f20c2c 17
+  s_8442375703aea4::t_940e9fa66b3cd5 15
+  s_8442375703aea4::t_67c88f0196a2d8 3
+  s_8442375703aea4::t_4f192a057b89d6 9
+Tests/MacParakeetTests/VoiceControl/VoiceControlCommandRouterTests.swift
+  s_5cfbbde6ae255a::t_f519502a50719e 63,67-69
+  s_8442375703aea4::t_bc6232eb2eb5c2 56-61
+  s_8442375703aea4::t_6035d528969f43 54-55,62,70-75
+  s_5cfbbde6ae255a::t_78f239c4bf6c13 64-66
+docs/research/2026-09-19-jev-voice-control/README.md
+  s_8442375703aea4::t_f05d3f06e37777 23
+  s_8442375703aea4::t_b7d0dadc631035 1,5,7,9,11-16,18,20-22,24-26,28,30
+  s_8442375703aea4::t_98db25381a30cc 3
+docs/research/2026-09-19-jev-voice-control/references.md
+  s_8442375703aea4::t_ba1a10bc0a0921 1-37
+docs/research/2026-09-19-jev-voice-control/tools.md
+  s_8442375703aea4::t_bcefe139df2191 1-38
+docs/research/2026-09-19-jev-voice-control/architecture.md
+  s_8442375703aea4::t_fce7b5b79ef192 1-2,4-14,16-25,27-70
+  s_8442375703aea4::t_5a82af99145b69 15
+  s_8442375703aea4::t_5f640a2bb65124 26
+  s_8442375703aea4::t_e0e40b836aacc0 3
+  s_8442375703aea4::t_c360e260304f05 71
+docs/research/2026-09-19-jev-voice-control/historical-browser-extension/README.md
+  s_8442375703aea4::t_8e774fde3b1d0e 5
+  s_8442375703aea4::t_5eaef922be34f3 11
+docs/research/2026-09-19-jev-voice-control/native-accessibility-direction.md
+  s_8442375703aea4::t_5f731df9cdf024 1,3,5,7,9,11,13-17,19,21,23,25,27,29,31,33,35,37
+docs/research/2026-09-19-jev-voice-control/product.md
+  s_8442375703aea4::t_50e28214f4c2ab 1-55,89-91
+  s_8442375703aea4::t_1b61b6c78d7a1b 56-88
+docs/research/2026-09-19-jev-voice-control/everyday-use-cases.md
+  s_8442375703aea4::t_7c1bce6212c851 37
+docs/research/2026-09-19-jev-voice-control/release-scope.md
+  s_8442375703aea4::t_3dd4152e7dbe00 9
+  s_8442375703aea4::t_0ce36415e478c8 21
+  s_8442375703aea4::t_bf49244fa23ad1 49,51
+spec/adr/033-explicit-voice-control.md
+  s_8442375703aea4::t_4cfb6400e6272f 78
+docs/research/2026-09-19-jev-voice-control/evaluation.md
+  s_8442375703aea4::t_59240e07d38ce4 5
+  s_8442375703aea4::t_c0f76ae3b24b91 56
+  s_8442375703aea4::t_37c9a16c9ea0d1 13
+plans/active/2026-09-19-jev-voice-control.md
+  s_8442375703aea4::t_df7a9478739f40 19
+  s_8442375703aea4::t_fe92592390deab 212
+  s_8442375703aea4::t_954d2cc59b6e96 5
+docs/research/2026-09-19-jev-voice-control/walkthrough.html
+  s_8442375703aea4::t_e52ba0bdad4504 36
+  s_8442375703aea4::t_947f01923f10eb 25
+  s_8442375703aea4::t_71651ec4198885 26
+  s_8442375703aea4::t_5ff57293282242 35
+integrations/voice-control-browser/README.md
+  s_8442375703aea4::t_3df741f6fcc39a 64
+docs/research/2026-09-19-jev-voice-control/testing-handoff.md
+  s_8442375703aea4::t_cd4fbf3df91c73 1,3,5,7,9,15,17-23,25,27,29-33,35,37,45,49,51,53,55
+docs/research/2026-09-19-jev-voice-control/pr-description-draft.md
+  s_8442375703aea4::t_688316addc7b53 13,15-17,28,34
+  s_8442375703aea4::t_4f9b626a5127fa 32
+  s_8442375703aea4::t_dcce54d611e458 136
+  s_8442375703aea4::t_433a6ec0928422 62
+Sources/MacParakeetCore/Services/VoiceControl/NativeVoiceControlAdapter.swift
+  s_8442375703aea4::t_174c80b256e3f8 487-517
+  s_8442375703aea4::t_a2726f165f2cc6 301,305-309,321-345,350-354,356
+  s_5cfbbde6ae255a::t_74b808f88e0598 346-349,355,365-372,374-375
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlCommandRouter.swift
+  s_5cfbbde6ae255a::t_1e622c954b5418 59
+  s_8442375703aea4::t_72fe5be57b26fd 46,48
+  s_5cfbbde6ae255a::t_9a0438214d651f 219-222
+  s_8442375703aea4::t_559207c363f943 206-208,211-218,223-246
+docs/research/2026-09-19-jev-voice-control/evidence.md
+  s_8442375703aea4::t_d1a8a0f72c04aa 25-36
+  s_8442375703aea4::t_3742918180e134 1-24,37-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "16cbf7157832c33f2cf882bcd1582df62998dfbb",
+  "prompts": {},
+  "sessions": {
+    "s_5cfbbde6ae255a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0348e91a-b2e8-41b5-8bae-fcb8272b6779",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_8442375703aea4": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "199e22cc-1050-4d63-ac53-0462d8a16cf4",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
