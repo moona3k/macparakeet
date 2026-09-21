@@ -1,0 +1,41 @@
+Tests/MacParakeetTests/VoiceControl/AXTreeWalkTests.swift
+  s_5cfbbde6ae255a::t_b07d5984ce2381 1-213
+  s_5cfbbde6ae255a::t_0684a7d4e56fa5 214-247
+Sources/MacParakeetCore/Services/VoiceControl/NativeVoiceControlAdapter.swift
+  s_5cfbbde6ae255a::t_04f681f39c7116 142-150
+  s_5cfbbde6ae255a::t_acb7c5158586c1 139-141
+  s_5cfbbde6ae255a::t_10d45e76c5cf49 151-153
+Sources/MacParakeetCore/Services/VoiceControl/AXTreeWalk.swift
+  s_5cfbbde6ae255a::t_27602d89d28bdd 168-170
+  s_5cfbbde6ae255a::t_80aff05aac6ec2 1-130,132-167,171,173-182,184-196,198-220,223-234,236-240
+  s_5cfbbde6ae255a::t_512706fc24025e 221-222
+  s_5cfbbde6ae255a::t_5218de78fd7cf8 131,172,183,197,235,241-252
+Sources/MacParakeetCore/Services/VoiceControl/README.md
+  s_5cfbbde6ae255a::t_428e04feaa2927 7
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlMachine.swift
+  s_5cfbbde6ae255a::t_95d32a2a68124f 86
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTypes.swift
+  s_5cfbbde6ae255a::t_5f4d84c96705c7 19-22,26-27,31-49
+docs/research/2026-09-19-jev-voice-control/architecture.md
+  s_5cfbbde6ae255a::t_1eb5116a7d4fbb 64
+docs/research/2026-09-19-jev-voice-control/tools.md
+  s_5cfbbde6ae255a::t_071c542962a9f2 22
+spec/contracts/voice-control.md
+  s_5cfbbde6ae255a::t_5156bc858014fa 30-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2c49be8589756f5c68b468defd7dab408f44847c",
+  "prompts": {},
+  "sessions": {
+    "s_5cfbbde6ae255a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0348e91a-b2e8-41b5-8bae-fcb8272b6779",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
