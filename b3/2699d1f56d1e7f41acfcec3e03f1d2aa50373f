@@ -1,0 +1,35 @@
+Sources/MacParakeetCore/Services/VoiceControl/JevDecisionClient.swift
+  s_6b4e1230b5d187::t_2b542659915113 234,257
+Sources/MacParakeetCore/Services/VoiceControl/NativeVoiceControlAdapter.swift
+  s_6b4e1230b5d187::t_494e330419efd6 21-42,65,94-95,110-111,125-126,185-186,205,208,255,317-319,323-324
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTraceStore.swift
+  s_6b4e1230b5d187::t_5197baf0d8b05e 13-14,43,147
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTypes.swift
+  s_6b4e1230b5d187::t_f966261db46d69 23-26,31,36,40,55-63
+Tests/MacParakeetTests/VoiceControl/JevLeanRequestTests.swift
+  s_6b4e1230b5d187::t_a800bbde6eda64 227-249
+Tests/MacParakeetTests/VoiceControl/NativeVoiceControlAdapterTests.swift
+  s_6b4e1230b5d187::t_c303c4f5c9f298 6-26,28-39,43-48,52-59,62-65,68-71
+docs/research/2026-09-20-typesafe-computer-use/README.md
+  s_6b4e1230b5d187::t_f71ed43dafcb6a 202-203
+plans/active/2026-09-20-voice-control-observability-perception-decision.md
+  s_6b4e1230b5d187::t_8a69390ca6d319 3,17-20,28-46
+spec/contracts/voice-control.md
+  s_6b4e1230b5d187::t_3c64787ce84af9 297-299
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b32699d1f56d1e7f41acfcec3e03f1d2aa50373f",
+  "prompts": {},
+  "sessions": {
+    "s_6b4e1230b5d187": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c1ab-f26d-7532-8cce-8b54feca73cc",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
