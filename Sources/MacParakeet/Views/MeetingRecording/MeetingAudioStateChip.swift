@@ -3,11 +3,38 @@ import SwiftUI
 
 struct MeetingAudioStateChip: View {
     let state: MeetingAudioFile.State
+    @State private var showingUnavailableAudioExplanation = false
 
     @ViewBuilder
     var body: some View {
-        if state != .notMeeting {
-            Label(title, systemImage: systemImage)
+        switch state {
+        case .saved, .notMeeting:
+            EmptyView()
+        case .removed:
+            Button {
+                showingUnavailableAudioExplanation.toggle()
+            } label: {
+                Image(systemName: "waveform.slash")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .frame(width: 20, height: 20)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .help("Audio unavailable. Transcript is still available.")
+            .accessibilityLabel("Audio unavailable")
+            .accessibilityHint("Shows why playback and retranscription are unavailable")
+            .popover(isPresented: $showingUnavailableAudioExplanation, arrowEdge: .bottom) {
+                Text(
+                    "Audio unavailable. The transcript is still available, but playback and retranscription need retained meeting audio."
+                )
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                .frame(width: 250, alignment: .leading)
+                .padding(DesignSystem.Spacing.md)
+            }
+        case .missing:
+            Label("Audio missing", systemImage: "exclamationmark.triangle")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(foreground)
                 .lineLimit(1)
@@ -22,67 +49,29 @@ struct MeetingAudioStateChip: View {
         }
     }
 
-    private var title: String {
-        switch state {
-        case .saved:
-            return "Audio saved"
-        case .removed:
-            return "Audio removed"
-        case .missing:
-            return "Audio missing"
-        case .notMeeting:
-            return ""
-        }
-    }
-
-    private var systemImage: String {
-        switch state {
-        case .saved:
-            return "waveform"
-        case .removed:
-            return "waveform.slash"
-        case .missing:
-            return "exclamationmark.triangle"
-        case .notMeeting:
-            return ""
-        }
-    }
-
     private var foreground: Color {
         switch state {
-        case .saved:
-            return DesignSystem.Colors.textTertiary
-        case .removed:
-            return DesignSystem.Colors.textSecondary
         case .missing:
             return DesignSystem.Colors.warningAmber
-        case .notMeeting:
+        case .saved, .removed, .notMeeting:
             return DesignSystem.Colors.textTertiary
         }
     }
 
     private var background: Color {
         switch state {
-        case .saved:
-            return DesignSystem.Colors.surfaceElevated.opacity(0.65)
-        case .removed:
-            return DesignSystem.Colors.surfaceElevated.opacity(0.9)
         case .missing:
             return DesignSystem.Colors.warningAmber.opacity(0.12)
-        case .notMeeting:
+        case .saved, .removed, .notMeeting:
             return .clear
         }
     }
 
     private var accessibilityLabel: String {
         switch state {
-        case .saved:
-            return "Meeting audio is saved"
-        case .removed:
-            return "Meeting audio has been removed"
         case .missing:
             return "Meeting audio file is missing"
-        case .notMeeting:
+        case .saved, .removed, .notMeeting:
             return ""
         }
     }

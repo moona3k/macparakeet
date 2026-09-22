@@ -1,0 +1,42 @@
+[
+  {
+    "path": "Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift",
+    "current": [
+      [
+        "Indentation",
+        "unindent by 4 spaces"
+      ]
+    ],
+    "baseline": [
+      [
+        "Indentation",
+        "unindent by 4 spaces"
+      ]
+    ],
+    "new": []
+  },
+  {
+    "path": "Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingLockFileStore.swift",
+    "current": [],
+    "baseline": [],
+    "new": []
+  },
+  {
+    "path": "Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingRecoveryService.swift",
+    "current": [],
+    "baseline": [],
+    "new": []
+  },
+  {
+    "path": "Tests/MacParakeetTests/Views/TranscriptSegmentCacheTests.swift",
+    "current": [],
+    "baseline": [],
+    "new": []
+  },
+  {
+    "path": "Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift",
+    "current": [],
+    "baseline": [],
+    "new": []
+  }
+]

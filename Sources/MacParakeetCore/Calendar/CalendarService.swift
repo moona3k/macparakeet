@@ -226,6 +226,7 @@ public actor CalendarService {
             calendarIdentifier: ekEvent.calendar?.calendarIdentifier,
             userStatus: userStatus,
             externalId: ekEvent.calendarItemExternalIdentifier,
+            isRecurring: ekEvent.hasRecurrenceRules || ekEvent.isDetached,
             syncedAt: Date()
         )
     }
@@ -244,8 +245,19 @@ public actor CalendarService {
         return EventParticipant(
             email: email,
             name: participant.name,
-            status: mapStatus(participant.participantStatus)
+            status: mapStatus(participant.participantStatus),
+            kind: mapKind(participant.participantType)
         )
+    }
+
+    private func mapKind(_ type: EKParticipantType) -> EventParticipant.ParticipantKind {
+        switch type {
+        case .person: return .person
+        case .room: return .room
+        case .resource: return .resource
+        case .group: return .group
+        default: return .unknown
+        }
     }
 
     private func mapStatus(_ status: EKParticipantStatus) -> EventParticipant.ParticipantStatus {

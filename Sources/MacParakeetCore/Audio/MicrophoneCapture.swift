@@ -644,13 +644,11 @@ public final class MicrophoneCapture: @unchecked Sendable {
         }
         if shouldLog {
             logger.info("microphone_capture_first_buffer_received")
-            // Extract Sendable primitives so the diagnostics autoclosure
-            // doesn't capture the non-Sendable `AVAudioFormat`.
             let format = inputFormat
             let firstBufferSampleRate = format?.sampleRate ?? 0
             let firstBufferChannelCount = format?.channelCount ?? 0
             let firstBufferInterleaved = format?.isInterleaved ?? false
-            AudioCaptureDiagnostics.append(
+            AudioCaptureDiagnostics.appendAsync(
                 "meeting_mic_first_buffer sr=\(firstBufferSampleRate) ch=\(firstBufferChannelCount) interleaved=\(firstBufferInterleaved)"
             )
         }

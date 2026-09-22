@@ -3,6 +3,18 @@ import XCTest
 
 final class TranscriptionModelTests: XCTestCase {
 
+    func testAudioRetentionClockRoundTripsAndLegacyJSONDecodesWithoutIt() throws {
+        let anchor = Date(timeIntervalSince1970: 1_000_000_000)
+        let meeting = Transcription(fileName: "Imported", sourceType: .meeting, audioRetentionStartedAt: anchor)
+        let data = try JSONEncoder().encode(meeting)
+        XCTAssertEqual(try JSONDecoder().decode(Transcription.self, from: data).audioRetentionStartedAt, anchor)
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        json.removeValue(forKey: "audioRetentionStartedAt")
+        let legacy = try JSONDecoder().decode(Transcription.self, from: JSONSerialization.data(withJSONObject: json))
+        XCTAssertNil(legacy.audioRetentionStartedAt)
+        XCTAssertEqual(legacy.createdAt, meeting.createdAt)
+    }
+
     func testDefaultInit() {
         let t = Transcription(fileName: "recording.mp3")
 

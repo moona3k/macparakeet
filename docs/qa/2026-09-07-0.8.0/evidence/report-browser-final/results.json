@@ -1,0 +1,3377 @@
+{
+  "assertions": [
+    {
+      "name": "fresh page renders all unchanged records",
+      "actual": [
+        "Parakeet v3 transcribes public English audio",
+        "Parakeet v2 transcribes public English audio",
+        "Stale Discard deletes audio owned by a live finalizer",
+        "Recovery ownership repair and failure retry",
+        "Timed transcript rows belong to the active record",
+        "Custom Words screen and empty state",
+        "Select, filter, confirm, and delete custom words",
+        "Other installed speech engines and variants",
+        "Korean, Japanese, and Mandarin fixture replay",
+        "Choose an embedded audio track",
+        "Meeting pause, mute, and source combinations",
+        "Real microphone readiness and route recovery",
+        "Two-speaker runtime and boundary quality",
+        "Saved rich Markdown and complete summary/table copy",
+        "Prompt inference settings and provider receipts",
+        "CLI JSON, DAPT, and readable exports",
+        "One full-suite gate before saved-notes integration",
+        "Signed app and DMG are notarized and match",
+        "Cohere Korean: historical timeout, later resolved",
+        "Cohere Japanese: historical timeout, later resolved",
+        "Cohere Mandarin: historical timeout, later resolved",
+        "Partial folder deletion loses recovery retry",
+        "Partial deletion restores recovery marker",
+        "Cleanup mutex failure strands ownership",
+        "Recovery cleanup remains retryable after repair failure",
+        "Six real file-audio cases and persistence assertions",
+        "Distribution validators and shutdown preflight",
+        "GUI DAPT export validates after destination setup",
+        "GUI edit persists clean text and preserves original",
+        "Library grid and list switching",
+        "Microphone-only public speech replay and settlement",
+        "Microphone Test Input detects and stops",
+        "Meeting completion options set off/off",
+        "Cohere Japanese: extended follow-up completed",
+        "Cohere Korean: extended follow-up completed",
+        "Cohere Mandarin: extended follow-up completed",
+        "694 combined notes, cache, recovery and CLI tests",
+        "Notes survive navigation, quit and relaunch",
+        "Timed record switching and the 10,000-word final sentence",
+        "Real microphone lifecycle and ten repeated starts",
+        "Bundled LocalVQE loads and renders audio",
+        "Code-block Copy activation",
+        "Global shortcut and paste into another app"
+      ],
+      "expected": [
+        "Parakeet v3 transcribes public English audio",
+        "Parakeet v2 transcribes public English audio",
+        "Stale Discard deletes audio owned by a live finalizer",
+        "Recovery ownership repair and failure retry",
+        "Timed transcript rows belong to the active record",
+        "Custom Words screen and empty state",
+        "Select, filter, confirm, and delete custom words",
+        "Other installed speech engines and variants",
+        "Korean, Japanese, and Mandarin fixture replay",
+        "Choose an embedded audio track",
+        "Meeting pause, mute, and source combinations",
+        "Real microphone readiness and route recovery",
+        "Two-speaker runtime and boundary quality",
+        "Saved rich Markdown and complete summary/table copy",
+        "Prompt inference settings and provider receipts",
+        "CLI JSON, DAPT, and readable exports",
+        "One full-suite gate before saved-notes integration",
+        "Signed app and DMG are notarized and match",
+        "Cohere Korean: historical timeout, later resolved",
+        "Cohere Japanese: historical timeout, later resolved",
+        "Cohere Mandarin: historical timeout, later resolved",
+        "Partial folder deletion loses recovery retry",
+        "Partial deletion restores recovery marker",
+        "Cleanup mutex failure strands ownership",
+        "Recovery cleanup remains retryable after repair failure",
+        "Six real file-audio cases and persistence assertions",
+        "Distribution validators and shutdown preflight",
+        "GUI DAPT export validates after destination setup",
+        "GUI edit persists clean text and preserves original",
+        "Library grid and list switching",
+        "Microphone-only public speech replay and settlement",
+        "Microphone Test Input detects and stops",
+        "Meeting completion options set off/off",
+        "Cohere Japanese: extended follow-up completed",
+        "Cohere Korean: extended follow-up completed",
+        "Cohere Mandarin: extended follow-up completed",
+        "694 combined notes, cache, recovery and CLI tests",
+        "Notes survive navigation, quit and relaunch",
+        "Timed record switching and the 10,000-word final sentence",
+        "Real microphone lifecycle and ten repeated starts",
+        "Bundled LocalVQE loads and renders audio",
+        "Code-block Copy activation",
+        "Global shortcut and paste into another app"
+      ],
+      "passed": true
+    },
+    {
+      "name": "header metadata fits vertically at 1440px",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "no horizontal overflow at 1440px",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "header metadata fits vertically at 768px",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "no horizontal overflow at 768px",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "header metadata fits vertically at 390px",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "no horizontal overflow at 390px",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "header metadata fits vertically at 320px",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "no horizontal overflow at 320px",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "Failed still filters historical failure records",
+      "actual": [
+        "Stale Discard deletes audio owned by a live finalizer",
+        "Cohere Korean: historical timeout, later resolved",
+        "Cohere Japanese: historical timeout, later resolved",
+        "Cohere Mandarin: historical timeout, later resolved",
+        "Partial folder deletion loses recovery retry",
+        "Cleanup mutex failure strands ownership"
+      ],
+      "expected": [
+        "Stale Discard deletes audio owned by a live finalizer",
+        "Cohere Korean: historical timeout, later resolved",
+        "Cohere Japanese: historical timeout, later resolved",
+        "Cohere Mandarin: historical timeout, later resolved",
+        "Partial folder deletion loses recovery retry",
+        "Cleanup mutex failure strands ownership"
+      ],
+      "passed": true
+    },
+    {
+      "name": "evidence reload preserves active Failed state",
+      "actual": "failed",
+      "expected": "failed",
+      "passed": true
+    },
+    {
+      "name": "evidence reload preserves Failed rows",
+      "actual": [
+        "Stale Discard deletes audio owned by a live finalizer",
+        "Cohere Korean: historical timeout, later resolved",
+        "Cohere Japanese: historical timeout, later resolved",
+        "Cohere Mandarin: historical timeout, later resolved",
+        "Partial folder deletion loses recovery retry",
+        "Cleanup mutex failure strands ownership"
+      ],
+      "expected": [
+        "Stale Discard deletes audio owned by a live finalizer",
+        "Cohere Korean: historical timeout, later resolved",
+        "Cohere Japanese: historical timeout, later resolved",
+        "Cohere Mandarin: historical timeout, later resolved",
+        "Partial folder deletion loses recovery retry",
+        "Cleanup mutex failure strands ownership"
+      ],
+      "passed": true
+    },
+    {
+      "name": "reopened saved snapshot starts with All selected",
+      "actual": "all",
+      "expected": "all",
+      "passed": true
+    },
+    {
+      "name": "reopened saved snapshot shows all records",
+      "actual": [
+        "Parakeet v3 transcribes public English audio",
+        "Parakeet v2 transcribes public English audio",
+        "Stale Discard deletes audio owned by a live finalizer",
+        "Recovery ownership repair and failure retry",
+        "Timed transcript rows belong to the active record",
+        "Custom Words screen and empty state",
+        "Select, filter, confirm, and delete custom words",
+        "Other installed speech engines and variants",
+        "Korean, Japanese, and Mandarin fixture replay",
+        "Choose an embedded audio track",
+        "Meeting pause, mute, and source combinations",
+        "Real microphone readiness and route recovery",
+        "Two-speaker runtime and boundary quality",
+        "Saved rich Markdown and complete summary/table copy",
+        "Prompt inference settings and provider receipts",
+        "CLI JSON, DAPT, and readable exports",
+        "One full-suite gate before saved-notes integration",
+        "Signed app and DMG are notarized and match",
+        "Cohere Korean: historical timeout, later resolved",
+        "Cohere Japanese: historical timeout, later resolved",
+        "Cohere Mandarin: historical timeout, later resolved",
+        "Partial folder deletion loses recovery retry",
+        "Partial deletion restores recovery marker",
+        "Cleanup mutex failure strands ownership",
+        "Recovery cleanup remains retryable after repair failure",
+        "Six real file-audio cases and persistence assertions",
+        "Distribution validators and shutdown preflight",
+        "GUI DAPT export validates after destination setup",
+        "GUI edit persists clean text and preserves original",
+        "Library grid and list switching",
+        "Microphone-only public speech replay and settlement",
+        "Microphone Test Input detects and stops",
+        "Meeting completion options set off/off",
+        "Cohere Japanese: extended follow-up completed",
+        "Cohere Korean: extended follow-up completed",
+        "Cohere Mandarin: extended follow-up completed",
+        "694 combined notes, cache, recovery and CLI tests",
+        "Notes survive navigation, quit and relaunch",
+        "Timed record switching and the 10,000-word final sentence",
+        "Real microphone lifecycle and ten repeated starts",
+        "Bundled LocalVQE loads and renders audio",
+        "Code-block Copy activation",
+        "Global shortcut and paste into another app"
+      ],
+      "expected": [
+        "Parakeet v3 transcribes public English audio",
+        "Parakeet v2 transcribes public English audio",
+        "Stale Discard deletes audio owned by a live finalizer",
+        "Recovery ownership repair and failure retry",
+        "Timed transcript rows belong to the active record",
+        "Custom Words screen and empty state",
+        "Select, filter, confirm, and delete custom words",
+        "Other installed speech engines and variants",
+        "Korean, Japanese, and Mandarin fixture replay",
+        "Choose an embedded audio track",
+        "Meeting pause, mute, and source combinations",
+        "Real microphone readiness and route recovery",
+        "Two-speaker runtime and boundary quality",
+        "Saved rich Markdown and complete summary/table copy",
+        "Prompt inference settings and provider receipts",
+        "CLI JSON, DAPT, and readable exports",
+        "One full-suite gate before saved-notes integration",
+        "Signed app and DMG are notarized and match",
+        "Cohere Korean: historical timeout, later resolved",
+        "Cohere Japanese: historical timeout, later resolved",
+        "Cohere Mandarin: historical timeout, later resolved",
+        "Partial folder deletion loses recovery retry",
+        "Partial deletion restores recovery marker",
+        "Cleanup mutex failure strands ownership",
+        "Recovery cleanup remains retryable after repair failure",
+        "Six real file-audio cases and persistence assertions",
+        "Distribution validators and shutdown preflight",
+        "GUI DAPT export validates after destination setup",
+        "GUI edit persists clean text and preserves original",
+        "Library grid and list switching",
+        "Microphone-only public speech replay and settlement",
+        "Microphone Test Input detects and stops",
+        "Meeting completion options set off/off",
+        "Cohere Japanese: extended follow-up completed",
+        "Cohere Korean: extended follow-up completed",
+        "Cohere Mandarin: extended follow-up completed",
+        "694 combined notes, cache, recovery and CLI tests",
+        "Notes survive navigation, quit and relaunch",
+        "Timed record switching and the 10,000-word final sentence",
+        "Real microphone lifecycle and ten repeated starts",
+        "Bundled LocalVQE loads and renders audio",
+        "Code-block Copy activation",
+        "Global shortcut and paste into another app"
+      ],
+      "passed": true
+    },
+    {
+      "name": "snapshot status selection is unambiguous",
+      "actual": 1,
+      "expected": 1,
+      "passed": true
+    },
+    {
+      "name": "reopened snapshot failed filter",
+      "actual": [
+        "Stale Discard deletes audio owned by a live finalizer",
+        "Cohere Korean: historical timeout, later resolved",
+        "Cohere Japanese: historical timeout, later resolved",
+        "Cohere Mandarin: historical timeout, later resolved",
+        "Partial folder deletion loses recovery retry",
+        "Cleanup mutex failure strands ownership"
+      ],
+      "expected": [
+        "Stale Discard deletes audio owned by a live finalizer",
+        "Cohere Korean: historical timeout, later resolved",
+        "Cohere Japanese: historical timeout, later resolved",
+        "Cohere Mandarin: historical timeout, later resolved",
+        "Partial folder deletion loses recovery retry",
+        "Cleanup mutex failure strands ownership"
+      ],
+      "passed": true
+    },
+    {
+      "name": "reopened snapshot failed selected state",
+      "actual": "failed",
+      "expected": "failed",
+      "passed": true
+    },
+    {
+      "name": "reopened snapshot passed filter",
+      "actual": [
+        "Parakeet v3 transcribes public English audio",
+        "Parakeet v2 transcribes public English audio",
+        "Recovery ownership repair and failure retry",
+        "Timed transcript rows belong to the active record",
+        "Custom Words screen and empty state",
+        "Select, filter, confirm, and delete custom words",
+        "Other installed speech engines and variants",
+        "Korean, Japanese, and Mandarin fixture replay",
+        "Choose an embedded audio track",
+        "Two-speaker runtime and boundary quality",
+        "Saved rich Markdown and complete summary/table copy",
+        "Prompt inference settings and provider receipts",
+        "CLI JSON, DAPT, and readable exports",
+        "One full-suite gate before saved-notes integration",
+        "Signed app and DMG are notarized and match",
+        "Partial deletion restores recovery marker",
+        "Recovery cleanup remains retryable after repair failure",
+        "Six real file-audio cases and persistence assertions",
+        "Distribution validators and shutdown preflight",
+        "GUI DAPT export validates after destination setup",
+        "GUI edit persists clean text and preserves original",
+        "Library grid and list switching",
+        "Microphone-only public speech replay and settlement",
+        "Microphone Test Input detects and stops",
+        "Meeting completion options set off/off",
+        "Cohere Japanese: extended follow-up completed",
+        "Cohere Korean: extended follow-up completed",
+        "Cohere Mandarin: extended follow-up completed",
+        "694 combined notes, cache, recovery and CLI tests",
+        "Notes survive navigation, quit and relaunch",
+        "Timed record switching and the 10,000-word final sentence",
+        "Real microphone lifecycle and ten repeated starts",
+        "Bundled LocalVQE loads and renders audio"
+      ],
+      "expected": [
+        "Parakeet v3 transcribes public English audio",
+        "Parakeet v2 transcribes public English audio",
+        "Recovery ownership repair and failure retry",
+        "Timed transcript rows belong to the active record",
+        "Custom Words screen and empty state",
+        "Select, filter, confirm, and delete custom words",
+        "Other installed speech engines and variants",
+        "Korean, Japanese, and Mandarin fixture replay",
+        "Choose an embedded audio track",
+        "Two-speaker runtime and boundary quality",
+        "Saved rich Markdown and complete summary/table copy",
+        "Prompt inference settings and provider receipts",
+        "CLI JSON, DAPT, and readable exports",
+        "One full-suite gate before saved-notes integration",
+        "Signed app and DMG are notarized and match",
+        "Partial deletion restores recovery marker",
+        "Recovery cleanup remains retryable after repair failure",
+        "Six real file-audio cases and persistence assertions",
+        "Distribution validators and shutdown preflight",
+        "GUI DAPT export validates after destination setup",
+        "GUI edit persists clean text and preserves original",
+        "Library grid and list switching",
+        "Microphone-only public speech replay and settlement",
+        "Microphone Test Input detects and stops",
+        "Meeting completion options set off/off",
+        "Cohere Japanese: extended follow-up completed",
+        "Cohere Korean: extended follow-up completed",
+        "Cohere Mandarin: extended follow-up completed",
+        "694 combined notes, cache, recovery and CLI tests",
+        "Notes survive navigation, quit and relaunch",
+        "Timed record switching and the 10,000-word final sentence",
+        "Real microphone lifecycle and ten repeated starts",
+        "Bundled LocalVQE loads and renders audio"
+      ],
+      "passed": true
+    },
+    {
+      "name": "reopened snapshot passed selected state",
+      "actual": "passed",
+      "expected": "passed",
+      "passed": true
+    },
+    {
+      "name": "reopened snapshot unverified filter",
+      "actual": [
+        "Meeting pause, mute, and source combinations",
+        "Real microphone readiness and route recovery",
+        "Code-block Copy activation",
+        "Global shortcut and paste into another app"
+      ],
+      "expected": [
+        "Meeting pause, mute, and source combinations",
+        "Real microphone readiness and route recovery",
+        "Code-block Copy activation",
+        "Global shortcut and paste into another app"
+      ],
+      "passed": true
+    },
+    {
+      "name": "reopened snapshot unverified selected state",
+      "actual": "unverified",
+      "expected": "unverified",
+      "passed": true
+    },
+    {
+      "name": "reopened snapshot all filter",
+      "actual": [
+        "Parakeet v3 transcribes public English audio",
+        "Parakeet v2 transcribes public English audio",
+        "Stale Discard deletes audio owned by a live finalizer",
+        "Recovery ownership repair and failure retry",
+        "Timed transcript rows belong to the active record",
+        "Custom Words screen and empty state",
+        "Select, filter, confirm, and delete custom words",
+        "Other installed speech engines and variants",
+        "Korean, Japanese, and Mandarin fixture replay",
+        "Choose an embedded audio track",
+        "Meeting pause, mute, and source combinations",
+        "Real microphone readiness and route recovery",
+        "Two-speaker runtime and boundary quality",
+        "Saved rich Markdown and complete summary/table copy",
+        "Prompt inference settings and provider receipts",
+        "CLI JSON, DAPT, and readable exports",
+        "One full-suite gate before saved-notes integration",
+        "Signed app and DMG are notarized and match",
+        "Cohere Korean: historical timeout, later resolved",
+        "Cohere Japanese: historical timeout, later resolved",
+        "Cohere Mandarin: historical timeout, later resolved",
+        "Partial folder deletion loses recovery retry",
+        "Partial deletion restores recovery marker",
+        "Cleanup mutex failure strands ownership",
+        "Recovery cleanup remains retryable after repair failure",
+        "Six real file-audio cases and persistence assertions",
+        "Distribution validators and shutdown preflight",
+        "GUI DAPT export validates after destination setup",
+        "GUI edit persists clean text and preserves original",
+        "Library grid and list switching",
+        "Microphone-only public speech replay and settlement",
+        "Microphone Test Input detects and stops",
+        "Meeting completion options set off/off",
+        "Cohere Japanese: extended follow-up completed",
+        "Cohere Korean: extended follow-up completed",
+        "Cohere Mandarin: extended follow-up completed",
+        "694 combined notes, cache, recovery and CLI tests",
+        "Notes survive navigation, quit and relaunch",
+        "Timed record switching and the 10,000-word final sentence",
+        "Real microphone lifecycle and ten repeated starts",
+        "Bundled LocalVQE loads and renders audio",
+        "Code-block Copy activation",
+        "Global shortcut and paste into another app"
+      ],
+      "expected": [
+        "Parakeet v3 transcribes public English audio",
+        "Parakeet v2 transcribes public English audio",
+        "Stale Discard deletes audio owned by a live finalizer",
+        "Recovery ownership repair and failure retry",
+        "Timed transcript rows belong to the active record",
+        "Custom Words screen and empty state",
+        "Select, filter, confirm, and delete custom words",
+        "Other installed speech engines and variants",
+        "Korean, Japanese, and Mandarin fixture replay",
+        "Choose an embedded audio track",
+        "Meeting pause, mute, and source combinations",
+        "Real microphone readiness and route recovery",
+        "Two-speaker runtime and boundary quality",
+        "Saved rich Markdown and complete summary/table copy",
+        "Prompt inference settings and provider receipts",
+        "CLI JSON, DAPT, and readable exports",
+        "One full-suite gate before saved-notes integration",
+        "Signed app and DMG are notarized and match",
+        "Cohere Korean: historical timeout, later resolved",
+        "Cohere Japanese: historical timeout, later resolved",
+        "Cohere Mandarin: historical timeout, later resolved",
+        "Partial folder deletion loses recovery retry",
+        "Partial deletion restores recovery marker",
+        "Cleanup mutex failure strands ownership",
+        "Recovery cleanup remains retryable after repair failure",
+        "Six real file-audio cases and persistence assertions",
+        "Distribution validators and shutdown preflight",
+        "GUI DAPT export validates after destination setup",
+        "GUI edit persists clean text and preserves original",
+        "Library grid and list switching",
+        "Microphone-only public speech replay and settlement",
+        "Microphone Test Input detects and stops",
+        "Meeting completion options set off/off",
+        "Cohere Japanese: extended follow-up completed",
+        "Cohere Korean: extended follow-up completed",
+        "Cohere Mandarin: extended follow-up completed",
+        "694 combined notes, cache, recovery and CLI tests",
+        "Notes survive navigation, quit and relaunch",
+        "Timed record switching and the 10,000-word final sentence",
+        "Real microphone lifecycle and ten repeated starts",
+        "Bundled LocalVQE loads and renders audio",
+        "Code-block Copy activation",
+        "Global shortcut and paste into another app"
+      ],
+      "passed": true
+    },
+    {
+      "name": "reopened snapshot all selected state",
+      "actual": "all",
+      "expected": "all",
+      "passed": true
+    },
+    {
+      "name": "saved evidence semantic identity",
+      "actual": {
+        "schemaVersion": 1,
+        "_editing": {
+          "purpose": "Canonical editable release QA evidence. The HTML embeds an initial snapshot and can load this file through Load evidence. Sync the embedded snapshot before sharing the HTML alone.",
+          "statuses": [
+            "passed",
+            "failed",
+            "unverified"
+          ],
+          "rules": [
+            "Passed requires a directly observed result at the recorded candidate/build.",
+            "Keep a before-fix failure and its later regression result as separate checks.",
+            "A captured screen does not establish keyboard, pointer, or destructive-flow success.",
+            "Keep committed evidence synthetic or public; review images and logs before copying them.",
+            "Use relative evidence/ paths. Media may be images or videos; root curates the actual files."
+          ],
+          "checkFields": {
+            "id": "unique stable string",
+            "title": "short workflow name",
+            "area": "filter group",
+            "status": "passed | failed | unverified",
+            "phase": "Candidate | Before fix | After fix | Release artifact",
+            "candidate": "full commit SHA plus explicit working changes if applicable",
+            "build": "actual binary configuration/provenance",
+            "observed": "what actually happened, or why not verified",
+            "expected": "acceptance condition",
+            "limitations": "what this evidence does not establish",
+            "evidence": "array of {label, path} with relative local paths",
+            "command": "exact command or interaction sequence, sanitized",
+            "durationSeconds": "number or null"
+          },
+          "mediaFields": {
+            "id": "unique stable string",
+            "kind": "image | video",
+            "path": "relative evidence/ path",
+            "title": "observed screen or recorded interaction",
+            "caption": "scope and limitations; never infer a pass from an image",
+            "checkIds": "associated check IDs"
+          },
+          "syncEmbeddedSnapshot": "Replace the content of index.html script#evidence-data with JSON.stringify(this entire file), escaping < as \\u003c. Loading this file through the page also offers Download HTML snapshot."
+        },
+        "release": {
+          "name": "MacParakeet",
+          "target": "0.8.0",
+          "state": "candidate_validated",
+          "headline": "Candidate validated; final QA scope recorded",
+          "summary": "The recovery and transcript fixes, integrated saved notes, real speech samples, and signed 0.8.0 package have passed their recorded checks. The app and DMG are notarized. PR checks and merge are being completed; remaining permission and hardware combinations are explicit.",
+          "candidate": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3",
+          "candidateLabel": "Combined source candidate",
+          "baseline": "v0.7.3",
+          "baselineCommit": "d6321f87dccecf29bd4792113f522bb0c98d1f35",
+          "branch": "release/0.8.0-qa",
+          "updated": "2026-09-07 16:55 PDT",
+          "snapshotLabel": "Notarized candidate and saved-notes GUI verified",
+          "boundary": "Evidence retains each actual source commit. The single full-suite run predates the saved-notes integration; 694 focused tests and GUI checks cover the combined candidate. The six failed records are historical attempts with later fixes or successful reruns. No release was published.",
+          "next": [
+            "Finish PR #979 CI and merge the validated source, then publish this completed report to main.",
+            "Complete remaining Accessibility/global paste, system-audio and device combinations during final user QA.",
+            "Before public release, verify the actual Sparkle update/download metadata against the final stapled DMG; publishing is a separate action."
+          ]
+        },
+        "checks": [
+          {
+            "id": "asr-parakeet-v3",
+            "title": "Parakeet v3 transcribes public English audio",
+            "area": "Speech",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "DEBUG macparakeet-cli from the owning QA checkout; exact command in execution log",
+            "observed": "CLI exited 0. JSON reports completed, parakeet/v3, 28 word timestamps, and a nonempty reference-aligned English transcript. Reported media duration: 10.496 s.",
+            "expected": "A real public fixture produces text and timings through the candidate CLI.",
+            "limitations": "One 10.435 s LibriSpeech fixture; this is an inference smoke, not a corpus accuracy benchmark.",
+            "evidence": [
+              {
+                "label": "Result JSON",
+                "path": "evidence/parakeet-v3-en.json"
+              },
+              {
+                "label": "Execution log",
+                "path": "evidence/asr-runner.log"
+              }
+            ],
+            "command": "macparakeet-cli transcribe 1089-134686-0000.flac --engine parakeet --parakeet-model v3 --mode raw --speaker-detection off --no-history --database <QA>/history.sqlite --format json",
+            "durationSeconds": 15.3
+          },
+          {
+            "id": "asr-parakeet-v2",
+            "title": "Parakeet v2 transcribes public English audio",
+            "area": "Speech",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "DEBUG macparakeet-cli from the owning QA checkout; exact command in execution log",
+            "observed": "CLI exited 0. JSON reports completed, parakeet/v2, 28 word timestamps, and a nonempty English transcript. Reported media duration: 10.496 s.",
+            "expected": "The English-only build loads and returns a completed transcript with timings.",
+            "limitations": "Same public fixture as v3; no full WER comparison or live dictation proof.",
+            "evidence": [
+              {
+                "label": "Result JSON",
+                "path": "evidence/parakeet-v2-en.json"
+              },
+              {
+                "label": "Execution log",
+                "path": "evidence/asr-runner.log"
+              }
+            ],
+            "command": "macparakeet-cli transcribe 1089-134686-0000.flac --engine parakeet --parakeet-model v2 --mode raw --speaker-detection off --no-history --database <QA>/history.sqlite --format json",
+            "durationSeconds": 15.36
+          },
+          {
+            "id": "recovery-discard-red",
+            "title": "Stale Discard deletes audio owned by a live finalizer",
+            "area": "Recovery",
+            "status": "failed",
+            "phase": "Before fix",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Initial QA candidate; record exact binary provenance with final evidence",
+            "observed": "Both deterministic regressions failed before the production change: 2 tests, 8 assertions. Source audio and the active lock were deleted for same-process and other-live-process ownership.",
+            "expected": "Discard refuses a live owner and preserves both source files and the current lock.",
+            "limitations": "Disposable generated fixtures only. This row preserves the original failure; it is not the post-fix verdict.",
+            "evidence": [
+              {
+                "label": "Red-gate log",
+                "path": "evidence/recovery-discard-red.log"
+              },
+              {
+                "label": "Review and fix notes",
+                "path": "audio-review.md"
+              }
+            ],
+            "command": "swift test --filter 'MeetingRecordingRecoveryServiceTests.testDiscardWithStaleLock'",
+            "durationSeconds": null
+          },
+          {
+            "id": "recovery-discard-green",
+            "title": "Recovery ownership repair and failure retry",
+            "area": "Recovery",
+            "status": "passed",
+            "phase": "After fix",
+            "candidate": "c506d7ef7d4cf98f3986cfb5de84ced6b4ce701e",
+            "build": "Root-owned DEBUG focused run; first recovery ownership fix before partial-deletion follow-ups.",
+            "observed": "All 85 tests across recovery, lock-store and settlement passed. Both stale-discard regressions preserve source audio after the fix; failure restoration and retry tests also pass.",
+            "expected": "Both stale-owner regressions pass; missing-folder discard is idempotent; deletion and settlement failures restore ownership for retry.",
+            "limitations": "This historical 85-test gate preceded two additional cleanup regressions. The later 88-test gate covers the completed recovery follow-up; actual recovery GUI remains pending.",
+            "evidence": [
+              {
+                "label": "Combined log: recovery green, cache red",
+                "path": "evidence/cache-red-recovery-green.log"
+              }
+            ],
+            "command": "swift test --filter 'TranscriptSegmentCacheTests|MeetingRecordingRecoveryServiceTests|MeetingRecordingLockFileStoreTests|MeetingRecordingSettlementTests'",
+            "durationSeconds": null
+          },
+          {
+            "id": "transcript-cache",
+            "title": "Timed transcript rows belong to the active record",
+            "area": "Library",
+            "status": "passed",
+            "phase": "After fix",
+            "candidate": "df98cfbd41a150f8ee510dd1333bfa6db176e342",
+            "build": "Root-owned DEBUG focused run at timed-cache fix df98cfbd41a1.",
+            "observed": "Two record-replacement tests failed with six assertions before ID scoping. All 23 cache, layout and transcript-action tests pass after the fix, including ten-thousand-word lazy layout.",
+            "expected": "Switching records hides the prior record\u2019s rows and actions until the new cache is ready.",
+            "limitations": "23 deterministic cache/layout/action tests and offscreen layout passed. Baseline GUI screenshots predate this fix; final-bundle record replacement is still pending.",
+            "evidence": [
+              {
+                "label": "Green test log",
+                "path": "evidence/cache-green.log"
+              },
+              {
+                "label": "Before-fix evidence",
+                "path": "evidence/cache-red-recovery-green.log"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "vocabulary-surface",
+            "title": "Custom Words screen and empty state",
+            "area": "Vocabulary",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Copied Xcode Release dev product; bundle com.macparakeet.qa.release080, PID 98237, displayed 0.8.0; baseline source, not final release bundle.",
+            "observed": "Native key events and Add saved QAWidget; SQLite independently confirmed it. The CLI imported 1,024 additional rules and one snippet. Restarted GUI shows 1,025 rules, 102 disabled, and selection mode with separate Select labels.",
+            "expected": "Native layout and controls render; entry, selection, and keyboard behavior work with verified app focus.",
+            "limitations": "The large fixture was imported by CLI; actual native file-picker import is not established. Later GUI deletion checks are recorded separately.",
+            "evidence": [
+              {
+                "label": "Added word",
+                "path": "evidence/vocabulary-added.png"
+              },
+              {
+                "label": "Large list",
+                "path": "evidence/vocabulary-1025-ordinary.png"
+              },
+              {
+                "label": "Selection mode",
+                "path": "evidence/vocabulary-select-mode.png"
+              },
+              {
+                "label": "CLI import receipt",
+                "path": "evidence/vocabulary-import-cli.json"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "vocabulary-bulk",
+            "title": "Select, filter, confirm, and delete custom words",
+            "area": "Vocabulary",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Copied Xcode Release dev product; bundle com.macparakeet.qa.release080, PID 98237, displayed 0.8.0; baseline source, not final release bundle.",
+            "observed": "Actual GUI count sequence: 1025 \u2192 1023 \u2192 926 \u2192 0. Cancelling the two-word and 97-filtered-word confirmations preserved data; confirmations removed only selected rules. All 926 remaining words, including disabled rules, were deleted while one separate snippet remained. Closing/reopening the manager stayed empty.",
+            "expected": "Selection and confirmation affect only the intended word rules; cancellation and unrelated snippets remain intact.",
+            "limitations": "Baseline GUI before QA fixes. Manager reopening was observed; a fresh process restart after final deletion and GUI import of the large fixture were not.",
+            "evidence": [
+              {
+                "label": "Completed GUI scenarios",
+                "path": "gui-runtime.md"
+              },
+              {
+                "label": "Filtered 97-word selection",
+                "path": "evidence/gui/vocabulary-97-matching.png"
+              },
+              {
+                "label": "Final empty word manager",
+                "path": "evidence/gui/vocabulary-empty-after-delete.png"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "asr-other-engines",
+            "title": "Other installed speech engines and variants",
+            "area": "Speech",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Initial QA candidate; record exact binary provenance with final evidence",
+            "observed": "Parakeet Unified, multilingual Nemotron with English input, and Cohere completed the public English sample. Cohere took 233.54 seconds, mostly encoder loading.",
+            "expected": "Record the actual requested and returned model/build for each installed engine.",
+            "limitations": "Separate English Nemotron and Whisper were not installed/tested. This is a short-sample smoke, not release-wide accuracy certification.",
+            "evidence": [
+              {
+                "label": "Audio results and timing",
+                "path": "audio-runtime.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "asr-multilingual",
+            "title": "Korean, Japanese, and Mandarin fixture replay",
+            "area": "Speech",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Initial QA candidate; record exact binary provenance with final evidence",
+            "observed": "Multilingual Nemotron completed Korean, Japanese and Mandarin FLEURS fixtures, retaining their scripts. Hypotheses contain some recognition errors; exact texts are attached.",
+            "expected": "Supported multilingual routes preserve the expected script and return completed text.",
+            "limitations": "One Nemotron sample per language; no perfect-recognition or corpus accuracy claim. Cohere\u2019s initial bounded failures and three explicit successful follow-ups are recorded separately with their own binary provenance and cache-state limits.",
+            "evidence": [
+              {
+                "label": "Fixture results",
+                "path": "audio-runtime.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "audio-track",
+            "title": "Choose an embedded audio track",
+            "area": "Files and exports",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0 (GUI); base plus c506d7ef (copied CLI)",
+            "build": "Copied Xcode Release dev product; bundle com.macparakeet.qa.release080, PID 98237, displayed 0.8.0; baseline source, not final release bundle. File-audio CLI SHA-256 f8a62b79ece6045909d15ece2fd086eed7e10ca04ebc870d9fc50ed76774f095.",
+            "observed": "GUI displayed English/default and Japanese tracks; Cancel left zero records, then English completed one row with ordinal 0 and duration 9600 ms. Separate CLI track 1/2 runs returned their distinct English/Japanese references and persisted ordinals 0/1; tracks 0/3 were rejected without records.",
+            "expected": "Track 1 and track 2 yield their different known references; invalid tracks fail visibly.",
+            "limitations": "GUI Japanese completion and media playback/seek are not established. CLI/GUI results use different exercised engine paths and media durations; no accuracy benchmark.",
+            "evidence": [
+              {
+                "label": "Actual GUI selection and persistence",
+                "path": "gui-runtime.md"
+              },
+              {
+                "label": "Six file-audio cases / 29 assertions",
+                "path": "file-audio-runtime.md"
+              },
+              {
+                "label": "Track picker",
+                "path": "evidence/gui/transcribe-track-picker-ready.png"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "meeting-capture",
+            "title": "Meeting pause, mute, and source combinations",
+            "area": "Meetings",
+            "status": "unverified",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Copied Xcode Release dev product; bundle com.macparakeet.qa.release080, PID 98237, displayed 0.8.0; baseline source, not final release bundle.",
+            "observed": "Two microphone-only meetings completed, retained audio, and removed finalization locks. A 13.5-second public-speaker replay produced 116 transcript characters. Pause, mute, system-only and dual-source combinations remain unverified.",
+            "expected": "Healthy audio is retained, pauses and mute are respected, and the next meeting cannot be overwritten by an older completion.",
+            "limitations": "A successful microphone-only path does not establish system capture, route recovery, pause/mute semantics, or every back-to-back completion race.",
+            "evidence": [
+              {
+                "label": "Microphone-only runtime and remaining gates",
+                "path": "microphone-runtime.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "microphone-routes",
+            "title": "Real microphone readiness and route recovery",
+            "area": "Hardware",
+            "status": "unverified",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Copied Xcode Release dev product; bundle com.macparakeet.qa.release080, PID 98237, displayed 0.8.0; baseline source, not final release bundle.",
+            "observed": "The microphone Test Input detected input and stopped automatically. Microphone-only meeting replay produced recognized public speech. Bluetooth, USB/device changes, cold/repeated readiness and TCC/system-audio combinations remain pending. The unique QA app still needs macOS Accessibility authorization; system-audio permission is not yet granted.",
+            "expected": "Cold and repeated starts receive usable buffers; route loss converges on bounded recovery or an actionable warning.",
+            "limitations": "Current built-in microphone observations do not certify Bluetooth, USB, device loss/reconnect, or other macOS versions.",
+            "evidence": [
+              {
+                "label": "Microphone-only runtime and remaining gates",
+                "path": "microphone-runtime.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "speaker-diarization",
+            "title": "Two-speaker runtime and boundary quality",
+            "area": "Speech",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0 plus c506d7ef7d4cf98f3986cfb5de84ced6b4ce701e",
+            "build": "Copied CLI SHA-256 f8a62b79ece6045909d15ece2fd086eed7e10ca04ebc870d9fc50ed76774f095; sequential disposable-database runs.",
+            "observed": "Automatic and exact-count-2 runs completed with two final speakers and both public passages. All file-audio matrix assertions passed. Both runs attach the second passage\u2019s first unassigned word, You, to the preceding speaker segment.",
+            "expected": "The engine completes automatic and constrained two-speaker inference and retains both source passages; quality limitations are recorded separately.",
+            "limitations": "Runtime pass only. The boundary attribution mismatch is retained as a quality follow-up; no DER, overlapping-speaker accuracy, stable-release A/B, or live-meeting certification.",
+            "evidence": [
+              {
+                "label": "Actual turns and quality observation",
+                "path": "file-audio-runtime.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "markdown",
+            "title": "Saved rich Markdown and complete summary/table copy",
+            "area": "Library",
+            "status": "passed",
+            "phase": "Rebuilt GUI",
+            "candidate": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3",
+            "build": "Isolated Xcode Release app copy; bundle com.macparakeet.qa.release080",
+            "observed": "Headings, table, JSON, lists, links and end marker rendered. Complete summary Copy equals saved Markdown; table Copy preserves every fixture row. Both repeated successfully on 250bbe29.",
+            "expected": "Saved rich results remain readable and full/table copying preserves content.",
+            "limitations": "Saved fixtures do not prove live streaming. Code-block Copy remains unverified; no original clipboard content is published.",
+            "evidence": [
+              {
+                "label": "Rebuilt GUI report",
+                "path": "gui-rebuilt.md"
+              },
+              {
+                "label": "Current copy receipts",
+                "path": "evidence/gui-rebuilt/copy-controls-current.json"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "prompt-settings",
+            "title": "Prompt inference settings and provider receipts",
+            "area": "AI and data",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Initial QA candidate; record exact binary provenance with final evidence",
+            "observed": "18 CLI invocations and 10 no-key loopback requests passed: requested settings, effective receipts, streaming, auth/rate-limit errors, corrupt response, cancellation, and preservation of previous saved results.",
+            "expected": "Valid settings round-trip and effective receipts reflect the actual provider request.",
+            "limitations": "Synthetic provider contract and persistence evidence. GUI editor, real credentials and live cloud model compatibility remain unverified.",
+            "evidence": [
+              {
+                "label": "Executed CLI matrix",
+                "path": "cli-runtime.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "export-contracts",
+            "title": "CLI JSON, DAPT, and readable exports",
+            "area": "Files and exports",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Initial QA candidate; record exact binary provenance with final evidence",
+            "observed": "Three representative DAPT documents passed direct XSD and BBC DAPT validation. Sixteen CLI calls also passed stdout/file parity and Markdown, SRT and JSON preservation assertions.",
+            "expected": "Version, JSON fields, XML timing/escaping, and text export match the documented contracts.",
+            "limitations": "Both validation layers use the pinned W3C schema snapshot. BBC emits an optional missing-copyright warning. GUI save panels remain unverified.",
+            "evidence": [
+              {
+                "label": "Executed export matrix",
+                "path": "dapt-runtime.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "full-suite",
+            "title": "One full-suite gate before saved-notes integration",
+            "area": "Release gates",
+            "status": "passed",
+            "phase": "After fix",
+            "candidate": "96b2025253ad71d01566713560ea7d101a13c53d; documentation-only HEAD b7dfbb680d1d73a0ac0ca11b307e678ca93151f2",
+            "build": "Root-owned single full swift test invocation in the QA worktree; started 2026-09-07 15:46:58 local.",
+            "observed": "The one full-suite invocation exited 0: XCTest ran 5,461 tests with 20 skips and zero failures in 214.046 seconds; Swift Testing ran 29 tests with zero failures. Product source remained 96b20252; documentation HEAD was b7dfbb68.",
+            "expected": "Record the exact settled candidate, command, exit status, passed tests, and skips.",
+            "limitations": "Executed once on source 96b20252 before the later saved-notes merge. The combined 250bbe29 candidate has separate 694-test focused evidence; no second local full-suite run was made.",
+            "evidence": [
+              {
+                "label": "Full-suite result, skips and log hash",
+                "path": "evidence/full-swift-test-summary.log"
+              }
+            ],
+            "command": "swift test",
+            "durationSeconds": 214.046
+          },
+          {
+            "id": "release-package",
+            "title": "Signed app and DMG are notarized and match",
+            "area": "Release gates",
+            "status": "passed",
+            "phase": "Release artifact",
+            "candidate": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3",
+            "build": "Xcode Release app 0.8.0 build 20260907232424; production CLI 3.3.0",
+            "observed": "Both exact Apple submissions Accepted. Signatures, staples, Gatekeeper, signed helpers, DMG integrity and mounted payload identity passed. Final DMG 167,213,899 bytes, SHA-256 17fbf6c6a2a3ed6ada8ce3f0816adae041832f27d7b3a9a2ac9e3499859bcb22.",
+            "expected": "The intended candidate is self-contained, signed, accepted and intact in its DMG.",
+            "limitations": "No public release/upload/appcast update, second-Mac installation, or Sparkle upgrade was performed.",
+            "evidence": [
+              {
+                "label": "Actual package verification",
+                "path": "package-runtime.md"
+              },
+              {
+                "label": "Artifact hashes",
+                "path": "evidence/package-runtime/dmg-manifest.json"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "cohere-time-limit-ko",
+            "title": "Cohere Korean: historical timeout, later resolved",
+            "area": "Speech",
+            "status": "failed",
+            "phase": "Historical bounded attempt",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "DEBUG CLI 3.3.0",
+            "observed": "The initial 240-second-bound attempt stopped during encoder loading with no transcript. Runtime completion was subsequently verified by one explicitly authorized 600-second-bound probe: exit 0 in 7.896 seconds with 67 characters. This row retains the original failed attempt.",
+            "expected": "Complete model preparation and return the fixture transcript within the experiment limit.",
+            "limitations": "The earlier attempt still failed its harness deadline. The later run used the copied baseline-plus-recovery CLI with uncontrolled cache/host state; it does not certify cold-load latency or prove more waiting alone would have fixed the first attempt.",
+            "evidence": [
+              {
+                "label": "Original bounded-attempt stderr",
+                "path": "evidence/cohere-ko.log"
+              },
+              {
+                "label": "Explicit successful follow-up",
+                "path": "evidence/cohere-extended/ko-result.json"
+              },
+              {
+                "label": "Interpretation and quality limits",
+                "path": "cohere-extended.md"
+              }
+            ],
+            "command": "See audio-runtime.md",
+            "durationSeconds": 240.22,
+            "resolvedBy": "cohere-extended-ko"
+          },
+          {
+            "id": "cohere-time-limit-ja",
+            "title": "Cohere Japanese: historical timeout, later resolved",
+            "area": "Speech",
+            "status": "failed",
+            "phase": "Historical bounded attempt",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "DEBUG CLI 3.3.0",
+            "observed": "The initial 240-second-bound attempt stopped during encoder loading with no transcript. Runtime completion was subsequently verified by one explicitly authorized 600-second-bound probe: exit 0 in 49.271 seconds with 46 characters. This row retains the original failed attempt.",
+            "expected": "Complete model preparation and return the fixture transcript within the experiment limit.",
+            "limitations": "The earlier attempt still failed its harness deadline. The later run used the copied baseline-plus-recovery CLI with uncontrolled cache/host state; it does not certify cold-load latency or prove more waiting alone would have fixed the first attempt.",
+            "evidence": [
+              {
+                "label": "Original bounded-attempt stderr",
+                "path": "evidence/cohere-ja.log"
+              },
+              {
+                "label": "Explicit successful follow-up",
+                "path": "evidence/cohere-extended/ja-result.json"
+              },
+              {
+                "label": "Interpretation and quality limits",
+                "path": "cohere-extended.md"
+              }
+            ],
+            "command": "See audio-runtime.md",
+            "durationSeconds": 243.78,
+            "resolvedBy": "cohere-extended-ja"
+          },
+          {
+            "id": "cohere-time-limit-zh",
+            "title": "Cohere Mandarin: historical timeout, later resolved",
+            "area": "Speech",
+            "status": "failed",
+            "phase": "Historical bounded attempt",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "DEBUG CLI 3.3.0",
+            "observed": "The initial 240-second-bound attempt stopped during encoder loading with no transcript. Runtime completion was subsequently verified by one explicitly authorized 600-second-bound probe: exit 0 in 6.642 seconds with 26 characters. This row retains the original failed attempt.",
+            "expected": "Complete model preparation and return the fixture transcript within the experiment limit.",
+            "limitations": "The earlier attempt still failed its harness deadline. The later run used the copied baseline-plus-recovery CLI with uncontrolled cache/host state; it does not certify cold-load latency or prove more waiting alone would have fixed the first attempt.",
+            "evidence": [
+              {
+                "label": "Original bounded-attempt stderr",
+                "path": "evidence/cohere-zh.log"
+              },
+              {
+                "label": "Explicit successful follow-up",
+                "path": "evidence/cohere-extended/zh-result.json"
+              },
+              {
+                "label": "Interpretation and quality limits",
+                "path": "cohere-extended.md"
+              }
+            ],
+            "command": "See audio-runtime.md",
+            "durationSeconds": 240.47,
+            "resolvedBy": "cohere-extended-zh"
+          },
+          {
+            "id": "recovery-partial-delete-red",
+            "title": "Partial folder deletion loses recovery retry",
+            "area": "Recovery",
+            "status": "failed",
+            "phase": "Before fix",
+            "candidate": "df98cfbd41a150f8ee510dd1333bfa6db176e342 plus new regression test",
+            "build": "Root-owned focused DEBUG Swift test run in the QA worktree.",
+            "observed": "One regression failed with three failures: no restored recording.lock, no rediscovery, and retry threw missingLock. Log: /tmp/macparakeet-080-qa/evidence/recovery-partial-delete-red.log.",
+            "expected": "A partial deletion failure leaves remaining audio discoverable and retryable.",
+            "limitations": "Historical deterministic failure on disposable audio; subsequently fixed.",
+            "evidence": [
+              {
+                "label": "Focused regression log",
+                "path": "evidence/recovery-partial-delete-red.log"
+              },
+              {
+                "label": "Gate sequence",
+                "path": "README.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "recovery-partial-delete-green",
+            "title": "Partial deletion restores recovery marker",
+            "area": "Recovery",
+            "status": "passed",
+            "phase": "After fix",
+            "candidate": "df98cfbd41a150f8ee510dd1333bfa6db176e342 plus working partial-deletion repair later included in 96b2025253ad",
+            "build": "Root-owned focused DEBUG Swift test run in the QA worktree.",
+            "observed": "All 87 recovery/lock/settlement tests passed after missing-lock restoration, including preserving a replacement owner. Log: /tmp/macparakeet-080-qa/evidence/recovery-partial-delete-green.log.",
+            "expected": "Missing marker is restored without replacing a present lock; retry remains safe.",
+            "limitations": "This intermediate green gate preceded the mutex-release regression below.",
+            "evidence": [
+              {
+                "label": "Focused regression log",
+                "path": "evidence/recovery-partial-delete-green.log"
+              },
+              {
+                "label": "Gate sequence",
+                "path": "README.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "recovery-mutex-release-red",
+            "title": "Cleanup mutex failure strands ownership",
+            "area": "Recovery",
+            "status": "failed",
+            "phase": "Before fix",
+            "candidate": "df98cfbd41a150f8ee510dd1333bfa6db176e342 plus working partial-deletion repair",
+            "build": "Root-owned focused DEBUG Swift test run in the QA worktree.",
+            "observed": "One regression failed with two failures: rediscovery was empty and retry saw an abandoned same-process live lease. Log: /tmp/macparakeet-080-qa/evidence/recovery-mutex-release-red.log.",
+            "expected": "Lease release must still run if missing-marker repair cannot acquire its mutex.",
+            "limitations": "Historical deterministic failure before independent cleanup paths.",
+            "evidence": [
+              {
+                "label": "Focused regression log",
+                "path": "evidence/recovery-mutex-release-red.log"
+              },
+              {
+                "label": "Gate sequence",
+                "path": "README.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "recovery-mutex-release-green",
+            "title": "Recovery cleanup remains retryable after repair failure",
+            "area": "Recovery",
+            "status": "passed",
+            "phase": "After fix",
+            "candidate": "96b2025253ad71d01566713560ea7d101a13c53d",
+            "build": "Root-owned focused DEBUG Swift test run in the QA worktree.",
+            "observed": "All 88 recovery/lock/settlement tests passed after ownership release was made independent of missing-lock restoration. Original discard errors remain surfaced. Log: /tmp/macparakeet-080-qa/evidence/recovery-mutex-release-green.log.",
+            "expected": "Both cleanup attempts execute independently and failed work remains eligible for retry.",
+            "limitations": "Focused unit/fixture evidence; not a real crash/recovery GUI pass.",
+            "evidence": [
+              {
+                "label": "Focused regression log",
+                "path": "evidence/recovery-mutex-release-green.log"
+              },
+              {
+                "label": "Gate sequence",
+                "path": "README.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "file-audio-matrix",
+            "title": "Six real file-audio cases and persistence assertions",
+            "area": "Speech",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0 plus c506d7ef7d4cf98f3986cfb5de84ced6b4ce701e",
+            "build": "Copied CLI SHA-256 f8a62b79ece6045909d15ece2fd086eed7e10ca04ebc870d9fc50ed76774f095.",
+            "observed": "Six cases and all 29 assertions passed: track selection, invalid tracks, and automatic/exact-count diarization; no case exceeded its deadline.",
+            "expected": "Real intended track content, valid persistence and rejected invalid selections.",
+            "limitations": "Boundary attribution mismatch remains in both speaker runs; no general quality certification.",
+            "evidence": [
+              {
+                "label": "Complete file-audio runtime report",
+                "path": "file-audio-runtime.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "package-preflight",
+            "title": "Distribution validators and shutdown preflight",
+            "area": "Packaging",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "df98cfbd41a150f8ee510dd1333bfa6db176e342",
+            "build": "Source/script preflight with disposable helper binaries and bundles; not a product build.",
+            "observed": "All 24 commands met expected outcomes. Privacy/version fixtures, shutdown helpers and invalid/absent echo-asset cases passed; zero owned fixture processes remained.",
+            "expected": "Validators accept/reject their controlled fixtures and shutdown stays within ownership bounds.",
+            "limitations": "No actual app/DMG signing, notarization, release metadata or real LocalVQE asset proof.",
+            "evidence": [
+              {
+                "label": "Preflight commands and residual artifact gates",
+                "path": "package-preflight.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "gui-dapt-export",
+            "title": "GUI DAPT export validates after destination setup",
+            "area": "Files and exports",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Copied Xcode Release dev product; bundle com.macparakeet.qa.release080, PID 98237, displayed 0.8.0; baseline source, not final release bundle.",
+            "observed": "Actual GUI export succeeded after creating the missing owned Downloads directory. BBC validation exited 0 with 19 passes, 3 informational results and one optional copyright warning, including XSD validation.",
+            "expected": "A GUI-created DAPT document is written and validates.",
+            "limitations": "Initial missing-directory failure was fixture setup. A 4x4 screenshot was excluded; file validation supports success.",
+            "evidence": [
+              {
+                "label": "GUI export evidence",
+                "path": "gui-runtime.md"
+              },
+              {
+                "label": "BBC validator result",
+                "path": "evidence/gui/gui-dapt-bbc.json"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "gui-transcript-edit",
+            "title": "GUI edit persists clean text and preserves original",
+            "area": "Library",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Copied Xcode Release dev product; bundle com.macparakeet.qa.release080, PID 98237, displayed 0.8.0; baseline source, not final release bundle.",
+            "observed": "After correcting input focus, Save persisted the intended clean text, isTranscriptEdited=1 and ordinal 0 while preserving raw speech; the Edited badge rendered.",
+            "expected": "Real editing updates the saved detail without losing original transcript or track selection.",
+            "limitations": "The earlier ineffective key event was not a pass. Library derivedSnippet can remain old; that source behavior predates v0.7.3.",
+            "evidence": [
+              {
+                "label": "Successful edit and limitations",
+                "path": "gui-runtime.md"
+              },
+              {
+                "label": "Persistence receipt",
+                "path": "evidence/gui/gui-edited-persistence.json"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "gui-library-layout",
+            "title": "Library grid and list switching",
+            "area": "Library",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Copied Xcode Release dev product; bundle com.macparakeet.qa.release080, PID 98237, displayed 0.8.0; baseline source, not final release bundle.",
+            "observed": "The actual grid/list controls displayed both layouts with the completed fixture record.",
+            "expected": "Both selected Library layouts render the saved record.",
+            "limitations": "Single-record layout check; large-library behavior and updated list preview are not certified.",
+            "evidence": [
+              {
+                "label": "Observed layouts",
+                "path": "gui-runtime.md"
+              },
+              {
+                "label": "Grid",
+                "path": "evidence/gui/library-grid.png"
+              },
+              {
+                "label": "List",
+                "path": "evidence/gui/library-list.png"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "meeting-mic-replay",
+            "title": "Microphone-only public speech replay and settlement",
+            "area": "Meetings",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Copied Xcode Release dev product; bundle com.macparakeet.qa.release080, PID 98237, displayed 0.8.0; baseline source, not final release bundle.",
+            "observed": "Two meetings completed with healthy microphone coverage, both audio folders retained, and no finalization locks. First: 48.9 s at output volume 13, empty transcript. Second: 13.5 s with temporary speaker volume 50, 116 characters including communication/styles/years; output volume restored to 13. Raw receipt: /tmp/macparakeet-080-qa/evidence/mic-meetings-results.json.",
+            "expected": "A real microphone capture retains audio, finalizes, and recognizes an audible public sample.",
+            "limitations": "Only the second run demonstrates speech recognition. The first mean level was \u221251.3 dB, peak \u221231.7 dB, consistent with inadequate playback delivery. No system capture, pause/mute, Bluetooth or final-bundle proof.",
+            "evidence": [
+              {
+                "label": "Microphone-only runtime and remaining gates",
+                "path": "microphone-runtime.md"
+              },
+              {
+                "label": "Sanitized result fields",
+                "path": "evidence/mic-meetings-results.json"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "microphone-test-input",
+            "title": "Microphone Test Input detects and stops",
+            "area": "Hardware",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Copied Xcode Release dev product; bundle com.macparakeet.qa.release080, PID 98237, displayed 0.8.0; baseline source, not final release bundle.",
+            "observed": "The GUI microphone Test Input detected incoming input and automatically stopped. Local captures: /tmp/macparakeet-080-qa/evidence/microphone-input-start.png and microphone-input-playing.png.",
+            "expected": "The input test shows usable input and ends without leaving an active capture.",
+            "limitations": "A single input test does not prove route changes, device loss or TCC/system-audio behavior.",
+            "evidence": [
+              {
+                "label": "Microphone-only runtime and remaining gates",
+                "path": "microphone-runtime.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "meeting-quiet-options",
+            "title": "Meeting completion options set off/off",
+            "area": "Meetings",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Copied Xcode Release dev product; bundle com.macparakeet.qa.release080, PID 98237, displayed 0.8.0; baseline source, not final release bundle.",
+            "observed": "Both quiet-completion options were visibly off during microphone-only meeting QA. Local capture: /tmp/macparakeet-080-qa/evidence/meeting-mic-only-quiet-settings.png.",
+            "expected": "The UI exposes and retains the chosen open-app and notification options.",
+            "limitations": "The app was already frontmost, so lack of focus stealing was not verified.",
+            "evidence": [
+              {
+                "label": "Microphone-only runtime and remaining gates",
+                "path": "microphone-runtime.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "cohere-extended-ja",
+            "title": "Cohere Japanese: extended follow-up completed",
+            "area": "Speech",
+            "status": "passed",
+            "phase": "Extended follow-up",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0 plus c506d7ef7d4cf98f3986cfb5de84ced6b4ce701e",
+            "build": "Copied DEBUG CLI SHA-256 f8a62b79ece6045909d15ece2fd086eed7e10ca04ebc870d9fc50ed76774f095; not the final distribution binary.",
+            "observed": "One sequential probe completed exit 0 in 49.271 seconds under a 600-second deadline. JSON reports cohere/ane, ja, completed, 46 rawTranscript characters and 10440 ms. Expected script is present; zero timed words and zero saved rows. Binary/input hashes are unchanged.",
+            "expected": "Resolve the missing runtime result with an explicit bounded probe using the actual rawTranscript field and preserved public input.",
+            "limitations": "Runtime completion only; recognition substitutions are retained in the report. Cache warming and host state were uncontrolled, so this is not a cold-load guarantee, accuracy benchmark or final-bundle pass.",
+            "evidence": [
+              {
+                "label": "Sanitized case result and command",
+                "path": "evidence/cohere-extended/ja-result.json"
+              },
+              {
+                "label": "Public transcript output",
+                "path": "evidence/cohere-extended/ja-stdout.json"
+              },
+              {
+                "label": "Model-loading log",
+                "path": "evidence/cohere-extended/ja-stderr.log"
+              },
+              {
+                "label": "Source and curated hashes",
+                "path": "evidence/cohere-extended/manifest.json"
+              },
+              {
+                "label": "Extended report",
+                "path": "cohere-extended.md"
+              }
+            ],
+            "command": "macparakeet-cli-runtime transcribe <public-FLEURS-ja-fixture> --engine cohere --language ja --mode raw --speaker-detection off --no-history --database <owned-case>/history.sqlite --format json",
+            "durationSeconds": 49.271
+          },
+          {
+            "id": "cohere-extended-ko",
+            "title": "Cohere Korean: extended follow-up completed",
+            "area": "Speech",
+            "status": "passed",
+            "phase": "Extended follow-up",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0 plus c506d7ef7d4cf98f3986cfb5de84ced6b4ce701e",
+            "build": "Copied DEBUG CLI SHA-256 f8a62b79ece6045909d15ece2fd086eed7e10ca04ebc870d9fc50ed76774f095; not the final distribution binary.",
+            "observed": "One sequential probe completed exit 0 in 7.896 seconds under a 600-second deadline. JSON reports cohere/ane, ko, completed, 67 rawTranscript characters and 12480 ms. Expected script is present; zero timed words and zero saved rows. Binary/input hashes are unchanged.",
+            "expected": "Resolve the missing runtime result with an explicit bounded probe using the actual rawTranscript field and preserved public input.",
+            "limitations": "Runtime completion only; recognition substitutions are retained in the report. Cache warming and host state were uncontrolled, so this is not a cold-load guarantee, accuracy benchmark or final-bundle pass.",
+            "evidence": [
+              {
+                "label": "Sanitized case result and command",
+                "path": "evidence/cohere-extended/ko-result.json"
+              },
+              {
+                "label": "Public transcript output",
+                "path": "evidence/cohere-extended/ko-stdout.json"
+              },
+              {
+                "label": "Model-loading log",
+                "path": "evidence/cohere-extended/ko-stderr.log"
+              },
+              {
+                "label": "Source and curated hashes",
+                "path": "evidence/cohere-extended/manifest.json"
+              },
+              {
+                "label": "Extended report",
+                "path": "cohere-extended.md"
+              }
+            ],
+            "command": "macparakeet-cli-runtime transcribe <public-FLEURS-ko-fixture> --engine cohere --language ko --mode raw --speaker-detection off --no-history --database <owned-case>/history.sqlite --format json",
+            "durationSeconds": 7.896
+          },
+          {
+            "id": "cohere-extended-zh",
+            "title": "Cohere Mandarin: extended follow-up completed",
+            "area": "Speech",
+            "status": "passed",
+            "phase": "Extended follow-up",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0 plus c506d7ef7d4cf98f3986cfb5de84ced6b4ce701e",
+            "build": "Copied DEBUG CLI SHA-256 f8a62b79ece6045909d15ece2fd086eed7e10ca04ebc870d9fc50ed76774f095; not the final distribution binary.",
+            "observed": "One sequential probe completed exit 0 in 6.642 seconds under a 600-second deadline. JSON reports cohere/ane, zh, completed, 26 rawTranscript characters and 10380 ms. Expected script is present; zero timed words and zero saved rows. Binary/input hashes are unchanged.",
+            "expected": "Resolve the missing runtime result with an explicit bounded probe using the actual rawTranscript field and preserved public input.",
+            "limitations": "Runtime completion only; recognition substitutions are retained in the report. Cache warming and host state were uncontrolled, so this is not a cold-load guarantee, accuracy benchmark or final-bundle pass.",
+            "evidence": [
+              {
+                "label": "Sanitized case result and command",
+                "path": "evidence/cohere-extended/zh-result.json"
+              },
+              {
+                "label": "Public transcript output",
+                "path": "evidence/cohere-extended/zh-stdout.json"
+              },
+              {
+                "label": "Model-loading log",
+                "path": "evidence/cohere-extended/zh-stderr.log"
+              },
+              {
+                "label": "Source and curated hashes",
+                "path": "evidence/cohere-extended/manifest.json"
+              },
+              {
+                "label": "Extended report",
+                "path": "cohere-extended.md"
+              }
+            ],
+            "command": "macparakeet-cli-runtime transcribe <public-FLEURS-zh-fixture> --engine cohere --language zh --mode raw --speaker-detection off --no-history --database <owned-case>/history.sqlite --format json",
+            "durationSeconds": 6.642
+          },
+          {
+            "id": "merged-notes-focused",
+            "title": "694 combined notes, cache, recovery and CLI tests",
+            "area": "Tests",
+            "status": "passed",
+            "phase": "Combined candidate",
+            "candidate": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3",
+            "build": "Recorded Release candidate or focused test binary",
+            "observed": "694 focused XCTest cases passed, zero failures, 20.741 seconds after merging PR #959.",
+            "expected": "New notes behavior and overlapping fixes compose successfully.",
+            "limitations": "Focused families; not a second full suite.",
+            "evidence": [
+              {
+                "label": "Evidence and method",
+                "path": "evidence/merged-notes-focused-summary.log"
+              }
+            ],
+            "command": "See linked report for exact commands or interaction sequence.",
+            "durationSeconds": null
+          },
+          {
+            "id": "saved-notes-gui",
+            "title": "Notes survive navigation, quit and relaunch",
+            "area": "GUI",
+            "status": "passed",
+            "phase": "Combined candidate",
+            "candidate": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3",
+            "build": "Isolated copy of signed 0.8.0 app; actual owned SQLite path checked",
+            "observed": "Six GUI/database checks passed: autosave, navigation, new revision, ordinary quit, relaunch and notes.md sidecar. Transcript fields remained unchanged.",
+            "expected": "Saved meeting notes retain the latest text in the right meeting and its artifact.",
+            "limitations": "Forced debounce/race timing is covered by deterministic tests; no external provider configured.",
+            "evidence": [
+              {
+                "label": "Evidence and method",
+                "path": "saved-notes-gui.md"
+              }
+            ],
+            "command": "See linked report for exact commands or interaction sequence.",
+            "durationSeconds": null
+          },
+          {
+            "id": "timed-gui-rebuilt",
+            "title": "Timed record switching and the 10,000-word final sentence",
+            "area": "GUI",
+            "status": "passed",
+            "phase": "Combined candidate",
+            "candidate": "3827999ddb84c8a8e0edcb3ac190e66813fc95fe",
+            "build": "Rebuilt signed app copied into uniqueQA bundle",
+            "observed": "ALPHA/BRAVO swaps showed only the active text/speaker. The native scroll bar reached sentence 1000 at 66:36.",
+            "expected": "Record replacement is clean and long timed content remains reachable.",
+            "limitations": "Screenshots sample UI states; deterministic tests force async replacement ordering.",
+            "evidence": [
+              {
+                "label": "Evidence and method",
+                "path": "gui-rebuilt.md"
+              }
+            ],
+            "command": "See linked report for exact commands or interaction sequence.",
+            "durationSeconds": null
+          },
+          {
+            "id": "hardware-microphone",
+            "title": "Real microphone lifecycle and ten repeated starts",
+            "area": "Audio",
+            "status": "passed",
+            "phase": "Combined candidate",
+            "candidate": "3827999ddb84c8a8e0edcb3ac190e66813fc95fe",
+            "build": "Recorded Release candidate or focused test binary",
+            "observed": "10 hardware tests passed; 3 separately gated tests skipped; zero failures in 9.059 seconds. Cold/prepared starts, stop/start and VPIO transitions delivered actual buffers.",
+            "expected": "Real platform capture supplies buffers across supported lifecycle transitions.",
+            "limitations": "Long stress, three-minute idle and default-device mutation were not enabled; no Bluetooth claim.",
+            "evidence": [
+              {
+                "label": "Evidence and method",
+                "path": "evidence/hardware-microphone-summary.log"
+              }
+            ],
+            "command": "See linked report for exact commands or interaction sequence.",
+            "durationSeconds": null
+          },
+          {
+            "id": "real-packaged-aec",
+            "title": "Bundled LocalVQE loads and renders audio",
+            "area": "Audio",
+            "status": "passed",
+            "phase": "Combined candidate",
+            "candidate": "3827999ddb84c8a8e0edcb3ac190e66813fc95fe",
+            "build": "Recorded Release candidate or focused test binary",
+            "observed": "Two focused tests passed using the actual bundled library/model; 60 seconds rendered at 11.06\u00d7 realtime, zero failures.",
+            "expected": "Packaged AEC assets load and process their synthetic render fixture.",
+            "limitations": "This does not establish live system-audio or acoustic echo quality.",
+            "evidence": [
+              {
+                "label": "Evidence and method",
+                "path": "evidence/packaged-aec-summary.log"
+              }
+            ],
+            "command": "See linked report for exact commands or interaction sequence.",
+            "durationSeconds": null
+          },
+          {
+            "id": "code-copy-control",
+            "title": "Code-block Copy activation",
+            "area": "GUI",
+            "status": "unverified",
+            "phase": "Combined candidate",
+            "candidate": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3",
+            "build": "Recorded Release candidate or focused test binary",
+            "observed": "Full-result and table Copy passed; targeted code-label clicks did not produce the expected JSON. The dependency lacks an AXPress activation action.",
+            "expected": "The individual code block copies its complete content.",
+            "limitations": "Automation outcome remains unverified; no dependency replacement was introduced. Full summary Copy provides the code.",
+            "evidence": [
+              {
+                "label": "Evidence and method",
+                "path": "gui-rebuilt.md"
+              }
+            ],
+            "command": "See linked report for exact commands or interaction sequence.",
+            "durationSeconds": null
+          },
+          {
+            "id": "global-shortcuts-paste",
+            "title": "Global shortcut and paste into another app",
+            "area": "Permissions",
+            "status": "unverified",
+            "phase": "Combined candidate",
+            "candidate": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3",
+            "build": "Recorded Release candidate or focused test binary",
+            "observed": "Unique QA bundle lacked Accessibility. System Settings setup did not reach a verified QA-specific grant.",
+            "expected": "Global shortcut capture and paste work with granted permissions.",
+            "limitations": "No TCC bypass or credential access. Existing production app permission is not evidence for the QA bundle.",
+            "evidence": [
+              {
+                "label": "Evidence and method",
+                "path": "README.md"
+              }
+            ],
+            "command": "See linked report for exact commands or interaction sequence.",
+            "durationSeconds": null
+          }
+        ],
+        "media": [
+          {
+            "id": "custom-words-empty",
+            "kind": "image",
+            "path": "evidence/vocabulary-manage-empty.png",
+            "title": "Custom Words, empty state",
+            "caption": "Initial native empty-state capture. Later keyboard entry and completed deletion are documented in the GUI report; this image alone establishes layout.",
+            "checkIds": [
+              "vocabulary-surface",
+              "vocabulary-bulk"
+            ]
+          },
+          {
+            "id": "vocabulary-page",
+            "kind": "image",
+            "path": "evidence/vocabulary-open.png",
+            "title": "Vocabulary workspace",
+            "caption": "Initial captured Vocabulary layout. Curated unchanged app-window image; interaction results are recorded separately.",
+            "checkIds": [
+              "vocabulary-surface"
+            ]
+          },
+          {
+            "id": "large-vocabulary",
+            "kind": "image",
+            "path": "evidence/vocabulary-1025-ordinary.png",
+            "title": "1,025 synthetic vocabulary rules",
+            "caption": "Native Release QA window after CLI import and restart; 102 rules are disabled.",
+            "checkIds": [
+              "vocabulary-surface"
+            ]
+          },
+          {
+            "id": "vocabulary-selection",
+            "kind": "image",
+            "path": "evidence/vocabulary-select-mode.png",
+            "title": "Selection mode",
+            "caption": "Initial zero-selection state with Delete disabled. Later filtered selection, cancellation and completed deletion are documented separately.",
+            "checkIds": [
+              "vocabulary-bulk"
+            ]
+          },
+          {
+            "id": "vocabulary-filtered-complete",
+            "kind": "image",
+            "path": "evidence/gui/vocabulary-97-matching.png",
+            "title": "97 matching words selected",
+            "caption": "Baseline GUI: filtered selection before confirmation. The GUI report records cancellation preservation and the later 97-rule deletion.",
+            "checkIds": [
+              "vocabulary-bulk"
+            ]
+          },
+          {
+            "id": "gui-track-picker",
+            "kind": "image",
+            "path": "evidence/gui/transcribe-track-picker-ready.png",
+            "title": "English and Japanese embedded tracks",
+            "caption": "Baseline native track chooser. Cancellation and English completion were verified separately in SQLite.",
+            "checkIds": [
+              "audio-track"
+            ]
+          },
+          {
+            "id": "gui-edited-persisted",
+            "kind": "image",
+            "path": "evidence/gui/transcribe-edit-persisted.png",
+            "title": "Actual saved transcript edit",
+            "caption": "The intended clean text and Edited badge rendered after successful input; the database receipt preserves the original raw transcript.",
+            "checkIds": [
+              "gui-transcript-edit"
+            ]
+          },
+          {
+            "id": "gui-dapt-options",
+            "kind": "image",
+            "path": "evidence/gui/transcribe-export-dapt-options.png",
+            "title": "DAPT selected in the export popover",
+            "caption": "This capture establishes format selection. The exported file and BBC validator results establish successful output.",
+            "checkIds": [
+              "gui-dapt-export"
+            ]
+          },
+          {
+            "id": "rebuilt-markdown",
+            "kind": "image",
+            "path": "evidence/gui-rebuilt/updated-markdown-preview.png",
+            "title": "Rebuilt rich Markdown summary",
+            "caption": "Individually inspected synthetic QA content. Interaction/database assertions are recorded in the linked scenario.",
+            "checkIds": [
+              "markdown"
+            ]
+          },
+          {
+            "id": "rebuilt-timed-bravo",
+            "kind": "image",
+            "path": "evidence/gui-rebuilt/updated-timed-bravo.png",
+            "title": "BRAVO owns its displayed timed rows",
+            "caption": "Individually inspected synthetic QA content. Interaction/database assertions are recorded in the linked scenario.",
+            "checkIds": [
+              "timed-gui-rebuilt"
+            ]
+          },
+          {
+            "id": "rebuilt-timed-end",
+            "kind": "image",
+            "path": "evidence/gui-rebuilt/updated-timed-long-bottom.png",
+            "title": "The 10,000-word final sentence",
+            "caption": "Individually inspected synthetic QA content. Interaction/database assertions are recorded in the linked scenario.",
+            "checkIds": [
+              "timed-gui-rebuilt"
+            ]
+          },
+          {
+            "id": "notes-saved",
+            "kind": "image",
+            "path": "evidence/gui-rebuilt/notes-autosaved-current.png",
+            "title": "Notes autosaved",
+            "caption": "Individually inspected synthetic QA content. Interaction/database assertions are recorded in the linked scenario.",
+            "checkIds": [
+              "saved-notes-gui"
+            ]
+          },
+          {
+            "id": "notes-reopened",
+            "kind": "image",
+            "path": "evidence/gui-rebuilt/notes-reopened-current.png",
+            "title": "Latest notes after quit and relaunch",
+            "caption": "Individually inspected synthetic QA content. Interaction/database assertions are recorded in the linked scenario.",
+            "checkIds": [
+              "saved-notes-gui"
+            ]
+          }
+        ],
+        "methodology": {
+          "steps": [
+            "Pin the stable release and candidate, then map changes to user workflows.",
+            "Establish disposable state before exercising data mutations or recovery.",
+            "Combine independent source review, focused regressions, real CLI inference, and native GUI checks.",
+            "Record expected and observed behavior with exact provenance; keep unverified combinations open.",
+            "Fix reproducible failures, validate the settled candidate, then inspect the release artifact."
+          ],
+          "worked": [
+            {
+              "title": "Public fixtures with references",
+              "body": "Existing LibriSpeech and FLEURS files provide repeatable speech inputs without using personal recordings."
+            },
+            {
+              "title": "Tests before a destructive fix",
+              "body": "Two deterministic stale-lock regressions demonstrated actual fixture deletion before the ownership repair."
+            },
+            {
+              "title": "Native window inspection",
+              "body": "Accessibility actions and window captures exposed the app surface even when trusted computer-use tooling was unavailable."
+            },
+            {
+              "title": "Real GUI actions plus persistence receipts",
+              "body": "Bulk deletion progressed 1025\u21921023\u2192926\u21920 while retaining a snippet. Track selection and actual transcript editing were confirmed in SQLite, and the GUI-created DAPT file passed BBC validation."
+            },
+            {
+              "title": "Adversarial failure fixtures before follow-up fixes",
+              "body": "Partial deletion and failed cleanup mutex acquisition each produced a behavioral RED before repair. Final focused recovery coverage reached 88 passing tests. The one full Swift run passed with 5,461 XCTest tests (20 skipped) plus 29 Swift Testing tests."
+            },
+            {
+              "title": "Source-matched, insert-only GUI fixtures",
+              "body": "Synthetic A/B, 10,000-word, saved Markdown and assistant-chat rows use actual UUID/JSON encoding and preserve existing records on rerun. Preparation never wrote to the running-app database."
+            }
+          ],
+          "didNot": [
+            {
+              "title": "A separate bundle ID is not full data isolation",
+              "body": "File paths, named preferences, and Keychain services have different owners. Isolation was checked rather than assumed."
+            },
+            {
+              "title": "Foreground and input routing need direct checks",
+              "body": "Earlier GUI work paused while the user used the desktop; it resumed when the desktop became available. PID-targeted keys and direct AX value-setting were not consistently equivalent to SwiftUI typing. Later successful edits used verified focus and active-session input; database receipts established persistence."
+            },
+            {
+              "title": "Old benchmark and CI results are insufficient",
+              "body": "Historical green tests and model cache directories do not certify current inference, hardware behavior, or a packaged release."
+            },
+            {
+              "title": "Healthy capture does not prove audible speech",
+              "body": "A 48.9-second microphone-only capture reported healthy coverage but no text at speaker volume 13. A later 13.5-second replay at volume 50 recognized the public sample; the original volume was restored. This is bounded input-level evidence, not an accuracy diagnosis."
+            },
+            {
+              "title": "Fixture setup and screenshots need validation",
+              "body": "The redirected home initially lacked Downloads; creating that owned directory allowed export. A 4x4 screenshot and an ineffective early edit capture were excluded instead of treating their filenames as proof."
+            }
+          ]
+        },
+        "reports": [
+          {
+            "label": "Method and work log",
+            "path": "README.md"
+          },
+          {
+            "label": "Complete change inventory",
+            "path": "release-inventory.md"
+          },
+          {
+            "label": "Audio and capture",
+            "path": "audio-review.md"
+          },
+          {
+            "label": "CLI, data, and inference",
+            "path": "cli-data-review.md"
+          },
+          {
+            "label": "Markdown and transcript UI",
+            "path": "ui-source-review.md"
+          },
+          {
+            "label": "Executed CLI contracts",
+            "path": "cli-runtime.md"
+          },
+          {
+            "label": "Executed DAPT/export checks",
+            "path": "dapt-runtime.md"
+          },
+          {
+            "label": "Executed engine samples",
+            "path": "audio-runtime.md"
+          },
+          {
+            "label": "Initial setup and historical runtime log",
+            "path": "runtime-log.md"
+          },
+          {
+            "label": "Executed file-audio and diarization matrix",
+            "path": "file-audio-runtime.md"
+          },
+          {
+            "label": "Completed baseline GUI scenarios",
+            "path": "gui-runtime.md"
+          },
+          {
+            "label": "Distribution script preflight",
+            "path": "package-preflight.md"
+          },
+          {
+            "label": "Reusable GUI fixtures",
+            "path": "gui-fixtures.md"
+          },
+          {
+            "label": "Microphone-only runtime and TCC limits",
+            "path": "microphone-runtime.md"
+          },
+          {
+            "label": "Rebuilt GUI and copy controls",
+            "path": "gui-rebuilt.md"
+          },
+          {
+            "label": "Saved meeting notes GUI",
+            "path": "saved-notes-gui.md"
+          },
+          {
+            "label": "Saved-notes source and merge review",
+            "path": "new-main-notes-review.md"
+          },
+          {
+            "label": "Signed and notarized package",
+            "path": "package-runtime.md"
+          },
+          {
+            "label": "Report browser validation",
+            "path": "report-validation.md"
+          },
+          {
+            "label": "PR review dispositions",
+            "path": "pr-review-disposition.md"
+          },
+          {
+            "label": "Extended Cohere results",
+            "path": "cohere-extended.md"
+          }
+        ]
+      },
+      "expected": {
+        "schemaVersion": 1,
+        "_editing": {
+          "purpose": "Canonical editable release QA evidence. The HTML embeds an initial snapshot and can load this file through Load evidence. Sync the embedded snapshot before sharing the HTML alone.",
+          "statuses": [
+            "passed",
+            "failed",
+            "unverified"
+          ],
+          "rules": [
+            "Passed requires a directly observed result at the recorded candidate/build.",
+            "Keep a before-fix failure and its later regression result as separate checks.",
+            "A captured screen does not establish keyboard, pointer, or destructive-flow success.",
+            "Keep committed evidence synthetic or public; review images and logs before copying them.",
+            "Use relative evidence/ paths. Media may be images or videos; root curates the actual files."
+          ],
+          "checkFields": {
+            "id": "unique stable string",
+            "title": "short workflow name",
+            "area": "filter group",
+            "status": "passed | failed | unverified",
+            "phase": "Candidate | Before fix | After fix | Release artifact",
+            "candidate": "full commit SHA plus explicit working changes if applicable",
+            "build": "actual binary configuration/provenance",
+            "observed": "what actually happened, or why not verified",
+            "expected": "acceptance condition",
+            "limitations": "what this evidence does not establish",
+            "evidence": "array of {label, path} with relative local paths",
+            "command": "exact command or interaction sequence, sanitized",
+            "durationSeconds": "number or null"
+          },
+          "mediaFields": {
+            "id": "unique stable string",
+            "kind": "image | video",
+            "path": "relative evidence/ path",
+            "title": "observed screen or recorded interaction",
+            "caption": "scope and limitations; never infer a pass from an image",
+            "checkIds": "associated check IDs"
+          },
+          "syncEmbeddedSnapshot": "Replace the content of index.html script#evidence-data with JSON.stringify(this entire file), escaping < as \\u003c. Loading this file through the page also offers Download HTML snapshot."
+        },
+        "release": {
+          "name": "MacParakeet",
+          "target": "0.8.0",
+          "state": "candidate_validated",
+          "headline": "Candidate validated; final QA scope recorded",
+          "summary": "The recovery and transcript fixes, integrated saved notes, real speech samples, and signed 0.8.0 package have passed their recorded checks. The app and DMG are notarized. PR checks and merge are being completed; remaining permission and hardware combinations are explicit.",
+          "candidate": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3",
+          "candidateLabel": "Combined source candidate",
+          "baseline": "v0.7.3",
+          "baselineCommit": "d6321f87dccecf29bd4792113f522bb0c98d1f35",
+          "branch": "release/0.8.0-qa",
+          "updated": "2026-09-07 16:55 PDT",
+          "snapshotLabel": "Notarized candidate and saved-notes GUI verified",
+          "boundary": "Evidence retains each actual source commit. The single full-suite run predates the saved-notes integration; 694 focused tests and GUI checks cover the combined candidate. The six failed records are historical attempts with later fixes or successful reruns. No release was published.",
+          "next": [
+            "Finish PR #979 CI and merge the validated source, then publish this completed report to main.",
+            "Complete remaining Accessibility/global paste, system-audio and device combinations during final user QA.",
+            "Before public release, verify the actual Sparkle update/download metadata against the final stapled DMG; publishing is a separate action."
+          ]
+        },
+        "checks": [
+          {
+            "id": "asr-parakeet-v3",
+            "title": "Parakeet v3 transcribes public English audio",
+            "area": "Speech",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "DEBUG macparakeet-cli from the owning QA checkout; exact command in execution log",
+            "observed": "CLI exited 0. JSON reports completed, parakeet/v3, 28 word timestamps, and a nonempty reference-aligned English transcript. Reported media duration: 10.496 s.",
+            "expected": "A real public fixture produces text and timings through the candidate CLI.",
+            "limitations": "One 10.435 s LibriSpeech fixture; this is an inference smoke, not a corpus accuracy benchmark.",
+            "evidence": [
+              {
+                "label": "Result JSON",
+                "path": "evidence/parakeet-v3-en.json"
+              },
+              {
+                "label": "Execution log",
+                "path": "evidence/asr-runner.log"
+              }
+            ],
+            "command": "macparakeet-cli transcribe 1089-134686-0000.flac --engine parakeet --parakeet-model v3 --mode raw --speaker-detection off --no-history --database <QA>/history.sqlite --format json",
+            "durationSeconds": 15.3
+          },
+          {
+            "id": "asr-parakeet-v2",
+            "title": "Parakeet v2 transcribes public English audio",
+            "area": "Speech",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "DEBUG macparakeet-cli from the owning QA checkout; exact command in execution log",
+            "observed": "CLI exited 0. JSON reports completed, parakeet/v2, 28 word timestamps, and a nonempty English transcript. Reported media duration: 10.496 s.",
+            "expected": "The English-only build loads and returns a completed transcript with timings.",
+            "limitations": "Same public fixture as v3; no full WER comparison or live dictation proof.",
+            "evidence": [
+              {
+                "label": "Result JSON",
+                "path": "evidence/parakeet-v2-en.json"
+              },
+              {
+                "label": "Execution log",
+                "path": "evidence/asr-runner.log"
+              }
+            ],
+            "command": "macparakeet-cli transcribe 1089-134686-0000.flac --engine parakeet --parakeet-model v2 --mode raw --speaker-detection off --no-history --database <QA>/history.sqlite --format json",
+            "durationSeconds": 15.36
+          },
+          {
+            "id": "recovery-discard-red",
+            "title": "Stale Discard deletes audio owned by a live finalizer",
+            "area": "Recovery",
+            "status": "failed",
+            "phase": "Before fix",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Initial QA candidate; record exact binary provenance with final evidence",
+            "observed": "Both deterministic regressions failed before the production change: 2 tests, 8 assertions. Source audio and the active lock were deleted for same-process and other-live-process ownership.",
+            "expected": "Discard refuses a live owner and preserves both source files and the current lock.",
+            "limitations": "Disposable generated fixtures only. This row preserves the original failure; it is not the post-fix verdict.",
+            "evidence": [
+              {
+                "label": "Red-gate log",
+                "path": "evidence/recovery-discard-red.log"
+              },
+              {
+                "label": "Review and fix notes",
+                "path": "audio-review.md"
+              }
+            ],
+            "command": "swift test --filter 'MeetingRecordingRecoveryServiceTests.testDiscardWithStaleLock'",
+            "durationSeconds": null
+          },
+          {
+            "id": "recovery-discard-green",
+            "title": "Recovery ownership repair and failure retry",
+            "area": "Recovery",
+            "status": "passed",
+            "phase": "After fix",
+            "candidate": "c506d7ef7d4cf98f3986cfb5de84ced6b4ce701e",
+            "build": "Root-owned DEBUG focused run; first recovery ownership fix before partial-deletion follow-ups.",
+            "observed": "All 85 tests across recovery, lock-store and settlement passed. Both stale-discard regressions preserve source audio after the fix; failure restoration and retry tests also pass.",
+            "expected": "Both stale-owner regressions pass; missing-folder discard is idempotent; deletion and settlement failures restore ownership for retry.",
+            "limitations": "This historical 85-test gate preceded two additional cleanup regressions. The later 88-test gate covers the completed recovery follow-up; actual recovery GUI remains pending.",
+            "evidence": [
+              {
+                "label": "Combined log: recovery green, cache red",
+                "path": "evidence/cache-red-recovery-green.log"
+              }
+            ],
+            "command": "swift test --filter 'TranscriptSegmentCacheTests|MeetingRecordingRecoveryServiceTests|MeetingRecordingLockFileStoreTests|MeetingRecordingSettlementTests'",
+            "durationSeconds": null
+          },
+          {
+            "id": "transcript-cache",
+            "title": "Timed transcript rows belong to the active record",
+            "area": "Library",
+            "status": "passed",
+            "phase": "After fix",
+            "candidate": "df98cfbd41a150f8ee510dd1333bfa6db176e342",
+            "build": "Root-owned DEBUG focused run at timed-cache fix df98cfbd41a1.",
+            "observed": "Two record-replacement tests failed with six assertions before ID scoping. All 23 cache, layout and transcript-action tests pass after the fix, including ten-thousand-word lazy layout.",
+            "expected": "Switching records hides the prior record\u2019s rows and actions until the new cache is ready.",
+            "limitations": "23 deterministic cache/layout/action tests and offscreen layout passed. Baseline GUI screenshots predate this fix; final-bundle record replacement is still pending.",
+            "evidence": [
+              {
+                "label": "Green test log",
+                "path": "evidence/cache-green.log"
+              },
+              {
+                "label": "Before-fix evidence",
+                "path": "evidence/cache-red-recovery-green.log"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "vocabulary-surface",
+            "title": "Custom Words screen and empty state",
+            "area": "Vocabulary",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Copied Xcode Release dev product; bundle com.macparakeet.qa.release080, PID 98237, displayed 0.8.0; baseline source, not final release bundle.",
+            "observed": "Native key events and Add saved QAWidget; SQLite independently confirmed it. The CLI imported 1,024 additional rules and one snippet. Restarted GUI shows 1,025 rules, 102 disabled, and selection mode with separate Select labels.",
+            "expected": "Native layout and controls render; entry, selection, and keyboard behavior work with verified app focus.",
+            "limitations": "The large fixture was imported by CLI; actual native file-picker import is not established. Later GUI deletion checks are recorded separately.",
+            "evidence": [
+              {
+                "label": "Added word",
+                "path": "evidence/vocabulary-added.png"
+              },
+              {
+                "label": "Large list",
+                "path": "evidence/vocabulary-1025-ordinary.png"
+              },
+              {
+                "label": "Selection mode",
+                "path": "evidence/vocabulary-select-mode.png"
+              },
+              {
+                "label": "CLI import receipt",
+                "path": "evidence/vocabulary-import-cli.json"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "vocabulary-bulk",
+            "title": "Select, filter, confirm, and delete custom words",
+            "area": "Vocabulary",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Copied Xcode Release dev product; bundle com.macparakeet.qa.release080, PID 98237, displayed 0.8.0; baseline source, not final release bundle.",
+            "observed": "Actual GUI count sequence: 1025 \u2192 1023 \u2192 926 \u2192 0. Cancelling the two-word and 97-filtered-word confirmations preserved data; confirmations removed only selected rules. All 926 remaining words, including disabled rules, were deleted while one separate snippet remained. Closing/reopening the manager stayed empty.",
+            "expected": "Selection and confirmation affect only the intended word rules; cancellation and unrelated snippets remain intact.",
+            "limitations": "Baseline GUI before QA fixes. Manager reopening was observed; a fresh process restart after final deletion and GUI import of the large fixture were not.",
+            "evidence": [
+              {
+                "label": "Completed GUI scenarios",
+                "path": "gui-runtime.md"
+              },
+              {
+                "label": "Filtered 97-word selection",
+                "path": "evidence/gui/vocabulary-97-matching.png"
+              },
+              {
+                "label": "Final empty word manager",
+                "path": "evidence/gui/vocabulary-empty-after-delete.png"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "asr-other-engines",
+            "title": "Other installed speech engines and variants",
+            "area": "Speech",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Initial QA candidate; record exact binary provenance with final evidence",
+            "observed": "Parakeet Unified, multilingual Nemotron with English input, and Cohere completed the public English sample. Cohere took 233.54 seconds, mostly encoder loading.",
+            "expected": "Record the actual requested and returned model/build for each installed engine.",
+            "limitations": "Separate English Nemotron and Whisper were not installed/tested. This is a short-sample smoke, not release-wide accuracy certification.",
+            "evidence": [
+              {
+                "label": "Audio results and timing",
+                "path": "audio-runtime.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "asr-multilingual",
+            "title": "Korean, Japanese, and Mandarin fixture replay",
+            "area": "Speech",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Initial QA candidate; record exact binary provenance with final evidence",
+            "observed": "Multilingual Nemotron completed Korean, Japanese and Mandarin FLEURS fixtures, retaining their scripts. Hypotheses contain some recognition errors; exact texts are attached.",
+            "expected": "Supported multilingual routes preserve the expected script and return completed text.",
+            "limitations": "One Nemotron sample per language; no perfect-recognition or corpus accuracy claim. Cohere\u2019s initial bounded failures and three explicit successful follow-ups are recorded separately with their own binary provenance and cache-state limits.",
+            "evidence": [
+              {
+                "label": "Fixture results",
+                "path": "audio-runtime.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "audio-track",
+            "title": "Choose an embedded audio track",
+            "area": "Files and exports",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0 (GUI); base plus c506d7ef (copied CLI)",
+            "build": "Copied Xcode Release dev product; bundle com.macparakeet.qa.release080, PID 98237, displayed 0.8.0; baseline source, not final release bundle. File-audio CLI SHA-256 f8a62b79ece6045909d15ece2fd086eed7e10ca04ebc870d9fc50ed76774f095.",
+            "observed": "GUI displayed English/default and Japanese tracks; Cancel left zero records, then English completed one row with ordinal 0 and duration 9600 ms. Separate CLI track 1/2 runs returned their distinct English/Japanese references and persisted ordinals 0/1; tracks 0/3 were rejected without records.",
+            "expected": "Track 1 and track 2 yield their different known references; invalid tracks fail visibly.",
+            "limitations": "GUI Japanese completion and media playback/seek are not established. CLI/GUI results use different exercised engine paths and media durations; no accuracy benchmark.",
+            "evidence": [
+              {
+                "label": "Actual GUI selection and persistence",
+                "path": "gui-runtime.md"
+              },
+              {
+                "label": "Six file-audio cases / 29 assertions",
+                "path": "file-audio-runtime.md"
+              },
+              {
+                "label": "Track picker",
+                "path": "evidence/gui/transcribe-track-picker-ready.png"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "meeting-capture",
+            "title": "Meeting pause, mute, and source combinations",
+            "area": "Meetings",
+            "status": "unverified",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Copied Xcode Release dev product; bundle com.macparakeet.qa.release080, PID 98237, displayed 0.8.0; baseline source, not final release bundle.",
+            "observed": "Two microphone-only meetings completed, retained audio, and removed finalization locks. A 13.5-second public-speaker replay produced 116 transcript characters. Pause, mute, system-only and dual-source combinations remain unverified.",
+            "expected": "Healthy audio is retained, pauses and mute are respected, and the next meeting cannot be overwritten by an older completion.",
+            "limitations": "A successful microphone-only path does not establish system capture, route recovery, pause/mute semantics, or every back-to-back completion race.",
+            "evidence": [
+              {
+                "label": "Microphone-only runtime and remaining gates",
+                "path": "microphone-runtime.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "microphone-routes",
+            "title": "Real microphone readiness and route recovery",
+            "area": "Hardware",
+            "status": "unverified",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Copied Xcode Release dev product; bundle com.macparakeet.qa.release080, PID 98237, displayed 0.8.0; baseline source, not final release bundle.",
+            "observed": "The microphone Test Input detected input and stopped automatically. Microphone-only meeting replay produced recognized public speech. Bluetooth, USB/device changes, cold/repeated readiness and TCC/system-audio combinations remain pending. The unique QA app still needs macOS Accessibility authorization; system-audio permission is not yet granted.",
+            "expected": "Cold and repeated starts receive usable buffers; route loss converges on bounded recovery or an actionable warning.",
+            "limitations": "Current built-in microphone observations do not certify Bluetooth, USB, device loss/reconnect, or other macOS versions.",
+            "evidence": [
+              {
+                "label": "Microphone-only runtime and remaining gates",
+                "path": "microphone-runtime.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "speaker-diarization",
+            "title": "Two-speaker runtime and boundary quality",
+            "area": "Speech",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0 plus c506d7ef7d4cf98f3986cfb5de84ced6b4ce701e",
+            "build": "Copied CLI SHA-256 f8a62b79ece6045909d15ece2fd086eed7e10ca04ebc870d9fc50ed76774f095; sequential disposable-database runs.",
+            "observed": "Automatic and exact-count-2 runs completed with two final speakers and both public passages. All file-audio matrix assertions passed. Both runs attach the second passage\u2019s first unassigned word, You, to the preceding speaker segment.",
+            "expected": "The engine completes automatic and constrained two-speaker inference and retains both source passages; quality limitations are recorded separately.",
+            "limitations": "Runtime pass only. The boundary attribution mismatch is retained as a quality follow-up; no DER, overlapping-speaker accuracy, stable-release A/B, or live-meeting certification.",
+            "evidence": [
+              {
+                "label": "Actual turns and quality observation",
+                "path": "file-audio-runtime.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "markdown",
+            "title": "Saved rich Markdown and complete summary/table copy",
+            "area": "Library",
+            "status": "passed",
+            "phase": "Rebuilt GUI",
+            "candidate": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3",
+            "build": "Isolated Xcode Release app copy; bundle com.macparakeet.qa.release080",
+            "observed": "Headings, table, JSON, lists, links and end marker rendered. Complete summary Copy equals saved Markdown; table Copy preserves every fixture row. Both repeated successfully on 250bbe29.",
+            "expected": "Saved rich results remain readable and full/table copying preserves content.",
+            "limitations": "Saved fixtures do not prove live streaming. Code-block Copy remains unverified; no original clipboard content is published.",
+            "evidence": [
+              {
+                "label": "Rebuilt GUI report",
+                "path": "gui-rebuilt.md"
+              },
+              {
+                "label": "Current copy receipts",
+                "path": "evidence/gui-rebuilt/copy-controls-current.json"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "prompt-settings",
+            "title": "Prompt inference settings and provider receipts",
+            "area": "AI and data",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Initial QA candidate; record exact binary provenance with final evidence",
+            "observed": "18 CLI invocations and 10 no-key loopback requests passed: requested settings, effective receipts, streaming, auth/rate-limit errors, corrupt response, cancellation, and preservation of previous saved results.",
+            "expected": "Valid settings round-trip and effective receipts reflect the actual provider request.",
+            "limitations": "Synthetic provider contract and persistence evidence. GUI editor, real credentials and live cloud model compatibility remain unverified.",
+            "evidence": [
+              {
+                "label": "Executed CLI matrix",
+                "path": "cli-runtime.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "export-contracts",
+            "title": "CLI JSON, DAPT, and readable exports",
+            "area": "Files and exports",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Initial QA candidate; record exact binary provenance with final evidence",
+            "observed": "Three representative DAPT documents passed direct XSD and BBC DAPT validation. Sixteen CLI calls also passed stdout/file parity and Markdown, SRT and JSON preservation assertions.",
+            "expected": "Version, JSON fields, XML timing/escaping, and text export match the documented contracts.",
+            "limitations": "Both validation layers use the pinned W3C schema snapshot. BBC emits an optional missing-copyright warning. GUI save panels remain unverified.",
+            "evidence": [
+              {
+                "label": "Executed export matrix",
+                "path": "dapt-runtime.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "full-suite",
+            "title": "One full-suite gate before saved-notes integration",
+            "area": "Release gates",
+            "status": "passed",
+            "phase": "After fix",
+            "candidate": "96b2025253ad71d01566713560ea7d101a13c53d; documentation-only HEAD b7dfbb680d1d73a0ac0ca11b307e678ca93151f2",
+            "build": "Root-owned single full swift test invocation in the QA worktree; started 2026-09-07 15:46:58 local.",
+            "observed": "The one full-suite invocation exited 0: XCTest ran 5,461 tests with 20 skips and zero failures in 214.046 seconds; Swift Testing ran 29 tests with zero failures. Product source remained 96b20252; documentation HEAD was b7dfbb68.",
+            "expected": "Record the exact settled candidate, command, exit status, passed tests, and skips.",
+            "limitations": "Executed once on source 96b20252 before the later saved-notes merge. The combined 250bbe29 candidate has separate 694-test focused evidence; no second local full-suite run was made.",
+            "evidence": [
+              {
+                "label": "Full-suite result, skips and log hash",
+                "path": "evidence/full-swift-test-summary.log"
+              }
+            ],
+            "command": "swift test",
+            "durationSeconds": 214.046
+          },
+          {
+            "id": "release-package",
+            "title": "Signed app and DMG are notarized and match",
+            "area": "Release gates",
+            "status": "passed",
+            "phase": "Release artifact",
+            "candidate": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3",
+            "build": "Xcode Release app 0.8.0 build 20260907232424; production CLI 3.3.0",
+            "observed": "Both exact Apple submissions Accepted. Signatures, staples, Gatekeeper, signed helpers, DMG integrity and mounted payload identity passed. Final DMG 167,213,899 bytes, SHA-256 17fbf6c6a2a3ed6ada8ce3f0816adae041832f27d7b3a9a2ac9e3499859bcb22.",
+            "expected": "The intended candidate is self-contained, signed, accepted and intact in its DMG.",
+            "limitations": "No public release/upload/appcast update, second-Mac installation, or Sparkle upgrade was performed.",
+            "evidence": [
+              {
+                "label": "Actual package verification",
+                "path": "package-runtime.md"
+              },
+              {
+                "label": "Artifact hashes",
+                "path": "evidence/package-runtime/dmg-manifest.json"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "cohere-time-limit-ko",
+            "title": "Cohere Korean: historical timeout, later resolved",
+            "area": "Speech",
+            "status": "failed",
+            "phase": "Historical bounded attempt",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "DEBUG CLI 3.3.0",
+            "observed": "The initial 240-second-bound attempt stopped during encoder loading with no transcript. Runtime completion was subsequently verified by one explicitly authorized 600-second-bound probe: exit 0 in 7.896 seconds with 67 characters. This row retains the original failed attempt.",
+            "expected": "Complete model preparation and return the fixture transcript within the experiment limit.",
+            "limitations": "The earlier attempt still failed its harness deadline. The later run used the copied baseline-plus-recovery CLI with uncontrolled cache/host state; it does not certify cold-load latency or prove more waiting alone would have fixed the first attempt.",
+            "evidence": [
+              {
+                "label": "Original bounded-attempt stderr",
+                "path": "evidence/cohere-ko.log"
+              },
+              {
+                "label": "Explicit successful follow-up",
+                "path": "evidence/cohere-extended/ko-result.json"
+              },
+              {
+                "label": "Interpretation and quality limits",
+                "path": "cohere-extended.md"
+              }
+            ],
+            "command": "See audio-runtime.md",
+            "durationSeconds": 240.22,
+            "resolvedBy": "cohere-extended-ko"
+          },
+          {
+            "id": "cohere-time-limit-ja",
+            "title": "Cohere Japanese: historical timeout, later resolved",
+            "area": "Speech",
+            "status": "failed",
+            "phase": "Historical bounded attempt",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "DEBUG CLI 3.3.0",
+            "observed": "The initial 240-second-bound attempt stopped during encoder loading with no transcript. Runtime completion was subsequently verified by one explicitly authorized 600-second-bound probe: exit 0 in 49.271 seconds with 46 characters. This row retains the original failed attempt.",
+            "expected": "Complete model preparation and return the fixture transcript within the experiment limit.",
+            "limitations": "The earlier attempt still failed its harness deadline. The later run used the copied baseline-plus-recovery CLI with uncontrolled cache/host state; it does not certify cold-load latency or prove more waiting alone would have fixed the first attempt.",
+            "evidence": [
+              {
+                "label": "Original bounded-attempt stderr",
+                "path": "evidence/cohere-ja.log"
+              },
+              {
+                "label": "Explicit successful follow-up",
+                "path": "evidence/cohere-extended/ja-result.json"
+              },
+              {
+                "label": "Interpretation and quality limits",
+                "path": "cohere-extended.md"
+              }
+            ],
+            "command": "See audio-runtime.md",
+            "durationSeconds": 243.78,
+            "resolvedBy": "cohere-extended-ja"
+          },
+          {
+            "id": "cohere-time-limit-zh",
+            "title": "Cohere Mandarin: historical timeout, later resolved",
+            "area": "Speech",
+            "status": "failed",
+            "phase": "Historical bounded attempt",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "DEBUG CLI 3.3.0",
+            "observed": "The initial 240-second-bound attempt stopped during encoder loading with no transcript. Runtime completion was subsequently verified by one explicitly authorized 600-second-bound probe: exit 0 in 6.642 seconds with 26 characters. This row retains the original failed attempt.",
+            "expected": "Complete model preparation and return the fixture transcript within the experiment limit.",
+            "limitations": "The earlier attempt still failed its harness deadline. The later run used the copied baseline-plus-recovery CLI with uncontrolled cache/host state; it does not certify cold-load latency or prove more waiting alone would have fixed the first attempt.",
+            "evidence": [
+              {
+                "label": "Original bounded-attempt stderr",
+                "path": "evidence/cohere-zh.log"
+              },
+              {
+                "label": "Explicit successful follow-up",
+                "path": "evidence/cohere-extended/zh-result.json"
+              },
+              {
+                "label": "Interpretation and quality limits",
+                "path": "cohere-extended.md"
+              }
+            ],
+            "command": "See audio-runtime.md",
+            "durationSeconds": 240.47,
+            "resolvedBy": "cohere-extended-zh"
+          },
+          {
+            "id": "recovery-partial-delete-red",
+            "title": "Partial folder deletion loses recovery retry",
+            "area": "Recovery",
+            "status": "failed",
+            "phase": "Before fix",
+            "candidate": "df98cfbd41a150f8ee510dd1333bfa6db176e342 plus new regression test",
+            "build": "Root-owned focused DEBUG Swift test run in the QA worktree.",
+            "observed": "One regression failed with three failures: no restored recording.lock, no rediscovery, and retry threw missingLock. Log: /tmp/macparakeet-080-qa/evidence/recovery-partial-delete-red.log.",
+            "expected": "A partial deletion failure leaves remaining audio discoverable and retryable.",
+            "limitations": "Historical deterministic failure on disposable audio; subsequently fixed.",
+            "evidence": [
+              {
+                "label": "Focused regression log",
+                "path": "evidence/recovery-partial-delete-red.log"
+              },
+              {
+                "label": "Gate sequence",
+                "path": "README.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "recovery-partial-delete-green",
+            "title": "Partial deletion restores recovery marker",
+            "area": "Recovery",
+            "status": "passed",
+            "phase": "After fix",
+            "candidate": "df98cfbd41a150f8ee510dd1333bfa6db176e342 plus working partial-deletion repair later included in 96b2025253ad",
+            "build": "Root-owned focused DEBUG Swift test run in the QA worktree.",
+            "observed": "All 87 recovery/lock/settlement tests passed after missing-lock restoration, including preserving a replacement owner. Log: /tmp/macparakeet-080-qa/evidence/recovery-partial-delete-green.log.",
+            "expected": "Missing marker is restored without replacing a present lock; retry remains safe.",
+            "limitations": "This intermediate green gate preceded the mutex-release regression below.",
+            "evidence": [
+              {
+                "label": "Focused regression log",
+                "path": "evidence/recovery-partial-delete-green.log"
+              },
+              {
+                "label": "Gate sequence",
+                "path": "README.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "recovery-mutex-release-red",
+            "title": "Cleanup mutex failure strands ownership",
+            "area": "Recovery",
+            "status": "failed",
+            "phase": "Before fix",
+            "candidate": "df98cfbd41a150f8ee510dd1333bfa6db176e342 plus working partial-deletion repair",
+            "build": "Root-owned focused DEBUG Swift test run in the QA worktree.",
+            "observed": "One regression failed with two failures: rediscovery was empty and retry saw an abandoned same-process live lease. Log: /tmp/macparakeet-080-qa/evidence/recovery-mutex-release-red.log.",
+            "expected": "Lease release must still run if missing-marker repair cannot acquire its mutex.",
+            "limitations": "Historical deterministic failure before independent cleanup paths.",
+            "evidence": [
+              {
+                "label": "Focused regression log",
+                "path": "evidence/recovery-mutex-release-red.log"
+              },
+              {
+                "label": "Gate sequence",
+                "path": "README.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "recovery-mutex-release-green",
+            "title": "Recovery cleanup remains retryable after repair failure",
+            "area": "Recovery",
+            "status": "passed",
+            "phase": "After fix",
+            "candidate": "96b2025253ad71d01566713560ea7d101a13c53d",
+            "build": "Root-owned focused DEBUG Swift test run in the QA worktree.",
+            "observed": "All 88 recovery/lock/settlement tests passed after ownership release was made independent of missing-lock restoration. Original discard errors remain surfaced. Log: /tmp/macparakeet-080-qa/evidence/recovery-mutex-release-green.log.",
+            "expected": "Both cleanup attempts execute independently and failed work remains eligible for retry.",
+            "limitations": "Focused unit/fixture evidence; not a real crash/recovery GUI pass.",
+            "evidence": [
+              {
+                "label": "Focused regression log",
+                "path": "evidence/recovery-mutex-release-green.log"
+              },
+              {
+                "label": "Gate sequence",
+                "path": "README.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "file-audio-matrix",
+            "title": "Six real file-audio cases and persistence assertions",
+            "area": "Speech",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0 plus c506d7ef7d4cf98f3986cfb5de84ced6b4ce701e",
+            "build": "Copied CLI SHA-256 f8a62b79ece6045909d15ece2fd086eed7e10ca04ebc870d9fc50ed76774f095.",
+            "observed": "Six cases and all 29 assertions passed: track selection, invalid tracks, and automatic/exact-count diarization; no case exceeded its deadline.",
+            "expected": "Real intended track content, valid persistence and rejected invalid selections.",
+            "limitations": "Boundary attribution mismatch remains in both speaker runs; no general quality certification.",
+            "evidence": [
+              {
+                "label": "Complete file-audio runtime report",
+                "path": "file-audio-runtime.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "package-preflight",
+            "title": "Distribution validators and shutdown preflight",
+            "area": "Packaging",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "df98cfbd41a150f8ee510dd1333bfa6db176e342",
+            "build": "Source/script preflight with disposable helper binaries and bundles; not a product build.",
+            "observed": "All 24 commands met expected outcomes. Privacy/version fixtures, shutdown helpers and invalid/absent echo-asset cases passed; zero owned fixture processes remained.",
+            "expected": "Validators accept/reject their controlled fixtures and shutdown stays within ownership bounds.",
+            "limitations": "No actual app/DMG signing, notarization, release metadata or real LocalVQE asset proof.",
+            "evidence": [
+              {
+                "label": "Preflight commands and residual artifact gates",
+                "path": "package-preflight.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "gui-dapt-export",
+            "title": "GUI DAPT export validates after destination setup",
+            "area": "Files and exports",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Copied Xcode Release dev product; bundle com.macparakeet.qa.release080, PID 98237, displayed 0.8.0; baseline source, not final release bundle.",
+            "observed": "Actual GUI export succeeded after creating the missing owned Downloads directory. BBC validation exited 0 with 19 passes, 3 informational results and one optional copyright warning, including XSD validation.",
+            "expected": "A GUI-created DAPT document is written and validates.",
+            "limitations": "Initial missing-directory failure was fixture setup. A 4x4 screenshot was excluded; file validation supports success.",
+            "evidence": [
+              {
+                "label": "GUI export evidence",
+                "path": "gui-runtime.md"
+              },
+              {
+                "label": "BBC validator result",
+                "path": "evidence/gui/gui-dapt-bbc.json"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "gui-transcript-edit",
+            "title": "GUI edit persists clean text and preserves original",
+            "area": "Library",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Copied Xcode Release dev product; bundle com.macparakeet.qa.release080, PID 98237, displayed 0.8.0; baseline source, not final release bundle.",
+            "observed": "After correcting input focus, Save persisted the intended clean text, isTranscriptEdited=1 and ordinal 0 while preserving raw speech; the Edited badge rendered.",
+            "expected": "Real editing updates the saved detail without losing original transcript or track selection.",
+            "limitations": "The earlier ineffective key event was not a pass. Library derivedSnippet can remain old; that source behavior predates v0.7.3.",
+            "evidence": [
+              {
+                "label": "Successful edit and limitations",
+                "path": "gui-runtime.md"
+              },
+              {
+                "label": "Persistence receipt",
+                "path": "evidence/gui/gui-edited-persistence.json"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "gui-library-layout",
+            "title": "Library grid and list switching",
+            "area": "Library",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Copied Xcode Release dev product; bundle com.macparakeet.qa.release080, PID 98237, displayed 0.8.0; baseline source, not final release bundle.",
+            "observed": "The actual grid/list controls displayed both layouts with the completed fixture record.",
+            "expected": "Both selected Library layouts render the saved record.",
+            "limitations": "Single-record layout check; large-library behavior and updated list preview are not certified.",
+            "evidence": [
+              {
+                "label": "Observed layouts",
+                "path": "gui-runtime.md"
+              },
+              {
+                "label": "Grid",
+                "path": "evidence/gui/library-grid.png"
+              },
+              {
+                "label": "List",
+                "path": "evidence/gui/library-list.png"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "meeting-mic-replay",
+            "title": "Microphone-only public speech replay and settlement",
+            "area": "Meetings",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Copied Xcode Release dev product; bundle com.macparakeet.qa.release080, PID 98237, displayed 0.8.0; baseline source, not final release bundle.",
+            "observed": "Two meetings completed with healthy microphone coverage, both audio folders retained, and no finalization locks. First: 48.9 s at output volume 13, empty transcript. Second: 13.5 s with temporary speaker volume 50, 116 characters including communication/styles/years; output volume restored to 13. Raw receipt: /tmp/macparakeet-080-qa/evidence/mic-meetings-results.json.",
+            "expected": "A real microphone capture retains audio, finalizes, and recognizes an audible public sample.",
+            "limitations": "Only the second run demonstrates speech recognition. The first mean level was \u221251.3 dB, peak \u221231.7 dB, consistent with inadequate playback delivery. No system capture, pause/mute, Bluetooth or final-bundle proof.",
+            "evidence": [
+              {
+                "label": "Microphone-only runtime and remaining gates",
+                "path": "microphone-runtime.md"
+              },
+              {
+                "label": "Sanitized result fields",
+                "path": "evidence/mic-meetings-results.json"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "microphone-test-input",
+            "title": "Microphone Test Input detects and stops",
+            "area": "Hardware",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Copied Xcode Release dev product; bundle com.macparakeet.qa.release080, PID 98237, displayed 0.8.0; baseline source, not final release bundle.",
+            "observed": "The GUI microphone Test Input detected incoming input and automatically stopped. Local captures: /tmp/macparakeet-080-qa/evidence/microphone-input-start.png and microphone-input-playing.png.",
+            "expected": "The input test shows usable input and ends without leaving an active capture.",
+            "limitations": "A single input test does not prove route changes, device loss or TCC/system-audio behavior.",
+            "evidence": [
+              {
+                "label": "Microphone-only runtime and remaining gates",
+                "path": "microphone-runtime.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "meeting-quiet-options",
+            "title": "Meeting completion options set off/off",
+            "area": "Meetings",
+            "status": "passed",
+            "phase": "Candidate",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+            "build": "Copied Xcode Release dev product; bundle com.macparakeet.qa.release080, PID 98237, displayed 0.8.0; baseline source, not final release bundle.",
+            "observed": "Both quiet-completion options were visibly off during microphone-only meeting QA. Local capture: /tmp/macparakeet-080-qa/evidence/meeting-mic-only-quiet-settings.png.",
+            "expected": "The UI exposes and retains the chosen open-app and notification options.",
+            "limitations": "The app was already frontmost, so lack of focus stealing was not verified.",
+            "evidence": [
+              {
+                "label": "Microphone-only runtime and remaining gates",
+                "path": "microphone-runtime.md"
+              }
+            ],
+            "command": "",
+            "durationSeconds": null
+          },
+          {
+            "id": "cohere-extended-ja",
+            "title": "Cohere Japanese: extended follow-up completed",
+            "area": "Speech",
+            "status": "passed",
+            "phase": "Extended follow-up",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0 plus c506d7ef7d4cf98f3986cfb5de84ced6b4ce701e",
+            "build": "Copied DEBUG CLI SHA-256 f8a62b79ece6045909d15ece2fd086eed7e10ca04ebc870d9fc50ed76774f095; not the final distribution binary.",
+            "observed": "One sequential probe completed exit 0 in 49.271 seconds under a 600-second deadline. JSON reports cohere/ane, ja, completed, 46 rawTranscript characters and 10440 ms. Expected script is present; zero timed words and zero saved rows. Binary/input hashes are unchanged.",
+            "expected": "Resolve the missing runtime result with an explicit bounded probe using the actual rawTranscript field and preserved public input.",
+            "limitations": "Runtime completion only; recognition substitutions are retained in the report. Cache warming and host state were uncontrolled, so this is not a cold-load guarantee, accuracy benchmark or final-bundle pass.",
+            "evidence": [
+              {
+                "label": "Sanitized case result and command",
+                "path": "evidence/cohere-extended/ja-result.json"
+              },
+              {
+                "label": "Public transcript output",
+                "path": "evidence/cohere-extended/ja-stdout.json"
+              },
+              {
+                "label": "Model-loading log",
+                "path": "evidence/cohere-extended/ja-stderr.log"
+              },
+              {
+                "label": "Source and curated hashes",
+                "path": "evidence/cohere-extended/manifest.json"
+              },
+              {
+                "label": "Extended report",
+                "path": "cohere-extended.md"
+              }
+            ],
+            "command": "macparakeet-cli-runtime transcribe <public-FLEURS-ja-fixture> --engine cohere --language ja --mode raw --speaker-detection off --no-history --database <owned-case>/history.sqlite --format json",
+            "durationSeconds": 49.271
+          },
+          {
+            "id": "cohere-extended-ko",
+            "title": "Cohere Korean: extended follow-up completed",
+            "area": "Speech",
+            "status": "passed",
+            "phase": "Extended follow-up",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0 plus c506d7ef7d4cf98f3986cfb5de84ced6b4ce701e",
+            "build": "Copied DEBUG CLI SHA-256 f8a62b79ece6045909d15ece2fd086eed7e10ca04ebc870d9fc50ed76774f095; not the final distribution binary.",
+            "observed": "One sequential probe completed exit 0 in 7.896 seconds under a 600-second deadline. JSON reports cohere/ane, ko, completed, 67 rawTranscript characters and 12480 ms. Expected script is present; zero timed words and zero saved rows. Binary/input hashes are unchanged.",
+            "expected": "Resolve the missing runtime result with an explicit bounded probe using the actual rawTranscript field and preserved public input.",
+            "limitations": "Runtime completion only; recognition substitutions are retained in the report. Cache warming and host state were uncontrolled, so this is not a cold-load guarantee, accuracy benchmark or final-bundle pass.",
+            "evidence": [
+              {
+                "label": "Sanitized case result and command",
+                "path": "evidence/cohere-extended/ko-result.json"
+              },
+              {
+                "label": "Public transcript output",
+                "path": "evidence/cohere-extended/ko-stdout.json"
+              },
+              {
+                "label": "Model-loading log",
+                "path": "evidence/cohere-extended/ko-stderr.log"
+              },
+              {
+                "label": "Source and curated hashes",
+                "path": "evidence/cohere-extended/manifest.json"
+              },
+              {
+                "label": "Extended report",
+                "path": "cohere-extended.md"
+              }
+            ],
+            "command": "macparakeet-cli-runtime transcribe <public-FLEURS-ko-fixture> --engine cohere --language ko --mode raw --speaker-detection off --no-history --database <owned-case>/history.sqlite --format json",
+            "durationSeconds": 7.896
+          },
+          {
+            "id": "cohere-extended-zh",
+            "title": "Cohere Mandarin: extended follow-up completed",
+            "area": "Speech",
+            "status": "passed",
+            "phase": "Extended follow-up",
+            "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0 plus c506d7ef7d4cf98f3986cfb5de84ced6b4ce701e",
+            "build": "Copied DEBUG CLI SHA-256 f8a62b79ece6045909d15ece2fd086eed7e10ca04ebc870d9fc50ed76774f095; not the final distribution binary.",
+            "observed": "One sequential probe completed exit 0 in 6.642 seconds under a 600-second deadline. JSON reports cohere/ane, zh, completed, 26 rawTranscript characters and 10380 ms. Expected script is present; zero timed words and zero saved rows. Binary/input hashes are unchanged.",
+            "expected": "Resolve the missing runtime result with an explicit bounded probe using the actual rawTranscript field and preserved public input.",
+            "limitations": "Runtime completion only; recognition substitutions are retained in the report. Cache warming and host state were uncontrolled, so this is not a cold-load guarantee, accuracy benchmark or final-bundle pass.",
+            "evidence": [
+              {
+                "label": "Sanitized case result and command",
+                "path": "evidence/cohere-extended/zh-result.json"
+              },
+              {
+                "label": "Public transcript output",
+                "path": "evidence/cohere-extended/zh-stdout.json"
+              },
+              {
+                "label": "Model-loading log",
+                "path": "evidence/cohere-extended/zh-stderr.log"
+              },
+              {
+                "label": "Source and curated hashes",
+                "path": "evidence/cohere-extended/manifest.json"
+              },
+              {
+                "label": "Extended report",
+                "path": "cohere-extended.md"
+              }
+            ],
+            "command": "macparakeet-cli-runtime transcribe <public-FLEURS-zh-fixture> --engine cohere --language zh --mode raw --speaker-detection off --no-history --database <owned-case>/history.sqlite --format json",
+            "durationSeconds": 6.642
+          },
+          {
+            "id": "merged-notes-focused",
+            "title": "694 combined notes, cache, recovery and CLI tests",
+            "area": "Tests",
+            "status": "passed",
+            "phase": "Combined candidate",
+            "candidate": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3",
+            "build": "Recorded Release candidate or focused test binary",
+            "observed": "694 focused XCTest cases passed, zero failures, 20.741 seconds after merging PR #959.",
+            "expected": "New notes behavior and overlapping fixes compose successfully.",
+            "limitations": "Focused families; not a second full suite.",
+            "evidence": [
+              {
+                "label": "Evidence and method",
+                "path": "evidence/merged-notes-focused-summary.log"
+              }
+            ],
+            "command": "See linked report for exact commands or interaction sequence.",
+            "durationSeconds": null
+          },
+          {
+            "id": "saved-notes-gui",
+            "title": "Notes survive navigation, quit and relaunch",
+            "area": "GUI",
+            "status": "passed",
+            "phase": "Combined candidate",
+            "candidate": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3",
+            "build": "Isolated copy of signed 0.8.0 app; actual owned SQLite path checked",
+            "observed": "Six GUI/database checks passed: autosave, navigation, new revision, ordinary quit, relaunch and notes.md sidecar. Transcript fields remained unchanged.",
+            "expected": "Saved meeting notes retain the latest text in the right meeting and its artifact.",
+            "limitations": "Forced debounce/race timing is covered by deterministic tests; no external provider configured.",
+            "evidence": [
+              {
+                "label": "Evidence and method",
+                "path": "saved-notes-gui.md"
+              }
+            ],
+            "command": "See linked report for exact commands or interaction sequence.",
+            "durationSeconds": null
+          },
+          {
+            "id": "timed-gui-rebuilt",
+            "title": "Timed record switching and the 10,000-word final sentence",
+            "area": "GUI",
+            "status": "passed",
+            "phase": "Combined candidate",
+            "candidate": "3827999ddb84c8a8e0edcb3ac190e66813fc95fe",
+            "build": "Rebuilt signed app copied into uniqueQA bundle",
+            "observed": "ALPHA/BRAVO swaps showed only the active text/speaker. The native scroll bar reached sentence 1000 at 66:36.",
+            "expected": "Record replacement is clean and long timed content remains reachable.",
+            "limitations": "Screenshots sample UI states; deterministic tests force async replacement ordering.",
+            "evidence": [
+              {
+                "label": "Evidence and method",
+                "path": "gui-rebuilt.md"
+              }
+            ],
+            "command": "See linked report for exact commands or interaction sequence.",
+            "durationSeconds": null
+          },
+          {
+            "id": "hardware-microphone",
+            "title": "Real microphone lifecycle and ten repeated starts",
+            "area": "Audio",
+            "status": "passed",
+            "phase": "Combined candidate",
+            "candidate": "3827999ddb84c8a8e0edcb3ac190e66813fc95fe",
+            "build": "Recorded Release candidate or focused test binary",
+            "observed": "10 hardware tests passed; 3 separately gated tests skipped; zero failures in 9.059 seconds. Cold/prepared starts, stop/start and VPIO transitions delivered actual buffers.",
+            "expected": "Real platform capture supplies buffers across supported lifecycle transitions.",
+            "limitations": "Long stress, three-minute idle and default-device mutation were not enabled; no Bluetooth claim.",
+            "evidence": [
+              {
+                "label": "Evidence and method",
+                "path": "evidence/hardware-microphone-summary.log"
+              }
+            ],
+            "command": "See linked report for exact commands or interaction sequence.",
+            "durationSeconds": null
+          },
+          {
+            "id": "real-packaged-aec",
+            "title": "Bundled LocalVQE loads and renders audio",
+            "area": "Audio",
+            "status": "passed",
+            "phase": "Combined candidate",
+            "candidate": "3827999ddb84c8a8e0edcb3ac190e66813fc95fe",
+            "build": "Recorded Release candidate or focused test binary",
+            "observed": "Two focused tests passed using the actual bundled library/model; 60 seconds rendered at 11.06\u00d7 realtime, zero failures.",
+            "expected": "Packaged AEC assets load and process their synthetic render fixture.",
+            "limitations": "This does not establish live system-audio or acoustic echo quality.",
+            "evidence": [
+              {
+                "label": "Evidence and method",
+                "path": "evidence/packaged-aec-summary.log"
+              }
+            ],
+            "command": "See linked report for exact commands or interaction sequence.",
+            "durationSeconds": null
+          },
+          {
+            "id": "code-copy-control",
+            "title": "Code-block Copy activation",
+            "area": "GUI",
+            "status": "unverified",
+            "phase": "Combined candidate",
+            "candidate": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3",
+            "build": "Recorded Release candidate or focused test binary",
+            "observed": "Full-result and table Copy passed; targeted code-label clicks did not produce the expected JSON. The dependency lacks an AXPress activation action.",
+            "expected": "The individual code block copies its complete content.",
+            "limitations": "Automation outcome remains unverified; no dependency replacement was introduced. Full summary Copy provides the code.",
+            "evidence": [
+              {
+                "label": "Evidence and method",
+                "path": "gui-rebuilt.md"
+              }
+            ],
+            "command": "See linked report for exact commands or interaction sequence.",
+            "durationSeconds": null
+          },
+          {
+            "id": "global-shortcuts-paste",
+            "title": "Global shortcut and paste into another app",
+            "area": "Permissions",
+            "status": "unverified",
+            "phase": "Combined candidate",
+            "candidate": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3",
+            "build": "Recorded Release candidate or focused test binary",
+            "observed": "Unique QA bundle lacked Accessibility. System Settings setup did not reach a verified QA-specific grant.",
+            "expected": "Global shortcut capture and paste work with granted permissions.",
+            "limitations": "No TCC bypass or credential access. Existing production app permission is not evidence for the QA bundle.",
+            "evidence": [
+              {
+                "label": "Evidence and method",
+                "path": "README.md"
+              }
+            ],
+            "command": "See linked report for exact commands or interaction sequence.",
+            "durationSeconds": null
+          }
+        ],
+        "media": [
+          {
+            "id": "custom-words-empty",
+            "kind": "image",
+            "path": "evidence/vocabulary-manage-empty.png",
+            "title": "Custom Words, empty state",
+            "caption": "Initial native empty-state capture. Later keyboard entry and completed deletion are documented in the GUI report; this image alone establishes layout.",
+            "checkIds": [
+              "vocabulary-surface",
+              "vocabulary-bulk"
+            ]
+          },
+          {
+            "id": "vocabulary-page",
+            "kind": "image",
+            "path": "evidence/vocabulary-open.png",
+            "title": "Vocabulary workspace",
+            "caption": "Initial captured Vocabulary layout. Curated unchanged app-window image; interaction results are recorded separately.",
+            "checkIds": [
+              "vocabulary-surface"
+            ]
+          },
+          {
+            "id": "large-vocabulary",
+            "kind": "image",
+            "path": "evidence/vocabulary-1025-ordinary.png",
+            "title": "1,025 synthetic vocabulary rules",
+            "caption": "Native Release QA window after CLI import and restart; 102 rules are disabled.",
+            "checkIds": [
+              "vocabulary-surface"
+            ]
+          },
+          {
+            "id": "vocabulary-selection",
+            "kind": "image",
+            "path": "evidence/vocabulary-select-mode.png",
+            "title": "Selection mode",
+            "caption": "Initial zero-selection state with Delete disabled. Later filtered selection, cancellation and completed deletion are documented separately.",
+            "checkIds": [
+              "vocabulary-bulk"
+            ]
+          },
+          {
+            "id": "vocabulary-filtered-complete",
+            "kind": "image",
+            "path": "evidence/gui/vocabulary-97-matching.png",
+            "title": "97 matching words selected",
+            "caption": "Baseline GUI: filtered selection before confirmation. The GUI report records cancellation preservation and the later 97-rule deletion.",
+            "checkIds": [
+              "vocabulary-bulk"
+            ]
+          },
+          {
+            "id": "gui-track-picker",
+            "kind": "image",
+            "path": "evidence/gui/transcribe-track-picker-ready.png",
+            "title": "English and Japanese embedded tracks",
+            "caption": "Baseline native track chooser. Cancellation and English completion were verified separately in SQLite.",
+            "checkIds": [
+              "audio-track"
+            ]
+          },
+          {
+            "id": "gui-edited-persisted",
+            "kind": "image",
+            "path": "evidence/gui/transcribe-edit-persisted.png",
+            "title": "Actual saved transcript edit",
+            "caption": "The intended clean text and Edited badge rendered after successful input; the database receipt preserves the original raw transcript.",
+            "checkIds": [
+              "gui-transcript-edit"
+            ]
+          },
+          {
+            "id": "gui-dapt-options",
+            "kind": "image",
+            "path": "evidence/gui/transcribe-export-dapt-options.png",
+            "title": "DAPT selected in the export popover",
+            "caption": "This capture establishes format selection. The exported file and BBC validator results establish successful output.",
+            "checkIds": [
+              "gui-dapt-export"
+            ]
+          },
+          {
+            "id": "rebuilt-markdown",
+            "kind": "image",
+            "path": "evidence/gui-rebuilt/updated-markdown-preview.png",
+            "title": "Rebuilt rich Markdown summary",
+            "caption": "Individually inspected synthetic QA content. Interaction/database assertions are recorded in the linked scenario.",
+            "checkIds": [
+              "markdown"
+            ]
+          },
+          {
+            "id": "rebuilt-timed-bravo",
+            "kind": "image",
+            "path": "evidence/gui-rebuilt/updated-timed-bravo.png",
+            "title": "BRAVO owns its displayed timed rows",
+            "caption": "Individually inspected synthetic QA content. Interaction/database assertions are recorded in the linked scenario.",
+            "checkIds": [
+              "timed-gui-rebuilt"
+            ]
+          },
+          {
+            "id": "rebuilt-timed-end",
+            "kind": "image",
+            "path": "evidence/gui-rebuilt/updated-timed-long-bottom.png",
+            "title": "The 10,000-word final sentence",
+            "caption": "Individually inspected synthetic QA content. Interaction/database assertions are recorded in the linked scenario.",
+            "checkIds": [
+              "timed-gui-rebuilt"
+            ]
+          },
+          {
+            "id": "notes-saved",
+            "kind": "image",
+            "path": "evidence/gui-rebuilt/notes-autosaved-current.png",
+            "title": "Notes autosaved",
+            "caption": "Individually inspected synthetic QA content. Interaction/database assertions are recorded in the linked scenario.",
+            "checkIds": [
+              "saved-notes-gui"
+            ]
+          },
+          {
+            "id": "notes-reopened",
+            "kind": "image",
+            "path": "evidence/gui-rebuilt/notes-reopened-current.png",
+            "title": "Latest notes after quit and relaunch",
+            "caption": "Individually inspected synthetic QA content. Interaction/database assertions are recorded in the linked scenario.",
+            "checkIds": [
+              "saved-notes-gui"
+            ]
+          }
+        ],
+        "methodology": {
+          "steps": [
+            "Pin the stable release and candidate, then map changes to user workflows.",
+            "Establish disposable state before exercising data mutations or recovery.",
+            "Combine independent source review, focused regressions, real CLI inference, and native GUI checks.",
+            "Record expected and observed behavior with exact provenance; keep unverified combinations open.",
+            "Fix reproducible failures, validate the settled candidate, then inspect the release artifact."
+          ],
+          "worked": [
+            {
+              "title": "Public fixtures with references",
+              "body": "Existing LibriSpeech and FLEURS files provide repeatable speech inputs without using personal recordings."
+            },
+            {
+              "title": "Tests before a destructive fix",
+              "body": "Two deterministic stale-lock regressions demonstrated actual fixture deletion before the ownership repair."
+            },
+            {
+              "title": "Native window inspection",
+              "body": "Accessibility actions and window captures exposed the app surface even when trusted computer-use tooling was unavailable."
+            },
+            {
+              "title": "Real GUI actions plus persistence receipts",
+              "body": "Bulk deletion progressed 1025\u21921023\u2192926\u21920 while retaining a snippet. Track selection and actual transcript editing were confirmed in SQLite, and the GUI-created DAPT file passed BBC validation."
+            },
+            {
+              "title": "Adversarial failure fixtures before follow-up fixes",
+              "body": "Partial deletion and failed cleanup mutex acquisition each produced a behavioral RED before repair. Final focused recovery coverage reached 88 passing tests. The one full Swift run passed with 5,461 XCTest tests (20 skipped) plus 29 Swift Testing tests."
+            },
+            {
+              "title": "Source-matched, insert-only GUI fixtures",
+              "body": "Synthetic A/B, 10,000-word, saved Markdown and assistant-chat rows use actual UUID/JSON encoding and preserve existing records on rerun. Preparation never wrote to the running-app database."
+            }
+          ],
+          "didNot": [
+            {
+              "title": "A separate bundle ID is not full data isolation",
+              "body": "File paths, named preferences, and Keychain services have different owners. Isolation was checked rather than assumed."
+            },
+            {
+              "title": "Foreground and input routing need direct checks",
+              "body": "Earlier GUI work paused while the user used the desktop; it resumed when the desktop became available. PID-targeted keys and direct AX value-setting were not consistently equivalent to SwiftUI typing. Later successful edits used verified focus and active-session input; database receipts established persistence."
+            },
+            {
+              "title": "Old benchmark and CI results are insufficient",
+              "body": "Historical green tests and model cache directories do not certify current inference, hardware behavior, or a packaged release."
+            },
+            {
+              "title": "Healthy capture does not prove audible speech",
+              "body": "A 48.9-second microphone-only capture reported healthy coverage but no text at speaker volume 13. A later 13.5-second replay at volume 50 recognized the public sample; the original volume was restored. This is bounded input-level evidence, not an accuracy diagnosis."
+            },
+            {
+              "title": "Fixture setup and screenshots need validation",
+              "body": "The redirected home initially lacked Downloads; creating that owned directory allowed export. A 4x4 screenshot and an ineffective early edit capture were excluded instead of treating their filenames as proof."
+            }
+          ]
+        },
+        "reports": [
+          {
+            "label": "Method and work log",
+            "path": "README.md"
+          },
+          {
+            "label": "Complete change inventory",
+            "path": "release-inventory.md"
+          },
+          {
+            "label": "Audio and capture",
+            "path": "audio-review.md"
+          },
+          {
+            "label": "CLI, data, and inference",
+            "path": "cli-data-review.md"
+          },
+          {
+            "label": "Markdown and transcript UI",
+            "path": "ui-source-review.md"
+          },
+          {
+            "label": "Executed CLI contracts",
+            "path": "cli-runtime.md"
+          },
+          {
+            "label": "Executed DAPT/export checks",
+            "path": "dapt-runtime.md"
+          },
+          {
+            "label": "Executed engine samples",
+            "path": "audio-runtime.md"
+          },
+          {
+            "label": "Initial setup and historical runtime log",
+            "path": "runtime-log.md"
+          },
+          {
+            "label": "Executed file-audio and diarization matrix",
+            "path": "file-audio-runtime.md"
+          },
+          {
+            "label": "Completed baseline GUI scenarios",
+            "path": "gui-runtime.md"
+          },
+          {
+            "label": "Distribution script preflight",
+            "path": "package-preflight.md"
+          },
+          {
+            "label": "Reusable GUI fixtures",
+            "path": "gui-fixtures.md"
+          },
+          {
+            "label": "Microphone-only runtime and TCC limits",
+            "path": "microphone-runtime.md"
+          },
+          {
+            "label": "Rebuilt GUI and copy controls",
+            "path": "gui-rebuilt.md"
+          },
+          {
+            "label": "Saved meeting notes GUI",
+            "path": "saved-notes-gui.md"
+          },
+          {
+            "label": "Saved-notes source and merge review",
+            "path": "new-main-notes-review.md"
+          },
+          {
+            "label": "Signed and notarized package",
+            "path": "package-runtime.md"
+          },
+          {
+            "label": "Report browser validation",
+            "path": "report-validation.md"
+          },
+          {
+            "label": "PR review dispositions",
+            "path": "pr-review-disposition.md"
+          },
+          {
+            "label": "Extended Cohere results",
+            "path": "cohere-extended.md"
+          }
+        ]
+      },
+      "passed": true
+    },
+    {
+      "name": "no JavaScript exceptions",
+      "actual": [],
+      "expected": [],
+      "passed": true
+    },
+    {
+      "name": "no external page requests",
+      "actual": [],
+      "expected": [],
+      "passed": true
+    }
+  ],
+  "bounds": [
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "topbar": {
+        "x": 182,
+        "y": 0,
+        "width": 1076,
+        "height": 88,
+        "top": 0,
+        "right": 1258,
+        "bottom": 88,
+        "left": 182
+      },
+      "meta": {
+        "x": 955.90625,
+        "y": 23.359375,
+        "width": 302.09375,
+        "height": 40.28125,
+        "top": 23.359375,
+        "right": 1258,
+        "bottom": 63.640625,
+        "left": 955.90625
+      }
+    },
+    {
+      "width": 768,
+      "documentWidth": 768,
+      "topbar": {
+        "x": 22,
+        "y": 0,
+        "width": 724,
+        "height": 74,
+        "top": 0,
+        "right": 746,
+        "bottom": 74,
+        "left": 22
+      },
+      "meta": {
+        "x": 443.90625,
+        "y": 16.359375,
+        "width": 302.09375,
+        "height": 40.28125,
+        "top": 16.359375,
+        "right": 746,
+        "bottom": 56.640625,
+        "left": 443.90625
+      }
+    },
+    {
+      "width": 390,
+      "documentWidth": 390,
+      "topbar": {
+        "x": 16,
+        "y": 0,
+        "width": 358,
+        "height": 110.234375,
+        "top": 0,
+        "right": 374,
+        "bottom": 110.234375,
+        "left": 16
+      },
+      "meta": {
+        "x": 246,
+        "y": 12,
+        "width": 128,
+        "height": 85.234375,
+        "top": 12,
+        "right": 374,
+        "bottom": 97.234375,
+        "left": 246
+      }
+    },
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "topbar": {
+        "x": 16,
+        "y": 0,
+        "width": 288,
+        "height": 110.234375,
+        "top": 0,
+        "right": 304,
+        "bottom": 110.234375,
+        "left": 16
+      },
+      "meta": {
+        "x": 176,
+        "y": 12,
+        "width": 128,
+        "height": 85.234375,
+        "top": 12,
+        "right": 304,
+        "bottom": 97.234375,
+        "left": 176
+      }
+    }
+  ],
+  "errors": [],
+  "http_requests": [],
+  "source_sha256": {
+    "index.html": "778271fcb86ce5e166deb365ef223806d4477b3ff6bfe6db002f80c057c4169c",
+    "evidence.json": "012250048df0c89e9446dbb387cb559aa4adba91d4d91a72f00c5abb5d24f2b0"
+  },
+  "source_unchanged": {
+    "index.html": true,
+    "evidence.json": true
+  },
+  "passed": true
+}

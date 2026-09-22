@@ -2,6 +2,7 @@
 
 > Status: **HISTORICAL** - Superseded. The on-device Qwen3-8B / mlx-swift-lm runtime was removed 2026-02-23. Current LLM support uses external providers or local CLI instead.
 > Date: 2026-02-13
+> Current LLM scope (2026-09-07): removal of the original Qwen3-8B baseline remains historical fact. ADR-011 now governs a separate developer-gated Local MLX implementation; external providers/local CLI remain the public/default path.
 
 ## Context
 

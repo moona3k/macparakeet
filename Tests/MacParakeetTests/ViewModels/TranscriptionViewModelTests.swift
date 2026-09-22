@@ -196,9 +196,12 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testTranscribeFileErrorHandling() async throws {
-        await mockService.configure(error: NSError(domain: "test", code: 1, userInfo: [
-            NSLocalizedDescriptionKey: "Transcription failed"
-        ]))
+        await mockService.configure(
+            error: NSError(
+                domain: "test", code: 1,
+                userInfo: [
+                    NSLocalizedDescriptionKey: "Transcription failed"
+                ]))
 
         viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
 
@@ -271,9 +274,12 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testTranscribeURLFailurePopulatesErrorDetailWithLink() async throws {
-        await mockService.configure(error: NSError(domain: "test", code: 1, userInfo: [
-            NSLocalizedDescriptionKey: "Download failed: ERROR: [generic] HTTP Error 404: Not Found"
-        ]))
+        await mockService.configure(
+            error: NSError(
+                domain: "test", code: 1,
+                userInfo: [
+                    NSLocalizedDescriptionKey: "Download failed: ERROR: [generic] HTTP Error 404: Not Found"
+                ]))
 
         viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
         let link = "https://www.tiktok.com/@tiktok/video/7647963131938901278"
@@ -291,9 +297,12 @@ final class TranscriptionViewModelTests: XCTestCase {
 
     func testNonURLErrorAfterURLFailureClearsStaleDetail() async throws {
         // A URL failure populates errorDetail with that link's diagnostic...
-        await mockService.configure(error: NSError(domain: "test", code: 1, userInfo: [
-            NSLocalizedDescriptionKey: "Download failed: ERROR 404"
-        ]))
+        await mockService.configure(
+            error: NSError(
+                domain: "test", code: 1,
+                userInfo: [
+                    NSLocalizedDescriptionKey: "Download failed: ERROR 404"
+                ]))
         viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
         viewModel.urlInput = "https://www.tiktok.com/@tiktok/video/7647963131938901278"
         viewModel.transcribeURL()
@@ -324,9 +333,11 @@ final class TranscriptionViewModelTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         SpeechEnginePreference.parakeet.save(to: defaults)
         SpeechEnginePreference.saveFinalTranscriptionOverride(.whisper, defaults: defaults)
-        SpeechEnginePreference.saveWhisperModelVariant(SpeechEnginePreference.defaultWhisperModelVariant, defaults: defaults)
+        SpeechEnginePreference.saveWhisperModelVariant(
+            SpeechEnginePreference.defaultWhisperModelVariant, defaults: defaults)
         viewModel = TranscriptionViewModel(defaults: defaults)
-        let expectedSubline = "Whisper \(SpeechEnginePreference.friendlyVariantName(SpeechEnginePreference.defaultWhisperModelVariant)) · Local Core ML"
+        let expectedSubline =
+            "Whisper \(SpeechEnginePreference.friendlyVariantName(SpeechEnginePreference.defaultWhisperModelVariant)) · Local Core ML"
         await mockService.configureProgress(phases: [.transcribing(percent: 42)])
         await mockService.configureDelay(milliseconds: 250)
         viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
@@ -390,9 +401,12 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testTranscribeFileClearsErrorMessage() async throws {
-        await mockService.configure(error: NSError(domain: "test", code: 1, userInfo: [
-            NSLocalizedDescriptionKey: "First error"
-        ]))
+        await mockService.configure(
+            error: NSError(
+                domain: "test", code: 1,
+                userInfo: [
+                    NSLocalizedDescriptionKey: "First error"
+                ]))
 
         viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
 
@@ -627,7 +641,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         await mockService.configure(result: expectedResult)
         await mockService.configureURLProgress(phases: [
             .downloading(percent: 42),
-            .converting
+            .converting,
         ])
         await mockService.configureURLDelay(milliseconds: 200)
 
@@ -886,10 +900,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey)
         viewModel = TranscriptionViewModel(defaults: defaults)
 
-        try AppPaths.ensureDirectories()
-        let folder = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
-            .appendingPathComponent("vm-meeting-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let folder = try makeTemporaryManagedMeetingFolder()
         let audioURL = folder.appendingPathComponent("meeting-playback.m4a")
         let notesURL = folder.appendingPathComponent("notes.md")
         XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
@@ -993,10 +1004,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.saveMeetingAudioKey)
         viewModel = TranscriptionViewModel(defaults: defaults)
 
-        try AppPaths.ensureDirectories()
-        let folder = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
-            .appendingPathComponent("vm-recovered-meeting-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let folder = try makeTemporaryManagedMeetingFolder()
         let audioURL = folder.appendingPathComponent("meeting-playback.m4a")
         XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8)))
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -1152,11 +1160,12 @@ final class TranscriptionViewModelTests: XCTestCase {
         viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
         viewModel.currentTranscription = transcription
 
-        XCTAssertThrowsError(try viewModel.applyConvertedPlaybackPath(
-            transcriptionID: transcription.id,
-            newFilePath: convertedURL.path,
-            sourceFileToCleanup: sourceURL.path
-        ))
+        XCTAssertThrowsError(
+            try viewModel.applyConvertedPlaybackPath(
+                transcriptionID: transcription.id,
+                newFilePath: convertedURL.path,
+                sourceFileToCleanup: sourceURL.path
+            ))
 
         XCTAssertEqual(mockRepo.updateFilePathCalls.count, 1)
         XCTAssertEqual(mockRepo.updateFilePathCalls.first?.id, transcription.id)
@@ -1236,6 +1245,193 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.currentTranscription?.id, second.id)
         XCTAssertEqual(viewModel.selectedTab, .transcript)
         XCTAssertFalse(viewModel.hasConversations)
+    }
+
+    func testQueuedCompletionRefreshesMatchingDetailWithoutSelectingDuringAnotherMeeting() {
+        let id = UUID()
+        let processing = Transcription(
+            id: id,
+            fileName: "first meeting",
+            status: .processing,
+            sourceType: .meeting
+        )
+        let completed = Transcription(
+            id: id,
+            fileName: "first meeting",
+            rawTranscript: "Finished while another meeting was recording.",
+            status: .completed,
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [completed]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = processing
+        viewModel.selectedTab = .chat
+        viewModel.hasConversations = true
+
+        viewModel.presentCompletedTranscription(
+            completed,
+            autoSave: false,
+            runAutoPrompts: false,
+            selectTranscription: false
+        )
+
+        XCTAssertEqual(viewModel.currentTranscription?.id, id)
+        XCTAssertEqual(viewModel.currentTranscription?.status, .completed)
+        XCTAssertEqual(
+            viewModel.currentTranscription?.rawTranscript,
+            "Finished while another meeting was recording."
+        )
+        XCTAssertEqual(viewModel.selectedTab, .chat)
+        XCTAssertTrue(viewModel.hasConversations)
+    }
+
+    func testQueuedCompletionDoesNotReplaceUnrelatedDetailWhenSelectionIsSuppressed() {
+        let displayed = Transcription(
+            fileName: "displayed meeting",
+            rawTranscript: "Keep this detail open.",
+            status: .completed,
+            sourceType: .meeting
+        )
+        let completed = Transcription(
+            fileName: "background meeting",
+            rawTranscript: "Completed in the background.",
+            status: .completed,
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [displayed, completed]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = displayed
+
+        viewModel.presentCompletedTranscription(
+            completed,
+            autoSave: false,
+            runAutoPrompts: false,
+            selectTranscription: false
+        )
+
+        XCTAssertEqual(viewModel.currentTranscription?.id, displayed.id)
+    }
+
+    func testUnselectedMeetingCompletionStillExportsRefreshesAndRunsAutoPrompts() async throws {
+        let suite = "test.quiet-meeting-completion.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quiet-meeting-export-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        defaults.set(true, forKey: AutoSaveScope.meeting.enabledKey)
+        defaults.set(AutoSaveFormat.txt.rawValue, forKey: AutoSaveScope.meeting.formatKey)
+        XCTAssertNotNil(AutoSaveService.storeFolder(folder, scope: .meeting, defaults: defaults))
+        viewModel = TranscriptionViewModel(defaults: defaults)
+        let displayed = Transcription(fileName: "Displayed", rawTranscript: "Keep open", status: .completed)
+        let completed = Transcription(
+            fileName: "Background meeting",
+            rawTranscript: "Background meeting transcript",
+            status: .completed,
+            sourceType: .meeting
+        )
+        var processing = completed
+        processing.status = .processing
+        processing.rawTranscript = nil
+        mockRepo.transcriptions = [displayed, processing]
+        let existingResult = PromptResult(
+            transcriptionId: displayed.id,
+            promptName: "Summary",
+            promptContent: "Summarize",
+            content: "Existing displayed result"
+        )
+        mockPromptResultRepo.promptResults = [existingResult]
+        let llm = MockLLMService()
+        llm.streamTokens = ["Background result"]
+        let promptRepo = MockPromptRepository()
+        promptRepo.prompts = [
+            Prompt(name: "Summary", content: "Summarize", isAutoRun: true, sortOrder: 0)
+        ]
+        let results = PromptResultsViewModel()
+        results.configure(llmService: llm, promptRepo: promptRepo, promptResultRepo: mockPromptResultRepo)
+        results.loadPromptResults(transcriptionId: displayed.id)
+        viewModel.configure(
+            transcriptionService: mockService,
+            transcriptionRepo: mockRepo,
+            llmService: llm,
+            promptResultRepo: mockPromptResultRepo,
+            promptResultsViewModel: results
+        )
+        XCTAssertEqual(viewModel.transcriptions.first { $0.id == completed.id }?.status, .processing)
+        viewModel.currentTranscription = displayed
+        viewModel.selectedTab = .result(id: existingResult.id)
+        let exportURL = AutoSaveService(defaults: defaults)
+            .buildFileURL(for: completed, format: .txt, in: folder)
+
+        // The queue's durable completion arrives after the initial library load.
+        mockRepo.transcriptions = [displayed, completed]
+        viewModel.presentCompletedTranscription(
+            completed,
+            autoSave: true,
+            runAutoPrompts: true,
+            applyMeetingRetention: false,
+            selectTranscription: false
+        )
+        try await waitUntil { !results.pendingGenerations.contains { $0.state.isActive } }
+
+        XCTAssertEqual(viewModel.currentTranscription?.id, displayed.id)
+        XCTAssertEqual(viewModel.selectedTab, .result(id: existingResult.id))
+        XCTAssertEqual(results.promptResults.map(\.id), [existingResult.id])
+        XCTAssertTrue(viewModel.transcriptions.contains { $0.id == completed.id && $0.status == .completed })
+        XCTAssertTrue(try String(contentsOf: exportURL, encoding: .utf8).contains("Background meeting transcript"))
+        XCTAssertEqual(
+            try mockPromptResultRepo.fetchAll(transcriptionId: completed.id).map(\.content),
+            ["Background result"]
+        )
+    }
+
+    func testQueuedFailureRefreshesMatchingProcessingDetailInPlace() {
+        let id = UUID()
+        let processing = Transcription(
+            id: id,
+            fileName: "failed meeting",
+            status: .processing,
+            sourceType: .meeting
+        )
+        let failed = Transcription(
+            id: id,
+            fileName: "failed meeting",
+            status: .error,
+            errorMessage: "Speech model failed",
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [failed]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = processing
+        viewModel.selectedTab = .chat
+
+        viewModel.refreshCurrentTranscriptionIfMatching(id: id)
+
+        XCTAssertEqual(viewModel.currentTranscription?.status, .error)
+        XCTAssertEqual(viewModel.currentTranscription?.errorMessage, "Speech model failed")
+        XCTAssertEqual(viewModel.selectedTab, .chat)
+    }
+
+    func testQueuedFailureDoesNotRefreshUnrelatedDetail() {
+        let displayed = Transcription(
+            fileName: "displayed meeting",
+            rawTranscript: "Keep this detail open.",
+            status: .completed,
+            sourceType: .meeting
+        )
+        let failed = Transcription(
+            fileName: "failed meeting",
+            status: .error,
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [displayed, failed]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = displayed
+
+        viewModel.refreshCurrentTranscriptionIfMatching(id: failed.id)
+
+        XCTAssertEqual(viewModel.currentTranscription?.id, displayed.id)
     }
 
     func testRefreshingSameTranscriptionDoesNotResetSelectedTab() {
@@ -1400,6 +1596,59 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.currentTranscription?.cleanTranscript)
     }
 
+    func testUpdateCurrentTranscriptTextRejectsTimedCorrectionProjection() {
+        let words = [
+            WordTimestamp(word: "Original", startMs: 0, endMs: 400, confidence: 0.99),
+            WordTimestamp(word: "words", startMs: 450, endMs: 800, confidence: 0.98),
+        ]
+        let segment = TranscriptSegmentRecord(
+            startMs: 0,
+            endMs: 800,
+            speakerId: nil,
+            speakerLabel: "Unassigned",
+            text: "Corrected line",
+            wordRange: .init(startIndex: 0, endIndexExclusive: 2),
+            isTextEdited: true
+        )
+        let transcription = Transcription(
+            fileName: "timed.mp3",
+            rawTranscript: "Original words",
+            cleanTranscript: "Corrected line",
+            wordTimestamps: words,
+            transcriptSegments: [segment],
+            status: .completed
+        )
+        mockRepo.transcriptions = [transcription]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = transcription
+
+        XCTAssertFalse(viewModel.updateCurrentTranscriptText(to: "Competing whole-text edit"))
+        XCTAssertEqual(viewModel.currentTranscription?.cleanTranscript, "Corrected line")
+        XCTAssertFalse(viewModel.currentTranscription?.isTranscriptEdited ?? true)
+        XCTAssertEqual(try? mockRepo.fetch(id: transcription.id)?.cleanTranscript, "Corrected line")
+    }
+
+    func testUpdateCurrentTranscriptTextAllowsExistingLegacyTimedEdit() {
+        let transcription = Transcription(
+            fileName: "legacy-timed.mp3",
+            rawTranscript: "Original words",
+            cleanTranscript: "Earlier whole-text edit",
+            wordTimestamps: [
+                WordTimestamp(word: "Original", startMs: 0, endMs: 400, confidence: 0.99),
+                WordTimestamp(word: "words", startMs: 450, endMs: 800, confidence: 0.98),
+            ],
+            status: .completed,
+            isTranscriptEdited: true
+        )
+        mockRepo.transcriptions = [transcription]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = transcription
+
+        XCTAssertTrue(viewModel.updateCurrentTranscriptText(to: "Updated legacy edit"))
+        XCTAssertEqual(viewModel.currentTranscription?.cleanTranscript, "Updated legacy edit")
+        XCTAssertTrue(viewModel.currentTranscription?.isTranscriptEdited ?? false)
+    }
+
     func testUpdateCurrentTranscriptTextKeepsStateWhenSaveFails() {
         let t = Transcription(fileName: "test.mp3", rawTranscript: "Original transcript", status: .completed)
         mockRepo.transcriptions = [t]
@@ -1487,12 +1736,666 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.currentTranscription?.isTranscriptEdited, true)
     }
 
+    // MARK: - Saved Meeting Notes
+
+    func testUpdateCurrentMeetingNotesPersistsAndSynchronizesDetailAndList() async throws {
+        let artifactStore = RecordingMeetingArtifactStore()
+        viewModel = TranscriptionViewModel(meetingArtifactStore: artifactStore)
+        let oldUpdatedAt = Date(timeIntervalSince1970: 1_000)
+        let meeting = Transcription(
+            fileName: "Design Review",
+            status: .completed,
+            sourceType: .meeting,
+            updatedAt: oldUpdatedAt
+        )
+        let result = PromptResult(
+            transcriptionId: meeting.id,
+            promptName: "Summary",
+            promptContent: "Summarize",
+            content: "Ship it."
+        )
+        mockRepo.transcriptions = [meeting]
+        mockPromptResultRepo.promptResults = [result]
+        viewModel.configure(
+            transcriptionService: mockService,
+            transcriptionRepo: mockRepo,
+            promptResultRepo: mockPromptResultRepo
+        )
+        viewModel.currentTranscription = meeting
+
+        let saved = await viewModel.updateCurrentMeetingNotes(to: "  Decision: ship it.  ")
+
+        XCTAssertTrue(saved)
+        XCTAssertEqual(viewModel.currentTranscription?.userNotes, "  Decision: ship it.  ")
+        XCTAssertEqual(viewModel.transcriptions.first?.userNotes, "  Decision: ship it.  ")
+        XCTAssertGreaterThan(try XCTUnwrap(viewModel.currentTranscription?.updatedAt), oldUpdatedAt)
+        XCTAssertEqual(try XCTUnwrap(mockRepo.fetch(id: meeting.id)).userNotes, "  Decision: ship it.  ")
+
+        try await waitUntilAsync { await artifactStore.materializeCallCount == 1 }
+        let calls = await artifactStore.materializeCalls
+        let call = try XCTUnwrap(calls.first)
+        XCTAssertEqual(call.transcription.userNotes, "  Decision: ship it.  ")
+        XCTAssertEqual(call.promptResults.map(\.id), [result.id])
+    }
+
+    func testUpdateCurrentMeetingNotesNormalizesWhitespaceOnlyToNil() async throws {
+        let meeting = Transcription(
+            fileName: "Design Review",
+            status: .completed,
+            sourceType: .meeting,
+            userNotes: "Old note"
+        )
+        mockRepo.transcriptions = [meeting]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = meeting
+
+        let saved = await viewModel.updateCurrentMeetingNotes(to: " \n\t ")
+        XCTAssertTrue(saved)
+        XCTAssertNil(viewModel.currentTranscription?.userNotes)
+        XCTAssertNil(viewModel.transcriptions.first?.userNotes)
+        XCTAssertNil(try XCTUnwrap(mockRepo.fetch(id: meeting.id)).userNotes)
+    }
+
+    func testUpdateCurrentMeetingNotesRejectsNonMeeting() async throws {
+        let transcription = Transcription(
+            fileName: "interview.m4a",
+            status: .completed,
+            sourceType: .file,
+            userNotes: "Keep me"
+        )
+        mockRepo.transcriptions = [transcription]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = transcription
+
+        let saved = await viewModel.updateCurrentMeetingNotes(to: "Not allowed")
+        XCTAssertFalse(saved)
+        XCTAssertEqual(try XCTUnwrap(mockRepo.fetch(id: transcription.id)).userNotes, "Keep me")
+    }
+
+    func testUpdateCurrentMeetingNotesKeepsCommittedStateWhenPersistenceFails() async {
+        let meeting = Transcription(
+            fileName: "Design Review",
+            status: .completed,
+            sourceType: .meeting,
+            userNotes: "Original"
+        )
+        mockRepo.transcriptions = [meeting]
+        mockRepo.saveError = NSError(domain: "repo", code: 1)
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = meeting
+
+        let saved = await viewModel.updateCurrentMeetingNotes(to: "Draft")
+        XCTAssertFalse(saved)
+        XCTAssertEqual(viewModel.currentTranscription?.userNotes, "Original")
+        XCTAssertEqual(viewModel.transcriptions.first?.userNotes, "Original")
+        XCTAssertNotNil(viewModel.errorMessage)
+    }
+
+    func testUpdateCurrentMeetingNotesDoesNotReportSuccessWhenRowIsMissing() async {
+        let meeting = Transcription(
+            fileName: "Deleted Meeting",
+            status: .completed,
+            sourceType: .meeting
+        )
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = meeting
+
+        let saved = await viewModel.updateCurrentMeetingNotes(to: "Cannot be saved")
+
+        XCTAssertFalse(saved)
+        XCTAssertNil(viewModel.currentTranscription?.userNotes)
+        XCTAssertNotNil(viewModel.errorMessage)
+    }
+
+    func testDeletedMeetingDraftDoesNotBlockQuit() async throws {
+        let meeting = Transcription(
+            fileName: "Deleted through another process",
+            status: .completed,
+            sourceType: .meeting,
+            userNotes: "Original"
+        )
+        mockRepo.transcriptions = [meeting]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        let notesViewModel = try XCTUnwrap(viewModel)
+        let coordinator = SavedMeetingNotesCoordinator()
+        let editor = coordinator.editor(
+            meetingID: meeting.id,
+            text: meeting.userNotes,
+            isMeetingDeleted: {
+                try await notesViewModel.isMeetingDeleted(id: meeting.id)
+            }
+        ) { text in
+            await notesViewModel.updateMeetingNotes(for: meeting, to: text)
+        }
+        editor.textBinding.wrappedValue = "Pending notes"
+        editor.cancelPendingSave()
+        // No coordinator notification: this models deletion through the CLI.
+        XCTAssertTrue(try mockRepo.delete(id: meeting.id))
+        let replied = expectation(description: "Quit allowed after confirmed deletion")
+
+        XCTAssertTrue(coordinator.prepareToQuit { saved in
+            XCTAssertTrue(saved)
+            replied.fulfill()
+        })
+        await fulfillment(of: [replied], timeout: 1)
+
+        XCTAssertFalse(coordinator.hasUnsavedChanges)
+        XCTAssertEqual(editor.saveState, .deleted)
+        XCTAssertNil(try mockRepo.fetch(id: meeting.id))
+    }
+
+    func testMeetingNotesReadFailureKeepsQuitBlockedUntilDeletionCanBeConfirmed() async throws {
+        let meeting = Transcription(
+            fileName: "Unreadable meeting",
+            status: .completed,
+            sourceType: .meeting,
+            userNotes: "Original"
+        )
+        mockRepo.transcriptions = [meeting]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        let notesViewModel = try XCTUnwrap(viewModel)
+        let coordinator = SavedMeetingNotesCoordinator()
+        let editor = coordinator.editor(
+            meetingID: meeting.id,
+            text: meeting.userNotes,
+            isMeetingDeleted: {
+                try await notesViewModel.isMeetingDeleted(id: meeting.id)
+            }
+        ) { text in
+            await notesViewModel.updateMeetingNotes(for: meeting, to: text)
+        }
+        editor.textBinding.wrappedValue = "Do not discard on an I/O error"
+        editor.cancelPendingSave()
+        XCTAssertTrue(try mockRepo.delete(id: meeting.id))
+        mockRepo.fetchError = NSError(domain: "database-read", code: 1)
+        let blocked = expectation(description: "Quit remains blocked after failed DB read")
+
+        XCTAssertTrue(coordinator.prepareToQuit { saved in
+            XCTAssertFalse(saved)
+            blocked.fulfill()
+        })
+        await fulfillment(of: [blocked], timeout: 1)
+        XCTAssertTrue(coordinator.hasUnsavedChanges)
+        XCTAssertEqual(editor.text, "Do not discard on an I/O error")
+        XCTAssertEqual(editor.saveState, .failed)
+
+        mockRepo.fetchError = nil
+        let retried = expectation(description: "Quit allowed when deletion can be confirmed")
+        XCTAssertTrue(coordinator.prepareToQuit { saved in
+            XCTAssertTrue(saved)
+            retried.fulfill()
+        })
+        await fulfillment(of: [retried], timeout: 1)
+        XCTAssertFalse(coordinator.hasUnsavedChanges)
+        XCTAssertEqual(editor.saveState, .deleted)
+    }
+
+    func testNotesAutosavePreservesUnrelatedErrorAndDiagnostic() async throws {
+        let meeting = Transcription(fileName: "Meeting", sourceType: .meeting)
+        mockRepo.transcriptions = [meeting]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = meeting
+        viewModel.setError(message: "Could not export audio", detail: "Folder permission was revoked")
+        let saved = expectation(description: "Debounced notes saved")
+        let notesViewModel = try XCTUnwrap(viewModel)
+        let editor = SavedMeetingNotesViewModel(waitForDebounce: { _ in })
+        editor.configure(meetingID: meeting.id, text: nil) { text in
+            let result = await notesViewModel.updateMeetingNotes(for: meeting, to: text)
+            saved.fulfill()
+            return result
+        }
+        editor.textBinding.wrappedValue = "Autosaved draft"
+        await fulfillment(of: [saved], timeout: 2)
+        XCTAssertEqual(try mockRepo.fetch(id: meeting.id)?.userNotes, "Autosaved draft")
+        XCTAssertEqual(viewModel.errorMessage, "Could not export audio")
+        XCTAssertEqual(viewModel.errorDetail, "Folder permission was revoked")
+    }
+
+    func testNotesRetryClearsOnlyItsOwnErrorBanner() async throws {
+        let meeting = Transcription(fileName: "Meeting", sourceType: .meeting)
+        mockRepo.transcriptions = [meeting]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = meeting
+        mockRepo.saveError = NSError(domain: "notes-write", code: 1)
+        let failed = await viewModel.updateCurrentMeetingNotes(to: "Draft")
+        XCTAssertFalse(failed)
+        XCTAssertNotNil(viewModel.errorMessage)
+        mockRepo.saveError = nil
+        let retried = await viewModel.updateCurrentMeetingNotes(to: "Draft")
+        XCTAssertTrue(retried)
+        XCTAssertNil(viewModel.errorMessage)
+
+        mockRepo.saveError = NSError(domain: "notes-write", code: 1)
+        _ = await viewModel.updateCurrentMeetingNotes(to: "Next draft")
+        let repeatedHeadline = try XCTUnwrap(viewModel.errorMessage)
+        // A later feature may publish even an identical headline. Ownership,
+        // not string equality, determines whether autosave may clear it.
+        viewModel.setError(message: repeatedHeadline, detail: "Another feature's diagnostic")
+        mockRepo.saveError = nil
+        _ = await viewModel.updateCurrentMeetingNotes(to: "Next draft")
+        XCTAssertEqual(viewModel.errorMessage, repeatedHeadline)
+        XCTAssertEqual(viewModel.errorDetail, "Another feature's diagnostic")
+    }
+
+    func testArtifactRetryDoesNotSuppressOverlappingNotesWriteFailure() async throws {
+        let meeting = Transcription(fileName: "Meeting", sourceType: .meeting, userNotes: "Original")
+        mockRepo.transcriptions = [meeting]
+        viewModel = TranscriptionViewModel(meetingArtifactStore: RecordingMeetingArtifactStore(shouldFail: true))
+        viewModel.configure(
+            transcriptionService: mockService, transcriptionRepo: mockRepo, promptResultRepo: mockPromptResultRepo
+        )
+        viewModel.currentTranscription = meeting
+        let firstSaved = await viewModel.updateCurrentMeetingNotes(to: "Original")
+        XCTAssertTrue(firstSaved)
+        XCTAssertNotNil(
+            viewModel.meetingNotesArtifactWarning, "Expose the actual artifact Retry button before editing again")
+        let writeStarted = expectation(description: "Database write held")
+        let releaseWrite = DispatchSemaphore(value: 0)
+        defer { releaseWrite.signal() }
+        mockRepo.userNotesUpdateHandler = {
+            writeStarted.fulfill()
+            guard releaseWrite.wait(timeout: .now() + 3) == .success else {
+                throw NSError(domain: "test-write-timeout", code: 1)
+            }
+            throw NSError(domain: "notes-write", code: 1)
+        }
+        let notesViewModel = try XCTUnwrap(viewModel)
+        let editor = SavedMeetingNotesViewModel()
+        editor.configure(meetingID: meeting.id, text: meeting.userNotes) { text in
+            await notesViewModel.updateMeetingNotes(for: meeting, to: text)
+        }
+        editor.textBinding.wrappedValue = "Unsaved draft"
+        editor.cancelPendingSave()
+        let saveTask = Task { @MainActor in await editor.flush() }
+        await fulfillment(of: [writeStarted], timeout: 2)
+        let retryEntered = expectation(description: "Artifact retry enqueued on main actor")
+        let retryTask = Task { @MainActor in
+            retryEntered.fulfill()
+            await notesViewModel.retryCurrentMeetingNotesArtifactRefresh()
+        }
+        await fulfillment(of: [retryEntered], timeout: 2)
+        releaseWrite.signal()
+        let saved = await saveTask.value
+        await retryTask.value
+        XCTAssertFalse(saved)
+        XCTAssertEqual(editor.saveState, .failed)
+        XCTAssertEqual(editor.text, "Unsaved draft")
+        XCTAssertTrue(editor.hasUnsavedChanges)
+        XCTAssertEqual(try mockRepo.fetch(id: meeting.id)?.userNotes, "Original")
+        XCTAssertTrue(viewModel.errorMessage?.hasPrefix("Failed to save meeting notes:") == true)
+    }
+
+    func testUpdateCurrentMeetingNotesSucceedsWhenReadBackFailsAfterCommit() async throws {
+        let meeting = Transcription(
+            fileName: "Design Review",
+            status: .completed,
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [meeting]
+        mockRepo.userNotesReadBackError = NSError(domain: "repo-read", code: 1)
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = meeting
+
+        let saved = await viewModel.updateCurrentMeetingNotes(to: "Committed note")
+
+        XCTAssertTrue(saved)
+        XCTAssertEqual(viewModel.currentTranscription?.userNotes, "Committed note")
+        XCTAssertEqual(viewModel.transcriptions.first?.userNotes, "Committed note")
+        XCTAssertEqual(try XCTUnwrap(mockRepo.fetch(id: meeting.id)).userNotes, "Committed note")
+        XCTAssertNil(viewModel.errorMessage)
+    }
+
+    func testRetranscribeDeletedDuringServiceDoesNotPublishCompletion() async throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".wav")
+        try Data().write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let original = Transcription(fileName: "Deleted meeting", filePath: file.path, sourceType: .meeting)
+        mockRepo.transcriptions = [original]
+        await mockService.configure(
+            result: Transcription(fileName: "Stale", rawTranscript: "New transcript", status: .completed))
+        let started = expectation(description: "Service suspended")
+        let (release, continuation) = AsyncStream<Void>.makeStream()
+        defer { continuation.finish() }
+        await mockService.setTranscribeHook {
+            started.fulfill()
+            for await _ in release { break }
+        }
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.retranscribe(original)
+        await fulfillment(of: [started], timeout: 2)
+        XCTAssertTrue(try mockRepo.delete(id: original.id))
+        continuation.yield(())
+        try await waitUntil { !self.viewModel.isTranscribing }
+        XCTAssertNil(try mockRepo.fetch(id: original.id))
+        XCTAssertNotEqual(viewModel.currentTranscription?.rawTranscript, "New transcript")
+        XCTAssertNotNil(viewModel.errorMessage)
+    }
+
+    func testCommittedNotesReadFailurePreservesCurrentMetadataAndExistingArtifacts() async throws {
+        let store = RecordingMeetingArtifactStore()
+        viewModel = TranscriptionViewModel(meetingArtifactStore: store)
+        let captured = Transcription(fileName: "Old name", status: .completed, sourceType: .meeting)
+        var current = captured
+        current.fileName = "Renamed after opening notes"
+        current.isFavorite = true
+        current.meetingTypeId = UUID()
+        current.updatedAt = Date.distantFuture
+        mockRepo.transcriptions = [current]
+        mockRepo.userNotesReadBackError = NSError(domain: "repo-read", code: 1)
+        viewModel.configure(
+            transcriptionService: mockService, transcriptionRepo: mockRepo,
+            promptResultRepo: MockPromptResultRepository())
+        viewModel.currentTranscription = current
+        let saved = await viewModel.updateMeetingNotes(for: captured, to: "Committed notes")
+        XCTAssertTrue(saved)
+        for row in [try XCTUnwrap(viewModel.currentTranscription), try XCTUnwrap(viewModel.transcriptions.first)] {
+            XCTAssertEqual(row.fileName, current.fileName)
+            XCTAssertTrue(row.isFavorite)
+            XCTAssertEqual(row.meetingTypeId, current.meetingTypeId)
+            XCTAssertEqual(row.updatedAt, .distantFuture)
+            XCTAssertEqual(row.userNotes, "Committed notes")
+        }
+        let snapshots = await store.materializeCalls
+        XCTAssertTrue(snapshots.isEmpty)
+        XCTAssertNotNil(viewModel.meetingNotesArtifactWarning)
+    }
+
+    func testQueuedBackgroundAutosaveDoesNotSuppressVisibleMeetingFailure() async throws {
+        let visible = Transcription(fileName: "Visible", sourceType: .meeting)
+        let background = Transcription(fileName: "Background", sourceType: .meeting)
+        mockRepo.transcriptions = [visible, background]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = visible
+        let writeStarted = expectation(description: "Visible write suspended")
+        let backgroundQueued = expectation(description: "Background save enqueued")
+        let releaseWrite = DispatchSemaphore(value: 0)
+        mockRepo.userNotesUpdateHandler = {
+            writeStarted.fulfill()
+            _ = releaseWrite.wait(timeout: .now() + 5)
+            throw NSError(domain: "visible-write", code: 1)
+        }
+        let subject = try XCTUnwrap(viewModel)
+        let visibleTask = Task { await subject.updateMeetingNotes(for: visible, to: "Unsaved") }
+        await fulfillment(of: [writeStarted], timeout: 2)
+        let backgroundTask = Task {
+            backgroundQueued.fulfill()
+            return await subject.updateMeetingNotes(for: background, to: "Saved background")
+        }
+        await fulfillment(of: [backgroundQueued], timeout: 2)
+        mockRepo.userNotesUpdateHandler = nil
+        releaseWrite.signal()
+        let visibleSaved = await visibleTask.value
+        let backgroundSaved = await backgroundTask.value
+        XCTAssertFalse(visibleSaved)
+        XCTAssertTrue(backgroundSaved)
+        XCTAssertTrue(viewModel.errorMessage?.hasPrefix("Failed to save meeting notes:") == true)
+        XCTAssertNil(try mockRepo.fetch(id: visible.id)?.userNotes)
+        XCTAssertEqual(try mockRepo.fetch(id: background.id)?.userNotes, "Saved background")
+    }
+
+    func testSwitchingMeetingsClearsOwnedNotesBannerAndPreservesFailedDraft() async throws {
+        let previous = Transcription(fileName: "Previous", sourceType: .meeting)
+        let next = Transcription(fileName: "Next", sourceType: .meeting)
+        mockRepo.transcriptions = [previous, next]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = previous
+        let subject = try XCTUnwrap(viewModel)
+        let coordinator = SavedMeetingNotesCoordinator()
+        let editor = coordinator.editor(meetingID: previous.id, text: nil) { text in
+            await subject.updateMeetingNotes(for: previous, to: text)
+        }
+        editor.textBinding.wrappedValue = "Unsaved previous draft"
+        editor.cancelPendingSave()
+        mockRepo.saveError = NSError(domain: "notes-write", code: 1)
+        let savedPrevious = await editor.flush()
+        XCTAssertFalse(savedPrevious)
+        XCTAssertNotNil(viewModel.errorMessage)
+
+        viewModel.currentTranscription = next
+
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertNil(viewModel.errorDetail)
+        XCTAssertEqual(editor.saveState, .failed)
+        XCTAssertEqual(editor.text, "Unsaved previous draft")
+        XCTAssertTrue(editor.hasUnsavedChanges)
+        XCTAssertTrue(coordinator.hasUnsavedChanges)
+        mockRepo.saveError = nil
+        let savedNext = await viewModel.updateMeetingNotes(for: next, to: "Saved next draft")
+        XCTAssertTrue(savedNext)
+        XCTAssertNil(viewModel.errorMessage)
+        viewModel.currentTranscription = previous
+        let reopened = coordinator.editor(meetingID: previous.id, text: nil) { _ in
+            XCTFail("The retained editor must keep its original persistence closure")
+            return false
+        }
+        XCTAssertTrue(reopened === editor)
+        XCTAssertEqual(reopened.saveState, .failed)
+        XCTAssertTrue(reopened.hasUnsavedChanges)
+    }
+
+    func testUpdatingSameMeetingMetadataKeepsOwnedNotesBanner() async throws {
+        var meeting = Transcription(fileName: "Meeting", sourceType: .meeting)
+        mockRepo.transcriptions = [meeting]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = meeting
+        mockRepo.saveError = NSError(domain: "notes-write", code: 1)
+        let saved = await viewModel.updateMeetingNotes(for: meeting, to: "Unsaved draft")
+        XCTAssertFalse(saved)
+        let failureMessage = try XCTUnwrap(viewModel.errorMessage)
+
+        meeting.fileName = "Updated metadata for same meeting"
+        meeting.userNotes = "Previously persisted notes"
+        viewModel.currentTranscription = meeting
+
+        XCTAssertEqual(viewModel.errorMessage, failureMessage)
+        XCTAssertEqual(viewModel.currentTranscription?.id, meeting.id)
+    }
+
+    func testSwitchingMeetingsPreservesUnrelatedDiagnosticAfterNotesFailure() async throws {
+        let previous = Transcription(fileName: "Previous", sourceType: .meeting)
+        let next = Transcription(fileName: "Next", sourceType: .meeting)
+        mockRepo.transcriptions = [previous, next]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = previous
+        mockRepo.saveError = NSError(domain: "notes-write", code: 1)
+        let saved = await viewModel.updateMeetingNotes(for: previous, to: "Unsaved draft")
+        XCTAssertFalse(saved)
+        let headline = try XCTUnwrap(viewModel.errorMessage)
+        viewModel.setError(message: headline, detail: "Another feature owns this identical headline")
+
+        viewModel.currentTranscription = next
+
+        XCTAssertEqual(viewModel.errorMessage, headline)
+        XCTAssertEqual(viewModel.errorDetail, "Another feature owns this identical headline")
+        mockRepo.saveError = nil
+        let nextSaved = await viewModel.updateMeetingNotes(for: next, to: "Saved next draft")
+        XCTAssertTrue(nextSaved)
+        XCTAssertEqual(viewModel.errorMessage, headline)
+        XCTAssertEqual(viewModel.errorDetail, "Another feature owns this identical headline")
+    }
+
+    func testAutosavingAnotherMeetingPreservesVisibleMeetingNotesError() async throws {
+        let visible = Transcription(fileName: "Visible", sourceType: .meeting)
+        let background = Transcription(fileName: "Background", sourceType: .meeting)
+        mockRepo.transcriptions = [visible, background]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = visible
+        mockRepo.saveError = NSError(domain: "write", code: 1)
+        let failed = await viewModel.updateMeetingNotes(for: visible, to: "Failed draft")
+        XCTAssertFalse(failed)
+        let failureMessage = try XCTUnwrap(viewModel.errorMessage)
+        mockRepo.saveError = nil
+        let saved = await viewModel.updateMeetingNotes(for: background, to: "Background draft")
+        XCTAssertTrue(saved)
+        XCTAssertEqual(viewModel.errorMessage, failureMessage)
+    }
+
+    func testUpdateCurrentMeetingNotesReportsArtifactFailureWithoutRollingBackDatabase() async throws {
+        let artifactStore = RecordingMeetingArtifactStore(shouldFail: true)
+        viewModel = TranscriptionViewModel(meetingArtifactStore: artifactStore)
+        let meeting = Transcription(
+            fileName: "Design Review",
+            status: .completed,
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [meeting]
+        viewModel.configure(
+            transcriptionService: mockService,
+            transcriptionRepo: mockRepo,
+            promptResultRepo: mockPromptResultRepo
+        )
+        viewModel.currentTranscription = meeting
+
+        let saved = await viewModel.updateCurrentMeetingNotes(to: "Saved despite artifact failure")
+        XCTAssertTrue(saved)
+
+        try await waitUntil { self.viewModel.meetingNotesArtifactWarning != nil }
+        viewModel.loadPersistedContent()
+        XCTAssertNotNil(viewModel.meetingNotesArtifactWarning)
+        let otherMeeting = Transcription(
+            fileName: "Other Meeting",
+            status: .completed,
+            sourceType: .meeting
+        )
+        viewModel.currentTranscription = otherMeeting
+        XCTAssertNil(viewModel.meetingNotesArtifactWarning)
+        viewModel.currentTranscription = try XCTUnwrap(mockRepo.fetch(id: meeting.id))
+        XCTAssertNotNil(viewModel.meetingNotesArtifactWarning)
+        XCTAssertEqual(
+            try XCTUnwrap(mockRepo.fetch(id: meeting.id)).userNotes,
+            "Saved despite artifact failure"
+        )
+        XCTAssertEqual(viewModel.currentTranscription?.userNotes, "Saved despite artifact failure")
+    }
+
+    func testOverlappingMeetingNoteSavesMaterializeLatestValueLast() async throws {
+        let artifactStore = RecordingMeetingArtifactStore(materializeDelay: .milliseconds(150))
+        viewModel = TranscriptionViewModel(meetingArtifactStore: artifactStore)
+        let meeting = Transcription(
+            fileName: "Design Review",
+            status: .completed,
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [meeting]
+        viewModel.configure(
+            transcriptionService: mockService,
+            transcriptionRepo: mockRepo,
+            promptResultRepo: mockPromptResultRepo
+        )
+        viewModel.currentTranscription = meeting
+
+        let firstSave = Task { await viewModel.updateCurrentMeetingNotes(to: "First draft") }
+        try await waitUntilAsync { await artifactStore.startedMaterializeCount == 1 }
+        let secondSave = Task { await viewModel.updateCurrentMeetingNotes(to: "Final notes") }
+
+        let firstSaved = await firstSave.value
+        let secondSaved = await secondSave.value
+        XCTAssertTrue(firstSaved)
+        XCTAssertTrue(secondSaved)
+        let calls = await artifactStore.materializeCalls
+        XCTAssertEqual(calls.map(\.transcription.userNotes), ["First draft", "Final notes"])
+        XCTAssertEqual(viewModel.currentTranscription?.userNotes, "Final notes")
+        XCTAssertEqual(try XCTUnwrap(mockRepo.fetch(id: meeting.id)).userNotes, "Final notes")
+    }
+
+    func testNotesArtifactRefreshWaitsForTitleRename() async throws {
+        try await assertNotesArtifactRefreshWaitsForRename(speakerRename: false)
+    }
+
+    func testNotesArtifactRefreshWaitsForSpeakerRename() async throws {
+        try await assertNotesArtifactRefreshWaitsForRename(speakerRename: true)
+    }
+
+    private func assertNotesArtifactRefreshWaitsForRename(speakerRename: Bool) async throws {
+        let firstStarted = expectation(description: "Rename artifact write started")
+        let overlappingWrite = expectation(description: "Notes cannot write artifacts while rename is suspended")
+        overlappingWrite.isInverted = true
+        let (releaseFirst, continuation) = AsyncStream<Void>.makeStream()
+        defer { continuation.finish() }
+        var releasedFirst = false
+        let store = RecordingMeetingArtifactStore(beforeMaterialize: { call in
+            if call == 1 {
+                firstStarted.fulfill()
+                for await _ in releaseFirst { break }
+            } else {
+                await MainActor.run {
+                    if !releasedFirst { overlappingWrite.fulfill() }
+                }
+            }
+        })
+        viewModel = TranscriptionViewModel(meetingArtifactStore: store)
+        let fixture = try makeMeetingArtifactFixture(namePrefix: "notes-rename-serialized")
+        defer { try? FileManager.default.removeItem(at: fixture.folderURL) }
+        let meeting = fixture.meeting
+        mockRepo.transcriptions = [meeting]
+        viewModel.configure(
+            transcriptionService: mockService, transcriptionRepo: mockRepo,
+            promptResultRepo: mockPromptResultRepo
+        )
+        viewModel.currentTranscription = meeting
+        if speakerRename {
+            viewModel.renameSpeaker(id: "S1", to: "Alice")
+        } else {
+            viewModel.renameCurrentTranscription(to: "Renamed meeting")
+        }
+        await fulfillment(of: [firstStarted], timeout: 2)
+        let subject = try XCTUnwrap(viewModel)
+        let notesSave = Task { await subject.updateMeetingNotes(for: meeting, to: "Final notes") }
+        // The database write must proceed even while derived files are blocked.
+        try await waitUntil { self.viewModel.currentTranscription?.userNotes == "Final notes" }
+        await fulfillment(of: [overlappingWrite], timeout: 0.2)
+        releasedFirst = true
+        continuation.yield(())
+        let saved = await notesSave.value
+        XCTAssertTrue(saved)
+        let wroteBoth = await store.waitForMaterializeCallCount(2)
+        XCTAssertTrue(wroteBoth)
+        let calls = await store.materializeCalls
+        let concurrency = await store.maxConcurrentMaterializeCount
+        XCTAssertEqual(concurrency, 1)
+        XCTAssertEqual(calls.last?.transcription.userNotes, "Final notes")
+        if speakerRename {
+            XCTAssertEqual(calls.last?.transcription.speakers?.first?.label, "Alice")
+        } else {
+            XCTAssertEqual(calls.last?.transcription.fileName, "Renamed meeting")
+        }
+    }
+
+    func testCapturedMeetingNotesSaveDoesNotOverwriteNewSelection() async throws {
+        let firstMeeting = Transcription(
+            fileName: "First Meeting",
+            status: .completed,
+            sourceType: .meeting
+        )
+        let secondMeeting = Transcription(
+            fileName: "Second Meeting",
+            status: .completed,
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [firstMeeting, secondMeeting]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = secondMeeting
+
+        let saved = await viewModel.updateMeetingNotes(
+            for: firstMeeting,
+            to: "Belongs to the first meeting"
+        )
+
+        XCTAssertTrue(saved)
+        XCTAssertEqual(
+            try XCTUnwrap(mockRepo.fetch(id: firstMeeting.id)).userNotes,
+            "Belongs to the first meeting"
+        )
+        XCTAssertNil(viewModel.currentTranscription?.userNotes)
+        XCTAssertEqual(viewModel.currentTranscription?.id, secondMeeting.id)
+    }
+
     // MARK: - Speaker Rename
 
     func testRenameSpeakerUpdatesInMemoryState() {
         let speakers = [
             SpeakerInfo(id: "S1", label: "Speaker 1"),
-            SpeakerInfo(id: "S2", label: "Speaker 2")
+            SpeakerInfo(id: "S2", label: "Speaker 2"),
         ]
         let t = Transcription(fileName: "test.mp3", speakers: speakers, status: .completed)
         mockRepo.transcriptions = [t]
@@ -1509,7 +2412,7 @@ final class TranscriptionViewModelTests: XCTestCase {
     func testRenameSpeakerUpdatesTranscriptSegmentLabels() {
         let speakers = [
             SpeakerInfo(id: "S1", label: "Speaker 1"),
-            SpeakerInfo(id: "S2", label: "Speaker 2")
+            SpeakerInfo(id: "S2", label: "Speaker 2"),
         ]
         let t = Transcription(
             fileName: "meeting.wav",
@@ -1562,7 +2465,7 @@ final class TranscriptionViewModelTests: XCTestCase {
     func testRenameSpeakerUpdatesMatchingTranscriptionsRow() {
         let speakers = [
             SpeakerInfo(id: "S1", label: "Speaker 1"),
-            SpeakerInfo(id: "S2", label: "Speaker 2")
+            SpeakerInfo(id: "S2", label: "Speaker 2"),
         ]
         let t = Transcription(fileName: "meeting.wav", speakers: speakers, status: .completed)
         var listRow = t
@@ -1591,7 +2494,7 @@ final class TranscriptionViewModelTests: XCTestCase {
     func testRenameSpeakerPersistenceFailureRevertsInMemoryState() async throws {
         let speakers = [
             SpeakerInfo(id: "S1", label: "Speaker 1"),
-            SpeakerInfo(id: "S2", label: "Speaker 2")
+            SpeakerInfo(id: "S2", label: "Speaker 2"),
         ]
         var t = Transcription(
             fileName: "meeting.wav",
@@ -1604,7 +2507,7 @@ final class TranscriptionViewModelTests: XCTestCase {
                     speakerLabel: "Speaker 1",
                     text: "Hello",
                     wordRange: TranscriptSegmentWordRange(startIndex: 0, endIndexExclusive: 1)
-                ),
+                )
             ],
             status: .completed
         )
@@ -1645,7 +2548,7 @@ final class TranscriptionViewModelTests: XCTestCase {
     func testRenameSpeakerStaleFailureDoesNotClobberLaterSuccessfulRename() async throws {
         let speakers = [
             SpeakerInfo(id: "S1", label: "Speaker 1"),
-            SpeakerInfo(id: "S2", label: "Speaker 2")
+            SpeakerInfo(id: "S2", label: "Speaker 2"),
         ]
         let t = Transcription(fileName: "meeting.wav", speakers: speakers, status: .completed)
         let probe = SlowFirstSpeakerUpdateFailure()
@@ -1860,7 +2763,7 @@ final class TranscriptionViewModelTests: XCTestCase {
                     endMs: 300,
                     confidence: 0.99,
                     speakerId: "S1"
-                ),
+                )
             ],
             speakers: speakers,
             status: .completed,
@@ -2006,7 +2909,7 @@ final class TranscriptionViewModelTests: XCTestCase {
                     endMs: 300,
                     confidence: 0.99,
                     speakerId: "S1"
-                ),
+                )
             ],
             speakers: [SpeakerInfo(id: "S1", label: "Speaker 1")],
             status: .completed,
@@ -2037,7 +2940,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(mockRepo.updateFileNameCalls[0].fileName, "Design Review")
     }
 
-    func testRenameCurrentTranscriptionRefreshesMeetingArtifact() async throws {
+    func testRenameCurrentTranscriptionPublishesCommittedRowAndRefreshesCanonicalArtifacts() async throws {
         let artifactStore = RecordingMeetingArtifactStore()
         viewModel = TranscriptionViewModel(meetingArtifactStore: artifactStore)
         let oldUpdatedAt = Date(timeIntervalSince1970: 1_000)
@@ -2063,16 +2966,73 @@ final class TranscriptionViewModelTests: XCTestCase {
             promptResultRepo: mockPromptResultRepo
         )
         viewModel.currentTranscription = t
+        var persisted = t
+        persisted.rawTranscript = "A newer persisted transcript."
+        mockRepo.transcriptions = [persisted]
+        var renamedCallbacks: [MeetingRename] = []
+        viewModel.onMeetingRenamed = { renamedCallbacks.append($0) }
 
         viewModel.renameCurrentTranscription(to: "Design Review")
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertEqual(viewModel.currentTranscription?.fileName, "Design Review")
+        XCTAssertEqual(viewModel.currentTranscription?.rawTranscript, persisted.rawTranscript)
+        XCTAssertEqual(viewModel.transcriptions.first?.rawTranscript, persisted.rawTranscript)
+        XCTAssertEqual(renamedCallbacks.map(\.id), [t.id])
+        XCTAssertEqual(renamedCallbacks.map(\.title), ["Design Review"])
 
         try await waitUntilAsync { await artifactStore.materializeCallCount == 1 }
         let calls = await artifactStore.materializeCalls
         let call = try XCTUnwrap(calls.first)
         XCTAssertEqual(call.transcription.fileName, "Design Review")
         XCTAssertEqual(call.transcription.derivedTitle, "Design Review")
+        XCTAssertEqual(call.transcription.rawTranscript, persisted.rawTranscript)
         XCTAssertGreaterThan(call.transcription.updatedAt, oldUpdatedAt)
         XCTAssertEqual(call.promptResults.map(\.id), [promptResult.id])
+    }
+
+    func testRenameCurrentTranscriptionPublishesCommittedRowWhenArtifactReadFails() {
+        let meeting = Transcription(fileName: "Old", status: .completed, sourceType: .meeting)
+        mockRepo.transcriptions = [meeting]
+        mockRepo.fetchError = LocalTitleRenameTestError.persistenceFailed
+        viewModel.configure(
+            transcriptionService: mockService, transcriptionRepo: mockRepo,
+            promptResultRepo: mockPromptResultRepo
+        )
+        viewModel.currentTranscription = meeting
+        var renamedTitles: [String] = []
+        viewModel.onMeetingRenamed = { renamedTitles.append($0.title) }
+
+        viewModel.renameCurrentTranscription(to: "New")
+
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertEqual(viewModel.currentTranscription?.fileName, "New")
+        XCTAssertEqual(mockRepo.transcriptions.first?.fileName, "New")
+        XCTAssertEqual(renamedTitles, ["New"])
+    }
+
+    func testDebouncedNotesWritesDeferArtifactsUntilExplicitRefresh() async {
+        let store = RecordingMeetingArtifactStore()
+        viewModel = TranscriptionViewModel(meetingArtifactStore: store)
+        let meeting = Transcription(fileName: "Meeting", status: .completed, sourceType: .meeting)
+        mockRepo.transcriptions = [meeting]
+        viewModel.configure(
+            transcriptionService: mockService, transcriptionRepo: mockRepo,
+            promptResultRepo: mockPromptResultRepo
+        )
+        viewModel.currentTranscription = meeting
+
+        for text in ["First", "Latest"] {
+            let saved = await viewModel.updateMeetingNotes(for: meeting, to: text, refreshArtifacts: false)
+            XCTAssertTrue(saved)
+        }
+        XCTAssertEqual(mockRepo.transcriptions.first?.userNotes, "Latest")
+        let beforeFlush = await store.materializeCallCount
+        XCTAssertEqual(beforeFlush, 0)
+
+        await viewModel.refreshMeetingNotesArtifacts(for: meeting.id)
+        let calls = await store.materializeCalls
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertEqual(calls.first?.transcription.userNotes, "Latest")
     }
 
     func testRenameCurrentTranscriptionSkipsArtifactRefreshWithoutPromptResultRepo() async throws {
@@ -2103,7 +3063,8 @@ final class TranscriptionViewModelTests: XCTestCase {
         )
 
         let markdownURL = folderURL.appendingPathComponent(MeetingArtifactStore.markdownFileName)
-        let resultMarkdownURL = folderURL
+        let resultMarkdownURL =
+            folderURL
             .appendingPathComponent(MeetingArtifactStore.promptResultsDirectoryName)
             .appendingPathComponent("01-Summary.md")
         let beforeMarkdown = try String(contentsOf: markdownURL, encoding: .utf8)
@@ -2140,6 +3101,55 @@ final class TranscriptionViewModelTests: XCTestCase {
         viewModel.renameCurrentTranscription(to: "  Design Review  ")
 
         XCTAssertEqual(viewModel.currentTranscription?.fileName, "Design Review")
+    }
+
+    func testRenameCurrentTranscriptionSurfacesPersistenceFailure() {
+        let t = Transcription(
+            fileName: "Meeting Apr 5",
+            status: .completed,
+            sourceType: .meeting,
+            derivedTitle: "Auto Derived Title"
+        )
+        mockRepo.transcriptions = [t]
+        mockRepo.updateFileNameError = LocalTitleRenameTestError.persistenceFailed
+        var renamedCallbacks: [MeetingRename] = []
+        viewModel.onMeetingRenamed = { renamedCallbacks.append($0) }
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        viewModel.renameCurrentTranscription(to: "Design Review")
+
+        XCTAssertEqual(mockRepo.updateFileNameCalls.count, 1)
+        XCTAssertEqual(viewModel.currentTranscription?.fileName, "Meeting Apr 5")
+        XCTAssertEqual(viewModel.transcriptions.first?.fileName, "Meeting Apr 5")
+        XCTAssertTrue(viewModel.errorMessage?.contains("Failed to rename transcription") ?? false)
+        XCTAssertTrue(renamedCallbacks.isEmpty)
+    }
+
+    func testRenameCurrentTranscriptionRejectsMissingRowWithoutSuccessSideEffects() async {
+        let artifactStore = RecordingMeetingArtifactStore()
+        viewModel = TranscriptionViewModel(meetingArtifactStore: artifactStore)
+        let meeting = Transcription(fileName: "Meeting Apr 5", status: .completed, sourceType: .meeting)
+        mockRepo.transcriptions = [meeting]
+        viewModel.configure(
+            transcriptionService: mockService,
+            transcriptionRepo: mockRepo,
+            promptResultRepo: mockPromptResultRepo
+        )
+        viewModel.currentTranscription = meeting
+        mockRepo.transcriptions = []
+        var renamedCallbacks: [MeetingRename] = []
+        viewModel.onMeetingRenamed = { renamedCallbacks.append($0) }
+
+        viewModel.renameCurrentTranscription(to: "Design Review")
+
+        XCTAssertNotNil(viewModel.errorMessage)
+        XCTAssertEqual(viewModel.currentTranscription?.fileName, meeting.fileName)
+        XCTAssertEqual(viewModel.transcriptions.first?.fileName, meeting.fileName)
+        XCTAssertTrue(renamedCallbacks.isEmpty)
+        let materialized = await artifactStore.waitForMaterializeCallCount(1, timeout: .milliseconds(100))
+        XCTAssertFalse(materialized)
     }
 
     func testRenameCurrentTranscriptionIgnoresEmptyName() {
@@ -2268,6 +3278,20 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.showTabs)
     }
 
+    func testShowTabsTrueForSavedMeetingWithoutAIResultsOrChat() {
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = Transcription(
+            fileName: "meeting.m4a",
+            status: .completed,
+            sourceType: .meeting
+        )
+
+        XCTAssertFalse(viewModel.llmAvailable)
+        XCTAssertFalse(viewModel.hasPromptResultTabs)
+        XCTAssertFalse(viewModel.hasConversations)
+        XCTAssertTrue(viewModel.showTabs)
+    }
+
     func testUpdateConversationStatusUpdatesShowTabs() {
         viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
         let transcription = Transcription(
@@ -2287,20 +3311,27 @@ final class TranscriptionViewModelTests: XCTestCase {
 
     // MARK: - Persisted Content
 
-    func testLoadPersistedContentRefreshesCurrentTranscriptionFromDB() {
-        let t = Transcription(fileName: "test.mp3", status: .completed)
-        mockRepo.transcriptions = [t]
+    func testLoadPersistedContentRefreshesPromptResultTabsWithoutRefetchingRow() {
+        let handed = Transcription(
+            fileName: "handed.mp3",
+            rawTranscript: "already loaded from Library",
+            status: .completed
+        )
+        var stored = handed
+        stored.rawTranscript = "stale or different DB copy"
+        stored.fileName = "from-db.mp3"
+        mockRepo.transcriptions = [stored]
 
         viewModel.configure(
             transcriptionService: mockService,
             transcriptionRepo: mockRepo,
             promptResultRepo: mockPromptResultRepo
         )
-        viewModel.currentTranscription = t
+        viewModel.currentTranscription = handed
 
         mockPromptResultRepo.promptResults = [
             PromptResult(
-                transcriptionId: t.id,
+                transcriptionId: handed.id,
                 promptName: "Concise Summary",
                 promptContent: Prompt.defaultPrompt.content,
                 content: "Migrated summary"
@@ -2310,6 +3341,30 @@ final class TranscriptionViewModelTests: XCTestCase {
         viewModel.loadPersistedContent()
 
         XCTAssertTrue(viewModel.hasPromptResultTabs)
+        XCTAssertEqual(viewModel.currentTranscription?.rawTranscript, "already loaded from Library")
+        XCTAssertEqual(viewModel.currentTranscription?.fileName, "handed.mp3")
+    }
+
+    func testCurrentTranscriptionRevisionAdvancesForSelectionEditAndRevert() {
+        let transcription = Transcription(
+            fileName: "editable.mp3",
+            rawTranscript: "Original transcript",
+            status: .completed
+        )
+        mockRepo.transcriptions = [transcription]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+
+        let beforeSelection = viewModel.currentTranscriptionRevision
+        viewModel.currentTranscription = transcription
+        let afterSelection = viewModel.currentTranscriptionRevision
+
+        XCTAssertGreaterThan(afterSelection, beforeSelection)
+        XCTAssertTrue(viewModel.updateCurrentTranscriptText(to: "Edited transcript"))
+        let afterEdit = viewModel.currentTranscriptionRevision
+        XCTAssertGreaterThan(afterEdit, afterSelection)
+
+        XCTAssertTrue(viewModel.revertCurrentTranscriptToOriginal())
+        XCTAssertGreaterThan(viewModel.currentTranscriptionRevision, afterEdit)
     }
 
     // MARK: - Retranscribe
@@ -2349,8 +3404,9 @@ final class TranscriptionViewModelTests: XCTestCase {
 
         try await Task.sleep(for: .milliseconds(300))
 
-        XCTAssertTrue(mockRepo.deleteCalledWith.isEmpty,
-                      "Retranscribe should update the existing transcription instead of deleting it")
+        XCTAssertTrue(
+            mockRepo.deleteCalledWith.isEmpty,
+            "Retranscribe should update the existing transcription instead of deleting it")
 
         // Existing record should be updated in place with the new transcript payload.
         let saved = mockRepo.transcriptions
@@ -2360,8 +3416,9 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(saved.first?.isFavorite, true, "Should preserve favorite state")
         XCTAssertEqual(saved.first?.rawTranscript, "New transcript", "Should replace transcript content")
         XCTAssertEqual(saved.first?.fileName, "lecture.mp3", "Should preserve original fileName")
-        XCTAssertEqual(saved.first?.sourceURL, "https://youtube.com/watch?v=abc123",
-                       "Should preserve original sourceURL")
+        XCTAssertEqual(
+            saved.first?.sourceURL, "https://youtube.com/watch?v=abc123",
+            "Should preserve original sourceURL")
         XCTAssertEqual(saved.first?.thumbnailURL, original.thumbnailURL)
         XCTAssertEqual(saved.first?.channelName, original.channelName)
         XCTAssertEqual(saved.first?.videoDescription, original.videoDescription)
@@ -2369,6 +3426,50 @@ final class TranscriptionViewModelTests: XCTestCase {
 
         let lastSource = await mockService.lastSource
         XCTAssertEqual(lastSource, .youtube, "Retranscribe should preserve original telemetry source")
+    }
+
+    func testRetranscribePublishesMetadataEditedWhileServiceIsSuspended() async throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".wav")
+        try Data().write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let original = Transcription(
+            fileName: "Original meeting", filePath: file.path,
+            rawTranscript: "Old transcript", status: .completed,
+            sourceType: .meeting, userNotes: "Old notes"
+        )
+        mockRepo.transcriptions = [original]
+        await mockService.configure(
+            result: Transcription(
+                fileName: "Stale result", rawTranscript: "New transcript", status: .completed
+            ))
+        let started = expectation(description: "Service suspended")
+        let (release, continuation) = AsyncStream<Void>.makeStream()
+        defer { continuation.finish() }
+        await mockService.setTranscribeHook {
+            started.fulfill()
+            for await _ in release { break }
+        }
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.retranscribe(original)
+        await fulfillment(of: [started], timeout: 2)
+        let typeID = UUID()
+        var edited = original
+        edited.userNotes = "Notes saved during STT"
+        edited.meetingTypeId = typeID
+        edited.fileName = "Renamed during STT"
+        edited.isFavorite = true
+        try mockRepo.save(edited)
+        continuation.yield(())
+        try await waitUntil { !self.viewModel.isTranscribing }
+        let persisted = try XCTUnwrap(mockRepo.fetch(id: original.id))
+        let published = try XCTUnwrap(viewModel.currentTranscription)
+        for snapshot in [persisted, published] {
+            XCTAssertEqual(snapshot.userNotes, edited.userNotes)
+            XCTAssertEqual(snapshot.meetingTypeId, typeID)
+            XCTAssertEqual(snapshot.fileName, edited.fileName)
+            XCTAssertTrue(snapshot.isFavorite)
+            XCTAssertEqual(snapshot.rawTranscript, "New transcript")
+        }
     }
 
     func testRetranscribePreservesMeetingSourceType() async throws {
@@ -2456,16 +3557,93 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(lastMeetingRecording?.speechEngine, SpeechEngineSelection(engine: .whisper, language: "ko"))
     }
 
+    func testRetranscribeFilePassesPerRunExactSpeakerSelection() async throws {
+        let tmpFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("retranscribe-speakers-\(UUID().uuidString).wav")
+        FileManager.default.createFile(atPath: tmpFile.path, contents: Data([0]))
+        defer { try? FileManager.default.removeItem(at: tmpFile) }
+        let original = Transcription(
+            id: UUID(),
+            fileName: tmpFile.lastPathComponent,
+            filePath: tmpFile.path,
+            rawTranscript: "Old",
+            status: .completed,
+            sourceType: .file
+        )
+        mockRepo.transcriptions = [original]
+        await mockService.configure(result: Transcription(
+            fileName: tmpFile.lastPathComponent,
+            rawTranscript: "New",
+            status: .completed
+        ))
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+
+        viewModel.retranscribe(original, speakerSelection: .exact(3))
+        try await waitUntil { !self.viewModel.isTranscribing }
+
+        let selection = await mockService.lastRetranscriptionSpeakerSelection
+        XCTAssertEqual(selection, .exact(3))
+    }
+
+    func testRetranscribeMeetingPassesSpeakerSelectionOnlyWithArchivedSystemTrack() async throws {
+        let archivedMeeting = try makeArchivedMeetingRecording()
+        defer { try? FileManager.default.removeItem(at: archivedMeeting.folderURL) }
+        let original = Transcription(
+            id: UUID(),
+            fileName: "Remote interview",
+            filePath: archivedMeeting.mixedURL.path,
+            rawTranscript: "Old",
+            status: .completed,
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [original]
+        await mockService.configure(result: Transcription(
+            fileName: original.fileName,
+            rawTranscript: "New",
+            status: .completed,
+            sourceType: .meeting
+        ))
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+
+        XCTAssertTrue(viewModel.canConfigureSpeakersForRetranscription(original))
+        viewModel.retranscribe(original, speakerSelection: .exact(2))
+        try await waitUntil { !self.viewModel.isTranscribing }
+
+        let selection = await mockService.lastRetranscriptionSpeakerSelection
+        XCTAssertEqual(selection, .exact(2))
+    }
+
+    func testMeetingSpeakerSelectionIsUnavailableForMixedAudioFallback() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("meeting-no-system-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let mixedURL = folder.appendingPathComponent("meeting-playback.m4a")
+        FileManager.default.createFile(atPath: mixedURL.path, contents: Data([0]))
+        let original = Transcription(
+            fileName: "Legacy meeting",
+            filePath: mixedURL.path,
+            rawTranscript: "Old",
+            status: .completed,
+            sourceType: .meeting
+        )
+
+        XCTAssertFalse(viewModel.canConfigureSpeakersForRetranscription(original))
+    }
+
     func testRetranscribeProgressSublineUsesSpeechEngineOverride() async throws {
         let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
         SpeechEnginePreference.parakeet.save(to: defaults)
-        SpeechEnginePreference.saveWhisperModelVariant(SpeechEnginePreference.defaultWhisperModelVariant, defaults: defaults)
+        SpeechEnginePreference.saveWhisperModelVariant(
+            SpeechEnginePreference.defaultWhisperModelVariant, defaults: defaults)
         viewModel = TranscriptionViewModel(defaults: defaults)
-        let expectedSubline = "Whisper \(SpeechEnginePreference.friendlyVariantName(SpeechEnginePreference.defaultWhisperModelVariant)) · Local Core ML"
+        let expectedSubline =
+            "Whisper \(SpeechEnginePreference.friendlyVariantName(SpeechEnginePreference.defaultWhisperModelVariant)) · Local Core ML"
 
-        let tmpFile = FileManager.default.temporaryDirectory.appendingPathComponent("retranscribe-progress-\(UUID().uuidString).mp3")
+        let tmpFile = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "retranscribe-progress-\(UUID().uuidString).mp3")
         FileManager.default.createFile(atPath: tmpFile.path, contents: Data([0]))
         defer { try? FileManager.default.removeItem(at: tmpFile) }
 
@@ -2837,7 +4015,9 @@ final class TranscriptionViewModelTests: XCTestCase {
         )
     }
 
-    func testRetranscriptionEngineOptionFirstTimestampCapableChoiceUsesUnifiedWhenOtherTimestampEnginesAreUnavailable() throws {
+    func testRetranscriptionEngineOptionFirstTimestampCapableChoiceUsesUnifiedWhenOtherTimestampEnginesAreUnavailable()
+        throws
+    {
         let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -3346,7 +4526,8 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testRetranscribeSkipsAutoRunPromptsButRegeneratesKnowledgeCard() async throws {
-        let tmpFile = FileManager.default.temporaryDirectory.appendingPathComponent("retranscribe-no-autorun-\(UUID().uuidString).mp3")
+        let tmpFile = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "retranscribe-no-autorun-\(UUID().uuidString).mp3")
         FileManager.default.createFile(atPath: tmpFile.path, contents: Data([0]))
         defer { try? FileManager.default.removeItem(at: tmpFile) }
 
@@ -3369,8 +4550,9 @@ final class TranscriptionViewModelTests: XCTestCase {
         let llm = MockLLMService()
         let promptRepo = MockPromptRepository()
         promptRepo.prompts = Prompt.builtInPrompts()
-        XCTAssertTrue(promptRepo.prompts.contains(where: { $0.isAutoRun }),
-                      "Test fixture must include at least one auto-run prompt for this regression to be meaningful")
+        XCTAssertTrue(
+            promptRepo.prompts.contains(where: { $0.isAutoRun }),
+            "Test fixture must include at least one auto-run prompt for this regression to be meaningful")
         let promptResultsVM = PromptResultsViewModel()
         let cardGenerator = RetranscriptionCardGenerator()
         promptResultsVM.configure(
@@ -3394,10 +4576,12 @@ final class TranscriptionViewModelTests: XCTestCase {
         // Drain any pending main-actor work that the retranscribe completion path posts.
         try await Task.sleep(for: .milliseconds(50))
 
-        XCTAssertTrue(promptResultsVM.pendingGenerations.isEmpty,
-                      "Retranscribe must not auto-queue prompt generations — that would duplicate existing tabs")
-        XCTAssertEqual(llm.summarizeCallCount, 0,
-                       "Retranscribe must not invoke the LLM service via auto-run")
+        XCTAssertTrue(
+            promptResultsVM.pendingGenerations.isEmpty,
+            "Retranscribe must not auto-queue prompt generations — that would duplicate existing tabs")
+        XCTAssertEqual(
+            llm.summarizeCallCount, 0,
+            "Retranscribe must not invoke the LLM service via auto-run")
         var generatedIDs: [UUID] = []
         for _ in 0..<20 {
             generatedIDs = await cardGenerator.transcriptionIDs
@@ -3440,8 +4624,9 @@ final class TranscriptionViewModelTests: XCTestCase {
         try await waitUntil { !self.viewModel.isTranscribing }
         try await waitUntil { llm.summarizeCallCount > 0 }
 
-        XCTAssertGreaterThan(llm.summarizeCallCount, 0,
-                             "Fresh transcribe must still fire auto-run prompts")
+        XCTAssertGreaterThan(
+            llm.summarizeCallCount, 0,
+            "Fresh transcribe must still fire auto-run prompts")
     }
 
     func testAutoRunPromptsUseRichTranscriptContextByDefault() {
@@ -3474,11 +4659,11 @@ final class TranscriptionViewModelTests: XCTestCase {
             wordTimestamps: [
                 WordTimestamp(word: "Hello", startMs: 0, endMs: 400, confidence: 0.99, speakerId: "microphone"),
                 WordTimestamp(word: "there.", startMs: 450, endMs: 900, confidence: 0.98, speakerId: "microphone"),
-                WordTimestamp(word: "Thanks.", startMs: 2_000, endMs: 2_400, confidence: 0.97, speakerId: "system")
+                WordTimestamp(word: "Thanks.", startMs: 2_000, endMs: 2_400, confidence: 0.97, speakerId: "system"),
             ],
             speakers: [
                 SpeakerInfo(id: "microphone", label: "Me"),
-                SpeakerInfo(id: "system", label: "Others")
+                SpeakerInfo(id: "system", label: "Others"),
             ],
             status: .completed,
             sourceType: .meeting
@@ -3493,6 +4678,56 @@ final class TranscriptionViewModelTests: XCTestCase {
             [0:02] Others: Thanks.
             """
         )
+    }
+
+    func testMeetingAutoRunReceivesPersistedMeetingTypeForPolicyResolution() {
+        let meetingTypeID = UUID()
+        let prompt = Prompt(
+            name: "Typed auto-note",
+            content: "Summarize this meeting.",
+            category: .result,
+            isVisible: true,
+            isAutoRun: false
+        )
+        let promptRepo = MockPromptRepository()
+        promptRepo.prompts = [prompt]
+        let policies = MockPromptMeetingPolicyRepository()
+        policies.policiesByPromptID[prompt.id] = [
+            .allMeetings(promptId: prompt.id, isAvailable: false, isAutoRun: false),
+            .meetingType(
+                promptId: prompt.id,
+                meetingTypeId: meetingTypeID,
+                isAvailable: true,
+                isAutoRun: true
+            ),
+        ]
+        let llm = MockLLMService()
+        llm.streamDelayNs = 1_000_000_000
+        let promptResultsVM = PromptResultsViewModel()
+        promptResultsVM.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: mockPromptResultRepo,
+            promptMeetingPolicyRepository: policies
+        )
+        viewModel.configure(
+            transcriptionService: mockService,
+            transcriptionRepo: mockRepo,
+            llmService: llm,
+            promptResultRepo: mockPromptResultRepo,
+            promptResultsViewModel: promptResultsVM
+        )
+        let transcription = Transcription(
+            fileName: "typed-meeting.m4a",
+            rawTranscript: "A completed typed meeting.",
+            status: .completed,
+            sourceType: .meeting,
+            meetingTypeId: meetingTypeID
+        )
+
+        viewModel.presentCompletedTranscription(transcription, autoSave: false)
+
+        XCTAssertEqual(promptResultsVM.pendingGenerations.map(\.promptName), [prompt.name])
     }
 
     func testAutoRunPromptsUsePlainTranscriptContextWhenConfigured() {
@@ -3529,11 +4764,11 @@ final class TranscriptionViewModelTests: XCTestCase {
             wordTimestamps: [
                 WordTimestamp(word: "Hello", startMs: 0, endMs: 400, confidence: 0.99, speakerId: "microphone"),
                 WordTimestamp(word: "there.", startMs: 450, endMs: 900, confidence: 0.98, speakerId: "microphone"),
-                WordTimestamp(word: "Thanks.", startMs: 2_000, endMs: 2_400, confidence: 0.97, speakerId: "system")
+                WordTimestamp(word: "Thanks.", startMs: 2_000, endMs: 2_400, confidence: 0.97, speakerId: "system"),
             ],
             speakers: [
                 SpeakerInfo(id: "microphone", label: "Me"),
-                SpeakerInfo(id: "system", label: "Others")
+                SpeakerInfo(id: "system", label: "Others"),
             ],
             status: .completed,
             sourceType: .meeting
@@ -3557,9 +4792,12 @@ final class TranscriptionViewModelTests: XCTestCase {
         )
         mockRepo.transcriptions = [original]
 
-        await mockService.configure(error: NSError(domain: "test", code: 1, userInfo: [
-            NSLocalizedDescriptionKey: "STT engine failed"
-        ]))
+        await mockService.configure(
+            error: NSError(
+                domain: "test", code: 1,
+                userInfo: [
+                    NSLocalizedDescriptionKey: "STT engine failed"
+                ]))
 
         viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
 
@@ -3568,8 +4806,9 @@ final class TranscriptionViewModelTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(300))
 
         // Original should NOT be deleted on failure
-        XCTAssertTrue(mockRepo.deleteCalledWith.isEmpty,
-                       "Original should not be deleted when retranscribe fails")
+        XCTAssertTrue(
+            mockRepo.deleteCalledWith.isEmpty,
+            "Original should not be deleted when retranscribe fails")
         XCTAssertEqual(mockRepo.transcriptions.count, 1, "Original should still exist")
         XCTAssertEqual(mockRepo.transcriptions.first?.id, original.id)
     }
@@ -3631,14 +4870,22 @@ private struct MaterializeCall: Sendable {
 
 private actor RecordingMeetingArtifactStore: MeetingArtifactStoring {
     private let materializeDelay: Duration?
+    private let beforeMaterialize: (@Sendable (Int) async -> Void)?
+    private let shouldFail: Bool
     private let materializeCallCountSignal = StateSignal<Int>()
     private var calls: [MaterializeCall] = []
     private var activeMaterializeCount = 0
     private(set) var startedMaterializeCount = 0
     private(set) var maxConcurrentMaterializeCount = 0
 
-    init(materializeDelay: Duration? = nil) {
+    init(
+        materializeDelay: Duration? = nil,
+        shouldFail: Bool = false,
+        beforeMaterialize: (@Sendable (Int) async -> Void)? = nil
+    ) {
         self.materializeDelay = materializeDelay
+        self.beforeMaterialize = beforeMaterialize
+        self.shouldFail = shouldFail
     }
 
     var materializeCalls: [MaterializeCall] {
@@ -3663,14 +4910,19 @@ private actor RecordingMeetingArtifactStore: MeetingArtifactStoring {
         startedMaterializeCount += 1
         activeMaterializeCount += 1
         maxConcurrentMaterializeCount = max(maxConcurrentMaterializeCount, activeMaterializeCount)
+        await beforeMaterialize?(startedMaterializeCount)
         if let materializeDelay {
             try? await Task.sleep(for: materializeDelay)
         }
         activeMaterializeCount -= 1
+        if shouldFail {
+            throw RecordingMeetingArtifactStoreError.materializationFailed
+        }
         calls.append(MaterializeCall(transcription: transcription, promptResults: promptResults))
         await materializeCallCountSignal.emit(calls.count)
 
-        let folderPath = MeetingArtifactStore.sessionFolderURL(for: transcription)?
+        let folderPath =
+            MeetingArtifactStore.sessionFolderURL(for: transcription)?
             .standardizedFileURL.path
             ?? FileManager.default.temporaryDirectory.path
         return MeetingArtifactSnapshot(
@@ -3688,4 +4940,8 @@ private actor RecordingMeetingArtifactStore: MeetingArtifactStoring {
             calendarEventSnapshot: transcription.calendarEventSnapshot
         )
     }
+}
+
+private enum RecordingMeetingArtifactStoreError: Error {
+    case materializationFailed
 }

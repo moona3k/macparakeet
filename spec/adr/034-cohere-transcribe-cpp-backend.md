@@ -1,4 +1,4 @@
-# ADR-029: Cohere Transcribe Backend via transcribe.cpp
+# ADR-034: Cohere Transcribe Backend via transcribe.cpp
 
 > Status: ACCEPTED
 > Date: 2026-07-25

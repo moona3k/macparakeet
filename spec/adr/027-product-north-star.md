@@ -67,6 +67,15 @@ corpus via `macparakeet-cli` (search/ask surfaces), governed by the existing
 CLI contract discipline (`spec/contracts/`, CLI CHANGELOG). MCP or deeper
 integrations remain demand-driven, not speculative.
 
+**Implementation clarification (2026-09-04):** Current development supplies
+segment search, bounded transcript context, current knowledge cards, and saved
+meeting notes/results/artifact/export commands. Dictations use separate
+history search; corpus-wide Ask and semantic retrieval are not implied.
+The [integration scope](../../integrations/README.md#scope-of-the-cli) governs:
+first-class automation does not require mirroring live recording controls,
+hotkeys, overlays, or every GUI affordance. Reuse the CLI before adding a
+service or protocol.
+
 ### 4. Ambient capture is parked, not rejected
 
 Unlike cloud STT — which [ADR-002](002-local-only.md) and the
@@ -108,3 +117,7 @@ cross-mode search and corpus QA land in MacParakeet. Deeper intelligence
 (entity extraction, knowledge graphs, team features) remains out of
 MacParakeet's scope. Whether Oatmeal continues as a distinct product is
 deliberately left open here.
+
+## 2026-09-19 amendment: explicit voice actions
+
+[ADR-033](033-explicit-voice-control.md) deliberately adds user-invoked Voice Control to the decision filter. Commands can act on the Mac without becoming permanent library entries. Session-based local speech and explicit cloud context remain required. This amendment authorizes implementation, not a claim of release qualification.

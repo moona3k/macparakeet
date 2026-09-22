@@ -1,0 +1,27 @@
+[1/1] Compiling plugin GenerateManual
+[2/2] Compiling plugin GenerateDoccReference
+Building for debugging...
+[2/10] Write sources
+[3/10] Write swift-version--58304C5D6DBC2206.txt
+[5/7] Emitting module MacParakeetTests
+[6/7] Compiling MacParakeetTests MeetingRecordingRecoveryServiceTests.swift
+[6/8] Write Objects.LinkFileList
+[7/8] Linking MacParakeetPackageTests
+Build complete! (8.68s)
+Test Suite 'Selected tests' started at 2026-09-07 15:44:32.410.
+Test Suite 'MacParakeetPackageTests.xctest' started at 2026-09-07 15:44:32.411.
+Test Suite 'MeetingRecordingRecoveryServiceTests' started at 2026-09-07 15:44:32.411.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardRelinquishesOwnershipWhenMissingLockRepairCannotAcquireMutex]' started.
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift:1002: error: -[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardRelinquishesOwnershipWhenMissingLockRepairCannotAcquireMutex] : XCTAssertEqual failed: ("[]") is not equal to ("[A1E12542-D65F-4D24-9160-0CDD4BA577DA]")
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/MeetingRecording/MeetingRecordingLockFileStore.swift:384: error: -[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardRelinquishesOwnershipWhenMissingLockRepairCannotAcquireMutex] : failed: caught error: "ownedByLiveProcess(pid: 83547)"
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardRelinquishesOwnershipWhenMissingLockRepairCannotAcquireMutex]' failed (0.794 seconds).
+Test Suite 'MeetingRecordingRecoveryServiceTests' failed at 2026-09-07 15:44:33.205.
+	 Executed 1 test, with 2 failures (1 unexpected) in 0.794 (0.794) seconds
+Test Suite 'MacParakeetPackageTests.xctest' failed at 2026-09-07 15:44:33.205.
+	 Executed 1 test, with 2 failures (1 unexpected) in 0.794 (0.794) seconds
+Test Suite 'Selected tests' failed at 2026-09-07 15:44:33.205.
+	 Executed 1 test, with 2 failures (1 unexpected) in 0.794 (0.795) seconds
+◇ Test run started.
+↳ Testing Library Version: 1743
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.

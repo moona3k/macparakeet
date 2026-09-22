@@ -7,19 +7,59 @@ final class MeetingTranscriptionQueue {
     struct Item: Equatable {
         let recording: MeetingRecordingOutput
         let transcriptionID: UUID
+        /// Recording-flow generation that owns this completion's presentation.
+        let recordingGeneration: Int
         let operationContext: ObservabilityOperationContext
         let trigger: TelemetryMeetingOperationTrigger?
         let liveWordCount: Int
         let liveTranscriptLagged: Bool
+        let finalizationOwnershipLease: MeetingFinalizationOwnershipLease?
+
+        init(
+            recording: MeetingRecordingOutput,
+            transcriptionID: UUID,
+            recordingGeneration: Int,
+            operationContext: ObservabilityOperationContext,
+            trigger: TelemetryMeetingOperationTrigger?,
+            liveWordCount: Int,
+            liveTranscriptLagged: Bool,
+            finalizationOwnershipLease: MeetingFinalizationOwnershipLease? = nil
+        ) {
+            self.recording = recording
+            self.transcriptionID = transcriptionID
+            self.recordingGeneration = recordingGeneration
+            self.operationContext = operationContext
+            self.trigger = trigger
+            self.liveWordCount = liveWordCount
+            self.liveTranscriptLagged = liveTranscriptLagged
+            self.finalizationOwnershipLease = finalizationOwnershipLease
+        }
 
         func withTranscriptionID(_ transcriptionID: UUID) -> Item {
             Item(
                 recording: recording,
                 transcriptionID: transcriptionID,
+                recordingGeneration: recordingGeneration,
                 operationContext: operationContext,
                 trigger: trigger,
                 liveWordCount: liveWordCount,
-                liveTranscriptLagged: liveTranscriptLagged
+                liveTranscriptLagged: liveTranscriptLagged,
+                finalizationOwnershipLease: finalizationOwnershipLease
+            )
+        }
+
+        func withFinalizationOwnershipLease(
+            _ lease: MeetingFinalizationOwnershipLease
+        ) -> Item {
+            Item(
+                recording: recording,
+                transcriptionID: transcriptionID,
+                recordingGeneration: recordingGeneration,
+                operationContext: operationContext,
+                trigger: trigger,
+                liveWordCount: liveWordCount,
+                liveTranscriptLagged: liveTranscriptLagged,
+                finalizationOwnershipLease: lease
             )
         }
     }
@@ -47,6 +87,7 @@ final class MeetingTranscriptionQueue {
     private let transcriptionService: TranscriptionServiceProtocol
     private let transcriptionRepo: TranscriptionRepositoryProtocol
     private let meetingRecordingSettlement: MeetingRecordingSettlement
+    private let finalizationOwnershipClaimer: any MeetingFinalizationOwnershipClaiming
 
     private var pendingItems: [Item] = []
     private var activeItem: Item?
@@ -59,11 +100,14 @@ final class MeetingTranscriptionQueue {
     init(
         transcriptionService: TranscriptionServiceProtocol,
         transcriptionRepo: TranscriptionRepositoryProtocol,
-        meetingRecordingSettlement: MeetingRecordingSettlement
+        meetingRecordingSettlement: MeetingRecordingSettlement,
+        finalizationOwnershipClaimer: any MeetingFinalizationOwnershipClaiming =
+            MeetingRecordingLockFileStore()
     ) {
         self.transcriptionService = transcriptionService
         self.transcriptionRepo = transcriptionRepo
         self.meetingRecordingSettlement = meetingRecordingSettlement
+        self.finalizationOwnershipClaimer = finalizationOwnershipClaimer
     }
 
     var snapshot: Snapshot {
@@ -78,16 +122,29 @@ final class MeetingTranscriptionQueue {
         return ids
     }
 
-    func enqueue(_ item: Item) {
+    @discardableResult
+    func enqueue(_ item: Item) async -> Bool {
         guard !containsQueuedTranscription(id: item.transcriptionID) else {
             logger.info(
                 "queued_meeting_transcription_duplicate_dropped id=\(item.transcriptionID.uuidString, privacy: .public)"
             )
-            return
+            await restoreFinalizationOwnershipIfNeeded(for: item)
+            return false
         }
         pendingItems.append(item)
         notifyStateChanged()
         startNextIfNeeded()
+        return true
+    }
+
+    func enqueueClaimingFinalizationOwnership(_ item: Item) async throws -> Bool {
+        let ownershipClaimer = finalizationOwnershipClaimer
+        let lease = try await Task.detached(priority: .userInitiated) {
+            try ownershipClaimer.claimFinalizationOwnership(
+                folderURL: item.recording.folderURL
+            )
+        }.value
+        return await enqueue(item.withFinalizationOwnershipLease(lease))
     }
 
     func waitUntilIdle() async {
@@ -110,15 +167,30 @@ final class MeetingTranscriptionQueue {
     }
 
     private func process(_ originalItem: Item) async {
+        let preparationStartedAt = Date()
+        appendDiagnostic(originalItem, stage: "prepare_row", outcome: "started")
         let item: Item
         do {
             switch try await ensureProcessingRow(for: originalItem) {
             case .admitted(let admittedItem):
                 item = admittedItem
+                appendDiagnostic(
+                    admittedItem,
+                    stage: "prepare_row",
+                    outcome: "success",
+                    startedAt: preparationStartedAt
+                )
             case .alreadyCompleted(let transcription):
+                appendDiagnostic(
+                    originalItem,
+                    stage: "prepare_row",
+                    outcome: "already_completed",
+                    startedAt: preparationStartedAt
+                )
                 logger.info(
                     "queued_meeting_transcription_already_completed id=\(transcription.id.uuidString, privacy: .public)"
                 )
+                await restoreFinalizationOwnershipIfNeeded(for: originalItem)
                 finishActiveItem(nil)
                 return
             }
@@ -127,13 +199,23 @@ final class MeetingTranscriptionQueue {
                 notifyStateChanged()
             }
         } catch {
+            appendDiagnostic(
+                originalItem,
+                stage: "prepare_row",
+                outcome: "failure",
+                startedAt: preparationStartedAt,
+                error: error
+            )
             logger.error(
                 "queued_meeting_transcription_prepare_failed session=\(originalItem.recording.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
             )
+            await restoreFinalizationOwnershipIfNeeded(for: originalItem)
             finishActiveItem(.failure(item: originalItem, error: error))
             return
         }
 
+        let finalizationStartedAt = Date()
+        appendDiagnostic(item, stage: "finalize_transcript", outcome: "started")
         let transcription: Transcription
         do {
             transcription = try await Observability.withOperationContext(item.operationContext) {
@@ -143,25 +225,55 @@ final class MeetingTranscriptionQueue {
                     onProgress: nil
                 )
             }
+            appendDiagnostic(
+                item,
+                stage: "finalize_transcript",
+                outcome: "success",
+                startedAt: finalizationStartedAt
+            )
         } catch {
+            appendDiagnostic(
+                item,
+                stage: "finalize_transcript",
+                outcome: error is CancellationError ? "cancelled" : "failure",
+                startedAt: finalizationStartedAt,
+                error: error
+            )
             logger.error(
                 "queued_meeting_transcription_failed session=\(item.recording.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
             )
             await markFailed(item, error: error)
+            await restoreFinalizationOwnershipIfNeeded(for: item)
             finishActiveItem(.failure(item: item, error: error))
             return
         }
 
+        let settlementStartedAt = Date()
+        appendDiagnostic(item, stage: "settle_artifacts", outcome: "started")
         do {
             try await meetingRecordingSettlement.settleCompletedTranscription(
                 folderURL: item.recording.folderURL,
                 transcriptionID: transcription.id,
                 sessionID: item.recording.sessionID
             )
+            appendDiagnostic(
+                item,
+                stage: "settle_artifacts",
+                outcome: "success",
+                startedAt: settlementStartedAt
+            )
         } catch {
+            appendDiagnostic(
+                item,
+                stage: "settle_artifacts",
+                outcome: "failure",
+                startedAt: settlementStartedAt,
+                error: error
+            )
             logger.error(
                 "queued_meeting_settlement_failed_lock_retained_for_recovery session=\(item.recording.sessionID.uuidString, privacy: .public) error_type=\(TelemetryErrorClassifier.classify(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
             )
+            await restoreFinalizationOwnershipIfNeeded(for: item)
         }
         finishActiveItem(.success(item: item, transcription: transcription))
     }
@@ -231,6 +343,38 @@ final class MeetingTranscriptionQueue {
 
     private func containsQueuedTranscription(id: UUID) -> Bool {
         activeItem?.transcriptionID == id || pendingItems.contains { $0.transcriptionID == id }
+    }
+
+    private func restoreFinalizationOwnershipIfNeeded(for item: Item) async {
+        guard let lease = item.finalizationOwnershipLease else { return }
+        let ownershipClaimer = finalizationOwnershipClaimer
+        do {
+            try await Task.detached(priority: .utility) {
+                try ownershipClaimer.releaseFinalizationOwnership(lease)
+            }.value
+        } catch {
+            logger.error(
+                "queued_meeting_ownership_release_failed id=\(item.transcriptionID.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .private)"
+            )
+        }
+    }
+
+    private func appendDiagnostic(
+        _ item: Item,
+        stage: String,
+        outcome: String,
+        startedAt: Date? = nil,
+        error: Error? = nil
+    ) {
+        var fields =
+            "meeting_transcription_queue_stage session=\(item.recording.sessionID.uuidString) transcription=\(item.transcriptionID.uuidString) stage=\(stage) outcome=\(outcome)"
+        if let startedAt {
+            fields += " duration_s=\(String(format: "%.3f", Date().timeIntervalSince(startedAt)))"
+        }
+        if let error {
+            fields += " error_type=\(TelemetryErrorClassifier.classify(error))"
+        }
+        AudioCaptureDiagnostics.appendAsync(fields)
     }
 
     private func finishActiveItem(_ completion: Completion?) {

@@ -22,6 +22,31 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         try? FileManager.default.removeItem(at: tempRoot)
     }
 
+    func testActiveWriterFinalizationIsNeitherOfferedRecoveredNorDiscarded() async throws {
+        let fixture = try makeRecoverableSession()
+        MeetingAudioWriterFinalizationRegistry.begin(folderURL: fixture.folderURL)
+        defer {
+            MeetingAudioWriterFinalizationRegistry.end(folderURL: fixture.folderURL)
+        }
+
+        let recoveries = try await recoveryService.discoverPendingRecoveries()
+
+        XCTAssertFalse(recoveries.contains { $0.sessionId == fixture.lock.sessionId })
+        do {
+            _ = try await recoveryService.recover(fixture.lock)
+            XCTFail("Recovery must not read a source file while its writer is finalizing")
+        } catch MeetingRecordingRecoveryError.writerFinalizationInProgress {
+            // Expected.
+        }
+        do {
+            try await recoveryService.discard(fixture.lock)
+            XCTFail("Discard must not delete a source file while its writer is finalizing")
+        } catch MeetingRecordingRecoveryError.writerFinalizationInProgress {
+            // Expected.
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.folderURL.path))
+    }
+
     func testRecoverSynthesizesMetadataAndPersistsRecoveredTranscription() async throws {
         let fixture = try makeRecoverableSession()
 
@@ -43,8 +68,26 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertNil(metadata.captureReport)
     }
 
+    func testRecoverImportedSessionWithoutRowPreservesHistoricalMetadata() async throws {
+        let startedAt = Date(timeIntervalSince1970: 1_650_000_000)
+        let retentionStartedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let fixture = try makeRecoverableSession(
+            lockState: .awaitingTranscription,
+            startedAt: startedAt,
+            audioRetentionStartedAt: retentionStartedAt,
+            titleOverride: "Partnership discussion"
+        )
+
+        let recovered = try await recoveryService.recover(fixture.lock)
+
+        XCTAssertEqual(recovered.createdAt, startedAt)
+        XCTAssertEqual(recovered.audioRetentionStartedAt, retentionStartedAt)
+        XCTAssertEqual(recovered.fileName, "Partnership discussion")
+        XCTAssertEqual(recovered.titleOverride, "Partnership discussion")
+    }
+
     func testRecoverPreservesExistingTimelineAndProvenanceWhileRefreshingMediaFacts() async throws {
-        let fixture = try makeRecoverableSession()
+        let fixture = try makeRecoverableSession(systemAudio: .silent)
         let finalizedAlignment = MeetingSourceAlignment(
             meetingOriginHostTime: 42,
             microphone: MeetingSourceAlignment.Track(
@@ -68,7 +111,8 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             sourceMode: .microphoneAndSystem,
             sourceAlignment: finalizedAlignment,
             elapsedDurationMs: 20_000,
-            interruptedSources: [.system]
+            interruptedSources: [.microphone],
+            silentSources: [.system]
         )
         let finalSpeechEngine = SpeechEngineSelection(engine: .whisper, language: "ko")
         let previewSpeechEngine = SpeechEngineSelection(engine: .parakeet)
@@ -155,6 +199,8 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertEqual(reconciledReport.interruptedSources, captureReport.interruptedSources)
         XCTAssertEqual(reconciledReport.captureFailed, captureReport.captureFailed)
         XCTAssertEqual(reconciledReport.quality, .partial)
+        XCTAssertEqual(reconciledReport.source(for: .microphone)?.status, .interrupted)
+        XCTAssertEqual(reconciledReport.source(for: .system)?.status, .coverageShortfall)
         XCTAssertEqual(
             reconciledReport.source(for: .microphone)?.writtenDurationMs,
             captureReport.source(for: .microphone)?.writtenDurationMs
@@ -188,6 +234,92 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             Int((playbackDuration * 1_000).rounded()),
             accuracy: 100
         )
+    }
+
+    func testRecoverLegacySilenceOnlyPartialReportRemainsHealthy() async throws {
+        let fixture = try makeRecoverableSession(systemAudio: .silent)
+        let track = MeetingSourceAlignment.Track(
+            firstHostTime: nil,
+            lastHostTime: nil,
+            startOffsetMs: 0,
+            writtenFrameCount: 48_000,
+            sampleRate: 48_000
+        )
+        let alignment = MeetingSourceAlignment(
+            meetingOriginHostTime: nil,
+            microphone: track,
+            system: track
+        )
+        let report = MeetingCaptureReport(
+            sourceMode: .microphoneAndSystem,
+            sourceAlignment: alignment,
+            elapsedDurationMs: 1_000,
+            silentSources: [.system]
+        )
+        try MeetingRecordingMetadataStore.save(
+            MeetingRecordingMetadata(sourceAlignment: alignment, captureReport: report),
+            folderURL: fixture.folderURL
+        )
+        let metadataURL = MeetingRecordingMetadataStore.metadataURL(for: fixture.folderURL)
+        var legacyMetadata = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: metadataURL)) as? [String: Any]
+        )
+        var legacyReport = try XCTUnwrap(legacyMetadata["captureReport"] as? [String: Any])
+        legacyReport["quality"] = "partial"
+        legacyMetadata["captureReport"] = legacyReport
+        try JSONSerialization.data(withJSONObject: legacyMetadata).write(to: metadataURL)
+        audioConverter.copyFirstInputAsMix = true
+
+        let recovered = try await recoveryService.recover(fixture.lock)
+
+        let rewrittenMetadata = try MeetingRecordingMetadataStore.load(from: fixture.folderURL)
+        let reconciledReport = try XCTUnwrap(rewrittenMetadata.captureReport)
+        XCTAssertEqual(reconciledReport.quality, .healthy)
+        XCTAssertEqual(reconciledReport.source(for: .microphone)?.status, .complete)
+        XCTAssertEqual(reconciledReport.source(for: .system)?.status, .silent)
+        XCTAssertEqual(recovered.meetingCaptureReport?.quality, .healthy)
+        XCTAssertEqual(transcriptionRepo.saved.last?.meetingCaptureReport?.quality, .healthy)
+    }
+
+    func testRecoverMissingPreviouslySilentSystemTrackBecomesUnavailable() async throws {
+        let fixture = try makeRecoverableSession(systemAudio: .silent)
+        let track = MeetingSourceAlignment.Track(
+            firstHostTime: nil,
+            lastHostTime: nil,
+            startOffsetMs: 0,
+            writtenFrameCount: 48_000,
+            sampleRate: 48_000
+        )
+        let alignment = MeetingSourceAlignment(
+            meetingOriginHostTime: nil,
+            microphone: track,
+            system: track
+        )
+        let report = MeetingCaptureReport(
+            sourceMode: .microphoneAndSystem,
+            sourceAlignment: alignment,
+            elapsedDurationMs: 1_000,
+            silentSources: [.system]
+        )
+        XCTAssertEqual(report.quality, .healthy)
+        XCTAssertEqual(report.source(for: .system)?.status, .silent)
+        try MeetingRecordingMetadataStore.save(
+            MeetingRecordingMetadata(sourceAlignment: alignment, captureReport: report),
+            folderURL: fixture.folderURL
+        )
+        try FileManager.default.removeItem(
+            at: fixture.folderURL.appendingPathComponent("system-raw.m4a")
+        )
+
+        let recovered = try await recoveryService.recover(fixture.lock)
+
+        let rewrittenMetadata = try MeetingRecordingMetadataStore.load(from: fixture.folderURL)
+        let reconciledReport = try XCTUnwrap(rewrittenMetadata.captureReport)
+        XCTAssertNil(rewrittenMetadata.sourceAlignment.system)
+        XCTAssertEqual(reconciledReport.source(for: .system)?.status, .unavailable)
+        XCTAssertEqual(reconciledReport.quality, .partial)
+        XCTAssertEqual(recovered.meetingCaptureReport, reconciledReport)
+        XCTAssertEqual(transcriptionRepo.saved.last?.meetingCaptureReport, reconciledReport)
     }
 
     func testRecoverMissingMicrophoneMaterializesDelayedSystemTimeline() async throws {
@@ -300,7 +432,11 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             _ = try await recoveryService.recover(fixture.lock)
             XCTFail("Expected recovery to throw")
         } catch {
-            XCTAssertNotNil(try lockStore.read(folderURL: fixture.folderURL))
+            let restoredLock = try XCTUnwrap(
+                lockStore.read(folderURL: fixture.folderURL)
+            )
+            XCTAssertEqual(restoredLock, fixture.lock)
+            XCTAssertNil(restoredLock.finalizationLeaseId)
         }
     }
 
@@ -615,6 +751,77 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.folderURL.path))
     }
 
+    func testDiscardOfMissingFolderIsIdempotent() async throws {
+        let fixture = try makeRecoverableSession()
+        try FileManager.default.removeItem(at: fixture.folderURL)
+
+        try await recoveryService.discard(fixture.lock)
+        try await recoveryService.discard(fixture.lock)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.folderURL.path))
+    }
+
+    func testDiscardWithStaleLockRefusesActiveSameProcessFinalizationLease() async throws {
+        let fixture = try makeRecoverableSession(lockState: .awaitingTranscription)
+        let microphoneURL = fixture.folderURL.appendingPathComponent("microphone-raw.m4a")
+        let systemURL = fixture.folderURL.appendingPathComponent("system-raw.m4a")
+        let microphoneData = try Data(contentsOf: microphoneURL)
+        let systemData = try Data(contentsOf: systemURL)
+        let lease = try lockStore.claimFinalizationOwnership(folderURL: fixture.folderURL)
+        let activeLock = try XCTUnwrap(lockStore.read(folderURL: fixture.folderURL))
+        XCTAssertEqual(activeLock.finalizationLeaseId, lease.id)
+
+        do {
+            try await recoveryService.discard(fixture.lock)
+            XCTFail("A stale dialog must not discard audio owned by an active finalizer")
+        } catch {
+            XCTAssertEqual(
+                error as? MeetingFinalizationOwnershipError,
+                .ownedByLiveProcess(pid: ProcessInfo.processInfo.processIdentifier)
+            )
+        }
+
+        XCTAssertEqual(try? Data(contentsOf: microphoneURL), microphoneData)
+        XCTAssertEqual(try? Data(contentsOf: systemURL), systemData)
+        XCTAssertEqual(try lockStore.read(folderURL: fixture.folderURL), activeLock)
+        XCTAssertTrue(transcriptionService.recordings.isEmpty)
+    }
+
+    func testDiscardWithStaleLockRefusesAnotherLiveProcessFinalizationLease() async throws {
+        let fixture = try makeRecoverableSession(lockState: .awaitingTranscription)
+        let microphoneURL = fixture.folderURL.appendingPathComponent("microphone-raw.m4a")
+        let systemURL = fixture.folderURL.appendingPathComponent("system-raw.m4a")
+        let microphoneData = try Data(contentsOf: microphoneURL)
+        let systemData = try Data(contentsOf: systemURL)
+        let activeLock = fixture.lock.withFinalizationOwner(pid: 101, leaseID: UUID())
+        let liveLockStore = RecoveryRecordingLockFileStore(
+            processChecker: RecoveryProcessChecker(alivePIDs: [101])
+        )
+        try liveLockStore.write(activeLock, folderURL: fixture.folderURL)
+        let service = MeetingRecordingRecoveryService(
+            meetingsRoot: tempRoot,
+            lockFileStore: liveLockStore,
+            transcriptionService: transcriptionService,
+            transcriptionRepo: transcriptionRepo,
+            audioConverter: audioConverter
+        )
+
+        do {
+            try await service.discard(fixture.lock)
+            XCTFail("A stale dialog must not discard another process's active recovery")
+        } catch {
+            XCTAssertEqual(
+                error as? MeetingFinalizationOwnershipError,
+                .ownedByLiveProcess(pid: 101)
+            )
+        }
+
+        XCTAssertEqual(try? Data(contentsOf: microphoneURL), microphoneData)
+        XCTAssertEqual(try? Data(contentsOf: systemURL), systemData)
+        XCTAssertEqual(try liveLockStore.read(folderURL: fixture.folderURL), activeLock)
+        XCTAssertTrue(transcriptionService.recordings.isEmpty)
+    }
+
     func testDiscardKeepsCompletedTranscriptAudioAndDeletesOnlyLock() async throws {
         let fixture = try makeRecoverableSession(lockState: .awaitingTranscription)
         let mixedURL = fixture.folderURL.appendingPathComponent("meeting-playback.m4a")
@@ -654,13 +861,167 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         } catch {
             XCTAssertTrue(error is RecoveryTestError)
         }
-        XCTAssertNotNil(try lockStore.read(folderURL: fixture.folderURL))
+        XCTAssertEqual(try lockStore.read(folderURL: fixture.folderURL), fixture.lock)
 
         try await recoveryService.discard(fixture.lock)
 
         XCTAssertNil(try lockStore.read(folderURL: fixture.folderURL))
         XCTAssertTrue(FileManager.default.fileExists(atPath: mixedURL.path))
         XCTAssertNotNil(try transcriptionRepo.fetch(id: existing.id))
+    }
+
+    func testDiscardRestoresOwnershipAfterFolderRemovalFailureAndCanRetry() async throws {
+        let fixture = try makeRecoverableSession(lockState: .awaitingTranscription)
+        let microphoneURL = fixture.folderURL.appendingPathComponent("microphone-raw.m4a")
+        let systemURL = fixture.folderURL.appendingPathComponent("system-raw.m4a")
+        let microphoneData = try Data(contentsOf: microphoneURL)
+        let systemData = try Data(contentsOf: systemURL)
+        let fileManager = RecoveryRemovalFailingFileManager(failingURL: fixture.folderURL)
+        let service = MeetingRecordingRecoveryService(
+            meetingsRoot: tempRoot,
+            lockFileStore: lockStore,
+            transcriptionService: transcriptionService,
+            transcriptionRepo: transcriptionRepo,
+            audioConverter: audioConverter,
+            fileManager: fileManager
+        )
+
+        do {
+            try await service.discard(fixture.lock)
+            XCTFail("Expected discard to surface the folder-removal failure")
+        } catch RecoveryTestError.folderRemovalFailed {
+            // Expected.
+        }
+
+        XCTAssertEqual(try? Data(contentsOf: microphoneURL), microphoneData)
+        XCTAssertEqual(try? Data(contentsOf: systemURL), systemData)
+        XCTAssertEqual(try lockStore.read(folderURL: fixture.folderURL), fixture.lock)
+
+        try await service.discard(fixture.lock)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.folderURL.path))
+    }
+
+    func testDiscardRestoresMissingLockAfterPartialFolderRemovalAndCanRetry() async throws {
+        let fixture = try makeRecoverableSession(lockState: .awaitingTranscription)
+        let microphoneURL = fixture.folderURL.appendingPathComponent("microphone-raw.m4a")
+        let systemURL = fixture.folderURL.appendingPathComponent("system-raw.m4a")
+        let microphoneData = try Data(contentsOf: microphoneURL)
+        let systemData = try Data(contentsOf: systemURL)
+        let fileManager = RecoveryRemovalFailingFileManager(
+            failingURL: fixture.folderURL,
+            removeLockBeforeFailure: true
+        )
+        let service = MeetingRecordingRecoveryService(
+            meetingsRoot: tempRoot,
+            lockFileStore: lockStore,
+            transcriptionService: transcriptionService,
+            transcriptionRepo: transcriptionRepo,
+            audioConverter: audioConverter,
+            fileManager: fileManager
+        )
+
+        do {
+            try await service.discard(fixture.lock)
+            XCTFail("Expected discard to surface the partial folder-removal failure")
+        } catch RecoveryTestError.folderRemovalFailed {
+            // Recursive removal can delete the lock before failing on another child.
+        }
+
+        XCTAssertEqual(try Data(contentsOf: microphoneURL), microphoneData)
+        XCTAssertEqual(try Data(contentsOf: systemURL), systemData)
+        XCTAssertEqual(try lockStore.read(folderURL: fixture.folderURL), fixture.lock)
+        let pending = try await service.discoverPendingRecoveries()
+        XCTAssertEqual(pending.map(\.sessionId), [fixture.lock.sessionId])
+
+        try await service.discard(fixture.lock)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.folderURL.path))
+    }
+
+    func testPartialDiscardFailureDoesNotReplaceAnotherOwnersLock() async throws {
+        let fixture = try makeRecoverableSession(lockState: .awaitingTranscription)
+        let replacementLock = fixture.lock.withFinalizationOwner(pid: 101, leaseID: UUID())
+        let liveLockStore = RecoveryRecordingLockFileStore(
+            processChecker: RecoveryProcessChecker(alivePIDs: [101])
+        )
+        let fileManager = RecoveryRemovalFailingFileManager(
+            failingURL: fixture.folderURL,
+            removeLockBeforeFailure: true,
+            replacementLock: replacementLock
+        )
+        let service = MeetingRecordingRecoveryService(
+            meetingsRoot: tempRoot,
+            lockFileStore: liveLockStore,
+            transcriptionService: transcriptionService,
+            transcriptionRepo: transcriptionRepo,
+            audioConverter: audioConverter,
+            fileManager: fileManager
+        )
+
+        do {
+            try await service.discard(fixture.lock)
+            XCTFail("Expected discard to surface the partial folder-removal failure")
+        } catch RecoveryTestError.folderRemovalFailed {
+            // A replacement owner must survive both missing-lock repair and lease release.
+        }
+        XCTAssertEqual(try liveLockStore.read(folderURL: fixture.folderURL), replacementLock)
+
+        do {
+            try await service.discard(fixture.lock)
+            XCTFail("Retry must continue to protect the replacement owner")
+        } catch {
+            XCTAssertEqual(error as? MeetingFinalizationOwnershipError, .ownedByLiveProcess(pid: 101))
+        }
+        XCTAssertEqual(try liveLockStore.read(folderURL: fixture.folderURL), replacementLock)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.folderURL.path))
+    }
+
+    func testDiscardRelinquishesOwnershipWhenMissingLockRepairCannotAcquireMutex() async throws {
+        let fixture = try makeRecoverableSession(lockState: .awaitingTranscription)
+        let microphoneURL = fixture.folderURL.appendingPathComponent("microphone-raw.m4a")
+        let systemURL = fixture.folderURL.appendingPathComponent("system-raw.m4a")
+        let microphoneData = try Data(contentsOf: microphoneURL)
+        let systemData = try Data(contentsOf: systemURL)
+        let mutexURL = fixture.folderURL.appendingPathComponent(".finalization-ownership.lock")
+        let currentPID = ProcessInfo.processInfo.processIdentifier
+        let liveLockStore = RecoveryRecordingLockFileStore(
+            processChecker: RecoveryProcessChecker(alivePIDs: [currentPID])
+        )
+        let fileManager = RecoveryRemovalFailingFileManager(
+            failingURL: fixture.folderURL,
+            ownershipMutexURLToObstruct: mutexURL
+        )
+        let service = MeetingRecordingRecoveryService(
+            meetingsRoot: tempRoot,
+            lockFileStore: liveLockStore,
+            transcriptionService: transcriptionService,
+            transcriptionRepo: transcriptionRepo,
+            audioConverter: audioConverter,
+            fileManager: fileManager
+        )
+
+        do {
+            try await service.discard(fixture.lock)
+            XCTFail("Expected discard to preserve its original folder-removal error")
+        } catch RecoveryTestError.folderRemovalFailed {
+            // Both cleanup attempts hit the obstructed mutex, but ownership must be relinquished.
+        }
+
+        XCTAssertEqual(try Data(contentsOf: microphoneURL), microphoneData)
+        XCTAssertEqual(try Data(contentsOf: systemURL), systemData)
+        let claimedLock = try XCTUnwrap(liveLockStore.read(folderURL: fixture.folderURL))
+        XCTAssertEqual(claimedLock.pid, currentPID)
+        XCTAssertNotNil(claimedLock.finalizationLeaseId)
+
+        // Remove only the test-created directory that caused the transient I/O failure.
+        try FileManager.default.removeItem(at: mutexURL)
+        let pending = try await service.discoverPendingRecoveries()
+        XCTAssertEqual(pending.map(\.sessionId), [fixture.lock.sessionId])
+
+        try await service.discard(fixture.lock)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.folderURL.path))
     }
 
     func testRecoverRetryUpdatesPreviousIncompleteRecoveryRow() async throws {
@@ -1052,7 +1413,10 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         systemSampleRate: Double = 48_000,
         lockState: MeetingRecordingLockState = .recording,
         notes: String? = nil,
-        speechEngineWasCaptured: Bool = true
+        speechEngineWasCaptured: Bool = true,
+        startedAt: Date = Date(timeIntervalSince1970: 1_700_000_000),
+        audioRetentionStartedAt: Date? = nil,
+        titleOverride: String? = nil
     ) throws -> (folderURL: URL, lock: MeetingRecordingLockFile) {
         let sessionID = UUID()
         let folderURL = tempRoot.appendingPathComponent(sessionID.uuidString, isDirectory: true)
@@ -1079,12 +1443,14 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
 
         let lock = MeetingRecordingLockFile(
             sessionId: sessionID,
-            startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            startedAt: startedAt,
             pid: 42,
             displayName: "Recovered Team Sync",
             state: lockState,
             speechEngineWasCaptured: speechEngineWasCaptured,
             notes: notes,
+            audioRetentionStartedAt: audioRetentionStartedAt,
+            titleOverride: titleOverride,
             folderURL: folderURL
         )
         try lockStore.write(lock, folderURL: folderURL)
@@ -1175,6 +1541,46 @@ private enum RecoveryTestError: Error {
     case transcriptionFailed
     case lockDeleteFailed
     case mixFailed
+    case folderRemovalFailed
+}
+
+private final class RecoveryRemovalFailingFileManager: FileManager {
+    private let failingURL: URL
+    private let removeLockBeforeFailure: Bool
+    private let replacementLock: MeetingRecordingLockFile?
+    private let ownershipMutexURLToObstruct: URL?
+    private var shouldFail = true
+
+    init(
+        failingURL: URL,
+        removeLockBeforeFailure: Bool = false,
+        replacementLock: MeetingRecordingLockFile? = nil,
+        ownershipMutexURLToObstruct: URL? = nil
+    ) {
+        self.failingURL = failingURL
+        self.removeLockBeforeFailure = removeLockBeforeFailure
+        self.replacementLock = replacementLock
+        self.ownershipMutexURLToObstruct = ownershipMutexURLToObstruct
+        super.init()
+    }
+
+    override func removeItem(at url: URL) throws {
+        if url == failingURL, shouldFail {
+            shouldFail = false
+            if removeLockBeforeFailure {
+                try super.removeItem(at: MeetingRecordingLockFileStore.lockFileURL(for: url))
+            }
+            if let replacementLock {
+                try MeetingRecordingLockFileStore().write(replacementLock, folderURL: url)
+            }
+            if let ownershipMutexURLToObstruct {
+                try super.removeItem(at: ownershipMutexURLToObstruct)
+                try super.createDirectory(at: ownershipMutexURLToObstruct, withIntermediateDirectories: false)
+            }
+            throw RecoveryTestError.folderRemovalFailed
+        }
+        try super.removeItem(at: url)
+    }
 }
 
 private final class RecoveryMicConditionerFactoryProbe: @unchecked Sendable {
@@ -1219,7 +1625,11 @@ private struct RecoveryProcessChecker: ProcessAliveChecking {
     func isAlive(pid: Int32) -> Bool { alivePIDs.contains(pid) }
 }
 
-private final class RecoveryRecordingLockFileStore: MeetingRecordingLockFileStoring, @unchecked Sendable {
+private final class RecoveryRecordingLockFileStore:
+    MeetingRecordingLockFileStoring,
+    MeetingFinalizationOwnershipClaiming,
+    @unchecked Sendable
+{
     private let delegate: MeetingRecordingLockFileStore
     private let lock = NSLock()
     var deleteErrorsRemaining = 0
@@ -1250,6 +1660,18 @@ private final class RecoveryRecordingLockFileStore: MeetingRecordingLockFileStor
 
     func discoverOrphans(meetingsRoot: URL) throws -> [MeetingRecordingLockFile] {
         try delegate.discoverOrphans(meetingsRoot: meetingsRoot)
+    }
+
+    func claimFinalizationOwnership(
+        folderURL: URL
+    ) throws -> MeetingFinalizationOwnershipLease {
+        try delegate.claimFinalizationOwnership(folderURL: folderURL)
+    }
+
+    func releaseFinalizationOwnership(
+        _ lease: MeetingFinalizationOwnershipLease
+    ) throws {
+        try delegate.releaseFinalizationOwnership(lease)
     }
 }
 
@@ -1321,12 +1743,15 @@ private final class RecoveryMockTranscriptionService: TranscriptionServiceProtoc
             recordings.append(recording)
         }
         let transcription = Transcription(
+            createdAt: recording.startedAt ?? Date(),
             fileName: recording.displayName,
             filePath: recording.mixedAudioURL.path,
             meetingArtifactFolderPath: recording.folderURL.path,
             status: .completed,
             sourceType: .meeting,
-            meetingCaptureReport: recording.captureReport
+            meetingCaptureReport: recording.captureReport,
+            titleOverride: recording.titleOverride,
+            audioRetentionStartedAt: recording.audioRetentionStartedAt
         )
         try transcriptionRepo?.save(transcription)
         return transcription
@@ -1406,6 +1831,19 @@ private final class RecordingTranscriptionRepository: TranscriptionRepositoryPro
     private(set) var saved: [Transcription] = []
     var fetchAllError: Error?
 
+    func savePreservingUserMetadata(
+        _ transcription: Transcription, originalFileName: String
+    ) throws -> Transcription {
+        try lock.withLock {
+            let merged = try mergingCompletionForTest(
+                transcription, current: saved.first { $0.id == transcription.id }, originalFileName: originalFileName
+            )
+            saved.removeAll { $0.id == transcription.id }
+            saved.append(merged)
+            return merged
+        }
+    }
+
     func save(_ transcription: Transcription) throws {
         lock.withLock {
             saved.removeAll { $0.id == transcription.id }
@@ -1434,7 +1872,8 @@ private final class RecordingTranscriptionRepository: TranscriptionRepositoryPro
     }
     func deleteAll() throws {}
     func updateStatus(id: UUID, status: Transcription.TranscriptionStatus, errorMessage: String?) throws {}
-    func updateFileName(id: UUID, fileName: String) throws {}
+    @discardableResult
+    func updateFileName(id: UUID, fileName: String) throws -> Transcription? { nil }
     func updateChatMessages(id: UUID, chatMessages: [ChatMessage]?) throws {}
     func updateSpeakers(id: UUID, speakers: [SpeakerInfo]?) throws {}
     func clearStoredAudioPathsForURLTranscriptions() throws {}

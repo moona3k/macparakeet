@@ -2,11 +2,85 @@ import XCTest
 @testable import CLI
 
 final class SpecCommandTests: XCTestCase {
+
+    func testSpecDescribesSplitCommandsAndMutationBoundaries() throws {
+        let commands = try XCTUnwrap(specPayload()["commands"] as? [[String: Any]])
+        for verb in ["preview", "create", "status", "resume", "discard"] {
+            let command = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["meetings", "split", verb] })
+            XCTAssertEqual(command["readOnly"] as? Bool, ["preview", "status"].contains(verb))
+            if verb == "create" {
+                let options = try XCTUnwrap(command["options"] as? [[String: Any]])
+                XCTAssertTrue(options.contains { ($0["name"] as? String) == "--expected-identity" })
+            }
+        }
+    }
+
+    func testSpecDescribesMeetingImportResultAndRetryExit() throws {
+        let commands = try XCTUnwrap(specPayload()["commands"] as? [[String: Any]])
+        let command = try XCTUnwrap(
+            commands.first { ($0["path"] as? [String]) == ["meetings", "import"] })
+        XCTAssertEqual(command["readOnly"] as? Bool, false)
+        XCTAssertEqual(command["jsonMode"] as? String, "--json")
+        let options = try XCTUnwrap(command["options"] as? [[String: Any]])
+        XCTAssertTrue(options.contains { ($0["name"] as? String) == "--started-at" })
+        XCTAssertTrue((command["output"] as? String)?.contains("needsRetry") == true)
+    }
+
+    func testSpecDocumentsPromptCollectionCommandsAndMembership() throws {
+        let payload = try specPayload()
+        let commands = try XCTUnwrap(payload["commands"] as? [[String: Any]])
+
+        for path in [
+            ["prompts", "collections", "list"],
+            ["prompts", "collections", "add"],
+            ["prompts", "collections", "rename"],
+            ["prompts", "collections", "delete"],
+            ["prompts", "collections", "reorder"],
+        ] {
+            XCTAssertNotNil(commands.first { ($0["path"] as? [String]) == path })
+        }
+
+        let reorder = try XCTUnwrap(
+            commands.first { ($0["path"] as? [String]) == ["prompts", "collections", "reorder"] }
+        )
+        let reorderArguments = try XCTUnwrap(reorder["arguments"] as? [[String: Any]])
+        let ids = try XCTUnwrap(reorderArguments.first)
+        XCTAssertEqual(ids["name"] as? String, "ids")
+        XCTAssertEqual(ids["required"] as? Bool, false)
+        XCTAssertTrue((ids["summary"] as? String)?.contains("exactly once") == true)
+
+        let add = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["prompts", "add"] })
+        let addOptions = try XCTUnwrap(add["options"] as? [[String: Any]])
+        XCTAssertTrue(addOptions.contains { ($0["name"] as? String) == "--collection" })
+        XCTAssertEqual(add["jsonMode"] as? String, "--json")
+
+        let set = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["prompts", "set"] })
+        let setOptions = try XCTUnwrap(set["options"] as? [[String: Any]])
+        XCTAssertTrue(setOptions.contains { ($0["name"] as? String) == "--collection" })
+        XCTAssertTrue(setOptions.contains { ($0["name"] as? String) == "--no-collection" })
+    }
+
     func testSpecCommandIsRegisteredAtTopLevel() {
         XCTAssertTrue(
             CLI.configuration.subcommands.contains { $0 == SpecCommand.self },
             "spec must be available from macparakeet-cli"
         )
+    }
+
+    func testPromptSetDocumentsActiveLabelPolicies() throws {
+        let payload = try specPayload()
+        let commands = try XCTUnwrap(payload["commands"] as? [[String: Any]])
+        let command = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["prompts", "set"] })
+        let options = try XCTUnwrap(command["options"] as? [[String: Any]])
+        XCTAssertTrue((command["output"] as? String)?.contains("PromptLabelPolicy") == true)
+        let names = options.compactMap { $0["name"] as? String }
+        XCTAssertTrue(names.contains("--label"))
+        XCTAssertTrue(names.contains("--all-labels"))
+        XCTAssertFalse(names.contains("--meeting-type"))
+        XCTAssertFalse(names.contains("--all-meeting-types"))
+        let help = PromptsCommand.SetSubcommand.helpMessage()
+        XCTAssertTrue(help.contains("--label"))
+        XCTAssertTrue(help.contains("--all-labels"))
     }
 
     func testSpecJSONIncludesAgentFacingMeetingResultsCommand() throws {
@@ -19,6 +93,13 @@ final class SpecCommandTests: XCTestCase {
         let paths = commands.compactMap { $0["path"] as? [String] }
         XCTAssertTrue(paths.contains(["meetings", "results", "add"]))
         XCTAssertTrue(paths.contains(["meetings", "artifact"]))
+        XCTAssertTrue(paths.contains(["meetings", "classify"]))
+        XCTAssertTrue(paths.contains(["meetings", "types", "list"]))
+        XCTAssertTrue(paths.contains(["meetings", "labels", "list"]))
+        XCTAssertTrue(paths.contains(["meetings", "labels", "set"]))
+        XCTAssertTrue(paths.contains(["prompts", "history"]))
+        XCTAssertTrue(paths.contains(["prompts", "diff"]))
+        XCTAssertTrue(paths.contains(["prompts", "restore-deleted"]))
         XCTAssertTrue(paths.contains(["config", "set"]))
         XCTAssertTrue(paths.contains(["models", "delete"]))
         XCTAssertTrue(paths.contains(["spec"]))
@@ -26,6 +107,13 @@ final class SpecCommandTests: XCTestCase {
         let writeback = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["meetings", "results", "add"] })
         XCTAssertEqual(writeback["readOnly"] as? Bool, false)
         XCTAssertEqual(writeback["jsonMode"] as? String, "--json")
+
+        let labelSet = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["meetings", "labels", "set"] })
+        XCTAssertEqual(labelSet["readOnly"] as? Bool, false)
+        XCTAssertEqual(labelSet["output"] as? String, "MeetingLabel object.")
+        let labelSetOptions = try XCTUnwrap(labelSet["options"] as? [[String: Any]])
+        XCTAssertTrue(labelSetOptions.contains { ($0["name"] as? String) == "--color" })
+        XCTAssertTrue(labelSetOptions.contains { ($0["name"] as? String) == "--automatic-color" })
 
         let artifact = try XCTUnwrap(commands.first { ($0["path"] as? [String]) == ["meetings", "artifact"] })
         XCTAssertEqual(artifact["readOnly"] as? Bool, false)
@@ -130,6 +218,7 @@ final class SpecCommandTests: XCTestCase {
                 "transcript",
                 "transforms",
                 "vocab",
+                "voice-control",
             ],
             "The spec catalog is a curated agent-facing surface; update this expectation when that surface changes."
         )
@@ -193,6 +282,7 @@ final class SpecCommandTests: XCTestCase {
             ["vocab", "snippets", "edit"],
             ["vocab", "import"],
             ["history", "favorite"],
+            ["history", "rename"],
             ["history", "delete-meeting-audio"],
             ["retranscribe"],
             ["search"],
@@ -202,6 +292,9 @@ final class SpecCommandTests: XCTestCase {
             ["export"],
             ["calendar", "upcoming"],
             ["feedback"],
+            ["meetings", "corrections", "rename"],
+            ["meetings", "corrections", "assign"],
+            ["meetings", "corrections", "merge-speakers"],
         ] {
             XCTAssertTrue(paths.contains(path), "\(path.joined(separator: " ")) missing from spec catalog")
         }
@@ -291,6 +384,10 @@ final class SpecCommandTests: XCTestCase {
             configKeys.first { ($0["key"] as? String) == "meeting-speaker-detection" })
         XCTAssertEqual(meetingSpeakerDetection["allowedValues"] as? [String], ["on", "off"])
 
+        let customVocabularyBoosting = try XCTUnwrap(
+            configKeys.first { ($0["key"] as? String) == "custom-vocabulary-boosting" })
+        XCTAssertEqual(customVocabularyBoosting["allowedValues"] as? [String], ["on", "off"])
+
         let timeout = try XCTUnwrap(configKeys.first { ($0["key"] as? String) == "meeting-hook-timeout" })
         XCTAssertEqual(timeout["valueSyntax"] as? String, "seconds 1-300")
     }
@@ -330,6 +427,7 @@ final class SpecCommandTests: XCTestCase {
         XCTAssertTrue(optionNames.contains("--speaker-min"))
         XCTAssertTrue(optionNames.contains("--speaker-max"))
         XCTAssertTrue(optionNames.contains("--media-audio-quality"))
+        XCTAssertTrue(optionNames.contains("--no-diarize"))
         XCTAssertTrue(optionNames.contains("--database"))
 
         let engine = try XCTUnwrap(options.first { ($0["name"] as? String) == "--engine" })
@@ -345,7 +443,7 @@ final class SpecCommandTests: XCTestCase {
         let parakeetModel = try XCTUnwrap(options.first { ($0["name"] as? String) == "--parakeet-model" })
         XCTAssertEqual(
             parakeetModel["summary"] as? String,
-            "Parakeet build: v3 supported languages, v2 English timestamps, or Unified readable English timestamps."
+            "Parakeet build: v3 supported languages, v2 English timestamps, Unified readable English timestamps, or orukeet (multilingual preview)."
         )
         let nemotronModel = try XCTUnwrap(options.first { ($0["name"] as? String) == "--nemotron-model" })
         XCTAssertEqual(nemotronModel["valueName"] as? String, "app-default|multilingual-1120ms|english-1120ms")
@@ -392,6 +490,12 @@ final class SpecCommandTests: XCTestCase {
         XCTAssertTrue(optionNames.contains("--speaker-max"))
         XCTAssertTrue(optionNames.contains("--no-diarize"))
         XCTAssertTrue(optionNames.contains("--database"))
+
+        let parakeetModel = try XCTUnwrap(options.first { ($0["name"] as? String) == "--parakeet-model" })
+        XCTAssertEqual(
+            parakeetModel["summary"] as? String,
+            "Parakeet build: v3 supported languages, v2 English timestamps, Unified readable English timestamps, or orukeet (multilingual preview)."
+        )
 
         let speakerDetection = try XCTUnwrap(options.first { ($0["name"] as? String) == "--speaker-detection" })
         XCTAssertEqual(speakerDetection["valueName"] as? String, "app-default|on|off")

@@ -1,0 +1,40 @@
+{
+  "purpose": "Final 43-check browser snapshot before final merge-status and provenance wording updates. Four screenshots individually inspected; no private desktop data included.",
+  "files": [
+    {
+      "path": "results.json",
+      "sourceSHA256": "b825ceec6233cb80cf37349e69530c0682e01071188ae5fcf156a2015de19fc9",
+      "curatedSHA256": "b825ceec6233cb80cf37349e69530c0682e01071188ae5fcf156a2015de19fc9",
+      "sizeBytes": 175585,
+      "transformation": "none"
+    },
+    {
+      "path": "overview-1440.png",
+      "sourceSHA256": "d51f717d7b7bfd8af98078a29f02bc772ae5608f1904c77a9136ec6a945db9e3",
+      "curatedSHA256": "d51f717d7b7bfd8af98078a29f02bc772ae5608f1904c77a9136ec6a945db9e3",
+      "sizeBytes": 151186,
+      "transformation": "none"
+    },
+    {
+      "path": "overview-390.png",
+      "sourceSHA256": "4e0abf0294ce2f3e94f3ec4f8f3129c3d12d6851a408dee09443b5737469ba2d",
+      "curatedSHA256": "4e0abf0294ce2f3e94f3ec4f8f3129c3d12d6851a408dee09443b5737469ba2d",
+      "sizeBytes": 72146,
+      "transformation": "none"
+    },
+    {
+      "path": "overview-320.png",
+      "sourceSHA256": "c120b943a91da1dedabb7fa7619705b562f97977192d4a1e6762ab2d6e3a06e1",
+      "curatedSHA256": "c120b943a91da1dedabb7fa7619705b562f97977192d4a1e6762ab2d6e3a06e1",
+      "sizeBytes": 68055,
+      "transformation": "none"
+    },
+    {
+      "path": "saved-snapshot-consistent.png",
+      "sourceSHA256": "34546b292ba7d117ecaa2245066c7e10d94f13c05b2bc99f76fce1ea50d1328c",
+      "curatedSHA256": "34546b292ba7d117ecaa2245066c7e10d94f13c05b2bc99f76fce1ea50d1328c",
+      "sizeBytes": 151176,
+      "transformation": "none"
+    }
+  ]
+}

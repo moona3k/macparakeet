@@ -8,9 +8,7 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
     }
 
     func testMeetingDeletionRemovesSessionFolder() throws {
-        let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let folderURL = try makeTemporaryManagedMeetingFolder()
 
         let mixedURL = folderURL.appendingPathComponent("meeting-playback.m4a")
         let micURL = folderURL.appendingPathComponent("microphone-raw.m4a")
@@ -30,9 +28,7 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
     }
 
     func testMeetingDeletionRefusesLockedAwaitingTranscriptionFolder() throws {
-        let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let folderURL = try makeTemporaryManagedMeetingFolder()
         defer { try? FileManager.default.removeItem(at: folderURL) }
 
         let mixedURL = folderURL.appendingPathComponent("meeting-playback.m4a")
@@ -61,8 +57,7 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
     }
 
     func testRemoveOwnedMeetingAudioReturnsTrueForStaleManagedPath() throws {
-        let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let folderURL = try makeTemporaryManagedMeetingFolder()
         let missingAudioURL = folderURL.appendingPathComponent("meeting-playback.m4a")
 
         let transcription = Transcription(
@@ -78,9 +73,7 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
     }
 
     func testDetachMeetingAudioRemovesAudioBeforeRepositoryUpdate() throws {
-        let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let folderURL = try makeTemporaryManagedMeetingFolder()
         defer { try? FileManager.default.removeItem(at: folderURL) }
 
         let mixedURL = folderURL.appendingPathComponent("meeting-playback.m4a")
@@ -106,9 +99,7 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
     }
 
     func testDetachMeetingAudioStoresArtifactFolderBeforeClearingAudioPath() throws {
-        let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let folderURL = try makeTemporaryManagedMeetingFolder()
         defer { try? FileManager.default.removeItem(at: folderURL) }
 
         let mixedURL = folderURL.appendingPathComponent("meeting-playback.m4a")
@@ -137,9 +128,7 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
     }
 
     func testDetachMeetingAudioRefusesProcessingMeeting() throws {
-        let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let folderURL = try makeTemporaryManagedMeetingFolder()
         defer { try? FileManager.default.removeItem(at: folderURL) }
 
         let mixedURL = folderURL.appendingPathComponent("meeting-playback.m4a")
@@ -169,9 +158,7 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
     }
 
     func testDetachMeetingAudioRefusesLockedErrorMeeting() throws {
-        let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let folderURL = try makeTemporaryManagedMeetingFolder()
         defer { try? FileManager.default.removeItem(at: folderURL) }
 
         let mixedURL = folderURL.appendingPathComponent("meeting-playback.m4a")
@@ -211,9 +198,7 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
     }
 
     func testMeetingDeletionRemovesArtifactFolderAfterAudioWasDetached() throws {
-        let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let folderURL = try makeTemporaryManagedMeetingFolder()
         try Data("notes".utf8).write(to: folderURL.appendingPathComponent("notes.md"))
 
         let transcription = Transcription(
@@ -297,9 +282,7 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
     }
 
     func testDetachMeetingAudioKeepsFilePathWhenFileRemovalFails() throws {
-        let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let folderURL = try makeTemporaryManagedMeetingFolder()
         defer { try? FileManager.default.removeItem(at: folderURL) }
 
         let mixedURL = folderURL.appendingPathComponent("meeting-playback.m4a")
@@ -332,9 +315,7 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
         // row never advertises playable audio that no longer exists (and the
         // retention sweeper stops re-selecting and re-failing it every sweep), yet
         // still surface the partial-failure error to the caller.
-        let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let folderURL = try makeTemporaryManagedMeetingFolder()
         defer { try? FileManager.default.removeItem(at: folderURL) }
 
         // filePath points at meeting-playback.m4a, but that file is intentionally absent.
@@ -364,9 +345,7 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
     }
 
     func testMeetingDeletionOutsideAppSupportIsIgnored() throws {
-        let folderURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let folderURL = try makeTemporaryUnmanagedMeetingFolder()
 
         let mixedURL = folderURL.appendingPathComponent("meeting-playback.m4a")
         FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mix".utf8))
@@ -385,9 +364,7 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
     }
 
     func testMeetingDeletionRemovesSessionFolderWithMetadataMarkerOutsideCurrentRoot() throws {
-        let folderURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let folderURL = try makeTemporaryUnmanagedMeetingFolder()
 
         let mixedURL = folderURL.appendingPathComponent("meeting-playback.m4a")
         FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mix".utf8))
@@ -413,9 +390,7 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
     }
 
     func testMeetingDeletionRemovesSessionFolderWithArtifactManifestOutsideCurrentRoot() throws {
-        let folderURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let folderURL = try makeTemporaryUnmanagedMeetingFolder()
 
         let mixedURL = folderURL.appendingPathComponent("meeting-playback.m4a")
         FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mix".utf8))

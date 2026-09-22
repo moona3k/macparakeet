@@ -23,8 +23,10 @@
 ## Status
 
 - **State**: **PARTIAL** — Phase 1 shipped as #781 and Phase 2 as #784.
-  Phase 3 agent guidance and Phase 4 optional semantic retrieval remain open;
-  re-validate both against the shipped CLI before execution.
+  Canonical retrieval/citation guidance now exists in `integrations/README.md`
+  and its operator skill. Phase 3 real-question trace-run refinement remains
+  unverified; docs alone do not close it. Semantic retrieval and the Phase 4
+  MCP/team/dictation ideas remain separately scoped, demand-driven work.
 - **Priority**: P1 (north-star work: "make the local library more useful,
   expose it safely to the user and their agents" — ADR-027)
 - **Effort**: L (staged; Phase 1 is M and ships standalone)
@@ -337,11 +339,11 @@ core bets. Adopted into this plan:
 - **Char-safe snippets** (Meetily anti-lesson): their snippet code slices
   UTF-8 at byte offsets and can panic on CJK/emoji; our `search` snippet
   generation must be character/grapheme-safe. Add a CJK-text snippet test.
-- **Post-meeting completion hook** (from Muesli): a user-configurable
-  executable receiving `meeting.completed` + recording ID enables
-  hook → CLI fetch → external analysis → write-back loops. Phase 4 candidate
-  alongside the publish seam; converges with the existing local scripting
-  bridge idea (PR #47 follow-up).
+- **Post-meeting completion hook** (from Muesli): the disabled-by-default
+  executable hook receiving `meeting.completed` is already implemented.
+  Hook → CLI fetch → external analysis → result write-back uses the existing
+  [integration contract](../../integrations/README.md#inspect-meeting-recordings);
+  it is not a new Phase 4 hook implementation task.
 - **`related <id>` verb candidate** (from Anarlog): deterministic
   related-meeting retrieval via recurrence, shared attendees
   (`calendarEventSnapshot`), and date adjacency — cheap, no LLM. Goes on the

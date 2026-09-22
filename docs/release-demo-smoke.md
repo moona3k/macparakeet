@@ -57,6 +57,13 @@ Notes:
 - `health --json` reports the installed app's normal health surface, including
   the app database path and counts when that database already exists. It is not
   a database-isolated command.
-- The script does not repair models, download helper binaries, change signing,
+- The script does not request explicit model/helper repair, change signing,
   or alter distribution credentials. `health --json` is a non-mutating readiness
-  probe; missing models or helpers remain visible in the saved evidence.
+  probe, but the script proceeds to transcription after recording its report;
+  success from the health command alone is not model-readiness proof. Normal
+  transcription may prepare models and use shared caches. This smoke isolates
+  transcript rows, not all app state or network activity. See the
+  [integration isolation rules](../integrations/README.md#safe-automation-and-isolation).
+- Health, transcription, and export invocations set `MACPARAKEET_TELEMETRY=0`.
+  Passing this smoke does not verify GUI capture, hardware routes, permissions,
+  signing, notarization, or the Sparkle update path.

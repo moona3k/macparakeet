@@ -1,7 +1,7 @@
 # MacParakeet: Vision & Philosophy
 
 > Status: **ACTIVE** - Authoritative, current
-> Fast, private, local-first voice app for Mac. Fully local speech, optional networked features, free and open-source (GPL-3.0).
+> Fast, private, local-first voice app for Mac. Fully local speech with separately documented network surfaces, free and open-source (GPL-3.0).
 > Pricing amendment: The current public build is free, GPL-3.0, and fully unlocked. Older "$49 one-time purchase" and trial-tier language is historical, but GPL-compatible official paid distribution, support, hosted services, or future paid builds remain valid options. The retained purchase activation plumbing must not be removed as dead code without explicit owner direction and an ADR/spec update.
 
 ---
@@ -53,9 +53,9 @@ compounds in value the longer you use the app.
 - **The Library becomes the center of gravity** — unified search across all
   three modes, question-answering over your own corpus, and export. Scope
   guard: search + QA + export, not a PKM.
-- **Agents are first-class consumers** — anything you can do with your
-  corpus, your local agents can do through `macparakeet-cli` and its
-  versioned contract.
+- **Agents are first-class consumers** — scriptable corpus operations belong
+  in `macparakeet-cli`'s versioned contract, not a mirror of every GUI affordance.
+  Current retrieval capabilities and limits live in the [integration guide](../integrations/README.md).
 - **Session-based, by design** — every capture is explicitly started by you.
   Ambient/always-on capture is deliberately parked
   ([ADR-027](adr/027-product-north-star.md) §4); cloud STT remains
@@ -93,14 +93,24 @@ Speed changes behavior. When a short dictation returns quickly and predictably, 
 
 ### 2. Privacy Is the Brand
 
-Fully local speech is a core product property, and the app can stay fully local when configured that way.
+Fully local speech is a core product property. Core workflows can run offline
+after model setup; this is not a guarantee that a connected app makes no
+network requests.
 
 - Local STT. No cloud speech processing, no accounts, no required backend for core speech.
 - Audio never leaves your Mac for dictation or transcription.
 - No email signup. No login. Optional self-hosted telemetry can be disabled in Settings.
-- Core capture and local-file speech workflows work in airplane-mode or air-gapped environments after the required models are installed. Media imports, updates, telemetry, and remote AI providers are separate network surfaces.
+- Core capture and local-file speech workflows work in airplane-mode or air-gapped environments after the required models are installed. Media imports, models, updates, telemetry, and remote AI providers are separate network surfaces.
+- Discover requests its public feed at app launch by default, even with telemetry
+  disabled and without opening the Discover page. It has cached/bundled offline
+  content and an independent opt-out in Settings → System → Appearance. Turning
+  Discover off hides the card and cancels feed work; it is not a global network
+  switch. Explicit feedback/thought submissions also use the network.
 
-This is privacy by architecture: speech recognition has no server path. Optional transcript-AI, media-download, update, and telemetry surfaces remain explicit and separately documented.
+This is privacy by architecture at the speech boundary: recognition has no
+server path. [ADR-002](adr/002-local-only.md) documents the distinct provider,
+telemetry, media, and app-content I/O boundaries; disabling one is not a global
+network opt-out.
 
 ### 3. Simplicity Over Features
 
@@ -123,7 +133,10 @@ Simple does not mean basic. MacParakeet includes modern capabilities that cloud 
 
 ### 5. Free and Open-Source, Monetizable Official Distribution
 
-The current public build has no price tags, subscriptions, or feature gates. MacParakeet is free and open-source (GPL-3.0), and every core feature is available in the current official build.
+The current public build has no paid feature limits or required subscription.
+MacParakeet is free and open-source (GPL-3.0). Development feature gates still
+keep unfinished or unreleased capabilities out of normal builds; see the
+[release/flag status](README.md#release-channels-and-feature-flags).
 
 That does not mean monetization is permanently forbidden. GPL permits charging for distribution, and MacParakeet may later sell official signed/notarized builds, support, hosted services, team features, or paid official distribution while preserving recipients' GPL rights. The old LemonSqueezy/trial entitlement plumbing is intentionally retained for that future option and must not be removed as dead code without explicit owner direction and an ADR/spec update.
 
@@ -323,7 +336,7 @@ MacParakeet optimizes the default pipeline for Parakeet while routing optional N
 
 This is not "cloud by default with a local mode." Core speech recognition runs entirely on-device. There is no cloud STT path, no account system, and no requirement to send audio anywhere.
 
-Optional network features exist, but they are explicit and separate: transcript text can be sent to user-configured LLM providers, Sparkle checks for updates, YouTube imports download media, and self-hosted telemetry can be disabled. The privacy boundary is simple: speech stays local.
+Network surfaces remain separate from speech inference: configured LLM providers can receive text, models/media download assets, Sparkle checks updates, and self-hosted telemetry is opt-out. Discover refreshes its public feed at launch by default and has its own Settings opt-out, independent of telemetry. The privacy boundary is local speech, not a claim that all other app I/O is opt-in.
 
 ### 3. Free and Open-Source
 
@@ -347,7 +360,11 @@ MacParakeet is open-source under the **GPL-3.0** license. Current public builds 
 
 ## Relationship to Oatmeal
 
-MacParakeet and Oatmeal are **separate products** that share underlying technology.
+The comparison below records the original separate-product positioning.
+[ADR-027](adr/027-product-north-star.md) now owns the boundary: Library search
+and corpus Q&A belong in MacParakeet's direction, while deeper entity/graph/team
+work stays outside its scope. Whether Oatmeal continues as a distinct product
+is open; the older comparison is not a reason to reject MacParakeet Library work.
 
 ```
 +-----------------------------------------------------------------------+
@@ -385,7 +402,7 @@ MacParakeet and Oatmeal are **separate products** that share underlying technolo
 ### Strategic Relationship
 
 - **Standalone value**: MacParakeet is a complete product on its own. It does not require or reference Oatmeal.
-- **Funnel potential**: MacParakeet records and transcribes meetings. Users who want intelligence on top (calendar sync, entity extraction, cross-meeting memory) are natural Oatmeal prospects.
+- **Historical funnel idea**: the original split reserved meeting intelligence for Oatmeal. MacParakeet now includes Calendar integration and is building toward corpus search/Q&A; only the deeper knowledge-system boundary remains outside its stated scope.
 - **Adoption timing**: MacParakeet builds community and mindshare while Oatmeal matures. Simpler product = faster to market.
 - **Technology proving ground**: Parakeet integration and clean pipeline are battle-tested in MacParakeet before being used in Oatmeal.
 - **Boundary note (2026-07)**: [ADR-027](adr/027-product-north-star.md) moves cross-mode search and corpus QA into MacParakeet; whether Oatmeal continues as a distinct product is an open question recorded there.
@@ -481,7 +498,7 @@ Ship-quality polish. Direct distribution via notarized DMG.
 
 ### v0.7: Post-v0.6 polish
 
-- Stable v0.7.3 adds System Default microphone-routing repair, split live/final
+- v0.7.3 added System Default microphone-routing repair, split live/final
   speech-engine routes, bounded meeting-capture lifecycle handling, meeting
   auto-save feedback, CLI 3.0, and post-v0.6 reliability polish.
 - Meeting echo cancellation ships as a fail-soft derived cleaned-microphone
@@ -490,6 +507,23 @@ Ship-quality polish. Direct distribution via notarized DMG.
 - Direction per [ADR-027](adr/027-product-north-star.md): continue Library
   convergence and safe agent access through the CLI. Developer-gated local MLX
   groundwork is not a normal-user v0.7 feature.
+
+### v0.8: Library, meetings, and transcript workflow
+
+- Stable v0.8.7 is the current user-facing DMG. The train adds meeting import
+  and split, timed transcript corrections, live transcription during recording,
+  independent capture-source startup, per-event calendar skip, start-meetings-muted,
+  Microsoft 365/Exchange calendar setup, Library labels/layouts, Seed of Life covers,
+  Clean English “um” stripping, optional preserved discarded dictations, DAPT export,
+  skip-microphone onboarding for file-only users, AI Formatter off by default with
+  separate dictation and transcript prompts, optional streaming-cursor insert,
+  China-lab LLM providers, and CLI 4.4.0. 0.8.5 cleared a stuck Wrapping up tile
+  label after stop (status only; recordings were already saved). 0.8.6 kept
+  the Sonoma Parakeet encoder off ANE. 0.8.7 restores hold-to-talk when the
+  microphone is already granted, admits Fn while Caps Lock is latched, and
+  splits overlay insets so hold-to-talk stays 16pt while cancelled/Undo is 7pt.
+- Voice profiles, encrypted share links, activity-based meeting detection,
+  app-aware AI Formatter profiles, and in-process MLX remain gated.
 
 ---
 
@@ -501,7 +535,7 @@ Ship-quality polish. Direct distribution via notarized DMG.
 | **STT engine** | Parakeet TDT 0.6B-v3 on the standard path; locale-aware CJK/Korean onboarding can select WhisperKit; Parakeet v2 and Unified English opt-ins; selectable Nemotron Beta, WhisperKit, and Cohere Transcribe | Parakeet gives the latency target for supported languages; v2 avoids language auto-detect for English-only users; Unified offers a newer English punctuation/capitalization path with live preview and word timestamps; Nemotron is a fast local Beta path; WhisperKit keeps mature broader multilingual speech local; Cohere is a larger batch-only accuracy path. |
 | **YouTube downloads** | Standalone yt-dlp | macOS binary, auto-updates via `--update`. No Python needed. |
 | **UI framework** | SwiftUI | Native Mac experience. Menu bar + window. |
-| **Database** | SQLite (GRDB) | Single file. No server. Dictation history, custom words, settings. |
+| **Structured records** | SQLite (GRDB) | Single local database for history, library, vocabulary, prompts/results and derived retrieval. Preferences use UserDefaults, credentials use Keychain, and retained audio/artifacts remain files. |
 | **Cloud option** | No cloud STT; optional LLM providers | Core speech stays local. AI and media downloads are user-triggered; updates and opt-out telemetry/crash reporting are product-managed network surfaces. Retained purchase activation endpoints remain in code but current public builds are free/unlocked. |
 | **Pricing** | Current public build free/GPL | Zero friction today; GPL-compatible official paid distribution/support remains available later. |
 

@@ -16,11 +16,13 @@ Raw STT Text → Filler Removal → Custom Words → Trailing Action Extraction 
 
 ### Step 1: Filler Removal
 
-Removes only always-safe hesitation sounds:
+Removes hesitation sounds that are safe for English Clean processing:
 
-- "uh", "umm", "uhh"
+- Always: "uh", "umm", "uhh"
+- By default: "um" (English hesitation). Turn **Also remove “um”** off in
+  Vocabulary if you dictate Portuguese or German, where `um` is a real word.
 
-Implementation uses `NSRegularExpression` with word boundaries (`\b`) to avoid partial matches. Portuguese and German `um`, words like "like", "so", "right", and phrases like "you know" are intentionally not stripped by default because they can carry meaning.
+Implementation uses `NSRegularExpression` with word boundaries (`\b`) to avoid partial matches. Words like "like", "so", "right", and phrases like "you know" are intentionally not stripped because they can carry meaning.
 
 ### Step 2: Custom Word Replacements
 
@@ -84,19 +86,23 @@ Final normalization pass:
 
 | Mode | Processing | Engine | Latency |
 |------|-----------|--------|---------|
-| Raw | None | N/A | 0ms |
+| Raw (default) | Configured terminal action extraction only | TextProcessingPipeline | Not separately measured |
 | Clean | Deterministic pipeline | TextProcessingPipeline | <1ms |
 
 ### Mode Details
 
-**Raw**: No processing. The exact text output from Parakeet is used as-is. Useful for debugging or when the user wants full control.
+**Raw** (default): Skip cleanup and insertion styling. Preserve engine output except for configured trailing action extraction, so Voice Return works without enabling Clean processing.
 
-**Clean** (default): The deterministic 5-step pipeline runs. Fast and predictable. Good for most dictation use cases.
+**Clean** (opt-in): Run the deterministic 5-step pipeline, including trailing action extraction.
 
 Clean dictation also has an insertion-style preference. Sentence style keeps
 the historical sentence-shaped output. Inline style keeps the same deterministic
 pipeline but shapes the final output for selected-text replacement, search
 fields, forms, terminal commands, and hybrid typing.
+
+Clean filler removal includes standalone `um` by default (English hesitation).
+Portuguese and German speakers can turn **Also remove “um”** off in Vocabulary
+so counting words and prepositions stay in the transcript.
 
 ---
 
@@ -115,6 +121,11 @@ Stores user-defined vocabulary anchors and corrections.
 | isEnabled | BOOLEAN | Whether this word is active |
 | createdAt | DATETIME | When created |
 | updatedAt | DATETIME | When last modified |
+
+Custom word management supports confirmed deletion of selected rules, including
+all search matches. Deletion changes future vocabulary application; it does not
+rewrite existing transcripts or delete other user data. See the
+[deletion contract](contracts/custom-word-deletion.md).
 
 ### text_snippets
 

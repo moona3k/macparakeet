@@ -11,10 +11,17 @@ github_issue: https://github.com/moona3k/macparakeet/issues/647
 
 # Local Transcription Title Rename Plan
 
-**Status:** IMPLEMENTED in branch - pending PR review/merge
+**Status:** IMPLEMENTED ON MAIN — retained implementation record; copy-on-import remains separate
 **Issue:** #647 - "[Feature Request] Ability to rename Local Transcription Titles"
 **Verified against:** live GitHub issue #647 on 2026-07-04 and `origin/main` at `46c82ed70`.
 **Related specs:** `spec/01-data-model.md`, `spec/02-features.md`, `spec/04-ui-patterns.md`, `integrations/README.md`
+
+**Current-source correction (2026-09-04):** Local effective titles now use
+`titleOverride` then the original filename, not transcript-derived opening
+words. That rule also reaches agent search/context/card titles through the
+current CLI contract. The original requirements/examples below describe the
+planning baseline where they differ; they are not instructions to restore
+derived-title fallback or reimplement rename.
 
 ## Goal Capsule
 

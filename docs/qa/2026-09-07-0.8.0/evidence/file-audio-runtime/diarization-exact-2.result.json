@@ -1,0 +1,45 @@
+{
+  "name": "diarization-exact-2",
+  "command": [
+    "<QA_ROOT>/macparakeet-cli-runtime",
+    "transcribe",
+    "<QA_OUTPUT>/two-public-speakers.wav",
+    "--database",
+    "<QA_OUTPUT>/diarization-exact-2.sqlite",
+    "--mode",
+    "raw",
+    "--format",
+    "json",
+    "--engine",
+    "parakeet",
+    "--parakeet-model",
+    "v3",
+    "--speaker-detection",
+    "on",
+    "--speaker-count",
+    "2"
+  ],
+  "environment": {
+    "CFFIXED_USER_HOME": "<QA_ROOT>/isolated-home",
+    "MACPARAKEET_TELEMETRY": "0",
+    "DO_NOT_TRACK": "1"
+  },
+  "timeoutSeconds": 180,
+  "timedOut": false,
+  "exitCode": 0,
+  "wallSeconds": 1.155,
+  "jsonValid": true,
+  "rows": [
+    {
+      "id": "bf56ecb12c5a42fcb490df121367e402",
+      "status": "completed",
+      "audioTrackOrdinal": null,
+      "engine": "parakeet",
+      "engineVariant": "v3",
+      "language": "en",
+      "rawTranscript": "He hoped there would be stew for dinner, turnips and carrots and bruised potatoes and fat mutton pieces to be ladled out in thick, peppered, flour fattened sauce. You will find me continually speaking of four men, Titian, Holbein, Turner, and Tintaret, in almost the same terms.",
+      "durationMs": 22660,
+      "speakerCount": 2
+    }
+  ]
+}

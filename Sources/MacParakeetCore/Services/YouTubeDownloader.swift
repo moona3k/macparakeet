@@ -4,6 +4,7 @@ import os
 public enum YouTubeDownloadError: Error, LocalizedError {
     case invalidURL
     case videoNotFound
+    case blockedByYouTube
     case downloadFailed(String)
     case ytDlpNotFound
     case timedOut
@@ -12,6 +13,8 @@ public enum YouTubeDownloadError: Error, LocalizedError {
         switch self {
         case .invalidURL: return "Not a valid media URL"
         case .videoNotFound: return "Video not found, private, or unavailable"
+        case .blockedByYouTube:
+            return "YouTube blocked this download. Try again later, or drop a local audio or video file instead."
         case .downloadFailed(let reason): return "Download failed: \(reason)"
         case .ytDlpNotFound: return "yt-dlp not found. Run the app once to install dependencies."
         case .timedOut: return "Download timed out — the connection may have stalled"
@@ -202,11 +205,7 @@ public actor YouTubeDownloader {
 
         guard result.terminationStatus == 0 else {
             let errorOutput = result.stderr.isEmpty ? "Unknown error" : result.stderr
-            let normalized = errorOutput.lowercased()
-            if normalized.contains("video unavailable") || normalized.contains("private video") {
-                throw YouTubeDownloadError.videoNotFound
-            }
-            throw YouTubeDownloadError.downloadFailed(Self.normalizeYtDlpError(errorOutput))
+            throw Self.classifiedDownloadError(fromYtDlpOutput: errorOutput)
         }
 
         let data = Data(result.stdout.utf8)
@@ -357,7 +356,7 @@ public actor YouTubeDownloader {
 
         guard result.terminationStatus == 0 else {
             let errorOutput = result.stderr.isEmpty ? "Unknown error" : result.stderr
-            throw YouTubeDownloadError.downloadFailed(Self.normalizeYtDlpError(errorOutput))
+            throw Self.classifiedDownloadError(fromYtDlpOutput: errorOutput)
         }
 
         let files = try fm.contentsOfDirectory(atPath: tempDir)
@@ -718,6 +717,45 @@ public actor YouTubeDownloader {
         return nil
     }
 
+    /// Maps yt-dlp stderr to a user-facing download error. Private/unavailable
+    /// videos stay distinct from YouTube's anti-bot gate, which otherwise leaks
+    /// `--cookies-from-browser` CLI advice the GUI cannot follow (#310).
+    nonisolated static func classifiedDownloadError(fromYtDlpOutput raw: String) -> YouTubeDownloadError {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let folded = foldYtDlpMessage(trimmed)
+
+        if folded.contains("video unavailable") || folded.contains("private video") {
+            return .videoNotFound
+        }
+        if isYouTubeAntiBotMessage(folded) {
+            return .blockedByYouTube
+        }
+        return .downloadFailed(normalizeYtDlpError(trimmed.isEmpty ? raw : trimmed))
+    }
+
+    nonisolated static func shouldRetryWithFreshYtDlp(_ error: Error) -> Bool {
+        switch error {
+        case YouTubeDownloadError.blockedByYouTube,
+             YouTubeDownloadError.downloadFailed,
+             YouTubeDownloadError.timedOut:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private nonisolated static func foldYtDlpMessage(_ raw: String) -> String {
+        raw.lowercased()
+            .replacingOccurrences(of: "\u{2018}", with: "'")
+            .replacingOccurrences(of: "\u{2019}", with: "'")
+            .replacingOccurrences(of: "\u{201B}", with: "'")
+    }
+
+    private nonisolated static func isYouTubeAntiBotMessage(_ folded: String) -> Bool {
+        guard folded.contains("[youtube]") else { return false }
+        return folded.contains("not a bot") || folded.contains("cookies-from-browser")
+    }
+
     private nonisolated static func normalizeYtDlpError(_ raw: String) -> String {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "Unknown error" }
@@ -758,15 +796,6 @@ public actor YouTubeDownloader {
         let normalized = reason.lowercased()
         return normalized.contains("failed to load python shared library")
             || (normalized.contains("pyi-") && normalized.contains("different team ids"))
-    }
-
-    private nonisolated static func shouldRetryWithFreshYtDlp(_ error: Error) -> Bool {
-        switch error {
-        case YouTubeDownloadError.downloadFailed, YouTubeDownloadError.timedOut:
-            return true
-        default:
-            return false
-        }
     }
 
     private func runYtDlp(

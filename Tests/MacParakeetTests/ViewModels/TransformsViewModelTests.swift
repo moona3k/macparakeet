@@ -101,11 +101,12 @@ final class TransformsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.transforms.contains(where: { $0.id == prompt.id }))
     }
 
-    func testDeleteBuiltInIsRejected() async {
+    func testDeleteBuiltInRemovesRow() async {
         let polish = viewModel.transforms.first(where: { $0.name == "Polish" })!
         let deleted = await viewModel.delete(polish)
-        XCTAssertFalse(deleted, "Built-ins must be protected from deletion.")
-        XCTAssertEqual(viewModel.transforms.count, 3)
+        XCTAssertTrue(deleted)
+        XCTAssertEqual(viewModel.transforms.count, 2)
+        XCTAssertFalse(viewModel.transforms.contains(where: { $0.id == polish.id }))
     }
 
     func testConfirmPendingDeleteClearsAndDeletes() async {
@@ -644,6 +645,10 @@ private final class BlockingPromptRepository: PromptRepositoryProtocol, @uncheck
         lock.unlock()
         return prompt
     }
+
+    func fetchIncludingDeleted(id: UUID) throws -> Prompt? { try fetch(id: id) }
+
+    func fetchDeleted() throws -> [Prompt] { [] }
 
     func fetchAll() throws -> [Prompt] {
         lock.lock()

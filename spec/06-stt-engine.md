@@ -2,7 +2,7 @@
 
 > Status: **ACTIVE** - Authoritative, current
 
-MacParakeet's default speech engine family is Parakeet TDT 0.6B via FluidAudio CoreML on Apple's Neural Engine (ANE). Multilingual v3 is the default build; English-only v2 is an opt-in Parakeet build for users who want a faster no-auto-detect path; and an English-only Parakeet Unified build adds native streaming dictation with built-in punctuation, capitalization, and token-derived word timestamps. Nemotron is available as an opt-in Beta local engine (multilingual Nemotron 3.5 by default, plus an English-only second build), WhisperKit remains the mature optional fallback for languages Parakeet/Nemotron do not cover well enough, and Cohere Transcribe is an opt-in local accuracy engine for record-then-transcribe jobs. All speech engines run on-device; there is no cloud STT path.
+MacParakeet's default speech engine family is Parakeet TDT 0.6B via FluidAudio CoreML on Apple's Neural Engine (ANE). Multilingual v3 is the default build; English-only v2 is an opt-in Parakeet build for users who want a faster no-auto-detect path; and an English-only Parakeet Unified build adds native streaming dictation with built-in punctuation, capitalization, and token-derived word timestamps. Orukeet is an optional Parakeet preview of a third-party v3 adaptation, and v3 remains the default. Nemotron is available as an opt-in Beta local engine (multilingual Nemotron 3.5 by default, plus an English-only second build), WhisperKit remains the mature optional fallback for languages Parakeet/Nemotron do not cover well enough, and Cohere Transcribe is an opt-in local accuracy engine for record-then-transcribe jobs. All speech engines run on-device; there is no cloud STT path.
 
 ---
 
@@ -23,21 +23,23 @@ MacParakeet's default speech engine family is Parakeet TDT 0.6B via FluidAudio C
 | Languages | v3: 25 European languages; v2: English only |
 | Decoding | Optimized CTC/TDT decoding (FluidAudio implementation) |
 
-#### Parakeet model variant (v2 / v3 / unified)
+#### Parakeet model variant (v2 / v3 / unified / orukeet)
 
 FluidAudio ships two peer Parakeet TDT 0.6B builds plus the newer Parakeet
-Unified build, all exposed to the user as selectable Parakeet models:
+Unified build. Orukeet is an optional third-party preview on the same TDT
+path. All four are selectable Parakeet models:
 
 | Variant | `ParakeetModelVariant` | Languages | Notes |
 |---------|------------------------|-----------|-------|
 | Multilingual (default) | `.v3` | English + 24 European | "Works for everyone"; the new-user default. |
 | English-only | `.v2` | English only | A touch faster on English; cannot mis-detect English as another language (issues #311, #398). |
 | English (Unified) | `.unified` | English only | NVIDIA Parakeet Unified EN 0.6B. Strong English accuracy with punctuation/capitalization. A *separate* FluidAudio runtime (`StreamingUnifiedAsrManager`, no `AsrModelVersion`); file/meeting/final dictation and live dictation preview use native `parakeet-unified-2080ms` streaming so final transcripts carry token-derived word timestamps for exports and speaker alignment. ~565 MB int8 per encoder export. Requires FluidAudio >= 0.15.4. Issues #520, #610. |
+| Orukeet (preview) | `.orukeet` | 25 languages | Oruk's Parakeet v3 adaptation. Optional Hugging Face download, pinned revision `43142dd1897f9ddadcd70173fcb5ff45c08aa951`, compiled locally into its own cache. Same TDT `AsrManager` pair as v3, with no stock `AsrModelVersion`, so loading it cannot fall back to NVIDIA v3. Native live dictation, tail preview, and custom vocabulary are off. ~445 MiB. Weights are CC BY-SA 4.0 and are not bundled. Results use `engineVariant=orukeet`. |
 
-- **Preference:** persisted as a validated enum under `SpeechEnginePreference.parakeetModelVariantKey` (default `.v3`). The `ParakeetModelVariant → AsrModelVersion` bridge lives in `STT/ParakeetModelVariant+ASR.swift` so the preference type stays Foundation-only; it returns `nil` for `.unified` (which has no TDT version — see `usesUnifiedEngine`).
-- **Runtime:** v2/v3 load the shared TDT `AsrManager`; `.unified` is routed to a dedicated `ParakeetUnifiedEngine` (wrapping FluidAudio's native `StreamingUnifiedAsrManager` for final transcription and live dictation), the same way the Nemotron engine routes its English build. `STTScheduler.setParakeetModelVariant(_:onProgress:)` reloads the active Parakeet model in place when Parakeet is selected — downloading the target build before releasing the current one, restoring the previous build if the final load fails. It shares the engine-switch guard, so it is blocked while transcription, a meeting lease, or an engine switch is in flight. Builds cache independently, so flipping between two installed builds is near-instant.
-- **GUI:** the *Parakeet Model* card under Settings → Engine (shown only when Parakeet is the active engine, symmetric to the Whisper Language card).
-- **CLI:** `config set parakeet-model v3|v2|unified` (aliases `multilingual`/`english`/`english-unified`), `transcribe --parakeet-model app-default|v3|v2|unified`, and the `parakeet-v3` / `parakeet-v2` / `parakeet-unified` ids in `models list` / `models select`.
+- **Preference:** persisted as a validated enum under `SpeechEnginePreference.parakeetModelVariantKey` (default `.v3`). The `ParakeetModelVariant → AsrModelVersion` bridge lives in `STT/ParakeetModelVariant+ASR.swift` so the preference type stays Foundation-only; it returns `nil` for `.unified` (which has no TDT version — see `usesUnifiedEngine`) and for `.orukeet` (which must not select NVIDIA's stock v3 download).
+- **Runtime:** v2/v3 load the shared TDT `AsrManager`; `.unified` is routed to a dedicated `ParakeetUnifiedEngine` (wrapping FluidAudio's native `StreamingUnifiedAsrManager` for final transcription and live dictation), the same way the Nemotron engine routes its English build. `.orukeet` stays on that shared TDT pair and loads only the pinned local archive from `OrukeetModelStore`. `STTScheduler.setParakeetModelVariant(_:onProgress:)` reloads the active Parakeet model in place when Parakeet is selected — downloading the target build before releasing the current one, restoring the previous build if the final load fails. It shares the engine-switch guard, so it is blocked while transcription, a meeting lease, or an engine switch is in flight. Builds cache independently, so flipping between two installed builds is near-instant.
+- **GUI:** the *Parakeet Model* card under Settings → Engine (shown only when Parakeet is the active engine, symmetric to the Whisper Language card). Orukeet appears there as "Orukeet (preview)".
+- **CLI:** `config set parakeet-model v3|v2|unified|orukeet` (aliases `multilingual`/`english`/`english-unified`), `transcribe --parakeet-model app-default|v3|v2|unified|orukeet`, and the `parakeet-v3` / `parakeet-v2` / `parakeet-unified` / `parakeet-orukeet` ids in `models list` / `models select`.
 
 ### Nemotron Beta Engine
 
@@ -55,7 +57,7 @@ Nemotron is shipped as Beta because it is fast and local but not yet proven as a
 
 Because Nemotron is a streaming engine, dictation on **both** Nemotron builds (multilingual and English) streams microphone samples into a live session: partial text appears in the dictation overlay while speaking, and the streamed final transcript is used as the dictation result. (File and meeting jobs on Nemotron still run batch-at-stop.) The recorded WAV is still always written; if the live session cannot start, fails mid-stream, drops samples under backpressure, or finishes empty, dictation transparently falls back to transcribing the recorded file (this fallback is within the Nemotron path — it is not an engine fallback, which remains explicitly user-selected per the table above).
 
-**Display-only live dictation preview.** Separately from the final paste path, an opt-in display-only preview (`AppFeatures.liveDictationStreamingEnabled`, #517) renders a stable rolling readout of in-progress text above the dictation pill. It never feeds the paste — the final inserted text always comes from the stop-time transcription path. Parakeet v2/v3 use a single-flight tail-window batch preview (reusing their `[Float]` batch path), Parakeet Unified uses FluidAudio's native `StreamingUnifiedAsrManager` (`parakeet-unified-2080ms`), the Nemotron builds reuse their native live partials, Whisper stays default-off pending a per-pass latency probe, and Cohere stays off because it is batch-only. A per-session `LiveTranscriptStabilizer` turns the raw stream into a monotonic, append-only readout (settled body committed, last few words held as a volatile hypothesis) so shown words don't jump or disappear; the overlay renders it bottom-anchored with older lines fading out at the top edge (no mid-word truncation). Full behavior and lifecycle (single-flight/native session ownership, cancel/drain, engine-switch and shutdown ordering) are specified in `spec/05-audio-pipeline.md` → "Dictation Live Preview" and `docs/research/live-dictation-streaming.md`.
+**Display-only live dictation preview.** Separately from the final paste path, an opt-in display-only preview (`AppFeatures.liveDictationStreamingEnabled`, #517) renders a stable rolling readout of in-progress text above the dictation pill. It never feeds the paste — the final inserted text always comes from the stop-time transcription path. Parakeet v2/v3 use a single-flight tail-window batch preview (reusing their `[Float]` batch path), Parakeet Unified uses FluidAudio's native `StreamingUnifiedAsrManager` (`parakeet-unified-2080ms`), Orukeet has no tail preview, the Nemotron builds reuse their native live partials, Whisper stays default-off pending a per-pass latency probe, and Cohere stays off because it is batch-only. A per-session `LiveTranscriptStabilizer` turns the raw stream into a monotonic, append-only readout (settled body committed, last few words held as a volatile hypothesis) so shown words don't jump or disappear; the overlay renders it bottom-anchored with older lines fading out at the top edge (no mid-word truncation). Full behavior and lifecycle (single-flight/native session ownership, cancel/drain, engine-switch and shutdown ordering) are specified in `spec/05-audio-pipeline.md` → "Dictation Live Preview" and `docs/research/live-dictation-streaming.md`.
 
 ### WhisperKit Optional Engine
 
@@ -72,7 +74,12 @@ Parakeet remains the default because it is faster, lower-latency, and lower-memo
 
 ### Cohere Transcribe Optional Engine
 
-Cohere Transcribe (`cohere-transcribe-03-2026`, 2B, Apache-2.0) was evaluated by the gold-standard benchmark (`benchmarks/asr/`, PR #568) and remains an opt-in local engine for accuracy-critical record-then-transcribe work. ADR-029 replaces only its former FluidAudio/CoreML execution backend with a narrow transcribe.cpp adapter. Its product identity, persistence, CLI routes, scheduler admission, and batch-only behavior remain unchanged.
+**Planned audio navigation (#836):** The [independent speaker timeline](contracts/audio-speaker-timeline-v1.md)
+will preserve audio-derived speaker turns without requiring Cohere word timestamps.
+This is planned work, not a new Cohere decoder capability or current speaker-labeled-text support.
+The current output and capture behavior below remain accurate.
+
+Cohere Transcribe (`cohere-transcribe-03-2026`, 2B, Apache-2.0) was evaluated by the gold-standard benchmark (`benchmarks/asr/`, PR #568) and remains an opt-in local engine for accuracy-critical record-then-transcribe work. ADR-034 replaces only its former FluidAudio/CoreML execution backend with a narrow transcribe.cpp adapter. Its product identity, persistence, CLI routes, scheduler admission, and batch-only behavior remain unchanged.
 
 | Property | Value |
 |----------|-------|
@@ -92,7 +99,7 @@ Cohere is batch-only and single-flight inside the shared runtime. Dictation reco
 
 Audio is converted to 16 kHz mono Float32 outside `MainActor`. The engine keeps every native call below both the runtime-reported maximum and a conservative 300-second practical bound, adds bounded overlap, and stitches duplicate boundary text. Native truncation triggers recursive splitting rather than silent loss. The actor waits for cancellation to drain before destroying the session, destroys the session before its model, and completes teardown before model deletion.
 
-The backend always invokes Cohere without a caller language hint. The pinned model transcribes the official 14-language set this way, while the native runtime has no language-identification head and correctly advertises no native detection. The adapter classifies the returned transcript locally with Apple's Natural Language framework and publishes metadata only when the classification maps to the official set. The unmodified upstream v0.1.3 artifact is not a release fallback because MacParakeet requires the self-built, arm64-only owned artifact with immutable source and checksum pins. The exact release and model pins are specified in ADR-029 and `scripts/dist/transcribe_cpp_release_pins.sh`.
+The backend always invokes Cohere without a caller language hint. The pinned model transcribes the official 14-language set this way, while the native runtime has no language-identification head and correctly advertises no native detection. The adapter classifies the returned transcript locally with Apple's Natural Language framework and publishes metadata only when the classification maps to the official set. The unmodified upstream v0.1.3 artifact is not a release fallback because MacParakeet requires the self-built, arm64-only owned artifact with immutable source and checksum pins. The exact release and model pins are specified in ADR-034 and `scripts/dist/transcribe_cpp_release_pins.sh`.
 
 ### Three-Chip Architecture
 
@@ -151,19 +158,23 @@ let samples = try AudioConverter.resampleBuffer(buffer)
 
 For meeting recording specifically, this has an important consequence: the saved `meeting-playback.m4a` artifact may preserve microphone/system channel separation as stereo, but the current final Parakeet path still works on mono per-source WAVs. MacParakeet avoids collapsing the final meeting path to a single mono mix by transcribing `microphone-raw.m4a` and `system-raw.m4a` separately, then merging those fresh results with persisted source-alignment metadata. See `docs/research/meeting-dual-stream-transcription-pipeline.md` for the end-to-end meeting pipeline.
 
-### Custom Vocabulary Boosting (v0.11.0+)
+### Custom Vocabulary Boosting (FluidAudio 0.11.0+)
 
 MacParakeet Phase 1 uses FluidAudio's 110M CTC encoder as a post-TDT
 recognition sidecar, not as a replacement ASR runtime. The normal Parakeet TDT
-decode runs first and returns transcript text plus token timings; when
-recognition boosting is supported and there are enabled vocabulary anchors,
-MacParakeet runs the CTC sidecar over the same audio samples and uses
-`VocabularyRescorer` to produce the final transcript text.
+decode runs first and returns transcript text plus token timings. Recognition
+boosting is opt-in: `customVocabularyRecognitionBoostingEnabled` defaults to
+`false`. When that preference is enabled, the engine supports boosting, and
+enabled vocabulary anchors exist, MacParakeet runs the CTC sidecar over the
+same audio samples and uses `VocabularyRescorer` to produce the final
+transcript text. Adding an anchor alone does not enable this sidecar.
 
 Source of truth:
 
 - Enabled `CustomWord` rows with `replacement == nil` or blank replacement
-  become recognition-time vocabulary anchors.
+  become recognition-time vocabulary anchors. Independently of boosting,
+  deterministic custom-word processing uses these entries to restore stored
+  casing when a whole-word match exists.
 - Enabled rows with nonblank `replacement` remain deterministic
   post-transcription corrections/backstops.
 - Disabled rows and terms shorter than `minTermLength` (`3`) are ignored by
@@ -211,7 +222,7 @@ small user vocabularies rather than full dictionaries.
 | Capability | Model | Details |
 |-----------|-------|---------|
 | Streaming ASR | Parakeet EOU 1.1B | Real-time with end-of-utterance detection, 160ms-1600ms chunks |
-| Speaker diarization (offline) | Pyannote community-1 + WeSpeaker v2 + VBx clustering | ~15% DER (VoxConverse, CoreML), ~130 MB models, unlimited speakers. See ADR-010. |
+| Speaker diarization (offline) | Pyannote community-1 + WeSpeaker v2 + VBx clustering | ~130 MB assets; no fixed four-speaker cap. Uses the app high-accuracy preset; current-pin DER has not been measured. See ADR-010. |
 | Speaker diarization (streaming) | Sortformer (NVIDIA) | ~32% DER, 4 speaker max. Not used — see ADR-010 for rationale. |
 | Voice activity detection | Silero | 96% accuracy, 1220x RTF |
 | Custom vocabulary | CTC/TDT keyword boosting | 110M sidecar for Parakeet TDT v2/v3 enabled anchors |
@@ -530,10 +541,9 @@ This replaces the previous Python venv bootstrap (~500 MB deps + ~2.5 GB model).
 
 ### Timeout Handling
 
-- Transcription requests have a timeout proportional to audio duration
-- Short dictations: 30-second timeout
-- Long files: generous timeout (Parakeet builds measured ~81-93x steady RTFx on the current M4 Pro benchmark; other engines vary by model)
-- Warm-up/model download allows a longer timeout (first-run downloads can take minutes)
+- There is no global duration-proportional transcription deadline or fixed 30-second dictation deadline in `STTScheduler`.
+- Runtime lifecycle operations (including cancellation drain, model switching, cache clear, and shutdown) use a 30-second observability watchdog. It emits `stt_runtime_unhealthy` but continues awaiting completion; it does not safely terminate a hung inference.
+- Display-only dictation preview has a separate bounded drain (two seconds by default). Operation-specific network/subprocess deadlines belong to their adapters, not to a universal STT timeout.
 
 ---
 
@@ -559,6 +569,8 @@ These figures are Apple M4 Pro benchmark evidence from `benchmarks/asr/`, not un
 | 1 hour | ~44 s | Yes, but still fast |
 
 For dictation (the primary use case), transcription time is imperceptible. For long file transcription, the ANE path is still remarkably fast.
+
+On macOS 14 (Sonoma), Parakeet TDT long-form file, YouTube, and meeting jobs run FluidAudio's 15-second windows **one at a time** (`parallelChunkConcurrency: 1`) and load the conformer encoder with `.cpuAndGPU` instead of ANE. FluidAudio's default of four concurrent Core ML predictions on shared ANE models is not reentrant on Sonoma's Neural Engine (GitHub #997); serial ANE chunks still SIGBUS/SIGSEGV in the field. macOS 15+ keeps the four-wide ANE default. Sonoma dictation shares the same encoder load. See `ParakeetTDTASRConfig` and `docs/research/2026-09-09-issue-997-coreml-long-file-stt/`.
 
 ### Memory Budget
 
@@ -632,7 +644,7 @@ Each word's time range is compared against diarization speaker segments. The spe
 ### API
 
 ```swift
-let config = OfflineDiarizerConfig()
+let config = DiarizationService.highAccuracyConfig
 let manager = OfflineDiarizerManager(config: config)
 try await manager.prepareModels()
 
@@ -643,20 +655,30 @@ for segment in result.segments {
 }
 ```
 
-### Performance
+### Configuration and measurement status
 
-| Metric | Value |
-|--------|-------|
-| DER (VoxConverse) | ~15% |
-| DER (AMI) | ~17.7% |
-| Speed | 64-122x RTF (config-dependent) |
-| Memory | ~100 MB models + minimal working RAM |
-| 1 hour audio | ~30-56 seconds processing |
-| Total (ASR + diarization) | ~53-79 seconds per hour of audio |
+`DiarizationService.highAccuracyConfig` starts from the library default and
+sets segmentation `stepRatio = 0.1`, embedding
+`minSegmentDurationSeconds = 0`, and zero-vote re-embedding enabled.
+Speaker-count constraints are applied to this preset per request. After
+FluidAudio returns, isolated one-word speaker flips and unlabeled gaps are
+smoothed at word assignment only when both neighboring runs agree
+([issue #1046](https://github.com/moona3k/macparakeet/issues/1046)). This
+does not change clusters or `clustering.threshold`.
+
+The app pins FluidAudio 0.15.7, including 0.15.6 clustering corrections and
+the 0.15.7 dual-census speaker-cap fix (FluidAudio #891). Older upstream
+VoxConverse measurements (0.25-second collar, overlap ignored) reported
+13.89% DER for the denser preset versus 15.07% for the faster default under
+0.15.4; those figures have not been re-run for the current pin. They are
+not current app accuracy or throughput guarantees. Asset sizes above also
+do not measure peak process memory. See ADR-010's 2026-09-06, 2026-09-13,
+and 2026-09-15 amendments for provenance, the 0.15.7 pin, word-assignment
+smoothing, and the remaining DER gap.
 
 ### What's NOT included
 
-- **No streaming diarization** — file transcription is batch, no need for real-time
+- **No streaming diarization** — authoritative speaker assignment runs after capture/ASR; live diarizers remain research candidates
 - **No Sortformer** — 4-speaker hard limit and 32% DER (see ADR-010)
 - **No cross-file speaker identity** — Speaker 1 in file A is not linked to Speaker 1 in file B
 - **No dictation diarization** — single speaker by design

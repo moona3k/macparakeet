@@ -1,0 +1,32 @@
+[
+  {
+    "id": "bf231a0b4972489f927afa99e5d8a0c4",
+    "status": "completed",
+    "durationMs": 48900,
+    "meetingCaptureReport": "{\"captureFailed\":false,\"capturedDurationMs\":48900,\"elapsedDurationMs\":48813,\"interruptedSources\":[],\"quality\":\"healthy\",\"sourceMode\":\"microphone_only\",\"sources\":[{\"coverageRatio\":1,\"source\":\"microphone\",\"status\":\"complete\",\"writtenDurationMs\":48900}]}",
+    "rawChars": 0,
+    "cleanChars": 0,
+    "publicSampleTermsPresent": {
+      "communication": false,
+      "styles": false,
+      "years": false
+    },
+    "folderExists": true,
+    "lockPresent": false
+  },
+  {
+    "id": "2f4b4473549a45d4a520ae53a6cdb778",
+    "status": "completed",
+    "durationMs": 13500,
+    "meetingCaptureReport": "{\"captureFailed\":false,\"capturedDurationMs\":13500,\"elapsedDurationMs\":13427,\"interruptedSources\":[],\"quality\":\"healthy\",\"sourceMode\":\"microphone_only\",\"sources\":[{\"coverageRatio\":1,\"source\":\"microphone\",\"status\":\"complete\",\"writtenDurationMs\":13500}]}",
+    "rawChars": 116,
+    "cleanChars": 116,
+    "publicSampleTermsPresent": {
+      "communication": true,
+      "styles": true,
+      "years": true
+    },
+    "folderExists": true,
+    "lockPresent": false
+  }
+]

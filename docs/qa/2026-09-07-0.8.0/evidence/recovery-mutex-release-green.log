@@ -1,0 +1,226 @@
+[1/1] Compiling plugin GenerateManual
+[2/2] Compiling plugin GenerateDoccReference
+Building for debugging...
+[2/9] Write sources
+[3/9] Write swift-version--58304C5D6DBC2206.txt
+[5/11] Compiling MacParakeetCore MeetingRecordingRecoveryService.swift
+[6/11] Emitting module MacParakeetCore
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:55:27: warning: 'is' test is always true
+ 53 |             // A custom description can contain user content, even when it looks
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+    |                           `- warning: 'is' test is always true
+ 56 |                 !(error is any CustomDebugStringConvertible)
+ 57 |             else { return typeName }
+
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:56:25: warning: 'is' test is always true
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+ 56 |                 !(error is any CustomDebugStringConvertible)
+    |                         `- warning: 'is' test is always true
+ 57 |             else { return typeName }
+ 58 |             let described = String(describing: error)
+[6/13] Write Objects.LinkFileList
+[8/13] Linking macparakeet-cli
+[9/13] Applying macparakeet-cli
+[10/14] Linking MacParakeet
+[11/14] Applying MacParakeet
+[13/15] Emitting module MacParakeetTests
+[13/15] Write Objects.LinkFileList
+[14/15] Linking MacParakeetPackageTests
+Build complete! (14.52s)
+Test Suite 'Selected tests' started at 2026-09-07 15:46:02.094.
+Test Suite 'MacParakeetPackageTests.xctest' started at 2026-09-07 15:46:02.095.
+Test Suite 'MeetingRecordingLockFileStoreTests' started at 2026-09-07 15:46:02.095.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testConcurrentFinalizationOwnershipClaimsAdmitOneProcess]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testConcurrentFinalizationOwnershipClaimsAdmitOneProcess]' passed (0.041 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDeleteRemovesFile]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDeleteRemovesFile]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverActiveSessionsIsNotRetentionSafetyPredicate]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverActiveSessionsIsNotRetentionSafetyPredicate]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverActiveSessionsReturnsEmptyForMissingRoot]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverActiveSessionsReturnsEmptyForMissingRoot]' passed (0.000 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverActiveSessionsReturnsLiveOwners]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverActiveSessionsReturnsLiveOwners]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverActiveSessionsSkipsDeadOwners]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverActiveSessionsSkipsDeadOwners]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverAnySessionsReturnsLiveAndDeadOwners]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverAnySessionsReturnsLiveAndDeadOwners]' passed (0.002 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverOrphansHandlesUnknownSchemaVersion]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverOrphansHandlesUnknownSchemaVersion]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverOrphansReturnsDeadOwnersWithFolderURL]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverOrphansReturnsDeadOwnersWithFolderURL]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverOrphansSkipsCorruptJSON]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverOrphansSkipsCorruptJSON]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverOrphansSkipsLiveOwners]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverOrphansSkipsLiveOwners]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFailedOwnershipReleaseCanBeReclaimedBySameProcess]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFailedOwnershipReleaseCanBeReclaimedBySameProcess]' passed (0.004 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimRefusesLiveNewerSchemaLock]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimRefusesLiveNewerSchemaLock]' passed (0.002 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimRefusesLiveOwner]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimRefusesLiveOwner]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimReplacesDeadNewerSchemaLock]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimReplacesDeadNewerSchemaLock]' passed (0.002 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimReplacesDeadProcessLease]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimReplacesDeadProcessLease]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimRewritesAndReleaseRestoresDeadOwner]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimRewritesAndReleaseRestoresDeadOwner]' passed (0.002 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimTreatsUnreadablePresentLockAsDeadEvidence]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimTreatsUnreadablePresentLockAsDeadEvidence]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimTreatsZeroByteLockAsDeadEvidence]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimTreatsZeroByteLockAsDeadEvidence]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testHasLiveOwnerHonorsPeekedPIDOnNewerSchemaLock]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testHasLiveOwnerHonorsPeekedPIDOnNewerSchemaLock]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testHasLiveOwnerReturnsFalseForDeadOrMissingOwner]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testHasLiveOwnerReturnsFalseForDeadOrMissingOwner]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testHasLiveOwnerUsesReadableLockPID]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testHasLiveOwnerUsesReadableLockPID]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testNilNotesIsNotEncoded]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testNilNotesIsNotEncoded]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromCorruptJSONReturnsNil]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromCorruptJSONReturnsNil]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromLockFileMissingNotesKeyDecodesAsNil]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromLockFileMissingNotesKeyDecodesAsNil]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromLockFileWithMalformedCalendarSnapshotStillRecoversMetadata]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromLockFileWithMalformedCalendarSnapshotStillRecoversMetadata]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromLockFileWithMalformedNotesValueStillRecoversMetadata]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromLockFileWithMalformedNotesValueStillRecoversMetadata]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromLockFileWithMalformedStartContextStillRecoversMetadata]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromLockFileWithMalformedStartContextStillRecoversMetadata]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromMissingFolderReturnsNil]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromMissingFolderReturnsNil]' passed (0.000 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromUnknownSchemaVersionReturnsNil]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromUnknownSchemaVersionReturnsNil]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadReturnsAwaitingTranscriptionLockRegardlessOfPID]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadReturnsAwaitingTranscriptionLockRegardlessOfPID]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadTreatsSchemaOneSpeechEngineAsLegacyProvenance]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadTreatsSchemaOneSpeechEngineAsLegacyProvenance]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testUncapturedSpeechEngineRemainsAbsentAfterRewrite]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testUncapturedSpeechEngineRemainsAbsentAfterRewrite]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testWithNotesPreservesEverythingElse]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testWithNotesPreservesEverythingElse]' passed (0.000 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testWriteThenReadRoundTrip]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testWriteThenReadRoundTrip]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testWriteThenReadRoundTripsNotes]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testWriteThenReadRoundTripsNotes]' passed (0.001 seconds).
+Test Suite 'MeetingRecordingLockFileStoreTests' passed at 2026-09-07 15:46:02.179.
+	 Executed 36 tests, with 0 failures (0 unexpected) in 0.081 (0.084) seconds
+Test Suite 'MeetingRecordingRecoveryServiceTests' started at 2026-09-07 15:46:02.179.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testActiveWriterFinalizationIsNeitherOfferedRecoveredNorDiscarded]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testActiveWriterFinalizationIsNeitherOfferedRecoveredNorDiscarded]' passed (0.023 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testCrashPointSweepConvergesToCompletedRowDeletedLockAndPreservedAudio]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testCrashPointSweepConvergesToCompletedRowDeletedLockAndPreservedAudio]' passed (0.129 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardKeepsCompletedTranscriptAudioAndDeletesOnlyLock]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardKeepsCompletedTranscriptAudioAndDeletesOnlyLock]' passed (0.015 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardOfMissingFolderIsIdempotent]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardOfMissingFolderIsIdempotent]' passed (0.013 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardRelinquishesOwnershipWhenMissingLockRepairCannotAcquireMutex]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardRelinquishesOwnershipWhenMissingLockRepairCannotAcquireMutex]' passed (0.023 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardRemovesEverything]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardRemovesEverything]' passed (0.014 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardRestoresMissingLockAfterPartialFolderRemovalAndCanRetry]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardRestoresMissingLockAfterPartialFolderRemovalAndCanRetry]' passed (0.016 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardRestoresOwnershipAfterFolderRemovalFailureAndCanRetry]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardRestoresOwnershipAfterFolderRemovalFailureAndCanRetry]' passed (0.016 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardSurfacesFailedLockDeleteAndStaysRetryable]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardSurfacesFailedLockDeleteAndStaysRetryable]' passed (0.017 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardWithStaleLockRefusesActiveSameProcessFinalizationLease]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardWithStaleLockRefusesActiveSameProcessFinalizationLease]' passed (0.015 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardWithStaleLockRefusesAnotherLiveProcessFinalizationLease]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardWithStaleLockRefusesAnotherLiveProcessFinalizationLease]' passed (0.014 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverFiltersOnlyEmptySessionsInMixedBatch]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverFiltersOnlyEmptySessionsInMixedBatch]' passed (0.015 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverFiltersSessionWithNoAudioFiles]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverFiltersSessionWithNoAudioFiles]' passed (0.002 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverFiltersStubSessionWithoutDeletingFolder]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverFiltersStubSessionWithoutDeletingFolder]' passed (0.003 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverKeepsCandidateWhenViabilityCheckFails]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverKeepsCandidateWhenViabilityCheckFails]' passed (0.002 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverKeepsCompletedMeetingWhenSourceAudioIsMissing]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverKeepsCompletedMeetingWhenSourceAudioIsMissing]' passed (0.002 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverKeepsSessionWhenOnlyOneChannelHasViableAudio]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverKeepsSessionWhenOnlyOneChannelHasViableAudio]' passed (0.008 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverKeepsSessionWithViableAudio]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverKeepsSessionWithViableAudio]' passed (0.014 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testPartialDiscardFailureDoesNotReplaceAnotherOwnersLock]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testPartialDiscardFailureDoesNotReplaceAnotherOwnersLock]' passed (0.014 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverAppliesLockFileNotesToRecoveredTranscriptionUserNotes]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverAppliesLockFileNotesToRecoveredTranscriptionUserNotes]' passed (0.020 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverCleansAwaitingTranscriptionLockWhenTranscriptAlreadyExists]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverCleansAwaitingTranscriptionLockWhenTranscriptAlreadyExists]' passed (0.015 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverClearsStoredPlaybackFallbackWhenRemixSucceeds]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverClearsStoredPlaybackFallbackWhenRemixSucceeds]' passed (0.020 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverContinuesWhenMixFails]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverContinuesWhenMixFails]' passed (0.024 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverDeletesLockOnSuccess]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverDeletesLockOnSuccess]' passed (0.021 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverDeletesStaleCleanedMicWhenSourceMissing]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverDeletesStaleCleanedMicWhenSourceMissing]' passed (0.019 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverDoesNotSetUserNotesWhenLockHasNone]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverDoesNotSetUserNotesWhenLockHasNone]' passed (0.019 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverKeepsLockOnFailure]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverKeepsLockOnFailure]' passed (0.020 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverLegacyLockWithoutSpeechEnginePreservesUncapturedProvenance]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverLegacyLockWithoutSpeechEnginePreservesUncapturedProvenance]' passed (0.020 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverLegacySilenceOnlyPartialReportRemainsHealthy]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverLegacySilenceOnlyPartialReportRemainsHealthy]' passed (0.021 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverMissingMicrophoneMaterializesDelayedSystemTimeline]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverMissingMicrophoneMaterializesDelayedSystemTimeline]' passed (0.023 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverMissingPreviouslySilentSystemTrackBecomesUnavailable]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverMissingPreviouslySilentSystemTrackBecomesUnavailable]' passed (0.017 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverPreservesExistingTimelineAndProvenanceWhileRefreshingMediaFacts]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverPreservesExistingTimelineAndProvenanceWhileRefreshingMediaFacts]' passed (0.024 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverReadsLegacySourceNamesAndWritesCurrentPlaybackName]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverReadsLegacySourceNamesAndWritesCurrentPlaybackName]' passed (0.019 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverRetryReusesSavedTranscriptWhenLockDeletePreviouslyFailed]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverRetryReusesSavedTranscriptWhenLockDeletePreviouslyFailed]' passed (0.020 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverRetryUpdatesPreviousIncompleteRecoveryRow]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverRetryUpdatesPreviousIncompleteRecoveryRow]' passed (0.019 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverSettlesCompletedLegacyPlaybackRow]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverSettlesCompletedLegacyPlaybackRow]' passed (0.003 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverSkipsCleanedMicWhenDurationPredictsRenderTimeout]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverSkipsCleanedMicWhenDurationPredictsRenderTimeout]' passed (0.027 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverSkipsCleanedMicWhenRecoveredSystemReferenceIsSilent]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverSkipsCleanedMicWhenRecoveredSystemReferenceIsSilent]' passed (0.029 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverSkipsCorruptSourceAndUsesRemainingPlayableAudio]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverSkipsCorruptSourceAndUsesRemainingPlayableAudio]' passed (0.013 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverSynthesizesMetadataAndPersistsRecoveredTranscription]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverSynthesizesMetadataAndPersistsRecoveredTranscription]' passed (0.019 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverUpdatesExistingAwaitingTranscriptionStub]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverUpdatesExistingAwaitingTranscriptionStub]' passed (0.019 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverUsesAudioTrackSampleRateInRecoveredMetadata]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverUsesAudioTrackSampleRateInRecoveredMetadata]' passed (0.012 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverUsesEchoProbeWhenRecoveredAlignmentIsSynthetic]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverUsesEchoProbeWhenRecoveredAlignmentIsSynthetic]' passed (0.058 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverWritesRecoveredNotesSidecar]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverWritesRecoveredNotesSidecar]' passed (0.021 seconds).
+Test Suite 'MeetingRecordingRecoveryServiceTests' passed at 2026-09-07 15:46:03.062.
+	 Executed 44 tests, with 0 failures (0 unexpected) in 0.879 (0.882) seconds
+Test Suite 'MeetingRecordingSettlementTests' started at 2026-09-07 15:46:03.062.
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testDeletesLockAcrossPrivateVarPathAliasBoundary]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testDeletesLockAcrossPrivateVarPathAliasBoundary]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testDeletesLockWhenOnlyMeetingFilePathMatches]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testDeletesLockWhenOnlyMeetingFilePathMatches]' passed (0.000 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testDeletesLockWhenStoredFolderPathDiffersOnlyByCase]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testDeletesLockWhenStoredFolderPathDiffersOnlyByCase]' passed (0.000 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testDeletesLockWhenTranscriptionRowIsCompleted]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testDeletesLockWhenTranscriptionRowIsCompleted]' passed (0.000 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testLockDeleteErrorIsRethrownSoCallersCanSurfaceFailedCleanup]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testLockDeleteErrorIsRethrownSoCallersCanSurfaceFailedCleanup]' passed (0.000 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testRefusesWhenCompletedRowBelongsToDifferentFolder]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testRefusesWhenCompletedRowBelongsToDifferentFolder]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testRefusesWhenTranscriptionRowIsMissing]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testRefusesWhenTranscriptionRowIsMissing]' passed (0.000 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testRefusesWhenTranscriptionRowIsNotCompleted]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testRefusesWhenTranscriptionRowIsNotCompleted]' passed (0.000 seconds).
+Test Suite 'MeetingRecordingSettlementTests' passed at 2026-09-07 15:46:03.066.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.004 (0.004) seconds
+Test Suite 'MacParakeetPackageTests.xctest' passed at 2026-09-07 15:46:03.066.
+	 Executed 88 tests, with 0 failures (0 unexpected) in 0.964 (0.971) seconds
+Test Suite 'Selected tests' passed at 2026-09-07 15:46:03.066.
+	 Executed 88 tests, with 0 failures (0 unexpected) in 0.964 (0.972) seconds
+◇ Test run started.
+↳ Testing Library Version: 1743
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.

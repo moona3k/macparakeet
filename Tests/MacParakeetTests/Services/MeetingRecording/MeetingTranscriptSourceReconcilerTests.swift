@@ -57,14 +57,16 @@ final class MeetingTranscriptSourceReconcilerTests: XCTestCase {
         XCTAssertEqual(result.microphoneWords.map(\.word), ["yeah"])
         XCTAssertEqual(result.removedMicrophoneWordCount, 6)
         XCTAssertEqual(result.removals.map(\.reason), [.simultaneousSystemEcho])
-        XCTAssertEqual(result.removals.first?.words.map(\.word), [
-            "Let's",
-            "finalize",
-            "the",
-            "budget",
-            "numbers",
-            "tomorrow",
-        ])
+        XCTAssertEqual(
+            result.removals.first?.words.map(\.word),
+            [
+                "Let's",
+                "finalize",
+                "the",
+                "budget",
+                "numbers",
+                "tomorrow",
+            ])
     }
 
     func testReconcilerPreservesMiddleInterjectionInsideEchoRun() {
@@ -95,14 +97,16 @@ final class MeetingTranscriptSourceReconcilerTests: XCTestCase {
         XCTAssertEqual(result.microphoneWords.map(\.word), ["yeah"])
         XCTAssertEqual(result.removedMicrophoneWordCount, 6)
         XCTAssertEqual(result.removals.map(\.reason), [.simultaneousSystemEcho])
-        XCTAssertEqual(result.removals.first?.words.map(\.word), [
-            "Let's",
-            "finalize",
-            "the",
-            "budget",
-            "numbers",
-            "tomorrow",
-        ])
+        XCTAssertEqual(
+            result.removals.first?.words.map(\.word),
+            [
+                "Let's",
+                "finalize",
+                "the",
+                "budget",
+                "numbers",
+                "tomorrow",
+            ])
     }
 
     func testReconcilerUsesOnlyTemporallyOverlappingWordsForEchoThreshold() {
@@ -135,14 +139,16 @@ final class MeetingTranscriptSourceReconcilerTests: XCTestCase {
         XCTAssertEqual(result.microphoneWords.map(\.word), ["okay", "quick", "note", "first"])
         XCTAssertEqual(result.removedMicrophoneWordCount, 6)
         XCTAssertEqual(result.removals.map(\.reason), [.simultaneousSystemEcho])
-        XCTAssertEqual(result.removals.first?.words.map(\.word), [
-            "Let's",
-            "finalize",
-            "the",
-            "budget",
-            "numbers",
-            "tomorrow",
-        ])
+        XCTAssertEqual(
+            result.removals.first?.words.map(\.word),
+            [
+                "Let's",
+                "finalize",
+                "the",
+                "budget",
+                "numbers",
+                "tomorrow",
+            ])
     }
 
     func testFinalizeDropsLowConfidenceMicDuplicateOfSystemRun() {
@@ -175,17 +181,18 @@ final class MeetingTranscriptSourceReconcilerTests: XCTestCase {
         XCTAssertEqual(finalized.rawTranscript, "account information")
     }
 
-    func testFinalizePreservesHighConfidenceOverlappingMicSpeech() {
+    /// One- and two-word acknowledgements are too ambiguous to classify as
+    /// echo from text and timing alone, even when the system track contains
+    /// the same high-confidence words.
+    func testFinalizePreservesHighConfidenceTwoWordBackchannel() {
         let finalized = MeetingTranscriptFinalizer.finalize(sourceTranscripts: [
             .init(
                 source: .microphone,
                 result: STTResult(
-                    text: "Can you hear me",
+                    text: "sounds good",
                     words: [
-                        TimestampedWord(word: "Can", startMs: 120, endMs: 220, confidence: 0.90),
-                        TimestampedWord(word: "you", startMs: 240, endMs: 320, confidence: 0.90),
-                        TimestampedWord(word: "hear", startMs: 340, endMs: 450, confidence: 0.90),
-                        TimestampedWord(word: "me", startMs: 470, endMs: 540, confidence: 0.90),
+                        TimestampedWord(word: "sounds", startMs: 120, endMs: 220, confidence: 0.90),
+                        TimestampedWord(word: "good", startMs: 300, endMs: 380, confidence: 0.90),
                     ]
                 ),
                 startOffsetMs: 0
@@ -193,12 +200,10 @@ final class MeetingTranscriptSourceReconcilerTests: XCTestCase {
             .init(
                 source: .system,
                 result: STTResult(
-                    text: "Can you hear me",
+                    text: "sounds good",
                     words: [
-                        TimestampedWord(word: "Can", startMs: 0, endMs: 100, confidence: 0.90),
-                        TimestampedWord(word: "you", startMs: 120, endMs: 200, confidence: 0.90),
-                        TimestampedWord(word: "hear", startMs: 220, endMs: 330, confidence: 0.90),
-                        TimestampedWord(word: "me", startMs: 350, endMs: 420, confidence: 0.90),
+                        TimestampedWord(word: "sounds", startMs: 0, endMs: 100, confidence: 0.90),
+                        TimestampedWord(word: "good", startMs: 180, endMs: 280, confidence: 0.90),
                     ]
                 ),
                 startOffsetMs: 0
@@ -207,8 +212,45 @@ final class MeetingTranscriptSourceReconcilerTests: XCTestCase {
 
         XCTAssertEqual(
             finalized.words.map(\.speakerId),
-            ["system", "microphone", "system", "system", "microphone", "microphone", "system", "microphone"]
+            ["system", "microphone", "system", "microphone"]
         )
+    }
+
+    /// Short verbatim system speech can still be high-confidence acoustic echo.
+    /// Three or four exact simultaneous words are specific enough to remove,
+    /// unlike one-word backchannels that may be genuine overlapping speech.
+    func testFinalizeDropsShortHighConfidenceExactSimultaneousEcho() {
+        let finalized = MeetingTranscriptFinalizer.finalize(sourceTranscripts: [
+            .init(
+                source: .microphone,
+                result: STTResult(
+                    text: "please send the notes",
+                    words: [
+                        TimestampedWord(word: "please", startMs: 200, endMs: 420, confidence: 0.92),
+                        TimestampedWord(word: "send", startMs: 440, endMs: 620, confidence: 0.91),
+                        TimestampedWord(word: "the", startMs: 640, endMs: 740, confidence: 0.93),
+                        TimestampedWord(word: "notes", startMs: 760, endMs: 1_020, confidence: 0.90),
+                    ]
+                ),
+                startOffsetMs: 0
+            ),
+            .init(
+                source: .system,
+                result: STTResult(
+                    text: "please send the notes",
+                    words: [
+                        TimestampedWord(word: "please", startMs: 0, endMs: 220, confidence: 0.95),
+                        TimestampedWord(word: "send", startMs: 240, endMs: 420, confidence: 0.95),
+                        TimestampedWord(word: "the", startMs: 440, endMs: 540, confidence: 0.95),
+                        TimestampedWord(word: "notes", startMs: 560, endMs: 820, confidence: 0.95),
+                    ]
+                ),
+                startOffsetMs: 0
+            ),
+        ])
+
+        XCTAssertEqual(finalized.words.map(\.speakerId), Array(repeating: "system", count: 4))
+        XCTAssertEqual(finalized.rawTranscript, "please send the notes")
     }
 
     /// Loud speaker playback transcribes confidently, so echo of a long

@@ -695,7 +695,7 @@ public actor STTRuntime: STTRuntimeProtocol {
                         words: STTWordTimingBuilder.words(from: boostedResult.tokenTimings),
                         language: "en",
                         engine: .parakeet,
-                        engineVariant: ParakeetModelVariant(asrModelVersion: modelVersion).rawValue
+                        engineVariant: currentParakeetVariant.rawValue
                     )
                 } catch {
                     throw try Self.mapTranscriptionError(error)
@@ -759,7 +759,7 @@ public actor STTRuntime: STTRuntimeProtocol {
                 words: words,
                 language: "en",
                 engine: .parakeet,
-                engineVariant: ParakeetModelVariant(asrModelVersion: modelVersion).rawValue
+                engineVariant: currentParakeetVariant.rawValue
             )
         } catch {
             throw try Self.mapTranscriptionError(error)
@@ -1261,7 +1261,7 @@ public actor STTRuntime: STTRuntimeProtocol {
                 // Mirrors batch Parakeet attribution: the build variant carries v2/v3.
                 language: "en",
                 engine: .parakeet,
-                engineVariant: ParakeetModelVariant(asrModelVersion: modelVersion).rawValue
+                engineVariant: currentParakeetVariant.rawValue
             )
         } catch {
             throw try Self.mapTranscriptionError(error)
@@ -1553,7 +1553,9 @@ public actor STTRuntime: STTRuntimeProtocol {
             try? FileManager.default.removeItem(at: AppPaths.resolvedFluidAudioModelsDir(environment: environment))
             return
         }
-        DownloadUtils.clearAllModelCaches()
+        try? FileManager.default.removeItem(at: AppPaths.resolvedFluidAudioModelsDir(environment: environment)
+            .appendingPathComponent("orukeet-coreml-43142dd1", isDirectory: true))
+        ModelHub.clearAllCaches()
     }
 
     public func setSpeechEngine(_ preference: SpeechEnginePreference) async throws {
@@ -1613,6 +1615,13 @@ public actor STTRuntime: STTRuntimeProtocol {
             AudioCaptureDiagnostics.append(
                 "speech_engine_switch_complete from=\(previous.rawValue) to=\(preference.rawValue) duration_s=\(Self.formatSeconds(duration))"
             )
+        } catch is CancellationError {
+            let duration = Observability.durationSeconds(since: startedAt)
+            logger.notice("speech_engine_switch_cancelled from=\(previous.rawValue, privacy: .public) to=\(preference.rawValue, privacy: .public) duration_s=\(duration, privacy: .public)")
+            AudioCaptureDiagnostics.append(
+                "speech_engine_switch_cancelled from=\(previous.rawValue) to=\(preference.rawValue) duration_s=\(Self.formatSeconds(duration))"
+            )
+            throw CancellationError()
         } catch {
             let duration = Observability.durationSeconds(since: startedAt)
             logger.error("speech_engine_switch_failed from=\(previous.rawValue, privacy: .public) to=\(preference.rawValue, privacy: .public) duration_s=\(duration, privacy: .public) error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
@@ -1657,6 +1666,10 @@ public actor STTRuntime: STTRuntimeProtocol {
             let engine = try ensureCohereEngine()
             try await engine.prepare(onProgress: onProgress)
         }
+
+        // Prepare is not cancellable (Core ML / `aned`). If Settings already
+        // left a stalled switch, refuse to persist the abandoned engine.
+        try Task.checkCancellation()
 
         if let preparedWhisper {
             whisperEngine = preparedWhisper
@@ -1741,16 +1754,26 @@ public actor STTRuntime: STTRuntimeProtocol {
             // until the fetch completes. Unified and TDT live in different repos.
             if variant.usesUnifiedEngine {
                 try await ParakeetUnifiedEngine.downloadModel(onProgress: onProgress)
+            } else if variant == .orukeet {
+                try await OrukeetModelStore.download(onProgress: onProgress)
             } else if let targetVersion = variant.asrModelVersion {
                 try await downloadParakeetModels(version: targetVersion, onProgress: onProgress)
             }
 
+            // Work may have started while the download suspended. Keep the
+            // serving model intact until that transcription or load completes.
+            try Task.checkCancellation()
+            guard initializationTask == nil, speechEngineActivity.isIdle else {
+                throw STTError.engineBusy
+            }
             onProgress?("Loading \(variant.modelName) with Core ML...")
-            await unloadParakeet()
+            // Unloading suspends for cleanup. Reentrant initialization must
+            // observe the target selection once the old managers are detached.
             currentParakeetVariant = variant
             if let targetVersion = variant.asrModelVersion {
                 modelVersion = targetVersion
             }
+            await unloadParakeet()
             try await ensureInitialized()
 
             onProgress?("\(variant.modelName) is ready")
@@ -2180,7 +2203,6 @@ public actor STTRuntime: STTRuntimeProtocol {
     private func unloadParakeet() async {
         let inFlightInitialization = cancelInitialization()
         inFlightInitialization?.cancel()
-        _ = try? await inFlightInitialization?.value
 
         let interactiveManager = self.interactiveManager
         let backgroundManager = self.backgroundManager
@@ -2188,15 +2210,17 @@ public actor STTRuntime: STTRuntimeProtocol {
         self.backgroundManager = nil
         self.models = nil
         self.decoderLayerCount = nil
+        let unifiedEngine = self.parakeetUnifiedEngine
+        self.parakeetUnifiedEngine = nil
+
+        // Detach every old runtime before the first suspension. Otherwise a
+        // reentrant load can reuse old managers or have its new Unified engine
+        // cleared after the TDT cleanup returns.
+        _ = try? await inFlightInitialization?.value
         await Self.cleanupManagers(
             interactiveManager: interactiveManager,
             backgroundManager: backgroundManager
         )
-
-        // The Unified engine is the other half of "Parakeet" — tear it down here
-        // too so engine swaps and shutdown release its CoreML models.
-        let unifiedEngine = self.parakeetUnifiedEngine
-        self.parakeetUnifiedEngine = nil
         await unifiedEngine?.unload()
     }
 
@@ -2263,7 +2287,7 @@ public actor STTRuntime: STTRuntimeProtocol {
             throw STTError.engineBusy
         }
 
-        let engine = NemotronEnglishEngine()
+        let engine = NemotronEnglishEngine(inferenceGate: inferenceGate)
         nemotronEnglishEngine = engine
         return engine
     }
@@ -2351,21 +2375,34 @@ public actor STTRuntime: STTRuntimeProtocol {
 
         let generation = nextInitializationGeneration()
         let version = modelVersion
+        let isOrukeet = currentParakeetVariant == .orukeet
         let task = Task {
             var interactiveManager: AsrManager?
             var backgroundManager: AsrManager?
             let progressHandler = Self.makeDownloadProgressHandler(onProgress)
 
-            let downloadedModels = try await AsrModels.downloadAndLoad(
-                to: AppPaths.fluidAudioModelDirectory(forASRVersion: version),
-                version: version,
-                progressHandler: progressHandler
-            )
+            let downloadedModels: AsrModels
+            if isOrukeet {
+                downloadedModels = try await OrukeetModelStore.prepare { fraction in
+                    onProgress?("Preparing Orukeet: \(Int(fraction * 100))%")
+                }
+            } else {
+                downloadedModels = try await AsrModels.downloadAndLoad(
+                    to: AppPaths.fluidAudioModelDirectory(forASRVersion: version),
+                    version: version,
+                    encoderComputeUnits: ParakeetTDTASRConfig.encoderComputeUnits(),
+                    progressHandler: progressHandler
+                )
+            }
             do {
                 // FluidAudio progress is manager-scoped, so each slot keeps its
                 // own manager while the read-only model bundle stays shared.
-                let loadedInteractiveManager = AsrManager(config: .default)
-                let loadedBackgroundManager = AsrManager(config: .default)
+                // `ParakeetTDTASRConfig` drops long-file chunk concurrency to 1
+                // on macOS 14 (issue #997) and loads the encoder on GPU instead
+                // of ANE; 15+ keeps FluidAudio's default of 4 / ANE.
+                let asrConfig = ParakeetTDTASRConfig.make()
+                let loadedInteractiveManager = AsrManager(config: asrConfig)
+                let loadedBackgroundManager = AsrManager(config: asrConfig)
                 interactiveManager = loadedInteractiveManager
                 backgroundManager = loadedBackgroundManager
                 try await loadedInteractiveManager.loadModels(downloadedModels)
@@ -2608,6 +2645,8 @@ public actor STTRuntime: STTRuntimeProtocol {
                 return .transcriptionFailed(message)
             case .unsupportedPlatform(let message):
                 return .engineStartFailed(message)
+            case .encoderInstantiationFailed(let message):
+                return .engineStartFailed(message)
             case .streamingConversionFailed, .fileAccessFailed:
                 return .transcriptionFailed(asrError.localizedDescription)
             }
@@ -2636,7 +2675,7 @@ public actor STTRuntime: STTRuntimeProtocol {
     /// loading and the Parakeet variant pre-download so both report identically.
     private nonisolated static func makeDownloadProgressHandler(
         _ onProgress: (@Sendable (String) -> Void)?
-    ) -> DownloadUtils.ProgressHandler? {
+    ) -> ProgressHandler? {
         guard let onProgress else { return nil }
         let clock = ContinuousClock()
         let lastProgressUpdate = OSAllocatedUnfairLock(initialState: clock.now - .seconds(1))
@@ -2662,7 +2701,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         }
     }
 
-    private nonisolated static func warmUpProgressMessage(from progress: DownloadUtils.DownloadProgress) -> String? {
+    private nonisolated static func warmUpProgressMessage(from progress: DownloadProgress) -> String? {
         switch progress.phase {
         case .listing:
             return "Preparing speech model download..."

@@ -1,0 +1,53 @@
+{
+  "createdAt" : "2026-09-07T22:01:49Z",
+  "derivedSnippet" : "这并不是告别, 这是一个偏章的结束, 也是新篇章的开始.",
+  "derivedTitle" : "这并不是告别, 这是一个偏章的结束, 也是新篇章的开始",
+  "durationMs" : 10380,
+  "engine" : "nemotron",
+  "engineVariant" : "multilingual-1120ms",
+  "fileName" : "cmn_hans_cn_0000.wav",
+  "filePath" : "<PUBLIC_CORPUS>\/fleurs-data\/cmn_hans_cn\/cmn_hans_cn_0000.wav",
+  "fileSizeBytes" : 332204,
+  "id" : "AA6D8F03-8209-42F8-801E-F3730C2E4775",
+  "isFavorite" : false,
+  "isTranscriptEdited" : false,
+  "language" : "zh",
+  "rawTranscript" : "这并不是告别, 这是一个偏章的结束, 也是新篇章的开始.",
+  "recoveredFromCrash" : false,
+  "sourceType" : "file",
+  "status" : "completed",
+  "transcriptSegments" : [
+    {
+      "endMs" : 7360,
+      "id" : "CE38FE6A-CA2E-4BE6-AB71-416F9249B94B",
+      "speakerLabel" : "Unknown Speaker",
+      "startMs" : 2240,
+      "text" : "这并不是告别, 这是一个偏章的结束, 也是新篇章的开始",
+      "wordRange" : {
+        "endIndexExclusive" : 3,
+        "startIndex" : 0
+      }
+    }
+  ],
+  "updatedAt" : "2026-09-07T22:01:50Z",
+  "wordTimestamps" : [
+    {
+      "confidence" : 1,
+      "endMs" : 3920,
+      "startMs" : 2240,
+      "word" : "这并不是告别,"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 5920,
+      "startMs" : 4080,
+      "word" : "这是一个偏章的结束,"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 7360,
+      "startMs" : 6000,
+      "word" : "也是新篇章的开始"
+    }
+  ]
+}

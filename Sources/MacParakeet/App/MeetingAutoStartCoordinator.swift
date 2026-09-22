@@ -46,6 +46,13 @@ final class MeetingAutoStartCoordinator {
     /// rejected (state busy) — the coordinator only needs the non-nil/nil
     /// distinction.
     private let onAutoStartConfirmed: @MainActor (_ snapshot: MeetingCalendarSnapshot) -> Int?
+    /// Injected so tests can authorize and capture reminders without
+    /// `UNUserNotificationCenter` (that API crashes inside the xctest helper).
+    private let isNotificationAuthorized: @MainActor () async -> Bool
+    /// Production posting stays in `showReminder`. A `@MainActor` default
+    /// closure that calls `UNUserNotificationCenter.add` fails Swift 6:
+    /// the isolated `request` cannot be sent to that nonisolated method.
+    private let postReminderNotification: (@MainActor (UNNotificationRequest) async throws -> Void)?
     private let toastController: MeetingCountdownToastController
     private let logger = Logger(subsystem: "com.macparakeet", category: "MeetingAutoStart")
 
@@ -63,9 +70,9 @@ final class MeetingAutoStartCoordinator {
     /// change (or reschedule) made mid-fetch isn't lost until the next tick.
     private var pollAgainRequested = false
 
-    private var dismissedEventIds: Set<String> = []
     private var remindedEventIds: Set<String> = []
     private var countdownShownEventIds: Set<String> = []
+    private var countdownOwningEvent: CalendarEvent?
     private var latestPolledEvents: [CalendarEvent] = []
 
     // `nonisolated(unsafe)` so the nonisolated `deinit` can read these to
@@ -85,12 +92,18 @@ final class MeetingAutoStartCoordinator {
         settingsViewModel: SettingsViewModel,
         isRecordingActive: @escaping @MainActor () -> Bool = { false },
         onAutoStartConfirmed: @escaping @MainActor (_ snapshot: MeetingCalendarSnapshot) -> Int? = { _ in nil },
+        isNotificationAuthorized: @escaping @MainActor () async -> Bool = {
+            await CalendarNotificationAuthorization.isAuthorized()
+        },
+        postReminderNotification: (@MainActor (UNNotificationRequest) async throws -> Void)? = nil,
         toastController: MeetingCountdownToastController? = nil
     ) {
         self.calendarService = calendarService
         self.settingsViewModel = settingsViewModel
         self.isRecordingActive = isRecordingActive
         self.onAutoStartConfirmed = onAutoStartConfirmed
+        self.isNotificationAuthorized = isNotificationAuthorized
+        self.postReminderNotification = postReminderNotification
         // The toast controller is `@MainActor`-isolated, so its default
         // can't be expressed as a parameter default (initializer evaluation
         // happens in the caller's actor context). Construct here when the
@@ -123,6 +136,7 @@ final class MeetingAutoStartCoordinator {
         guard AppFeatures.calendarEnabled else { return }
 
         scheduleCleanupTask()
+        settingsViewModel.pruneSkippedOccurrences()
         registerCalendarChangeObserver()
         registerSettingsObserver()
         registerWakeObserver()
@@ -165,9 +179,9 @@ final class MeetingAutoStartCoordinator {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            // queue: .main lands the closure on the main thread but Swift 6
-            // strict isolation still requires an explicit @MainActor hop.
-            Task { @MainActor [weak self] in self?.handleSettingsChanged() }
+            // queue: .main is the main thread. Reconcile synchronously:
+            // a Task hop can lose a skip followed by undo in the same turn.
+            MainActor.assumeIsolated { self?.handleSettingsChanged() }
         }
     }
 
@@ -202,13 +216,57 @@ final class MeetingAutoStartCoordinator {
     }
 
     private func handleSettingsChanged() {
+        // Another SettingsViewModel may have posted this notification. Read
+        // its persisted values without depending on observer delivery order.
+        settingsViewModel.reloadCalendarSettings()
         // Setting changes can disable a feature mid-flight (e.g., toggling
-        // mode to .off). Re-evaluate immediately and reset adaptive polling
-        // back to baseline so we don't keep the 5s timer alive for a feature
-        // that's now disabled.
-        toastController.close()
+        // mode to .off). Re-evaluate the owning countdown under the new
+        // policy instead of closing every toast — skip of B must not kill A.
         rescheduleTimer(interval: 60)
+        reconcileSkipAndOwningCountdown()
         Task { await pollAsync() }
+    }
+
+    /// Apply skip/unskip immediately so undo does not wait for a fetch, then
+    /// re-check the visible countdown against the full new policy.
+    private func reconcileSkipAndOwningCountdown() {
+        let config = currentConfig(mode: settingsViewModel.calendarAutoStartMode)
+        countdownShownEventIds.subtract(config.skippedOccurrences)
+        for event in knownEventsForSkip() {
+            if CalendarSkip.matches(
+                event,
+                occurrences: config.skippedOccurrences,
+                events: config.skippedEvents
+            ) != nil {
+                countdownShownEventIds.remove(event.dedupeKey)
+            }
+        }
+
+        guard let owning = countdownOwningEvent else { return }
+        let mode = settingsViewModel.calendarAutoStartMode
+        if mode != .autoStart || calendarService.permissionStatus != .granted {
+            toastController.close()
+            countdownOwningEvent = nil
+            return
+        }
+
+        let candidates = MeetingMonitor.candidates(events: [owning], config: config)
+        let stillEligible = candidates.contains {
+            $0.event.dedupeKey == owning.dedupeKey && !$0.isSkipped
+        }
+        guard !stillEligible else { return }
+        toastController.close()
+        countdownOwningEvent = nil
+    }
+
+    private func knownEventsForSkip() -> [CalendarEvent] {
+        var events = latestPolledEvents
+        if let owning = countdownOwningEvent,
+           !events.contains(where: { $0.dedupeKey == owning.dedupeKey })
+        {
+            events.append(owning)
+        }
+        return events
     }
 
     // MARK: - Polling
@@ -281,12 +339,12 @@ final class MeetingAutoStartCoordinator {
         latestPolledEvents = events
 
         let config = currentConfig(mode: mode)
+        let candidates = MeetingMonitor.candidates(events: events, config: config)
         let monitorEvents = MeetingMonitor.evaluate(
-            events: events,
+            candidates: candidates,
             now: Date(),
             config: config,
             activeRecording: activeRecording,
-            dismissedEventIds: dismissedEventIds,
             remindedEventIds: remindedEventIds,
             countdownShownEventIds: countdownShownEventIds
         )
@@ -304,7 +362,10 @@ final class MeetingAutoStartCoordinator {
             reminderMinutes: settingsViewModel.calendarReminderMinutes,
             countdownSeconds: 5,
             triggerFilter: settingsViewModel.meetingTriggerFilter,
-            lateJoinGraceMinutes: 10
+            lateJoinGraceMinutes: 10,
+            excludedCalendarIdentifiers: settingsViewModel.calendarExcludedIdentifiers,
+            skippedOccurrences: settingsViewModel.calendarSkippedOccurrences,
+            skippedEvents: settingsViewModel.calendarSkippedEvents
         )
     }
 
@@ -382,10 +443,13 @@ final class MeetingAutoStartCoordinator {
     /// regardless of outcome so we don't re-fire on the next poll tick.
     /// Outcome handling:
     /// - `.completed` / `.primedEarly` → trigger recording, mark as auto-started
-    /// - `.userDismissed` → add to dismissed set so monitor stops emitting
-    /// - `.programmaticClose` → no-op (another toast preempted us)
+    /// - `.userDismissed` → persist an occurrence skip so monitor stops emitting
+    /// - `.programmaticClose` → no-op (another toast preempted us; never skip)
     private func showAutoStartCountdown(_ event: CalendarEvent) {
+        guard isEventStillEligibleForAutoStart(event) else { return }
+
         countdownShownEventIds.insert(event.dedupeKey)
+        countdownOwningEvent = event
         // Actual lead time — how far before T-0 the toast went up. The
         // auto-start window allows up to +30s past T-0, so clamp to 0
         // when we surface it after the event has already started.
@@ -425,8 +489,10 @@ final class MeetingAutoStartCoordinator {
     func handleAutoStartOutcome(_ outcome: MeetingCountdownToastOutcome, for event: CalendarEvent) {
         switch outcome {
         case .completed, .primedEarly:
-            guard settingsViewModel.calendarAutoStartMode == .autoStart,
-                  calendarService.permissionStatus == .granted else {
+            // Toast is gone. Drop ownership so a later settings change cannot
+            // close an unrelated toast via reconcileSkipAndOwningCountdown.
+            countdownOwningEvent = nil
+            guard isEventStillEligibleForAutoStart(event) else {
                 countdownShownEventIds.remove(event.dedupeKey)
                 logger.info("Auto-start completion ignored — calendar auto-start is no longer enabled")
                 return
@@ -446,13 +512,35 @@ final class MeetingAutoStartCoordinator {
             }
             logger.info("Auto-start confirmed for event id=\(event.id, privacy: .public) outcome=\(String(describing: outcome), privacy: .public)")
         case .userDismissed:
-            dismissedEventIds.insert(event.dedupeKey)
+            settingsViewModel.skipOccurrence(event)
             Telemetry.send(.calendarAutoStartCancelled(reason: "user_cancel"))
             logger.info("Auto-start cancelled by user for event id=\(event.id, privacy: .public)")
         case .programmaticClose:
-            // Another toast preempted us — no telemetry, no recording.
+            // Another toast preempted us — no telemetry, no recording, no skip.
             return
         }
+    }
+
+    private func isEventStillEligibleForAutoStart(_ event: CalendarEvent) -> Bool {
+        guard settingsViewModel.calendarAutoStartMode == .autoStart,
+              calendarService.permissionStatus == .granted
+        else {
+            return false
+        }
+        let config = currentConfig(mode: .autoStart)
+        let candidates = MeetingMonitor.candidates(events: [event], config: config)
+        return candidates.contains { $0.event.dedupeKey == event.dedupeKey && !$0.isSkipped }
+    }
+
+    private func isEventStillEligibleForReminder(_ event: CalendarEvent) -> Bool {
+        guard settingsViewModel.calendarAutoStartMode != .off,
+              calendarService.permissionStatus == .granted
+        else {
+            return false
+        }
+        let config = currentConfig(mode: settingsViewModel.calendarAutoStartMode)
+        let candidates = MeetingMonitor.candidates(events: [event], config: config)
+        return candidates.contains { $0.event.dedupeKey == event.dedupeKey && !$0.isSkipped }
     }
 
     func probableSnapshotForManualStart(now: Date = Date()) -> MeetingCalendarSnapshot? {
@@ -462,16 +550,16 @@ final class MeetingAutoStartCoordinator {
             return nil
         }
 
-        let triggerFilter = settingsViewModel.meetingTriggerFilter
-        let overlapping = filterByIncludedCalendars(latestPolledEvents)
-            .filter { event in
-                event.startTime <= now
-                    && event.endTime >= now
-                    && !event.isAllDay
-                    && !event.userDeclined
-                    && event.userStatus != .pending
-                    && MeetingMonitor.passesTriggerFilter(event, filter: triggerFilter)
-            }
+        let overlapping = MeetingMonitor.candidates(
+            events: latestPolledEvents,
+            config: currentConfig(mode: settingsViewModel.calendarAutoStartMode)
+        )
+        .map(\.event)
+        .filter { event in
+            event.startTime <= now
+                && event.endTime >= now
+                && event.userStatus != .pending
+        }
             .sorted { lhs, rhs in
                 if lhs.isMeeting != rhs.isMeeting {
                     return lhs.isMeeting && !rhs.isMeeting
@@ -498,6 +586,7 @@ extension MeetingAutoStartCoordinator {
     /// countdown-shown (without driving real toast UI).
     func testHook_markCountdownShown(_ event: CalendarEvent) {
         countdownShownEventIds.insert(event.dedupeKey)
+        countdownOwningEvent = event
     }
 
     func testHook_isCountdownShown(_ event: CalendarEvent) -> Bool {
@@ -533,6 +622,10 @@ extension MeetingAutoStartCoordinator {
     func testHook_forcePoll() {
         Task { @MainActor [weak self] in await self?.pollAsync() }
     }
+
+    func testHook_isReminded(_ event: CalendarEvent) -> Bool {
+        remindedEventIds.contains(event.dedupeKey)
+    }
 }
 
 private extension MeetingAutoStartCoordinator {
@@ -546,10 +639,11 @@ private extension MeetingAutoStartCoordinator {
         // time, but the user may have revoked notifications since. Without
         // this check macOS silently drops `add()` and the user sees no
         // reminder despite Calendar being granted.
-        guard await CalendarNotificationAuthorization.isAuthorized() else {
+        guard await isNotificationAuthorized() else {
             logger.warning("Notification authorization missing — reminder for event id=\(event.id, privacy: .public) not delivered")
             return
         }
+        guard isEventStillEligibleForReminder(event) else { return }
 
         let leadMinutes = settingsViewModel.calendarReminderMinutes
         // Notification UX: the headline is the timing + event name (the part
@@ -584,7 +678,11 @@ private extension MeetingAutoStartCoordinator {
         // poll tick when delivery transiently fails — better to miss a single
         // reminder than spam the user.
         do {
-            try await UNUserNotificationCenter.current().add(request)
+            if let postReminderNotification {
+                try await postReminderNotification(request)
+            } else {
+                try await UNUserNotificationCenter.current().add(request)
+            }
             Telemetry.send(.calendarReminderShown(
                 mode: mode.rawValue,
                 leadMinutes: leadMinutes,
@@ -617,9 +715,9 @@ private extension MeetingAutoStartCoordinator {
     /// `CalendarService` actor for thread safety. Errors propagate via the
     /// `try?` — silent failure is acceptable for a 24-hour janitor.
     private func cleanupStaleIds() async {
+        settingsViewModel.pruneSkippedOccurrences()
         guard let events = try? await calendarService.fetchUpcomingEvents(days: 7) else { return }
         let liveIds = Set(events.map(\.dedupeKey))
-        dismissedEventIds.formIntersection(liveIds)
         remindedEventIds.formIntersection(liveIds)
         countdownShownEventIds.formIntersection(liveIds)
     }

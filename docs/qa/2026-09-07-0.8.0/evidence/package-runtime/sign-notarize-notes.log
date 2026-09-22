@@ -1,0 +1,86 @@
+Verified release version: 0.8.0 (20260907232424)
+[1/8] Clearing extended attributes…
+[2/8] Signing nested frameworks and executables (if any)…
+Signing: Sparkle.framework (inside-out)…
+  Signing XPC: Downloader.xpc
+<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc: replacing existing signature
+  Signing XPC: Installer.xpc
+<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc: replacing existing signature
+  Signing app: Updater.app
+<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app: replacing existing signature
+  Signing binary: Autoupdate
+<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate: replacing existing signature
+  Signing binary: Sparkle
+<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/B/Sparkle: replacing existing signature
+  Signing: Sparkle.framework
+<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework: replacing existing signature
+Signing bundled dylib: <REPO>/dist/MacParakeet.app/Contents/Frameworks/liblocalvqe.dylib
+<REPO>/dist/MacParakeet.app/Contents/Frameworks/liblocalvqe.dylib: replacing existing signature
+Signing: <REPO>/dist/MacParakeet.app/Contents/Resources/ffmpeg
+<REPO>/dist/MacParakeet.app/Contents/Resources/ffmpeg: replacing existing signature
+Signing: <REPO>/dist/MacParakeet.app/Contents/Resources/yt-dlp
+<REPO>/dist/MacParakeet.app/Contents/Resources/yt-dlp: replacing existing signature
+Signing: <REPO>/dist/MacParakeet.app/Contents/Resources/node
+<REPO>/dist/MacParakeet.app/Contents/Resources/node: replacing existing signature
+Signing bundled executable: <REPO>/dist/MacParakeet.app/Contents/MacOS/macparakeet-cli
+<REPO>/dist/MacParakeet.app/Contents/MacOS/macparakeet-cli: replacing existing signature
+[3/8] Codesigning app (hardened runtime + entitlements)…
+<REPO>/dist/MacParakeet.app: replacing existing signature
+[4/8] Verifying signature…
+--prepared:<REPO>/dist/MacParakeet.app/Contents/Frameworks/liblocalvqe.dylib
+--validated:<REPO>/dist/MacParakeet.app/Contents/Frameworks/liblocalvqe.dylib
+--prepared:<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/.
+--prepared:<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate
+--validated:<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate
+--prepared:<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app
+--validated:<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app
+--prepared:<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Installer.xpc
+--prepared:<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Downloader.xpc
+--validated:<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Installer.xpc
+--validated:<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Downloader.xpc
+--validated:<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/.
+--prepared:<REPO>/dist/MacParakeet.app/Contents/MacOS/macparakeet-cli
+--validated:<REPO>/dist/MacParakeet.app/Contents/MacOS/macparakeet-cli
+<REPO>/dist/MacParakeet.app: valid on disk
+<REPO>/dist/MacParakeet.app: satisfies its Designated Requirement
+Verified app privacy surface: <REPO>/dist/MacParakeet.app
+Meeting echo model SHA256 verified: b6e43138588a83bfe903ab5e143b4020b91c1e1629f5a575ac5855ff0003c731
+<REPO>/dist/MacParakeet.app/Contents/Frameworks/liblocalvqe.dylib: valid on disk
+<REPO>/dist/MacParakeet.app/Contents/Frameworks/liblocalvqe.dylib: satisfies its Designated Requirement
+Meeting echo assets verified: localvqe-v1.4-aec-200K-f32.gguf
+[5/8] Creating notarization zip…
+[6/8] Submitting to notarization service…
+Conducting pre-submission checks for MacParakeet.app.zip and initiating connection to the Apple notary service...
+Submission ID received
+  id: 52abbad6-6f63-49a6-a3de-4fd7f7ba2cb3
+Successfully uploaded file
+  id: 52abbad6-6f63-49a6-a3de-4fd7f7ba2cb3
+  path: <REPO>/dist/MacParakeet.app.zip
+Polling App notarization status for 52abbad6-6f63-49a6-a3de-4fd7f7ba2cb3...
+  status: In Progress (1s elapsed)
+  status: In Progress (16s elapsed)
+  status: In Progress (32s elapsed)
+App notarization accepted!
+[7/8] Stapling app…
+Processing: <REPO>/dist/MacParakeet.app
+Processing: <REPO>/dist/MacParakeet.app
+The staple and validate action worked!
+Processing: <REPO>/dist/MacParakeet.app
+The validate action worked!
+[8/8] Gatekeeper assess…
+<REPO>/dist/MacParakeet.app: accepted
+source=Notarized Developer ID
+Creating DMG…
+Notice: 'timeout' not found; running osascript without timeout.
+
+Signing DMG…
+Notarizing DMG…
+Conducting pre-submission checks for MacParakeet.dmg and initiating connection to the Apple notary service...
+Submission ID received
+  id: faa10966-3c5d-41e1-990f-bf2f9bafa45f
+Successfully uploaded file
+  id: faa10966-3c5d-41e1-990f-bf2f9bafa45f
+  path: <REPO>/dist/MacParakeet.dmg
+Polling DMG notarization status for faa10966-3c5d-41e1-990f-bf2f9bafa45f...
+  status: In Progress (1s elapsed)
+  status: In Progress (17s elapsed)

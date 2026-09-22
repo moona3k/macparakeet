@@ -46,14 +46,14 @@ The system is designed as **non-identifying, session-scoped telemetry**:
 - **Country only** — Derived from Cloudflare's `CF-IPCountry` header, not from IP geolocation we perform
 - **No content** — Transcription text, custom words, file names, URLs, LLM prompts are never sent
 - **Idempotent** — Client-generated event UUIDs prevent double-counting
-- **Error messages redacted** — Server-side regex strips file paths, URLs, API keys, and emails before storage. Descriptions truncated to 512 chars.
-- **Opt-out** — Users can disable in Settings; `send()` becomes a no-op
+- **Structured errors** — The typed client omits free-form `error_detail`, `error_occurred.description`, and crash `reason`. Keep error categories, safe domain/numeric codes, and crash symbolication fields. The paired website ingestion change discards these text fields from older clients too; public stats scrub historical snapshots before serving them. Regex cannot establish that arbitrary error text is content-free. See [the telemetry contract](../contracts/telemetry-v1.md).
+- **Opt-out** — Discard queued events and invalidate retries and waiting batches. A request already in flight may finish; only the explicit final opt-out event can bypass the disabled preference.
 
 This is not "anonymous" in the strict GDPR sense (session + chip + locale + country + timestamps could theoretically single out users). It is non-identifying: we have no mechanism to map any event to any person, and we don't try.
 
 ### What We Collect
 
-97 event types today — the live source of truth is the `TelemetryEventName`
+The live source of truth for event types is the `TelemetryEventName`
 enum (`Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift`) and the
 catalog in `docs/telemetry.md`. They span app lifecycle, dictation,
 transcription, speaker diarization, meeting recording + crash recovery, calendar
@@ -61,6 +61,21 @@ auto-start, feature adoption, settings, licensing (retained but mostly unfired i
 free builds), performance/model lifecycle, permissions, errors/crashes, and CLI
 usage. The catalog pairs lightweight breadcrumb events with wide per-operation
 outcome events (`*_operation`) for product-health analysis.
+
+The development source also emits `audio_engine_lifecycle` as bounded
+shared microphone diagnostics: at most one five-second slow checkpoint and one terminal
+snapshot, with fast prepare/stop snapshots suppressed. Its random `attempt_id`
+belongs to that lifecycle call. When a meeting or dictation owns capture, the
+same snapshot also carries that workflow's `workflow_id` and `consumer` so it
+can be joined to the parent `*_operation` without treating the engine attempt
+as a product failure. It adds no product-health denominator and does not turn
+delay into a failure verdict or audio timeout. Both local and consent-gated
+network sinks run asynchronously and remain best effort. Safe phase/route
+categories and classified errors follow
+the [telemetry contract](../contracts/telemetry-v1.md#microphone-engine-lifecycle-observation).
+Queued events also carry `git_commit` and `build_number` in props so agents can
+group by exact binary. Stable-channel availability requires the paired server
+deployment before the app release.
 
 ### What We Don't Collect
 
@@ -84,7 +99,7 @@ Transcription content, audio, file paths, YouTube URLs, LLM prompts/responses, c
 ### Risks
 
 - **Endpoint abuse** — Mitigated with event name allowlist, rate limiting, field validation
-- **Schema evolution** — Props are JSON, so new props and new event shapes on an existing event name do not require D1 migrations or website allowlist changes. Every new `TelemetryEventName` still must be added to the `ALLOWED_EVENTS` allowlist in the **separate** `macparakeet-website` repo: the Worker rejects an entire batch if it contains any unknown event, silently dropping co-batched events until the allowlist is redeployed. This has bitten us more than once; a CI guard that diffs the Swift enum against the website allowlist is planned (`plans/active/2026-06-12-telemetry-allowlist-ci-guard.md`).
+- **Schema evolution** — Props are JSON, so new props and new event shapes on an existing event name do not require D1 migrations or website allowlist changes. Every new `TelemetryEventName`, including `audio_engine_lifecycle`, must be added to `ALLOWED_EVENTS` in the **separate** `macparakeet-website` repo and deployed before the client ships. An unknown event causes HTTP 400 for the entire batch; the client's permanent-rejection policy discards valid co-batched events too and reports the transport failure locally. `scripts/ci/check-telemetry-allowlist.sh` diffs the Swift enum against that allowlist; CI skips rather than fails when the private website repo is unreachable. App tests do not verify the deployed server. Unknown `audio_engine_lifecycle` keys are dropped silently, so new diagnostic fields on that event also need a website deploy first.
 
 ## References
 

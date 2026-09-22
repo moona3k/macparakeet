@@ -4,7 +4,7 @@
 > implementation record archived at
 > `plans/completed/2026-07-03-stt-capability-registry.md`)
 > Date: 2026-07-03
-> Amendment 2026-07-25: ADR-029 approves one narrow third-runtime exception for
+> Amendment 2026-07-25: ADR-034 approves one narrow third-runtime exception for
 > the existing Cohere engine. The engine roster and capability-registry rules do
 > not change.
 > Related: ADR-001 (Parakeet primary STT + benchmark amendment), ADR-002
@@ -17,7 +17,7 @@
 
 MacParakeet ships four speech engines across three narrowly scoped runtimes:
 Parakeet and Nemotron use FluidAudio CoreML, Whisper uses WhisperKit, and
-Cohere uses the pinned transcribe.cpp adapter approved by ADR-029. The roster has grown one
+Cohere uses the pinned transcribe.cpp adapter approved by ADR-034. The roster has grown one
 engine at a time (ADR-001 → ADR-021 → Nemotron → Cohere) without a
 standing rule for *how* it grows. Each addition has re-answered the same
 questions ad hoc: which runtime, which UI surface, which capability gaps
@@ -63,7 +63,7 @@ product's identity, not a temporary posture.
 ### 2. Two general runtimes plus one narrow Cohere adapter
 
 FluidAudio is the primary runtime and center of gravity; WhisperKit is a
-maintained legacy fallback. ADR-029 approves a small pinned transcribe.cpp
+maintained legacy fallback. ADR-034 approves a small pinned transcribe.cpp
 adapter only for the existing Cohere engine because it replaces a backend
 without adding a product engine. Any other runtime still requires a new ADR
 with evidence that a needed model cannot reach an existing runtime.
@@ -85,17 +85,20 @@ models join as variants within an existing family (as Parakeet
 v2/v3/Unified already do). Near-term roadmap, all within FluidAudio,
 in priority order:
 
-1. **Custom-vocabulary Parakeet CTC** — Phase 1 ships this as a
+1. **Custom-vocabulary Parakeet CTC** — Phase 1 is implemented as an opt-in
    recognition-time CTC sidecar for Parakeet TDT v2/v3 enabled anchors.
-   Future work is chunked long-audio sidecar rescoring and any support
-   FluidAudio exposes for non-TDT engines.
-2. **CJK coverage: Parakeet Japanese + SenseVoiceSmall** — closes the
-   gap that currently forces Korean/Japanese/Chinese users onto Whisper
-   (and that Parakeet v3 fails outright, per the ADR-001 amendment).
-3. **Nemotron-3.5 streaming 0.6B** when FluidAudio ships it — upgrades
-   the Beta streaming engine and adds multilingual streaming (~32
-   languages, 80 ms chunks).
-4. **Cohere Transcribe stays opt-in premium** (16 GB+ gate, ~11 GB RSS)
+   `customVocabularyRecognitionBoostingEnabled` defaults off; anchors alone do
+   not activate it. Future work is chunked long-audio sidecar rescoring and
+   any support FluidAudio exposes for non-TDT engines.
+2. **CJK coverage: Parakeet Japanese + SenseVoiceSmall** — proposed additions
+   to benchmark against the existing multilingual Nemotron, Whisper, and
+   batch-only Cohere choices. Parakeet v3 itself remains unsuitable for
+   CJK recognition (see the ADR-001 amendment).
+3. **Nemotron-3.5 streaming** — implemented as the default multilingual
+   Nemotron Beta build (`NemotronEngine`), alongside the English-only
+   `NemotronEnglishEngine`. Native live dictation emits display-only partials;
+   recorded-file transcription remains authoritative after stop.
+4. **Cohere Transcribe stays an opt-in accuracy engine** (16 GB+ gate, ~11 GB RSS)
    per the ADR-001 amendment — accuracy leader, wrong default.
 
 Each adoption still gets a run through the `benchmarks/asr` harness
@@ -148,8 +151,8 @@ families rather than a new runtime.
 - Engine proposals get a fast, cheap test: *is it in FluidAudio (or
   WhisperKit)? Is it a variant or a family? Did it pass the benchmark
   harness?* Most proposals resolve without design meetings.
-- The capability registry becomes the standing prerequisite for engine-
-  family growth; its plan is the next STT foundation work item.
+- The capability registry is the implemented standing prerequisite for engine-
+  family growth; extend it rather than reimplementing its archived Phase A.
 - The Settings UI stays comprehensible (four-ish cards) even as the
   model count grows underneath.
 - We accept a real dependency concentration risk on FluidAudio. Partial

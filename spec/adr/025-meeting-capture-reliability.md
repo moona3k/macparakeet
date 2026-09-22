@@ -45,13 +45,61 @@ warning plus telemetry — never a blocking error. For staged rollout it
 may sit behind an `AppFeatures` kill-switch flag, but the intended
 end-state is "always on, invisible until something is wrong."
 
-Both halves share one design principle: **the two streams cross-check
-each other, and the retained audio is the ground truth.** During
-capture, system audio proves the mic *should* be receiving signal.
+Both halves share one design principle: **cross-source activity adds diagnostic
+context, and retained audio is the ground truth for transcript coverage.** During
+capture, system audio cannot prove the mic *should* be receiving signal.
 After stop, an offline VAD pass over the retained audio proves what
 speech the live transcript *should* have covered.
 
 ## Decision
+
+### 2026-09-13 amendment: pending microphone lifecycle evidence
+
+The development source adds `AudioEngineLifecycleDiagnostics` to observe shared
+microphone start, prepare, recovery attempts, and stop independently of the
+platform queue. Existing phase-completion logs cannot explain a native call
+that never returns. The observer can report the last entered boundary while
+the call is pending, including `queue_wait` before native work begins.
+
+Each lifecycle call can emit one slow checkpoint after five seconds and one
+terminal snapshot if it returns. Fast prepare/stop snapshots are suppressed,
+including failures; a slow call that finishes before the timer runs emits only
+its terminal snapshot with `was_slow=true`. The utility timer and asynchronous
+local/telemetry sinks are best effort. This is not a hard timeout, a new audio
+restart path, or a fix establishing the native root cause of issue #931.
+Callback-readiness and source-owned recovery retain their existing control
+semantics.
+
+`audio_engine_lifecycle` contains a fresh lifecycle `attempt_id`, phase timings,
+coarse route categories, and classified errors. The ID does not identify a
+meeting or product operation; these events do not change operation-health
+denominators. See the [telemetry contract](../contracts/telemetry-v1.md#microphone-engine-lifecycle-observation)
+for the bounded schema and server-first rollout. An app release and paired
+website deployment are separate from this source implementation.
+The [issue #931 investigation](../../docs/audits/2026-09-13-issue-931-startup-observability.md)
+records the incident evidence and unresolved native cause.
+
+### 2026-09-14 regression amendment: silence is not engine death
+
+Issue #1032 on v0.8.0 shows repeated `zero_filled` recovery triggers despite
+`engine_is_running=true`, followed by terminal mic interruption while system
+audio continues. The shared-source classifier introduced with #862 conflated
+valid silent PCM and empty callbacks. Its two-second silence timeout could
+destroy a working Bluetooth stream and exhaust the recovery budget.
+
+After startup successfully commits, valid silent PCM must reach consumers on
+every transport and must not trigger restart. Empty/invalid callbacks remain
+distinct failures, with a two-second bounded recovery threshold; stopped graphs
+and five-second callback gaps retain their existing recovery. Bluetooth and
+unresolved routes still require a nonzero microphone sample during startup.
+Bounded pre-filter counters distinguish silence, empty/invalid input, and signal
+resumption without logging audio or making native calls on the render thread.
+
+The reporter's physical trigger remains unknown: mute, noise suppression, and
+driver faults can all produce zeros. System-audio activity does not resolve that
+ambiguity: someone listening through headphones may legitimately have a silent
+microphone. Signal-level evidence therefore remains warning/diagnostic input,
+not authority to tear down an established source.
 
 ### 2026-07-22 field-evidence amendment: microphone callback liveness
 
@@ -127,36 +175,59 @@ recording interval**. It does not inspect speech or transcript completeness and
 must not be conflated with §2's proposed offline-VAD transcript-gap repair.
 Selective/full VAD-driven transcript repair remains unimplemented.
 
-### 1. Mic-health watchdog: system audio is the liveness oracle (REQ-MEET-017)
+### 2026-09-04 candidate amendment: silent saved system audio
 
-During an active meeting, **the system-audio stream is the ground
-truth that capture is alive.** ScreenCaptureKit's system-audio tap and
-the mic's AVAudioEngine tap fail independently and for different
-reasons; when one is healthy we can use it to judge the other. If
-system audio is actively delivering non-silent buffers but the mic path
-is not, the mic has stalled — and unlike pure silence detection, this
-distinguishes "the room is quiet" from "the mic is dead."
+Frame coverage alone cannot detect a system stream that delivered only zeros.
+The candidate marks a selected system source `silent` only when it delivered
+buffers, successfully written converted PCM has an exact-zero peak absolute
+sample, microphone signal is nonzero, and pause-adjusted capture lasts at least
+30 seconds. The system writer's existing downmix/conversion supplies that
+metric, not input channel 0 or the UI RMS meter. Retained pre-pause audio counts;
+dropped paused audio does not. Quiet nonzero, short, and wholly silent sessions
+remain outside this verdict.
+
+The 2026-09-06 UI simplification keeps this durable verdict as diagnostic
+information, not a partial-audio explanation or a new UI warning. Silence is
+valid input: self-notes and one-sided meetings with sufficient written coverage
+are healthy. Recovery preserves a known `silent` verdict when coverage remains
+sufficient; interruption, capture failure, unavailable media, and coverage
+shortfall take precedence. Playback fallback remains a separate partial-quality
+reason. Older reports whose only degradation was silence normalize to healthy
+on decode; real degradation and the existing encoded shape are preserved.
+No signal measurement, capture control, or source audio is changed.
+The matching contracts are [meeting artifacts](../contracts/meeting-artifacts-v1.md)
+and [recovery ownership](../contracts/meeting-recovery-retention.md).
+Candidate writer timeouts use the latter contract's aggregate deadline and
+retained ownership, never destructive `cancelWriting()`.
+
+### 1. Mic-health watchdog: cross-source warning evidence (REQ-MEET-017)
+
+During an active meeting, **system-audio activity provides diagnostic context,
+not proof of microphone failure.** ScreenCaptureKit's system-audio tap and the
+mic's AVAudioEngine tap fail independently. Non-silent system audio alongside a
+silent mic can indicate a capture problem, but it also describes a quiet or
+muted local user listening to other participants. Signal comparison alone
+cannot distinguish those cases or authorize an established microphone restart.
 
 A pure `MeetingMicHealthMonitor` consumes timestamped liveness signals
-from both streams and detects three stall signatures:
+from both streams and detects three suspected-stall signatures:
 
 - **(a) Mic callbacks entirely missing** while system audio is active —
-  the mic tap has stopped firing altogether (the ~18s field incident).
+  the monitor has no mic callbacks (as in the ~18s field incident).
 - **(b) Mic callbacks arriving but all-zero / near-silent** while system
-  audio is active — the tap fires but the graph is dead (a config-change
-  victim per issue #499: `AVAudioEngine.isRunning` may read `true` over a
-  dead graph).
-- **(c) A stalled mic-callback gap** — more than ~1 s since the last mic
-  buffer while system audio continues to deliver.
+  audio is active — possible signal loss, quiet input, or mute. A dead graph
+  can report `AVAudioEngine.isRunning == true`, but this signature does not
+  establish that the graph is dead.
+- **(c) A mic-callback gap** — more than ~1 s since the last mic buffer while
+  system audio continues to deliver; this warning signature is separate from
+  the shared source's five-second recovery threshold.
 
-**Confirmation window before tripping.** None of these trips on its own.
-The monitor requires a **confirmation window of ~3 s of continuous
-system-audio activity** (non-silent buffers) proving the mic genuinely
-*should* be receiving signal, before declaring a stall. This is the
-guard against false alarms during legitimately one-sided audio — a
-presenter on mute listening to a long monologue, a quiet stretch where
-only "Others" are talking. System audio being active is the precondition
-that makes "mic is silent" *meaningful*.
+**Confirmation window before reporting suspicion.** The monitor requires
+**~3 s of continuous system-audio activity** (non-silent buffers) before emitting
+these legacy signatures. This window suppresses brief observations; it does
+not prove the mic should contain speech or rule out legitimate one-sided audio.
+A muted presenter listening to a long monologue can satisfy it. The resulting
+signature remains warning/diagnostic evidence, not a confirmed source failure.
 
 **On trip (v1 = detect + warn + instrument):**
 
@@ -167,17 +238,21 @@ that makes "mic is silent" *meaningful*.
 - Emit a privacy-safe `mic_stall_detected` telemetry event tagged with
   the signature (a/b/c) and coarse timing. No audio, no transcript.
 
-**Source-callback recovery is implemented; signal-inferred recovery remains
-deferred.** The #820 diagnostic confirmed that raw tap callbacks can stop while
+**Source-callback recovery is implemented; signal inference does not authorize
+recovery.** The #820 diagnostic confirmed that raw tap callbacks can stop while
 `AVAudioEngine.isRunning` stays true, so the shared microphone platform now
 treats a five-second post-start callback gap as a direct source-lifecycle
 failure. This decision uses callback delivery only; it does not promote
 amplitude, transcript, or cross-source inference into a restart trigger.
 
-`MicrophoneEnginePlatform` owns bounded recovery for both that callback stall
-and an `AVAudioEngineConfigurationChange` that physically stops the engine.
+`MicrophoneEnginePlatform` owns bounded recovery for that callback stall,
+two seconds of continuous empty/invalid callbacks, and an
+`AVAudioEngineConfigurationChange` that physically stops the engine.
 Each attempt rebuilds against the current route and format, and recovery is not
-successful until the replacement delivers a real buffer. Configuration-change
+successful until the replacement passes startup readiness and the
+generation-checked running commit. Bluetooth and unresolved routes still
+require a nonzero microphone sample during startup; those routes accept valid
+silence only after startup successfully commits. Configuration-change
 notifications received during that readiness wait remain part of the same
 episode and consume its existing bounded retry budget rather than silently
 starting a fresh budget. Explicit Stop still cancels the episode and prevents a
@@ -352,16 +427,15 @@ and the actual STT/VAD invocations.
 
 ## Rationale
 
-### Why use system audio as the liveness oracle for signal stalls?
+### Why use system audio as warning context rather than a liveness oracle?
 
 A bare "no usable mic signal for N seconds = stall" timeout cannot tell a dead
 mic from a genuinely quiet moment, so it either false-alarms during
 silence or sets N so high it misses real stalls (the field incident was
-~18 s). Cross-checking against system audio resolves the ambiguity:
-"others are clearly talking, the room is not silent, yet your mic is
-delivering nothing" is a high-confidence signal that fixed timeouts
-can't match. It also costs nothing — both buffer streams already flow
-through `MeetingAudioCaptureService`.
+~18 s). Cross-checking against system audio adds warning context, but does not
+prove microphone failure: remote participants can speak while the local user
+is quiet or muted. Both streams already flow through `MeetingAudioCaptureService`,
+so this context is useful for diagnostics, not a destructive restart decision.
 
 Raw callback delivery is a separate liveness fact: quiet sources still deliver
 PCM buffers. Meeting health therefore warns when a selected source delivers no
@@ -377,8 +451,10 @@ The original detection-first gate remains the right discipline: a watchdog
 that acts on an unproven signal can destabilize healthy capture. Issue #820 now
 meets that gate for raw callback cessation without relying on amplitude or
 system-audio activity. Quiet microphones still produce callbacks, so the
-source-level fact is unambiguous. Amplitude and cross-source health remain
-passive until their own field evidence justifies recovery.
+source-level fact is unambiguous. Continuous empty/invalid callbacks are also
+distinct from valid silence and retain their two-second recovery threshold.
+Amplitude and cross-source health remain warning/diagnostic evidence; neither
+can independently authorize an established-source restart.
 
 ### Why coverage repair instead of always re-transcribing the whole file on stop?
 
@@ -427,9 +503,10 @@ without a mic, a meeting, or an STT model. The audio/STT plumbing that
 - **Another floating-surface warning** to maintain on the meeting panel/
   pill alongside the existing levels/state surfaces.
 - **Recovery must not confuse silence with source death.** The meeting health
-  monitor's signal-level checks remain detection-only. The source-level
-  callback monitor acts only after callbacks have begun and then cease for five
-  seconds.
+  monitor's signal-level checks remain detection-only. Source-level recovery
+  handles five-second post-start callback gaps, two seconds of continuous
+  empty/invalid callbacks, and physically stopped graphs, not valid silence
+  after successful startup commit.
 
 ### Invariants (must hold)
 
@@ -440,9 +517,10 @@ without a mic, a meeting, or an STT model. The audio/STT plumbing that
   the repair runs on the background slot.
 - **Repair never starves dictation** (ADR-016). The reserved dictation
   slot is never used by repair; repair is background-class.
-- **Signal-inferred health remains detection-first.** Callback-stall recovery is
-  route-agnostic, bounded, requires a real replacement buffer, and must remain
-  cancellable by Stop.
+- **Signal-inferred health never authorizes an established-source restart.**
+  Callback-stall and invalid-callback recovery is route-agnostic, bounded,
+  requires replacement startup readiness and a generation-checked running
+  commit, and must remain cancellable by Stop.
 - **Crash recovery still works** (ADR-019) and ideally benefits from the
   same coverage repair on recovered audio.
 
@@ -465,16 +543,18 @@ without a mic, a meeting, or an STT model. The audio/STT plumbing that
 
 ### Service layer (MacParakeetCore)
 
-- `MicrophoneEnginePlatform` tracks callback liveness after the first input
-  buffer and converges confirmed stalls on its bounded fresh-engine recovery.
-  It owns the clock/timer, route re-resolution, replacement-buffer gate, and
-  Stop cancellation once for every shared-stream consumer.
+- `MicrophoneEnginePlatform` tracks five-second post-start callback gaps and
+  two seconds of continuous empty/invalid callbacks, converging those failures
+  and physically stopped graphs on bounded fresh-engine recovery. It owns the
+  clock/timer, route re-resolution, replacement startup readiness and generation
+  checks, and Stop cancellation once for every shared-stream consumer. Valid
+  silence after successful startup commit is not a recovery signal.
 - `MeetingAudioCaptureService` (`Sources/MacParakeetCore/Audio/`) feeds
   per-buffer liveness signals (arrival timestamp + non-silent flag for
   mic, activity flag for system) into `MeetingMicHealthMonitor`. The
   existing `MeetingAudioCaptureEvent` stream (`.microphoneBuffer` /
-  system) is the natural source; `SystemAudioStream` activity is the
-  oracle.
+  system) is the natural source; `SystemAudioStream` activity provides warning
+  and diagnostic context only, never independent restart authority.
 - `MeetingRecordingService.stopRecording()` — after the existing
   finalize produces the saved transcript, kick off the coverage-repair
   stage: offline `MeetingVADService` pass over the retained `.m4a`
@@ -502,24 +582,27 @@ without a mic, a meeting, or an STT model. The audio/STT plumbing that
 
 ## Telemetry
 
-Propose privacy-safe events — **no audio, no transcript content**:
+Implemented diagnostic events contain no audio or transcript content:
 
 - `mic_stall_detected` — props: `signature` (`mic_missing` /
-  `mic_silent` / `mic_gap`), coarse `elapsed_ms` since meeting start.
-  Fired once per confirmed stall trip.
-- `meeting_transcript_repair` — props: `decision` (`accept` /
-  `selective` / `full`), `gap_count`. Fired once per finalized meeting
-  after the repair stage resolves.
+  `mic_silent` / `mic_gap`), coarse `elapsed_ms` since meeting start, and
+  `stall_count` on the first report. Repeated stalls are suppressed into
+  periodic/final summaries with `stall_count` and `total_stalled_seconds`.
+- `audio_engine_lifecycle` — development-source observer described above;
+  reports bounded phase evidence for the shared microphone across dictation,
+  meetings, and idle work. It has no meeting ID and is separate from
+  `meeting_operation` and signal-health telemetry.
 
-Add the new `TelemetryEventName` cases in
-`Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift`.
+`meeting_transcript_repair` remains proposed with the unimplemented repair stage:
+`decision` (`accept` / `selective` / `full`) and `gap_count`, once per finalized
+meeting after repair resolves. It is not part of the implemented event contract.
 
 > **Two-repo reminder.** Each new `TelemetryEventName` case MUST also be
 > added to `ALLOWED_EVENTS` in
 > `macparakeet-website/functions/api/telemetry.ts` **before** a
-> flag-on build ships. The telemetry Worker rejects the *entire batch*
-> if any event name is unknown, silently dropping valid co-batched
-> events. Deploy the allowlist change first.
+> client that emits it ships. The telemetry Worker returns HTTP 400 for the
+> *entire batch* if any event name is unknown. The client's permanent-rejection
+> policy drops valid co-batched events too. Deploy the allowlist change first.
 
 ## Phased Rollout
 

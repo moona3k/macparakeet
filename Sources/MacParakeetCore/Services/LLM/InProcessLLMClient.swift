@@ -45,6 +45,11 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
         runtime.isAvailable
     }
 
+    /// Internal observation for deterministic queue-lifecycle verification.
+    var queuedGenerationCount: Int {
+        get async { await lifetimeCoordinator.queuedGenerationCount }
+    }
+
     public func chatCompletion(
         messages: [ChatMessage],
         context: LLMExecutionContext,
@@ -58,9 +63,9 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
         )
         return ChatCompletionResponse(
             content: generation.content,
-            finishReason: "stop",
             model: context.providerConfig.modelName,
-            generationMetrics: generation.metrics
+            generationMetrics: generation.metrics,
+            effectiveInferenceSettings: options.effectiveInferenceSettings
         )
     }
 
@@ -87,6 +92,35 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
             continuation.onTermination = { _ in
                 task.cancel()
             }
+        }
+    }
+
+    public func chatCompletionDetailedStream(
+        messages: [ChatMessage],
+        context: LLMExecutionContext,
+        options: ChatCompletionOptions
+    ) -> AsyncThrowingStream<LLMStreamEvent, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    _ = try await self.generateResponse(
+                        messages: messages,
+                        context: context,
+                        options: options,
+                        emit: { continuation.yield(.text($0)) }
+                    )
+                    continuation.yield(.completed(LLMStreamTerminal(
+                        provider: context.providerConfig.id.rawValue,
+                        model: context.providerConfig.modelName,
+                        effectiveSettings: options.effectiveInferenceSettings
+                    )))
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            continuation.onTermination = { _ in task.cancel() }
         }
     }
 
@@ -189,6 +223,7 @@ public final class InProcessLLMClient: LLMClientProtocol, Sendable {
         guard context.providerConfig.id == .inProcessLocal else {
             throw LLMError.providerError("InProcessLLMClient received \(context.providerConfig.id.rawValue).")
         }
+        try options.validateInferenceSettings(for: context.providerConfig)
 
         return try await withGenerationLease(delayNanoseconds: idleUnloadDelayNanoseconds) {
             try Task.checkCancellation()
@@ -552,6 +587,8 @@ private actor LocalLLMLifetimeCoordinator {
     private var unloadInProgress = false
     private var activeGenerationID: UUID?
     private var waitingGenerations: [WaitingGeneration] = []
+
+    var queuedGenerationCount: Int { waitingGenerations.count }
 
     func beginGeneration() async throws -> LocalLLMGenerationLease {
         try Task.checkCancellation()

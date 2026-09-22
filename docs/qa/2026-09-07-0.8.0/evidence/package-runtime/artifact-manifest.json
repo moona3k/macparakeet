@@ -1,0 +1,165 @@
+{
+  "description": "Sanitized package-runtime evidence. <REPO> is the owning macparakeet-qa checkout; <QA> is its isolated temporary QA directory; the local Mac hardware identifier is redacted. No release artifact bytes are altered.",
+  "files": [
+    {
+      "path": "app-gatekeeper.log",
+      "sha256": "279c241886df39ac39c39bee5e34c4b8616bd3803bc8d17bce30480ca3474bd3",
+      "size_bytes": 68
+    },
+    {
+      "path": "app-notary-info.log",
+      "sha256": "2be1fb4e7d3d4c69e3cdb232136bfb39c224303402a1e34a5cd6cac407070c7d",
+      "size_bytes": 186
+    },
+    {
+      "path": "app-signature-details.log",
+      "sha256": "e5c1f703828cbe37fbd9f029df55594703cea6dbf66d21f139648fcf03729a52",
+      "size_bytes": 1110
+    },
+    {
+      "path": "app-staple-validation.log",
+      "sha256": "76ea111e08a953eb7a78424291e541e7e12a94219fd32a605ea9f4dacdac09d1",
+      "size_bytes": 68
+    },
+    {
+      "path": "app-strict-signature.log",
+      "sha256": "072307bcdff85d009f3df7b462c2bd68b44b13db931b0141a76de2fbd7a5f470",
+      "size_bytes": 1506
+    },
+    {
+      "path": "binary-dependencies.log",
+      "sha256": "d8495b744509cc02e828cbe85a53c369a844727d3fdae649e49729cba1eac299",
+      "size_bytes": 17512
+    },
+    {
+      "path": "build-distribution-notes.log",
+      "sha256": "883addd2648d99e3eb0a9201f93606ae4d7f9a8d40aba50df022598c5d7e1aa7",
+      "size_bytes": 4253
+    },
+    {
+      "path": "bundle-zip-identities.json",
+      "sha256": "5b6779222971044f312a2210b4bedb98f48fc2315153ce42b8d82f5d122f4bcc",
+      "size_bytes": 1498
+    },
+    {
+      "path": "cli-version.log",
+      "sha256": "5eee6c0c5c6901f5e523f0a434bca4106e1ff7136deb451f982b0bb1a7b13716",
+      "size_bytes": 6
+    },
+    {
+      "path": "dmg-attach-readonly-canonical.log",
+      "sha256": "124ac6c290afd0b37e73632c436a068aed234846a3b833b144dbd88b07fa78f2",
+      "size_bytes": 1522
+    },
+    {
+      "path": "dmg-attach-readonly.log",
+      "sha256": "6cc930ca58cff528715432c8137fff0cc987797f6fd7274f480167d2a1b1fd93",
+      "size_bytes": 1522
+    },
+    {
+      "path": "dmg-cleanup.json",
+      "sha256": "0f3d5cc66090860959ac1a6792bd1fabf6a2907c2d71781507c5108acbba253b",
+      "size_bytes": 515
+    },
+    {
+      "path": "dmg-detach-owned-canonical-mount.log",
+      "sha256": "239924334e2502feff76ebc39f37a5fd687fc48a9fefda37e17dec5e32280e61",
+      "size_bytes": 18
+    },
+    {
+      "path": "dmg-detach-owned-mount.log",
+      "sha256": "239924334e2502feff76ebc39f37a5fd687fc48a9fefda37e17dec5e32280e61",
+      "size_bytes": 18
+    },
+    {
+      "path": "dmg-gatekeeper.log",
+      "sha256": "c54f4e5b8295d89fa20b04e10e729dabb46e21a4ffd55978b3fe8a6646076719",
+      "size_bytes": 68
+    },
+    {
+      "path": "dmg-image-verification.log",
+      "sha256": "03f1f574bc19a2c6a3f5e2992b1bb4d370d1518b08a9e6564526e6e038a51849",
+      "size_bytes": 1003
+    },
+    {
+      "path": "dmg-manifest.json",
+      "sha256": "3f6d369b5c3318e48ad536231935a3b0202237f0203b4c02525d1c6be3dbdee7",
+      "size_bytes": 352
+    },
+    {
+      "path": "dmg-mount-canonical-results.json",
+      "sha256": "30c952cb3d55651447dd1f536f275a90e432daf26f07b769a953c37021f68d35",
+      "size_bytes": 1482
+    },
+    {
+      "path": "dmg-notary-info.log",
+      "sha256": "5d7ba090a4d1abbf641531c50add97b16e4e91d23a13a846d898f84ed7590064",
+      "size_bytes": 182
+    },
+    {
+      "path": "dmg-payload-verification.json",
+      "sha256": "c2bd95c1403be71daf441cb9aca18d243e0a7fc5c3dd10e6608a7b8591cf8736",
+      "size_bytes": 2864
+    },
+    {
+      "path": "dmg-results.json",
+      "sha256": "005fc83cb7c4a4c7fc36af3738184f53437180df3108f36ebc10a2fc2d91d76b",
+      "size_bytes": 2328
+    },
+    {
+      "path": "dmg-staple-validation.log",
+      "sha256": "5396f89150d040e5127fc6b90a6504ee1737f8020f0aeb2e6645cb0dfe86e78b",
+      "size_bytes": 68
+    },
+    {
+      "path": "dmg-strict-signature.log",
+      "sha256": "4fadfb107a1f4516d551bfe5d0104d3caf80d24379cdb982db0324be56dd9c02",
+      "size_bytes": 109
+    },
+    {
+      "path": "ffmpeg-version.log",
+      "sha256": "c57e3988aa0b796ada6af233b0bd263c07fe4c168a7a0c1f8cf9c38f950e5cab",
+      "size_bytes": 1132
+    },
+    {
+      "path": "mounted-app-staple-validation.log",
+      "sha256": "5955463d1155a7e3ac9e28adc6566ade31584594d095d4baff7859fc8b37c1be",
+      "size_bytes": 99
+    },
+    {
+      "path": "mounted-app-strict-signature.log",
+      "sha256": "e34db792c2535bc101f45709900a526c7918003e969e3d07d60e974ab55a749a",
+      "size_bytes": 2002
+    },
+    {
+      "path": "node-version.log",
+      "sha256": "adc2fc6c2cfc7713e5d938152d45594a33c82a28857fb99667a5a5388c399e1a",
+      "size_bytes": 9
+    },
+    {
+      "path": "results.json",
+      "sha256": "8ead07e1b70e36076033b605a8571b629645f9caa5d923e71d46aa56cb2c97ef",
+      "size_bytes": 4252
+    },
+    {
+      "path": "runtime-metadata.json",
+      "sha256": "e4acf463cde52ff863472ffdd971c855a62296ae8a22e43d74753a97a2d8b0eb",
+      "size_bytes": 392
+    },
+    {
+      "path": "sign-notarize-notes.log",
+      "sha256": "a82294b31248464b9f5d93aee7025d5d8f5cf374dacbbbcd7280717dc1a4ff98",
+      "size_bytes": 5357
+    },
+    {
+      "path": "ytdlp-version.log",
+      "sha256": "f07ac55817ac71d51cd0ba16c901e0f152d5a076a94eefafe4454e65176a71f3",
+      "size_bytes": 11
+    },
+    {
+      "path": "zip-manifest.json",
+      "sha256": "6c73e94c6f9b3e45f32225a8debfe1aeaaa7f9fb7be168c077cf046b9d51d3dd",
+      "size_bytes": 1108
+    }
+  ]
+}

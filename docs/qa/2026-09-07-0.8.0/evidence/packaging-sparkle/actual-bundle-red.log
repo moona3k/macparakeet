@@ -1,0 +1,6 @@
+file modified: <QA_WORKTREE>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework
+--prepared:<QA_WORKTREE>/dist/MacParakeet.app/Contents/Frameworks/liblocalvqe.dylib
+--validated:<QA_WORKTREE>/dist/MacParakeet.app/Contents/Frameworks/liblocalvqe.dylib
+--prepared:<QA_WORKTREE>/dist/MacParakeet.app/Contents/MacOS/macparakeet-cli
+--validated:<QA_WORKTREE>/dist/MacParakeet.app/Contents/MacOS/macparakeet-cli
+<QA_WORKTREE>/dist/MacParakeet.app: invalid destination for symbolic link in bundle

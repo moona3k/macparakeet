@@ -1,0 +1,48 @@
+[
+  {
+    "width": 390,
+    "topbar": {
+      "x": 16,
+      "y": 0,
+      "width": 358,
+      "height": 74,
+      "top": 0,
+      "right": 374,
+      "bottom": 74,
+      "left": 16
+    },
+    "meta": {
+      "x": 246,
+      "y": -6.109375,
+      "width": 128,
+      "height": 85.234375,
+      "top": -6.109375,
+      "right": 374,
+      "bottom": 79.125,
+      "left": 246
+    }
+  },
+  {
+    "width": 320,
+    "topbar": {
+      "x": 16,
+      "y": 0,
+      "width": 288,
+      "height": 74,
+      "top": 0,
+      "right": 304,
+      "bottom": 74,
+      "left": 16
+    },
+    "meta": {
+      "x": 176,
+      "y": -6.109375,
+      "width": 128,
+      "height": 85.234375,
+      "top": -6.109375,
+      "right": 304,
+      "bottom": 79.125,
+      "left": 176
+    }
+  }
+]

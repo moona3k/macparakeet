@@ -10,7 +10,7 @@ three axes: **accuracy** (English + multilingual), **speed**, and **memory**.
 Engines are the four families MacParakeet ships and evaluates: **Parakeet**
 (v2 / v3 / unified), **Nemotron** (English / multilingual, Beta), **WhisperKit**
 (large-v3-turbo), and **Cohere** Transcribe (`cohere-transcribe-03-2026`).
-Cohere remains one batch-only MacParakeet engine, but ADR-029 replaces its
+Cohere remains one batch-only MacParakeet engine, but ADR-034 replaces its
 backend and target model with pinned transcribe.cpp plus Q5_K_M GGUF.
 
 > Cohere's committed accuracy and performance rows below are historical
@@ -298,6 +298,21 @@ punctuation/capitalization. So unified is the better English Parakeet build.
 FLEURS via `FluidInference/fleurs-full` (HF); Cohere model
 `FluidInference/cohere-transcribe-03-2026-coreml` (q8); Apple M4 Pro / 48 GB /
 macOS 15.
+
+## Orukeet preview, measured 2026-09-21
+
+Orukeet is an optional Parakeet variant, not a fifth engine. A same-machine
+rerun of full LibriSpeech `test-clean` and `test-other`, sixteen FLEURS
+languages at n=150, and the speed micro-bench is written up in
+[`docs/research/2026-09-21-orukeet-asr-benchmark.md`](../../docs/research/2026-09-21-orukeet-asr-benchmark.md).
+
+That run used this branch's `macparakeet-cli` on an Apple M4 Pro / 48 GB /
+macOS 26.6.2. It does not replace the macOS 15 table above, and it does not
+re-rank Cohere, Unified, v2, WhisperKit, or Nemotron. Against a fresh Parakeet
+v3 run on the same CLI, Orukeet was significantly better on both English
+subsets (macro WER 2.74% vs 3.06%) and in the same speed and memory band.
+Nine of the 25 claimed languages were not in the FLEURS mirror used here.
+CJK remains a failure for both models.
 
 ## Status & limitations
 

@@ -1,0 +1,1000 @@
+2026-08-25T10:56:58.132Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:56:58.281Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:56:59.119Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:56:59.306Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:56:59.340Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:56:59.405Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:56:59.448Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:56:59.477Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:56:59.504Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:56:59.573Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:56:59.695Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:56:59.717Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:56:59.820Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:56:59.933Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:56:59.960Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:56:59.968Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:56:59.976Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.023Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.089Z shared_mic_engine_stopped
+2026-08-25T10:57:00.127Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.148Z shared_mic_engine_prepare_skipped reason=bluetooth_or_unresolved_route
+2026-08-25T10:57:00.167Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.192Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.203Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.210Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.216Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.222Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.228Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.234Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.240Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.246Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.253Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.265Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.275Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.282Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.305Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.314Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.326Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.333Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.344Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.355Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.360Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.365Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.378Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.390Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.403Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.409Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.414Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.419Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.424Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.428Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.432Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.450Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.456Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.461Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:00.471Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T10:57:01.026Z shared_mic_engine_prepare_skipped reason=bluetooth_or_unresolved_route
+2026-08-25T11:00:04.796Z meeting_live_chunking_mode session=BC248D18-59DB-4836-96AC-A56A4966237C mode=vad reason=started
+2026-08-25T11:00:04.853Z meeting_mic_capture_starting requested_mode=raw default_input=present default_input_transport=bluetooth
+2026-08-25T11:00:05.118Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.283 ducking_ms=0.000 output_format_ms=0.024 install_tap_ms=0.015 audio_engine_start_ms=183.669 total_ms=249.310
+2026-08-25T11:00:05.121Z shared_mic_engine_input_device_started source=system_default device=present transport=bluetooth vpio=false set_device_ms=0.000 start_engine_ms=251.870
+2026-08-25T11:00:05.130Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-25T11:00:05.149Z meeting_mic_processing mode=raw
+2026-08-25T11:00:05.160Z meeting_mic_capture_started requested_mode=raw effective_mode=raw sr=48000.0 ch=1 default_input=present default_input_transport=bluetooth
+2026-08-25T11:00:05.242Z meeting_mic_first_buffer sr=48000.0 ch=1 interleaved=false
+2026-08-25T11:00:05.262Z system_audio_stream_screen_output_attached mode=discard
+2026-08-25T11:00:05.516Z system_audio_stream_started sr=48000 ch=2
+2026-08-25T11:00:05.517Z meeting_recording_started session=BC248D18-59DB-4836-96AC-A56A4966237C source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.microphoneAndSystem) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-25T11:00:05.518Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-08-25T11:00:41.789Z meeting_stop_stage session=BC248D18-59DB-4836-96AC-A56A4966237C stage=notes_commit duration_ms=2 outcome=success
+2026-08-25T11:00:41.802Z meeting_recording_stopping session=BC248D18-59DB-4836-96AC-A56A4966237C
+2026-08-25T11:00:41.810Z meeting_mic_capture_stopped default_input=present default_input_transport=bluetooth
+2026-08-25T11:00:41.825Z shared_mic_engine_stopped
+2026-08-25T11:00:41.836Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-25T11:00:41.842Z shared_mic_engine_prepare_skipped reason=bluetooth_or_unresolved_route
+2026-08-25T11:00:41.898Z system_audio_stream_stopped outcome=completed
+2026-08-25T11:00:41.909Z meeting_stop_stage session=BC248D18-59DB-4836-96AC-A56A4966237C stage=capture_stop duration_ms=98 outcome=success
+2026-08-25T11:00:41.923Z meeting_stop_stage session=BC248D18-59DB-4836-96AC-A56A4966237C stage=processing_drain duration_ms=10 outcome=success
+2026-08-25T11:00:41.941Z meeting_stop_stage session=BC248D18-59DB-4836-96AC-A56A4966237C stage=writer_finalize duration_ms=12 outcome=success
+2026-08-25T11:00:41.954Z meeting_stop_stage session=BC248D18-59DB-4836-96AC-A56A4966237C stage=source_urls duration_ms=8 outcome=success
+2026-08-25T11:00:41.961Z meeting_stop_stage session=BC248D18-59DB-4836-96AC-A56A4966237C stage=metadata_save duration_ms=2 outcome=success
+2026-08-25T11:00:42.275Z meeting_stop_stage session=BC248D18-59DB-4836-96AC-A56A4966237C stage=mix duration_ms=309 outcome=success
+2026-08-25T11:00:42.285Z meeting_stop_stage session=BC248D18-59DB-4836-96AC-A56A4966237C stage=notes_write duration_ms=1 outcome=success
+2026-08-25T11:00:42.295Z meeting_stop_stage session=BC248D18-59DB-4836-96AC-A56A4966237C stage=lock_write duration_ms=1 outcome=success
+2026-08-25T11:00:42.304Z meeting_cleaned_mic session=BC248D18-59DB-4836-96AC-A56A4966237C outcome=scheduled
+2026-08-25T11:00:42.313Z meeting_stop_stage session=BC248D18-59DB-4836-96AC-A56A4966237C stage=cleaned_mic_schedule duration_ms=8 outcome=success
+2026-08-25T11:00:42.321Z meeting_stop_stage session=BC248D18-59DB-4836-96AC-A56A4966237C stage=cleanup duration_ms=0 outcome=success
+2026-08-25T11:00:42.328Z meeting_recording_stopped session=BC248D18-59DB-4836-96AC-A56A4966237C duration_s=37.514
+2026-08-25T11:00:42.334Z meeting_recording_health session=BC248D18-59DB-4836-96AC-A56A4966237C duration_s=37.514 source_mode=microphone_and_system mic_started=true requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=true system_first_buffer=true mic_bytes=308770 system_bytes=57892 mixed_bytes=565865 mic_frames=1756800 system_frames=1743360 mic_chunks_enqueued=2 system_chunks_enqueued=3 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=0 mic_chunks_system_dominant_dropped=0 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-25T11:00:42.343Z meeting_cleaned_mic session=BC248D18-59DB-4836-96AC-A56A4966237C outcome=skipped reason=skippedNoEchoPath renderer_reason=no_echo_path probe_detail=below_threshold probe_windows=5 probe_best_correlation=0.014
+2026-08-25T11:00:42.347Z meeting_echo_suppression_summary session=BC248D18-59DB-4836-96AC-A56A4966237C processor=localvqe loaded=true mic_frames=2270 processed_frames=2270 raw_fallback_frames=0 full_reference_frames=2270 partial_reference_frames=0 missing_reference_frames=0 processing_failures=0 current_delay_samples=0 delay_confidence=0.000 delay_estimate_count=0 rejected_delay_estimates=72
+2026-08-25T11:00:42.354Z meeting_stop_stage session=BC248D18-59DB-4836-96AC-A56A4966237C stage=service_total duration_ms=552 outcome=success
+2026-08-25T11:00:42.358Z meeting_stop_stage session=BC248D18-59DB-4836-96AC-A56A4966237C stage=service_stop duration_ms=557 outcome=success
+2026-08-25T11:00:42.388Z meeting_stop_stage session=BC248D18-59DB-4836-96AC-A56A4966237C stage=prepare_row duration_ms=24 outcome=success
+2026-08-25T11:00:42.394Z meeting_stop_stage session=BC248D18-59DB-4836-96AC-A56A4966237C stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-25T11:00:42.399Z meeting_stop_stage session=BC248D18-59DB-4836-96AC-A56A4966237C stage=queued_total duration_ms=612 outcome=success
+2026-08-25T11:00:42.432Z meeting_echo_suppression_resolution session=BC248D18-59DB-4836-96AC-A56A4966237C reason_code=skippedNoEchoPath model_version=none render_duration_ms=none realtime_factor=none delay_estimate_ms=none probe_windows=5 probe_best_correlation=0.014
+2026-08-25T11:00:42.436Z meeting_cleaned_mic_source session=BC248D18-59DB-4836-96AC-A56A4966237C selected=raw reason=skippedNoEchoPath timeout_s=60.000
+2026-08-25T11:06:10.356Z meeting_live_chunking_mode session=D54369E9-F7D8-431E-B5AF-7497A2B68553 mode=vad reason=started
+2026-08-25T11:06:10.396Z meeting_mic_capture_starting requested_mode=raw default_input=present default_input_transport=bluetooth
+2026-08-25T11:06:10.625Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.421 ducking_ms=0.000 output_format_ms=0.030 install_tap_ms=0.018 audio_engine_start_ms=39.757 total_ms=204.163
+2026-08-25T11:06:10.627Z shared_mic_engine_input_device_started source=system_default device=present transport=bluetooth vpio=false set_device_ms=0.000 start_engine_ms=205.713
+2026-08-25T11:06:10.635Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-25T11:06:10.644Z meeting_mic_processing mode=raw
+2026-08-25T11:06:10.652Z meeting_mic_capture_started requested_mode=raw effective_mode=raw sr=48000.0 ch=1 default_input=present default_input_transport=bluetooth
+2026-08-25T11:06:10.731Z meeting_mic_first_buffer sr=48000.0 ch=1 interleaved=false
+2026-08-25T11:06:10.750Z system_audio_stream_screen_output_attached mode=discard
+2026-08-25T11:06:10.917Z system_audio_stream_started sr=48000 ch=2
+2026-08-25T11:06:10.919Z meeting_recording_started session=D54369E9-F7D8-431E-B5AF-7497A2B68553 source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.microphoneAndSystem) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-25T11:06:10.931Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-08-25T11:58:14.104Z meeting_stop_stage session=D54369E9-F7D8-431E-B5AF-7497A2B68553 stage=notes_commit duration_ms=6 outcome=success
+2026-08-25T11:58:14.123Z meeting_recording_stopping session=D54369E9-F7D8-431E-B5AF-7497A2B68553
+2026-08-25T11:58:14.129Z meeting_mic_capture_stopped default_input=present default_input_transport=bluetooth
+2026-08-25T11:58:14.148Z shared_mic_engine_stopped
+2026-08-25T11:58:14.158Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-25T11:58:14.172Z shared_mic_engine_prepare_skipped reason=bluetooth_or_unresolved_route
+2026-08-25T11:58:14.262Z system_audio_stream_stopped outcome=completed
+2026-08-25T11:58:14.268Z meeting_stop_stage session=D54369E9-F7D8-431E-B5AF-7497A2B68553 stage=capture_stop duration_ms=139 outcome=success
+2026-08-25T11:58:14.287Z meeting_stop_stage session=D54369E9-F7D8-431E-B5AF-7497A2B68553 stage=processing_drain duration_ms=11 outcome=success
+2026-08-25T11:58:14.315Z meeting_stop_stage session=D54369E9-F7D8-431E-B5AF-7497A2B68553 stage=writer_finalize duration_ms=24 outcome=success
+2026-08-25T11:58:14.355Z meeting_stop_stage session=D54369E9-F7D8-431E-B5AF-7497A2B68553 stage=source_urls duration_ms=36 outcome=success
+2026-08-25T11:58:14.366Z meeting_stop_stage session=D54369E9-F7D8-431E-B5AF-7497A2B68553 stage=metadata_save duration_ms=1 outcome=success
+2026-08-25T11:58:42.915Z meeting_stop_stage session=D54369E9-F7D8-431E-B5AF-7497A2B68553 stage=mix duration_ms=28546 outcome=success
+2026-08-25T11:58:42.928Z meeting_stop_stage session=D54369E9-F7D8-431E-B5AF-7497A2B68553 stage=notes_write duration_ms=0 outcome=success
+2026-08-25T11:58:42.939Z meeting_stop_stage session=D54369E9-F7D8-431E-B5AF-7497A2B68553 stage=lock_write duration_ms=1 outcome=success
+2026-08-25T11:58:42.948Z meeting_cleaned_mic session=D54369E9-F7D8-431E-B5AF-7497A2B68553 outcome=scheduled
+2026-08-25T11:58:42.955Z meeting_stop_stage session=D54369E9-F7D8-431E-B5AF-7497A2B68553 stage=cleaned_mic_schedule duration_ms=7 outcome=success
+2026-08-25T11:58:42.961Z meeting_stop_stage session=D54369E9-F7D8-431E-B5AF-7497A2B68553 stage=cleanup duration_ms=0 outcome=success
+2026-08-25T11:58:42.965Z meeting_recording_stopped session=D54369E9-F7D8-431E-B5AF-7497A2B68553 duration_s=3152.599
+2026-08-25T11:58:42.968Z meeting_recording_health session=D54369E9-F7D8-431E-B5AF-7497A2B68553 duration_s=3152.599 source_mode=microphone_and_system mic_started=true requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=true system_first_buffer=true mic_bytes=26154787 system_bytes=25528039 mixed_bytes=51036812 mic_frames=149923200 system_frames=149914560 mic_chunks_enqueued=54 system_chunks_enqueued=384 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=0 mic_chunks_system_dominant_dropped=24 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-25T11:58:42.971Z meeting_echo_suppression_summary session=D54369E9-F7D8-431E-B5AF-7497A2B68553 processor=localvqe loaded=true mic_frames=195201 processed_frames=195201 raw_fallback_frames=0 full_reference_frames=195201 partial_reference_frames=0 missing_reference_frames=0 processing_failures=0 current_delay_samples=0 delay_confidence=0.000 delay_estimate_count=0 rejected_delay_estimates=6246
+2026-08-25T11:58:42.976Z meeting_stop_stage session=D54369E9-F7D8-431E-B5AF-7497A2B68553 stage=service_total duration_ms=28852 outcome=success
+2026-08-25T11:58:42.979Z meeting_stop_stage session=D54369E9-F7D8-431E-B5AF-7497A2B68553 stage=service_stop duration_ms=28856 outcome=success
+2026-08-25T11:58:43.004Z meeting_stop_stage session=D54369E9-F7D8-431E-B5AF-7497A2B68553 stage=prepare_row duration_ms=21 outcome=success
+2026-08-25T11:58:43.012Z meeting_stop_stage session=D54369E9-F7D8-431E-B5AF-7497A2B68553 stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-25T11:58:43.020Z meeting_stop_stage session=D54369E9-F7D8-431E-B5AF-7497A2B68553 stage=queued_total duration_ms=28923 outcome=success
+2026-08-25T11:58:44.876Z meeting_cleaned_mic session=D54369E9-F7D8-431E-B5AF-7497A2B68553 outcome=skipped reason=skippedNoEchoPath renderer_reason=no_echo_path probe_detail=below_threshold probe_windows=5 probe_best_correlation=0.055
+2026-08-25T11:58:44.890Z meeting_echo_suppression_resolution session=D54369E9-F7D8-431E-B5AF-7497A2B68553 reason_code=skippedNoEchoPath model_version=none render_duration_ms=none realtime_factor=none delay_estimate_ms=none probe_windows=5 probe_best_correlation=0.055
+2026-08-25T11:58:44.901Z meeting_cleaned_mic_source session=D54369E9-F7D8-431E-B5AF-7497A2B68553 selected=raw reason=skippedNoEchoPath timeout_s=600.000
+2026-08-25T12:00:04.869Z meeting_live_chunking_mode session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 mode=vad reason=started
+2026-08-25T12:00:04.935Z meeting_mic_capture_starting requested_mode=raw default_input=present default_input_transport=bluetooth
+2026-08-25T12:00:05.202Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.395 ducking_ms=0.000 output_format_ms=0.026 install_tap_ms=0.095 audio_engine_start_ms=46.291 total_ms=253.131
+2026-08-25T12:00:05.213Z shared_mic_engine_input_device_started source=system_default device=present transport=bluetooth vpio=false set_device_ms=0.000 start_engine_ms=263.613
+2026-08-25T12:00:05.217Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-25T12:00:05.221Z meeting_mic_processing mode=raw
+2026-08-25T12:00:05.230Z meeting_mic_capture_started requested_mode=raw effective_mode=raw sr=48000.0 ch=1 default_input=present default_input_transport=bluetooth
+2026-08-25T12:00:05.308Z meeting_mic_first_buffer sr=48000.0 ch=1 interleaved=false
+2026-08-25T12:00:05.388Z system_audio_stream_screen_output_attached mode=discard
+2026-08-25T12:00:05.555Z system_audio_stream_started sr=48000 ch=2
+2026-08-25T12:00:05.561Z meeting_recording_started session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.microphoneAndSystem) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-25T12:00:05.578Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-08-25T13:21:19.969Z meeting_stop_stage session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 stage=notes_commit duration_ms=4 outcome=success
+2026-08-25T13:21:19.995Z meeting_recording_stopping session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678
+2026-08-25T13:21:20.005Z meeting_mic_capture_stopped default_input=present default_input_transport=bluetooth
+2026-08-25T13:21:20.039Z shared_mic_engine_stopped
+2026-08-25T13:21:20.048Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-25T13:21:20.065Z system_audio_stream_stopped outcome=completed
+2026-08-25T13:21:20.087Z meeting_stop_stage session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 stage=capture_stop duration_ms=82 outcome=success
+2026-08-25T13:21:20.103Z meeting_stop_stage session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 stage=processing_drain duration_ms=11 outcome=success
+2026-08-25T13:21:20.111Z shared_mic_engine_prepare_skipped reason=bluetooth_or_unresolved_route
+2026-08-25T13:21:20.151Z meeting_stop_stage session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 stage=writer_finalize duration_ms=43 outcome=success
+2026-08-25T13:21:20.211Z meeting_stop_stage session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 stage=source_urls duration_ms=56 outcome=success
+2026-08-25T13:21:20.223Z meeting_stop_stage session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 stage=metadata_save duration_ms=1 outcome=success
+2026-08-25T13:22:07.040Z meeting_stop_stage session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 stage=mix duration_ms=46809 outcome=success
+2026-08-25T13:22:07.056Z meeting_stop_stage session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 stage=notes_write duration_ms=1 outcome=success
+2026-08-25T13:22:07.068Z meeting_stop_stage session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 stage=lock_write duration_ms=1 outcome=success
+2026-08-25T13:22:07.077Z meeting_cleaned_mic session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 outcome=scheduled
+2026-08-25T13:22:07.086Z meeting_stop_stage session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 stage=cleaned_mic_schedule duration_ms=9 outcome=success
+2026-08-25T13:22:07.093Z meeting_stop_stage session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 stage=cleanup duration_ms=0 outcome=success
+2026-08-25T13:22:07.100Z meeting_recording_stopped session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 duration_s=4922.210
+2026-08-25T13:22:07.105Z meeting_recording_health session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 duration_s=4922.210 source_mode=microphone_and_system mic_started=true requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=true system_first_buffer=true mic_bytes=40911481 system_bytes=40265344 mixed_bytes=79582901 mic_frames=233985600 system_frames=233971200 mic_chunks_enqueued=19 system_chunks_enqueued=534 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=1 mic_chunks_system_dominant_dropped=10 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-25T13:22:07.110Z meeting_echo_suppression_summary session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 processor=localvqe loaded=true mic_frames=304667 processed_frames=304667 raw_fallback_frames=1 full_reference_frames=304641 partial_reference_frames=1 missing_reference_frames=25 processing_failures=0 current_delay_samples=0 delay_confidence=0.000 delay_estimate_count=0 rejected_delay_estimates=9749
+2026-08-25T13:22:07.115Z meeting_stop_stage session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 stage=service_total duration_ms=47121 outcome=success
+2026-08-25T13:22:07.120Z meeting_stop_stage session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 stage=service_stop duration_ms=47125 outcome=success
+2026-08-25T13:22:07.148Z meeting_stop_stage session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 stage=prepare_row duration_ms=25 outcome=success
+2026-08-25T13:22:07.162Z meeting_stop_stage session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-25T13:22:07.175Z meeting_stop_stage session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 stage=queued_total duration_ms=47211 outcome=success
+2026-08-25T13:22:10.101Z meeting_cleaned_mic session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 outcome=skipped reason=skippedNoEchoPath renderer_reason=no_echo_path probe_detail=below_threshold probe_windows=5 probe_best_correlation=0.038
+2026-08-25T13:22:10.114Z meeting_echo_suppression_resolution session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 reason_code=skippedNoEchoPath model_version=none render_duration_ms=none realtime_factor=none delay_estimate_ms=none probe_windows=5 probe_best_correlation=0.038
+2026-08-25T13:22:10.125Z meeting_cleaned_mic_source session=F6F8637A-D9BB-4FE7-9BE6-F8DE7DF33678 selected=raw reason=skippedNoEchoPath timeout_s=600.000
+2026-08-25T14:00:18.580Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.664Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.677Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.693Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.714Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.727Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.740Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.746Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.749Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.753Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.756Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.760Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.765Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.772Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.782Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.786Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.790Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.795Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.798Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.802Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.805Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.812Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.816Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.820Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.827Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.832Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.835Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.839Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.844Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.848Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.852Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.856Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.860Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.863Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.866Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.870Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.878Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.882Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.902Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.906Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.911Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.920Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.925Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.932Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.937Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.945Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.954Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.961Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.968Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.973Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.977Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.991Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:18.996Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:19.007Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:19.015Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:19.022Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:19.036Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:19.041Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:19.046Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:00:19.783Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=0.593 output_format_ms=0.021 install_tap_ms=0.004 total_ms=204.692
+2026-08-25T14:00:19.784Z shared_mic_engine_input_device_prepared source=system_default device=present transport=usb vpio=false set_device_ms=0.000 prepare_engine_ms=206.050
+2026-08-25T14:07:01.780Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:01.786Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:01.790Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:01.795Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:01.800Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:01.843Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:01.863Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:01.883Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:01.901Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:01.908Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:01.915Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:01.935Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:01.941Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:01.949Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:01.967Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:01.975Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:01.984Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.000Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.068Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.079Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.083Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.088Z shared_mic_engine_configuration_changed sr=48000.0 ch=14 isRunning=false engine_is_running=false default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.088Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.093Z shared_mic_engine_prepared_discarded reason=configuration_changed
+2026-08-25T14:07:02.098Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.120Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.219Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.226Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.231Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.241Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.247Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.250Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.256Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.260Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.263Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.267Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.270Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.273Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.276Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.279Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.282Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.286Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.289Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.294Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.298Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.301Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.305Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.309Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.313Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.317Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.320Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.323Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.337Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.340Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.344Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.347Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.350Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.353Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.357Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.365Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.381Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.384Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-25T14:07:02.908Z shared_mic_engine_prepare_skipped reason=bluetooth_or_unresolved_route
+2026-08-25T14:57:38.626Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.650Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.688Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.700Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.728Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.746Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.756Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.760Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.765Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.800Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.809Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.843Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.856Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.862Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.870Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.874Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.878Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.889Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.893Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.898Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.902Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.910Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.914Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.919Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.923Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.934Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.938Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.943Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.948Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.952Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.956Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.960Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.973Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.977Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.983Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.987Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.991Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.994Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:38.998Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:39.008Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:39.012Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:39.019Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:39.022Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:39.027Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:39.030Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:39.035Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:39.038Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:39.042Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:39.046Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:39.050Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:39.054Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:39.065Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:39.069Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:39.073Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:39.076Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:39.080Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:39.084Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:39.088Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:39.092Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:39.096Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:39.104Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:39.108Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-25T14:57:39.845Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=0.038 output_format_ms=0.071 install_tap_ms=0.004 total_ms=204.905
+2026-08-25T14:57:39.847Z shared_mic_engine_input_device_prepared source=system_default device=present transport=usb vpio=false set_device_ms=0.000 prepare_engine_ms=205.925
+2026-08-26T04:49:29.662Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.714Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.719Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.723Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.727Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.731Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.735Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.740Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.745Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.781Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.785Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.790Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.794Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.798Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.802Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.806Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.809Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.813Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.817Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.823Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.828Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.832Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.836Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.840Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.843Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.848Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.853Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.877Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.883Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.896Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.903Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.909Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.918Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.924Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.928Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.931Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.934Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.937Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.940Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.943Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.946Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.954Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.957Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.959Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.962Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.965Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.968Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.971Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.974Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.977Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.979Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.982Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.986Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.989Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.993Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:29.996Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:30.000Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:30.003Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:30.005Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:30.008Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:30.011Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:30.014Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:30.017Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-26T04:49:30.035Z shared_mic_engine_configuration_changed sr=48000.0 ch=14 isRunning=false engine_is_running=false default_input=present default_input_transport=built-in
+2026-08-26T04:49:30.038Z shared_mic_engine_prepared_discarded reason=configuration_changed
+2026-08-26T04:49:30.650Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=0.005 output_format_ms=0.004 install_tap_ms=0.003 total_ms=97.487
+2026-08-26T04:49:30.651Z shared_mic_engine_input_device_prepared source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 prepare_engine_ms=98.263
+2026-08-26T09:08:27.024Z dictation_diagnostics_session_start pid=2843 version=0.7.3 build=20260717011712 source=dist-xcodebuild-release commit=d6321f87dcce
+2026-08-26T09:08:28.564Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=0.007 output_format_ms=0.015 install_tap_ms=0.005 total_ms=194.738
+2026-08-26T09:08:28.566Z shared_mic_engine_input_device_prepared source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 prepare_engine_ms=196.328
+2026-08-28T07:50:40.671Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-28T07:50:40.975Z shared_mic_engine_configuration_changed sr=48000.0 ch=1 isRunning=false engine_is_running=false default_input=present default_input_transport=usb
+2026-08-28T07:50:40.976Z shared_mic_engine_prepared_discarded reason=configuration_changed
+2026-08-28T07:50:41.631Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=0.005 output_format_ms=0.010 install_tap_ms=0.010 total_ms=104.643
+2026-08-28T07:50:41.632Z shared_mic_engine_input_device_prepared source=system_default device=present transport=usb vpio=false set_device_ms=0.000 prepare_engine_ms=105.591
+2026-08-28T08:00:01.111Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-28T08:00:01.134Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-28T08:00:01.140Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-28T08:00:01.696Z shared_mic_engine_configuration_changed sr=48000.0 ch=14 isRunning=false engine_is_running=false default_input=present default_input_transport=bluetooth
+2026-08-28T08:00:01.700Z shared_mic_engine_prepared_discarded reason=configuration_changed
+2026-08-28T08:00:01.740Z shared_mic_engine_prepare_skipped reason=bluetooth_or_unresolved_route
+2026-08-28T08:00:02.267Z shared_mic_engine_prepare_skipped reason=bluetooth_or_unresolved_route
+2026-08-28T08:00:02.633Z meeting_live_chunking_mode session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB mode=vad reason=started
+2026-08-28T08:00:02.683Z meeting_mic_capture_starting requested_mode=raw default_input=present default_input_transport=bluetooth
+2026-08-28T08:00:02.829Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=5.613 ducking_ms=0.000 output_format_ms=0.024 install_tap_ms=0.010 audio_engine_start_ms=69.075 total_ms=140.229
+2026-08-28T08:00:02.831Z shared_mic_engine_input_device_started source=system_default device=present transport=bluetooth vpio=false set_device_ms=0.000 start_engine_ms=141.651
+2026-08-28T08:00:02.837Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-28T08:00:02.841Z meeting_mic_processing mode=raw
+2026-08-28T08:00:02.846Z meeting_mic_capture_started requested_mode=raw effective_mode=raw sr=48000.0 ch=1 default_input=present default_input_transport=bluetooth
+2026-08-28T08:00:02.924Z system_audio_stream_screen_output_attached mode=discard
+2026-08-28T08:00:02.953Z meeting_mic_first_buffer sr=48000.0 ch=1 interleaved=false
+2026-08-28T08:00:03.201Z system_audio_stream_started sr=48000 ch=2
+2026-08-28T08:00:03.202Z meeting_recording_started session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.microphoneAndSystem) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-28T08:00:03.299Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-08-28T09:12:07.408Z meeting_stop_stage session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB stage=notes_commit duration_ms=3 outcome=success
+2026-08-28T09:12:07.424Z meeting_recording_stopping session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB
+2026-08-28T09:12:07.435Z meeting_mic_capture_stopped default_input=present default_input_transport=bluetooth
+2026-08-28T09:12:07.455Z shared_mic_engine_stopped
+2026-08-28T09:12:07.472Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-28T09:12:07.512Z system_audio_stream_stopped outcome=completed
+2026-08-28T09:12:07.524Z meeting_stop_stage session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB stage=capture_stop duration_ms=89 outcome=success
+2026-08-28T09:12:07.542Z meeting_stop_stage session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB stage=processing_drain duration_ms=12 outcome=success
+2026-08-28T09:12:07.555Z shared_mic_engine_prepare_skipped reason=bluetooth_or_unresolved_route
+2026-08-28T09:12:07.584Z meeting_stop_stage session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB stage=writer_finalize duration_ms=28 outcome=success
+2026-08-28T09:12:07.630Z meeting_stop_stage session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB stage=source_urls duration_ms=40 outcome=success
+2026-08-28T09:12:07.636Z meeting_stop_stage session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB stage=metadata_save duration_ms=1 outcome=success
+2026-08-28T09:12:42.562Z meeting_stop_stage session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB stage=mix duration_ms=34921 outcome=success
+2026-08-28T09:12:42.570Z meeting_stop_stage session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB stage=notes_write duration_ms=1 outcome=success
+2026-08-28T09:12:42.577Z meeting_stop_stage session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB stage=lock_write duration_ms=1 outcome=success
+2026-08-28T09:12:42.587Z meeting_cleaned_mic session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB outcome=scheduled
+2026-08-28T09:12:42.590Z meeting_stop_stage session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB stage=cleaned_mic_schedule duration_ms=4 outcome=success
+2026-08-28T09:12:42.595Z meeting_stop_stage session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB stage=cleanup duration_ms=0 outcome=success
+2026-08-28T09:12:42.598Z meeting_recording_stopped session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB duration_s=4360.071
+2026-08-28T09:12:42.602Z meeting_recording_health session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB duration_s=4360.071 source_mode=microphone_and_system mic_started=true requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=true system_first_buffer=true mic_bytes=36268677 system_bytes=33589186 mixed_bytes=70675008 mic_frames=207576000 system_frames=207560640 mic_chunks_enqueued=175 system_chunks_enqueued=507 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=1 mic_chunks_system_dominant_dropped=205 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-28T09:12:42.608Z meeting_echo_suppression_summary session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB processor=localvqe loaded=true mic_frames=270261 processed_frames=270261 raw_fallback_frames=0 full_reference_frames=270261 partial_reference_frames=0 missing_reference_frames=0 processing_failures=0 current_delay_samples=0 delay_confidence=0.000 delay_estimate_count=0 rejected_delay_estimates=8648
+2026-08-28T09:12:42.613Z meeting_stop_stage session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB stage=service_total duration_ms=35189 outcome=success
+2026-08-28T09:12:42.619Z meeting_stop_stage session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB stage=service_stop duration_ms=35195 outcome=success
+2026-08-28T09:12:42.633Z meeting_stop_stage session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB stage=prepare_row duration_ms=9 outcome=success
+2026-08-28T09:12:42.641Z meeting_stop_stage session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB stage=queue_enqueue duration_ms=1 outcome=success
+2026-08-28T09:12:42.650Z meeting_stop_stage session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB stage=queued_total duration_ms=35246 outcome=success
+2026-08-28T09:21:22.131Z meeting_cleaned_mic session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB outcome=rendered duration_s=4324.500 render_duration_ms=519541 realtime_factor=8.32 processed_frames=270281 raw_fallback_frames=1 failures=0 rms_ratio=1.00 probe_windows=5 probe_best_correlation=0.091
+2026-08-28T09:21:22.160Z meeting_echo_suppression_resolution session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB reason_code=cleanedUsed model_version=localvqe-v1.4-aec-200K-f32.gguf render_duration_ms=519541 realtime_factor=8.32 delay_estimate_ms=none probe_windows=5 probe_best_correlation=0.091
+2026-08-28T09:21:22.176Z meeting_cleaned_mic_source session=CAF61CFB-264E-4850-A5D4-A43196C9F6FB selected=cleaned reason=cleanedUsed timeout_s=600.000
+2026-08-28T10:19:13.421Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-28T10:19:13.458Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-28T10:19:13.479Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-28T10:19:13.520Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-28T10:19:13.548Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-28T10:19:13.561Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-28T10:19:13.577Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-28T10:19:14.319Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=0.437 output_format_ms=0.029 install_tap_ms=0.014 total_ms=211.412
+2026-08-28T10:19:14.333Z shared_mic_engine_input_device_prepared source=system_default device=present transport=usb vpio=false set_device_ms=0.000 prepare_engine_ms=224.436
+2026-08-28T13:01:11.272Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-28T13:01:11.407Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-28T13:01:11.435Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-28T13:01:11.444Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-28T13:01:11.455Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-28T13:01:11.463Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-28T13:01:11.473Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-28T13:01:11.497Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-28T13:01:11.809Z shared_mic_engine_configuration_changed sr=48000.0 ch=14 isRunning=false engine_is_running=false default_input=present default_input_transport=bluetooth
+2026-08-28T13:01:11.810Z shared_mic_engine_prepared_discarded reason=configuration_changed
+2026-08-28T13:01:12.346Z shared_mic_engine_prepare_skipped reason=bluetooth_or_unresolved_route
+2026-08-28T13:01:17.454Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-28T13:01:17.521Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-28T13:01:17.531Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-28T13:01:17.549Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-28T13:01:17.570Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-28T13:01:17.579Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-28T13:01:17.602Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-28T13:01:17.615Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-28T13:01:17.627Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-28T13:01:17.631Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-28T13:01:18.265Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=0.005 output_format_ms=0.006 install_tap_ms=0.004 total_ms=116.623
+2026-08-28T13:01:18.273Z shared_mic_engine_input_device_prepared source=system_default device=present transport=usb vpio=false set_device_ms=0.000 prepare_engine_ms=124.861
+2026-08-28T17:15:10.339Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-28T17:15:10.392Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-28T17:15:10.402Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-28T17:15:10.413Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-28T17:15:10.421Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-28T17:15:10.443Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-28T17:15:10.457Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-28T17:15:10.468Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-28T17:15:10.473Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-28T17:15:10.478Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-28T17:15:10.486Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-28T17:15:10.684Z shared_mic_engine_configuration_changed sr=48000.0 ch=14 isRunning=false engine_is_running=false default_input=present default_input_transport=built-in
+2026-08-28T17:15:10.690Z shared_mic_engine_prepared_discarded reason=configuration_changed
+2026-08-28T17:15:11.322Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=0.006 output_format_ms=0.007 install_tap_ms=0.012 total_ms=101.336
+2026-08-28T17:15:11.326Z shared_mic_engine_input_device_prepared source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 prepare_engine_ms=104.872
+2026-08-31T06:56:06.120Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T06:56:06.133Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T06:56:06.145Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T06:56:06.217Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T06:56:06.228Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T06:56:06.240Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T06:56:06.249Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T06:56:06.311Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T06:56:06.333Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T06:56:06.349Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T06:56:06.360Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T06:56:06.373Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T06:56:06.384Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T06:56:06.565Z shared_mic_engine_configuration_changed sr=48000.0 ch=1 isRunning=false engine_is_running=false default_input=present default_input_transport=usb
+2026-08-31T06:56:06.570Z shared_mic_engine_prepared_discarded reason=configuration_changed
+2026-08-31T06:56:07.238Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=0.009 output_format_ms=0.016 install_tap_ms=0.023 total_ms=126.982
+2026-08-31T06:56:07.255Z shared_mic_engine_input_device_prepared source=system_default device=present transport=usb vpio=false set_device_ms=0.000 prepare_engine_ms=143.269
+2026-08-31T07:00:02.180Z meeting_live_chunking_mode session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 mode=vad reason=started
+2026-08-31T07:00:02.599Z meeting_mic_capture_starting requested_mode=raw default_input=present default_input_transport=usb
+2026-08-31T07:00:03.251Z shared_mic_engine_started_from_prepared audio_engine_start_ms=611.258
+2026-08-31T07:00:03.261Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-31T07:00:03.281Z meeting_mic_processing mode=raw
+2026-08-31T07:00:03.295Z meeting_mic_capture_started requested_mode=raw effective_mode=raw sr=48000.0 ch=14 default_input=present default_input_transport=usb
+2026-08-31T07:00:03.350Z meeting_mic_first_buffer sr=48000.0 ch=14 interleaved=false
+2026-08-31T07:00:03.471Z system_audio_stream_screen_output_attached mode=discard
+2026-08-31T07:00:04.211Z system_audio_stream_started sr=48000 ch=2
+2026-08-31T07:00:04.264Z meeting_recording_started session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.microphoneAndSystem) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-31T07:00:04.356Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-08-31T07:00:14.585Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T07:00:14.593Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T07:00:14.631Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T07:00:14.653Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T07:00:14.698Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T07:00:14.800Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T07:00:14.810Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T07:00:14.817Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T07:00:14.853Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T07:00:14.858Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T07:00:14.863Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T07:00:14.868Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T07:00:14.922Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T07:00:14.958Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T07:00:16.235Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T07:00:16.976Z shared_mic_engine_configuration_changed sr=48000.0 ch=14 isRunning=true engine_is_running=false default_input=present default_input_transport=bluetooth
+2026-08-31T07:00:16.977Z shared_mic_engine_config_change_recovery_attempt
+2026-08-31T07:00:17.696Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.005 ducking_ms=0.000 output_format_ms=0.011 install_tap_ms=0.006 audio_engine_start_ms=273.143 total_ms=710.628
+2026-08-31T07:00:17.698Z shared_mic_engine_input_device_started source=system_default device=present transport=bluetooth vpio=false set_device_ms=0.000 start_engine_ms=712.569
+2026-08-31T07:00:17.809Z shared_mic_engine_config_change_recovery_succeeded
+2026-08-31T07:30:15.206Z meeting_stop_stage session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 stage=notes_commit duration_ms=2 outcome=success
+2026-08-31T07:30:15.208Z meeting_recording_stopping session=D125982B-B62C-42CE-91C1-BAFBFEE789C6
+2026-08-31T07:30:15.218Z meeting_mic_capture_stopped default_input=present default_input_transport=bluetooth
+2026-08-31T07:30:15.247Z shared_mic_engine_stopped
+2026-08-31T07:30:15.258Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-31T07:30:15.263Z system_audio_stream_stopped outcome=completed
+2026-08-31T07:30:15.277Z meeting_stop_stage session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 stage=capture_stop duration_ms=59 outcome=success
+2026-08-31T07:30:15.295Z meeting_stop_stage session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 stage=processing_drain duration_ms=11 outcome=success
+2026-08-31T07:30:15.307Z shared_mic_engine_prepare_skipped reason=bluetooth_or_unresolved_route
+2026-08-31T07:30:15.322Z meeting_stop_stage session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 stage=writer_finalize duration_ms=23 outcome=success
+2026-08-31T07:30:15.348Z meeting_stop_stage session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 stage=source_urls duration_ms=23 outcome=success
+2026-08-31T07:30:15.363Z meeting_stop_stage session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 stage=metadata_save duration_ms=1 outcome=success
+2026-08-31T07:30:29.131Z meeting_stop_stage session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 stage=mix duration_ms=13765 outcome=success
+2026-08-31T07:30:29.146Z meeting_stop_stage session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 stage=notes_write duration_ms=0 outcome=success
+2026-08-31T07:30:29.157Z meeting_stop_stage session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 stage=lock_write duration_ms=1 outcome=success
+2026-08-31T07:30:29.165Z meeting_cleaned_mic session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 outcome=scheduled
+2026-08-31T07:30:29.171Z meeting_stop_stage session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 stage=cleaned_mic_schedule duration_ms=7 outcome=success
+2026-08-31T07:30:29.175Z meeting_stop_stage session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 stage=cleanup duration_ms=0 outcome=success
+2026-08-31T07:30:29.181Z meeting_recording_stopped session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 duration_s=1827.069
+2026-08-31T07:30:29.187Z meeting_recording_health session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 duration_s=1827.069 source_mode=microphone_and_system mic_started=true requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=true system_first_buffer=true mic_bytes=15187183 system_bytes=14855559 mixed_bytes=29384740 mic_frames=86830112 system_frames=86923200 mic_chunks_enqueued=61 system_chunks_enqueued=212 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=0 mic_chunks_system_dominant_dropped=17 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-31T07:30:29.191Z meeting_echo_suppression_summary session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 processor=localvqe loaded=true mic_frames=113021 processed_frames=113021 raw_fallback_frames=6 full_reference_frames=112953 partial_reference_frames=0 missing_reference_frames=68 processing_failures=0 current_delay_samples=246 delay_confidence=1.000 delay_estimate_count=1 rejected_delay_estimates=3615
+2026-08-31T07:30:29.195Z meeting_stop_stage session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 stage=service_total duration_ms=13987 outcome=success
+2026-08-31T07:30:29.198Z meeting_stop_stage session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 stage=service_stop duration_ms=13991 outcome=success
+2026-08-31T07:30:29.205Z meeting_stop_stage session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 stage=prepare_row duration_ms=3 outcome=success
+2026-08-31T07:30:29.224Z meeting_stop_stage session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-31T07:30:29.228Z meeting_stop_stage session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 stage=queued_total duration_ms=14024 outcome=success
+2026-08-31T07:30:30.231Z meeting_cleaned_mic session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 outcome=skipped reason=skippedNoEchoPath renderer_reason=no_echo_path probe_detail=below_threshold probe_windows=5 probe_best_correlation=0.056
+2026-08-31T07:30:30.245Z meeting_echo_suppression_resolution session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 reason_code=skippedNoEchoPath model_version=none render_duration_ms=none realtime_factor=none delay_estimate_ms=none probe_windows=5 probe_best_correlation=0.056
+2026-08-31T07:30:30.256Z meeting_cleaned_mic_source session=D125982B-B62C-42CE-91C1-BAFBFEE789C6 selected=raw reason=skippedNoEchoPath timeout_s=456.767
+2026-08-31T07:30:45.325Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T07:30:45.401Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T07:30:45.422Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T07:30:45.445Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T07:30:45.461Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T07:30:45.500Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T07:30:45.529Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T07:30:45.541Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T07:30:45.562Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T07:30:45.582Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T07:30:45.594Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T07:30:45.600Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T07:30:45.606Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T07:30:45.612Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T07:30:45.622Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T07:30:45.629Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T07:30:45.634Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T07:30:46.271Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=0.016 output_format_ms=0.013 install_tap_ms=0.007 total_ms=108.642
+2026-08-31T07:30:46.286Z shared_mic_engine_input_device_prepared source=system_default device=present transport=usb vpio=false set_device_ms=0.000 prepare_engine_ms=123.515
+2026-08-31T10:30:02.504Z meeting_live_chunking_mode session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930 mode=vad reason=started
+2026-08-31T10:30:02.554Z meeting_mic_capture_starting requested_mode=raw default_input=present default_input_transport=usb
+2026-08-31T10:30:03.218Z shared_mic_engine_started_from_prepared audio_engine_start_ms=650.609
+2026-08-31T10:30:03.220Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-31T10:30:03.231Z meeting_mic_processing mode=raw
+2026-08-31T10:30:03.239Z meeting_mic_capture_started requested_mode=raw effective_mode=raw sr=48000.0 ch=14 default_input=present default_input_transport=usb
+2026-08-31T10:30:03.319Z meeting_mic_first_buffer sr=48000.0 ch=14 interleaved=false
+2026-08-31T10:30:03.342Z system_audio_stream_screen_output_attached mode=discard
+2026-08-31T10:30:03.594Z system_audio_stream_started sr=48000 ch=2
+2026-08-31T10:30:03.603Z meeting_recording_started session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930 source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.microphoneAndSystem) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-31T10:30:05.627Z system_audio_stream_no_buffers_within_timeout timeout_s=2
+2026-08-31T10:30:05.641Z meeting_capture_source_interrupted source=system error_type=MeetingAudioError.captureRuntimeFailure error_detail="Meeting capture failed while running: system audio stream delivered no buffers within 2s of start"
+2026-08-31T10:34:18.670Z meeting_stop_stage session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930 stage=notes_commit duration_ms=2 outcome=success
+2026-08-31T10:34:18.672Z meeting_recording_stopping session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930
+2026-08-31T10:34:18.839Z meeting_mic_capture_stopped default_input=present default_input_transport=usb
+2026-08-31T10:34:18.901Z system_audio_stream_stopped outcome=completed
+2026-08-31T10:34:18.907Z shared_mic_engine_stopped
+2026-08-31T10:34:19.124Z meeting_stop_stage session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930 stage=capture_stop duration_ms=286 outcome=success
+2026-08-31T10:34:19.128Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-31T10:34:19.144Z meeting_stop_stage session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930 stage=processing_drain duration_ms=11 outcome=success
+2026-08-31T10:34:19.161Z meeting_stop_stage session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930 stage=writer_finalize duration_ms=12 outcome=success
+2026-08-31T10:34:19.174Z meeting_stop_stage session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930 stage=source_urls duration_ms=7 outcome=success
+2026-08-31T10:34:19.193Z meeting_stop_stage session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930 stage=metadata_save duration_ms=1 outcome=success
+2026-08-31T10:34:19.260Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=0.006 output_format_ms=0.016 install_tap_ms=0.014 total_ms=119.308
+2026-08-31T10:34:19.264Z shared_mic_engine_input_device_prepared source=system_default device=present transport=usb vpio=false set_device_ms=0.000 prepare_engine_ms=123.331
+2026-08-31T10:34:20.447Z meeting_stop_stage session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930 stage=mix duration_ms=1250 outcome=success
+2026-08-31T10:34:20.448Z meeting_stop_stage session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930 stage=notes_write duration_ms=0 outcome=success
+2026-08-31T10:34:20.461Z meeting_stop_stage session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930 stage=lock_write duration_ms=1 outcome=success
+2026-08-31T10:34:20.472Z meeting_cleaned_mic session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930 outcome=not_scheduled reason=rawMissingSystemReference
+2026-08-31T10:34:20.480Z meeting_stop_stage session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930 stage=cleaned_mic_schedule duration_ms=8 outcome=success
+2026-08-31T10:34:20.489Z meeting_stop_stage session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930 stage=cleanup duration_ms=0 outcome=success
+2026-08-31T10:34:20.496Z meeting_recording_stopped session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930 duration_s=257.970
+2026-08-31T10:34:20.502Z meeting_recording_health session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930 duration_s=257.970 source_mode=microphone_and_system mic_started=true requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=true system_first_buffer=false mic_bytes=2075433 system_bytes=0 mixed_bytes=1683568 mic_frames=12268800 system_frames=0 mic_chunks_enqueued=0 system_chunks_enqueued=0 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=0 mic_chunks_system_dominant_dropped=0 backpressure_drops=0 transcription_failures=0 interrupted_sources=system capture_failed=false
+2026-08-31T10:34:20.509Z meeting_echo_suppression_summary session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930 processor=localvqe loaded=true mic_frames=15975 processed_frames=15975 raw_fallback_frames=0 full_reference_frames=0 partial_reference_frames=0 missing_reference_frames=15975 processing_failures=0 current_delay_samples=0 delay_confidence=0.000 delay_estimate_count=0 rejected_delay_estimates=511
+2026-08-31T10:34:20.515Z meeting_stop_stage session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930 stage=service_total duration_ms=1844 outcome=success
+2026-08-31T10:34:20.521Z meeting_stop_stage session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930 stage=service_stop duration_ms=1850 outcome=success
+2026-08-31T10:34:20.535Z meeting_stop_stage session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930 stage=prepare_row duration_ms=6 outcome=success
+2026-08-31T10:34:20.541Z meeting_stop_stage session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930 stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-31T10:34:20.548Z meeting_stop_stage session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930 stage=queued_total duration_ms=1881 outcome=success
+2026-08-31T10:34:20.559Z meeting_echo_suppression_resolution session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930 reason_code=rawMissingSystemReference model_version=none render_duration_ms=none realtime_factor=none delay_estimate_ms=none probe_windows=none probe_best_correlation=none
+2026-08-31T10:34:20.604Z meeting_cleaned_mic_source session=3679F1B7-B5ED-46A4-B7C3-DD08B339D930 selected=raw reason=rawMissingSystemReference timeout_s=64.493
+2026-08-31T12:39:55.870Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T12:39:55.902Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T12:39:55.922Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T12:39:55.938Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T12:39:55.943Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T12:39:55.960Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T12:39:55.963Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T12:39:55.968Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T12:39:55.980Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T12:39:55.986Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T12:39:55.992Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T12:39:56.027Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T12:39:56.039Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T12:39:56.051Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T12:39:56.059Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T12:39:56.087Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T12:39:56.107Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T12:39:56.147Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T12:39:56.165Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-08-31T12:39:56.476Z shared_mic_engine_configuration_changed sr=48000.0 ch=14 isRunning=false engine_is_running=false default_input=present default_input_transport=bluetooth
+2026-08-31T12:39:56.481Z shared_mic_engine_prepared_discarded reason=configuration_changed
+2026-08-31T12:39:57.097Z shared_mic_engine_prepare_skipped reason=bluetooth_or_unresolved_route
+2026-08-31T13:00:01.543Z meeting_live_chunking_mode session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 mode=vad reason=started
+2026-08-31T13:00:01.608Z meeting_mic_capture_starting requested_mode=raw default_input=present default_input_transport=bluetooth
+2026-08-31T13:00:02.011Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.197 ducking_ms=0.000 output_format_ms=0.025 install_tap_ms=0.079 audio_engine_start_ms=143.510 total_ms=378.568
+2026-08-31T13:00:02.013Z shared_mic_engine_input_device_started source=system_default device=present transport=bluetooth vpio=false set_device_ms=0.000 start_engine_ms=381.320
+2026-08-31T13:00:02.023Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-31T13:00:02.028Z meeting_mic_processing mode=raw
+2026-08-31T13:00:02.031Z meeting_mic_capture_started requested_mode=raw effective_mode=raw sr=48000.0 ch=1 default_input=present default_input_transport=bluetooth
+2026-08-31T13:00:02.108Z system_audio_stream_screen_output_attached mode=discard
+2026-08-31T13:00:02.132Z meeting_mic_first_buffer sr=48000.0 ch=1 interleaved=false
+2026-08-31T13:00:02.380Z system_audio_stream_started sr=48000 ch=2
+2026-08-31T13:00:02.381Z meeting_recording_started session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.microphoneAndSystem) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-31T13:00:02.521Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-08-31T13:02:24.873Z meeting_recording_paused session=7A149444-3B7B-47A0-B83C-B68B6F4FD097
+2026-08-31T13:06:30.821Z meeting_recording_resumed session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 accumulated_paused_s=245.948
+2026-08-31T14:13:31.717Z meeting_stop_stage session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 stage=notes_commit duration_ms=3 outcome=success
+2026-08-31T14:13:31.755Z meeting_recording_stopping session=7A149444-3B7B-47A0-B83C-B68B6F4FD097
+2026-08-31T14:13:31.759Z meeting_mic_capture_stopped default_input=present default_input_transport=bluetooth
+2026-08-31T14:13:31.786Z system_audio_stream_stopped outcome=completed
+2026-08-31T14:13:31.792Z meeting_stop_stage session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 stage=capture_stop duration_ms=34 outcome=success
+2026-08-31T14:13:31.833Z shared_mic_engine_stopped
+2026-08-31T14:13:31.864Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-31T14:13:31.870Z meeting_stop_stage session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 stage=processing_drain duration_ms=11 outcome=success
+2026-08-31T14:13:31.906Z meeting_stop_stage session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 stage=writer_finalize duration_ms=31 outcome=success
+2026-08-31T14:13:31.940Z shared_mic_engine_prepare_skipped reason=bluetooth_or_unresolved_route
+2026-08-31T14:13:31.987Z meeting_stop_stage session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 stage=source_urls duration_ms=76 outcome=success
+2026-08-31T14:13:31.991Z meeting_stop_stage session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 stage=metadata_save duration_ms=1 outcome=success
+2026-08-31T14:14:04.229Z meeting_stop_stage session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 stage=mix duration_ms=32235 outcome=success
+2026-08-31T14:14:04.243Z meeting_stop_stage session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 stage=notes_write duration_ms=1 outcome=success
+2026-08-31T14:14:04.257Z meeting_stop_stage session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 stage=lock_write duration_ms=1 outcome=success
+2026-08-31T14:14:04.268Z meeting_cleaned_mic session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 outcome=scheduled
+2026-08-31T14:14:04.271Z meeting_stop_stage session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 stage=cleaned_mic_schedule duration_ms=4 outcome=success
+2026-08-31T14:14:04.274Z meeting_stop_stage session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 stage=cleanup duration_ms=0 outcome=success
+2026-08-31T14:14:04.277Z meeting_recording_stopped session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 duration_s=4196.782
+2026-08-31T14:14:04.280Z meeting_recording_health session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 duration_s=4196.782 source_mode=microphone_and_system mic_started=true requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=true system_first_buffer=true mic_bytes=34888479 system_bytes=31751056 mixed_bytes=68149856 mic_frames=199857600 system_frames=199841280 mic_chunks_enqueued=448 system_chunks_enqueued=366 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=6 mic_chunks_system_dominant_dropped=110 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-31T14:14:04.283Z meeting_echo_suppression_summary session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 processor=localvqe loaded=true mic_frames=260223 processed_frames=260223 raw_fallback_frames=1 full_reference_frames=260197 partial_reference_frames=1 missing_reference_frames=25 processing_failures=0 current_delay_samples=0 delay_confidence=0.000 delay_estimate_count=0 rejected_delay_estimates=8327
+2026-08-31T14:14:04.286Z meeting_stop_stage session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 stage=service_total duration_ms=32530 outcome=success
+2026-08-31T14:14:04.288Z meeting_stop_stage session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 stage=service_stop duration_ms=32534 outcome=success
+2026-08-31T14:14:04.301Z meeting_stop_stage session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 stage=prepare_row duration_ms=10 outcome=success
+2026-08-31T14:14:04.316Z meeting_stop_stage session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-31T14:14:04.320Z meeting_stop_stage session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 stage=queued_total duration_ms=32608 outcome=success
+2026-08-31T14:18:34.134Z meeting_cleaned_mic session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 outcome=rendered duration_s=4163.700 render_duration_ms=269864 realtime_factor=15.43 processed_frames=260231 raw_fallback_frames=1 failures=0 rms_ratio=1.00 probe_windows=2 probe_best_correlation=0.087
+2026-08-31T14:18:34.188Z meeting_echo_suppression_resolution session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 reason_code=cleanedUsed model_version=localvqe-v1.4-aec-200K-f32.gguf render_duration_ms=269864 realtime_factor=15.43 delay_estimate_ms=93 probe_windows=2 probe_best_correlation=0.087
+2026-08-31T14:18:34.198Z meeting_cleaned_mic_source session=7A149444-3B7B-47A0-B83C-B68B6F4FD097 selected=cleaned reason=cleanedUsed timeout_s=600.000
+2026-08-31T14:49:57.804Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T14:49:57.860Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T14:49:57.886Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T14:49:57.895Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T14:49:57.902Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T14:49:57.926Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T14:49:57.940Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T14:49:57.947Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T14:49:57.953Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T14:49:57.957Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T14:49:57.960Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T14:49:57.964Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T14:49:57.967Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T14:49:57.971Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T14:49:57.983Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T14:49:57.991Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T14:49:58.000Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T14:49:58.004Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T14:49:58.007Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T14:49:58.010Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T14:49:58.014Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T14:49:58.017Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-08-31T14:49:58.666Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=0.404 output_format_ms=0.020 install_tap_ms=0.010 total_ms=119.689
+2026-08-31T14:49:58.674Z shared_mic_engine_input_device_prepared source=system_default device=present transport=usb vpio=false set_device_ms=0.000 prepare_engine_ms=127.167
+2026-08-31T16:49:31.794Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-31T16:49:31.830Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-31T16:49:31.846Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-31T16:49:31.856Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-31T16:49:31.864Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-31T16:49:31.869Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-31T16:49:31.881Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-31T16:49:31.893Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-31T16:49:31.902Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-31T16:49:31.909Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-31T16:49:31.914Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-31T16:49:31.918Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-31T16:49:31.921Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-31T16:49:31.925Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-31T16:49:31.929Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-31T16:49:31.933Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-31T16:49:31.945Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-31T16:49:31.950Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-31T16:49:31.954Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-31T16:49:31.957Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-31T16:49:31.960Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-31T16:49:31.963Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-31T16:49:31.966Z audio_default_input_changed default_input=present default_input_transport=built-in
+2026-08-31T16:49:32.086Z shared_mic_engine_configuration_changed sr=48000.0 ch=14 isRunning=false engine_is_running=false default_input=present default_input_transport=built-in
+2026-08-31T16:49:32.089Z shared_mic_engine_prepared_discarded reason=configuration_changed
+2026-08-31T16:49:32.723Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=0.007 output_format_ms=0.008 install_tap_ms=0.004 total_ms=101.056
+2026-08-31T16:49:32.728Z shared_mic_engine_input_device_prepared source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 prepare_engine_ms=105.893
+2026-09-01T07:59:45.758Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:45.798Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:45.811Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:45.880Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:45.986Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:45.994Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:46.001Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:46.071Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:46.078Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:46.083Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:46.090Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:46.098Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:46.105Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:46.112Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:46.118Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:46.124Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:46.147Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:46.150Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:46.153Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:46.156Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:46.160Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:46.163Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:46.166Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:46.170Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:46.173Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T07:59:46.239Z shared_mic_engine_configuration_changed sr=48000.0 ch=1 isRunning=false engine_is_running=false default_input=present default_input_transport=usb
+2026-09-01T07:59:46.242Z shared_mic_engine_prepared_discarded reason=configuration_changed
+2026-09-01T07:59:46.896Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=0.005 output_format_ms=0.005 install_tap_ms=0.010 total_ms=109.070
+2026-09-01T07:59:46.911Z shared_mic_engine_input_device_prepared source=system_default device=present transport=usb vpio=false set_device_ms=0.000 prepare_engine_ms=123.893
+2026-09-01T07:59:59.710Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T07:59:59.726Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T07:59:59.737Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T07:59:59.744Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T07:59:59.763Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T07:59:59.769Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T07:59:59.776Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T07:59:59.814Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T07:59:59.835Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T07:59:59.850Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T07:59:59.864Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T07:59:59.872Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T07:59:59.879Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T07:59:59.886Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T07:59:59.907Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T07:59:59.953Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T07:59:59.978Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:00:00.205Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:00:00.229Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:00:00.240Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:00:00.248Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:00:00.251Z shared_mic_engine_configuration_changed sr=48000.0 ch=14 isRunning=false engine_is_running=false default_input=present default_input_transport=bluetooth
+2026-09-01T08:00:00.275Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:00:00.285Z shared_mic_engine_prepared_discarded reason=configuration_changed
+2026-09-01T08:00:00.345Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:00:00.362Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:00:00.366Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:00:00.370Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:00:00.375Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:00:00.900Z shared_mic_engine_prepare_skipped reason=bluetooth_or_unresolved_route
+2026-09-01T08:00:03.095Z meeting_live_chunking_mode session=19791CE4-7345-4EEB-8D6C-52932F65EDFF mode=vad reason=started
+2026-09-01T08:00:03.146Z meeting_mic_capture_starting requested_mode=raw default_input=present default_input_transport=bluetooth
+2026-09-01T08:00:03.296Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=6.285 ducking_ms=0.000 output_format_ms=0.016 install_tap_ms=0.004 audio_engine_start_ms=74.084 total_ms=139.389
+2026-09-01T08:00:03.301Z shared_mic_engine_input_device_started source=system_default device=present transport=bluetooth vpio=false set_device_ms=0.000 start_engine_ms=145.198
+2026-09-01T08:00:03.312Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-09-01T08:00:03.317Z meeting_mic_processing mode=raw
+2026-09-01T08:00:03.324Z meeting_mic_capture_started requested_mode=raw effective_mode=raw sr=24000.0 ch=1 default_input=present default_input_transport=bluetooth
+2026-09-01T08:00:03.398Z system_audio_stream_screen_output_attached mode=discard
+2026-09-01T08:00:03.491Z meeting_mic_first_buffer sr=24000.0 ch=1 interleaved=false
+2026-09-01T08:00:03.612Z system_audio_stream_started sr=48000 ch=2
+2026-09-01T08:00:03.613Z meeting_recording_started session=19791CE4-7345-4EEB-8D6C-52932F65EDFF source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.microphoneAndSystem) requested_mic_mode=raw effective_mic_mode=raw
+2026-09-01T08:00:03.706Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-09-01T08:17:26.020Z meeting_stop_stage session=19791CE4-7345-4EEB-8D6C-52932F65EDFF stage=notes_commit duration_ms=2 outcome=success
+2026-09-01T08:17:26.032Z meeting_recording_stopping session=19791CE4-7345-4EEB-8D6C-52932F65EDFF
+2026-09-01T08:17:26.043Z meeting_mic_capture_stopped default_input=present default_input_transport=bluetooth
+2026-09-01T08:17:26.082Z shared_mic_engine_stopped
+2026-09-01T08:17:26.092Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-09-01T08:17:26.105Z system_audio_stream_stopped outcome=completed
+2026-09-01T08:17:26.113Z meeting_stop_stage session=19791CE4-7345-4EEB-8D6C-52932F65EDFF stage=capture_stop duration_ms=70 outcome=success
+2026-09-01T08:17:26.131Z meeting_stop_stage session=19791CE4-7345-4EEB-8D6C-52932F65EDFF stage=processing_drain duration_ms=11 outcome=success
+2026-09-01T08:17:26.156Z meeting_stop_stage session=19791CE4-7345-4EEB-8D6C-52932F65EDFF stage=writer_finalize duration_ms=21 outcome=success
+2026-09-01T08:17:26.156Z shared_mic_engine_prepare_skipped reason=bluetooth_or_unresolved_route
+2026-09-01T08:17:26.179Z meeting_stop_stage session=19791CE4-7345-4EEB-8D6C-52932F65EDFF stage=source_urls duration_ms=19 outcome=success
+2026-09-01T08:17:26.185Z meeting_stop_stage session=19791CE4-7345-4EEB-8D6C-52932F65EDFF stage=metadata_save duration_ms=2 outcome=success
+2026-09-01T08:17:34.348Z meeting_stop_stage session=19791CE4-7345-4EEB-8D6C-52932F65EDFF stage=mix duration_ms=8158 outcome=success
+2026-09-01T08:17:34.349Z meeting_stop_stage session=19791CE4-7345-4EEB-8D6C-52932F65EDFF stage=notes_write duration_ms=0 outcome=success
+2026-09-01T08:17:34.359Z meeting_stop_stage session=19791CE4-7345-4EEB-8D6C-52932F65EDFF stage=lock_write duration_ms=1 outcome=success
+2026-09-01T08:17:34.368Z meeting_cleaned_mic session=19791CE4-7345-4EEB-8D6C-52932F65EDFF outcome=scheduled
+2026-09-01T08:17:34.375Z meeting_stop_stage session=19791CE4-7345-4EEB-8D6C-52932F65EDFF stage=cleaned_mic_schedule duration_ms=8 outcome=success
+2026-09-01T08:17:34.384Z meeting_stop_stage session=19791CE4-7345-4EEB-8D6C-52932F65EDFF stage=cleanup duration_ms=0 outcome=success
+2026-09-01T08:17:34.394Z meeting_recording_stopped session=19791CE4-7345-4EEB-8D6C-52932F65EDFF duration_s=1051.277
+2026-09-01T08:17:34.408Z meeting_recording_health session=19791CE4-7345-4EEB-8D6C-52932F65EDFF duration_s=1051.277 source_mode=microphone_and_system mic_started=true requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=true system_first_buffer=true mic_bytes=8735944 system_bytes=8268435 mixed_bytes=17033444 mic_frames=50044896 system_frames=50036160 mic_chunks_enqueued=83 system_chunks_enqueued=103 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=6 mic_chunks_system_dominant_dropped=38 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-09-01T08:17:34.415Z meeting_echo_suppression_summary session=19791CE4-7345-4EEB-8D6C-52932F65EDFF processor=localvqe loaded=true mic_frames=65145 processed_frames=65145 raw_fallback_frames=1 full_reference_frames=65145 partial_reference_frames=0 missing_reference_frames=0 processing_failures=0 current_delay_samples=0 delay_confidence=0.000 delay_estimate_count=0 rejected_delay_estimates=2084
+2026-09-01T08:17:34.427Z meeting_stop_stage session=19791CE4-7345-4EEB-8D6C-52932F65EDFF stage=service_total duration_ms=8395 outcome=success
+2026-09-01T08:17:34.431Z meeting_stop_stage session=19791CE4-7345-4EEB-8D6C-52932F65EDFF stage=service_stop duration_ms=8399 outcome=success
+2026-09-01T08:17:34.455Z meeting_stop_stage session=19791CE4-7345-4EEB-8D6C-52932F65EDFF stage=prepare_row duration_ms=20 outcome=success
+2026-09-01T08:17:34.459Z meeting_stop_stage session=19791CE4-7345-4EEB-8D6C-52932F65EDFF stage=queue_enqueue duration_ms=0 outcome=success
+2026-09-01T08:17:34.462Z meeting_stop_stage session=19791CE4-7345-4EEB-8D6C-52932F65EDFF stage=queued_total duration_ms=8445 outcome=success
+2026-09-01T08:17:35.091Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.118Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.148Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.179Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.189Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.208Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.222Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.253Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.266Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.275Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.284Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.290Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.295Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.301Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.307Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.314Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.320Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.325Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.334Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.339Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.343Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.349Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.354Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.359Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.365Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.370Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.376Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.381Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.385Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:35.389Z audio_default_input_changed default_input=present default_input_transport=usb
+2026-09-01T08:17:36.049Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=0.010 output_format_ms=0.077 install_tap_ms=0.004 total_ms=147.447
+2026-09-01T08:17:36.063Z shared_mic_engine_input_device_prepared source=system_default device=present transport=usb vpio=false set_device_ms=0.000 prepare_engine_ms=161.219
+2026-09-01T08:18:36.587Z meeting_cleaned_mic session=19791CE4-7345-4EEB-8D6C-52932F65EDFF outcome=rendered duration_s=1042.602 render_duration_ms=62217 realtime_factor=16.76 processed_frames=65162 raw_fallback_frames=1 failures=0 rms_ratio=1.00 probe_windows=5 probe_best_correlation=0.093
+2026-09-01T08:18:36.614Z meeting_echo_suppression_resolution session=19791CE4-7345-4EEB-8D6C-52932F65EDFF reason_code=cleanedUsed model_version=localvqe-v1.4-aec-200K-f32.gguf render_duration_ms=62217 realtime_factor=16.76 delay_estimate_ms=none probe_windows=5 probe_best_correlation=0.093
+2026-09-01T08:18:36.620Z meeting_cleaned_mic_source session=19791CE4-7345-4EEB-8D6C-52932F65EDFF selected=cleaned reason=cleanedUsed timeout_s=262.819
+2026-09-01T08:30:03.364Z meeting_live_chunking_mode session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8 mode=vad reason=started
+2026-09-01T08:30:03.426Z meeting_mic_capture_starting requested_mode=raw default_input=present default_input_transport=usb
+2026-09-01T08:30:04.076Z shared_mic_engine_started_from_prepared audio_engine_start_ms=638.337
+2026-09-01T08:30:04.079Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-09-01T08:30:04.094Z meeting_mic_processing mode=raw
+2026-09-01T08:30:04.107Z meeting_mic_capture_started requested_mode=raw effective_mode=raw sr=48000.0 ch=14 default_input=present default_input_transport=usb
+2026-09-01T08:30:04.179Z meeting_mic_first_buffer sr=48000.0 ch=14 interleaved=false
+2026-09-01T08:30:04.303Z system_audio_stream_screen_output_attached mode=discard
+2026-09-01T08:30:04.549Z system_audio_stream_started sr=48000 ch=2
+2026-09-01T08:30:04.550Z meeting_recording_started session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8 source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.microphoneAndSystem) requested_mic_mode=raw effective_mic_mode=raw
+2026-09-01T08:30:06.566Z system_audio_stream_no_buffers_within_timeout timeout_s=2
+2026-09-01T08:30:06.595Z meeting_capture_source_interrupted source=system error_type=MeetingAudioError.captureRuntimeFailure error_detail="Meeting capture failed while running: system audio stream delivered no buffers within 2s of start"
+2026-09-01T08:31:40.599Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.610Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.615Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.620Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.640Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.654Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.664Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.672Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.679Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.687Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.696Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.702Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.723Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.735Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.741Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.804Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.819Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.832Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.851Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.915Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.919Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.923Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.927Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.931Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.935Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.939Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.943Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.946Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.950Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.953Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:40.960Z audio_default_input_changed default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:41.796Z shared_mic_engine_configuration_changed sr=48000.0 ch=14 isRunning=true engine_is_running=false default_input=present default_input_transport=bluetooth
+2026-09-01T08:31:41.804Z shared_mic_engine_config_change_recovery_attempt
+2026-09-01T08:31:42.106Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.006 ducking_ms=0.000 output_format_ms=0.038 install_tap_ms=0.029 audio_engine_start_ms=75.394 total_ms=285.256
+2026-09-01T08:31:42.139Z shared_mic_engine_input_device_started source=system_default device=present transport=bluetooth vpio=false set_device_ms=0.000 start_engine_ms=319.663
+2026-09-01T08:31:42.168Z shared_mic_engine_config_change_recovery_succeeded
+2026-09-01T09:20:33.405Z meeting_stop_stage session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8 stage=notes_commit duration_ms=3 outcome=success
+2026-09-01T09:20:33.416Z meeting_recording_stopping session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8
+2026-09-01T09:20:33.429Z meeting_mic_capture_stopped default_input=present default_input_transport=bluetooth
+2026-09-01T09:20:33.445Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-09-01T09:20:33.449Z shared_mic_engine_stopped
+2026-09-01T09:20:33.459Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-09-01T09:20:33.466Z shared_mic_engine_prepare_skipped reason=bluetooth_or_unresolved_route
+2026-09-01T09:20:33.480Z system_audio_stream_stopped outcome=completed
+2026-09-01T09:20:33.504Z meeting_stop_stage session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8 stage=capture_stop duration_ms=75 outcome=success
+2026-09-01T09:20:33.521Z meeting_stop_stage session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8 stage=processing_drain duration_ms=11 outcome=success
+2026-09-01T09:20:33.539Z meeting_stop_stage session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8 stage=writer_finalize duration_ms=14 outcome=success
+2026-09-01T09:20:33.563Z meeting_stop_stage session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8 stage=source_urls duration_ms=19 outcome=success
+2026-09-01T09:20:33.567Z meeting_stop_stage session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8 stage=metadata_save duration_ms=1 outcome=success
+2026-09-01T09:20:45.383Z meeting_stop_stage session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8 stage=mix duration_ms=11807 outcome=success
+2026-09-01T09:20:45.384Z meeting_stop_stage session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8 stage=notes_write duration_ms=0 outcome=success
+2026-09-01T09:20:45.393Z meeting_stop_stage session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8 stage=lock_write duration_ms=1 outcome=success
+2026-09-01T09:20:45.402Z meeting_cleaned_mic session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8 outcome=not_scheduled reason=rawMissingSystemReference
+2026-09-01T09:20:45.409Z meeting_stop_stage session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8 stage=cleaned_mic_schedule duration_ms=8 outcome=success
+2026-09-01T09:20:45.413Z meeting_stop_stage session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8 stage=cleanup duration_ms=0 outcome=success
+2026-09-01T09:20:45.418Z meeting_recording_stopped session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8 duration_s=3042.042
+2026-09-01T09:20:45.422Z meeting_recording_health session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8 duration_s=3042.042 source_mode=microphone_and_system mic_started=true requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=true system_first_buffer=false mic_bytes=25383354 system_bytes=0 mixed_bytes=24259791 mic_frames=145334368 system_frames=0 mic_chunks_enqueued=243 system_chunks_enqueued=0 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=0 mic_chunks_system_dominant_dropped=0 backpressure_drops=0 transcription_failures=0 interrupted_sources=system capture_failed=false
+2026-09-01T09:20:45.426Z meeting_echo_suppression_summary session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8 processor=localvqe loaded=true mic_frames=189192 processed_frames=189192 raw_fallback_frames=0 full_reference_frames=0 partial_reference_frames=0 missing_reference_frames=189192 processing_failures=0 current_delay_samples=0 delay_confidence=0.000 delay_estimate_count=0 rejected_delay_estimates=5918
+2026-09-01T09:20:45.431Z meeting_stop_stage session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8 stage=service_total duration_ms=12015 outcome=success
+2026-09-01T09:20:45.435Z meeting_stop_stage session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8 stage=service_stop duration_ms=12019 outcome=success
+2026-09-01T09:20:45.461Z meeting_stop_stage session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8 stage=prepare_row duration_ms=21 outcome=success
+2026-09-01T09:20:45.469Z meeting_stop_stage session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8 stage=queue_enqueue duration_ms=0 outcome=success
+2026-09-01T09:20:45.475Z meeting_stop_stage session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8 stage=queued_total duration_ms=12074 outcome=success
+2026-09-01T09:20:45.487Z meeting_echo_suppression_resolution session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8 reason_code=rawMissingSystemReference model_version=none render_duration_ms=none realtime_factor=none delay_estimate_ms=none probe_windows=none probe_best_correlation=none
+2026-09-01T09:20:45.527Z meeting_cleaned_mic_source session=9806EFF5-8AA6-4F74-BF0E-961D1724ECD8 selected=raw reason=rawMissingSystemReference timeout_s=600.000

@@ -24,6 +24,27 @@ final class MeetingAudioRetentionSweeperTests: XCTestCase {
         repo = nil
     }
 
+    func testHistoricalImportKeepsFreshAudioAndExpiredImportUsesManagedClock() throws {
+        let fresh = try makeMeeting(ageDays: 3650)
+        var freshRow = fresh.transcription
+        freshRow.audioRetentionStartedAt = now
+        try repo.save(freshRow)
+        let expired = try makeMeeting(ageDays: 0)
+        var expiredRow = expired.transcription
+        expiredRow.audioRetentionStartedAt = now.addingTimeInterval(-31 * 86_400)
+        try repo.save(expiredRow)
+
+        let result = try MeetingAudioRetentionSweeper(repository: repo)
+            .sweep(retention: .deleteAfterDays(30), now: now)
+
+        XCTAssertEqual(result.evaluatedCount, 1)
+        XCTAssertEqual(result.detachedCount, 1)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fresh.audioURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: expired.audioURL.path))
+        XCTAssertEqual(try repo.fetch(id: freshRow.id)?.filePath, fresh.audioURL.path)
+        XCTAssertNil(try repo.fetch(id: expiredRow.id)?.filePath)
+    }
+
     func testSweepDetachesEligibleMeetingAudioAndKeepsTranscriptRow() throws {
         let eligible = try makeMeeting(ageDays: 31, recoveredFromCrash: true)
         let lockedRecording = try makeMeeting(ageDays: 31, lockState: .recording)

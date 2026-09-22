@@ -1,0 +1,23 @@
+{
+  "createdAt" : "2026-09-07T21:57:32Z",
+  "derivedSnippet" : "He hoped there would be stew for dinner turnips and carrots and bruised potatoes and fat mutton pieces to be ladled out in thick peppered…",
+  "derivedTitle" : "He hoped there would be stew for dinner turnips and carrots and bruised…",
+  "durationMs" : 10496,
+  "engine" : "cohere",
+  "engineVariant" : "ane",
+  "fileName" : "1089-134686-0000.flac",
+  "filePath" : "<PUBLIC_CORPUS>\/LibriSpeech\/test-clean\/1089\/134686\/1089-134686-0000.flac",
+  "fileSizeBytes" : 183318,
+  "id" : "A37702D3-8F2F-4B7B-9EBD-0BF087FDB5F9",
+  "isFavorite" : false,
+  "isTranscriptEdited" : false,
+  "language" : "en",
+  "rawTranscript" : "He hoped there would be stew for dinner turnips and carrots and bruised potatoes and fat mutton pieces to be ladled out in thick peppered flour fattened sauce",
+  "recoveredFromCrash" : false,
+  "sourceType" : "file",
+  "status" : "completed",
+  "updatedAt" : "2026-09-07T22:01:25Z",
+  "wordTimestamps" : [
+
+  ]
+}

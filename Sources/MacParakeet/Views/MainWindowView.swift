@@ -6,8 +6,10 @@ import MacParakeetViewModels
 enum SidebarItem: String, CaseIterable, Identifiable {
     case transcribe = "Transcribe"
     case library = "Library"
+    case sharedPages = "Shared pages"
     case dictations = "Dictations"
     case meetings = "Meetings"
+    case prompts = "Prompts"
     case transforms = "Transforms"
     case vocabulary = "Vocabulary"
     case feedback = "Feedback"
@@ -21,7 +23,9 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .transcribe: return "waveform"
         case .meetings: return "person.2.wave.2"
         case .library: return "square.grid.2x2"
+        case .sharedPages: return "link"
         case .dictations: return "clock.arrow.circlepath"
+        case .prompts: return "text.quote"
         case .transforms: return "wand.and.stars"
         case .vocabulary: return "book.fill"
         case .feedback: return "bubble.left.and.text.bubble.right"
@@ -38,21 +42,23 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         if AppFeatures.meetingRecordingEnabled {
             items.append(.meetings)
         }
+        if AppFeatures.isShareLinksAvailable() { items.append(.sharedPages) }
         return items
     }
 
-    /// Configuration and support items. Transforms (ADR-022) is inserted
-    /// here at runtime when `AppFeatures.transformsEnabled == true`.
+    /// Automation, configuration, and support items. Prompt automation stays
+    /// above Transforms (ADR-022) when the latter feature is enabled.
     static var configItems: [SidebarItem] {
-        var items: [SidebarItem] = [.vocabulary, .feedback, .settings]
+        var items: [SidebarItem] = [.prompts, .vocabulary, .feedback, .settings]
         if AppFeatures.transformsEnabled {
-            items.insert(.transforms, at: 0)
+            items.insert(.transforms, at: 1)
         }
         return items
     }
 
     /// Note: `.discover` is intentionally excluded from the arrays above.
-    /// It renders as a pinned card below the sidebar list via `safeAreaInset`.
+    /// It renders as a pinned card below the sidebar list via `safeAreaInset`,
+    /// gated on the user preference `SettingsViewModel.showDiscover`.
 }
 
 struct MainWindowView: View {
@@ -63,6 +69,7 @@ struct MainWindowView: View {
     let historyViewModel: DictationHistoryViewModel
     let settingsViewModel: SettingsViewModel
     let llmSettingsViewModel: LLMSettingsViewModel
+    let voiceProfilesViewModel: VoiceProfilesViewModel
     let chatViewModel: TranscriptChatViewModel
     let promptResultsViewModel: PromptResultsViewModel
     let promptsViewModel: PromptsViewModel
@@ -75,6 +82,9 @@ struct MainWindowView: View {
     let libraryViewModel: TranscriptionLibraryViewModel
     let meetingsWorkspaceViewModel: MeetingsWorkspaceViewModel
     let meetingPillViewModel: MeetingRecordingPillViewModel
+    let meetingSplitViewModel: MeetingSplitViewModel
+    let meetingImportViewModel: MeetingImportViewModel
+    let shareManagementViewModel: ShareManagementViewModel?
     let updater: SPUUpdater
     let onRecordMeeting: () -> Void
     let onRecordMeetingFromWorkspace: () -> Void
@@ -104,11 +114,13 @@ struct MainWindowView: View {
                 .listStyle(.sidebar)
                 .tint(DesignSystem.Colors.accent)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    DiscoverSidebarCard(
-                        viewModel: discoverViewModel,
-                        isSelected: state.selectedItem == .discover,
-                        onTap: { state.selectedItem = .discover }
-                    )
+                    if settingsViewModel.showDiscover {
+                        DiscoverSidebarCard(
+                            viewModel: discoverViewModel,
+                            isSelected: state.selectedItem == .discover,
+                            onTap: { state.selectedItem = .discover }
+                        )
+                    }
                 }
                 .navigationSplitViewColumnWidth(min: 170, ideal: DesignSystem.Layout.sidebarMinWidth, max: 240)
             } detail: {
@@ -121,6 +133,7 @@ struct MainWindowView: View {
                             promptResultsViewModel: promptResultsViewModel,
                             promptsViewModel: promptsViewModel,
                             meetingPillViewModel: meetingPillViewModel,
+                            meetingsWorkspaceViewModel: meetingsWorkspaceViewModel,
                             meetingPermissionState: meetingPermissionState,
                             showingProgressDetail: $state.showingProgressDetail,
                             onRecordMeeting: onRecordMeeting,
@@ -130,6 +143,8 @@ struct MainWindowView: View {
                     case .meetings:
                         MeetingsView(
                             viewModel: meetingsWorkspaceViewModel,
+                            meetingSplitViewModel: meetingSplitViewModel,
+                            meetingImportViewModel: meetingImportViewModel,
                             onRecordMeeting: {
                                 onRecordMeetingFromWorkspace()
                             },
@@ -156,6 +171,8 @@ struct MainWindowView: View {
                                 chatViewModel: chatViewModel,
                                 promptResultsViewModel: promptResultsViewModel,
                                 promptsViewModel: promptsViewModel,
+                                meetingClassificationViewModel: libraryViewModel.meetingClassificationViewModel,
+                                meetingSplitViewModel: meetingSplitViewModel,
                                 onBack: {
                                     transcriptionViewModel.showInputPortal()
                                 },
@@ -163,8 +180,12 @@ struct MainWindowView: View {
                                     transcriptionViewModel.showInputPortal()
                                     state.selectedItem = .transcribe
                                 },
-                                onRetranscribe: { original, speechEngineOverride in
-                                    transcriptionViewModel.retranscribe(original, speechEngineOverride: speechEngineOverride)
+                                onRetranscribe: { original, speechEngineOverride, speakerSelection in
+                                    transcriptionViewModel.retranscribe(
+                                        original,
+                                        speechEngineOverride: speechEngineOverride,
+                                        speakerSelection: speakerSelection
+                                    )
                                 },
                                 onSetUpAI: {
                                     state.navigateToSettings(tab: .ai)
@@ -173,6 +194,7 @@ struct MainWindowView: View {
                         } else {
                             TranscriptionLibraryView(
                                 viewModel: libraryViewModel,
+                                meetingSplitViewModel: meetingSplitViewModel,
                                 primaryActionTitle: "New Transcription",
                                 onPrimaryAction: {
                                     transcriptionViewModel.showInputPortal()
@@ -184,6 +206,15 @@ struct MainWindowView: View {
                         }
                     case .dictations:
                         DictationHistoryView(viewModel: historyViewModel)
+                    case .sharedPages:
+                        if let sharing = shareManagementViewModel {
+                            SharedSharesView(model: sharing) { state.selectedItem = .library }
+                        }
+                    case .prompts:
+                        PromptsWorkspaceView(
+                            promptsViewModel: promptsViewModel,
+                            quickPromptsViewModel: meetingsWorkspaceViewModel.quickPromptsViewModel
+                        )
                     case .transforms:
                         TransformsView(
                             viewModel: transformsViewModel,
@@ -256,6 +287,7 @@ struct MainWindowView: View {
                         SettingsView(
                             viewModel: settingsViewModel,
                             llmSettingsViewModel: llmSettingsViewModel,
+                            voiceProfilesViewModel: voiceProfilesViewModel,
                             updater: updater,
                             transformHotkeys: transformsViewModel.transforms,
                             requestedTab: state.requestedSettingsTab,
@@ -267,7 +299,10 @@ struct MainWindowView: View {
                             onHotkeyRecordingStateChanged: onHotkeyRecordingStateChanged
                         )
                     case .discover:
-                        DiscoverView(viewModel: discoverViewModel, thoughtsService: DiscoverThoughtsService())
+                        DiscoverView(
+                            viewModel: discoverViewModel,
+                            thoughtsService: DiscoverThoughtsService()
+                        )
                     }
                 }
             }
@@ -280,6 +315,13 @@ struct MainWindowView: View {
             minWidth: 860,
             minHeight: DesignSystem.Layout.windowMinHeight
         )
+        .environment(\.shareManagement, shareManagementViewModel)
+        .sheet(item: Binding(get: { shareManagementViewModel?.draft }, set: { shareManagementViewModel?.draft = $0 })) { draft in
+            if let sharing = shareManagementViewModel {
+                ShareTranscriptSheet(draft: draft, management: sharing)
+                    .onDisappear { Task { await sharing.refresh() } }
+            }
+        }
         .alert("Cancel All Transcriptions?", isPresented: $showGlobalCancelConfirmation) {
             Button("Cancel All", role: .destructive) {
                 transcriptionViewModel.cancelBatch()

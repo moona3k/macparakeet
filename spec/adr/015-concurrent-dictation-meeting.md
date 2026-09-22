@@ -4,7 +4,8 @@
 > Date: 2026-04-06
 > Related: ADR-014 (meeting recording), ADR-009 (custom hotkeys), ADR-016 (centralized STT runtime and scheduler), [GitHub #57](https://github.com/moona3k/macparakeet/issues/57), [PR #189](https://github.com/moona3k/macparakeet/pull/189)
 > Amended by: ADR-016 for STT runtime ownership, scheduling, and backpressure policy
-> Amendment note (2026-04-10): meeting mic capture remains raw at device tap time; echo mitigation is applied in meeting-only joined software-AEC processing while dictation remains raw. Concurrency isolation remains unchanged.
+> Amendment note (2026-09-07): ADR-028 governs the current offline cleaned-microphone echo path. Earlier joined live-AEC notes below describe prior implementation stages; the shared raw capture and dictation isolation decisions remain active.
+> Amendment note (2026-04-10, historical): meeting mic capture remains raw at device tap time; echo mitigation is applied in meeting-only joined software-AEC processing while dictation remains raw. Concurrency isolation remains unchanged.
 > Amendment note (2026-04-29, superseded 2026-04-30): meeting system audio moved from Core Audio process taps to ScreenCaptureKit audio, and meeting mic capture now prefers VPIO. Dictation remained raw on its independent `AVAudioEngine` until the shared-engine amendment below replaced that topology.
 > Amendment note (2026-04-30): the original "independent AVAudioEngine instances" decision was incompatible with VPIO. coreaudiod attaches the VPAU aggregate device to the **process**, not the engine, so once meeting recording engaged VPIO, every other `AVAudioEngine` in the process inherited the multi-channel duplex layout — and dictation read silence on channel 0 of the wrong layout. Section 1 is rewritten below to describe the shared-engine architecture that ships in v0.6 (PR #189). The rest of the ADR (STT scheduler, menu bar priority, UI layers, hotkey, audio semantics) is unchanged.
 > Amendment note (2026-05-14): shipped meeting mic capture returns to raw by default after live-call testing showed VPIO can muffle the user's outgoing mic for other participants. The shared-engine architecture and VPIO arbitration remain for explicit VPIO experiments.
@@ -45,10 +46,16 @@ Two independent `AVAudioEngine` instances cannot escape this — VPIO state is p
 
 **Why a shared engine is also fine for lifecycle:** the original ADR worried that a long-running meeting engine would glitch when dictation start/stop touched it. In practice, dictation `subscribe`/`unsubscribe` calls are buffer-fanout list mutations behind a lock — they don't touch the running `AVAudioEngine`, don't reconfigure VPIO, and don't restart the engine. The engine starts on the first subscriber and stops on the last; mid-session subscribers join an already-running engine.
 
-Meeting lifecycle hardening preserves that independence. A meeting Stop owns
-and tears down its partial microphone subscription plus its separate
-ScreenCaptureKit source; attempt-generation checks prevent late meeting startup
-from reviving either source. Dictation keeps its own state machine, readiness
+Meeting lifecycle hardening preserves that independence. Selected meeting
+sources start independently and write available audio immediately. A meeting
+Stop retires its partial microphone subscription callbacks and settles its
+separate ScreenCaptureKit source without waiting indefinitely for microphone
+native work. The same microphone capture object remains leased until start and
+unsubscription both settle; new system-only meetings can bypass that lease,
+but no second mic engine or overlapping mic start may bypass it. Attempt
+generations prevent late meeting startup from reviving ended capture or
+touching a replacement session. Stop during Starting saves surviving audio;
+quit in that window offers save or discard. Dictation keeps its own state machine, readiness
 watchdog, and shared-stream subscription ownership. The two flows do not share
 a combined start/stop state machine.
 

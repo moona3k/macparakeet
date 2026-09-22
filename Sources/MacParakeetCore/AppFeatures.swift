@@ -4,6 +4,49 @@ import Foundation
 /// without touching every call site. Release builds should set these to the
 /// shipping configuration before tagging a version.
 public enum AppFeatures {
+    /// Encrypted text sharing remains opt-in for development until its separate
+    /// privacy, service and interoperability release gates are complete.
+    public static let shareLinksEnabled = false
+    public static let shareLinksDeveloperLaunchArgument = "--enable-share-links"
+
+    public static func isShareLinksAvailable(arguments: [String] = ProcessInfo.processInfo.arguments) -> Bool {
+        #if DEBUG
+        shareLinksEnabled || arguments.contains(shareLinksDeveloperLaunchArgument)
+        #else
+        shareLinksEnabled
+        #endif
+    }
+
+    /// Experimental native Voice Control. Disabled in stable releases until
+    /// live qualification and release review justify a deliberate flag change.
+    public static let voiceControlEnabled = false
+    /// Per-user opt-in for reading the frontmost window's pixels with Vision OCR
+    /// as a second Voice Control observation source. Needs Screen Recording.
+    public static let voiceControlScreenTextDefaultsKey = "voiceControl.screenText.v1"
+    public static func isVoiceControlAvailable(arguments: [String] = ProcessInfo.processInfo.arguments) -> Bool {
+        #if DEBUG
+        voiceControlEnabled || arguments.contains("--enable-voice-control")
+        #else
+        voiceControlEnabled
+        #endif
+    }
+
+    /// Experimental speaker recognition; requires held-out meeting evaluation.
+    public static let voiceProfilesEnabled: Bool = false
+    public static let voiceProfilesDeveloperLaunchArgument = "--enable-voice-profiles"
+
+    /// A saved preference or a development launch argument cannot unlock an
+    /// unreleased feature in a release build. Consent remains a separate gate.
+    public static func isVoiceProfilesAvailable(
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> Bool {
+        #if DEBUG
+        voiceProfilesEnabled || arguments.contains(voiceProfilesDeveloperLaunchArgument)
+        #else
+        voiceProfilesEnabled
+        #endif
+    }
+
     /// Meeting Recording (ADR-014). When `false`, all meeting recording entry
     /// points are hidden: Transcribe tile, menu-bar "Start Recording", global
     /// meeting hotkey, settings card, library filter, and the screen recording

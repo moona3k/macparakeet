@@ -113,7 +113,7 @@ enum MeetingDeletionCopy {
                 "audioUnavailableHelp called for .saved state; callers should show positive help text instead.")
             return "Meeting audio is available"
         case .removed:
-            return "Saved meeting audio has been removed"
+            return "Meeting audio is unavailable"
         case .missing:
             return "Meeting audio file is missing"
         case .notMeeting:

@@ -10,7 +10,9 @@ set -euo pipefail
 # flags emit as a must-fix: break the expression into typed sub-expressions.
 TYPE_CHECK_BUDGET_MS=400
 BUDGET_FLAGS=(
+  -Xswiftc -Xfrontend
   -Xswiftc -warn-long-expression-type-checking="${TYPE_CHECK_BUDGET_MS}"
+  -Xswiftc -Xfrontend
   -Xswiftc -warn-long-function-bodies="${TYPE_CHECK_BUDGET_MS}"
 )
 

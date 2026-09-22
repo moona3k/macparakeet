@@ -45,6 +45,7 @@ MP_ENGINES = {
     "parakeet-v2": ["--engine", "parakeet", "--parakeet-model", "v2"],
     "parakeet-v3": ["--engine", "parakeet", "--parakeet-model", "v3"],
     "parakeet-unified": ["--engine", "parakeet", "--parakeet-model", "unified"],
+    "parakeet-orukeet": ["--engine", "parakeet", "--parakeet-model", "orukeet"],
     "nemotron-en": ["--engine", "nemotron", "--nemotron-model", "english-1120ms"],
     "nemotron-multi": ["--engine", "nemotron", "--nemotron-model", "multilingual-1120ms"],
     "whisper": ["--engine", "whisper"],

@@ -51,18 +51,18 @@ public final class LLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
     public func saveConfig(_ config: LLMProviderConfig) throws {
         // Encode config without apiKey (CodingKeys excludes it)
         let data = try JSONEncoder().encode(config)
-        defaults.set(data, forKey: Self.configKey)
 
-        // Local CLI has no API key — skip Keychain operations
-        guard config.id != .localCLI else { return }
-
-        // Save apiKey to per-provider Keychain key
-        let providerKey = Self.apiKeyKeychainKey(for: config.id)
-        if let apiKey = config.apiKey {
-            try keychain.setString(apiKey, forKey: providerKey)
-        } else {
-            try keychain.delete(providerKey)
+        // Keychain updates/deletes are atomic. Complete the throwing operation
+        // before replacing the working provider metadata in UserDefaults.
+        if config.id != .localCLI {
+            let providerKey = Self.apiKeyKeychainKey(for: config.id)
+            if let apiKey = config.apiKey {
+                try keychain.setString(apiKey, forKey: providerKey)
+            } else {
+                try keychain.delete(providerKey)
+            }
         }
+        defaults.set(data, forKey: Self.configKey)
     }
 
     public func deleteConfig() throws {

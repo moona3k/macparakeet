@@ -1,0 +1,8 @@
+diff --git a/scripts/dist/build_app_bundle.sh b/scripts/dist/build_app_bundle.sh
+index 00289948..6b299a34 100755
+--- a/scripts/dist/build_app_bundle.sh
++++ b/scripts/dist/build_app_bundle.sh
+@@ -561 +561,2 @@ if [[ -d "$SPARKLE_FW" ]]; then
+-  cp -R "$SPARKLE_FW" "$FRAMEWORKS_DIR/"
++  # Follow Xcode's product symlink while preserving relative links inside the framework.
++  cp -RH "$SPARKLE_FW" "$FRAMEWORKS_DIR/"

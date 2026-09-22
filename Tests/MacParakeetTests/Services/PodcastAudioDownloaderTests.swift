@@ -72,6 +72,56 @@ final class PodcastAudioDownloaderTests: XCTestCase {
         XCTAssertEqual(progress.withLock { $0.last }, 100)
         XCTAssertEqual(try Data(contentsOf: output), NoContentLengthAudioURLProtocol.body)
     }
+
+    func testFetchSendsConventionalPodcastHeaders() async throws {
+        HeaderCapturingAudioURLProtocol.reset()
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [HeaderCapturingAudioURLProtocol.self]
+        let downloader = PodcastAudioDownloader(configuration: configuration)
+
+        let output = try await downloader.fetch(
+            audioURL: "https://example.com/podcast/headers",
+            suggestedName: "Header Episode"
+        )
+        defer { try? FileManager.default.removeItem(at: output) }
+
+        let headers = try XCTUnwrap(HeaderCapturingAudioURLProtocol.capturedHeaders)
+        XCTAssertEqual(
+            headers["Accept"],
+            "audio/*, application/octet-stream;q=0.9, */*;q=0.8"
+        )
+        let userAgent = try XCTUnwrap(headers["User-Agent"])
+        XCTAssertTrue(userAgent.hasPrefix("MacParakeet/"))
+        XCTAssertFalse(userAgent.contains("podcast-fetch"))
+    }
+
+    func testFetchLogsPrivacySafeHTTPFailureContext() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [ForbiddenAudioURLProtocol.self]
+        let downloader = PodcastAudioDownloader(configuration: configuration)
+        let logURL = AudioCaptureDiagnostics.diagnosticLogURL()
+        let existingLog = (try? String(contentsOf: logURL, encoding: .utf8)) ?? ""
+
+        do {
+            _ = try await downloader.fetch(
+                audioURL: "https://example.com/podcast/forbidden",
+                suggestedName: "Forbidden Episode"
+            )
+            XCTFail("Expected an HTTP failure")
+        } catch let error as PodcastAudioFetchError {
+            XCTAssertEqual(error, .requestFailed("HTTP 403"))
+        }
+
+        let fullLog = try String(contentsOf: logURL, encoding: .utf8)
+        let appendedLog = fullLog.hasPrefix(existingLog) ? String(fullLog.dropFirst(existingLog.count)) : fullLog
+        XCTAssertTrue(appendedLog.contains("podcast_audio_fetch_failed status=403"))
+        XCTAssertTrue(appendedLog.contains("server=\"cloudflare\""))
+        XCTAssertTrue(appendedLog.contains("retry_after=\"120\""))
+        XCTAssertTrue(appendedLog.contains("cf_ray_present=true"))
+        XCTAssertTrue(appendedLog.contains("authentication_challenge_present=true"))
+        XCTAssertFalse(appendedLog.contains(ForbiddenAudioURLProtocol.cfRay))
+        XCTAssertFalse(appendedLog.contains(ForbiddenAudioURLProtocol.authenticationChallenge))
+    }
 }
 
 private final class NoContentLengthAudioURLProtocol: URLProtocol {
@@ -94,6 +144,74 @@ private final class NoContentLengthAudioURLProtocol: URLProtocol {
         )!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: Self.body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
+private final class HeaderCapturingAudioURLProtocol: URLProtocol {
+    private static let headers = OSAllocatedUnfairLock<[String: String]?>(initialState: nil)
+    static var capturedHeaders: [String: String]? {
+        headers.withLock { $0 }
+    }
+
+    static func reset() {
+        headers.withLock { $0 = nil }
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        let capturedHeaders = request.allHTTPHeaderFields
+        Self.headers.withLock { $0 = capturedHeaders }
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: ["Content-Type": "audio/mpeg"]
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: NoContentLengthAudioURLProtocol.body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
+private final class ForbiddenAudioURLProtocol: URLProtocol {
+    static let cfRay = "private-ray-\(UUID().uuidString)"
+    static let authenticationChallenge = "Bearer realm=\"private-\(UUID().uuidString)\""
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: 403,
+            httpVersion: nil,
+            headerFields: [
+                "Content-Type": "text/plain",
+                "Server": "cloudflare",
+                "Retry-After": "120",
+                "CF-RAY": Self.cfRay,
+                "WWW-Authenticate": Self.authenticationChallenge,
+            ]
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data("forbidden".utf8))
         client?.urlProtocolDidFinishLoading(self)
     }
 

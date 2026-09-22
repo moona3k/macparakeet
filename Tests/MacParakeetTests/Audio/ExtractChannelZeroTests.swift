@@ -84,12 +84,13 @@ final class ExtractChannelZeroTests: XCTestCase {
         // most macOS device formats are non-interleaved). Pass-through is
         // the safe degradation — the converter mixes channels, which is
         // wrong for VPIO but defensible for arbitrary multi-mic devices.
-        let format = try XCTUnwrap(AVAudioFormat(
-            commonFormat: .pcmFormatFloat32,
-            sampleRate: 48_000,
-            channels: 2,
-            interleaved: true
-        ))
+        let format = try XCTUnwrap(
+            AVAudioFormat(
+                commonFormat: .pcmFormatFloat32,
+                sampleRate: 48_000,
+                channels: 2,
+                interleaved: true
+            ))
         let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 32))
         buffer.frameLength = 32
 
@@ -113,6 +114,83 @@ final class ExtractChannelZeroTests: XCTestCase {
         let dst = try XCTUnwrap(result.floatChannelData)
         for frame in 0..<Int(buffer.frameLength) {
             XCTAssertEqual(dst[0][frame], (Float(frame) + 0.5) / 4, accuracy: 0.0001)
+        }
+    }
+
+    func testRawDownmixExactInverseUsesLowestIndexEnergyTieAcrossPCMLayouts() throws {
+        let left: [Float] = [0.25, -0.5, 0.75, -0.125]
+        try assertRawStereoDownmix(left: left, right: left.map { -$0 }, expected: left)
+    }
+
+    func testRawDownmixNearInverseSelectsOneDominantChannelForWholeBuffer() throws {
+        // The right channel wins the first frame, but the left wins total energy.
+        let dominant: [Float] = [0.25, 0.5, -0.75, 0.125]
+        let other: [Float] = [-0.375, -0.45, 0.70, -0.12]
+        try assertRawStereoDownmix(left: dominant, right: other, expected: dominant)
+        try assertRawStereoDownmix(left: other, right: dominant, expected: dominant)
+    }
+
+    func testRawDownmixPreservesOrdinaryIndependentAndDisjointChannelMeans() throws {
+        try assertRawStereoDownmix(
+            left: [0.25, 0, 0.5, -0.25, 0],
+            right: [0.5, -0.5, 0, 0.125, 0],
+            expected: [0.375, -0.25, 0.25, -0.0625, 0]
+        )
+        try assertRawStereoDownmix(left: [0, 0], right: [0, 0], expected: [0, 0])
+    }
+
+    private func assertRawStereoDownmix(
+        left: [Float],
+        right: [Float],
+        expected: [Float],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        for commonFormat in [
+            AVAudioCommonFormat.pcmFormatFloat32, .pcmFormatInt16, .pcmFormatInt32,
+        ] {
+            for interleaved in [false, true] {
+                let format = try XCTUnwrap(
+                    AVAudioFormat(
+                        commonFormat: commonFormat, sampleRate: 48_000,
+                        channels: 2, interleaved: interleaved
+                    )
+                )
+                let buffer = try XCTUnwrap(
+                    AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(left.count))
+                )
+                buffer.frameLength = buffer.frameCapacity
+                for channel in 0..<2 {
+                    for frame in left.indices {
+                        let value = channel == 0 ? left[frame] : right[frame]
+                        let dataChannel = interleaved ? 0 : channel
+                        let offset = interleaved ? frame * 2 + channel : frame
+                        switch commonFormat {
+                        case .pcmFormatFloat32:
+                            try XCTUnwrap(buffer.floatChannelData)[dataChannel][offset] = value
+                        case .pcmFormatInt16:
+                            try XCTUnwrap(buffer.int16ChannelData)[dataChannel][offset] =
+                                Int16(value * Float(Int16.max))
+                        case .pcmFormatInt32:
+                            try XCTUnwrap(buffer.int32ChannelData)[dataChannel][offset] =
+                                Int32(value * Float(Int32.max))
+                        default:
+                            XCTFail("Unsupported test PCM format", file: file, line: line)
+                        }
+                    }
+                }
+                let mono = try XCTUnwrap(
+                    microphoneCaptureMonoBuffer(from: buffer, extractVPIOChannelZero: false)
+                )
+                let samples = try XCTUnwrap(mono.floatChannelData)[0]
+                for frame in expected.indices {
+                    XCTAssertEqual(
+                        samples[frame], expected[frame], accuracy: 0.0001,
+                        "format=\(commonFormat) interleaved=\(interleaved) frame=\(frame)",
+                        file: file, line: line
+                    )
+                }
+            }
         }
     }
 
@@ -149,12 +227,13 @@ final class ExtractChannelZeroTests: XCTestCase {
     ) throws -> AVAudioPCMBuffer {
         let format: AVAudioFormat
         if channels <= 2 {
-            format = try XCTUnwrap(AVAudioFormat(
-                commonFormat: .pcmFormatFloat32,
-                sampleRate: sampleRate,
-                channels: channels,
-                interleaved: false
-            ))
+            format = try XCTUnwrap(
+                AVAudioFormat(
+                    commonFormat: .pcmFormatFloat32,
+                    sampleRate: sampleRate,
+                    channels: channels,
+                    interleaved: false
+                ))
         } else {
             // AVAudioFormat's convenience initializer only accepts standard
             // mono/stereo layouts. For ch≥3 we use the discrete-in-order
@@ -162,12 +241,13 @@ final class ExtractChannelZeroTests: XCTestCase {
             // VPIO advertises its multi-channel duplex output.
             let layoutTag = AudioChannelLayoutTag(kAudioChannelLayoutTag_DiscreteInOrder) | channels
             let layout = try XCTUnwrap(AVAudioChannelLayout(layoutTag: layoutTag))
-            format = try XCTUnwrap(AVAudioFormat(
-                commonFormat: .pcmFormatFloat32,
-                sampleRate: sampleRate,
-                interleaved: false,
-                channelLayout: layout
-            ))
+            format = try XCTUnwrap(
+                AVAudioFormat(
+                    commonFormat: .pcmFormatFloat32,
+                    sampleRate: sampleRate,
+                    interleaved: false,
+                    channelLayout: layout
+                ))
         }
         let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames))
         buffer.frameLength = frames

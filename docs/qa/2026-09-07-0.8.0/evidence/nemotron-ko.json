@@ -1,0 +1,113 @@
+{
+  "createdAt" : "2026-09-07T22:01:26Z",
+  "derivedSnippet" : "다름이 수직 간격은 십오미터이며 공사는 이천십일년 팔월에 마무리되었으며 해당 다리의 통행금지는 이천십칠년 삼월까지이다.",
+  "derivedTitle" : "다름이 수직 간격은 십오미터이며 공사는 이천십일년 팔월에 마무리되었으며 해당 다리의 통행금지는 이천십칠년 삼월까지이다",
+  "durationMs" : 12480,
+  "engine" : "nemotron",
+  "engineVariant" : "multilingual-1120ms",
+  "fileName" : "ko_kr_0000.wav",
+  "filePath" : "<PUBLIC_CORPUS>\/fleurs-data\/ko_kr\/ko_kr_0000.wav",
+  "fileSizeBytes" : 399404,
+  "id" : "E67A851F-AE24-4A22-A3C0-12AF7F0EE2F5",
+  "isFavorite" : false,
+  "isTranscriptEdited" : false,
+  "language" : "ko",
+  "rawTranscript" : "다름이 수직 간격은 십오미터이며 공사는 이천십일년 팔월에 마무리되었으며 해당 다리의 통행금지는 이천십칠년 삼월까지이다.",
+  "recoveredFromCrash" : false,
+  "sourceType" : "file",
+  "status" : "completed",
+  "transcriptSegments" : [
+    {
+      "endMs" : 10400,
+      "id" : "5D0B0050-D4CC-4EE9-B64B-7C3A387DDDE0",
+      "speakerLabel" : "Unknown Speaker",
+      "startMs" : 1360,
+      "text" : "다름이 수직 간격은 십오미터이며 공사는 이천십일년 팔월에 마무리되었으며 해당 다리의 통행금지는 이천십칠년 삼월까지이다.",
+      "wordRange" : {
+        "endIndexExclusive" : 13,
+        "startIndex" : 0
+      }
+    }
+  ],
+  "updatedAt" : "2026-09-07T22:01:47Z",
+  "wordTimestamps" : [
+    {
+      "confidence" : 1,
+      "endMs" : 1760,
+      "startMs" : 1360,
+      "word" : "다름이"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 2080,
+      "startMs" : 1840,
+      "word" : "수직"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 2720,
+      "startMs" : 2320,
+      "word" : "간격은"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 3600,
+      "startMs" : 2720,
+      "word" : "십오미터이며"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 4160,
+      "startMs" : 3680,
+      "word" : "공사는"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 4960,
+      "startMs" : 4240,
+      "word" : "이천십일년"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 5600,
+      "startMs" : 5120,
+      "word" : "팔월에"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 6400,
+      "startMs" : 5680,
+      "word" : "마무리되었으며"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 7040,
+      "startMs" : 6800,
+      "word" : "해당"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 7680,
+      "startMs" : 7280,
+      "word" : "다리의"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 8400,
+      "startMs" : 7760,
+      "word" : "통행금지는"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 9280,
+      "startMs" : 8560,
+      "word" : "이천십칠년"
+    },
+    {
+      "confidence" : 1,
+      "endMs" : 10400,
+      "startMs" : 9440,
+      "word" : "삼월까지이다."
+    }
+  ]
+}

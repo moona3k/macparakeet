@@ -1,0 +1,21 @@
+Transcribing two-tracks.mkv with nemotron...
+Converting audio...
+Preparing speech model...
+[15:29:28.756] [INFO] [FluidAudio.NemotronMultilingualStreaming] Using cached multilingual variant at <QA_ROOT>/isolated-home/Library/Application Support/FluidAudio/Models/nemotron-multilingual/multilingual/1120ms
+[15:29:28.756] [INFO] [FluidAudio.NemotronMultilingualStreaming] Preloading shared Nemotron multilingual models from <QA_ROOT>/isolated-home/Library/Application Support/FluidAudio/Models/nemotron-multilingual/multilingual/1120ms...
+[15:29:28.756] [INFO] [FluidAudio.NemotronMultilingualStreaming] Loaded multilingual config: 1120ms chunks, vocab=13087, 128 prompts
+[15:30:01.779] [INFO] [FluidAudio.NemotronMultilingualStreaming] Loaded shared decoder.mlmodelc
+[15:30:01.884] [INFO] [FluidAudio.NemotronMultilingualStreaming] Loaded shared joint.mlmodelc
+[15:30:02.411] [INFO] [FluidAudio.NemotronMultilingualStreaming] Loaded shared decoder_joint.mlmodelc
+[15:30:02.429] [INFO] [FluidAudio.NemotronMultilingualStreaming] Shared models preload complete — ready for N consumers
+[15:30:02.447] [INFO] [FluidAudio.NemotronMultilingualStreaming] Nemotron multilingual manager initialized from shared models (1120ms chunks).
+[15:30:02.467] [INFO] [FluidAudio.NemotronMultilingualStreaming] Nemotron multilingual manager initialized from shared models (1120ms chunks).
+[15:30:02.468] [INFO] [FluidAudio.NemotronMultilingualStreaming] Prompt id set to 101 for language ja
+[15:30:02.470] [INFO] [FluidAudio.NemotronMultilingualStreaming] Prompt id set to 101 for language ja
+Transcribing... 0%
+[15:30:02.473] [INFO] [FluidAudio.NemotronMultilingualStreaming] Prompt id set to 101 for language ja
+Transcribing... 25%
+Transcribing... 90%
+Transcribing... 99%
+[15:30:02.721] [INFO] [FluidAudio.NemotronMultilingualStreaming] StreamingNemotronMultilingualAsrManager resources cleaned up
+[15:30:02.735] [INFO] [FluidAudio.NemotronMultilingualStreaming] StreamingNemotronMultilingualAsrManager resources cleaned up

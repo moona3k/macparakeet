@@ -1,0 +1,27 @@
+PASS: fresh page renders all unchanged records
+PASS: header metadata fits vertically at 1440px
+PASS: no horizontal overflow at 1440px
+PASS: header metadata fits vertically at 768px
+PASS: no horizontal overflow at 768px
+PASS: header metadata fits vertically at 390px
+PASS: no horizontal overflow at 390px
+PASS: header metadata fits vertically at 320px
+PASS: no horizontal overflow at 320px
+PASS: Failed still filters historical failure records
+PASS: evidence reload preserves active Failed state
+PASS: evidence reload preserves Failed rows
+PASS: reopened saved snapshot starts with All selected
+PASS: reopened saved snapshot shows all records
+PASS: snapshot status selection is unambiguous
+PASS: reopened snapshot failed filter
+PASS: reopened snapshot failed selected state
+PASS: reopened snapshot passed filter
+PASS: reopened snapshot passed selected state
+PASS: reopened snapshot unverified filter
+PASS: reopened snapshot unverified selected state
+PASS: reopened snapshot all filter
+PASS: reopened snapshot all selected state
+PASS: saved evidence semantic identity
+PASS: no JavaScript exceptions
+PASS: no external page requests
+{"passed": true, "assertions": 26}

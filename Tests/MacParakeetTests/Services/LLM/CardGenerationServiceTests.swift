@@ -255,6 +255,58 @@ final class CardGenerationServiceTests: XCTestCase {
         XCTAssertNotNil(provider.lastResponseFormat)
     }
 
+    func testGenerationUsesCorrectedSpeakerProjectionAsLLMContext() async throws {
+        let fixture = try Fixture(source: .meeting)
+        let correctionService = SpeakerCorrectionService(dbQueue: fixture.manager.dbQueue)
+        _ = try await correctionService.apply(
+            transcriptionId: fixture.transcription.id,
+            command: .rename(speakerID: "S1", label: "Alex"),
+            expectedFingerprint: SpeakerAttributionResolver.fingerprint(for: fixture.transcription),
+            expectedRevision: 0
+        )
+        let provider = StubCardCompletionProvider(response: Self.validMeetingJSON)
+
+        _ = try await fixture.service(provider: provider).generate(
+            transcriptionId: fixture.transcription.id,
+            force: true
+        )
+
+        XCTAssertTrue(provider.lastTranscript?.contains("Alex") == true)
+        XCTAssertFalse(provider.lastTranscript?.contains("[0:01] Dana:") == true)
+    }
+
+    func testSpeakerCorrectionDuringProviderAwaitAbortsConditionalSave() async throws {
+        let fixture = try Fixture(source: .meeting)
+        let started = expectation(description: "Card provider started")
+        let provider = GatedCardCompletionProvider(response: Self.validMeetingJSON) {
+            started.fulfill()
+        }
+        defer { Task { await provider.release() } }
+        let generation = Task {
+            try await fixture.service(provider: provider).generate(
+                transcriptionId: fixture.transcription.id,
+                force: true
+            )
+        }
+        await fulfillment(of: [started], timeout: 2)
+        let correctionService = SpeakerCorrectionService(dbQueue: fixture.manager.dbQueue)
+        _ = try await correctionService.apply(
+            transcriptionId: fixture.transcription.id,
+            command: .rename(speakerID: "S1", label: "Alex"),
+            expectedFingerprint: SpeakerAttributionResolver.fingerprint(for: fixture.transcription),
+            expectedRevision: 0
+        )
+        await provider.release()
+
+        do {
+            _ = try await generation.value
+            XCTFail("Expected a changed correction revision to abort generation")
+        } catch let error as CardGenerationError {
+            XCTAssertEqual(error, .sourceChangedDuringGeneration)
+        }
+        XCTAssertNil(try fixture.cards.fetch(transcriptionId: fixture.transcription.id))
+    }
+
     func testNullActionOwnerDecodesAndPersistsAsNil() async throws {
         let response = """
             {
@@ -607,6 +659,39 @@ private final class StubCardCompletionProvider: CardCompletionProviding, @unchec
     }
 }
 
+private actor GatedCardCompletionProvider: CardCompletionProviding {
+    private let response: String
+    private let onStarted: @Sendable () -> Void
+    private var released = false
+    private var releaseContinuation: CheckedContinuation<Void, Never>?
+
+    init(response: String, onStarted: @escaping @Sendable () -> Void) {
+        self.response = response
+        self.onStarted = onStarted
+    }
+
+    func release() {
+        released = true
+        releaseContinuation?.resume()
+        releaseContinuation = nil
+    }
+
+    func generateKnowledgeCard(transcript _: String, source _: CardSource) async throws -> LLMResult {
+        onStarted()
+        if !released {
+            await withCheckedContinuation { releaseContinuation = $0 }
+        }
+        return LLMResult(
+            output: response,
+            provider: "stub",
+            model: "stub-model",
+            usage: LLMUsage(promptTokens: 10, completionTokens: 20, totalTokens: 30),
+            stopReason: "stop",
+            latencyMs: 1
+        )
+    }
+}
+
 private final class ThrowingSaveCardRepository: CardRepositoryProtocol, @unchecked Sendable {
     private let delegate: CardRepository
 
@@ -634,6 +719,7 @@ private final class Fixture {
     let transcriptions: TranscriptionRepository
     let segments: SegmentRepository
     let cards: CardRepository
+    let attributionReader: SpeakerAttributionReadService
     let transcription: Transcription
 
     init(source: Transcription.SourceType) throws {
@@ -641,6 +727,7 @@ private final class Fixture {
         transcriptions = TranscriptionRepository(dbQueue: manager.dbQueue)
         segments = SegmentRepository(dbQueue: manager.dbQueue)
         cards = CardRepository(dbQueue: manager.dbQueue)
+        attributionReader = SpeakerAttributionReadService(dbQueue: manager.dbQueue)
         transcription = Transcription(
             createdAt: Date(timeIntervalSince1970: 1_800_000_000),
             fileName: source == .meeting ? "Release Review" : "release.m4a",
@@ -699,6 +786,7 @@ private final class Fixture {
             transcriptionRepository: transcriptions,
             segmentRepository: segments,
             cardRepository: cardRepository ?? cards,
+            speakerAttributionReader: attributionReader,
             completionProvider: provider,
             now: { Date(timeIntervalSince1970: 1_800_000_100) }
         )

@@ -118,6 +118,10 @@ final class MeetingRecordingTileTests: XCTestCase {
             MeetingMicrophoneMuteButton(isMuted: true, onToggle: {}).accessibilityLabelText,
             "Unmute microphone"
         )
+        XCTAssertEqual(
+            MeetingMicrophoneMuteButton(isMuted: true, isEnabled: false, onToggle: {}).accessibilityLabelText,
+            "Microphone muted"
+        )
     }
 
     func testAudioSavedConfirmationAutoClears() async {

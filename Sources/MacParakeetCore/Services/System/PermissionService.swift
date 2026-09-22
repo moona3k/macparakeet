@@ -15,7 +15,7 @@ public protocol PermissionServiceProtocol: Sendable {
     func requestAccessibilityPermission(prompt: Bool) -> Bool
 }
 
-public enum PermissionStatus: Sendable {
+public enum PermissionStatus: Equatable, Sendable {
     case granted
     case denied
     case notDetermined

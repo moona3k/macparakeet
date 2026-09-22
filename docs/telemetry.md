@@ -30,6 +30,13 @@
 
 ## Philosophy
 
+The September 2026 observability changes and verification boundaries are recorded
+in the [general audit](audits/2026-09-06-observability-review.md) and
+[issue #931 startup investigation](audits/2026-09-13-issue-931-startup-observability.md). The
+[telemetry contract](../spec/contracts/telemetry-v1.md) governs privacy and outcome
+semantics; the [local diagnostic query guide](local-audio-diagnostics-query.md)
+provides an offline JSON inspection path for agents.
+
 **Goal:** Understand how the app is used so we can make it better. Not to track users.
 
 **Principles:**
@@ -118,6 +125,11 @@ deriving it from the event name when older clients do not send the field.
 | `chip` | `Apple M1` | Safe | Performance benchmarking across chip types |
 | `country` | `US` | From CF header | Cloudflare provides this; we don't store IP |
 | `surface` | `gui` / `cli` | Safe | Separates menu-bar app sessions from one-shot CLI invocations |
+| `git_commit` (props) | `ca13604b4c7b` | Safe | Short git SHA or `unknown`. Copied into props because D1 does not persist extra envelope columns. |
+| `build_number` (props) | `20260913.1` | Safe | `CFBundleVersion` / env build identity, charset-limited |
+
+Queued events also receive these two props so agents can group failures by
+exact binary, not marketing version alone.
 
 ### What We Explicitly DON'T Collect
 
@@ -135,12 +147,14 @@ deriving it from the event name when older clients do not send the field.
 - Raw provider error bodies or free-form user content in error fields
 - Any data that could identify the user
 
-Error details that are sent are sanitized at the Swift event-serialization
-boundary: local file paths, `file://` URLs, and `http(s)` URLs are replaced and
-values are truncated. LLM call sites intentionally omit error detail because
-provider errors can echo transcript or prompt content. The ingestion Worker
-validates event names, top-level fields, batch size, and prop length; it should
-not be treated as the primary privacy scrubber for app-originated strings.
+The typed Swift serialization boundary omits free-form `error_detail`,
+`error_occurred.description`, and crash `reason` entirely. Exceptions and
+subprocess errors can echo transcript text or filenames, so regex redaction is
+insufficient. Error categories, safe domain/numeric codes and crash symbolication
+fields remain. The paired website change drops the same text fields from older
+clients before D1 insertion and removes historical error details from public
+snapshots. These changes require an app release and website deployment to affect
+production; historical private D1 rows are not rewritten by this change.
 
 ---
 
@@ -190,11 +204,17 @@ diagnostics, especially audio/runtime edge cases. They are not the canonical
 analytics source and should not replace a corresponding `*_operation` event
 when the question is "what happened to this operation?"
 
+`audio_engine_lifecycle` is a separate diagnostic event for the shared
+microphone engine. Its optional `slow` checkpoint and terminal snapshot do not
+add product operations or change their failure-rate denominators. Its
+`attempt_id` joins the two lifecycle snapshots; it is not an `operation_id`,
+`workflow_id`, meeting ID, or user identifier.
+
 ### 1. App Lifecycle — "Who's using this?"
 
 | Event | Props | Question It Answers |
 |---|---|---|
-| `app_launched` | — | How many active users? DAU/WAU/MAU? |
+| `app_launched` | — | How many GUI launch sessions occurred? Unique people or installs cannot be counted from per-launch session IDs. |
 | `app_quit` | `session_duration_seconds` | How long are sessions? |
 | `onboarding_completed` | `duration_seconds` | How long does setup take? |
 | `onboarding_step` | `step`, `action`, optional `elapsed_seconds`, `step_index`, `total_steps`, `engine_state` | Where do people get stuck in onboarding? `elapsed_seconds` is cumulative time since this onboarding window/run started, not per-step dwell time. `engine_state` is present only for Speech Model step events. Distinguishes viewed, forward/back/jump navigation, dismissed setup, engine ready/failed, and completion without adding a new allowlisted event name. |
@@ -233,7 +253,8 @@ the UI. Setup **step views** remain a separate 24h funnel (`onboarding`).
 | `dictation_cancelled` | `duration_seconds`, `reason` (escape, hotkey, ui), `device_*` | Are people cancelling often? Why? |
 | `dictation_empty` | `duration_seconds`, `device_*` | Are people getting empty results? (quality signal) |
 | `dictation_failed` | `error_type`, `device_*` | Core feature failures — blind spot without this |
-| `dictation_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `trigger`, `mode`, `duration_seconds`, `word_count`, `speech_engine`, `engine_variant`, `language`, `app_category`, `error_type`, `cancel_reason`, `device_*` | One wide outcome event per dictation attempt; engine/language attribution is attached on success, empty, cancelled, unavailable, and failure outcomes when the active engine is known |
+| `dictation_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `trigger`, `mode`, `duration_seconds`, `word_count`, `speech_engine`, `engine_variant`, `language`, `app_category`, `error_type`, `cancel_reason`, `capture_ms`, `transcribe_ms`, `device_*` | One wide outcome event per dictation attempt; `capture_ms` / `transcribe_ms` are success-only stop→WAV and WAV→pasteable-text, excluding the overlay pause |
+| `dictation_insert` | `operation_id`, `capture_ms`, `transcribe_ms`, `paste_ms`, `e2e_ms` | Latency breadcrumb after a successful Cmd+V post. `e2e_ms` is the phase sum. Empty skip, action-only Voice Return (no text pasted), and paste failure omit it. Not a second outcome. |
 | `dictation_first_load_caption_shown` | `first_install` | How often the first model-load caption is shown |
 | `dictation_first_load_caption_duration` | `duration_ms`, `outcome` | How long the first model-load caption stays visible, and whether it resolves, extends, or fails |
 
@@ -299,8 +320,8 @@ events remain useful for diarization-specific timing and failure analysis.
 | Event | Props | Question It Answers |
 |---|---|---|
 | `diarization_started` | — | How often is diarization used? |
-| `diarization_completed` | `duration_seconds`, `speaker_count` | How long does it take? How many speakers? |
-| `diarization_failed` | `error_type`, `error_detail` | What breaks in diarization? |
+| `diarization_completed` | `duration_seconds`, `speaker_count`, `speaker_prior` (meetings only, the effective policy: `explicit_cli` when a CLI speaker flag overrode the calendar prior, else `unconstrained_no_attendee_count`, `unconstrained_large_attendee_count`, or `bounds_1_<n+1>` derived from the countable calendar attendee count; no identities) | How long does it take? How many speakers? Did the attendee prior apply? |
+| `diarization_failed` | `error_type` | What breaks in diarization? |
 
 ### 4. Feature Adoption — "What features matter?"
 
@@ -322,7 +343,7 @@ events remain useful for diarization-specific timing and failure analysis.
 | `llm_formatter_used` | `provider`, `source`, `duration_seconds`, `input_chars`, `output_chars`, `default_prompt_used`, `input_truncated` | Is transcript/dictation formatting useful, and how expensive is it? |
 | `llm_formatter_failed` | `provider`, `source`, `duration_seconds`, `error_type`, `default_prompt_used`, `input_truncated` | Formatter failure rates and prompt-shape correlations |
 | `llm_provider_unavailable` | `provider`, `error_type`, `feature`, `source` | Provider setup/config drift distinct from true LLM request failures |
-| `llm_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `feature`, `provider`, `streaming`, `outcome`, `duration_seconds`, `input_chars`, `output_chars`, `input_truncated`, `prompt_default_used`, `message_count`, `error_type` | One safe outcome event per LLM call, without prompts, responses, or provider error bodies |
+| `llm_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `feature`, `provider`, `streaming`, `outcome`, `duration_seconds`, `input_chars`, `output_chars`, `input_truncated`, `prompt_default_used`, `message_count`, `error_type` | One safe outcome event per LLM call, without prompts, responses, or provider error bodies. `feature` is `chat`, `formatter`, `knowledge_card`, `prompt_result`, or `transform`. Formatter dictation vs transcription stays on `llm_formatter_*` `source`, not a `formatter_dictation` feature label. |
 | `history_searched` | `result_count` (`0`, `1`, `2_5`, `6_20`, `21_50`, `51_plus`) | Is search useful? Emitted once per debounced executed search, never per keystroke, and never includes the query text. |
 | `history_replayed` | — | Do people re-listen to audio? |
 | `copy_to_clipboard` | `source` (dictation, transcription, history, meeting, discover) | How do people get text out? |
@@ -356,7 +377,7 @@ prompt-customization trend.
 | `meeting_recovery_started` | `count`, `source`, `phases` | How often users choose to recover, by interrupted lock phase |
 | `meeting_recovery_completed` | `count`, `duration_seconds`, `source`, `phases` | Recovery success rate and latency by interrupted lock phase |
 | `meeting_recovery_discarded` | `count`, `source`, `phases` | How often users intentionally discard interrupted recordings, by interrupted lock phase |
-| `meeting_recovery_failed` | `count`, `source`, `phases`, `error_type`, `error_detail` | What blocks recovery in the field, by interrupted lock phase |
+| `meeting_recovery_failed` | `count`, `source`, `phases`, `error_type` | What blocks recovery in the field, by interrupted lock phase |
 
 ### 4c. Meeting Recording — "Is meeting capture healthy?"
 
@@ -366,7 +387,7 @@ prompt-customization trend.
 | `meeting_recording_completed` | `duration_seconds`, `live_word_count`, `live_transcript_lagged` | Recording duration and live-preview quality |
 | `meeting_recording_cancelled` | `duration_seconds` | How often recordings are intentionally discarded |
 | `meeting_recording_failed` | `error_type` | What blocks recording/finalization |
-| `meeting_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `trigger`, `stage`, `duration_seconds`, `live_word_count`, `live_transcript_lagged`, `microphone_track_present`, `system_track_present`, `notes_used`, `notes_length_bucket`, `error_type` | One wide outcome event for the full meeting capture + transcription flow |
+| `meeting_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `trigger`, `stage`, `duration_seconds`, `live_word_count`, `live_transcript_lagged`, `microphone_track_present`, `system_track_present`, `notes_used`, `notes_length_bucket`, `error_type`, `capture_start_completed` | One wide outcome event for the full meeting capture + transcription flow |
 | `vad_model_prep` | `outcome` (`prepared`, `failed`) | Whether launch-time Silero VAD model prep is reaching the installed base in flag-on VAD live-chunking builds |
 
 `meeting_operation.stage` values are `permissions`, `start_recording`,
@@ -375,6 +396,13 @@ prompt-customization trend.
 `meeting_operation.trigger` values include `manual`, `hotkey`,
 `calendar_auto_start`, and `auto_stop`; `meeting_recording_started.trigger`
 does not use `auto_stop` because auto-stop only affects the stop/finalize path.
+Failed/cancelled Stop includes actual `capture_start_completed`, elapsed
+`duration_seconds`, known `capture_source_mode`, and successfully written
+`microphone_frames` / `system_frames` from a session-scoped capture snapshot,
+even when no output exists. Counts exclude recovery padding. Unknown selection
+is omitted. Start failures use `false`; output supplies a compatibility fallback
+of `true`; permission-only terminals omit capture facts. A failed Stop with
+zero frames remains distinct from a Stop whose start never completed.
 
 ### 5. Settings & Customization — "How do people configure the app?"
 
@@ -390,7 +418,7 @@ does not use `auto_stop` because auto-stop only affects the stop/finalize path.
 | `prompt_created` | — | Are custom prompt templates used? |
 | `prompt_updated` | — | Are custom prompts actively maintained? |
 | `prompt_deleted` | — | Are custom prompts abandoned or cleaned up? |
-| `setting_changed` | `setting` (save_history, audio_retention, app_appearance, menu_bar_only, hide_pill, save_transcription_audio, save_meeting_audio, meeting_audio_retention, youtube_audio_quality, speaker_diarization, parakeet_model_variant, nemotron_model_variant, transcription_speech_engine, whisper_default_language, cohere_language, cohere_compute_policy, auto_save, meeting_auto_save, microphone_selection, meeting_audio_source_mode, meeting_recording_pill, meeting_auto_stop, pause_media_during_dictation, dictation_insertion_style, dictation_undo_countdown, keep_dictation_on_clipboard, launch_at_login, silence_auto_stop, voice_return, calendar_auto_start_mode, calendar_reminder_minutes, calendar_trigger_filter, calendar_included_calendars), optional `value` | Which non-hotkey settings get toggled and, for safe closed sets, which value they changed to. `value` is limited to boolean `true`/`false` and enum raw values such as `app_appearance`, `meeting_audio_source_mode`, `meeting_audio_retention` mode, the final-transcription engine (`same_as_live` when its Advanced override is disabled), engine model variants, Cohere compute policy, dictation insertion style, undo countdown, YouTube audio quality, and calendar mode/filter. It is omitted for open/user-authored values such as microphone/device IDs, hotkey chords, calendar IDs, reminder minutes, folders/paths, prompts, vocab, URLs, and language strings. Media pause still does not log source app, title, URL, artist, or Now Playing metadata. |
+| `setting_changed` | `setting` (save_history, audio_retention, app_appearance, menu_bar_only, menu_bar_icon, hide_pill, save_transcription_audio, save_meeting_audio, meeting_audio_retention, youtube_audio_quality, speaker_diarization, parakeet_model_variant, nemotron_model_variant, transcription_speech_engine, whisper_default_language, cohere_language, cohere_compute_policy, auto_save, meeting_auto_save, microphone_selection, meeting_audio_source_mode, start_meetings_muted, meeting_recording_pill, meeting_auto_stop, pause_media_during_dictation, preserve_discarded_dictations, dictation_insertion_style, remove_um_filler, dictation_undo_countdown, keep_dictation_on_clipboard, streaming_cursor, launch_at_login, silence_auto_stop, voice_return, calendar_auto_start_mode, calendar_reminder_minutes, calendar_trigger_filter, calendar_included_calendars), optional `value` | Which non-hotkey settings get toggled and, for safe closed sets, which value they changed to. `value` is limited to boolean `true`/`false` and enum raw values such as `app_appearance`, `meeting_audio_source_mode`, `meeting_audio_retention` mode, the final-transcription engine (`same_as_live` when its Advanced override is disabled), engine model variants, Cohere compute policy, dictation insertion style, undo countdown, YouTube audio quality, and calendar mode/filter. It is omitted for open/user-authored values such as microphone/device IDs, hotkey chords, calendar IDs, reminder minutes, folders/paths, prompts, vocab, URLs, and language strings. Media pause still does not log source app, title, URL, artist, or Now Playing metadata. |
 | `telemetry_opted_out` | — | How many opt out? (send this one last event, then stop) |
 
 ### 5b. Calendar Auto-Start — "Do calendar-driven meetings work?"
@@ -410,8 +438,9 @@ does not use `auto_stop` because auto-stop only affects the stop/finalize path.
 ### 5c. Meeting Auto-Stop — "Does conservative meeting-end detection work?"
 
 > ADR-023 auto-stop is implemented behind `AppFeatures.meetingAutoStopEnabled
-> = false`. These events should remain low/no-volume until a validation build
-> flips the compile-time flag and users opt in through Settings.
+> = true`. The compile-time flag shipped in the v0.7 train; the per-user
+> setting still defaults off, so volume reflects only users who opt in through
+> Settings.
 
 | Event | Props | Question It Answers |
 |---|---|---|
@@ -422,12 +451,97 @@ does not use `auto_stop` because auto-stop only affects the stop/finalize path.
 ### 5d. Meeting Capture Reliability — "Does the mic-health watchdog catch silent stalls?"
 
 > ADR-025 Phase A is implemented behind
-> `AppFeatures.meetingCaptureReliabilityEnabled = true`. It is detection-only:
-> no audio/transcript content, no UI yet, and no recording behavior change.
+> `AppFeatures.meetingCaptureReliabilityEnabled = true`. `mic_stall_detected`
+> is a detection/telemetry event: no audio or transcript content. Routine
+> source-health chips stay behind `meetingSourceHealthUIEnabled = false`;
+> actionable recovering, stalled, interrupted, or unavailable warnings still
+> surface. Direct source-lifecycle recovery is independent of this event.
 
 | Event | Props | Question It Answers |
 |---|---|---|
 | `mic_stall_detected` | First row per recording: `signature` (`mic_missing`, `mic_silent`, `mic_gap`), `elapsed_ms`, `stall_count`. Summary rows: `stall_count`, `total_stalled_seconds`. | Which confirmed mic-health failure pattern first occurred while system audio was active, with repeated stalls suppressed into periodic/final summaries so noisy sessions do not flood production telemetry |
+
+### 5e. Microphone engine lifecycle
+
+Shipped in 0.8.1 and later after the paired website allowlist deployed.
+This event observes the shared microphone used by dictation and meetings,
+including idle preparation. It does not observe ScreenCaptureKit's separate
+system-audio lifecycle.
+
+| Event | Props | Question It Answers |
+|---|---|---|
+| `audio_engine_lifecycle` | `attempt_id`, `operation`, `outcome`, `phase`, `elapsed_ms`, `phase_ms`, `attempt_count`, `prepared`, `vpio`, `buffer_size`, `route_source`, `transport`, `was_slow`; optional `last_error_type`, `last_error_phase`, `workflow_id`, `consumer`, `git_commit`, `build_number`, and observed `phase_<phase>_ms` fields | Which engine lifecycle boundary is still pending, how long each phase took, whether fallback or cancellation eventually resolved it, and which meeting/dictation workflow owned capture |
+
+`AudioEngineLifecycleDiagnostics` starts its independent utility timer before
+start, prepare, or stop waits for the platform's serial queue. A recovery
+observer starts when each recovery attempt begins, excluding the episode's
+scheduled backoff. The observer snapshots only locked diagnostic state; it
+does not call native audio APIs or run on an audio render callback.
+
+An optional `scope=shared_subscription_queue` instead observes active subscribe
+requests waiting for the upstream shared-stream queue, including a wait behind
+idle preparation. It emits only slow waits, keeps `phase=queue_wait` and
+`attempt_count=0`, and snapshots workflow attribution at enqueue. Its terminal
+`success` means queue entry, not native engine success. Filter these scoped
+records separately; omitted scope retains native lifecycle semantics. The
+receiver must accept this finite optional scope before the app release.
+
+The emission policy is bounded per lifecycle call:
+
+- A still-pending call can emit one `outcome=slow` checkpoint at or after five
+  elapsed seconds. Scheduling can run late. This observes delay; it is not a
+  terminal failure, a hard timeout, or permission to cancel/restart the engine.
+- When start/recovery returns, it emits one terminal `success`, `failure`, or
+  `cancelled` snapshot. A Swift `CancellationError` or the platform's
+  `startupCancelled` is `cancelled`.
+- Prepare/stop emit lifecycle snapshots only when slow, including failures and
+  cancellations. Fast idle work therefore does not flood either sink.
+- A call that ends at or beyond the threshold before the timer runs emits only
+  its terminal snapshot with `was_slow=true`. A checkpoint followed by a
+  terminal retains the same `attempt_id` and separate envelope `event_id`s.
+  Repeated finishes and late timer callbacks emit nothing further.
+
+Both sinks receive the same immutable safe fields:
+
+| Field | Meaning and allowed values |
+|---|---|
+| `attempt_id` | Fresh random UUID for one lifecycle call, including its route fallbacks; each recovery attempt gets its own ID. No persistence or meeting/product-operation linkage. |
+| `operation` | `start`, `prepare`, `recovery`, `stop` |
+| `outcome` | `slow` checkpoint; terminal `success`, `failure`, or `cancelled` |
+| `phase` | Last entered boundary: `queue_wait`, `route_resolution`, `set_device`, `input_node`, `voice_processing`, `ducking`, `input_format`, `install_tap`, `prepare_engine`, `start_engine`, `first_buffer`, `validate_route`, `teardown`, `ready` |
+| `elapsed_ms`, `phase_ms` | Nonnegative integer milliseconds from monotonic uptime: whole lifecycle and current uninterrupted phase visit respectively. No wall-clock subtraction. |
+| `phase_<phase>_ms` | Cumulative milliseconds across visits to an observed phase, including the current visit. Unvisited phases are omitted; each duration truncates to whole milliseconds. |
+| `attempt_count` | Number of route attempts within this lifecycle, including a prepared-engine reuse attempt. Zero before an attempt starts. |
+| `prepared` | Whether the latest route attempt used the prepared-engine path; false before an attempt starts. |
+| `vpio`, `buffer_size` | Requested voice-processing flag and buffer frame count. Stop has no start request and reports `false`/`0`; these are not measured device capabilities. |
+| `route_source` | `selected`, `system_default`, `built_in`, or `unknown`, describing the latest attempted route. |
+| `transport` | `none`, `built-in`, `bluetooth`, `bluetooth-le`, `usb`, `aggregate`, `virtual`, `unknown`; aggregate members use `aggregate-` followed by a category other than `none`. Unknown/arbitrary labels become `unknown`. |
+| `last_error_type`, `last_error_phase` | Latest explicitly recorded attempt error and its originating boundary. The terminal error fills these fields only if no attempt error was recorded. Fallback may ultimately throw a different error or succeed while retaining the latest attempt error. No free-form error text. |
+| `was_slow` | True if a checkpoint was emitted or elapsed time reached the threshold by completion. |
+| `workflow_id` | Optional parent product workflow UUID, stamped from process-wide capture correlation before the audio queue. Matches `meeting_operation` / `dictation_operation` `workflow_id`. Omitted for idle prepare/stop. |
+| `consumer` | Optional `meeting` or `dictation`. Omitted when no capture correlation is active. |
+| `git_commit`, `build_number` | Added when the snapshot is queued as a telemetry event. Hex SHA or `unknown`; charset-limited build identity. Not a user identifier. |
+
+The snapshot schema stays at most 31 props; queued events may add build identity
+for a still-bounded total under the 40-property ingestion ceiling.
+It contains no audio, transcript, device name/UID, path, or persistent identity.
+`phase` locates the last instrumented boundary; it does not prove what caused a
+native hang. A success reports that this lifecycle call returned successfully,
+not the quality or completeness of a recording.
+
+A separate serial emission queue preserves checkpoint-before-terminal order
+outside the diagnostic state lock. It asynchronously appends a sorted
+`audio_engine_lifecycle key=value ...` line to the local audio log and enqueues
+the typed telemetry event under the existing consent and delivery policy.
+Neither path is durable delivery: delayed queues, opt-out, process termination,
+or transport rejection can leave evidence missing. A checkpoint without a
+terminal is unresolved evidence, not a counted failure or proof of an ongoing
+hang. Keep these diagnostic rows out of canonical product-operation totals.
+
+Deploy the paired `macparakeet-website` ingestion allowlist first. An older
+Worker returns permanent HTTP 400 for a batch containing this unknown event;
+the client drops that entire rejected batch, including otherwise valid product
+events. Source tests cannot establish production ingestion support.
 
 ### 6. Licensing — "Is the business working?"
 
@@ -474,8 +588,10 @@ Accessibility note: macOS does not provide a direct denial callback for Accessib
 
 | Event | Props | Question It Answers |
 |---|---|---|
-| `error_occurred` | `domain`, `code`, `description` | What errors are users hitting? |
-| `crash_occurred` | `crash_type`, `signal`, `reason`, `stack_trace`, `crash_app_ver`, `crash_os_ver` | What crashes are happening? |
+| `error_occurred` | `domain`, `code` | What errors are users hitting? |
+| `crash_occurred` | `crash_type`, `signal`, `stack_trace`, `crash_app_ver`, `crash_os_ver`, `si_code`, `pc`, `fault_addr` | What crashes are happening? |
+
+For fatal signals (`SIGSEGV`, `SIGABRT`, `SIGBUS`, `SIGILL`, `SIGTRAP`, `SIGFPE`), the on-disk report also carries the raw `si_code` (fault subtype), the faulting address (`fault_addr`), and — when the CPU architecture is recognized — the interrupted instruction pointer (`pc`), all assembled by the C signal handler with bounded manual byte-appending (no `snprintf` or other allocating/locale-aware formatter) and fully written before it attempts the best-effort `backtrace()`; a failed minimum write skips backtrace. Writing that minimal report retries on `EINTR` and short writes, and gives up (without spinning) as soon as `write` reports `0` bytes accepted or a non-retryable error — this is best-effort persistence, not a guarantee the report survives a power loss or a second thread crashing concurrently. `si_code`, `pc`, and `fault_addr` are optional, bounded numeric/hex fields: `loadPendingReport` validates their format — `si_code` must parse as a signed 32-bit integer (`Int32`), including the `-2147483648`/`2147483647` boundaries; `pc`/`fault_addr` must be bounded `0x`-prefixed hex — and drops any that don't match rather than forwarding arbitrary text from a corrupted report file. Older report files without these keys, and exception-type reports (which ignore these signal-only keys), parse and send normally with the fields simply absent.
 
 ### 10. CLI — "Are agents and scripts succeeding?"
 
@@ -514,12 +630,10 @@ They should not be mixed into GUI app sessions, app version adoption,
 crash-free rates, or GUI operation failure lists because each CLI invocation is
 a one-shot process with a fresh session ID.
 
-> **Important:** `error_occurred` includes a bounded `description` field, but
-> callers should treat it as an allowlisted diagnostic string, not a place for
-> arbitrary provider or user-content error bodies. `TelemetryEventSpec.props`
-> sanitizes paths and URLs at serialization time and truncates descriptions to
-> 512 chars. The Worker is an ingestion validator, not the primary redaction
-> boundary.
+`error_occurred` serializes `domain` and `code`. Source-compatible factory
+arguments for descriptions remain available to callers but are not transmitted.
+The same omission applies to legacy `error_detail` factory arguments across the
+catalog below; no raw exception or provider description is a telemetry field.
 
 ---
 
@@ -587,7 +701,8 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
   - On **app termination** (`NSApplication.willTerminateNotification`)
   - When queue hits **50 events**
   - **Immediately** for critical events: `telemetry_opted_out`, `onboarding_completed`, `app_quit`, `crash_occurred`, `license_activated`, and all licensing events
-- On flush: POST batch as JSON array to `/api/telemetry`
+- On flush: POST an object containing the `events` array to `/api/telemetry`,
+  splitting queued events into batches of at most 100.
 - On network failure: failed events are requeued in memory and retried until queue pressure trims them. Events are still not persisted to disk.
 - Max queue size: **200 events** (prevent memory issues if network is down for extended period)
 
@@ -600,6 +715,14 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
 - When opted out: `send()` is a no-op (events are silently discarded)
 - One final `telemetry_opted_out` event is sent and flushed immediately when the user disables telemetry
 - GUI opt-out is the Settings toggle, persisted to `UserDefaults` (`telemetryEnabled`). The CLI honors that same preference plus env/CI overrides (see the CLI section). For source builds and self-hosting, setting `MACPARAKEET_TELEMETRY_URL` redirects the ingestion endpoint away from `macparakeet.com` (it overrides the destination; it is not itself an opt-out).
+
+Discover has a separate, default-on preference: Settings → System → Appearance →
+**Show Discover in the sidebar**. While enabled it requests the public
+`https://macparakeet.com/api/discover.json` feed at launch or on re-enable,
+including when telemetry is off and its page has not been opened. Turning
+Discover off hides its UI, cancels pending feed requests, and prevents new
+feed loads until re-enabled; it does not change telemetry consent or send a
+telemetry opt-out event. Neither preference is a global network switch.
 
 ---
 
@@ -757,6 +880,13 @@ whether a signal is real user impact, which release or code path is implicated,
 and whether the right follow-up is an issue, PR, dashboard taxonomy fix, or
 continued monitoring.
 
+The reviewer is the **health** plane (thresholds, crashes, watchlists). The
+proposed **product** plane — daily HTML briefing for reach, activation, mix,
+and “what changed,” with yesterday plus 7d/28d comparisons — is specified in
+[`docs/design/2026-09-18-daily-telemetry-observability.md`](design/2026-09-18-daily-telemetry-observability.md).
+It consumes this JSON; it does not recompute failure rates. It is not
+implemented yet.
+
 ---
 
 ## Capacity Planning
@@ -795,7 +925,7 @@ External AI review of the telemetry design. Each point was evaluated and accepte
 
 | # | Feedback | Action Taken |
 |---|---|---|
-| 1 | `error_occurred.description` is a privacy leak — free-form text could contain file paths, user content | **Partially accepted.** Kept a bounded `description`, but the current implemented guardrail is Swift-side serialization sanitization for paths/URLs plus truncation. Worker-side PII redaction remains a defense-in-depth follow-up. |
+| 1 | `error_occurred.description` is a privacy leak — free-form text could contain file paths, user content | **Accepted.** The September 2026 change omits descriptions and free-form error details at both the typed client boundary and the paired Worker ingestion boundary. Historical public snapshots are scrubbed before response. |
 | 2 | No dedupe/idempotency key — retries cause double-counting | Added `event_id TEXT NOT NULL UNIQUE` (client-generated UUID) to schema. |
 | 3 | "Anonymous by architecture" is too strong — session + chip + locale + country + timestamps could theoretically single out users | Reworded to "non-identifying, session-scoped telemetry" throughout. |
 | 4 | Missing `permission_prompted` / `permission_granted` — can't compute denial rate without denominator | Added both events to new "Permissions" category. |
@@ -832,10 +962,10 @@ External AI review of the telemetry design. Each point was evaluated and accepte
 
 ## Future Considerations
 
-- **Server-side defense-in-depth redaction** — Add Worker-side scrubbing for
-  paths, URLs, API-key-looking strings, and emails before D1 insert. The app
-  already sanitizes current emitted details, but the Worker should not rely on
-  every future client doing the right thing.
+- **Per-event server property schemas** — The paired Worker now drops known
+  free-form error fields and validates envelope types/lengths. A complete
+  per-event property/value allowlist remains a separate boundary improvement;
+  do not assume generic string-length validation proves privacy.
 - **Expanded local diagnostic export** — The in-app feedback form can now
   attach `~/Library/Logs/MacParakeet/dictation-audio.log` by explicit opt-in.
   A fuller user-triggered bundle should add recent `os.Logger` entries for
@@ -861,3 +991,21 @@ External AI review of the telemetry design. Each point was evaluated and accepte
 - **Retained licensing telemetry** -- Keep unfired trial/purchase/restore event
   names unless the project owner explicitly decides to remove the future
   paid-distribution option and records that decision in an ADR/spec update
+
+## Development and transport policy
+
+GUI debug/dev builds default to telemetry off; explicit environment enablement
+can opt test runs in, while the GUI preference still controls consent. CLI and
+GUI share environment parsing. Environment/CI/development disabling suppresses
+even the final opt-out event; an eligible production session can still report
+that final consent change. A versioned release-candidate bundle may still
+report its version; that does not prove the version was published.
+
+The delivery queue coalesces automatic flushes, retries transient HTTP/network
+failures with jittered exponential backoff and `Retry-After`, and drops permanent
+HTTP rejection batches. Retry delays are minimum intervals: the GUI's existing
+60-second timer attempts eligible retries, while short-lived CLI commands do
+not wait for a future retry before exiting. Termination respects the retry floor
+even for the final opt-out event; pending events are not persisted across exit. Drops and retry decisions are reported through bounded
+local `telemetry_transport` fields. See the [telemetry contract](../spec/contracts/telemetry-v1.md#client-delivery-policy)
+for exact policy, retry timing and compatibility limits.

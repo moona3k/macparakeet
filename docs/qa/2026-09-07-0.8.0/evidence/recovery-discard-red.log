@@ -1,0 +1,2139 @@
+Fetching https://github.com/alfred-sa/SwiftStreamingMarkdown from cache
+Fetched https://github.com/alfred-sa/SwiftStreamingMarkdown from cache (0.55s)
+Fetching https://github.com/appstefan/highlightswift from cache
+Fetched https://github.com/appstefan/highlightswift from cache (0.43s)
+Fetching https://github.com/junyan72/iosMath from cache
+Fetched https://github.com/junyan72/iosMath from cache (0.42s)
+Fetching https://github.com/sparkle-project/Sparkle from cache
+Fetching https://github.com/apple/swift-asn1.git from cache
+Fetching https://github.com/swiftlang/swift-cmark.git from cache
+Fetching https://github.com/markiv/SwiftUI-Shimmer from cache
+Fetching https://github.com/FluidInference/FluidAudio from cache
+Fetching https://github.com/huggingface/swift-transformers.git from cache
+Fetching https://github.com/groue/GRDB.swift from cache
+Fetching https://github.com/ibireme/yyjson.git from cache
+Fetching https://github.com/huggingface/swift-jinja.git from cache
+Fetching https://github.com/ordo-one/equatable from cache
+warning: 'swift-transformers': skipping cache due to an error: The file “maintenance.lock” doesn’t exist.
+Fetched https://github.com/ordo-one/equatable from cache (0.54s)
+Fetching https://github.com/apple/swift-collections.git from cache
+Fetched https://github.com/groue/GRDB.swift from cache (0.57s)
+Fetching https://github.com/argmaxinc/argmax-oss-swift from cache
+Fetched https://github.com/FluidInference/FluidAudio from cache (0.58s)
+Fetched https://github.com/ibireme/yyjson.git from cache (0.59s)
+Fetched https://github.com/markiv/SwiftUI-Shimmer from cache (0.59s)
+Fetching https://github.com/apple/swift-crypto.git from cache
+Fetching https://github.com/swiftlang/swift-markdown.git from cache
+Fetching https://github.com/apple/swift-argument-parser from cache
+warning: 'sparkle': skipping cache due to an error: The file “maintenance.lock” doesn’t exist.
+Fetched https://github.com/huggingface/swift-jinja.git from cache (0.64s)
+Fetching https://github.com/swiftlang/swift-syntax.git from cache
+warning: 'swift-cmark': skipping cache due to an error: The file “maintenance.lock” doesn’t exist.
+Fetched https://github.com/apple/swift-asn1.git from cache (0.67s)
+warning: 'swift-collections': skipping cache due to an error: The file “maintenance.lock” doesn’t exist.
+warning: 'swift-crypto': skipping cache due to an error: The file “maintenance.lock” doesn’t exist.
+warning: 'argmax-oss-swift': skipping cache due to an error: The file “maintenance.lock” doesn’t exist.
+Fetched https://github.com/apple/swift-argument-parser from cache (0.52s)
+warning: 'swift-markdown': skipping cache due to an error: The file “maintenance.lock” doesn’t exist.
+[1/6964] Fetching swift-transformers
+Fetched https://github.com/swiftlang/swift-syntax.git from cache (0.69s)
+[5155/50874] Fetching swift-transformers, sparkle
+[6966/69458] Fetching swift-transformers, sparkle, swift-cmark
+Fetched https://github.com/huggingface/swift-transformers.git from cache (1.60s)
+[1184/62494] Fetching sparkle, swift-cmark
+[8583/80972] Fetching sparkle, swift-cmark, swift-crypto
+[23856/108108] Fetching sparkle, swift-cmark, swift-crypto, swift-collections
+[24041/117187] Fetching sparkle, swift-cmark, swift-crypto, swift-collections, argmax-oss-swift
+Fetched https://github.com/swiftlang/swift-cmark.git from cache (1.88s)
+[6795/98603] Fetching sparkle, swift-crypto, swift-collections, argmax-oss-swift
+[7249/106320] Fetching sparkle, swift-crypto, swift-collections, argmax-oss-swift, swift-markdown
+Fetched https://github.com/apple/swift-crypto.git from cache (2.65s)
+[53206/87842] Fetching sparkle, swift-collections, argmax-oss-swift, swift-markdown
+Fetched https://github.com/swiftlang/swift-markdown.git from cache (2.87s)
+[54791/80125] Fetching sparkle, swift-collections, argmax-oss-swift
+Fetched https://github.com/sparkle-project/Sparkle from cache (3.55s)
+[11152/36215] Fetching swift-collections, argmax-oss-swift
+Fetched https://github.com/argmaxinc/argmax-oss-swift from cache (4.09s)
+Computing version for https://github.com/markiv/SwiftUI-Shimmer
+[5982/27136] Fetching swift-collections
+Computed https://github.com/markiv/SwiftUI-Shimmer at 1.5.1 (5.22s)
+Computing version for https://github.com/swiftlang/swift-markdown.git
+Computed https://github.com/swiftlang/swift-markdown.git at 0.7.3 (0.63s)
+Computing version for https://github.com/ordo-one/equatable
+Computed https://github.com/ordo-one/equatable at 1.4.1 (0.51s)
+Computing version for https://github.com/argmaxinc/argmax-oss-swift
+Computed https://github.com/argmaxinc/argmax-oss-swift at 0.18.0 (0.60s)
+Computing version for https://github.com/ibireme/yyjson.git
+Computed https://github.com/ibireme/yyjson.git at 0.12.0 (0.50s)
+Computing version for https://github.com/sparkle-project/Sparkle
+Computed https://github.com/sparkle-project/Sparkle at 2.9.0 (0.55s)
+Computing version for https://github.com/apple/swift-argument-parser
+Computed https://github.com/apple/swift-argument-parser at 1.7.1 (0.53s)
+Computing version for https://github.com/FluidInference/FluidAudio
+Computed https://github.com/FluidInference/FluidAudio at 0.15.6 (0.53s)
+Computing version for https://github.com/groue/GRDB.swift
+Computed https://github.com/groue/GRDB.swift at 7.10.0 (0.57s)
+Computing version for https://github.com/swiftlang/swift-cmark.git
+Computed https://github.com/swiftlang/swift-cmark.git at 0.8.0 (0.57s)
+Computing version for https://github.com/swiftlang/swift-syntax.git
+Computed https://github.com/swiftlang/swift-syntax.git at 603.0.2 (0.68s)
+Computing version for https://github.com/huggingface/swift-transformers.git
+Computed https://github.com/huggingface/swift-transformers.git at 1.1.9 (0.47s)
+Fetched https://github.com/apple/swift-collections.git from cache (11.31s)
+Computing version for https://github.com/apple/swift-crypto.git
+Computed https://github.com/apple/swift-crypto.git at 4.5.0 (1.20s)
+Computing version for https://github.com/apple/swift-collections.git
+Computed https://github.com/apple/swift-collections.git at 1.4.1 (0.56s)
+Computing version for https://github.com/huggingface/swift-jinja.git
+Computed https://github.com/huggingface/swift-jinja.git at 2.3.5 (0.49s)
+Computing version for https://github.com/apple/swift-asn1.git
+Computed https://github.com/apple/swift-asn1.git at 1.7.0 (0.57s)
+Creating working copy for https://github.com/swiftlang/swift-markdown.git
+Working copy of https://github.com/swiftlang/swift-markdown.git resolved at 0.7.3
+Creating working copy for https://github.com/apple/swift-argument-parser
+Working copy of https://github.com/apple/swift-argument-parser resolved at 1.7.1
+Creating working copy for https://github.com/appstefan/highlightswift
+Working copy of https://github.com/appstefan/highlightswift resolved at 99c431b38a1444a5fd6a4978307fbbefe3a7af53
+Creating working copy for https://github.com/apple/swift-asn1.git
+Working copy of https://github.com/apple/swift-asn1.git resolved at 1.7.0
+Creating working copy for https://github.com/ibireme/yyjson.git
+Working copy of https://github.com/ibireme/yyjson.git resolved at 0.12.0
+Creating working copy for https://github.com/FluidInference/FluidAudio
+Working copy of https://github.com/FluidInference/FluidAudio resolved at 0.15.6
+Creating working copy for https://github.com/ordo-one/equatable
+Working copy of https://github.com/ordo-one/equatable resolved at 1.4.1
+Creating working copy for https://github.com/markiv/SwiftUI-Shimmer
+Working copy of https://github.com/markiv/SwiftUI-Shimmer resolved at 1.5.1
+Creating working copy for https://github.com/groue/GRDB.swift
+Working copy of https://github.com/groue/GRDB.swift resolved at 7.10.0
+Creating working copy for https://github.com/swiftlang/swift-syntax.git
+Working copy of https://github.com/swiftlang/swift-syntax.git resolved at 603.0.2
+Creating working copy for https://github.com/junyan72/iosMath
+Working copy of https://github.com/junyan72/iosMath resolved at ba9ab7729b151329c54fd895a7c1859981d9484c
+Creating working copy for https://github.com/apple/swift-collections.git
+Working copy of https://github.com/apple/swift-collections.git resolved at 1.4.1
+Creating working copy for https://github.com/huggingface/swift-jinja.git
+Working copy of https://github.com/huggingface/swift-jinja.git resolved at 2.3.5
+Creating working copy for https://github.com/huggingface/swift-transformers.git
+Working copy of https://github.com/huggingface/swift-transformers.git resolved at 1.1.9
+Creating working copy for https://github.com/argmaxinc/argmax-oss-swift
+Working copy of https://github.com/argmaxinc/argmax-oss-swift resolved at 0.18.0
+Creating working copy for https://github.com/sparkle-project/Sparkle
+Working copy of https://github.com/sparkle-project/Sparkle resolved at 2.9.0
+Creating working copy for https://github.com/alfred-sa/SwiftStreamingMarkdown
+Working copy of https://github.com/alfred-sa/SwiftStreamingMarkdown resolved at 1f10d5286985349b63145e1193f4f6ad5f7fdfe1
+Creating working copy for https://github.com/swiftlang/swift-cmark.git
+Working copy of https://github.com/swiftlang/swift-cmark.git resolved at 0.8.0
+Creating working copy for https://github.com/apple/swift-crypto.git
+Working copy of https://github.com/apple/swift-crypto.git resolved at 4.5.0
+Fetching binary artifact https://github.com/sparkle-project/Sparkle/releases/download/2.9.0/Sparkle-for-Swift-Package-Manager.zip from cache
+Fetching binary artifact https://github.com/FluidInference/text-processing-rs/releases/download/v0.3.0/NemoTextProcessing.xcframework.zip from cache
+Fetched https://github.com/sparkle-project/Sparkle/releases/download/2.9.0/Sparkle-for-Swift-Package-Manager.zip from cache (1.02s)
+Fetched https://github.com/FluidInference/text-processing-rs/releases/download/v0.3.0/NemoTextProcessing.xcframework.zip from cache (1.21s)
+[1/1] Compiling plugin GenerateManual
+[2/2] Compiling plugin GenerateDoccReference
+Building for debugging...
+[2/148] /Users/dmoon/code/macparakeet-qa/.build/arm64-apple-macosx/debug/MacParakeetPackageTests.derived/runner.swift
+[3/148] Copying libtext_processing_rs.a
+[3/148] Write sources
+[6/148] Copying t5_tokenizer_config.json
+[6/148] Write sources
+[6/148] Write macparakeet-cli-entitlement.plist
+[6/148] Write sources
+[6/148] Copying gpt2_tokenizer_config.json
+[6/148] Copying PrivacyInfo.xcprivacy
+[6/148] Write MacParakeet-entitlement.plist
+[6/148] Write sources
+[17/148] Write swift-version--58304C5D6DBC2206.txt
+[18/148] Copying fonts
+[19/148] Compiling cmark-gfm xml.c
+[20/148] Compiling cmark-gfm utf8.c
+[21/148] Compiling cmark-gfm registry.c
+[22/148] Compiling cmark-gfm syntax_extension.c
+[23/148] Compiling cmark-gfm scanners.c
+[24/148] Compiling cmark-gfm render.c
+[25/148] Compiling cmark-gfm-extensions table.c
+[26/148] Compiling cmark-gfm-extensions tasklist.c
+[27/148] Compiling cmark-gfm-extensions core-extensions.c
+[28/148] Compiling cmark-gfm-extensions strikethrough.c
+[29/148] Compiling cmark-gfm-extensions ext_scanners.c
+[30/148] Compiling cmark-gfm-extensions tagfilter.c
+[31/148] Compiling cmark-gfm-extensions autolink.c
+[32/148] Compiling yyjson.c
+[33/148] Compiling iosMath resource_bundle_accessor.m
+[34/148] Compiling MacParakeetObjCShims MPKObjCExceptionCatcher.m
+[35/148] Compiling MTMathListIndex.m
+[36/148] Compiling MTUnicode.m
+[37/148] Compiling MTFont.m
+[38/148] Compiling MTMathListBuilder.m
+[39/148] Compiling MTFontMathTable.m
+[40/148] Compiling cmark-gfm plugin.c
+[41/148] Compiling cmark-gfm references.c
+[42/148] Compiling MTFontManager.m
+[43/148] Compiling MTMathList.m
+[44/148] Compiling cmark-gfm plaintext.c
+[45/148] Compiling MTMathAtomFactory.m
+[46/148] Compiling cmark-gfm man.c
+[47/148] Compiling UIColor+HexString.m
+[48/148] Compiling cmark-gfm linked_list.c
+[49/148] Compiling cmark-gfm node.c
+[50/148] Compiling cmark-gfm map.c
+[51/148] Compiling cmark-gfm latex.c
+[52/148] Compiling cmark-gfm iterator.c
+[53/148] Compiling cmark-gfm houdini_html_e.c
+[54/148] Compiling cmark-gfm html.c
+[55/148] Compiling cmark-gfm houdini_href_e.c
+[56/148] Compiling cmark-gfm inlines.c
+[57/148] Compiling cmark-gfm houdini_html_u.c
+[58/148] Compiling cmark-gfm footnotes.c
+[59/148] Compiling cmark-gfm commonmark.c
+[60/148] Write sources
+[67/148] Compiling cmark-gfm cmark_ctype.c
+[68/148] Compiling cmark-gfm cmark.c
+[69/148] Write sources
+[71/148] Compiling cmark-gfm buffer.c
+[72/148] Compiling cmark-gfm arena.c
+[73/148] Write sources
+[75/148] Compiling cmark-gfm blocks.c
+[76/148] Compiling _SwiftSyntaxCShims PlatformMutex.c
+[77/148] Write sources
+[78/148] Copying Media.xcassets
+[79/148] Copying Localizable.xcstrings
+[80/148] Copying Info.plist
+[81/150] Copying Assets.xcassets
+[82/150] Write sources
+[90/152] Copying Sparkle.framework
+[91/152] Write sources
+[94/154] Compiling MTLabel.m
+[95/154] Compiling NSBezierPath+addLineToPoint.m
+[96/154] Copying youtube.pdf
+[97/154] Copying x.pdf
+[98/154] Copying vimeo.pdf
+[99/154] Copying twitch.pdf
+[100/154] Copying tiktok.pdf
+[101/154] Copying soundcloud.pdf
+[102/154] Copying parakeet-mark.png
+[103/154] Copying menubar-icon@2x.png
+[104/154] Copying menubar-icon.png
+[105/154] Copying instagram.pdf
+[106/154] Copying facebook.pdf
+[107/154] Copying discover-fallback.json
+[108/154] Copying applepodcasts.pdf
+[109/154] Copying altman-v-altman-complaint-2025-01-06.pdf
+[110/154] Copying README.md
+[111/154] Copying MarkdownDependencies.txt
+[112/154] Write sources
+[116/154] Compiling MTTypesetter.m
+[117/154] Copying highlight.min.js
+[118/154] Copying LICENSE.md
+[119/154] Write sources
+[120/154] Copying PrivacyInfo.xcprivacy
+[121/154] Compiling MTMathUILabel.m
+[122/154] Copying Info.plist
+[123/154] Copying luxtts_en_us_lexicon.tsv.zz
+[124/154] Copying luxtts_en_us_g2p_aux.json
+[126/154] Compiling SwiftSyntax603 Empty.swift
+[127/154] Emitting module SwiftSyntax603
+[127/156] Compiling NSColor+HexString.m
+[128/156] Write sources
+[132/156] Compiling MTMathListDisplay.m
+[133/156] Compiling MachTaskSelfWrapper MachTaskSelf.c
+[134/156] Write sources
+[136/156] Compiling CAtomic CAtomic.c
+[137/156] Write sources
+[138/156] Compiling NSView+backgroundColor.m
+[140/158] Emitting module SwiftSyntax602
+[141/158] Compiling SwiftSyntax602 Empty.swift
+[141/177] Compiling FastClusterWrapper FastClusterWrapper.cpp
+[143/776] Compiling SwiftSyntax509 Empty.swift
+[144/776] Emitting module SwiftSyntax509
+[145/776] Compiling SwiftSyntax600 Empty.swift
+[146/776] Emitting module SwiftSyntax600
+[147/776] Emitting module SwiftSyntax510
+[148/776] Compiling SwiftSyntax510 Empty.swift
+[149/776] Compiling InternalCollectionsUtilities UnsafeRawBufferPointer+Extras.swift
+[150/777] Compiling SwiftSyntax601 Empty.swift
+[151/777] Emitting module SwiftSyntax601
+[152/777] Compiling InternalCollectionsUtilities UnsafeMutableRawBufferPointer+Extras.swift
+[153/777] Compiling InternalCollectionsUtilities _UnsafeBitSet+Index.swift
+[154/777] Compiling InternalCollectionsUtilities UnsafeBufferPointer+Extras.swift
+[155/777] Compiling InternalCollectionsUtilities _SortedCollection.swift
+[156/777] Compiling Crypto Cipher.swift
+[157/777] Compiling Crypto Nonces.swift
+[158/777] Compiling InternalCollectionsUtilities _UnsafeBitSet+_Word.swift
+[159/777] Compiling InternalCollectionsUtilities UnsafeMutableBufferPointer+Extras.swift
+[160/777] Compiling Crypto ASN1.swift
+[161/777] Compiling Crypto HPKE-Errors.swift
+[162/777] Compiling Crypto HPKE.swift
+[163/777] Compiling Crypto HPKE-Context.swift
+[164/777] Compiling InternalCollectionsUtilities _UnsafeBitSet.swift
+[165/777] Compiling InternalCollectionsUtilities _UniqueCollection.swift
+[166/777] Emitting module InternalCollectionsUtilities
+[167/777] Compiling Crypto ChaChaPoly_boring.swift
+[168/777] Compiling Crypto ChaChaPoly.swift
+[169/777] Compiling Crypto AES-GCM.swift
+[170/777] Compiling Crypto AES-GCM_boring.swift
+[171/777] Compiling ArgumentParserToolInfo ToolInfo.swift
+[172/777] Emitting module ArgumentParserToolInfo
+[173/950] Compiling ArgumentParser NonsenseFlagsValidator.swift
+[174/950] Compiling ArgumentParser SequenceExtensions.swift
+[175/950] Compiling ArgumentParser StringExtensions.swift
+[176/950] Compiling ArgumentParser SwiftExtensions.swift
+[177/954] Compiling ArgumentParser Mutex.swift
+[178/954] Compiling ArgumentParser Platform.swift
+[179/954] Compiling ArgumentParser Tree.swift
+[180/954] Compiling ArgumentParser CodingKeyValidator.swift
+[181/954] Compiling ArgumentParser Argument.swift
+[182/954] Compiling ArgumentParser ArgumentDiscussion.swift
+[183/954] Compiling ArgumentParser ArgumentHelp.swift
+[184/954] Compiling ArgumentParser ArgumentVisibility.swift
+[185/954] Compiling ArgumentParser Errors.swift
+[186/954] Compiling ArgumentParser Flag.swift
+[187/954] Compiling ArgumentParser NameSpecification.swift
+[188/954] Compiling ArgumentParser Option.swift
+[189/954] Compiling ArgumentParser InputOrigin.swift
+[190/954] Compiling ArgumentParser Name.swift
+[191/954] Compiling ArgumentParser Parsed.swift
+[192/954] Compiling ArgumentParser ParsedValues.swift
+[193/954] Compiling ArgumentParser ParserError.swift
+[194/954] Compiling ArgumentParser BashCompletionsGenerator.swift
+[195/954] Compiling ArgumentParser CompletionsGenerator.swift
+[196/954] Compiling ArgumentParser FishCompletionsGenerator.swift
+[197/954] Compiling ArgumentParser ZshCompletionsGenerator.swift
+[198/954] Compiling ArgumentParser CompletionKind.swift
+[199/954] Compiling ArgumentParser MessageInfo.swift
+[200/954] Compiling ArgumentParser UsageGenerator.swift
+[201/954] Compiling ArgumentParser CollectionExtensions.swift
+[202/954] Compiling OrderedCollections OrderedSet+Testing.swift
+[203/954] Compiling ArgumentParser OptionGroup.swift
+[204/954] Compiling ArgumentParser ParentCommand.swift
+[205/954] Compiling ArgumentParser AsyncParsableCommand.swift
+[206/954] Compiling ArgumentParser ParsableArguments.swift
+[207/954] Compiling ArgumentParser ParsableCommand.swift
+[208/954] Compiling OrderedCollections OrderedSet+Insertions.swift
+[209/954] Compiling OrderedCollections OrderedSet+Invariants.swift
+[210/954] Compiling OrderedCollections OrderedSet+Partial MutableCollection.swift
+[211/954] Compiling OrderedCollections OrderedSet+Partial RangeReplaceableCollection.swift
+[212/954] Compiling ArgumentParser ArgumentDecoder.swift
+[213/954] Compiling ArgumentParser ArgumentDefinition.swift
+[214/954] Compiling ArgumentParser CommandConfiguration.swift
+[215/954] Compiling ArgumentParser CommandGroup.swift
+[216/954] Compiling ArgumentParser EnumerableFlag.swift
+[222/959] Compiling OrderedCollections OrderedSet+Codable.swift
+[223/959] Compiling OrderedCollections OrderedSet+CustomReflectable.swift
+[224/959] Compiling OrderedCollections OrderedSet+Descriptions.swift
+[225/959] Compiling OrderedCollections OrderedSet+Diffing.swift
+[226/959] Compiling ArgumentParser ExpressibleByArgument.swift
+[227/959] Compiling ArgumentParser ArgumentSet.swift
+[228/959] Compiling ArgumentParser CommandParser.swift
+[229/959] Compiling ArgumentParser InputKey.swift
+[230/959] Compiling ArgumentParser SplitArguments.swift
+[231/959] Compiling ArgumentParser DumpHelpGenerator.swift
+[232/959] Compiling ArgumentParser HelpCommand.swift
+[233/959] Compiling ArgumentParser HelpGenerator.swift
+[234/959] Compiling ArgumentParser Foundation.swift
+[235/959] Compiling OrderedCollections OrderedSet+UnorderedView.swift
+[236/959] Compiling OrderedCollections OrderedSet+UnstableInternals.swift
+[237/959] Compiling OrderedCollections OrderedSet.swift
+[238/959] Compiling OrderedCollections _UnsafeBitset.swift
+[244/959] Emitting module OrderedCollections
+[298/981] Emitting module Markdown
+[299/981] Compiling ArgumentParser ParsableArgumentsValidation.swift
+[300/981] Compiling ArgumentParser PositionalArgumentsValidator.swift
+[301/981] Compiling ArgumentParser UniqueNamesValidator.swift
+[302/981] Emitting module ArgumentParser
+[370/993] Compiling Crypto ECDH_boring.swift
+[371/993] Compiling Crypto DH.swift
+[372/993] Compiling Crypto ECDH.swift
+[373/993] Compiling Crypto ANSIx963.swift
+[374/993] Compiling Crypto HKDF.swift
+[375/993] Compiling Crypto AESWrap.swift
+[376/993] Compiling Crypto AESWrap_boring.swift
+[377/993] Compiling Crypto Signature.swift
+[378/993] Compiling Crypto CryptoKitErrors_boring.swift
+[379/993] Compiling Crypto Optional+withUnsafeBytes_boring.swift
+[380/993] Compiling Crypto RNG_boring.swift
+[381/993] Compiling Crypto SafeCompare_boring.swift
+[382/993] Compiling Crypto Zeroization_boring.swift
+[383/993] Compiling Crypto EdDSA_boring.swift
+[384/993] Compiling Crypto MLDSA_boring.swift
+[385/993] Compiling Crypto MLDSA_wrapper.swift
+[386/993] Compiling Crypto ECDSA.swift
+[387/993] Compiling Crypto Ed25519.swift
+[388/993] Compiling Crypto MLDSA.swift
+[396/999] Compiling SwiftSyntax SyntaxEnum.swift
+[397/999] Compiling SwiftSyntax SyntaxKind.swift
+[398/999] Compiling Markdown MarkupVisitor.swift
+[399/999] Compiling Markdown MarkupWalker.swift
+[400/999] Compiling Markdown HTMLFormatter.swift
+[401/999] Compiling Markdown MarkupFormatter.swift
+[402/999] Compiling Markdown MarkupTreeDumper.swift
+[403/999] Emitting module Crypto
+[458/999] Compiling SwiftSyntax SyntaxBaseNodes.swift
+[459/999] Compiling SwiftSyntax SyntaxCollections.swift
+[477/999] Compiling Crypto _CryptoModuleAnchor.swift
+[478/999] Compiling Crypto PrettyBytes.swift
+[479/999] Compiling Crypto SafeCompare.swift
+[480/999] Compiling Crypto SecureBytes.swift
+[481/999] Compiling Crypto Zeroization.swift
+[482/999] Compiling Crypto resource_bundle_accessor.swift
+[539/999] Compiling HighlightSwift HighlightEntry.swift
+[540/999] Compiling HighlightSwift HighlightMode.swift
+[541/999] Compiling HighlightSwift HighlightColors.swift
+[542/999] Compiling HighlightSwift HighlightResult.swift
+[543/999] Compiling HighlightSwift HighlightBackground.swift
+[546/999] Compiling HighlightSwift HighlightTheme.swift
+[547/1000] Compiling HighlightSwift HighlightLanguage.swift
+[554/1000] Compiling HighlightSwift HighlightCSS.swift
+[555/1000] Emitting module HighlightSwift
+[570/1000] Compiling Jinja Tests.swift
+[571/1001] Compiling Jinja Utilities.swift
+[572/1001] Compiling Jinja Lexer.swift
+[573/1001] Compiling Jinja Macro.swift
+[574/1001] Compiling Jinja Parser.swift
+[575/1001] Compiling Jinja Template.swift
+[576/1001] Compiling Jinja PropertyMembers.swift
+[577/1001] Compiling Jinja Interpreter.swift
+[578/1001] Compiling Jinja Token.swift
+[579/1001] Compiling GRDB DatabaseReader+dump.swift
+[580/1001] Compiling GRDB DumpFormat.swift
+[581/1001] Compiling GRDB DebugDumpFormat.swift
+[582/1001] Compiling GRDB JSONDumpFormat.swift
+[583/1001] Compiling GRDB LineDumpFormat.swift
+[584/1001] Compiling GRDB ListDumpFormat.swift
+[585/1001] Compiling GRDB QuoteDumpFormat.swift
+[586/1001] Compiling GRDB FTS3.swift
+[587/1001] Compiling GRDB FTS3Pattern.swift
+[588/1001] Compiling GRDB FTS3TokenizerDescriptor.swift
+[589/1001] Compiling GRDB FTS4.swift
+[590/1001] Compiling GRDB FTS5.swift
+[591/1001] Compiling GRDB RequestProtocols.swift
+[592/1001] Compiling GRDB Column.swift
+[593/1001] Compiling GRDB DatabasePromise.swift
+[594/1001] Compiling GRDB SQLAssociation.swift
+[595/1001] Compiling GRDB SQLCollection.swift
+[596/1001] Compiling GRDB SQLExpression.swift
+[597/1001] Compiling GRDB SQLForeignKeyRequest.swift
+[598/1001] Compiling GRDB SQLFunctions.swift
+[599/1001] Compiling GRDB SQLOperators.swift
+[600/1001] Compiling GRDB SQLOrdering.swift
+[601/1001] Compiling GRDB SQLRelation.swift
+[602/1001] Compiling GRDB SQLSelection.swift
+[603/1001] Emitting module GRDB
+[604/1001] Compiling HighlightSwift resource_bundle_accessor.swift
+[605/1001] Compiling GRDB DatabaseCancellable.swift
+[606/1001] Compiling GRDB ValueConcurrentObserver.swift
+[607/1001] Compiling GRDB ValueWriteOnlyObserver.swift
+[608/1001] Compiling GRDB Fetch.swift
+[609/1001] Compiling GRDB Map.swift
+[610/1001] Compiling GRDB RemoveDuplicates.swift
+[611/1001] Compiling GRDB Trace.swift
+[612/1001] Compiling GRDB ValueReducer.swift
+[613/1001] Compiling GRDB SharedValueObservation.swift
+[614/1001] Compiling GRDB ValueObservation.swift
+[615/1001] Compiling GRDB ValueObservationScheduler.swift
+[616/1001] Compiling GRDB resource_bundle_accessor.swift
+[617/1001] Compiling Jinja Value.swift
+[618/1001] Compiling Jinja Globals.swift
+[619/1001] Compiling Jinja Error.swift
+[620/1001] Compiling Jinja Filters.swift
+[621/1001] Compiling Jinja AST.swift
+[622/1001] Emitting module Jinja
+[623/1001] Emitting module Shimmer
+[624/1001] Compiling Shimmer Shimmer.swift
+[635/1009] Compiling Hub resource_bundle_accessor.swift
+[641/1009] Compiling Hub YYJSONParser.swift
+[642/1009] Compiling Hub Hub.swift
+[643/1009] Compiling GRDB FTS5CustomTokenizer.swift
+[644/1009] Compiling GRDB FTS5Pattern.swift
+[645/1009] Compiling GRDB FTS5Tokenizer.swift
+[646/1009] Compiling GRDB FTS5TokenizerDescriptor.swift
+[647/1009] Compiling GRDB FTS5WrapperTokenizer.swift
+[648/1009] Compiling GRDB Fixits.swift
+[649/1009] Compiling GRDB JSONColumn.swift
+[650/1009] Compiling GRDB SQLJSONExpressible.swift
+[651/1009] Compiling GRDB SQLJSONFunctions.swift
+[652/1009] Compiling GRDB DatabaseMigrator.swift
+[653/1009] Compiling GRDB Migration.swift
+[654/1009] Compiling GRDB FTS3+QueryInterface.swift
+[655/1009] Compiling GRDB ForeignKeyDefinition.swift
+[656/1009] Compiling GRDB IndexDefinition.swift
+[657/1009] Compiling GRDB TableAlteration.swift
+[658/1009] Compiling GRDB TableDefinition.swift
+[659/1009] Compiling GRDB VirtualTableModule.swift
+[660/1009] Compiling GRDB TableRecord+Association.swift
+[661/1009] Compiling GRDB TableRecord+QueryInterfaceRequest.swift
+[662/1009] Compiling GRDB EncodableRecord+Encodable.swift
+[663/1009] Compiling GRDB EncodableRecord.swift
+[664/1009] Compiling GRDB FetchableRecord+Decodable.swift
+[665/1009] Compiling GRDB FetchableRecord+TableRecord.swift
+[666/1009] Compiling GRDB FetchableRecord.swift
+[679/1009] Compiling GRDB FTS5+QueryInterface.swift
+[680/1009] Compiling GRDB ForeignKey.swift
+[681/1009] Compiling GRDB Association.swift
+[682/1009] Compiling GRDB AssociationAggregate.swift
+[683/1009] Compiling GRDB BelongsToAssociation.swift
+[684/1009] Compiling GRDB HasManyAssociation.swift
+[685/1009] Compiling GRDB HasManyThroughAssociation.swift
+[686/1009] Compiling GRDB HasOneAssociation.swift
+[687/1009] Compiling GRDB HasOneThroughAssociation.swift
+[688/1009] Compiling GRDB JoinAssociation.swift
+[689/1009] Compiling GRDB CommonTableExpression.swift
+[690/1009] Compiling GRDB QueryInterfaceRequest.swift
+[702/1009] Compiling GRDB DatabasePublishers.swift
+[703/1009] Emitting module SwiftSyntax
+[709/1009] Compiling Hub Downloader.swift
+[710/1009] Compiling Hub Config.swift
+[711/1009] Emitting module Hub
+[712/1009] Compiling Hub BinaryDistinct.swift
+[713/1009] Compiling Hub HubApi.swift
+[799/1055] Emitting module FluidAudio
+[860/1055] Compiling Tokenizers Trie.swift
+[861/1055] Compiling Tokenizers UnigramTokenizer.swift
+[862/1055] Compiling ArgmaxCore ConcurrencyUtilities.swift
+[863/1055] Compiling ArgmaxCore ModelUtilities.swift
+[864/1055] Compiling ArgmaxCore ModelManager.swift
+[865/1055] Compiling ArgmaxCore MLModelLoading.swift
+[866/1055] Compiling ArgmaxCore MLMultiArrayExtensions.swift
+[867/1055] Compiling ArgmaxCore ModelState.swift
+[868/1055] Compiling ArgmaxCore MLModelExtensions.swift
+[869/1055] Compiling ArgmaxCore FloatType.swift
+[870/1055] Compiling ArgmaxCore FoundationExtensions.swift
+[871/1055] Emitting module ArgmaxCore
+[872/1055] Compiling ArgmaxCore ArgmaxCoreError.swift
+[873/1055] Compiling ArgmaxCore Logging.swift
+[874/1055] Compiling ArgmaxCore ModelDownloader.swift
+[875/1055] Compiling ArgmaxCore MLTensorExtensions.swift
+[881/1055] Compiling Tokenizers Decoder.swift
+[882/1055] Compiling Tokenizers BPETokenizer.swift
+[883/1055] Emitting module Tokenizers
+[884/1055] Compiling Tokenizers TokenLattice.swift
+[885/1055] Compiling Tokenizers String+PreTokenization.swift
+[886/1055] Compiling Tokenizers PreTokenizer.swift
+[887/1055] Compiling Tokenizers Tokenizer.swift
+[888/1055] Compiling Tokenizers PostProcessor.swift
+[889/1055] Compiling Tokenizers Normalizer.swift
+[890/1055] Compiling Tokenizers BertTokenizer.swift
+[891/1055] Compiling Tokenizers ByteEncoder.swift
+[892/1055] Compiling FluidAudio G2PModel.swift
+[893/1055] Compiling FluidAudio MultilingualG2PError.swift
+[894/1055] Compiling FluidAudio MultilingualG2PLanguage.swift
+[895/1055] Compiling FluidAudio MultilingualG2PModel.swift
+[896/1055] Compiling FluidAudio InflectModelStore.swift
+[897/1055] Compiling FluidAudio InflectResourceDownloader.swift
+[898/1055] Compiling FluidAudio InflectConstants.swift
+[899/1055] Compiling FluidAudio InflectError.swift
+[900/1055] Compiling FluidAudio InflectManager.swift
+[901/1055] Compiling FluidAudio InflectSymbols.swift
+[902/1055] Compiling FluidAudio InflectVariant.swift
+[903/1055] Compiling FluidAudio InflectNoise.swift
+[904/1055] Compiling FluidAudio InflectSynthesizer.swift
+[905/1055] Compiling FluidAudio KokoroAneModelCacheMigration.swift
+[906/1055] Compiling FluidAudio KokoroAneResourceDownloader.swift
+[907/1055] Compiling FluidAudio KokoroAneVocab.swift
+[908/1055] Compiling FluidAudio KokoroAneEnglishPhonemizer.swift
+[909/1055] Compiling FluidAudio MandarinBertTokenizer.swift
+[910/1055] Compiling FluidAudio MandarinBopomofoMap.swift
+[911/1055] Compiling FluidAudio MandarinCustomLexicon.swift
+[912/1055] Compiling FluidAudio SenseVoiceManager.swift
+[913/1055] Compiling FluidAudio SenseVoiceModels.swift
+[914/1055] Compiling FluidAudio LogitsArgmax.swift
+[915/1055] Compiling FluidAudio PunctuationCommitLayer.swift
+[916/1055] Compiling FluidAudio SpeakerManager.swift
+[917/1055] Compiling FluidAudio SpeakerOperations.swift
+[918/1055] Compiling FluidAudio SpeakerTypes.swift
+[919/1055] Compiling FluidAudio DiarizerManager.swift
+[920/1055] Compiling FluidAudio DiarizerModels.swift
+[921/1055] Compiling FluidAudio DiarizerTypes.swift
+[922/1055] Compiling FluidAudio DiarizationDER.swift
+[923/1055] Compiling FluidAudio DiarizerProtocol.swift
+[924/1055] Compiling FluidAudio DiarizerTimeline.swift
+[925/1055] Compiling FluidAudio EmbeddingExtractor.swift
+[926/1055] Compiling FluidAudio HungarianAssignment.swift
+[927/1055] Compiling FluidAudio LSEENDDiarizer.swift
+[928/1055] Compiling FluidAudio LSEENDInference.swift
+[929/1055] Compiling FluidAudio LSEENDPreprocessor.swift
+[930/1055] Compiling FluidAudio LSEENDTypes.swift
+[931/1055] Compiling FluidAudio AHCClustering.swift
+[932/1055] Compiling FluidAudio EnglishTextNormalizer.swift
+[933/1055] Compiling FluidAudio LexiconAssetCache.swift
+[934/1055] Compiling FluidAudio NemoTextNormalizer.swift
+[935/1055] Compiling FluidAudio PhonemeChunker.swift
+[936/1055] Compiling FluidAudio TTSError.swift
+[937/1055] Compiling FluidAudio TtsCacheDirectory.swift
+[938/1055] Compiling FluidAudio TtsComputeUnitPreset.swift
+[939/1055] Compiling FluidAudio StyleTTS2ModelStore.swift
+[940/1055] Compiling FluidAudio StyleTTS2ResourceDownloader.swift
+[941/1055] Compiling FluidAudio StyleTTS2MelExtractor.swift
+[942/1055] Compiling FluidAudio StyleTTS2DiffusionSchedule.swift
+[943/1055] Compiling FluidAudio StyleTTS2GlueOps.swift
+[944/1055] Compiling FluidAudio StyleTTS2MultiArray.swift
+[945/1055] Compiling FluidAudio StyleTTS2Synthesizer.swift
+[946/1055] Compiling FluidAudio StyleTTS2Phonemizer.swift
+[947/1055] Compiling FluidAudio StyleTTS2TextCleaner.swift
+[948/1055] Compiling FluidAudio StyleTTS2Constants.swift
+[949/1055] Compiling FluidAudio StyleTTS2Error.swift
+[950/1055] Compiling FluidAudio StyleTTS2Manager.swift
+[951/1055] Compiling FluidAudio Supertonic3ModelStore.swift
+[980/1055] Compiling FluidAudio ParaformerManager.swift
+[981/1055] Compiling FluidAudio ParaformerModels.swift
+[982/1055] Compiling FluidAudio AsrTypes.swift
+[983/1055] Compiling FluidAudio AudioBuffer.swift
+[984/1055] Compiling FluidAudio ParakeetLanguageModels.swift
+[985/1055] Compiling FluidAudio ARPALanguageModel.swift
+[986/1055] Compiling FluidAudio CtcDecoder.swift
+[987/1055] Compiling FluidAudio BKTree.swift
+[988/1055] Compiling FluidAudio VocabularyRescorer+CandidateMatching.swift
+[989/1055] Compiling FluidAudio ContextBiasingConstants.swift
+[990/1055] Compiling FluidAudio CustomVocabularyContext.swift
+[991/1055] Compiling FluidAudio VocabularyRescorer+TokenEvaluation.swift
+[992/1055] Compiling FluidAudio StreamingNemotronMultilingualAsrManager+Buffers.swift
+[993/1055] Compiling FluidAudio StreamingNemotronMultilingualAsrManager+Decode.swift
+[994/1055] Compiling FluidAudio StreamingNemotronMultilingualAsrManager+Pipeline.swift
+[995/1055] Compiling FluidAudio StreamingNemotronMultilingualAsrManager+Shared.swift
+[996/1055] Compiling FluidAudio StreamingNemotronMultilingualAsrManager.swift
+[997/1055] Compiling FluidAudio ParakeetModelVariant.swift
+[998/1055] Compiling FluidAudio RnntDecoder.swift
+[999/1055] Compiling FluidAudio StreamingAsrManager.swift
+[1000/1055] Compiling FluidAudio StreamingAsrUtils.swift
+[1001/1055] Compiling FluidAudio Tokenizer.swift
+[1002/1055] Compiling FluidAudio SequenceMatch.swift
+[1003/1055] Compiling FluidAudio SequenceMatcher.swift
+[1004/1055] Compiling FluidAudio StreamingUnifiedAsrManager.swift
+[1005/1055] Compiling FluidAudio UnifiedAsrManager.swift
+[1006/1055] Compiling FluidAudio UnifiedConfig.swift
+[1007/1055] Compiling FluidAudio UnifiedFeatureProviders.swift
+[1008/1055] Compiling FluidAudio UnifiedMelExtractor.swift
+[1009/1055] Compiling FluidAudio UnifiedRnntDecoder.swift
+[1010/1055] Compiling FluidAudio UnifiedStreamingWindower.swift
+[1011/1055] Compiling FluidAudio SenseVoiceConfig.swift
+[1027/1079] Compiling FluidAudio Supertonic3ResourceDownloader.swift
+[1028/1079] Compiling FluidAudio Supertonic3TextChunker.swift
+[1029/1079] Compiling FluidAudio Supertonic3UnicodeProcessor.swift
+[1030/1079] Compiling FluidAudio Supertonic3LatentSampler.swift
+[1031/1079] Compiling FluidAudio Supertonic3MultiArray.swift
+[1032/1079] Compiling FluidAudio Supertonic3Synthesizer.swift
+[1033/1079] Compiling FluidAudio Supertonic3Constants.swift
+[1034/1079] Compiling FluidAudio Supertonic3Error.swift
+[1035/1079] Compiling FluidAudio Supertonic3Manager.swift
+[1036/1079] Compiling FluidAudio Supertonic3Types.swift
+[1037/1079] Compiling FluidAudio TtsBackend.swift
+[1038/1079] Compiling FluidAudio TtsConstants.swift
+[1039/1079] Compiling FluidAudio FsmnVadManager.swift
+[1040/1079] Compiling FluidAudio FsmnVadModels.swift
+[1041/1079] Compiling FluidAudio VadManager+SpeechSegmentation.swift
+[1042/1079] Compiling FluidAudio VadManager+Streaming.swift
+[1043/1079] Compiling FluidAudio VadManager.swift
+[1044/1079] Compiling FluidAudio VadTypes.swift
+[1045/1079] Compiling FluidAudio resource_bundle_accessor.swift
+[1046/1141] Compiling SwiftBasicFormat Trivia+FormatExtensions.swift
+[1047/1141] Compiling SwiftDiagnostics Note.swift
+[1048/1141] Compiling SwiftDiagnostics DiagnosticDecorator.swift
+[1049/1141] Compiling SwiftDiagnostics BasicDiagnosticDecorator.swift
+[1050/1141] Compiling SwiftDiagnostics Diagnostic.swift
+[1051/1141] Compiling SwiftDiagnostics Convenience.swift
+[1052/1141] Compiling SwiftDiagnostics GroupedDiagnostics.swift
+[1053/1141] Compiling SwiftDiagnostics FixIt.swift
+[1054/1141] Compiling SwiftDiagnostics Message.swift
+[1055/1141] Emitting module SwiftDiagnostics
+[1056/1141] Compiling SwiftDiagnostics ANSIDiagnosticDecorator.swift
+[1057/1141] Compiling SwiftDiagnostics DiagnosticsFormatter.swift
+[1058/1141] Compiling SwiftParser SwiftParserCompatibility.swift
+[1059/1141] Compiling SwiftParser SwiftVersion.swift
+[1060/1141] Compiling SwiftParser SyntaxUtils.swift
+[1061/1144] Compiling SwiftParser TokenConsumer.swift
+[1062/1144] Compiling SwiftParser TokenPrecedence.swift
+[1063/1144] Compiling SwiftParser TokenSpec.swift
+[1064/1144] Compiling SwiftBasicFormat SyntaxProtocol+Formatted.swift
+[1065/1144] Compiling SwiftBasicFormat Syntax+Extensions.swift
+[1066/1144] Compiling SwiftBasicFormat Indenter.swift
+[1067/1144] Compiling SwiftBasicFormat InferIndentation.swift
+[1068/1144] Emitting module SwiftBasicFormat
+[1069/1144] Compiling SwiftBasicFormat BasicFormat.swift
+[1070/1144] Compiling SwiftParser UnicodeScalarExtensions.swift
+[1071/1144] Compiling SwiftParser Lookahead.swift
+[1072/1144] Compiling SwiftParser LoopProgressCondition.swift
+[1073/1144] Compiling SwiftParser Statements.swift
+[1074/1144] Compiling SwiftParser StringLiteralRepresentedLiteralValue.swift
+[1075/1144] Compiling SwiftParser StringLiterals.swift
+[1076/1144] Compiling SwiftParser Lexeme.swift
+[1077/1144] Compiling SwiftParser LexemeSequence.swift
+[1078/1144] Compiling SwiftParser Lexer.swift
+[1079/1144] Compiling SwiftParser RegexLiteralLexer.swift
+[1080/1144] Compiling SwiftParser Modifiers.swift
+[1081/1144] Compiling SwiftParser Names.swift
+[1082/1144] Compiling SwiftParser Nominals.swift
+[1083/1144] Compiling SwiftParser Patterns.swift
+[1084/1144] Compiling SwiftParser Recovery.swift
+[1085/1144] Compiling SwiftParser Specifiers.swift
+[1086/1144] Compiling SwiftParser TokenSpecSet.swift
+[1087/1144] Compiling SwiftParser TopLevel.swift
+[1088/1144] Compiling SwiftParser TriviaParser.swift
+[1089/1144] Compiling SwiftParser Attributes.swift
+[1090/1144] Compiling SwiftParser Availability.swift
+[1091/1144] Compiling SwiftParser CharacterInfo.swift
+[1092/1144] Compiling SwiftParser CollectionNodes+Parsable.swift
+[1093/1144] Emitting module SwiftParser
+[1096/1145] Compiling WhisperKit TextUtilities.swift
+[1099/1145] Compiling SwiftParser LayoutNodes+Parsable.swift
+[1100/1145] Compiling SwiftParser Parser+TokenSpecSet.swift
+[1101/1145] Compiling SwiftParser TokenSpecStaticMembers.swift
+[1102/1145] Compiling SwiftParser Parameters.swift
+[1103/1145] Compiling SwiftParser ParseSourceFile.swift
+[1104/1145] Compiling SwiftParser Parser.swift
+[1105/1145] Compiling SwiftParser CompilerFiles.swift
+[1106/1145] Compiling SwiftParser Declarations.swift
+[1107/1145] Compiling SwiftParser Directives.swift
+[1108/1145] Compiling SwiftParser ExpressionInterpretedAsVersionTuple.swift
+[1109/1145] Compiling SwiftParser Types.swift
+[1110/1145] Compiling SwiftParser ExperimentalFeatures.swift
+[1111/1145] Compiling SwiftParser IsLexerClassified.swift
+[1112/1145] Compiling SwiftParser Expressions.swift
+[1113/1145] Compiling SwiftParser IncrementalParseTransition.swift
+[1114/1145] Compiling SwiftParser IsValidIdentifier.swift
+[1115/1145] Compiling SwiftParser Cursor.swift
+[1116/1145] Emitting module WhisperKit
+[1119/1145] Compiling WhisperKit WhisperError.swift
+[1124/1145] Compiling WhisperKit ResultWriter.swift
+[1133/1145] Compiling WhisperKit TranscriptionUtilities.swift
+[1136/1352] Compiling SwiftParserDiagnostics DiagnosticExtensions.swift
+[1137/1411] Emitting module SwiftParserDiagnostics
+[1138/1411] Compiling SwiftParserDiagnostics MissingTokenError.swift
+[1139/1411] Compiling SwiftParserDiagnostics LexerDiagnosticMessages.swift
+[1140/1411] Compiling SwiftParserDiagnostics SyntaxExtensions.swift
+[1141/1411] Compiling SwiftParserDiagnostics TokenNameForDiagnostics.swift
+[1142/1411] Compiling SwiftParserDiagnostics SyntaxKindNameForDiagnostics.swift
+[1143/1411] Compiling SwiftOperators PrecedenceGroup.swift
+[1144/1411] Compiling SwiftOperators SyntaxSynthesis.swift
+[1145/1411] Compiling SwiftParserDiagnostics MultiLineStringLiteralDiagnosticsGenerator.swift
+[1146/1411] Compiling SwiftOperators OperatorTable.swift
+[1147/1411] Compiling SwiftOperators OperatorTable+Semantics.swift
+[1148/1411] Compiling SwiftOperators OperatorTable+Folding.swift
+[1149/1411] Compiling SwiftOperators Operator.swift
+[1150/1411] Compiling SwiftOperators OperatorTable+Defaults.swift
+[1151/1411] Compiling SwiftOperators OperatorError.swift
+[1152/1411] Compiling SwiftOperators OperatorError+Diagnostics.swift
+[1153/1411] Compiling SwiftOperators PrecedenceGraph.swift
+[1154/1411] Emitting module SwiftOperators
+[1155/1411] Compiling SwiftParserDiagnostics PresenceUtils.swift
+[1156/1411] Compiling SwiftParserDiagnostics Utils.swift
+[1157/1411] Compiling SwiftParserDiagnostics ChildNameForDiagnostics.swift
+[1158/1411] Compiling SwiftParserDiagnostics ParserDiagnosticMessages.swift
+[1159/1411] Compiling SwiftParserDiagnostics ParseDiagnosticsGenerator.swift
+[1160/1411] Compiling SwiftParserDiagnostics MissingNodesError.swift
+[1161/1426] Compiling SwiftSyntaxBuilder SwiftSyntaxBuilderCompatibility.swift
+[1162/1427] Compiling SwiftSyntaxBuilder WithTrailingCommaSyntax+EnsuringTrailingComma.swift
+[1163/1427] Compiling SwiftSyntaxBuilder RenamedChildrenBuilderCompatibility.swift
+[1164/1427] Compiling SwiftSyntaxBuilder SyntaxParsable+ExpressibleByStringInterpolation.swift
+[1165/1427] Compiling SwiftSyntaxBuilder Syntax+StringInterpolation.swift
+[1166/1427] Compiling SwiftSyntaxBuilder ConvenienceInitializers.swift
+[1167/1427] Compiling SwiftSyntaxBuilder DeclSyntaxParseable.swift
+[1168/1427] Compiling SwiftSyntaxBuilder ResultBuilderExtensions.swift
+[1169/1427] Compiling SwiftSyntaxBuilder Indenter.swift
+[1170/1427] Compiling SwiftSyntaxBuilder ListBuilder.swift
+[1171/1427] Compiling SwiftSyntaxBuilder SyntaxNodeWithBody.swift
+[1172/1427] Compiling SwiftSyntaxBuilder BuildableNodes.swift
+[1173/1427] Emitting module SwiftSyntaxBuilder
+[1174/1427] Compiling SwiftSyntaxBuilder ValidatingSyntaxNodes.swift
+[1175/1427] Compiling SwiftSyntaxBuilder ResultBuilders.swift
+[1176/1427] Compiling SwiftSyntaxBuilder SyntaxExpressibleByStringInterpolationConformances.swift
+[1177/1442] Compiling SwiftIfConfig SyntaxProtocol+IfConfig.swift
+[1178/1443] Compiling SwiftIfConfig IfConfigDecl+IfConfig.swift
+[1179/1443] Compiling SwiftIfConfig IfConfigDiagnostic.swift
+[1180/1443] Emitting module SwiftIfConfig
+[1181/1443] Compiling SwiftIfConfig IfConfigRegionState.swift
+[1182/1443] Compiling SwiftIfConfig VersionTuple+Parsing.swift
+[1183/1443] Compiling SwiftIfConfig VersionTuple.swift
+[1184/1443] Compiling SwiftIfConfig ActiveSyntaxVisitor.swift
+[1185/1443] Compiling SwiftIfConfig StaticBuildConfiguration.swift
+[1186/1443] Compiling SwiftIfConfig SyntaxLiteralUtils.swift
+[1187/1443] Compiling SwiftIfConfig BuildConfiguration.swift
+[1188/1443] Compiling SwiftIfConfig ConfiguredRegions.swift
+[1189/1443] Compiling SwiftIfConfig IfConfigFunctions.swift
+[1190/1443] Compiling SwiftIfConfig ActiveClauseEvaluator.swift
+[1191/1443] Compiling SwiftIfConfig ActiveSyntaxRewriter.swift
+[1192/1443] Compiling SwiftIfConfig IfConfigEvaluation.swift
+[1193/1461] Compiling SwiftSyntaxMacros ExtensionMacro.swift
+[1194/1461] Compiling SwiftSyntaxMacros Macro.swift
+[1195/1461] Compiling SwiftSyntaxMacros FreestandingMacro.swift
+[1196/1462] Compiling SwiftSyntaxMacros MemberMacro.swift
+[1197/1462] Compiling SwiftSyntaxMacros ExpressionMacro.swift
+[1198/1462] Compiling SwiftSyntaxMacros PeerMacro.swift
+[1199/1462] Compiling SwiftSyntaxMacros MemberAttributeMacro.swift
+[1200/1462] Compiling SwiftSyntaxMacros AttachedMacro.swift
+[1201/1462] Compiling SwiftSyntaxMacros BodyMacro.swift
+[1202/1462] Compiling SwiftSyntaxMacros MacroExpansionDiagnosticMessages.swift
+[1203/1462] Compiling SwiftSyntaxMacros AccessorMacro.swift
+[1204/1462] Compiling SwiftSyntaxMacros PreambleMacro.swift
+[1205/1462] Compiling SwiftSyntaxMacros Macro+Format.swift
+[1206/1462] Compiling SwiftSyntaxMacros CodeItemMacro.swift
+[1207/1462] Compiling SwiftSyntaxMacros DeclarationMacro.swift
+[1208/1462] Emitting module SwiftSyntaxMacros
+[1209/1462] Compiling SwiftSyntaxMacros AbstractSourceLocation.swift
+[1210/1462] Compiling SwiftSyntaxMacros MacroExpansionContext.swift
+[1211/1462] Compiling SwiftSyntaxMacros Syntax+LexicalContext.swift
+[1212/1472] Compiling SwiftSyntaxMacroExpansion MacroExpansionDiagnosticMessages.swift
+[1213/1472] Compiling SwiftSyntaxMacroExpansion MacroExpansion.swift
+[1214/1472] Compiling SwiftSyntaxMacroExpansion MacroArgument.swift
+[1215/1472] Compiling SwiftSyntaxMacroExpansion IndentationUtils.swift
+[1216/1472] Compiling SwiftSyntaxMacroExpansion FunctionParameterUtils.swift
+[1217/1472] Emitting module SwiftSyntaxMacroExpansion
+[1218/1472] Compiling SwiftSyntaxMacroExpansion MacroReplacement.swift
+[1219/1472] Compiling SwiftSyntaxMacroExpansion BasicMacroExpansionContext.swift
+[1220/1472] Compiling SwiftSyntaxMacroExpansion MacroSystem.swift
+[1221/1472] Compiling SwiftSyntaxMacroExpansion MacroSpec.swift
+[1222/1485] Compiling SwiftCompilerPluginMessageHandling StandardIOMessageConnection.swift
+[1223/1485] Compiling SwiftCompilerPluginMessageHandling PluginMessages.swift
+[1224/1485] Compiling SwiftCompilerPluginMessageHandling PluginMessageCompatibility.swift
+[1225/1485] Compiling SwiftCompilerPluginMessageHandling JSONEncoding.swift
+[1226/1485] Compiling SwiftCompilerPluginMessageHandling Diagnostics.swift
+[1227/1485] Compiling SwiftCompilerPluginMessageHandling CompilerPluginMessageHandler.swift
+[1228/1485] Compiling SwiftCompilerPluginMessageHandling PluginMacroExpansionContext.swift
+[1229/1485] Emitting module SwiftCompilerPluginMessageHandling
+[1230/1485] Compiling SwiftCompilerPluginMessageHandling JSONDecoding.swift
+[1231/1485] Compiling SwiftCompilerPluginMessageHandling LRUCache.swift
+[1232/1485] Compiling SwiftCompilerPluginMessageHandling Macros.swift
+[1233/1485] Compiling SwiftCompilerPluginMessageHandling JSON.swift
+[1234/1485] Compiling SwiftCompilerPluginMessageHandling CodingUtilities.swift
+[1235/1487] Compiling SwiftCompilerPlugin CompilerPlugin.swift
+[1236/1487] Emitting module SwiftCompilerPlugin
+[1237/1504] Compiling EquatableMacros MemberTypeSyntax+Extensions.swift
+[1238/1504] Compiling EquatableMacros IdentifierTypeSyntax+Extensions.swift
+[1239/1505] Compiling EquatableMacros EquatableMacro+TypeComplexity.swift
+[1240/1505] Compiling EquatableMacros StructDeclSyntax+Extensions.swift
+[1241/1505] Compiling EquatableMacros EquatableMacro+Helpers.swift
+[1242/1505] Compiling EquatableMacros VariableDeclSyntax+Extensions.swift
+[1243/1505] Compiling EquatableMacros TypeSyntax+Extensions.swift
+[1244/1505] Compiling EquatableMacros EquatableMacro+Isolation.swift
+[1245/1505] Compiling EquatableMacros EquatableMacro+Hashable.swift
+[1246/1505] Compiling EquatableMacros EquatableMacro+Equatable.swift
+[1247/1505] Compiling EquatableMacros EquatablePlugin.swift
+[1248/1505] Compiling EquatableMacros EquatableMacro+Diagnostic.swift
+[1249/1505] Compiling EquatableMacros Closure.swift
+[1250/1505] Compiling EquatableMacros EquatableIgnoredMacro.swift
+[1251/1505] Emitting module EquatableMacros
+[1252/1505] Compiling EquatableMacros EquatableIgnoredUnsafeClosureMacro.swift
+[1253/1505] Compiling EquatableMacros EquatableMacro.swift
+[1254/1505] Compiling EquatableMacros SimpleFixItMessage.swift
+[1254/1505] Write Objects.LinkFileList
+[1255/1505] Linking EquatableMacros-tool
+[1257/1507] Compiling Equatable Equatable.swift
+[1258/1507] Emitting module Equatable
+[1259/1599] Compiling SwiftStreamingMarkdown CodeBlock+.swift
+[1260/1599] Compiling SwiftStreamingMarkdown Document+.swift
+[1261/1599] Compiling SwiftStreamingMarkdown Heading+.swift
+[1262/1599] Compiling SwiftStreamingMarkdown OrderedList+.swift
+[1263/1599] Compiling SwiftStreamingMarkdown Paragraph+.swift
+[1264/1599] Compiling SwiftStreamingMarkdown TextContextMenuGroup.swift
+[1265/1599] Compiling SwiftStreamingMarkdown TextContextMenuItem.swift
+[1266/1599] Compiling SwiftStreamingMarkdown InlineConvertible.swift
+[1267/1599] Compiling SwiftStreamingMarkdown Markdown+InlineConvertible.swift
+[1268/1599] Compiling SwiftStreamingMarkdown Markup+.swift
+[1269/1599] Compiling SwiftStreamingMarkdown MarkdownView.swift
+[1270/1599] Compiling SwiftStreamingMarkdown CodeBlockConfig.swift
+[1271/1599] Compiling SwiftStreamingMarkdown MarkupScanner.swift
+[1272/1599] Compiling SwiftStreamingMarkdown PartialEmphasisScanner.swift
+[1273/1599] Compiling SwiftStreamingMarkdown PartialTableScanner.swift
+[1274/1599] Compiling SwiftStreamingMarkdown StreamedMarkdownView.swift
+[1275/1599] Compiling SwiftStreamingMarkdown Color+Dynamic.swift
+[1276/1599] Compiling SwiftStreamingMarkdown Colors+Static.swift
+[1277/1599] Compiling SwiftStreamingMarkdown Colors+Theme.swift
+[1278/1617] Emitting module MacParakeetCore
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:55:27: warning: 'is' test is always true
+ 53 |             // A custom description can contain user content, even when it looks
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+    |                           `- warning: 'is' test is always true
+ 56 |                 !(error is any CustomDebugStringConvertible)
+ 57 |             else { return typeName }
+
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:56:25: warning: 'is' test is always true
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+ 56 |                 !(error is any CustomDebugStringConvertible)
+    |                         `- warning: 'is' test is always true
+ 57 |             else { return typeName }
+ 58 |             let described = String(describing: error)
+[1279/1617] Compiling MacParakeetCore PromptSystemPromptAssembler.swift
+[1280/1617] Compiling MacParakeetCore PromptTemplateRenderer.swift
+[1281/1617] Compiling MacParakeetCore QuickPrompt.swift
+[1282/1617] Compiling MacParakeetCore QuickPromptBundle.swift
+[1283/1617] Compiling MacParakeetCore Segment.swift
+[1284/1617] Compiling MacParakeetCore TextSnippet.swift
+[1285/1617] Compiling MacParakeetCore Transcription.swift
+[1286/1617] Compiling MacParakeetCore TranscriptionProgress.swift
+[1287/1617] Compiling MacParakeetCore TransformHistoryEntry.swift
+[1288/1617] Compiling MacParakeetCore TransformShortcutReservedHotkey.swift
+[1289/1617] Compiling MacParakeetCore VocabularyBundle.swift
+[1290/1617] Compiling MacParakeetCore AsyncPermit.swift
+[1291/1617] Compiling MacParakeetCore CohereTranscribeEngine.swift
+[1292/1617] Compiling MacParakeetCore CustomVocabularyBoosting.swift
+[1293/1617] Compiling MacParakeetCore FnKeyStateMachine.swift
+[1294/1617] Compiling MacParakeetCore HotkeyGestureController.swift
+[1295/1617] Compiling MacParakeetCore HotkeyTrigger.swift
+[1296/1617] Compiling MacParakeetCore KeyCodeNames.swift
+[1297/1617] Compiling MacParakeetCore NativeLiveDictating.swift
+[1298/1617] Emitting module SwiftStreamingMarkdown
+[1299/1624] Compiling SwiftStreamingMarkdown MDFont.swift
+[1300/1624] Compiling SwiftStreamingMarkdown MDImage.swift
+[1301/1624] Compiling SwiftStreamingMarkdown MDParagraphView.swift
+[1302/1624] Compiling SwiftStreamingMarkdown MarkdownListener.swift
+[1303/1624] Compiling SwiftStreamingMarkdown NSAttributedString+.swift
+[1304/1624] Compiling SwiftStreamingMarkdown NSFont+LineHeight.swift
+[1305/1624] Compiling SwiftStreamingMarkdown String+.swift
+[1306/1624] Compiling SwiftStreamingMarkdown ThematicBreakView.swift
+[1307/1624] Compiling SwiftStreamingMarkdown UnorderedListView.swift
+[1308/1624] Compiling SwiftStreamingMarkdown AppAppearance.swift
+[1309/1624] Compiling SwiftStreamingMarkdown Image+MDImage.swift
+[1310/1624] Compiling SwiftStreamingMarkdown MDColor+Hex.swift
+[1311/1624] Compiling SwiftStreamingMarkdown MDColor.swift
+[1312/1624] Compiling SwiftStreamingMarkdown MDEdgeInsets.swift
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:55:27: warning: 'is' test is always true
+ 53 |             // A custom description can contain user content, even when it looks
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+    |                           `- warning: 'is' test is always true
+ 56 |                 !(error is any CustomDebugStringConvertible)
+ 57 |             else { return typeName }
+
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:56:25: warning: 'is' test is always true
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+ 56 |                 !(error is any CustomDebugStringConvertible)
+    |                         `- warning: 'is' test is always true
+ 57 |             else { return typeName }
+ 58 |             let described = String(describing: error)
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:55:27: warning: 'is' test is always true
+ 53 |             // A custom description can contain user content, even when it looks
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+    |                           `- warning: 'is' test is always true
+ 56 |                 !(error is any CustomDebugStringConvertible)
+ 57 |             else { return typeName }
+
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:56:25: warning: 'is' test is always true
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+ 56 |                 !(error is any CustomDebugStringConvertible)
+    |                         `- warning: 'is' test is always true
+ 57 |             else { return typeName }
+ 58 |             let described = String(describing: error)
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:55:27: warning: 'is' test is always true
+ 53 |             // A custom description can contain user content, even when it looks
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+    |                           `- warning: 'is' test is always true
+ 56 |                 !(error is any CustomDebugStringConvertible)
+ 57 |             else { return typeName }
+
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:56:25: warning: 'is' test is always true
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+ 56 |                 !(error is any CustomDebugStringConvertible)
+    |                         `- warning: 'is' test is always true
+ 57 |             else { return typeName }
+ 58 |             let described = String(describing: error)
+[1316/1624] Compiling SwiftStreamingMarkdown TextFonts.swift
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:55:27: warning: 'is' test is always true
+ 53 |             // A custom description can contain user content, even when it looks
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+    |                           `- warning: 'is' test is always true
+ 56 |                 !(error is any CustomDebugStringConvertible)
+ 57 |             else { return typeName }
+
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:56:25: warning: 'is' test is always true
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+ 56 |                 !(error is any CustomDebugStringConvertible)
+    |                         `- warning: 'is' test is always true
+ 57 |             else { return typeName }
+ 58 |             let described = String(describing: error)
+[1317/1624] Compiling SwiftStreamingMarkdown Typography.swift
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:55:27: warning: 'is' test is always true
+ 53 |             // A custom description can contain user content, even when it looks
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+    |                           `- warning: 'is' test is always true
+ 56 |                 !(error is any CustomDebugStringConvertible)
+ 57 |             else { return typeName }
+
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:56:25: warning: 'is' test is always true
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+ 56 |                 !(error is any CustomDebugStringConvertible)
+    |                         `- warning: 'is' test is always true
+ 57 |             else { return typeName }
+ 58 |             let described = String(describing: error)
+[1318/1624] Compiling SwiftStreamingMarkdown FadeInTextTransition.swift
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:55:27: warning: 'is' test is always true
+ 53 |             // A custom description can contain user content, even when it looks
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+    |                           `- warning: 'is' test is always true
+ 56 |                 !(error is any CustomDebugStringConvertible)
+ 57 |             else { return typeName }
+
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:56:25: warning: 'is' test is always true
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+ 56 |                 !(error is any CustomDebugStringConvertible)
+    |                         `- warning: 'is' test is always true
+ 57 |             else { return typeName }
+ 58 |             let described = String(describing: error)
+[1319/1624] Compiling SwiftStreamingMarkdown FadeInTextTransitionViewModifier.swift
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:55:27: warning: 'is' test is always true
+ 53 |             // A custom description can contain user content, even when it looks
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+    |                           `- warning: 'is' test is always true
+ 56 |                 !(error is any CustomDebugStringConvertible)
+ 57 |             else { return typeName }
+
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:56:25: warning: 'is' test is always true
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+ 56 |                 !(error is any CustomDebugStringConvertible)
+    |                         `- warning: 'is' test is always true
+ 57 |             else { return typeName }
+ 58 |             let described = String(describing: error)
+[1320/1624] Compiling SwiftStreamingMarkdown BlockMathView.swift
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:55:27: warning: 'is' test is always true
+ 53 |             // A custom description can contain user content, even when it looks
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+    |                           `- warning: 'is' test is always true
+ 56 |                 !(error is any CustomDebugStringConvertible)
+ 57 |             else { return typeName }
+
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:56:25: warning: 'is' test is always true
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+ 56 |                 !(error is any CustomDebugStringConvertible)
+    |                         `- warning: 'is' test is always true
+ 57 |             else { return typeName }
+ 58 |             let described = String(describing: error)
+[1321/1624] Compiling SwiftStreamingMarkdown BlockQuoteView.swift
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:55:27: warning: 'is' test is always true
+ 53 |             // A custom description can contain user content, even when it looks
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+    |                           `- warning: 'is' test is always true
+ 56 |                 !(error is any CustomDebugStringConvertible)
+ 57 |             else { return typeName }
+
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:56:25: warning: 'is' test is always true
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+ 56 |                 !(error is any CustomDebugStringConvertible)
+    |                         `- warning: 'is' test is always true
+ 57 |             else { return typeName }
+ 58 |             let described = String(describing: error)
+[1322/1624] Compiling SwiftStreamingMarkdown BlockView.swift
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:55:27: warning: 'is' test is always true
+ 53 |             // A custom description can contain user content, even when it looks
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+    |                           `- warning: 'is' test is always true
+ 56 |                 !(error is any CustomDebugStringConvertible)
+ 57 |             else { return typeName }
+
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:56:25: warning: 'is' test is always true
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+ 56 |                 !(error is any CustomDebugStringConvertible)
+    |                         `- warning: 'is' test is always true
+ 57 |             else { return typeName }
+ 58 |             let described = String(describing: error)
+[1323/1624] Compiling SwiftStreamingMarkdown ImageConfig+SourceResolution.swift
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:55:27: warning: 'is' test is always true
+ 53 |             // A custom description can contain user content, even when it looks
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+    |                           `- warning: 'is' test is always true
+ 56 |                 !(error is any CustomDebugStringConvertible)
+ 57 |             else { return typeName }
+
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:56:25: warning: 'is' test is always true
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+ 56 |                 !(error is any CustomDebugStringConvertible)
+    |                         `- warning: 'is' test is always true
+ 57 |             else { return typeName }
+ 58 |             let described = String(describing: error)
+[1324/1624] Compiling SwiftStreamingMarkdown ImageConfig.swift
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:55:27: warning: 'is' test is always true
+ 53 |             // A custom description can contain user content, even when it looks
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+    |                           `- warning: 'is' test is always true
+ 56 |                 !(error is any CustomDebugStringConvertible)
+ 57 |             else { return typeName }
+
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:56:25: warning: 'is' test is always true
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+ 56 |                 !(error is any CustomDebugStringConvertible)
+    |                         `- warning: 'is' test is always true
+ 57 |             else { return typeName }
+ 58 |             let described = String(describing: error)
+[1325/1624] Compiling SwiftStreamingMarkdown ImageData.swift
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:55:27: warning: 'is' test is always true
+ 53 |             // A custom description can contain user content, even when it looks
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+    |                           `- warning: 'is' test is always true
+ 56 |                 !(error is any CustomDebugStringConvertible)
+ 57 |             else { return typeName }
+
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:56:25: warning: 'is' test is always true
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+ 56 |                 !(error is any CustomDebugStringConvertible)
+    |                         `- warning: 'is' test is always true
+ 57 |             else { return typeName }
+ 58 |             let described = String(describing: error)
+[1326/1624] Compiling SwiftStreamingMarkdown LatexAttachmentData.swift
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:55:27: warning: 'is' test is always true
+ 53 |             // A custom description can contain user content, even when it looks
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+    |                           `- warning: 'is' test is always true
+ 56 |                 !(error is any CustomDebugStringConvertible)
+ 57 |             else { return typeName }
+
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:56:25: warning: 'is' test is always true
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+ 56 |                 !(error is any CustomDebugStringConvertible)
+    |                         `- warning: 'is' test is always true
+ 57 |             else { return typeName }
+ 58 |             let described = String(describing: error)
+[1327/1624] Compiling SwiftStreamingMarkdown ListItem+.swift
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:55:27: warning: 'is' test is always true
+ 53 |             // A custom description can contain user content, even when it looks
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+    |                           `- warning: 'is' test is always true
+ 56 |                 !(error is any CustomDebugStringConvertible)
+ 57 |             else { return typeName }
+
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:56:25: warning: 'is' test is always true
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+ 56 |                 !(error is any CustomDebugStringConvertible)
+    |                         `- warning: 'is' test is always true
+ 57 |             else { return typeName }
+ 58 |             let described = String(describing: error)
+[1328/1624] Compiling SwiftStreamingMarkdown MarkdownImage.swift
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:55:27: warning: 'is' test is always true
+ 53 |             // A custom description can contain user content, even when it looks
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+    |                           `- warning: 'is' test is always true
+ 56 |                 !(error is any CustomDebugStringConvertible)
+ 57 |             else { return typeName }
+
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:56:25: warning: 'is' test is always true
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+ 56 |                 !(error is any CustomDebugStringConvertible)
+    |                         `- warning: 'is' test is always true
+ 57 |             else { return typeName }
+ 58 |             let described = String(describing: error)
+[1329/1624] Compiling SwiftStreamingMarkdown MarkdownRenderConfig+Builders.swift
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:55:27: warning: 'is' test is always true
+ 53 |             // A custom description can contain user content, even when it looks
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+    |                           `- warning: 'is' test is always true
+ 56 |                 !(error is any CustomDebugStringConvertible)
+ 57 |             else { return typeName }
+
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:56:25: warning: 'is' test is always true
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+ 56 |                 !(error is any CustomDebugStringConvertible)
+    |                         `- warning: 'is' test is always true
+ 57 |             else { return typeName }
+ 58 |             let described = String(describing: error)
+[1330/1624] Compiling SwiftStreamingMarkdown String+BundledImage.swift
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:55:27: warning: 'is' test is always true
+ 53 |             // A custom description can contain user content, even when it looks
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+    |                           `- warning: 'is' test is always true
+ 56 |                 !(error is any CustomDebugStringConvertible)
+ 57 |             else { return typeName }
+
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:56:25: warning: 'is' test is always true
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+ 56 |                 !(error is any CustomDebugStringConvertible)
+    |                         `- warning: 'is' test is always true
+ 57 |             else { return typeName }
+ 58 |             let described = String(describing: error)
+[1331/1624] Compiling SwiftStreamingMarkdown CodeBlockView.swift
+[1332/1624] Compiling SwiftStreamingMarkdown DocumentView.swift
+[1333/1624] Compiling SwiftStreamingMarkdown EdgeBorder.swift
+[1334/1624] Compiling SwiftStreamingMarkdown HighlightTaskManager.swift
+[1335/1624] Compiling SwiftStreamingMarkdown BlockImageFailureView.swift
+[1336/1624] Compiling SwiftStreamingMarkdown BlockImageLoadingView.swift
+[1337/1624] Compiling SwiftStreamingMarkdown BlockImageView.swift
+[1370/1624] Compiling SwiftStreamingMarkdown Table+.swift
+[1371/1624] Compiling SwiftStreamingMarkdown ThematicBreak+.swift
+[1372/1624] Compiling SwiftStreamingMarkdown UnorderedList+.swift
+[1373/1624] Compiling SwiftStreamingMarkdown CitationCoder.swift
+[1374/1624] Compiling SwiftStreamingMarkdown InlineAttachmentData.swift
+[1375/1624] Compiling SwiftStreamingMarkdown InlineCitationAttachment.swift
+[1376/1624] Compiling SwiftStreamingMarkdown TextContextMenu.swift
+[1377/1624] Compiling SwiftStreamingMarkdown ParagraphAnimation.swift
+[1378/1624] Compiling SwiftStreamingMarkdown ParagraphViewCache.swift
+[1379/1624] Compiling SwiftStreamingMarkdown ParagraphUIView.swift
+[1380/1624] Compiling SwiftStreamingMarkdown ParagraphView+iOS.swift
+[1381/1624] Compiling SwiftStreamingMarkdown TableView.swift
+[1382/1624] Compiling SwiftStreamingMarkdown SelectableTextView.swift
+[1383/1624] Compiling SwiftStreamingMarkdown TextSelectionView.swift
+[1384/1624] Compiling SwiftStreamingMarkdown MarkdownRenderConfig.swift
+[1385/1624] Compiling SwiftStreamingMarkdown MarkdownRenderable.swift
+[1386/1624] Compiling SwiftStreamingMarkdown Markup+ID.swift
+[1387/1624] Compiling SwiftStreamingMarkdown RenderableDocument.swift
+[1388/1624] Compiling SwiftStreamingMarkdown TextSelectionConfig.swift
+[1389/1624] Compiling SwiftStreamingMarkdown LaTexPreProcessor.swift
+[1390/1624] Compiling SwiftStreamingMarkdown MarkdownParseOption.swift
+[1392/1624] Compiling SwiftStreamingMarkdown TaskExtensions.swift
+[1393/1624] Compiling SwiftStreamingMarkdown URL+MixedEncoding.swift
+[1394/1624] Compiling SwiftStreamingMarkdown View+If.swift
+[1395/1624] Compiling SwiftStreamingMarkdown View+TrackSize.swift
+[1396/1624] Compiling SwiftStreamingMarkdown WithLock.swift
+[1397/1624] Compiling SwiftStreamingMarkdown resource_bundle_accessor.swift
+[1398/1624] Compiling SwiftStreamingMarkdown BlockConvertible.swift
+[1399/1624] Compiling SwiftStreamingMarkdown BlockQuote+.swift
+[1405/1624] Compiling SwiftStreamingMarkdown MarkdownParseResult.swift
+[1406/1624] Compiling SwiftStreamingMarkdown MarkdownParser.swift
+[1407/1624] Compiling SwiftStreamingMarkdown MarkdownParserImpl.swift
+[1408/1624] Compiling SwiftStreamingMarkdown ImageBlockRewriter.swift
+[1409/1624] Compiling SwiftStreamingMarkdown PartialEmphasisRewriter.swift
+[1410/1624] Compiling SwiftStreamingMarkdown PartialTableRewriter.swift
+[1411/1624] Compiling SwiftStreamingMarkdown MarkupPostParsingRewriter.swift
+[1412/1624] Compiling SwiftStreamingMarkdown BundledResourceImage.swift
+[1413/1624] Compiling SwiftStreamingMarkdown ImageViewerView.swift
+[1414/1624] Compiling SwiftStreamingMarkdown PinchZoomView.swift
+[1415/1624] Compiling SwiftStreamingMarkdown OrderedListView.swift
+[1416/1624] Compiling SwiftStreamingMarkdown ParagraphNSView.swift
+[1417/1624] Compiling SwiftStreamingMarkdown ParagraphView+macOS.swift
+[1418/1624] Compiling SwiftStreamingMarkdown LatexViewProvider.swift
+[1452/1624] Compiling MacParakeetCore CaptureOrchestrator.swift
+[1453/1624] Compiling MacParakeetCore LiveChunkTranscriber.swift
+[1454/1624] Compiling MacParakeetCore MeetingEchoDelayEstimator.swift
+[1455/1624] Compiling MacParakeetCore MeetingEchoSuppressionRuntime.swift
+[1456/1624] Compiling MacParakeetCore MicConditioner.swift
+[1457/1624] Compiling MacParakeetCore DAPTDocumentRenderer.swift
+[1458/1624] Compiling MacParakeetCore DerivedFieldsBackfillService.swift
+[1459/1624] Compiling MacParakeetCore DiarizationService.swift
+[1460/1624] Compiling MacParakeetCore MeetingSpeakerPrior.swift
+[1461/1624] Compiling MacParakeetCore SpeakerMerger.swift
+[1462/1624] Compiling MacParakeetCore DictationService.swift
+[1463/1624] Compiling MacParakeetCore DictationServiceSession.swift
+[1464/1624] Compiling MacParakeetCore DictationStopDecision.swift
+[1465/1624] Compiling MacParakeetCore LiveTranscriptStabilizer.swift
+[1466/1624] Compiling MacParakeetCore DiscoverService.swift
+[1467/1624] Compiling MacParakeetCore DiscoverThoughtsService.swift
+[1468/1624] Compiling MacParakeetCore ExportService.swift
+[1469/1624] Compiling MacParakeetCore FeedbackService.swift
+[1470/1624] Compiling MacParakeetCore TelemetryService.swift
+[1471/1624] Compiling MacParakeetCore ThumbnailCacheService.swift
+[1472/1624] Compiling MacParakeetCore TranscriptionService.swift
+[1473/1624] Compiling MacParakeetCore TransformExecutor.swift
+[1474/1624] Compiling MacParakeetCore TransformRunSerializer.swift
+[1475/1624] Compiling MacParakeetCore VideoStreamService.swift
+[1476/1624] Compiling MacParakeetCore VocabularyImportExportService.swift
+[1477/1624] Compiling MacParakeetCore YouTubeAudioPlaybackConverter.swift
+[1478/1624] Compiling MacParakeetCore YouTubeDownloader.swift
+[1479/1624] Compiling MacParakeetCore SpeechEnginePreference.swift
+[1480/1624] Compiling MacParakeetCore AIFormatter.swift
+[1481/1624] Compiling MacParakeetCore AIFormatterSmartDefaults.swift
+[1482/1624] Compiling MacParakeetCore CustomWordReplacer.swift
+[1483/1624] Compiling MacParakeetCore TextProcessingPipeline.swift
+[1484/1624] Compiling MacParakeetCore TextProcessingResult.swift
+[1485/1624] Compiling MacParakeetCore TextRefinementService.swift
+[1486/1624] Compiling MacParakeetCore TranscriptAIContextFormatter.swift
+[1487/1624] Compiling MacParakeetCore TranscriptCueBuilder.swift
+[1506/1624] Compiling MacParakeetCore TranscriptDerivers.swift
+[1507/1624] Compiling MacParakeetCore TranscriptFormatter.swift
+[1508/1624] Compiling MacParakeetCore TranscriptParagraphBuilder.swift
+[1509/1624] Compiling MacParakeetCore UserDefaults+Sendable.swift
+[1510/1624] Compiling MacParakeetCore CancellationResponsiveTaskAwaiter.swift
+[1511/1624] Compiling MacParakeetCore ChildProcessWaiter.swift
+[1512/1624] Compiling MacParakeetCore DownloadableMediaURLValidator.swift
+[1513/1624] Compiling MacParakeetCore KnowledgeSegmenter.swift
+[1514/1624] Compiling MacParakeetCore MediaPlatform.swift
+[1515/1624] Compiling MacParakeetCore OneShotVoidContinuation.swift
+[1516/1624] Compiling MacParakeetCore PodcastEpisodeMatcher.swift
+[1517/1624] Compiling MacParakeetCore PodcastURLValidator.swift
+[1518/1624] Compiling MacParakeetCore TranscriptSegmentClipboard.swift
+[1519/1624] Compiling MacParakeetCore TranscriptSegmenter.swift
+[1520/1624] Compiling MacParakeetCore TranscriptionAssetCleanup.swift
+[1521/1624] Compiling MacParakeetCore UnicodeSearch.swift
+[1522/1624] Compiling MacParakeetCore YouTubeURLValidator.swift
+[1523/1624] Compiling MacParakeetCore WhisperLanguageCatalog.swift
+[1524/1624] Compiling MacParakeetCore AppFeatures.swift
+[1525/1624] Compiling MacParakeetCore AppNotifications.swift
+[1526/1624] Compiling MacParakeetCore AppPreferences.swift
+[1527/1624] Compiling MacParakeetCore AppRuntimePreferences.swift
+[1528/1624] Compiling MacParakeetCore AudioCaptureDiagnostics.swift
+[1529/1624] Compiling MacParakeetCore AudioChunker.swift
+[1530/1624] Compiling MacParakeetCore AudioDeviceManager.swift
+[1531/1624] Compiling MacParakeetCore AudioFileConverter.swift
+[1532/1624] Compiling MacParakeetCore AudioFileEnumerator.swift
+[1533/1624] Compiling MacParakeetCore AudioProcessor.swift
+[1534/1624] Compiling MacParakeetCore AudioProcessorProtocol.swift
+[1535/1624] Compiling MacParakeetCore AudioRecorder.swift
+[1536/1624] Compiling MacParakeetCore AudioTrackDescriptor.swift
+[1537/1624] Compiling MacParakeetCore CMSampleBufferToPCMBuffer.swift
+[1538/1624] Compiling MacParakeetCore DiagnosticLogScope.swift
+[1539/1624] Compiling MacParakeetCore FFmpegAudioTrackProbe.swift
+[1540/1624] Compiling MacParakeetCore MeetingAudioCaptureService.swift
+[1541/1624] Compiling MacParakeetCore MeetingAudioError.swift
+[1542/1624] Compiling MacParakeetCore MeetingAudioStorageWriter.swift
+[1543/1624] Compiling MacParakeetCore MeetingMonitor.swift
+[1544/1624] Compiling MacParakeetCore MeetingTriggerFilter.swift
+[1545/1624] Compiling MacParakeetCore AIFormatterProfileRepository.swift
+[1546/1624] Compiling MacParakeetCore CardRepository.swift
+[1547/1624] Compiling MacParakeetCore ChatConversationRepository.swift
+[1548/1624] Compiling MacParakeetCore CustomWordRepository.swift
+[1549/1624] Compiling MacParakeetCore DatabaseManager.swift
+[1550/1624] Compiling MacParakeetCore DictationRepository.swift
+[1551/1624] Compiling MacParakeetCore LLMRunRepository.swift
+[1552/1624] Compiling MacParakeetCore PromptRepository.swift
+[1553/1624] Compiling MacParakeetCore PromptResultRepository.swift
+[1554/1624] Compiling MacParakeetCore QuickPromptRepository.swift
+[1555/1624] Compiling MacParakeetCore SegmentRepository.swift
+[1556/1624] Compiling MacParakeetCore TextSnippetRepository.swift
+[1557/1624] Compiling MacParakeetCore TranscriptionLibraryQuery.swift
+[1558/1624] Compiling MacParakeetCore TranscriptionRepository.swift
+[1559/1624] Compiling MacParakeetCore TransformHistoryRepository.swift
+[1560/1624] Compiling MacParakeetCore DictationFlowStateMachine.swift
+[1561/1624] Compiling MacParakeetCore DictationFlowTiming.swift
+[1568/1624] Compiling MacParakeetCore LLMConfigStore.swift
+[1569/1624] Compiling MacParakeetCore LLMError.swift
+[1570/1624] Compiling MacParakeetCore LLMExecutionContext.swift
+[1571/1624] Compiling MacParakeetCore LLMHTTPTransport.swift
+[1572/1624] Compiling MacParakeetCore LLMRunRecorder.swift
+[1573/1624] Compiling MacParakeetCore LLMService.swift
+[1574/1624] Compiling MacParakeetCore LocalCLIExecutor.swift
+[1575/1624] Compiling MacParakeetCore LocalCLILLMClient.swift
+[1576/1624] Compiling MacParakeetCore LocalLLMRuntime.swift
+[1577/1624] Compiling MacParakeetCore OllamaLLMHTTPAdapter.swift
+[1578/1624] Compiling MacParakeetCore OpenAICompatibleLLMHTTPAdapter.swift
+[1579/1624] Compiling MacParakeetCore RoutingLLMClient.swift
+[1580/1624] Compiling MacParakeetCore Card.swift
+[1581/1624] Compiling MacParakeetCore ChatConversation.swift
+[1582/1624] Compiling MacParakeetCore CustomWord.swift
+[1583/1624] Compiling MacParakeetCore DailyDictationStat.swift
+[1584/1624] Compiling MacParakeetCore Dictation.swift
+[1585/1624] Compiling MacParakeetCore DictationResult.swift
+[1586/1624] Compiling MacParakeetCore DiscoverContent.swift
+[1587/1624] Compiling MacParakeetCore KeyAction.swift
+[1588/1624] Compiling MacParakeetCore KeyboardShortcut.swift
+[1589/1624] Compiling MacParakeetCore LLMFormatterResult.swift
+[1590/1624] Compiling MacParakeetCore LLMProvider.swift
+[1591/1624] Compiling MacParakeetCore LLMResult.swift
+[1592/1624] Compiling MacParakeetCore LLMRun.swift
+[1593/1624] Compiling MacParakeetCore LLMTypes.swift
+[1594/1624] Compiling MacParakeetCore MeetingCalendarSnapshot.swift
+[1595/1624] Compiling MacParakeetCore MeetingStartContext.swift
+[1596/1624] Compiling MacParakeetCore Prompt.swift
+[1597/1624] Compiling MacParakeetCore PromptInferenceSettings.swift
+[1598/1624] Compiling MacParakeetCore PromptResult.swift
+[1599/1624] Compiling MacParakeetCore MeetingPlaybackArtifactBuilder.swift
+[1600/1624] Compiling MacParakeetCore MeetingRecordingLockFileStore.swift
+[1601/1624] Compiling MacParakeetCore MeetingRecordingMetadata.swift
+[1602/1624] Compiling MacParakeetCore MeetingRecordingOutput.swift
+[1603/1624] Compiling MacParakeetCore MeetingRecordingRecoveryService.swift
+[1604/1624] Compiling MacParakeetCore MeetingRecordingService.swift
+[1605/1624] Compiling MacParakeetCore MeetingRecordingSettlement.swift
+[1606/1624] Compiling MacParakeetCore MeetingSystemAudioSignalVerdict.swift
+[1607/1624] Compiling MacParakeetCore MeetingTitleGenerator.swift
+[1608/1624] Compiling MacParakeetCore MeetingTranscriptAssembler.swift
+[1609/1624] Compiling MacParakeetCore MeetingTranscriptFinalizer.swift
+[1610/1624] Compiling MacParakeetCore MeetingTranscriptSourceReconciler.swift
+[1611/1624] Compiling MacParakeetCore MeetingTranscriptVocabularyApplier.swift
+[1612/1624] Compiling MacParakeetCore MeetingVADModelPreparer.swift
+[1613/1624] Compiling MacParakeetCore MeetingVADService.swift
+[1614/1624] Compiling MacParakeetCore PasteShortcutKeyResolver.swift
+[1615/1624] Compiling MacParakeetCore PodcastAudioDownloader.swift
+[1616/1624] Compiling MacParakeetCore PodcastDirectoryService.swift
+[1617/1693] Compiling MacParakeetViewModels TranscriptFindModel.swift
+[1618/1693] Compiling MacParakeetViewModels TranscriptionCompletionNotifier.swift
+[1619/1693] Compiling MacParakeetViewModels InProcessModelManagerViewModel.swift
+[1620/1693] Compiling MacParakeetViewModels LLMModelAvailability.swift
+[1621/1693] Compiling MacParakeetViewModels LLMSettingsDraft.swift
+[1622/1695] Compiling MacParakeetViewModels MeetingSourceHealthPresentation.swift
+[1623/1695] Compiling MacParakeetViewModels MeetingsWorkspaceViewModel.swift
+[1628/1697] Emitting module CLI
+[1629/1697] Compiling MacParakeetViewModels LLMSettingsViewModel.swift
+[1630/1697] Compiling MacParakeetViewModels MediaPlayerViewModel.swift
+[1631/1697] Compiling MacParakeetViewModels MeetingCountdownToastViewModel.swift
+[1632/1697] Compiling MacParakeetViewModels EngineSettingsViewModel.swift
+[1633/1697] Compiling MacParakeetViewModels FeedbackViewModel.swift
+[1634/1697] Compiling MacParakeetViewModels DictationHistoryViewModel.swift
+[1635/1697] Compiling MacParakeetViewModels DiscoverViewModel.swift
+[1636/1697] Compiling MacParakeetViewModels MeetingRecordingPreviewLine.swift
+[1637/1697] Compiling MacParakeetViewModels IdlePillViewModel.swift
+[1638/1697] Compiling MacParakeetViewModels TranscriptionViewModel.swift
+[1639/1697] Compiling MacParakeetViewModels TransformEditorViewModel.swift
+[1640/1697] Compiling MacParakeetViewModels CustomWordsViewModel.swift
+[1644/1697] Compiling CLI VocabWordsCommand.swift
+[1645/1697] Compiling CLI MacParakeetCLI.swift
+[1647/1697] Compiling MacParakeetViewModels VocabularyBackupViewModel.swift
+[1659/1697] Compiling MacParakeetViewModels TranscriptionDeletionCleanup.swift
+[1660/1697] Compiling MacParakeetViewModels TranscriptionLibraryViewModel.swift
+[1661/1697] Compiling MacParakeetViewModels OnboardingViewModel.swift
+[1662/1697] Compiling MacParakeetViewModels PromptResultsViewModel.swift
+[1664/1697] Compiling MacParakeetViewModels MeetingRecordingPanelViewModel.swift
+[1665/1697] Compiling MacParakeetViewModels MeetingRecordingPillViewModel.swift
+[1666/1697] Compiling MacParakeetViewModels QuickPromptsViewModel.swift
+[1667/1697] Compiling MacParakeetViewModels SettingsRootViewModel.swift
+[1668/1697] Compiling MacParakeetViewModels SettingsSearchIndex.swift
+[1669/1697] Compiling MacParakeetViewModels TranscriptChatViewModel.swift
+[1672/1697] Compiling MacParakeetViewModels MeetingNotesViewModel.swift
+[1673/1697] Compiling MacParakeetViewModels SettingsTab.swift
+[1674/1697] Compiling MacParakeetViewModels SettingsViewModel.swift
+[1675/1697] Compiling MacParakeetViewModels TextSnippetsViewModel.swift
+[1678/1697] Write Objects.LinkFileList
+[1690/1697] Emitting module MacParakeetViewModels
+[1690/1833] Linking macparakeet-cli
+[1691/1855] Applying macparakeet-cli
+[1693/1855] Compiling CLITests PromptsCommandTests.swift
+[1694/1855] Compiling CLITests QuickPromptsCommandTests.swift
+[1695/1855] Compiling CLITests TranscribeCommandTests.swift
+[1696/1855] Compiling CLITests StatsCommandTests.swift
+[1697/1855] Compiling CLITests SpecCommandTests.swift
+[1698/1855] Compiling CLITests TransformsCommandTests.swift
+[1699/1856] Compiling CLITests StandardOutputCapture.swift
+[1700/1856] Compiling CLITests RetranscribeCommandTests.swift
+[1701/1856] Compiling CLITests SearchCommandTests.swift
+[1702/1856] Compiling CLITests LLMJSONOutputTests.swift
+[1703/1856] Compiling CLITests MeetingVADSimCommandTests.swift
+[1704/1856] Compiling CLITests ConfigCommandTests.swift
+[1705/1856] Compiling CLITests ExportCommandTests.swift
+[1706/1856] Compiling CLITests HistoryCommandTests.swift
+[1707/1856] Compiling CLITests LLMConfigCommandTests.swift
+[1708/1856] Emitting module CLITests
+[1709/1856] Compiling CLITests CLIHelpersTests.swift
+[1710/1856] Compiling CLITests CLITelemetryTests.swift
+[1711/1856] Compiling CLITests CLIVersionTests.swift
+[1712/1856] Compiling CLITests CardsCommandTests.swift
+[1713/1856] Compiling CLITests MeetingsCommandTests.swift
+[1714/1856] Compiling CLITests ModelLifecycleCommandTests.swift
+[1715/1856] Compiling MacParakeet SoundManager.swift
+[1716/1856] Compiling MacParakeet TransformSigilView.swift
+[1717/1856] Compiling MacParakeet VideoPlayerView.swift
+[1718/1856] Compiling MacParakeet DictationOverlayController.swift
+[1719/1856] Compiling MacParakeet DictationOverlayView.swift
+[1720/1856] Compiling MacParakeet FormatterVisualView.swift
+[1721/1856] Compiling MacParakeet IdlePillController.swift
+[1722/1856] Compiling MacParakeet IdlePillView.swift
+[1723/1856] Compiling MacParakeet LoadingCaptionView.swift
+[1724/1856] Compiling MacParakeet WaveformView.swift
+[1725/1866] Compiling CLITests VocabCommandTests.swift
+[1726/1866] Compiling MacParakeet MeetingRecordingTile.swift
+[1727/1866] Compiling MacParakeet PointingHandCursorModifier.swift
+[1728/1866] Compiling MacParakeet PortalDropZone.swift
+[1729/1866] Compiling MacParakeet PromptLibraryView.swift
+[1730/1866] Compiling MacParakeet SpeakerRenameAccessibility.swift
+[1731/1866] Compiling MacParakeet TranscribeView.swift
+[1732/1866] Compiling MacParakeet TranscriptBodyLayout.swift
+[1733/1866] Compiling MacParakeet TranscriptFindBar.swift
+[1734/1866] Compiling MacParakeet TranscriptFindHighlight.swift
+[1735/1866] Compiling MacParakeet TranscriptResultActions.swift
+[1741/1866] Compiling MacParakeet DictationStatsView.swift
+[1742/1866] Compiling MacParakeet DictationSubTabPicker.swift
+[1743/1866] Compiling MacParakeet MainWindowState.swift
+[1744/1866] Compiling MacParakeet MainWindowView.swift
+[1745/1866] Compiling MacParakeet AskPromptsSheet.swift
+[1746/1866] Compiling MacParakeet ModelSelectorView.swift
+[1747/1866] Compiling MacParakeet NoSpeechAnimationTiming.swift
+[1748/1866] Compiling MacParakeet ParakeetActionStyle.swift
+[1749/1866] Compiling MacParakeet ParakeetSpinner.swift
+[1750/1866] Compiling MacParakeet ParticleSystem.swift
+[1751/1866] Compiling MacParakeet PlatformGlyph.swift
+[1752/1866] Compiling MacParakeet PlaybackSpeedMenu.swift
+[1753/1866] Compiling MacParakeet PolishedTooltip.swift
+[1754/1866] Compiling MacParakeet RhodoneaScribeLoader.swift
+[1755/1866] Compiling MacParakeet SacredGeometry.swift
+[1756/1866] Compiling MacParakeet SonicMandalaView.swift
+[1757/1866] Compiling MacParakeet SettingsTabBar.swift
+[1758/1866] Compiling MacParakeet HotkeyRecorderView.swift
+[1759/1866] Compiling MacParakeet LLMSettingsView.swift
+[1760/1866] Compiling MacParakeet LanguagePickerPopover.swift
+[1761/1866] Compiling MacParakeet SettingsStatusRules.swift
+[1762/1866] Compiling MacParakeet SettingsView.swift
+[1763/1866] Compiling MacParakeet BulkTranscriptionSelectionBar.swift
+[1764/1866] Compiling MacParakeet MediaPlatformOrbitView.swift
+[1765/1866] Compiling MacParakeet MeetingArtifactActions.swift
+[1766/1866] Compiling MacParakeet MeetingAudioActions.swift
+[1767/1866] Compiling MacParakeet AppAppearanceController.swift
+[1768/1866] Compiling MacParakeet AppEnvironment.swift
+[1769/1866] Compiling MacParakeet AppEnvironmentConfigurer.swift
+[1770/1866] Compiling MacParakeet AppHotkeyCoordinator.swift
+[1771/1866] Compiling MacParakeet AppSettingsObserverCoordinator.swift
+[1772/1866] Compiling MacParakeet AppStartupBootstrapper.swift
+[1773/1866] Compiling MacParakeet AppWindowCoordinator.swift
+[1774/1866] Compiling MacParakeet DebugDictationPreviewQA.swift
+[1775/1866] Compiling MacParakeet DictationFlowCoordinator.swift
+[1776/1866] Compiling MacParakeet DictationMediaPauseCoordinator.swift
+[1777/1866] Compiling MacParakeet MeetingAudioRetentionSweepCoordinator.swift
+[1778/1866] Emitting module MacParakeet
+[1779/1866] Compiling MacParakeet TransformEditorSheet.swift
+[1780/1866] Compiling MacParakeet TransformSpikeProgressPanelController.swift
+[1781/1866] Compiling MacParakeet TransformsView.swift
+[1782/1866] Compiling MacParakeet CustomWordsView.swift
+[1783/1866] Compiling MacParakeet TextSnippetsView.swift
+[1784/1866] Compiling MacParakeet VocabularyBackupSection.swift
+[1785/1866] Compiling MacParakeet VocabularyComponents.swift
+[1786/1866] Compiling MacParakeet VocabularyImportPreviewSheet.swift
+[1787/1866] Compiling MacParakeet VocabularyView.swift
+[1788/1866] Compiling MacParakeet resource_bundle_accessor.swift
+[1789/1866] Compiling MacParakeet TransformsCoordinator.swift
+[1790/1866] Compiling MacParakeet AppDelegate.swift
+[1791/1866] Compiling MacParakeet BreathWaveIcon.swift
+[1792/1866] Compiling MacParakeet GlobalShortcutManager.swift
+[1793/1866] Compiling MacParakeet HotkeyManager.swift
+[1794/1866] Compiling MacParakeet ModifierKeyMatcher.swift
+[1795/1866] Compiling MacParakeet TransformsHotkeyRegistry.swift
+[1796/1866] Compiling MacParakeet TransformsShortcutAlias.swift
+[1797/1866] Compiling MacParakeet MacParakeetApp.swift
+[1798/1866] Compiling MacParakeet MenuBarDropView.swift
+[1799/1866] Compiling MacParakeet OnboardingHotkeyPreviewController.swift
+[1800/1866] Compiling MacParakeet MeetingAutoStartCoordinator.swift
+[1801/1866] Compiling MacParakeet MeetingAutoStopCoordinator.swift
+[1802/1866] Compiling MacParakeet MeetingFinalizationReconciler.swift
+[1803/1866] Compiling MacParakeet MeetingRecordingFlowCoordinator.swift
+[1804/1866] Compiling MacParakeet MeetingRecoveryCoordinator.swift
+[1805/1866] Compiling MacParakeet MeetingTranscriptionQueue.swift
+[1806/1866] Compiling MacParakeet MenuBarCoordinator.swift
+[1807/1866] Compiling MacParakeet MenuPreviewFormatter.swift
+[1808/1866] Compiling MacParakeet OnboardingCoordinator.swift
+[1809/1866] Compiling MacParakeet SparkleUpdateGuard.swift
+[1810/1866] Compiling MacParakeet TranscriptionCompletionPresenter.swift
+[1811/1866] Compiling MacParakeet MeetingRecordingPanelController.swift
+[1812/1866] Compiling MacParakeet MeetingRecordingPanelView.swift
+[1813/1866] Compiling MacParakeet MeetingRecordingPillController.swift
+[1814/1866] Compiling MacParakeet MeetingRecordingPillView.swift
+[1815/1866] Compiling MacParakeet MeetingRecordingStopButton.swift
+[1816/1866] Compiling MacParakeet MeetingRowCard.swift
+[1817/1866] Compiling MacParakeet MeetingSourceHealthChips.swift
+[1818/1866] Compiling MacParakeet MerkabaPillIcon.swift
+[1819/1866] Compiling MacParakeet TranscriptTextView.swift
+[1820/1866] Compiling MacParakeet MeetingsView.swift
+[1821/1866] Compiling MacParakeet DualAudioOrbView.swift
+[1822/1866] Compiling MacParakeet FlowerCompletionView.swift
+[1823/1866] Compiling MacParakeet LiveAskPaneView.swift
+[1824/1866] Compiling MacParakeet LiveNotesPaneView.swift
+[1825/1866] Compiling MacParakeet MeetingAudioStateChip.swift
+[1826/1866] Compiling MacParakeet MeetingCountdownToastController.swift
+[1827/1866] Compiling MacParakeet MeetingCountdownToastView.swift
+[1828/1866] Compiling MacParakeet MeetingDateGroupHeader.swift
+[1829/1866] Compiling MacParakeet MeetingDeletionCopy.swift
+[1830/1866] Compiling MacParakeet MeetingPartialCapturePresentation.swift
+[1842/1866] Compiling MacParakeet OnboardingFlowView.swift
+[1843/1866] Compiling MacParakeet CalendarSettingsView.swift
+[1844/1866] Compiling MacParakeet EngineOptionTile.swift
+[1845/1866] Compiling MacParakeet SettingsCard.swift
+[1846/1866] Compiling MacParakeet SettingsDestructiveButton.swift
+[1847/1866] Compiling MacParakeet SettingsEmptyState.swift
+[1848/1866] Compiling MacParakeet SettingsRow.swift
+[1849/1866] Compiling MacParakeet SettingsSearchField.swift
+[1850/1866] Compiling MacParakeet SettingsSearchResultsList.swift
+[1851/1866] Compiling MacParakeet SettingsStatusChip.swift
+[1852/1866] Compiling MacParakeet TranscriptResultView.swift
+[1853/1866] Compiling MacParakeet TranscriptTimestampedContentView.swift
+[1854/1866] Compiling MacParakeet TranscriptionLibraryView.swift
+[1855/1866] Compiling MacParakeet TranscriptionSourceDisplay.swift
+[1856/1866] Compiling MacParakeet TranscriptionSourceLabel.swift
+[1857/1866] Compiling MacParakeet TranscriptionThumbnailCard.swift
+[1858/1866] Compiling MacParakeet TranscriptionVideoPanel.swift
+[1859/1866] Compiling MacParakeet TranscriptionViewHelpers.swift
+[1860/1866] Compiling MacParakeet YouTubeInputPanelController.swift
+[1861/1866] Compiling MacParakeet YouTubeInputPanelView.swift
+[1861/1866] Write Objects.LinkFileList
+[1862/1866] Linking MacParakeet
+[1863/1976] Applying MacParakeet
+[1865/2132] Compiling MacParakeetTests FixedMeetingLiveAudioChunkerTests.swift
+[1866/2132] Compiling MacParakeetTests MeetingAudioCaptureServiceTests.swift
+[1867/2132] Compiling MacParakeetTests MeetingAudioFileTests.swift
+[1868/2132] Compiling MacParakeetTests MeetingAudioStorageWriterTests.swift
+[1869/2132] Compiling MacParakeetTests MeetingMicHealthMonitorTests.swift
+[1870/2132] Compiling MacParakeetTests MeetingVADChunkingSimulatorTests.swift
+[1871/2132] Compiling MacParakeetTests MicrophoneCaptureTests.swift
+[1872/2132] Compiling MacParakeetTests MicrophoneEnginePlatformConfigChangeRecoveryTests.swift
+[1873/2132] Compiling MacParakeetTests MicrophoneEnginePlatformStartupReadinessTests.swift
+[1874/2132] Compiling MacParakeetTests MicrophoneEnginePrewarmRoutingTests.swift
+[1875/2132] Compiling MacParakeetTests MicrophoneEngineRealPlatformTests.swift
+[1876/2132] Compiling MacParakeetTests MockAudioProcessor.swift
+[1877/2132] Compiling MacParakeetTests MutableMicrophoneTapHandlerTests.swift
+[1878/2132] Compiling MacParakeetTests ObjCExceptionBridgeTests.swift
+[1879/2132] Compiling MacParakeetTests PCMBufferToSampleBufferTests.swift
+[1880/2132] Compiling MacParakeetTests ScreenCaptureLifecycleTests.swift
+[1881/2132] Compiling MacParakeetTests SharedMicrophoneStreamTests.swift
+[1882/2132] Compiling MacParakeetTests SpeechBoundaryMeetingLiveAudioChunkerTests.swift
+[1883/2132] Compiling MacParakeetTests LongMeetingPipelineBenchmarkTests.swift
+[1884/2132] Compiling MacParakeetTests MeetingAutoStartCoordinatorTests.swift
+[1885/2132] Compiling MacParakeetTests MeetingLinkParserTests.swift
+[1886/2132] Compiling MacParakeetTests TransformHistoryRepositoryTests.swift
+[1887/2132] Compiling MacParakeetTests DictationFlowCoordinatorLoadCaptionTests.swift
+[1888/2132] Compiling MacParakeetTests DictationFlowCoordinatorTests.swift
+[1889/2132] Compiling MacParakeetTests DictationFlowStateMachineTests.swift
+[1890/2132] Compiling MacParakeetTests DictationMediaPauseCoordinatorTests.swift
+[1891/2132] Compiling MacParakeetTests DictationStatsTests.swift
+[1892/2132] Compiling MacParakeetTests NumberFormattingTests.swift
+[1893/2132] Compiling MacParakeetTests FnKeyStateMachineTests.swift
+[1894/2132] Compiling MacParakeetTests GlobalShortcutManagerTests.swift
+[1895/2132] Compiling MacParakeetTests HotkeyConflictPolicyTests.swift
+[1896/2132] Compiling MacParakeetTests HotkeyGestureControllerTests.swift
+[1897/2132] Compiling MacParakeetTests HotkeyManagerTests.swift
+[1898/2132] Compiling MacParakeetTests HotkeyTriggerTests.swift
+[1899/2132] Compiling MacParakeetTests KeyCodeNamesTests.swift
+[1900/2132] Compiling MacParakeetTests TransformsHotkeyRegistryTests.swift
+[1901/2132] Compiling MacParakeetTests CancelFlowTests.swift
+[1902/2132] Compiling MacParakeetTests DictationFlowTests.swift
+[1903/2132] Compiling MacParakeetTests TranscriptionFlowTests.swift
+[1904/2132] Compiling MacParakeetTests TestLicensingHelpers.swift
+[1905/2132] Compiling MacParakeetTests LiveTranscriptStabilizerTests.swift
+[1906/2132] Compiling MacParakeetTests MeetingActivityDetectorTests.swift
+[1907/2132] Compiling MacParakeetTests BinaryBootstrapTests.swift
+[1908/2132] Compiling MacParakeetTests CLIOperationPrivacyTests.swift
+[1909/2132] Compiling MacParakeetTests CaptureOrchestratorTests.swift
+[1910/2132] Compiling MacParakeetTests MeetingAecMeasurementHarness.swift
+[1911/2132] Compiling MacParakeetTests MeetingAecMeasurementTests.swift
+[1912/2132] Compiling MacParakeetTests MeetingAecModelScoringTests.swift
+[1913/2132] Compiling MacParakeetTests MeetingAecRenderThroughputTests.swift
+[1914/2132] Compiling MacParakeetTests MeetingEchoDelayEstimatorTests.swift
+[1915/2132] Compiling MacParakeetTests MeetingEchoSuppressionRuntimeTests.swift
+[1916/2132] Compiling MacParakeetTests MeetingEchoSuppressorTests.swift
+[1917/2132] Compiling MacParakeetTests DAPTExportTests.swift
+[1918/2132] Compiling MacParakeetTests DerivedFieldsBackfillServiceTests.swift
+[1919/2132] Compiling MacParakeetTests DiarizationServiceTests.swift
+[1920/2132] Compiling MacParakeetTests MeetingSpeakerPriorTests.swift
+[1921/2132] Compiling MacParakeetTests SpeakerMergerTests.swift
+[1922/2132] Compiling MacParakeetTests DictationServiceErrorTests.swift
+[1923/2132] Compiling MacParakeetTests DictationServiceSessionTests.swift
+[1924/2132] Compiling MacParakeetTests DictationServiceTests.swift
+[1925/2132] Compiling MacParakeetTests DictationStopDecisionTests.swift
+[1926/2132] Compiling MacParakeetTests DiscoverServiceTests.swift
+[1927/2132] Emitting module MacParakeetTests
+[1928/2132] Compiling MacParakeetTests MeetingAutoStopCoordinatorTests.swift
+[1929/2132] Compiling MacParakeetTests MeetingRecordingFlowCoordinatorTests.swift
+[1930/2132] Compiling MacParakeetTests MeetingRecordingFlowStateMachineTests.swift
+[1931/2132] Compiling MacParakeetTests MeetingSystemAudioSignalVerdictTests.swift
+[1932/2132] Compiling MacParakeetTests MeetingTranscriptionQueueTests.swift
+[1933/2132] Compiling MacParakeetTests AIFormatterProfileMatcherTests.swift
+[1934/2132] Compiling MacParakeetTests CustomWordModelTests.swift
+[1935/2132] Compiling MacParakeetTests DictationModelTests.swift
+[1936/2132] Compiling MacParakeetTests DiscoverContentTests.swift
+[1937/2132] Compiling MacParakeetTests KeyActionTests.swift
+[1938/2132] Compiling MacParakeetTests KeyboardShortcutTests.swift
+[1939/2132] Compiling MacParakeetTests LLMProviderDescriptorTests.swift
+[1940/2132] Compiling MacParakeetTests LLMResultTests.swift
+[1941/2132] Compiling MacParakeetTests PromptInferenceSettingsTests.swift
+[1942/2132] Compiling MacParakeetTests PromptTemplateRendererTests.swift
+[1943/2132] Compiling MacParakeetTests TextSnippetModelTests.swift
+[1944/2132] Compiling MacParakeetTests TranscriptionModelTests.swift
+[1945/2132] Compiling MacParakeetTests OnboardingHotkeyPreviewControllerTests.swift
+[1946/2132] Compiling MacParakeetTests QuickPromptBundleTests.swift
+[1947/2132] Compiling MacParakeetTests AsyncPermitTests.swift
+[1948/2132] Compiling MacParakeetTests CohereTranscribeEngineTests.swift
+[1949/2132] Compiling MacParakeetTests AppDelegateMenuBarResolverTests.swift
+[1950/2132] Compiling MacParakeetTests AppEnvironmentTests.swift
+[1951/2132] Compiling MacParakeetTests AppHotkeyCoordinatorTests.swift
+[1952/2132] Compiling MacParakeetTests AppSettingsObserverCoordinatorTests.swift
+[1953/2132] Compiling MacParakeetTests MainWindowStateTests.swift
+[1954/2132] Compiling MacParakeetTests MeetingAudioRetentionSweepCoordinatorTests.swift
+[1955/2132] Compiling MacParakeetTests MeetingFinalizationReconcilerTests.swift
+[1956/2132] Compiling MacParakeetTests MeetingRecoveryCoordinatorTests.swift
+[1957/2132] Compiling MacParakeetTests MenuBarCoordinatorTests.swift
+[1958/2132] Compiling MacParakeetTests MenuPreviewFormatterTests.swift
+[1959/2132] Compiling MacParakeetTests SparkleUpdateGuardTests.swift
+[1960/2132] Compiling MacParakeetTests AppRuntimePreferencesTests.swift
+[1961/2132] Compiling MacParakeetTests AudioCaptureDiagnosticsTests.swift
+[1962/2132] Compiling MacParakeetTests AudioChunkerTests.swift
+[1963/2132] Compiling MacParakeetTests AudioDeviceManagerTransportTests.swift
+[1964/2132] Compiling MacParakeetTests AudioFileConverterTests.swift
+[1965/2132] Compiling MacParakeetTests AudioFileEnumeratorTests.swift
+[1966/2132] Compiling MacParakeetTests AudioRecorderFormatChangeTests.swift
+[1967/2132] Compiling MacParakeetTests DiagnosticLogScopeTests.swift
+[1968/2132] Compiling MacParakeetTests ExtractChannelZeroTests.swift
+[1969/2132] Compiling MacParakeetTests FFmpegAudioTrackProbeTests.swift
+[1970/2132] Compiling MacParakeetTests MeetingAutoStopPolicyTests.swift
+[1971/2132] Compiling MacParakeetTests MeetingAutomationHookRunnerTests.swift
+[1972/2132] Compiling MacParakeetTests MeetingCaptureReportTests.swift
+[1973/2132] Compiling MacParakeetTests MeetingChunkResultBufferTests.swift
+[1974/2132] Compiling MacParakeetTests MeetingCleanedMicRendererTests.swift
+[1975/2132] Compiling MacParakeetTests MeetingCleanedMicrophoneReadinessPolicyTests.swift
+[1976/2132] Compiling MacParakeetTests MeetingMarkdownRendererClipboardTests.swift
+[1977/2132] Compiling MacParakeetTests MeetingNotesFileTests.swift
+[1978/2132] Compiling MacParakeetTests MeetingPlaybackArtifactBuilderTests.swift
+[1979/2132] Compiling MacParakeetTests MeetingRecordingCrashRecoveryTests.swift
+[1980/2132] Compiling MacParakeetTests MeetingRecordingLockFileStoreTests.swift
+[1981/2132] Compiling MacParakeetTests MeetingRecordingOutputTests.swift
+[1982/2132] Compiling MacParakeetTests MeetingRecordingRecoveryServiceTests.swift
+[1983/2132] Compiling MacParakeetTests MeetingRecordingServiceTests.swift
+[1984/2132] Compiling MacParakeetTests MeetingRecordingSettlementTests.swift
+[1985/2132] Compiling MacParakeetTests MeetingTitleGeneratorTests.swift
+[1986/2132] Compiling MacParakeetTests MeetingTranscriptAssemblerTests.swift
+[1987/2132] Compiling MacParakeetTests MeetingTranscriptSourceReconcilerTests.swift
+[1988/2132] Compiling MacParakeetTests MeetingTranscriptVocabularyApplierTests.swift
+[1989/2132] Compiling MacParakeetTests MeetingVADLaunchPrepTests.swift
+[1990/2132] Compiling MacParakeetTests ExportServiceTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[1991/2132] Compiling MacParakeetTests FeedbackServiceTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[1992/2132] Compiling MacParakeetTests CardGenerationServiceTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[1993/2132] Compiling MacParakeetTests InProcessLLMClientTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[1994/2132] Compiling MacParakeetTests InProcessModelDownloaderTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[1995/2132] Compiling MacParakeetTests LLMClientTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[1996/2132] Compiling MacParakeetTests LLMConfigStoreTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[1997/2132] Compiling MacParakeetTests LLMExecutionContextResolverTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[1998/2132] Compiling MacParakeetTests LLMHTTPAdapterTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[1999/2132] Compiling MacParakeetTests LLMServicePromptTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[2000/2132] Compiling MacParakeetTests LLMServiceTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[2001/2132] Compiling MacParakeetTests LocalCLIExecutorTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[2002/2132] Compiling MacParakeetTests LocalCLILLMClientTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[2003/2132] Compiling MacParakeetTests MLXLocalLLMIntegrationTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[2004/2132] Compiling MacParakeetTests RoutingLLMClientTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[2005/2132] Compiling MacParakeetTests MediaMetadataExtractorTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[2006/2132] Compiling MacParakeetTests MeetingArtifactStoreTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[2007/2132] Compiling MacParakeetTests MeetingAudioPairJoinerTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[2008/2132] Compiling MacParakeetTests MeetingAudioRetentionPolicyTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[2009/2132] Compiling MacParakeetTests MeetingAudioRetentionSweeperTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[2010/2132] Compiling MacParakeetTests TransformExecutorTests.swift
+[2011/2132] Compiling MacParakeetTests TransformRunSerializerTests.swift
+[2012/2132] Compiling MacParakeetTests VideoStreamServiceTests.swift
+[2013/2132] Compiling MacParakeetTests VocabularyImportExportServiceTests.swift
+[2014/2132] Compiling MacParakeetTests YouTubeAudioPlaybackConverterTests.swift
+[2015/2132] Compiling MacParakeetTests YouTubeDownloaderTests.swift
+[2016/2132] Compiling MacParakeetTests TelemetryServiceTests.swift
+[2017/2132] Compiling MacParakeetTests StateSignal.swift
+[2018/2132] Compiling MacParakeetTests CustomWordReplacerTests.swift
+[2019/2132] Compiling MacParakeetTests TextProcessingPipelineTests.swift
+[2020/2132] Compiling MacParakeetTests TextRefinementServiceTests.swift
+[2021/2132] Compiling MacParakeetTests TranscriptAIContextFormatterTests.swift
+[2022/2132] Compiling MacParakeetTests TranscriptDeriversTests.swift
+[2023/2132] Compiling MacParakeetTests TranscriptFormatterTests.swift
+[2024/2132] Compiling MacParakeetTests TranscriptParagraphBuilderTests.swift
+[2025/2132] Compiling MacParakeetTests ChildProcessWaiterTests.swift
+[2026/2132] Compiling MacParakeetTests DownloadableMediaURLValidatorTests.swift
+[2027/2132] Compiling MacParakeetTests MediaPlatformTests.swift
+[2028/2132] Compiling MacParakeetTests PodcastEpisodeMatcherTests.swift
+[2029/2132] Compiling MacParakeetTests PodcastURLValidatorTests.swift
+[2030/2132] Compiling MacParakeetTests MeetingMonitorTests.swift
+[2031/2132] Compiling MacParakeetTests MockCalendarService.swift
+[2032/2132] Compiling MacParakeetTests TranscriptSegmentClipboardTests.swift
+[2033/2132] Compiling MacParakeetTests AIFormatterProfileRepositoryTests.swift
+[2034/2132] Compiling MacParakeetTests CardRepositoryTests.swift
+[2035/2132] Compiling MacParakeetTests ChatConversationRepositoryTests.swift
+[2036/2132] Compiling MacParakeetTests CustomWordRepositoryTests.swift
+[2037/2132] Compiling MacParakeetTests DailyDictationStatsTests.swift
+[2038/2132] Compiling MacParakeetTests DatabaseManagerTests.swift
+[2039/2132] Compiling MacParakeetTests DictationRepositoryTests.swift
+[2040/2132] Compiling MacParakeetTests DictationStatsQueryTests.swift
+[2041/2132] Compiling MacParakeetTests LLMRunRepositoryTests.swift
+[2042/2132] Compiling MacParakeetTests LifetimeDictationStatsTests.swift
+[2043/2132] Compiling MacParakeetTests PrivateDictationTests.swift
+[2044/2132] Compiling MacParakeetTests PromptRepositoryTests.swift
+[2045/2132] Compiling MacParakeetTests PromptResultRepositoryTests.swift
+[2046/2132] Compiling MacParakeetTests QuickPromptRepositoryTests.swift
+[2047/2132] Compiling MacParakeetTests RepositoryEdgeCaseTests.swift
+[2048/2132] Compiling MacParakeetTests SegmentRepositoryTests.swift
+[2049/2132] Compiling MacParakeetTests TextSnippetRepositoryTests.swift
+[2050/2132] Compiling MacParakeetTests TranscriptionRepositoryTests.swift
+[2051/2132] Compiling MacParakeetTests CustomVocabularyBoostingTests.swift
+[2052/2132] Compiling MacParakeetTests MeetingSpeechPlanTests.swift
+[2053/2132] Compiling MacParakeetTests MockSTTClient.swift
+[2054/2132] Compiling MacParakeetTests ModelDeletionTests.swift
+[2055/2132] Compiling MacParakeetTests NemotronEnglishEngineLiveDictationTests.swift
+[2056/2132] Compiling MacParakeetTests NemotronEnglishEngineLoadGatingTests.swift
+[2057/2132] Compiling MacParakeetTests ParakeetUnifiedEngineDictationPadTests.swift
+[2058/2132] Compiling MacParakeetTests ParakeetUnifiedEngineLiveDictationTests.swift
+[2059/2132] Compiling MacParakeetTests STTClientTests.swift
+[2060/2132] Compiling MacParakeetTests STTRuntimeDictationPadTests.swift
+[2061/2132] Compiling MacParakeetTests STTRuntimeInferenceGatingTests.swift
+[2062/2132] Compiling MacParakeetTests STTSchedulerTests.swift
+[2063/2132] Compiling MacParakeetTests STTWordTimingBuilderTests.swift
+[2064/2132] Compiling MacParakeetTests SpeechEngineActivityTests.swift
+[2065/2132] Compiling MacParakeetTests SpeechEngineCapabilitiesTests.swift
+[2066/2132] Compiling MacParakeetTests SpeechEnginePreferenceTests.swift
+[2067/2132] Compiling MacParakeetTests WhisperLanguageCatalogTests.swift
+[2068/2132] Compiling MacParakeetTests ANEInferenceGateTests.swift
+[2069/2132] Compiling MacParakeetTests AppPathsTests.swift
+[2070/2132] Compiling MacParakeetTests AutoSaveServiceTests.swift
+[2071/2132] Compiling MacParakeetTests TranscriptionAssetCleanupCleanedMicTests.swift
+[2072/2132] Compiling MacParakeetTests PasteShortcutKeyResolverTests.swift
+[2073/2132] Compiling MacParakeetTests PodcastAudioDownloaderTests.swift
+[2074/2132] Compiling MacParakeetTests PodcastDirectoryServiceTests.swift
+[2075/2132] Compiling MacParakeetTests PodcastEpisodeResolverTests.swift
+[2076/2132] Compiling MacParakeetTests PodcastFeedParserTests.swift
+[2077/2132] Compiling MacParakeetTests PodcastQueryResolverTests.swift
+[2078/2132] Compiling MacParakeetTests AccessibilityServiceTests.swift
+[2079/2132] Compiling MacParakeetTests ClipboardServiceTests.swift
+[2080/2132] Compiling MacParakeetTests MockClipboardService.swift
+[2081/2132] Compiling MacParakeetTests SelectionCaptureServiceTests.swift
+[2082/2132] Compiling MacParakeetTests SelectionReplacementServiceTests.swift
+[2083/2132] Compiling MacParakeetTests SystemInfoTests.swift
+[2084/2132] Compiling MacParakeetTests SystemMediaControllerTests.swift
+[2085/2132] Compiling MacParakeetTests CrashReporterTests.swift
+[2086/2132] Compiling MacParakeetTests ObservabilityTests.swift
+[2087/2132] Compiling MacParakeetTests TelemetryErrorClassifierTests.swift
+[2088/2132] Compiling MacParakeetTests ThumbnailCacheServiceTests.swift
+[2089/2132] Compiling MacParakeetTests TranscriptExportOptionsTests.swift
+[2090/2132] Compiling MacParakeetTests TranscriptionServiceTests.swift
+[2091/2132] Compiling MacParakeetTests TranscriptSegmenterTests.swift
+[2092/2132] Compiling MacParakeetTests YouTubeURLValidatorTests.swift
+[2093/2132] Compiling MacParakeetTests CustomWordsViewModelTests.swift
+[2094/2132] Compiling MacParakeetTests DictationHistoryViewModelTests.swift
+[2095/2132] Compiling MacParakeetTests DiscoverViewModelTests.swift
+[2096/2132] Compiling MacParakeetTests EngineSettingsViewModelTests.swift
+[2097/2132] Compiling MacParakeetTests FeedbackViewModelTests.swift
+[2098/2132] Compiling MacParakeetTests IdlePillViewModelTests.swift
+[2099/2132] Compiling MacParakeetTests InProcessModelManagerViewModelTests.swift
+[2100/2132] Compiling MacParakeetTests LLMSettingsDraftTests.swift
+[2101/2132] Compiling MacParakeetTests LLMSettingsViewModelTests.swift
+[2102/2132] Compiling MacParakeetTests LibrarySourceLabelStyleTests.swift
+[2103/2132] Compiling MacParakeetTests MediaPlayerViewModelTests.swift
+[2104/2132] Compiling MacParakeetTests MeetingCountdownToastViewModelTests.swift
+[2105/2132] Compiling MacParakeetTests MeetingNotesViewModelTests.swift
+[2106/2132] Compiling MacParakeetTests MeetingRecordingPanelViewModelTests.swift
+[2107/2132] Compiling MacParakeetTests MeetingRecordingPillViewModelTests.swift
+[2108/2132] Compiling MacParakeetTests MeetingsWorkspaceViewModelTests.swift
+[2109/2132] Compiling MacParakeetTests OnboardingViewModelTests.swift
+[2110/2132] Compiling MacParakeetTests PromptResultsViewModelTests.swift
+[2111/2132] Compiling MacParakeetTests PromptsViewModelTests.swift
+[2112/2132] Compiling MacParakeetTests QuickPromptsViewModelTests.swift
+[2113/2132] Compiling MacParakeetTests SettingsRootViewModelTests.swift
+[2114/2132] Compiling MacParakeetTests SettingsSearchIndexTests.swift
+[2115/2132] Compiling MacParakeetTests SettingsViewModelTests.swift
+[2116/2132] Compiling MacParakeetTests TextSnippetsEditingViewModelTests.swift
+[2117/2132] Compiling MacParakeetTests TextSnippetsViewModelTests.swift
+[2118/2132] Compiling MacParakeetTests TranscriptChatViewModelTests.swift
+[2119/2132] Compiling MacParakeetTests TranscriptFindModelTests.swift
+[2120/2132] Compiling MacParakeetTests TranscriptionCompletionNotifierTests.swift
+[2121/2132] Compiling MacParakeetTests TranscriptionDateGroupingTests.swift
+[2122/2132] Compiling MacParakeetTests TranscriptionDeletionCleanupTests.swift
+[2123/2132] Compiling MacParakeetTests TranscriptionLibraryViewModelTests.swift
+[2124/2132] Compiling MacParakeetTests TranscriptionViewModelBatchTests.swift
+[2125/2132] Compiling MacParakeetTests TranscriptionViewModelTests.swift
+[2126/2132] Compiling MacParakeetTests TransformEditorViewModelTests.swift
+[2127/2132] Compiling MacParakeetTests TransformsViewModelTests.swift
+[2128/2132] Compiling MacParakeetTests ViewModelMocks.swift
+[2129/2132] Compiling MacParakeetTests BrandGlyphImageTests.swift
+[2130/2132] Compiling MacParakeetTests DictationHistoryViewTests.swift
+[2131/2152] Compiling MacParakeetTests MandalaDataTests.swift
+[2132/2152] Compiling MacParakeetTests MarkdownContentViewTests.swift
+[2133/2152] Compiling MacParakeetTests MeetingDeletionCopyTests.swift
+[2134/2152] Compiling MacParakeetTests MeetingPartialCapturePresentationTests.swift
+[2135/2152] Compiling MacParakeetTests MeetingRecordingTileTests.swift
+[2136/2152] Compiling MacParakeetTests MeetingTimedTranscriptRecoveryBannerPresentationTests.swift
+[2137/2152] Compiling MacParakeetTests MeetingTranscriptProcessingPresentationTests.swift
+[2138/2152] Compiling MacParakeetTests MerkabaPillIconViewTests.swift
+[2139/2152] Compiling MacParakeetTests HotkeyRecorderViewTests.swift
+[2140/2152] Compiling MacParakeetTests SettingsDictationHotkeyDisplayTests.swift
+[2141/2152] Compiling MacParakeetTests SettingsHotkeyConflictMessageTests.swift
+[2142/2152] Compiling MacParakeetTests SettingsStatusRulesTests.swift
+[2143/2152] Compiling MacParakeetTests SpeakerRenameAccessibilityTests.swift
+[2144/2152] Compiling MacParakeetTests SpeakerTurnIdentityTests.swift
+[2145/2152] Compiling MacParakeetTests SpinnerRingViewTests.swift
+[2146/2152] Compiling MacParakeetTests TranscriptBodyLayoutTests.swift
+[2147/2152] Compiling MacParakeetTests TranscriptResultActionsTests.swift
+[2148/2152] Compiling MacParakeetTests TranscriptTextViewTests.swift
+[2149/2152] Compiling MacParakeetTests TranscriptTimestampedLayoutSmokeTests.swift
+[2150/2152] Compiling MacParakeetTests TranscriptionSourceDisplayTests.swift
+[2151/2154] Compiling MacParakeetPackageTests runner.swift
+[2152/2154] Emitting module MacParakeetPackageTests
+[2152/2154] Write Objects.LinkFileList
+[2153/2154] Linking MacParakeetPackageTests
+Build complete! (139.02s)
+Test Suite 'Selected tests' started at 2026-09-07 14:52:13.140.
+Test Suite 'MacParakeetPackageTests.xctest' started at 2026-09-07 14:52:13.141.
+Test Suite 'MeetingRecordingRecoveryServiceTests' started at 2026-09-07 14:52:13.141.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardWithStaleLockRefusesActiveSameProcessFinalizationLease]' started.
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift:748: error: -[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardWithStaleLockRefusesActiveSameProcessFinalizationLease] : failed - A stale dialog must not discard audio owned by an active finalizer
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift:756: error: -[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardWithStaleLockRefusesActiveSameProcessFinalizationLease] : XCTAssertEqual failed: ("nil") is not equal to ("Optional(62313 bytes)")
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift:757: error: -[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardWithStaleLockRefusesActiveSameProcessFinalizationLease] : XCTAssertEqual failed: ("nil") is not equal to ("Optional(62313 bytes)")
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift:758: error: -[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardWithStaleLockRefusesActiveSameProcessFinalizationLease] : XCTAssertEqual failed: ("nil") is not equal to ("Optional(MacParakeetCore.MeetingRecordingLockFile(schemaVersion: 2, sessionId: 37172C31-0337-4398-B2BA-CC03B145ADD9, startedAt: 2023-11-14 22:13:20 +0000, pid: 73498, displayName: "Recovered Team Sync", state: MacParakeetCore.MeetingRecordingLockState.awaitingTranscription, finalizationLeaseId: Optional(21CA5A85-27D8-47BC-A9EE-264219E8183C), speechEngine: MacParakeetCore.SpeechEngineSelection(engine: MacParakeetCore.SpeechEnginePreference.parakeet, language: nil), speechEngineWasCaptured: true, startContext: nil, calendarEventSnapshot: nil, notes: nil, folderURL: Optional(file:///var/folders/45/cgw5knls45nb1qk8678yhg240000gp/T/MeetingRecordingRecoveryServiceTests-10058860-492A-49FF-835A-8053E166B1AE/37172C31-0337-4398-B2BA-CC03B145ADD9/)))")
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardWithStaleLockRefusesActiveSameProcessFinalizationLease]' failed (0.781 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardWithStaleLockRefusesAnotherLiveProcessFinalizationLease]' started.
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift:783: error: -[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardWithStaleLockRefusesAnotherLiveProcessFinalizationLease] : failed - A stale dialog must not discard another process's active recovery
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift:791: error: -[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardWithStaleLockRefusesAnotherLiveProcessFinalizationLease] : XCTAssertEqual failed: ("nil") is not equal to ("Optional(62313 bytes)")
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift:792: error: -[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardWithStaleLockRefusesAnotherLiveProcessFinalizationLease] : XCTAssertEqual failed: ("nil") is not equal to ("Optional(62313 bytes)")
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/MeetingRecording/MeetingRecordingRecoveryServiceTests.swift:793: error: -[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardWithStaleLockRefusesAnotherLiveProcessFinalizationLease] : XCTAssertEqual failed: ("nil") is not equal to ("Optional(MacParakeetCore.MeetingRecordingLockFile(schemaVersion: 2, sessionId: 5C9A424D-CB22-43D7-8AD3-C5AE5A66F75F, startedAt: 2023-11-14 22:13:20 +0000, pid: 101, displayName: "Recovered Team Sync", state: MacParakeetCore.MeetingRecordingLockState.awaitingTranscription, finalizationLeaseId: Optional(1DFEDF44-F0EA-48F0-8E84-D16B3CD838B4), speechEngine: MacParakeetCore.SpeechEngineSelection(engine: MacParakeetCore.SpeechEnginePreference.parakeet, language: nil), speechEngineWasCaptured: true, startContext: nil, calendarEventSnapshot: nil, notes: nil, folderURL: Optional(file:///var/folders/45/cgw5knls45nb1qk8678yhg240000gp/T/MeetingRecordingRecoveryServiceTests-B3966B59-CFA8-4A29-945F-6D18301C09EA/5C9A424D-CB22-43D7-8AD3-C5AE5A66F75F/)))")
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardWithStaleLockRefusesAnotherLiveProcessFinalizationLease]' failed (0.014 seconds).
+Test Suite 'MeetingRecordingRecoveryServiceTests' failed at 2026-09-07 14:52:13.937.
+	 Executed 2 tests, with 8 failures (0 unexpected) in 0.795 (0.796) seconds
+Test Suite 'MacParakeetPackageTests.xctest' failed at 2026-09-07 14:52:13.937.
+	 Executed 2 tests, with 8 failures (0 unexpected) in 0.795 (0.796) seconds
+Test Suite 'Selected tests' failed at 2026-09-07 14:52:13.937.
+	 Executed 2 tests, with 8 failures (0 unexpected) in 0.795 (0.797) seconds
+◇ Test run started.
+↳ Testing Library Version: 1743
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.

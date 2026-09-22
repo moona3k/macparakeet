@@ -208,7 +208,7 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
             diag.vadErrors += 1
             consecutiveVADErrors += 1
             logger.error(
-                "meeting_vad_stream_error consecutive=\(self.consecutiveVADErrors) error=\(error.localizedDescription, privacy: .public)"
+                "meeting_vad_stream_error consecutive=\(self.consecutiveVADErrors) error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
             )
             if consecutiveVADErrors >= Self.maxConsecutiveVADErrors {
                 fellBackToFixed = true

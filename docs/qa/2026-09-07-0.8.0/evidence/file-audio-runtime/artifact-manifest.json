@@ -1,0 +1,118 @@
+{
+  "files": [
+    {
+      "path": "fixture-manifest.json",
+      "sha256": "a594096649c25854e4e14e6365ef75c4250620c04001574b5b558cef0734c381"
+    },
+    {
+      "path": "two-tracks-probe.json",
+      "sha256": "86ab9110eee16f129073bc5b316ca67f948d6fc711c9d8a8a838f999e980f440"
+    },
+    {
+      "path": "track-pcm-equivalence.json",
+      "sha256": "6bb2411747e119c3968403c9c0d812440115029c8ca2036e0bcbf3a6b3233b6b"
+    },
+    {
+      "path": "results.json",
+      "sha256": "9925abd4de1de362a1e2cdeecad1549751bf8c57bec300a52214e251919a3f35"
+    },
+    {
+      "path": "assertions.json",
+      "sha256": "71749f5de4b03062d57649ebef335eecb1c4bd92b4dbdb0e5dfd0f4551c755f5"
+    },
+    {
+      "path": "speaker-observations.json",
+      "sha256": "e174d27b0ad480114f0ef6d8ba1dbabc4a328e5ba28ff56648ddc169887a7817"
+    },
+    {
+      "path": "quality-observations.json",
+      "sha256": "2710e7c6aa06449f90d8b9c847629b75afc90d802f906eb74682b759a1646135"
+    },
+    {
+      "path": "source-integrity.json",
+      "sha256": "9fefdfc8eafdbbac552595541d18545a9f10ecbda4f5d04c6f5fdefa75a15ea9"
+    },
+    {
+      "path": "track-1-en-verified.result.json",
+      "sha256": "68d93ce6a00d081d281c5e6e507ad8493f7404395b8a55d06513ec9dfaad9263"
+    },
+    {
+      "path": "track-1-en-verified.stderr.log",
+      "sha256": "de213c52bd11ef225104d9f70e748d0d424028a05c1267b35a023edfbbccc776"
+    },
+    {
+      "path": "track-1-en-verified.json",
+      "sha256": "fccba0454201a046144ab7d5c37a00c3d75eaf802df6d9410d66729cbcf740dc"
+    },
+    {
+      "path": "track-2-ja.result.json",
+      "sha256": "98494e1ca1308b788a9e11f64afe815439ef0d29693e8ce0c622ff7bf9d7b112"
+    },
+    {
+      "path": "track-2-ja.stderr.log",
+      "sha256": "ab97d07d583562d4a959e590309ea0093b21c24fec5fe90538fc39152c4f5257"
+    },
+    {
+      "path": "track-2-ja.json",
+      "sha256": "d5ba20cf95660fa2e4c1437b30b9b350e6a8a112678a69d8e29e2085e62d4f69"
+    },
+    {
+      "path": "track-0-invalid.result.json",
+      "sha256": "8a60c312e15262e1fdb4617ab84d5111a18418425cba2e852d07b2cfbf199e30"
+    },
+    {
+      "path": "track-0-invalid.stderr.log",
+      "sha256": "92dbe2e6ea1972f7b95c044c6a424248e774c0fa5b0f78a419f2ce0f18ca64ba"
+    },
+    {
+      "path": "track-0-invalid.stdout.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "track-3-missing.result.json",
+      "sha256": "1136e5f95af6a7f98ae02cd22621a5da15e2cf6757dce80c582bf702ed4ab405"
+    },
+    {
+      "path": "track-3-missing.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "track-3-missing.json",
+      "sha256": "a388f91bb6615cd0cebbc45c59eacea208303827a04436e9ecb719d8288b40e1"
+    },
+    {
+      "path": "diarization-auto.result.json",
+      "sha256": "83bc3fb1e578a15a99e7ce3bd51015cb3211e1c5a5ef3fd7d883fe77e6ebcf16"
+    },
+    {
+      "path": "diarization-auto.stderr.log",
+      "sha256": "0cbb78055a75a2f38801bb9f867e7fa4d88fbb74e515f7e75c8b1f7d0649c81c"
+    },
+    {
+      "path": "diarization-auto.json",
+      "sha256": "7f742f2beb84fda73b3a004a832fad64adb2bd5e2bc0b4946dfbc3676813725a"
+    },
+    {
+      "path": "diarization-exact-2.result.json",
+      "sha256": "7ea2cdd077bdaae5b08023433e9b76aa4bf6ad534ba9326622ad0f891f2db58c"
+    },
+    {
+      "path": "diarization-exact-2.stderr.log",
+      "sha256": "0cf6c14491733b2b78649a2abf5a234998a67e5142b66cbda4f47250442153ac"
+    },
+    {
+      "path": "diarization-exact-2.json",
+      "sha256": "9e07c71a576c4fc235e0c5b4e5d20d0eda0f7beec558d585e5f316385f3b1530"
+    }
+  ],
+  "excludes": [
+    "SQLite databases",
+    "original audio",
+    "derived WAV",
+    "temporary caches",
+    "original harness-failed attempt"
+  ],
+  "sourceAudioPreserved": true,
+  "schemaAssertionsPassed": 29,
+  "qualityLimit": "One boundary word appears under the previous speaker in both diarization runs."
+}

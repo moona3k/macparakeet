@@ -159,14 +159,23 @@ extension TransformsCommand {
                     throw CLIInputError.empty
                 }
 
-                let execution = try llm.buildExecutionContext()
+                var effectiveLLM = llm
+                if let modelOverride = transform.modelOverride {
+                    effectiveLLM.model = modelOverride
+                }
+                let execution = try effectiveLLM.buildExecutionContext()
                 let service = LLMService(
                     client: execution.client,
                     contextResolver: StaticLLMExecutionContextResolver(context: execution.context)
                 )
 
                 if json {
-                    let result = try await service.transformDetailed(text: text, prompt: transform.content)
+                    let result = try await service.transformDetailed(
+                        text: text,
+                        prompt: transform.content,
+                        inferenceSettings: transform.inferenceSettings,
+                        modelOverride: transform.modelOverride
+                    )
                     try saveCLITransformHistory(
                         repo: historyRepo,
                         transform: transform,
@@ -180,7 +189,12 @@ extension TransformsCommand {
                 } else if stream {
                     let startedAt = Date()
                     var output = ""
-                    let tokenStream = service.transformStream(text: text, prompt: transform.content)
+                    let tokenStream = service.transformStream(
+                        text: text,
+                        prompt: transform.content,
+                        inferenceSettings: transform.inferenceSettings,
+                        modelOverride: transform.modelOverride
+                    )
                     for try await token in tokenStream {
                         output += token
                         print(token, terminator: "")
@@ -197,7 +211,12 @@ extension TransformsCommand {
                         totalElapsedMs: elapsedMs
                     )
                 } else {
-                    let result = try await service.transformDetailed(text: text, prompt: transform.content)
+                    let result = try await service.transformDetailed(
+                        text: text,
+                        prompt: transform.content,
+                        inferenceSettings: transform.inferenceSettings,
+                        modelOverride: transform.modelOverride
+                    )
                     try saveCLITransformHistory(
                         repo: historyRepo,
                         transform: transform,
@@ -339,7 +358,7 @@ extension TransformsCommand {
     struct DeleteSubcommand: ParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "delete",
-            abstract: "Delete a custom Transform. Built-ins are protected."
+            abstract: "Soft-delete a Transform. Built-ins and custom Transforms use the same lifecycle."
         )
 
         @Argument(help: "Transform ID, ID prefix, or name.")
@@ -358,11 +377,7 @@ extension TransformsCommand {
                 let repo = PromptRepository(dbQueue: db.dbQueue)
                 let transform = try findTransform(idOrName: idOrName, repo: repo)
 
-                if transform.isBuiltIn {
-                    throw CLITransformsError.deleteBuiltIn(transform.name)
-                }
-
-                let deleted = try repo.delete(id: transform.id)
+                let deleted = try PromptEditingService(dbQueue: db.dbQueue).softDelete(id: transform.id)
                 guard deleted else {
                     throw CLITransformsError.notFound(idOrName)
                 }
@@ -978,6 +993,9 @@ struct TransformDTO: Encodable {
     let shortcut: String?
     let isBuiltIn: Bool
     let prompt: String
+    let inferenceSettings: PromptInferenceSettings?
+    let activeVersionId: UUID?
+    let modelOverride: String?
     let createdAt: Date
     let updatedAt: Date
 
@@ -987,6 +1005,9 @@ struct TransformDTO: Encodable {
         case shortcut
         case isBuiltIn = "is_built_in"
         case prompt
+        case inferenceSettings
+        case activeVersionId
+        case modelOverride
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -997,6 +1018,9 @@ struct TransformDTO: Encodable {
         self.shortcut = prompt.shortcut?.displayString
         self.isBuiltIn = prompt.isBuiltIn
         self.prompt = prompt.content
+        self.inferenceSettings = prompt.inferenceSettings
+        self.activeVersionId = prompt.activeVersionId
+        self.modelOverride = prompt.modelOverride
         self.createdAt = prompt.createdAt
         self.updatedAt = prompt.updatedAt
     }

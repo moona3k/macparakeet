@@ -5,9 +5,11 @@ import Foundation
 /// UserNotifications so it is fully unit-testable; the app layer turns a
 /// non-`nil` `Content` into a `SoundManager` chime and an optional banner.
 ///
-/// One Settings toggle (`notifyOnTranscriptionComplete`, default on) governs
-/// both surfaces — when it is off these factory methods return `nil` and the
-/// app layer does nothing.
+/// Success factories take their governing Settings toggle as `settingEnabled`
+/// and return `nil` when it is off. `notifyOnTranscriptionComplete` governs
+/// file/URL work through `singleContent` and `batchContent`, while the independent
+/// `notifyOnMeetingEnd` toggle governs `meetingReadyContent`. Failure content
+/// remains independent of these success-notification preferences.
 public enum TranscriptionCompletionNotifier {
     public struct Content: Equatable, Sendable {
         public let title: String
@@ -50,6 +52,27 @@ public enum TranscriptionCompletionNotifier {
         return Content(
             title: "Transcriptions finished with errors",
             body: "\(completed) transcribed \u{00B7} \(failed) failed"
+        )
+    }
+
+    /// Signal content for a meeting that finished transcribing while the
+    /// "Open app when meeting ends" setting is off — the quiet path's only
+    /// signal that the transcript is ready, or `nil` when the user has also
+    /// turned the meeting-end notification off.
+    ///
+    /// `settingEnabled` is the meetings-scoped `notifyOnMeetingEnd` toggle,
+    /// deliberately independent of `notifyOnTranscriptionComplete`: that
+    /// toggle lives in the Transcription settings card and governs file/URL
+    /// work, while both meeting-end toggles live in the Meeting Recording card.
+    public static func meetingReadyContent(
+        settingEnabled: Bool,
+        meetingTitle: String,
+        wordCount: Int
+    ) -> Content? {
+        guard settingEnabled else { return nil }
+        return Content(
+            title: meetingTitle,
+            body: "Meeting transcript ready \u{00B7} \(wordsLabel(wordCount))"
         )
     }
 

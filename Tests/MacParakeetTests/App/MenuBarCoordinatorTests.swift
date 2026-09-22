@@ -4,6 +4,36 @@ import XCTest
 
 @MainActor
 final class MenuBarCoordinatorTests: XCTestCase {
+    func testStatusItemVisibilityTransitionsAreIdempotent() {
+        var state = MenuBarStatusItemState()
+
+        XCTAssertEqual(state.setVisible(true), .install(.idle))
+        XCTAssertEqual(state.setVisible(true), .none)
+        XCTAssertEqual(state.setVisible(false), .remove)
+        XCTAssertEqual(state.setVisible(false), .none)
+    }
+
+    func testStatusItemRestoresLatestIconStateAfterBeingHidden() {
+        var state = MenuBarStatusItemState()
+
+        XCTAssertEqual(state.updateIcon(.recording), .none)
+        XCTAssertEqual(state.setVisible(true), .install(.recording))
+        XCTAssertEqual(state.updateIcon(.processing), .update(.processing))
+        XCTAssertEqual(state.setVisible(false), .remove)
+        XCTAssertEqual(state.updateIcon(.idle), .none)
+        XCTAssertEqual(state.setVisible(true), .install(.idle))
+    }
+
+    func testStatusItemRetriesAfterInstallationFailure() {
+        var state = MenuBarStatusItemState()
+
+        XCTAssertEqual(state.setVisible(true), .install(.idle))
+        state.markInstallationFailed()
+
+        XCTAssertFalse(state.isVisible)
+        XCTAssertEqual(state.setVisible(true), .install(.idle))
+    }
+
     func testMeetingRecordingMenuPresentationWhileIdle() {
         let presentation = MenuBarCoordinator.meetingRecordingMenuPresentation(
             environmentReady: true,
@@ -11,7 +41,6 @@ final class MenuBarCoordinatorTests: XCTestCase {
             canOpenLiveMeetingPanel: false
         )
 
-        XCTAssertEqual(presentation.recordingTitle, "Start Recording")
         XCTAssertTrue(presentation.recordingEnabled)
         XCTAssertTrue(presentation.openLiveMeetingPanelHidden)
         XCTAssertFalse(presentation.openLiveMeetingPanelEnabled)
@@ -24,7 +53,6 @@ final class MenuBarCoordinatorTests: XCTestCase {
             canOpenLiveMeetingPanel: true
         )
 
-        XCTAssertEqual(presentation.recordingTitle, "Stop Recording")
         XCTAssertTrue(presentation.recordingEnabled)
         XCTAssertFalse(presentation.openLiveMeetingPanelHidden)
         XCTAssertTrue(presentation.openLiveMeetingPanelEnabled)

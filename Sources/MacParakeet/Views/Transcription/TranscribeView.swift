@@ -9,6 +9,7 @@ struct TranscribeView: View {
     @Bindable var promptResultsViewModel: PromptResultsViewModel
     @Bindable var promptsViewModel: PromptsViewModel
     @Bindable var meetingPillViewModel: MeetingRecordingPillViewModel
+    @Bindable var meetingsWorkspaceViewModel: MeetingsWorkspaceViewModel
     var meetingPermissionState: MeetingRecordingTile.PermissionState = .ready(sourceMode: .microphoneAndSystem)
     @Binding var showingProgressDetail: Bool
     var onRecordMeeting: () -> Void
@@ -153,6 +154,7 @@ struct TranscribeView: View {
                             onPauseToggle: onPauseToggleMeeting
                         )
                         .padding(.horizontal, DesignSystem.Spacing.xl)
+
                     }
 
                     // Error banner

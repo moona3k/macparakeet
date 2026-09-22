@@ -3,6 +3,12 @@
 > Status: IMPLEMENTED
 > Date: 2026-04-24
 > Related: ADR-014 (meeting recording via ScreenCaptureKit system audio), ADR-016 (centralized STT runtime + scheduler)
+> Current implementation note (2026-09-07): the failure description in Context
+> records the pre-ADR writer. Current capture uses fragmented `AVAssetWriter`
+> source files and protective locks. The [recovery/retention contract](../contracts/meeting-recovery-retention.md)
+> governs active-writer ownership, settlement and discard safety; the
+> [artifact contract](../contracts/meeting-artifacts-v1.md) governs current filenames
+> and metadata. A lock is not by itself proof of an abandoned recording.
 
 ## Context
 
@@ -154,9 +160,13 @@ post-stop pipeline:
    (`microphone-raw.m4a`, `system-raw.m4a`, or both depending on source mode; no-op
    for fragmented MP4 — they're already valid up to the last fragment; just
    verify with `AVAsset.tracks` loadability).
-2. Synthesize `meeting-recording-metadata.json` from the audio file durations
-   (`startOffsetMs = 0` for both since we don't have the original
-   alignment; acceptable degradation — user knows recording was recovered).
+2. Reconcile `meeting-recording-metadata.json` against surviving source media.
+   Preserve existing host times/start offsets and real written duration where
+   known; only missing alignment defaults to zero offset. Refresh playable
+   timeline duration and drop tracks whose media cannot be recovered. Preserve
+   a prior capture report's elapsed/interruption history and, in the
+   release-readiness candidate, its `silent` source verdicts; unavailable or
+   interrupted media still takes precedence over silence.
    Use the final-transcription route captured by schema v2 when the
    `speechEngine` field is present. For schema v1 locks, whose `speechEngine`
    belonged to the former shared route, and schema v2 locks missing the field,
@@ -178,6 +188,31 @@ authority rule in
 Declining the prompt **keeps** the lock file and audio — the user
 can retry recovery later from a Settings affordance ("Pending
 recovery: 1 partial recording").
+
+Startup also reconciles processing meeting rows left behind by an interrupted
+finalization. That reconciliation must distinguish a stale row from work owned
+by another live MacParakeet process: a readable lock at the row's artifact
+folder with a live PID protects the row, even when the new process has no local
+queue entry for it. An unowned processing row may move to a retryable error
+only through an atomic compare-and-set from `processing`, so a concurrent
+successful finalization cannot be overwritten. Retry and recovery first claim
+the folder by rewriting the lock with their PID and a unique optional
+`finalizationLeaseId`. A present but unreadable lock (corrupt or zero-byte) is treated as
+dead evidence so Retry is not bricked. A future-schema lock whose
+peeked PID is still alive is left alone. Claiming
+and reconciliation share a per-folder advisory mutex; only one can win, and
+failed finalization restores the prior lock only if the same lease still owns
+it.
+
+**Release-readiness candidate amendment (2026-09-04):** Writer-finalization
+timeouts are bounded for the caller, not destructive cancellation. One
+aggregate five-second deadline settles once; a source with written frames
+that does not finish fails the stop while retaining its files and lock.
+AVAssetWriter keeps ownership until its callbacks return, guarded by
+`MeetingAudioWriterFinalizationRegistry`. Same-process recovery/discard must
+not race that writer; a process restart releases ownership if callbacks never
+return. Never cancel the writer as a timeout workaround. This behavior is
+development work, not evidence of a shipped or hardware-verified fix.
 
 ### 3. Schema version on the lock file
 

@@ -20,6 +20,7 @@ Sources/CLI/
     │                           #   taxonomy, emitJSONOrRethrow wrappers
     ├── CLITelemetry.swift      # opt-out/CI/DO_NOT_TRACK-gated instrumentation
     ├── SpecCommand.swift       # `spec --json`: the machine-readable catalog
+    ├── SavedMeetingProcessingContext.swift # shared import/split processing construction
     └── <Feature>Command.swift  # one file per top-level command / family
 ```
 

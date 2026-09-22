@@ -43,6 +43,11 @@ The current implementation supports these provider/runtime types through one sha
 | OpenAI (GPT) | Cloud | `https://api.openai.com/v1` | API key (`Authorization: Bearer`) |
 | Google (Gemini) | Cloud | `https://generativelanguage.googleapis.com/v1beta/openai` | API key (`Authorization: Bearer`) |
 | OpenRouter | Cloud | `https://openrouter.ai/api/v1` | API key (`Authorization: Bearer`) |
+| Moonshot (Kimi) | Cloud | `https://api.moonshot.ai/v1` | API key (`Authorization: Bearer`) |
+| DeepSeek | Cloud | `https://api.deepseek.com/v1` | API key (`Authorization: Bearer`) |
+| Qwen | Cloud | `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` | API key (`Authorization: Bearer`) |
+| Z.AI | Cloud | `https://api.z.ai/api/paas/v4` | API key (`Authorization: Bearer`) |
+| MiniMax | Cloud | `https://api.minimax.io/v1` | API key (`Authorization: Bearer`) |
 | OpenAI-Compatible | Custom | User-configured `/v1` endpoint | Provider-specific API token or none |
 | Ollama | Local | `http://localhost:11434/v1` | `apiKey: nil` in config; client injects `Bearer ollama` |
 | LM Studio | Local | `http://localhost:1234/v1` | Optional API token (`Authorization: Bearer`) |
@@ -53,17 +58,21 @@ The current implementation supports these provider/runtime types through one sha
 
 **Implementation note (2026-04-04):** Anthropic now uses the native Messages API and Ollama uses its native `/api/chat` endpoint. OpenAI, Gemini, OpenRouter, and LM Studio use OpenAI-compatible chat completions. The shared abstraction is the service/client interface, not a single wire protocol.
 
+**Amendment (2026-09-17): China-lab first-class providers.** Moonshot (Kimi), DeepSeek, Qwen, Z.AI, and MiniMax are first-class cloud providers that reuse the OpenAI-compatible adapter. Kimi temperature omit is keyed by canonical model ID, so OpenRouter prefixes and custom OpenAI-compatible endpoints get the same omit as native Moonshot. Lab thinking objects stay on the first-class lab providers. International base URLs are the defaults; regional China endpoints remain a base-URL override. Doubao and Hunyuan stay custom OpenAI-Compatible. This does not add a hosted proxy or change the BYO-key privacy posture.
+
 ### Locked Decisions
 
 1. **No bundled/default LLM runtime.** No LLM model is bundled, no local model downloads automatically, and no local LLM is public-default. The in-process MLX implementation is isolated behind a gated app-build target, and the verified first-party model downloader/setup UI is developer-gated while the public feature flag remains off.
 2. **Provider-aware transport behind one shared service boundary.** Runtime choices are external providers, OpenAI-compatible endpoints, local servers, or Local CLI tools. Transport details may vary per provider.
 3. **LLM features are optional.** The app is fully functional without any provider configured. Transcription, dictation, export — all work without LLM.
 4. **No default provider.** User must explicitly choose and configure. No "sign up for our cloud" upsell.
-5. **Transcription stays local.** Audio never leaves the device. The app can remain fully local when users choose only local providers/features. Only transcript text is sent to providers/CLI tools when the user explicitly triggers an LLM feature. This distinction must be clear in the UI.
+5. **Transcription stays local.** Audio never leaves the device. The app can remain fully local when users choose only local providers/features. LLM requests may send transcript or selected text, user notes, prompts, questions, and chat history to the configured provider/CLI tool. Dispatch follows a user action or an enabled automation such as prompt auto-run or AI Formatter; it does not require a new click for every request. This distinction must be clear in the UI.
 
 **Amendment (2026-07-04): direction confirmed, positioning fixed.** Product decision: MacParakeet will offer a first-party local model (Qwen/Gemma-class via MLX) as a dead-simple, one-click *option* aimed at non-technical and privacy-first users, while cloud/frontier providers remain the recommended quality path per surface until the local model demonstrably reaches parity there. Phase 0 in `plans/active/2026-06-27-on-device-local-llm.md` gates the public product promise, any default/recommendation, and the shipped surface scope; it is not a denial that non-public foundation code can exist. Shipping bar per surface: fidelity-safe and clearly above the deterministic pipeline to *offer*; cloud parity to *recommend*. Agentic/tool-calling and whole-library analysis stay cloud-first until proven.
 
 **Amendment (2026-07-05): developer-gated Local MLX foundation.** The provider seam, gated MLX runtime wiring, verified model downloader, and one-click Settings card may exist in `main` as non-public infrastructure. `AppFeatures.inProcessLocalLLMEnabled` stays `false`; developers expose the option with `MacParakeetEnableInProcessLocalLLM` or `--enable-local-ai`. Public one-click setup remains blocked by runtime capability gating, setup UX, release readiness, and Phase 0 quality evidence. The first plausible public scope is single-transcript cleanup/summarization/Q&A; cross-meeting or whole-library analysis remains future-gated. The app still never bundles a model, never downloads one automatically, and never recommends Local MLX over cloud/frontier quality until surface-specific evidence justifies that change.
+
+**Amendment (2026-09-14): per-task selection, if split.** The current runtime still stores one `LLMProviderConfig` and resolves it for every LLM call. If model selection is later split, it follows [ADR-032](032-llm-task-group-routing.md): a few tasks with inherit / general-LLM route / specialist recipe, not a picker per AI feature. Specialists are task-bound recipes, not default-list model IDs. That ADR does not change this ADR's provider, privacy, or shared-client decisions, and it does not schedule the work.
 
 ### Features Enabled
 
@@ -75,7 +84,7 @@ The current implementation supports these provider/runtime types through one sha
 | **Transforms** | System-wide selected-text rewrites through saved prompts/hotkeys | User-selected text in other apps |
 | **Custom Prompts** | User-defined transcript prompt outputs | File, URL, and meeting transcriptions |
 
-LLM features stay explicit and provider-backed. The app still ships no bundled/default LLM and no voice Command Mode. AI Formatter runs only after local STT has produced text; it is optional, can be disabled, and never changes the fact that audio stays local.
+LLM features stay explicit and provider-backed. The app still ships no bundled/default LLM. The separately enabled Voice Control surface is authorized for implementation by [ADR-033](033-explicit-voice-control.md); its Jev decision context and consent are distinct from writing-provider configuration. AI Formatter runs only after local STT has produced text; it is optional, can be disabled, and never changes the fact that audio stays local.
 
 ## Rationale
 
@@ -94,7 +103,7 @@ No GPU memory, model downloads, or ANE contention in the public/default product 
 | None (default) | No | No |
 | Ollama | No | No (localhost) |
 | Local CLI | No | Depends on the CLI tool |
-| Cloud API | No | **Yes (user-initiated, text only)** |
+| Cloud API | No | **Yes (user action or enabled automation, text only)** |
 
 Users choose their privacy/quality tradeoff. The app makes the tradeoff explicit in the UI. Audio NEVER leaves the device regardless of provider choice.
 
@@ -121,12 +130,12 @@ Users who want local-only LLM can install Ollama (`brew install ollama && ollama
 
 ### Negative
 
-- **Cloud providers require internet.** LLM features won't work offline unless user has Ollama running. This is acceptable because transcription (the core value) works fully offline.
+- **Cloud providers require internet.** Offline LLM features require a configured local runtime such as Ollama or LM Studio. This is acceptable because transcription (the core value) works fully offline.
 - **Cloud providers cost money.** API calls are cheap (cents per transcript) but non-zero. Users manage their own billing. We should show estimated token counts before sending.
 - **Privacy nuance.** "100% local" messaging needs updating to "speech stays local, and the app can remain fully local if you use only local paths." Must be clear and honest.
 - **Transcript text sent to cloud.** When using cloud providers, transcript text leaves the device. Audio never does. The distinction must be explicit in the UI and docs.
 - **Provider API changes.** Provider-native and OpenAI-compatible APIs may change independently. Mitigated by keeping routing isolated inside the client layer.
-- **No offline summarization.** Users without Ollama and without internet get no LLM features. The deterministic clean pipeline still works for basic text cleanup.
+- **No bundled offline summarization.** Offline LLM features require a separately configured local provider; the in-process option remains developer-gated. The deterministic clean pipeline still works for basic text cleanup.
 
 ## Architecture
 
@@ -148,6 +157,7 @@ Users who want local-only LLM can install Ollama (`brew install ollama && ollama
 │  ┌──────────────────┐    ┌──────────────────────────┐   │
 │  │ RoutingLLMClient │───▶│  LLMExecutionContext      │   │
 │  │                  │    │  - providerConfig          │   │
+│  │  .inProcessLocal ──▶ InProcessLLMClient (gated)    │   │
 │  │  .localCLI ──▶ LocalCLILLMClient                  │   │
 │  │  .other ────▶ LLMClient (HTTP)                    │   │
 │  └──────────────────┘    └──────────────────────────┘   │
@@ -165,6 +175,11 @@ Users who want local-only LLM can install Ollama (`brew install ollama && ollama
 
 ### Key Types
 
+The excerpts below illustrate the service boundary, not the complete current
+API. Source protocols also carry detailed/streaming completion receipts,
+operation/session context, user notes, and typed inference settings. See
+[spec/11](../11-llm-integration.md) and [spec/14](../14-per-prompt-inference-settings.md).
+
 ```swift
 /// Provider configuration — provider ID + model in UserDefaults, API key in Keychain
 public struct LLMProviderConfig: Codable, Sendable, Equatable {
@@ -176,7 +191,10 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
 }
 
 public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
-    case anthropic, openai, openaiCompatible, gemini, openrouter, ollama, lmstudio, localCLI, inProcessLocal
+    case anthropic, openai, openaiCompatible, gemini, openrouter
+    case moonshot, deepseek, qwen, zai, minimax
+    case ollama, lmstudio, localCLI, inProcessLocal
+    // moonshot/deepseek/qwen/zai/minimax are OpenAI-compatible lab endpoints.
     // localCLI runs CLI tools (claude -p, codex exec) as subprocesses — no HTTP, no API key.
     // inProcessLocal is developer-gated Local MLX — no HTTP, no API key.
 }
@@ -243,6 +261,7 @@ Historical note: this alternative has since been implemented. Anthropic now uses
 
 - ADR-002: Local-first processing (updated with LLM provider exception)
 - ADR-008: Previous local LLM approach (HISTORICAL)
-- `spec/11-llm-integration.md`: Previous integration spec (HISTORICAL)
+- ADR-032: Per-task LLM selection and specialist recipes if model selection is split (accepted direction; not implemented)
+- `spec/11-llm-integration.md`: Current provider integration spec
 - Char (fastrepl/char): Meeting app with cloud + local-provider LLM support
 - Cursor, Raycast, Continue: Precedent for "bring your own API key" in developer tools

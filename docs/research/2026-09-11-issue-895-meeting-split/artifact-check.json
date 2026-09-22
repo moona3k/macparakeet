@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-09-12T02:16:22Z",
+  "localDate": "2026-09-11",
+  "receiptInterpretation": "Historical research-time verification. The hashes and committed/pushed/published flags below describe that snapshot, not current repository publication. See publication-check.json for the final packaged artifacts. Screenshots retain the earlier banner; the final HTML changes that banner only to clarify that UI/UX is reference-only.",
+  "documentationUpdate": {
+    "updatedAt": "2026-09-12T02:28:16Z",
+    "files": ["report.md", "README.md"],
+    "change": "Documented the architectural assessment, module responsibilities, native sheet direction and first-release scope discussed with the user.",
+    "verification": "Artifact hashes, local document links and edited Markdown whitespace checked. HTML and native experiment unchanged; their earlier verification was not rerun."
+  },
+  "scope": "Local research documents, synthetic audio spike, and standalone HTML concept. No production implementation.",
+  "issue": "https://github.com/moona3k/macparakeet/issues/895",
+  "currentMain": "aaf3dc261536e5fc5158c4b1ca714bd3f4cece19",
+  "initialCheckout": "1159dfca8ae53a15ffcc1562b1efb9220f95cd88",
+  "delegation": {
+    "runtime": "Claude Code 2.1.268, claude -p",
+    "model": "claude-sonnet-5",
+    "tasks": [
+      "storage investigation",
+      "transcript and product investigation",
+      "HTML mockup",
+      "final current-main recommendation review"
+    ]
+  },
+  "browser": {
+    "surface": "Playwright CLI isolated local browser; browser plugin had no available connections",
+    "url": "http://127.0.0.1:8950/split-recording-prototype.html",
+    "checks": {
+      "detailMenuEntry": true,
+      "emptyCreateDisabled": true,
+      "boundaryTextPreview": true,
+      "twoMeetingCreation": true,
+      "threePartDurations": [
+        "36:20",
+        "35:50",
+        "35:50"
+      ],
+      "fourPartDurations": [
+        "36:20",
+        "35:50",
+        "17:50",
+        "18:00"
+      ],
+      "customTitlesPreserved": true,
+      "allFourChildTimelinesStartAtZero": true,
+      "childPassageCounts": [
+        3,
+        3,
+        2,
+        2
+      ],
+      "originalPassageCount": 10,
+      "invalidInputsRejected": [
+        "0:00",
+        "1:48:00",
+        "12:99",
+        "hello"
+      ],
+      "duplicateCutsRejected": true,
+      "removingCutUpdatesParts": true,
+      "minuteNotationOver59Accepted": "72:10 -> 1:12:10",
+      "snapRequiresConfirmation": "36:10 proposes 36:20; no cut until Use 36:20",
+      "textOnlyCreation": true,
+      "textOnlySuccessAndChildAudioNotice": true,
+      "cancellationBeforeCreationPreservesAudioState": true,
+      "editedTranscriptBlocked": true,
+      "editedTranscriptExplanationAccurate": true,
+      "cancelPreservesEditedSourceState": true,
+      "offlineInteraction": true,
+      "desktopHorizontalOverflow": false,
+      "mobileHorizontalOverflow": false,
+      "desktopViewport": [
+        1280,
+        1060
+      ],
+      "mobileViewport": [
+        390,
+        844
+      ],
+      "consoleErrors": 0,
+      "consoleWarnings": 0,
+      "duplicateDOMIDs": 0
+    },
+    "limitations": [
+      "file:// navigation is blocked by the automation surface; browser verification used localhost",
+      "Offline creation was checked after page load; direct double-click loading was not automated",
+      "No actual media playback or real meeting mutations in the HTML concept",
+      "No full accessibility audit"
+    ]
+  },
+  "staticChecks": {
+    "inlineJavaScriptSyntax": "pass",
+    "externalAssets": false,
+    "duplicateStaticIDs": 0,
+    "completeHTMLDocument": true
+  },
+  "nativeExperiment": {
+    "source": "audio-range-spike.swift",
+    "results": "audio-range-results.json",
+    "operatingSystem": "macOS 26.6.2 (25G83)",
+    "syntheticSourceSeconds": 8,
+    "sampleRate": 48000,
+    "exportModes": [
+      "AAC re-encode",
+      "AAC passthrough"
+    ],
+    "exportsDecoded": 6,
+    "durationErrorMs": 0,
+    "sourceSHA256Unchanged": true,
+    "initialIssue": "One frame lost through independent floating-point duration conversion; fixed with shared integer endpoints",
+    "limitations": [
+      "Eight-second mono synthetic fixture only",
+      "No waveform equivalence, source alignment, long-file benchmark, failure injection, minimum-OS or app integration proof"
+    ]
+  },
+  "screenshots": [
+    "screenshots/split-four-desktop.png",
+    "screenshots/split-four-mobile.png",
+    "screenshots/split-success.png"
+  ],
+  "sha256": {
+    "README.md": "0e3b01d43d8f02fb91324d0d4ee62619013bb3068b3f019113077069ef12ae12",
+    "audio-range-results-initial.json": "aa8888e8806b56a37583bac0b60e2ee647d5ed0fa402d38cad0be1f34c4313d2",
+    "audio-range-results.json": "ba1faa2229b1df3c2c3e005c88c70056b7c0a86e1cca2f34cfcc2da28cdd61b1",
+    "audio-range-spike.swift": "925648de2e7f447ad08aaa4a38f9c559d19817f7da405020b7f286ad1f4583af",
+    "recommendation-review.md": "1445aa79352a4a125766de8563adf7b848e6a5e8342b38ffa5034327e4cea3b3",
+    "report.md": "64bad3a0e5e7488026dc7484d00239341b9e2d56aaea0a463af1df9e5034fb2b",
+    "split-recording-prototype.html": "6996f4c7e6992e0b1623c3ff07ef93f7c7a376268018856ac88349327e272a1e",
+    "storage-findings.md": "70ef73b2035e1574641107400dc0ef793705c07e2224bc4e9b94c5ccf802f5aa",
+    "transcript-product-findings.md": "c1f85186fd6e857eafdf9e1656326627513e89baf3132123b00fb37f0770a6f9"
+  },
+  "productionAppBuildRun": false,
+  "productionAppTestsRun": false,
+  "committed": false,
+  "pushed": false,
+  "published": false,
+  "userRecordingsRead": false,
+  "userDatabaseRead": false
+}

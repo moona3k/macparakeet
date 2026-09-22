@@ -1,12 +1,19 @@
 # Meeting capture reliability — mic-health watchdog + post-stop coverage repair
 
-**Status:** IN PROGRESS — Phase A implemented 2026-06-14 (detection-only mic-health telemetry). Phase B user-visible warning UI productized 2026-07-04 via PR #707 (per plans/active/2026-07-04-meeting-health-artifacts-speaker-rename.md): per-source health states incl. monitor-confirmed stalls and 12s first-buffer grace for both sources. Coverage repair remains unimplemented.
+**Status:** PARTIAL — current source implements the metadata-only monitor, direct callback/configuration/typed-system recovery, actionable-only warnings, and durable frame-derived capture reports. Routine source-health decoration stays hidden. The release-readiness candidate adds written-signal `silent` reporting/recovery preservation and bounded writer finalization. VAD transcript-gap repair remains proposed; real hardware QA is not established by this status.
 **Date:** 2026-06-14
 **ADRs:** ADR-025 (meeting capture reliability), ADR-014 (meeting recording), ADR-015 (concurrent dictation/meeting), ADR-016 (centralized STT runtime + two-slot scheduler), ADR-019 (crash-resilient meeting recording)
 **Requirements:** REQ-MEET-017 (mic-health watchdog) — Phase A implemented; REQ-MEET-018 (post-stop coverage-based transcript repair) — proposed
 **Sibling work:** `plans/active/2026-05-dictation-stall-integration-tests.md`, `plans/completed/2026-06-onboarding-stall-watchdog-test.md` — this is the meeting-side counterpart to the dictation silent-stall hardening; stay consistent, don't duplicate.
 
-## What this plan closes out
+**Reconciliation (2026-09-04):** The rationale and phased instructions below
+are the original planning snapshot. In particular, “live preview = final” is
+obsolete: current finalization re-transcribes durable source files through the
+background queue. Direct source-callback recovery is also implemented.
+Do not build this plan's old repair topology without first narrowing the
+remaining problem against [ADR-025](../../spec/adr/025-meeting-capture-reliability.md).
+
+## Original problem statement (historical)
 
 ADR-019 made the meeting *bytes* crash-resilient (fragmented MP4 + lock-file recovery), but two silent correctness gaps remain that ADR-025 specs:
 

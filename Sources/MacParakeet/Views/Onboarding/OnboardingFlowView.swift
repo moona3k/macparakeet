@@ -180,9 +180,10 @@ struct OnboardingFlowView: View {
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                .fill(isSelected
-                      ? DesignSystem.Colors.accent.opacity(0.08)
-                      : isHovered ? DesignSystem.Colors.rowHoverBackground : Color.clear)
+                .fill(
+                    isSelected
+                        ? DesignSystem.Colors.accent.opacity(0.08)
+                        : isHovered ? DesignSystem.Colors.rowHoverBackground : Color.clear)
         )
         .contentShape(Rectangle())
         .onHover { hovering in
@@ -210,14 +211,12 @@ struct OnboardingFlowView: View {
 
     private func stepIsCompleted(_ step: OnboardingViewModel.Step) -> Bool {
         switch step {
-        case .welcome:
+        case .welcome, .hotkey:
             return viewModel.step.rawValue > step.rawValue
         case .microphone:
-            return viewModel.micStatus == .granted
+            return viewModel.micStatus == .granted || viewModel.step.rawValue > step.rawValue
         case .accessibility:
             return viewModel.accessibilityGranted
-        case .hotkey:
-            return viewModel.step.rawValue > step.rawValue
         case .engine:
             if case .ready = viewModel.engineState { return true }
             return false
@@ -253,10 +252,12 @@ struct OnboardingFlowView: View {
                 .padding(.vertical, 22)
             }
             .id(viewModel.step)
-            .transition(.asymmetric(
-                insertion: .move(edge: .trailing).combined(with: .opacity),
-                removal: .move(edge: .leading).combined(with: .opacity)
-            ))
+            .transition(
+                .asymmetric(
+                    insertion: .move(edge: .trailing).combined(with: .opacity),
+                    removal: .move(edge: .leading).combined(with: .opacity)
+                )
+            )
             .animation(.easeInOut(duration: 0.25), value: viewModel.step)
 
             Divider()
@@ -277,7 +278,7 @@ struct OnboardingFlowView: View {
             }
 
             HStack {
-            // Back button — hidden on welcome via opacity
+                // Back button — hidden on welcome via opacity
                 Button {
                     viewModel.goBack()
                 } label: {
@@ -307,14 +308,18 @@ struct OnboardingFlowView: View {
                 Spacer()
 
                 if viewModel.step == .done {
-                    accentButton("Open MacParakeet", icon: "arrow.right", large: true, disabled: false, isDefault: true) {
+                    accentButton("Open MacParakeet", icon: "arrow.right", large: true, disabled: false, isDefault: true)
+                    {
                         _ = viewModel.markOnboardingCompleted()
                         onFinish()
                         onOpenMainApp()
                     }
                 } else {
                     let disabled = continueButtonDisabled
-                    accentButton(primaryButtonTitle(for: viewModel.step), icon: "arrow.right", large: false, disabled: disabled, isDefault: true) {
+                    accentButton(
+                        primaryButtonTitle(for: viewModel.step), icon: "arrow.right", large: false, disabled: disabled,
+                        isDefault: true
+                    ) {
                         viewModel.goNext()
                     }
                 }
@@ -336,7 +341,7 @@ struct OnboardingFlowView: View {
                 title: "Microphone access",
                 status: micStatusText(viewModel.micStatus),
                 statusStyle: micStatusStyle(viewModel.micStatus),
-                detail: "Required to record your voice for dictation."
+                detail: "Skip if you only transcribe files."
             ) {
                 accentButton(
                     viewModel.isBusy ? "Requesting..." : "Grant Microphone Access",
@@ -409,17 +414,20 @@ struct OnboardingFlowView: View {
                 featureRow(
                     icon: "mic.fill",
                     title: "Dictate anywhere",
-                    detail: "\(handsFreeInstructionPhrase) for hands-free dictation, or hold \(pushToTalkDisplayTrigger.displayName) and release to stop. Text appears where your cursor is."
+                    detail:
+                        "\(handsFreeInstructionPhrase) for hands-free dictation, or hold \(pushToTalkDisplayTrigger.displayName) and release to stop. Text appears where your cursor is."
                 )
                 featureRow(
                     icon: "bolt.fill",
                     title: "Ready before you need it",
-                    detail: "The local speech model downloads during setup so your first dictation is not a surprise wait."
+                    detail:
+                        "The local speech model downloads during setup so your first dictation is not a surprise wait."
                 )
                 featureRow(
                     icon: "lock.shield.fill",
                     title: "Private by default",
-                    detail: "Audio and transcripts stay on your Mac. Setup telemetry is limited to non-identifying step and timing signals."
+                    detail:
+                        "Audio and transcripts stay on your Mac. Setup telemetry is limited to non-identifying step and timing signals."
                 )
             }
         }
@@ -437,9 +445,11 @@ struct OnboardingFlowView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "info.circle.fill")
                         .foregroundStyle(DesignSystem.Colors.accent)
-                    Text("Your hands-free hotkey is currently disabled. The examples below show the default shortcuts. You can set hotkeys anytime in Settings.")
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(.secondary)
+                    Text(
+                        "Your hands-free hotkey is currently disabled. The examples below show the default shortcuts. You can set hotkeys anytime in Settings."
+                    )
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
                 }
                 .padding(DesignSystem.Spacing.md)
                 .background(
@@ -455,10 +465,12 @@ struct OnboardingFlowView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "hand.tap.fill")
                         .foregroundStyle(DesignSystem.Colors.accent)
-                    Text("Try it now — \(handsFreeTryNowVerb) \(handsFreeDisplayTrigger.shortSymbol) or hold \(pushToTalkDisplayTrigger.shortSymbol). A live preview appears at the bottom of your screen.")
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Text(
+                        "Try it now — \(handsFreeTryNowVerb) \(handsFreeDisplayTrigger.shortSymbol) or hold \(pushToTalkDisplayTrigger.shortSymbol). A live preview appears at the bottom of your screen."
+                    )
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(DesignSystem.Spacing.md)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -485,10 +497,12 @@ struct OnboardingFlowView: View {
                         Text(handsFreeGestureTitle)
                             .font(DesignSystem.Typography.sectionTitle)
 
-                        Text("Starts persistent recording.\nTap \(handsFreeDisplayTrigger.shortSymbol) once more to stop and paste.")
-                            .font(DesignSystem.Typography.bodySmall)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                        Text(
+                            "Starts persistent recording.\nTap \(handsFreeDisplayTrigger.shortSymbol) once more to stop and paste."
+                        )
+                        .font(DesignSystem.Typography.bodySmall)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .padding(DesignSystem.Spacing.lg)
@@ -533,9 +547,11 @@ struct OnboardingFlowView: View {
                     .foregroundStyle(.tertiary)
             }
 
-            Text("Click Next to keep these hotkeys for now. You can change them later in Settings > Dictation; external keyboards can use keys like F13/F19 or End, modifier+key shortcuts, or modifier-only chords such as Control+Option.")
-                .font(DesignSystem.Typography.caption)
-                .foregroundStyle(.secondary)
+            Text(
+                "Click Next to keep these hotkeys for now. You can change them later in Settings > Dictation; external keyboards can use keys like F13/F19 or End, modifier+key shortcuts, or modifier-only chords such as Control+Option."
+            )
+            .font(DesignSystem.Typography.caption)
+            .foregroundStyle(.secondary)
         }
         .onAppear {
             viewModel.refreshAccessibilityPermission()
@@ -607,7 +623,7 @@ struct OnboardingFlowView: View {
                 }
 
                 // Hold: press and grow bar
-                holdPhase = 0.01 // trigger "pressed" state
+                holdPhase = 0.01  // trigger "pressed" state
                 try? await Task.sleep(for: .milliseconds(100))
                 guard !Task.isCancelled else { return }
                 holdPhase = 1.0
@@ -645,10 +661,12 @@ struct OnboardingFlowView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("\(recommendation.languageName) setup")
                                 .font(DesignSystem.Typography.sectionTitle)
-                            Text("Your Mac language settings suggest \(recommendation.languageName). MacParakeet will set up local Whisper instead of Parakeet so dictation works for this language from the first run.")
-                                .font(DesignSystem.Typography.bodySmall)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
+                            Text(
+                                "Your Mac language settings suggest \(recommendation.languageName). MacParakeet will set up local Whisper instead of Parakeet so dictation works for this language from the first run."
+                            )
+                            .font(DesignSystem.Typography.bodySmall)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                     .padding(DesignSystem.Spacing.lg)
@@ -694,8 +712,8 @@ struct OnboardingFlowView: View {
                         }
                     }
 
-                    if case .failed(let msg) = viewModel.engineState {
-                        Text(msg)
+                    if case .failed(let failure) = viewModel.engineState {
+                        Text(failure.message)
                             .font(DesignSystem.Typography.caption)
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
@@ -710,7 +728,7 @@ struct OnboardingFlowView: View {
                             Text("Try this:")
                                 .font(DesignSystem.Typography.caption.weight(.semibold))
                                 .foregroundStyle(.secondary)
-                            ForEach(engineRecoveryTips(for: msg), id: \.self) { tip in
+                            ForEach(failure.recovery.tips, id: \.self) { tip in
                                 Text("• \(tip)")
                                     .font(DesignSystem.Typography.caption)
                                     .foregroundStyle(.secondary)
@@ -778,15 +796,19 @@ struct OnboardingFlowView: View {
 
             onboardingCard {
                 VStack(alignment: .leading, spacing: 14) {
-                    quickTip(icon: "mic.fill", text: HotkeyTrigger.current.isDisabled
-                        ? "Click the dictation pill or set a hotkey in Settings to start dictating"
-                        : "\(handsFreeInstructionPhrase) to start dictating anywhere")
+                    quickTip(
+                        icon: "mic.fill",
+                        text: HotkeyTrigger.current.isDisabled
+                            ? "Click the dictation pill or set a hotkey in Settings to start dictating"
+                            : "\(handsFreeInstructionPhrase) to start dictating anywhere")
                     quickTip(icon: "doc.fill", text: "Drop an audio file onto the main window to transcribe")
                     quickTip(icon: "gearshape", text: "Visit Settings to customize your experience")
                     if AppFeatures.meetingRecordingEnabled {
                         Divider()
                             .padding(.vertical, 4)
-                        quickTip(icon: "record.circle", text: "Recording a meeting? Click Record Meeting in the Transcribe tab.")
+                        quickTip(
+                            icon: "record.circle",
+                            text: "Recording a meeting? Click Record Meeting in the Transcribe tab.")
                     }
                 }
                 .padding(DesignSystem.Spacing.lg)
@@ -810,7 +832,10 @@ struct OnboardingFlowView: View {
             )
     }
 
-    private func accentButton(_ title: String, icon: String? = nil, large: Bool = false, disabled: Bool, isDefault: Bool = false, action: @escaping () -> Void) -> some View {
+    private func accentButton(
+        _ title: String, icon: String? = nil, large: Bool = false, disabled: Bool, isDefault: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Text(title)
@@ -910,9 +935,13 @@ struct OnboardingFlowView: View {
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
                         .background(
-                            Capsule().fill(statusStyle == .ok ? DesignSystem.Colors.successGreen.opacity(0.15) : DesignSystem.Colors.warningAmber.opacity(0.15))
+                            Capsule().fill(
+                                statusStyle == .ok
+                                    ? DesignSystem.Colors.successGreen.opacity(0.15)
+                                    : DesignSystem.Colors.warningAmber.opacity(0.15))
                         )
-                        .foregroundStyle(statusStyle == .ok ? DesignSystem.Colors.successGreen : DesignSystem.Colors.warningAmber)
+                        .foregroundStyle(
+                            statusStyle == .ok ? DesignSystem.Colors.successGreen : DesignSystem.Colors.warningAmber)
                 }
 
                 Text(detail)
@@ -945,16 +974,18 @@ struct OnboardingFlowView: View {
         case .welcome:
             return "Set up the permissions and local speech model that make dictation reliable."
         case .microphone:
-            return "MacParakeet needs microphone permission to record your voice."
+            return "Used for dictation. File transcription does not need a microphone."
         case .accessibility:
             return "Accessibility is required for the global hotkey and reliable paste automation."
         case .hotkey:
             return "Two ways to dictate — pick whichever feels natural."
         case .engine:
             if let recommendation = viewModel.whisperRecommendation {
-                return "Preparing local Whisper for \(recommendation.languageName) so dictation works for your Mac language settings."
+                return
+                    "Preparing local Whisper for \(recommendation.languageName) so dictation works for your Mac language settings."
             }
-            return "The speech model (~465 MB) downloads once. Usually quick on broadband, longer on slower connections."
+            return
+                "The speech model (~465 MB) downloads once. Usually quick on broadband, longer on slower connections."
         case .done:
             return "Start with dictation. Meeting recording, files, and settings are ready when you need them."
         }
@@ -963,7 +994,8 @@ struct OnboardingFlowView: View {
     private func primaryButtonTitle(for step: OnboardingViewModel.Step) -> String {
         switch step {
         case .welcome: return "Continue"
-        case .microphone: return "Continue"
+        case .microphone:
+            return viewModel.micStatus == .granted ? "Continue" : "Continue without microphone"
         case .accessibility: return "Continue"
         case .hotkey: return "Continue"
         case .engine: return "Continue"
@@ -999,9 +1031,11 @@ struct OnboardingFlowView: View {
         if let recommendation = viewModel.whisperRecommendation {
             switch state {
             case .idle:
-                return "Whisper Large v3 Turbo (~632 MB) will download once, then run fully on-device with \(recommendation.languageName) selected."
+                return
+                    "Whisper Large v3 Turbo (~632 MB) will download once, then run fully on-device with \(recommendation.languageName) selected."
             case .working(_, _):
-                return "Preparing local Whisper for \(recommendation.languageName). Audio stays on this Mac; no cloud STT is used."
+                return
+                    "Preparing local Whisper for \(recommendation.languageName). Audio stays on this Mac; no cloud STT is used."
             case .ready:
                 return "Whisper is ready for \(recommendation.languageName) dictation and transcription."
             case .failed:
@@ -1013,53 +1047,13 @@ struct OnboardingFlowView: View {
         case .idle:
             return "The speech model (~465 MB) will download now. Internet is required this one time only."
         case .working(_, _):
-            return "Downloading the speech model (~465 MB). This is a one-time download — dictation and transcription work fully offline after this."
+            return
+                "Downloading the speech model (~465 MB). This is a one-time download — dictation and transcription work fully offline after this."
         case .ready:
             return "Parakeet speech model is ready."
         case .failed:
             return "Setup failed. Please retry to complete model preparation."
         }
-    }
-
-    private func engineRecoveryTips(for message: String) -> [String] {
-        let lower = message.lowercased()
-
-        if lower.contains("network") || lower.contains("internet") || lower.contains("timed out") {
-            return [
-                "Check your internet connection, then retry setup.",
-                "Use a stable network until the speech model finishes downloading.",
-                "If it keeps failing, open Settings > Engine > Local Models and run Repair."
-            ]
-        }
-
-        if lower.contains("space") || lower.contains("disk") || lower.contains("no space") {
-            return [
-                "Free at least 7 GB of disk space.",
-                "Retry setup after storage is available.",
-                "You can also run Repair in Settings > Engine > Local Models."
-            ]
-        }
-
-        if lower.contains("permission denied") || lower.contains("operation not permitted") || lower.contains("read-only") {
-            return [
-                "Confirm the app can write to your user Library folder.",
-                "Restart MacParakeet, then retry setup.",
-                "If needed, run Repair in Settings > Engine > Local Models."
-            ]
-        }
-
-        if lower.contains("unsupported") || lower.contains("apple silicon") {
-            return [
-                "MacParakeet requires an Apple Silicon Mac (M1 or newer).",
-                "Unfortunately, Intel-based Macs aren't supported."
-            ]
-        }
-
-        return [
-            "Retry setup first (temporary failures are common).",
-            "If it keeps failing, open Settings > Engine > Local Models and run Repair.",
-            "If the error persists, restart the app and retry once."
-        ]
     }
 
     private func openPrivacySettings(anchor: String) {
@@ -1096,17 +1090,16 @@ struct OnboardingFlowView: View {
         }
 
         switch viewModel.step {
-        case .microphone:
-            return "Grant microphone access to continue."
+        case .welcome, .microphone, .hotkey, .done:
+            return nil
         case .accessibility:
             return "Enable Accessibility to continue."
         case .engine:
             if viewModel.whisperRecommendation != nil {
-                return "Preparing Whisper — first-time Core ML optimization can take 3-5 minutes on some Macs. Everything works offline after setup."
+                return
+                    "Preparing Whisper — first-time Core ML optimization can take 3-5 minutes on some Macs. Everything works offline after setup."
             }
             return "Downloading — this can take several minutes. Everything works offline after setup."
-        case .welcome, .hotkey, .done:
-            return nil
         }
     }
 

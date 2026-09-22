@@ -86,4 +86,42 @@ final class TranscriptionSourceDisplayTests: XCTestCase {
         XCTAssertEqual(TranscriptionSourceDisplay.resolve(for: local).collapsedText, "Local")
         XCTAssertEqual(TranscriptionSourceDisplay.resolve(for: meeting).collapsedText, "Meeting")
     }
+
+    // MARK: - Which sources can drop their text
+
+    /// The text is dropped only where a bundled brand mark replaces it. If an
+    /// asset goes missing this fails here rather than shipping a blank label.
+    @MainActor
+    func testBrandedSourcesShipAMarkThatCanReplaceTheirText() throws {
+        for display in [TranscriptionSourceDisplay.youtube, .x, .vimeo, .facebook, .tiktok, .instagram] {
+            let platform = try XCTUnwrap(
+                display.brandedPlatform,
+                "\(display.collapsedText) must name the platform whose mark identifies it"
+            )
+            XCTAssertNotNil(
+                BrandGlyphImage.image(for: platform),
+                "\(display.collapsedText) claims a brand mark but no asset is bundled for it"
+            )
+        }
+    }
+
+    /// The SF Symbol fallback cannot stand alone: these all draw the same play
+    /// rectangle and are separated only by tint, so anything without a bundled
+    /// mark must keep its word.
+    func testUnbrandedSourcesKeepTheirTextBecauseTheGlyphIsShared() {
+        let shareOneGlyph: [TranscriptionSourceDisplay] = [.youtube, .x, .vimeo, .facebook, .tiktok, .instagram, .mediaURL]
+        XCTAssertEqual(
+            Set(shareOneGlyph.map(\.systemImage)),
+            ["play.rectangle.fill"],
+            "The SF Symbol path names no platform, which is why it never drops its text"
+        )
+
+        for display in [TranscriptionSourceDisplay.meeting, .localFile, .podcast, .audioURL, .mediaURL] {
+            XCTAssertNil(
+                display.brandedPlatform,
+                "\(display.collapsedText) is ambiguous or unbranded and must keep its text"
+            )
+        }
+    }
+
 }

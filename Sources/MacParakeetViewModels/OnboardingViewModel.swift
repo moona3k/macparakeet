@@ -9,10 +9,11 @@ import Metal
 @Observable
 public final class OnboardingViewModel {
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "OnboardingViewModel")
-    public typealias WhisperModelDownloader = @Sendable (
-        _ model: String,
-        _ onProgress: @escaping @Sendable (_ completed: Int, _ total: Int) -> Void
-    ) async throws -> Void
+    public typealias WhisperModelDownloader =
+        @Sendable (
+            _ model: String,
+            _ onProgress: @escaping @Sendable (_ completed: Int, _ total: Int) -> Void
+        ) async throws -> Void
 
     public struct WhisperOnboardingRecommendation: Sendable, Equatable {
         public let languageCode: String
@@ -52,11 +53,70 @@ public final class OnboardingViewModel {
         }
     }
 
+    public struct EngineFailure: Sendable, Equatable {
+        public enum Recovery: Sendable, Equatable {
+            case network
+            case storage
+            case missingModels
+            case fileAccess
+            case unsupportedRuntime
+            case opaque
+
+            public var tips: [String] {
+                switch self {
+                case .network:
+                    return [
+                        "Check your internet connection, then tap Retry.",
+                        "Keep MacParakeet open on a stable network until the download completes.",
+                        "Use Open Settings to repair an incomplete local model download.",
+                    ]
+                case .storage:
+                    return [
+                        "Free additional disk space, then tap Retry.",
+                        "Empty the Trash if macOS has not reclaimed recently deleted files.",
+                        "Use Open Settings to repair any incomplete local model download.",
+                    ]
+                case .missingModels:
+                    return [
+                        "Connect this Mac to the internet and tap Retry to download the required assets.",
+                        "If downloads are unavailable, copy the complete local model cache from another Mac.",
+                        "Use Open Settings to repair the local model cache.",
+                    ]
+                case .fileAccess:
+                    return [
+                        "Confirm MacParakeet can write to your user Library folder.",
+                        "Restart MacParakeet, then tap Retry.",
+                        "Use Open Settings to repair the local model cache.",
+                    ]
+                case .unsupportedRuntime:
+                    return [
+                        "MacParakeet requires an Apple Silicon Mac (M1 or newer).",
+                        "Intel-based Macs are not supported.",
+                    ]
+                case .opaque:
+                    return [
+                        "Tap Retry once in case the failure was temporary.",
+                        "Use Open Settings to repair the local model cache if it fails again.",
+                        "Restart MacParakeet before one final retry.",
+                    ]
+                }
+            }
+        }
+
+        public let message: String
+        public let recovery: Recovery
+
+        init(message: String, recovery: Recovery) {
+            self.message = message
+            self.recovery = recovery
+        }
+    }
+
     public enum EngineState: Sendable, Equatable {
         case idle
         case working(message: String, progress: Double?)
         case ready
-        case failed(message: String)
+        case failed(EngineFailure)
     }
 
     public struct Completion: Sendable {
@@ -149,12 +209,14 @@ public final class OnboardingViewModel {
         self.availableDiskBytes = availableDiskBytes ?? { Self.defaultAvailableDiskBytes() }
         self.isNetworkReachable = isNetworkReachable ?? { await Self.defaultNetworkReachabilityCheck() }
         self.isSpeechModelCached = isSpeechModelCached ?? { STTRuntime.isModelCached() }
-        self.isWhisperModelDownloaded = isWhisperModelDownloaded ?? {
-            WhisperEngine.isModelDownloaded(model: SpeechEnginePreference.whisperModelVariant())
-        }
-        self.downloadWhisperModel = downloadWhisperModel ?? { model, progress in
-            _ = try await WhisperEngine.downloadModel(model: model, onProgress: progress)
-        }
+        self.isWhisperModelDownloaded =
+            isWhisperModelDownloaded ?? {
+                WhisperEngine.isModelDownloaded(model: SpeechEnginePreference.whisperModelVariant())
+            }
+        self.downloadWhisperModel =
+            downloadWhisperModel ?? { model, progress in
+                _ = try await WhisperEngine.downloadModel(model: model, onProgress: progress)
+            }
         self.defaults = defaults
         self.now = now
         self.startedAt = now()
@@ -282,14 +344,10 @@ public final class OnboardingViewModel {
 
     public func canContinueFromCurrentStep() -> Bool {
         switch step {
-        case .welcome:
+        case .welcome, .microphone, .hotkey, .done:
             return true
-        case .microphone:
-            return micStatus == .granted
         case .accessibility:
             return accessibilityGranted
-        case .hotkey:
-            return true
         case .engine:
             switch engineState {
             case .ready:
@@ -297,8 +355,6 @@ public final class OnboardingViewModel {
             case .idle, .working(_, _), .failed:
                 return false
             }
-        case .done:
-            return true
         }
     }
 
@@ -340,7 +396,7 @@ public final class OnboardingViewModel {
 
     private func emitAccessibilityGrantedIfNeeded() {
         guard accessibilityPromptedInCurrentRun,
-              !accessibilityGrantedTelemetrySent
+            !accessibilityGrantedTelemetrySent
         else { return }
 
         Telemetry.send(.permissionGranted(permission: .accessibility))
@@ -355,8 +411,8 @@ public final class OnboardingViewModel {
 
     private func emitAccessibilityDeniedIfNeeded() {
         guard accessibilityPromptedInCurrentRun,
-              !accessibilityGranted,
-              !accessibilityDeniedTelemetrySent
+            !accessibilityGranted,
+            !accessibilityDeniedTelemetrySent
         else { return }
 
         Telemetry.send(.permissionDenied(permission: .accessibility))
@@ -388,12 +444,50 @@ public final class OnboardingViewModel {
     /// permission/hotkey surfaces and the engine step can show Retry immediately.
     /// Always clears `engineBusy`.
     /// See plans/active/2026-05-dictation-first-onboarding.md §5.3.
-    private func applyEngineWarmUpFailure(_ message: String) {
+    private func applyEngineWarmUpFailure(_ failure: EngineFailure) {
         engineBusy = false
-        engineState = .failed(message: message)
+        engineState = .failed(failure)
         if step == .engine {
             sendStepTelemetry(step: .engine, action: .engineFailed, engineState: "failed")
         }
+    }
+
+    private func applyEngineWarmUpFailure(_ message: String) {
+        applyEngineWarmUpFailure(
+            EngineFailure(
+                message: message,
+                recovery: Self.engineFailureRecovery(for: message)
+            ))
+    }
+
+    private func applyEngineWarmUpFailure(
+        _ error: Error,
+        speakerModelPreparation: Bool = false
+    ) {
+        let recovery = Self.engineFailureRecovery(for: error)
+        let message: String
+        if speakerModelPreparation {
+            let safeDetail = TelemetryErrorClassifier.errorDetail(error)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            switch recovery {
+            case .network:
+                message = "Speaker model download failed: \(safeDetail)"
+            case .storage:
+                message = "Speaker model setup could not continue because this Mac ran out of disk space."
+            case .missingModels:
+                message = "Required speaker models are unavailable."
+            case .fileAccess:
+                message = "Speaker model setup could not write its local model cache."
+            case .unsupportedRuntime:
+                message = safeDetail
+            case .opaque:
+                let detail = safeDetail.isEmpty ? "The model provider did not report a reason." : safeDetail
+                message = "Speaker model preparation failed: \(detail)"
+            }
+        } else {
+            message = error.localizedDescription
+        }
+        applyEngineWarmUpFailure(EngineFailure(message: message, recovery: recovery))
     }
 
     public func startEngineWarmUp() {
@@ -441,10 +535,14 @@ public final class OnboardingViewModel {
 
             do {
                 try await runEnginePreflight()
-                guard self.engineGeneration == generation, self.warmUpObservationToken == observationToken else { return }
+                guard self.engineGeneration == generation, self.warmUpObservationToken == observationToken else {
+                    return
+                }
             } catch {
-                guard self.engineGeneration == generation, self.warmUpObservationToken == observationToken else { return }
-                self.applyEngineWarmUpFailure(error.localizedDescription)
+                guard self.engineGeneration == generation, self.warmUpObservationToken == observationToken else {
+                    return
+                }
+                self.applyEngineWarmUpFailure(error)
                 clearObservationIfCurrent(nil)
                 return
             }
@@ -460,10 +558,11 @@ public final class OnboardingViewModel {
             // session can emit started×2 / failed×1. modelDownloadCompleted still
             // fires once (only on the successful attempt's .ready). See §5.4.
             let warmUpStartedAt = Date()
-            Telemetry.send(.modelDownloadStarted(
-                modelKind: .localSpeechStack,
-                speechEngine: .parakeet
-            ))
+            Telemetry.send(
+                .modelDownloadStarted(
+                    modelKind: .localSpeechStack,
+                    speechEngine: .parakeet
+                ))
             await sttClient.backgroundWarmUp()
             guard self.engineGeneration == generation, self.warmUpObservationToken == observationToken else { return }
 
@@ -478,7 +577,9 @@ public final class OnboardingViewModel {
             defer { clearObservationIfCurrent(observerId) }
 
             observationLoop: for await state in stream {
-                guard self.engineGeneration == generation, self.warmUpObservationToken == observationToken else { break }
+                guard self.engineGeneration == generation, self.warmUpObservationToken == observationToken else {
+                    break
+                }
                 // Each event resets the stall-watchdog clock. If this loop
                 // doesn't iterate again within `warmUpStallTimeout`, the
                 // watchdog transitions to .failed and cancels observation.
@@ -490,32 +591,37 @@ public final class OnboardingViewModel {
                     self.engineState = .working(message: message, progress: progress)
                 case .ready:
                     let durationSeconds = Date().timeIntervalSince(warmUpStartedAt)
-                    Telemetry.send(.modelDownloadCompleted(
-                        durationSeconds: durationSeconds,
-                        modelKind: .localSpeechStack,
-                        speechEngine: .parakeet
-                    ))
+                    Telemetry.send(
+                        .modelDownloadCompleted(
+                            durationSeconds: durationSeconds,
+                            modelKind: .localSpeechStack,
+                            speechEngine: .parakeet
+                        ))
                     do {
                         try await self.prepareDiarizationModelsIfNeeded(generation: generation)
                     } catch is CancellationError {
                         break observationLoop
                     } catch {
-                        guard self.engineGeneration == generation, self.warmUpObservationToken == observationToken else { break observationLoop }
-                        self.applyEngineWarmUpFailure(error.localizedDescription)
+                        guard self.engineGeneration == generation, self.warmUpObservationToken == observationToken
+                        else { break observationLoop }
+                        self.applyEngineWarmUpFailure(error, speakerModelPreparation: true)
                         break observationLoop
                     }
-                    guard self.engineGeneration == generation, self.warmUpObservationToken == observationToken else { break observationLoop }
+                    guard self.engineGeneration == generation, self.warmUpObservationToken == observationToken else {
+                        break observationLoop
+                    }
                     self.engineState = .ready
                     self.engineBusy = false
                     self.sendStepTelemetry(step: .engine, action: .engineReady, engineState: "ready")
                     break observationLoop
                 case .failed(let message):
-                    Telemetry.send(.modelDownloadFailed(
-                        errorType: "BackgroundWarmUpError",
-                        errorDetail: message,
-                        modelKind: .localSpeechStack,
-                        speechEngine: .parakeet
-                    ))
+                    Telemetry.send(
+                        .modelDownloadFailed(
+                            errorType: "BackgroundWarmUpError",
+                            errorDetail: message,
+                            modelKind: .localSpeechStack,
+                            speechEngine: .parakeet
+                        ))
                     self.applyEngineWarmUpFailure(message)
                     break observationLoop
                 }
@@ -560,7 +666,15 @@ public final class OnboardingViewModel {
                 try await self.activateWhisperEngine(generation: generation)
                 guard self.engineGeneration == generation else { return }
 
-                try await self.prepareDiarizationModelsIfNeeded(generation: generation)
+                do {
+                    try await self.prepareDiarizationModelsIfNeeded(generation: generation)
+                } catch let error as CancellationError {
+                    throw error
+                } catch {
+                    guard self.engineGeneration == generation else { return }
+                    self.applyEngineWarmUpFailure(error, speakerModelPreparation: true)
+                    return
+                }
                 guard self.engineGeneration == generation else { return }
 
                 self.engineState = .ready
@@ -572,7 +686,7 @@ public final class OnboardingViewModel {
                 self.engineBusy = false
             } catch {
                 guard self.engineGeneration == generation else { return }
-                self.applyEngineWarmUpFailure(error.localizedDescription)
+                self.applyEngineWarmUpFailure(error)
             }
         }
         warmUpObserverTask = outerTask
@@ -585,11 +699,12 @@ public final class OnboardingViewModel {
         let friendly = SpeechEnginePreference.friendlyVariantName(modelVariant)
         let operationContext = Observability.childOperationContext()
         engineState = .working(message: "Downloading Whisper \(friendly)...", progress: nil)
-        Telemetry.send(.modelDownloadStarted(
-            modelKind: .whisperSTT,
-            speechEngine: .whisper,
-            engineVariant: modelVariant
-        ))
+        Telemetry.send(
+            .modelDownloadStarted(
+                modelKind: .whisperSTT,
+                speechEngine: .whisper,
+                engineVariant: modelVariant
+            ))
 
         do {
             try await downloadWhisperModel(modelVariant) { [weak self] completed, total in
@@ -604,61 +719,66 @@ public final class OnboardingViewModel {
                 }
             }
             let durationSeconds = Observability.durationSeconds(since: operationContext.startedAt)
-            Telemetry.send(.modelDownloadCompleted(
-                durationSeconds: durationSeconds,
-                modelKind: .whisperSTT,
-                speechEngine: .whisper,
-                engineVariant: modelVariant
-            ))
-            Telemetry.send(.modelOperation(
-                operationID: operationContext.operationID,
-                operationContext: operationContext,
-                action: .download,
-                outcome: .success,
-                stage: .download,
-                modelKind: .whisperSTT,
-                speechEngine: .whisper,
-                engineVariant: modelVariant,
-                durationSeconds: durationSeconds,
-                errorType: nil
-            ))
+            Telemetry.send(
+                .modelDownloadCompleted(
+                    durationSeconds: durationSeconds,
+                    modelKind: .whisperSTT,
+                    speechEngine: .whisper,
+                    engineVariant: modelVariant
+                ))
+            Telemetry.send(
+                .modelOperation(
+                    operationID: operationContext.operationID,
+                    operationContext: operationContext,
+                    action: .download,
+                    outcome: .success,
+                    stage: .download,
+                    modelKind: .whisperSTT,
+                    speechEngine: .whisper,
+                    engineVariant: modelVariant,
+                    durationSeconds: durationSeconds,
+                    errorType: nil
+                ))
         } catch is CancellationError {
             let durationSeconds = Observability.durationSeconds(since: operationContext.startedAt)
-            Telemetry.send(.modelOperation(
-                operationID: operationContext.operationID,
-                operationContext: operationContext,
-                action: .download,
-                outcome: .cancelled,
-                stage: .download,
-                modelKind: .whisperSTT,
-                speechEngine: .whisper,
-                engineVariant: modelVariant,
-                durationSeconds: durationSeconds,
-                errorType: "CancellationError"
-            ))
+            Telemetry.send(
+                .modelOperation(
+                    operationID: operationContext.operationID,
+                    operationContext: operationContext,
+                    action: .download,
+                    outcome: .cancelled,
+                    stage: .download,
+                    modelKind: .whisperSTT,
+                    speechEngine: .whisper,
+                    engineVariant: modelVariant,
+                    durationSeconds: durationSeconds,
+                    errorType: "CancellationError"
+                ))
             throw CancellationError()
         } catch {
             let durationSeconds = Observability.durationSeconds(since: operationContext.startedAt)
             let errorType = TelemetryErrorClassifier.classify(error)
-            Telemetry.send(.modelDownloadFailed(
-                errorType: errorType,
-                errorDetail: TelemetryErrorClassifier.errorDetail(error),
-                modelKind: .whisperSTT,
-                speechEngine: .whisper,
-                engineVariant: modelVariant
-            ))
-            Telemetry.send(.modelOperation(
-                operationID: operationContext.operationID,
-                operationContext: operationContext,
-                action: .download,
-                outcome: .failure,
-                stage: .download,
-                modelKind: .whisperSTT,
-                speechEngine: .whisper,
-                engineVariant: modelVariant,
-                durationSeconds: durationSeconds,
-                errorType: errorType
-            ))
+            Telemetry.send(
+                .modelDownloadFailed(
+                    errorType: errorType,
+                    errorDetail: TelemetryErrorClassifier.errorDetail(error),
+                    modelKind: .whisperSTT,
+                    speechEngine: .whisper,
+                    engineVariant: modelVariant
+                ))
+            Telemetry.send(
+                .modelOperation(
+                    operationID: operationContext.operationID,
+                    operationContext: operationContext,
+                    action: .download,
+                    outcome: .failure,
+                    stage: .download,
+                    modelKind: .whisperSTT,
+                    speechEngine: .whisper,
+                    engineVariant: modelVariant,
+                    durationSeconds: durationSeconds,
+                    errorType: errorType
+                ))
             throw error
         }
     }
@@ -692,30 +812,32 @@ public final class OnboardingViewModel {
                 }
             }
             SpeechEnginePreference.whisper.save(to: defaults)
-            Telemetry.send(.speechEngineSwitchOperation(
-                operationID: operationContext.operationID,
-                operationContext: operationContext,
-                fromEngine: previousPreference,
-                toEngine: .whisper,
-                outcome: .success,
-                durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
-                blockedReason: nil,
-                errorType: nil,
-                wasCold: switchWasCold
-            ))
+            Telemetry.send(
+                .speechEngineSwitchOperation(
+                    operationID: operationContext.operationID,
+                    operationContext: operationContext,
+                    fromEngine: previousPreference,
+                    toEngine: .whisper,
+                    outcome: .success,
+                    durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
+                    blockedReason: nil,
+                    errorType: nil,
+                    wasCold: switchWasCold
+                ))
         } catch {
             let errorType = TelemetryErrorClassifier.classify(error)
-            Telemetry.send(.speechEngineSwitchOperation(
-                operationID: operationContext.operationID,
-                operationContext: operationContext,
-                fromEngine: previousPreference,
-                toEngine: .whisper,
-                outcome: error is CancellationError ? .cancelled : .failure,
-                durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
-                blockedReason: Self.telemetrySpeechEngineSwitchBlockedReason(for: error),
-                errorType: errorType,
-                wasCold: switchWasCold
-            ))
+            Telemetry.send(
+                .speechEngineSwitchOperation(
+                    operationID: operationContext.operationID,
+                    operationContext: operationContext,
+                    fromEngine: previousPreference,
+                    toEngine: .whisper,
+                    outcome: error is CancellationError ? .cancelled : .failure,
+                    durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
+                    blockedReason: Self.telemetrySpeechEngineSwitchBlockedReason(for: error),
+                    errorType: errorType,
+                    wasCold: switchWasCold
+                ))
             throw error
         }
     }
@@ -732,15 +854,96 @@ public final class OnboardingViewModel {
                     self.engineState = .working(message: "Speaker models: \(message)", progress: nil)
                 }
             })
+        } catch let error as CancellationError {
+            throw error
         } catch {
-            logger.error("diarization_model_prep_failed error=\(error.localizedDescription, privacy: .public)")
-            Telemetry.send(.errorOccurred(
-                domain: "diarization",
-                code: "model_prep_failed",
-                description: TelemetryErrorClassifier.errorDetail(error)
-            ))
+            let errorType = TelemetryErrorClassifier.classify(error)
+            let errorDetail = TelemetryErrorClassifier.errorDetail(error)
+            logger.error(
+                "diarization_model_prep_failed error_type=\(errorType, privacy: .public) error_detail=\(errorDetail, privacy: .private)"
+            )
+            Telemetry.send(
+                .errorOccurred(
+                    domain: "diarization",
+                    code: "model_prep_failed",
+                    description: errorDetail
+                ))
             throw error
         }
+    }
+
+    private nonisolated static func engineFailureRecovery(for error: Error) -> EngineFailure.Recovery {
+        if error is URLError {
+            return .network
+        }
+
+        let nsError = error as NSError
+        if nsError.domain == NSCocoaErrorDomain,
+            nsError.code == NSFileWriteOutOfSpaceError
+        {
+            return .storage
+        }
+        if nsError.domain == NSPOSIXErrorDomain,
+            nsError.code == Int(POSIXErrorCode.ENOSPC.rawValue)
+        {
+            return .storage
+        }
+        if nsError.domain == NSCocoaErrorDomain,
+            [
+                NSFileReadNoPermissionError,
+                NSFileWriteNoPermissionError,
+                NSFileWriteVolumeReadOnlyError,
+            ].contains(nsError.code)
+        {
+            return .fileAccess
+        }
+
+        if let sttError = error as? STTError {
+            switch sttError {
+            case .timeout, .modelDownloadFailed:
+                return .network
+            case .modelNotLoaded:
+                return .missingModels
+            case .engineStartFailed(let reason), .transcriptionFailed(let reason):
+                return engineFailureRecovery(for: reason)
+            case .engineNotRunning, .outOfMemory, .invalidResponse, .engineBusy:
+                return .opaque
+            }
+        }
+
+        return engineFailureRecovery(for: error.localizedDescription)
+    }
+
+    private nonisolated static func engineFailureRecovery(for message: String) -> EngineFailure.Recovery {
+        let lower = message.lowercased()
+        if lower.contains("network")
+            || lower.contains("internet")
+            || lower.contains("timed out")
+            || lower.contains("connection")
+        {
+            return .network
+        }
+        if lower.contains("space") || lower.contains("disk") || lower.contains("no space") {
+            return .storage
+        }
+        if lower.contains("permission denied")
+            || lower.contains("operation not permitted")
+            || lower.contains("read-only")
+        {
+            return .fileAccess
+        }
+        if lower.contains("unsupported") || lower.contains("apple silicon") {
+            return .unsupportedRuntime
+        }
+        if lower.contains("speaker models")
+            || lower.contains("speaker diarization")
+            || lower.contains("model not loaded")
+            || lower.contains("model unavailable")
+            || lower.contains("missing model")
+        {
+            return .missingModels
+        }
+        return .opaque
     }
 
     public func retryEngineWarmUp() {
@@ -786,25 +989,28 @@ public final class OnboardingViewModel {
     ) {
         let visible = Self.visibleSteps
         let stepIndex = visible.firstIndex(of: step).map { $0 + 1 }
-        let engineState = explicitEngineState ?? {
-            guard step == .engine else { return nil }
-            switch self.engineState {
-            case .idle: return "idle"
-            case .working: return "working"
-            case .ready: return "ready"
-            case .failed: return "failed"
-            }
-        }()
+        let engineState =
+            explicitEngineState
+            ?? {
+                guard step == .engine else { return nil }
+                switch self.engineState {
+                case .idle: return "idle"
+                case .working: return "working"
+                case .ready: return "ready"
+                case .failed: return "failed"
+                }
+            }()
         let elapsedSeconds = (date ?? now()).timeIntervalSince(startedAt)
 
-        Telemetry.send(.onboardingStep(
-            step: step.telemetryName,
-            action: action,
-            elapsedSeconds: elapsedSeconds,
-            stepIndex: stepIndex,
-            totalSteps: visible.count,
-            engineState: engineState
-        ))
+        Telemetry.send(
+            .onboardingStep(
+                step: step.telemetryName,
+                action: action,
+                elapsedSeconds: elapsedSeconds,
+                stepIndex: stepIndex,
+                totalSteps: visible.count,
+                engineState: engineState
+            ))
     }
 
     /// Schedule (or reschedule) the warm-up stall watchdog. Cancels any
@@ -822,17 +1028,19 @@ public final class OnboardingViewModel {
             try? await Task.sleep(for: stallTimeout)
             guard !Task.isCancelled, let self else { return }
             guard self.engineGeneration == generation,
-                  self.warmUpObservationToken == observationToken else { return }
+                self.warmUpObservationToken == observationToken
+            else { return }
             // No progress event for `warmUpStallTimeout`. Declare stuck.
             let stallSeconds = Int(stallTimeout.components.seconds)
             let detail = "no warm-up progress for \(stallSeconds)s"
             self.logger.error("warm_up_stall_detected detail=\(detail, privacy: .public)")
-            Telemetry.send(.modelDownloadFailed(
-                errorType: "WarmUpStalled",
-                errorDetail: detail,
-                modelKind: .localSpeechStack,
-                speechEngine: .parakeet
-            ))
+            Telemetry.send(
+                .modelDownloadFailed(
+                    errorType: "WarmUpStalled",
+                    errorDetail: detail,
+                    modelKind: .localSpeechStack,
+                    speechEngine: .parakeet
+                ))
             self.applyEngineWarmUpFailure(
                 "Setup is taking longer than expected. Check your network connection and tap Retry."
             )
@@ -892,7 +1100,8 @@ public final class OnboardingViewModel {
         guard !whisperDownloaded || !diarizationAssetsReady else { return }
 
         guard let freeBytes = availableDiskBytes() else {
-            let requiredDiskBytes = whisperDownloaded ? requiredDiarizationSetupDiskBytes : requiredWhisperSetupDiskBytes
+            let requiredDiskBytes =
+                whisperDownloaded ? requiredDiarizationSetupDiskBytes : requiredWhisperSetupDiskBytes
             throw STTError.engineStartFailed(
                 "Unable to determine free disk space. Verify at least \(Self.formatGiB(requiredDiskBytes)) is available for multilingual setup, then retry."
             )
@@ -908,7 +1117,8 @@ public final class OnboardingViewModel {
         }
 
         guard await isNetworkReachable() else {
-            let networkRequirement = whisperDownloaded
+            let networkRequirement =
+                whisperDownloaded
                 ? "Internet connection is required to download speaker models. Check your network and retry."
                 : "Internet connection is required to download the Whisper model. Check your network and retry."
             throw STTError.engineStartFailed(
@@ -957,11 +1167,11 @@ public final class OnboardingViewModel {
         case .modelDownloadFailed, .modelNotLoaded:
             return .modelNotDownloaded
         case .engineNotRunning,
-             .engineStartFailed,
-             .transcriptionFailed,
-             .timeout,
-             .outOfMemory,
-             .invalidResponse:
+            .engineStartFailed,
+            .transcriptionFailed,
+            .timeout,
+            .outOfMemory,
+            .invalidResponse:
             return nil
         }
     }

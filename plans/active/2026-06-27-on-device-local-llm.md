@@ -2,9 +2,9 @@
 
 **Status:** DIRECTION CONFIRMED (Daniel, 2026-07-04) — ship a local model as a dead-simple *option* while cloud/frontier stays the recommended default until local quality catches up (§1). Dev-gated foundation code now exists (runtime, downloader, setup flow); Phase 0 spike + eval still gates the public promise, default/recommendation, and shipped scope (§8, §11).
 **Created:** 2026-06-27
-**Related issues:** #439 (integrated local cleanup/format — the core ask), #265 (custom/specialized cleanup model + full prompt control), #550 (global company context for cleanup), #460 (folder-scoped AI queries / cross-meeting QA), #563 (chat truncation from hardcoded context budgets), #408 (separate dictation/transform AI from meeting AI).
+**Related issues:** #439 (integrated local cleanup/format — the core ask), #265 (custom/specialized cleanup model + full prompt control), #550 (global company context for cleanup), #460 (folder-scoped AI queries / cross-meeting QA), #563 (chat truncation from hardcoded context budgets), #408 (separate dictation/transform AI from meeting AI; routing shape is [ADR-032](../../spec/adr/032-llm-task-group-routing.md)).
 **Related plans:** [`2026-05-ai-setup-ux.md`](2026-05-ai-setup-ux.md) (where one-click setup lives), [`2026-06-19-meetings-workspace-productization.md`](2026-06-19-meetings-workspace-productization.md) (U6 local index / U7 cross-meeting Ask), [`2026-05-voice-command-agent-mode.md`](2026-05-voice-command-agent-mode.md) (tool-calling / agent mode).
-**Canonical spec to update:** [`spec/11-llm-integration.md`](../../spec/11-llm-integration.md).
+**Canonical spec to update:** [`spec/11-llm-integration.md`](../../spec/11-llm-integration.md). ADR-032 if BYO task-group routing lands.
 
 ---
 
@@ -85,7 +85,7 @@ We ship **one** first-party model (with optional RAM-tiered variants), built fro
 - **Self-optimization path:** (1) MLX convert + DWQ quantize and tune generation params; (2) fine-tune on transcript cleanup / summarization / QA style for higher faithfulness and our house formatting; (3) endgame = our own purpose-built MacParakeet model, published as MLX weights the one-click flow fetches.
 - **Optional RAM tiers (same family for consistent prompts):** 16 GB → 4B; 32 GB → Qwen3-30B-A3B-Instruct (MoE, ~18.6 GB, ~3B-speed, near-flagship quality); 64 GB → 30B-A3B Q6/Q8. Start with the single 4B and add tiers only if the spike shows a clear quality gap. Note (2026-07-04 review): the user base skews pro hardware, so expect the 30B-A3B tier to be the difference between a tolerable option and a genuinely good one — the 4B is the 16 GB floor, not the pitch. Still Phase 2, not v1.
 - **License rule:** base/fine-tune only from **Apache-2.0 / MIT** (Qwen3, Mistral Apache models, Phi-4/-mini, SmolLM, IBM Granite 4.0, OLMo 2). Avoid Gemma 2/3 (custom terms) and Llama (community license + EU multimodal carve-out) as a base. (Gemma 4 reportedly moved to Apache — re-check if wanted.)
-- **Specialized cleanup model (#265):** don't maintain a second first-party model. Parakeet already emits punctuation/casing, so cleanup *beyond* punctuation (disfluency, ITN, light rewrite) is best done by our tuned general model under a strict source-faithful prompt. #265's "plug in a tiny specialized cleanup model + control the prompt" is satisfied by **BYO (another MLX model) + the editable prompt**.
+- **Specialized cleanup model (#265):** don't maintain a second first-party *general* model. Parakeet already emits punctuation/casing, so cleanup *beyond* punctuation (disfluency, ITN, light rewrite) is best done by our tuned general model under a strict source-faithful prompt, or by an optional ADR-032 **cleanup recipe** (S1-mini-class) after it beats that path on real dictation. #265's "plug in a tiny specialized cleanup model + control the prompt" is a recipe (built-in or user-duplicated), not a second default LLM. The single-model invariant is for the shipped first-party general model.
 
 **Freshness flags (verify in Phase 0):** small-model rankings move fast; advertised context windows overstate *reliable* comprehension; confirm the exact base + quant on real transcripts before locking.
 
@@ -181,6 +181,8 @@ The local model is presented as an **option alongside the other providers** — 
 2. **Base model:** Qwen3-4B-Instruct-2507 vs Gemma-4-E4B (both Apache) — Phase 0 bake-off picks the one first-party default; 30B-A3B tier expected in Phase 2 for 32 GB+ Macs.
 3. **Self-optimization roadmap:** convert+quantize first (Phase 1), fine-tune next (Phase 2), our own model as endgame (Phase 4) — agree on this sequencing?
 4. **Apple Intelligence:** include as an optional zero-download fallback, or skip entirely to stay single-model?
+
+**Closed (2026-09-14):** cleanup vs summary model split is [ADR-032](../../spec/adr/032-llm-task-group-routing.md) (per-task inherit / general route / specialist recipe, not per-feature pickers). It does not split the first-party general local model and does not schedule routing or recipe work.
 
 ---
 

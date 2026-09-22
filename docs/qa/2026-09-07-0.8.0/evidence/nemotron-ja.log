@@ -1,0 +1,21 @@
+Transcribing ja_jp_0000.wav with nemotron...
+Converting audio...
+Preparing speech model...
+[15:01:48.446] [INFO] [FluidAudio.NemotronMultilingualStreaming] Using cached multilingual variant at /tmp/macparakeet-080-qa/isolated-home/Library/Application Support/FluidAudio/Models/nemotron-multilingual/multilingual/1120ms
+[15:01:48.461] [INFO] [FluidAudio.NemotronMultilingualStreaming] Preloading shared Nemotron multilingual models from /tmp/macparakeet-080-qa/isolated-home/Library/Application Support/FluidAudio/Models/nemotron-multilingual/multilingual/1120ms...
+[15:01:48.462] [INFO] [FluidAudio.NemotronMultilingualStreaming] Loaded multilingual config: 1120ms chunks, vocab=13087, 128 prompts
+[15:01:48.799] [INFO] [FluidAudio.NemotronMultilingualStreaming] Loaded shared decoder.mlmodelc
+[15:01:48.870] [INFO] [FluidAudio.NemotronMultilingualStreaming] Loaded shared joint.mlmodelc
+[15:01:48.894] [INFO] [FluidAudio.NemotronMultilingualStreaming] Loaded shared decoder_joint.mlmodelc
+[15:01:48.922] [INFO] [FluidAudio.NemotronMultilingualStreaming] Shared models preload complete — ready for N consumers
+[15:01:48.959] [INFO] [FluidAudio.NemotronMultilingualStreaming] Nemotron multilingual manager initialized from shared models (1120ms chunks).
+[15:01:48.995] [INFO] [FluidAudio.NemotronMultilingualStreaming] Nemotron multilingual manager initialized from shared models (1120ms chunks).
+[15:01:48.998] [INFO] [FluidAudio.NemotronMultilingualStreaming] Prompt id set to 101 for language ja
+[15:01:49.000] [INFO] [FluidAudio.NemotronMultilingualStreaming] Prompt id set to 101 for language ja
+Transcribing... 0%
+[15:01:49.007] [INFO] [FluidAudio.NemotronMultilingualStreaming] Prompt id set to 101 for language ja
+Transcribing... 25%
+Transcribing... 90%
+Transcribing... 99%
+[15:01:49.528] [INFO] [FluidAudio.NemotronMultilingualStreaming] StreamingNemotronMultilingualAsrManager resources cleaned up
+[15:01:49.543] [INFO] [FluidAudio.NemotronMultilingualStreaming] StreamingNemotronMultilingualAsrManager resources cleaned up

@@ -1,0 +1,42 @@
+{
+  "audioTrackOrdinal": 1,
+  "createdAt": "2026-09-07T22:29:28Z",
+  "derivedSnippet": "インターネットで敵体的環境コースについて検索すると、おそらく現地企業の住所が出てくるでしょう.",
+  "derivedTitle": "インターネットで敵体的環境コースについて検索すると、おそらく現地企業の住所が出てくるでしょう",
+  "durationMs": 8400,
+  "engine": "nemotron",
+  "engineVariant": "multilingual-1120ms",
+  "fileName": "two-tracks.mkv",
+  "filePath": "<QA_ROOT>/audio-runtime/two-tracks.mkv",
+  "fileSizeBytes": 678303,
+  "id": "185F42D7-3203-4FB4-9687-C7086C379CAF",
+  "isFavorite": false,
+  "isTranscriptEdited": false,
+  "language": "ja",
+  "rawTranscript": "インターネットで敵体的環境コースについて検索すると、おそらく現地企業の住所が出てくるでしょう.",
+  "recoveredFromCrash": false,
+  "sourceType": "file",
+  "status": "completed",
+  "transcriptSegments": [
+    {
+      "endMs": 8400,
+      "id": "BD295753-19B9-4B7E-8142-138572A40778",
+      "speakerLabel": "Unknown Speaker",
+      "startMs": 2240,
+      "text": "インターネットで敵体的環境コースについて検索すると、おそらく現地企業の住所が出てくるでしょう",
+      "wordRange": {
+        "endIndexExclusive": 1,
+        "startIndex": 0
+      }
+    }
+  ],
+  "updatedAt": "2026-09-07T22:30:02Z",
+  "wordTimestamps": [
+    {
+      "confidence": 1,
+      "endMs": 8400,
+      "startMs": 2240,
+      "word": "インターネットで敵体的環境コースについて検索すると、おそらく現地企業の住所が出てくるでしょう"
+    }
+  ]
+}

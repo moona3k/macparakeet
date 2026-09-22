@@ -22,7 +22,7 @@ enum BreathWaveIcon {
     // Stroke width: 7 (large), 10 (small/menu bar)
 
     /// Menu bar icon state variants.
-    enum MenuBarState {
+    enum MenuBarState: Equatable {
         case idle
         case recording
         case processing

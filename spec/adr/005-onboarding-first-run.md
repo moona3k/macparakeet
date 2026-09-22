@@ -27,7 +27,7 @@ Implement a dedicated first-run onboarding window that appears automatically whe
 The current onboarding flow is linear and step-based:
 
 1. Welcome
-2. Microphone permission
+2. Microphone permission (skippable)
 3. Accessibility permission
 4. Hotkey instructions
 5. Speech stack setup (Parakeet + required speaker-detection assets, retry available)
@@ -83,3 +83,7 @@ Accessibility is still granted during onboarding for all users, which also cover
 - The Parakeet-vs-Whisper fork is preserved for CJK locales — `whisperRecommendation` resolves synchronously in `init`, before any trigger.
 - A warm-up failure that occurs before the user reaches the Speech Model step is preserved as `.failed`, but only the Speech Model step renders failure UI. Earlier steps continue to show their permission/hotkey surfaces, and the user sees the existing error + Retry affordance immediately on reaching Speech Model.
 - `modelDownloadStarted` now fires at onboarding open; the start→ready duration still measures real download time (the background download is independent of the user's step).
+
+## Amendment — 2026-09-16: Microphone may be skipped (issue #879)
+
+The Microphone step stays in onboarding, but Continue is no longer gated on grant. Dictation and mic-backed meetings request access on first use; persistent dictation prompts before capture so the same press can continue. Hold-to-talk cannot survive the system permission sheet, so a grant returns to idle and the next hold starts capture. Settings offers Grant or Open Microphone Settings when the mic is missing. Idle launch prewarm is skipped when the mic is not granted. Accessibility remains required.

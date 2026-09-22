@@ -25,12 +25,13 @@
 | Error | Cause | User Action |
 |-------|-------|-------------|
 | CoreML failure | FluidAudio transcription error | Log error, offer retry |
-| Transcription timeout | Transcription took > 60s | "Transcription timed out. Try a shorter recording." |
+| Runtime operation stalled | Cancellation drain, model switch, cache clear, or shutdown exceeds the scheduler's 30-second watchdog | Emit `stt_runtime_unhealthy` diagnostics while continuing to await safe completion. This is not a global transcription deadline. |
 | Out of memory | Model too large for available RAM | "Close other apps to free memory" |
 | Model not found | First run, model not downloaded | Show download progress |
 | Model download failed | Network error during CoreML model download | "Check internet connection and retry" |
 | Whisper model missing | Whisper selected before its local model is downloaded | Keep Parakeet available; show Whisper download action |
 | Engine busy | STT jobs are queued/running or a meeting speech-engine lease is active | Disable engine switch; retry after work finishes |
+| Engine switch stalled | WhisperKit/Core ML compile (`aned`) can block Settings far longer than the usual 3–5 minute first-load estimate; the prepare watchdog only reports at 15/60/180/300 seconds and cannot interrupt the load | After 5 minutes, Settings shows an honest stalled state. **Use previous engine** restores the prior selection without cancelling Core ML, killing `aned`, or deleting shared caches. Speech stays paused until the compiler finishes; Settings keeps a residual “still compiling” banner after leave. A late success after leave is not persisted. Relaunching MacParakeet does not always recover a stuck compiler. |
 
 ### Processing Errors
 
@@ -53,6 +54,8 @@
 | System audio capture failed | ScreenCaptureKit setup fails, delivers no first buffer, stalls, or stops unexpectedly | Setup failure blocks start. During recording, retry bounded fresh streams and warn while recovering; after exhaustion continue a healthy sibling source or stop when no selected source remains. |
 | Mic capture failed during meeting | AVAudioEngine start fails, a route/configuration change kills the graph, or tap callbacks stop while the engine still reports running | Rebuild from the current route and format with bounded retries and require a real replacement buffer; on exhaustion warn and continue a healthy sibling source or stop when no selected source remains. Acoustic silence alone is not a failure. |
 | Writer finalization failed | A source accepted real frames but AVAssetWriter did not reach `.completed` | Abort settlement, preserve `recording.lock` and source artifacts for recovery, and never publish a healthy capture report. |
+| Writer finalization timed out (candidate) | One or more writer callbacks outlive the aggregate five-second deadline | Fail settlement without cancelling AVAssetWriter or deleting audio. Preserve the folder ownership guard until every callback returns; recovery/discard must refuse still-owned files, with process restart available if callbacks never return. |
+| Silent saved system track (candidate) | Qualified exact-zero written system PCM with nonzero mic signal over at least 30 seconds | Keep the completed transcript and microphone audio; show the existing partial-audio explanation. Do not restart capture, discard quiet audio, or claim the transcript is complete. |
 | Mix failed | Two decodable selected source files could not produce a valid combined playback artifact | Atomically install the longest aligned source as canonical playback and persist its `playbackFallbackSource` as partial; if no valid fallback exists, preserve the recoverable session and surface an error. |
 | Chunk transcription backpressure | Live transcription can't keep pace with recording | Silent degradation: final batch transcription still produces full result |
 | Live engine cannot preview meetings | Captured Live Speech engine does not provide the word timings required by the preview renderer | Show preview off for that engine; continue durable audio recording and use the captured Final Transcription route after stop |
@@ -65,7 +68,7 @@
 |-------|-------|-------------|
 | File permission denied | Read-only directory or sandbox issue | "Choose a different save location" |
 | Disk full | No space for database or audio | "Free up disk space (need ~X MB)" |
-| Database corruption | Unexpected shutdown during write | Auto-recover from WAL, warn user if data lost |
+| Database open or migration failed | SQLite/GRDB cannot open or migrate the library | Surface startup failure and preserve the database. Automatic corruption repair or app-managed WAL recovery is not implemented. |
 | Import failed | Unsupported format or corrupt file | "This file format is not supported" |
 
 ## Meeting Recording Crash Recovery
@@ -81,9 +84,9 @@ During active meeting recording, MacParakeet writes fragmented source audio and 
 
 **Recovery flow:**
 1. On app launch, scan meeting-recording directories for `recording.lock`.
-2. If a lock exists, the previous meeting session was interrupted.
+2. A lock is protective, not proof of a crash: discover only orphaned/relinquished sessions, respect live finalization ownership, and skip folders with active source-writer callbacks. See the [recovery contract](contracts/meeting-recovery-retention.md).
 3. Validate/repair surviving source audio; load lock metadata including title, notes, and any schema-v2 captured final speech engine/language; and load the optional recording-metadata sidecar containing source alignment and capture report.
-4. Reconcile media-derived alignment/report facts, rebuild and probe canonical playback, and set or clear any playback-fallback marker before recovering the meeting into the transcription library; otherwise clean up empty sessions according to the recovery service rules.
+4. Reconcile media-derived alignment/report facts while preserving prior silence and interruption history, rebuild/probe canonical playback, and set or clear playback-fallback markers. Unavailable/interrupted source status takes precedence over retained silence. Otherwise follow the recovery service's empty-session rules, never deleting a folder still owned by a writer.
 5. Final transcription uses the captured route for schema-v2 locks that contain it. Schema-v1 locks and schema-v2 locks without `speechEngine` use the current resolved Final Transcription route. Preview provenance is optional archived metadata and is not required for recovery.
 6. Remove the lock after successful recovery/finalization.
 

@@ -146,6 +146,7 @@ enum TranscriptResultActions {
         format: TranscriptExportFormat,
         options: TranscriptExportOptions = .default,
         directory: URL,
+        projectionProvider: (@Sendable (Transcription) throws -> SpeakerAttributionProjection)? = nil,
         onFileExported: (@Sendable (URL) async -> Void)? = nil
     ) async throws -> BulkTranscriptExportResult {
         try Task.checkCancellation()
@@ -177,15 +178,17 @@ enum TranscriptResultActions {
 
                 let stem = TranscriptSegmenter.sanitizedExportStem(from: transcription.effectiveDisplayTitle)
                 let fileURL = nextAvailableURL(in: directory, stem: stem, format: format)
-                let resolvedOptions = resolvedOptions(
-                    for: transcription,
-                    format: format,
-                    preferredOptions: options
-                )
 
                 do {
+                    let effectiveTranscription = try projectionProvider?(transcription)
+                        .effectiveTranscription ?? transcription
+                    let resolvedOptions = resolvedOptions(
+                        for: effectiveTranscription,
+                        format: format,
+                        preferredOptions: options
+                    )
                     try await exportTranscriptForBulk(
-                        transcription: transcription,
+                        transcription: effectiveTranscription,
                         format: format,
                         options: resolvedOptions,
                         to: fileURL,

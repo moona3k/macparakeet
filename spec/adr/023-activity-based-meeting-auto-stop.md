@@ -3,7 +3,7 @@
 > Status: **IMPLEMENTED (Phases A+B; shipped in the v0.7 release train, per-user opt-in default off)** — App-quit fast path, sustained dual-channel silence, veto countdown, settings plumbing, telemetry, and normal finalize/transcribe stop path are implemented behind `AppFeatures.meetingAutoStopEnabled = true` (flipped on `main` 2026-06-14 and present in the v0.7.0–v0.7.2 tagged builds; the per-user `meetingAutoStopEnabled` setting still defaults off, so nothing auto-stops until a user opts in). Phase C remains deferred until ADR-024's attribution layer exists.
 > Date: 2026-06-14
 > Related: ADR-014 (meeting recording), ADR-015 (concurrent dictation/meeting), ADR-016 (centralized STT scheduler), ADR-017 (calendar auto-start — its §5 amendment withdrew calendar-driven auto-stop and deferred the replacement to "its own ADR"; this is that ADR), ADR-024 (activity-based meeting detection — shares the activity-signal layer)
-> Requirement: REQ-MEET-015 (v0.7, implemented behind default-off flag)
+> Implementation scope: Phases A+B enabled; the per-user preference remains off by default.
 
 ## Context
 
@@ -130,12 +130,12 @@ A pure `MeetingAutoStopPolicy.evaluate(...)` in `MacParakeetCore` (mirrors `Meet
 
 ## Phased Rollout
 
-1. **Phase A — app-quit fast path + veto countdown + settings toggle + tests — IMPLEMENTED (2026-06-14).** Pure `MeetingAutoStopPolicy`, recognized-app-termination signal, veto countdown, `meetingAutoStopEnabled` toggle. Flag-gated, default off. Ships the whole feature for native conferencing apps once the flag flips.
+1. **Phase A — app-quit fast path + veto countdown + settings toggle + tests — IMPLEMENTED (2026-06-14).** Pure `MeetingAutoStopPolicy`, recognized-app-termination signal, veto countdown, `meetingAutoStopEnabled` toggle. The compile-time flag is enabled; users must opt in through the separate default-off preference.
 2. **Phase B — sustained dual-channel silence signal — IMPLEMENTED (2026-06-14).** Adds engine-agnostic coverage (browser tabs, in-person) under the same toggle, reusing the meeting level signal (`micLevel` / `systemLevel`) with a conservative four-minute continuous-silence grace.
 3. **Phase C — consume ADR-024 attribution — DEFERRED.** Once activity detection lands, use the per-process audio-attribution "call ended" signal for the case where the recognized app stays open but the call ends; deprecate raw app-quit if attribution is strictly better.
 
 ## Open Questions
 
-- **Default grace values:** implemented at 15s after recognized-app termination and 4 min continuous quiet on both channels; tune from field telemetry before any flag-on release.
+- **Default grace values:** implemented at 15s after recognized-app termination and 4 min continuous quiet on both channels; any tuning needs field evidence, not a fresh release-flag flip.
 - **Veto countdown vs silent stop:** resolved in favor of the veto countdown; do not silently stop without a new owner decision.
-- **App-open-but-call-ended:** when a recognized app stays open after the call ends, only silence will catch it until ADR-024's attribution layer exists. Acceptable for the default-off validation build.
+- **App-open-but-call-ended:** when a recognized app stays open after the call ends, only silence will catch it until ADR-024's attribution layer exists. This remains a limitation of the enabled, opt-in feature.

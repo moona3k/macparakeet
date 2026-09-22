@@ -45,6 +45,23 @@ final class SettingsSearchIndexTests: XCTestCase {
         )
     }
 
+    func testStreamingCursorQueryFindsDictationToggle() {
+        let results = SettingsSearchIndex.matches("typewriter")
+        XCTAssertTrue(
+            results.contains(where: { $0.id == "dictation.streaming.cursor" }),
+            "Streaming cursor should match typewriter keyword"
+        )
+    }
+
+    func testPreserveDiscardedQueryFindsDictationToggle() {
+        let results = SettingsSearchIndex.matches("accidental cancel")
+
+        XCTAssertTrue(
+            results.contains(where: { $0.id == "dictation.preserve.discarded" }),
+            "Accidental cancel recovery should find the preserve discarded setting"
+        )
+    }
+
     func testLivePreviewQueryFindsDictationPreviewSetting() {
         let results = SettingsSearchIndex.matches("live preview")
 
@@ -60,6 +77,24 @@ final class SettingsSearchIndexTests: XCTestCase {
         XCTAssertTrue(
             results.contains(where: { $0.id == "system.appearance" }),
             "Dark mode should land on the Appearance card"
+        )
+    }
+
+    func testHideMenuBarIconQueryFindsStartupSetting() {
+        let results = SettingsSearchIndex.matches("hide menu bar icon")
+
+        XCTAssertTrue(
+            results.contains(where: { $0.id == "system.startup" }),
+            "Menu bar icon visibility should land on the Startup card"
+        )
+    }
+
+    func testDiscoverQueryFindsShowDiscoverSetting() {
+        let results = SettingsSearchIndex.matches("discover")
+
+        XCTAssertTrue(
+            results.contains(where: { $0.id == "system.appearance.discover" }),
+            "Discover should land on the Show Discover appearance row"
         )
     }
 
@@ -135,7 +170,10 @@ final class SettingsSearchIndexTests: XCTestCase {
     }
 
     func testCalendarQueriesHonorCalendarFeatureFlag() {
-        for query in ["calendar", "auto-start", "auto start", "reminders"] {
+        for query in [
+            "calendar", "auto-start", "auto start", "reminders",
+            "Outlook", "Microsoft 365", "Exchange", "Internet Accounts",
+        ] {
             let results = SettingsSearchIndex.matches(query)
             let ids = Set(results.map(\.id))
 
@@ -160,6 +198,68 @@ final class SettingsSearchIndexTests: XCTestCase {
                 XCTAssertTrue(ids.contains("meeting.floatingControls"), "Query \(query) should find floating controls")
             } else {
                 XCTAssertFalse(ids.contains("meeting.floatingControls"), "Query \(query) should not reveal hidden meeting settings")
+            }
+        }
+    }
+
+    func testMeetingEndBehaviorQueriesFindNewToggles() {
+        let openQueries = ["auto open", "steal focus", "bring forward", "stay in background"]
+        for query in openQueries {
+            let ids = Set(SettingsSearchIndex.matches(query).map(\.id))
+            if AppFeatures.meetingRecordingEnabled {
+                XCTAssertTrue(ids.contains("meeting.openAppAfterEnd"), "Query \(query) should find open-app toggle")
+            } else {
+                XCTAssertFalse(ids.contains("meeting.openAppAfterEnd"), "Query \(query) should not reveal hidden meeting settings")
+            }
+        }
+
+        let notifyQueries = ["chime", "transcript ready", "meeting notification"]
+        for query in notifyQueries {
+            let ids = Set(SettingsSearchIndex.matches(query).map(\.id))
+            if AppFeatures.meetingRecordingEnabled {
+                XCTAssertTrue(ids.contains("meeting.notifyOnEnd"), "Query \(query) should find notify toggle")
+            } else {
+                XCTAssertFalse(ids.contains("meeting.notifyOnEnd"), "Query \(query) should not reveal hidden meeting settings")
+            }
+        }
+    }
+
+    /// The meeting gate is derived from the card anchor, so this holds for
+    /// rows added later without anyone remembering to update a list.
+    func testMeetingGateCoversEveryRowInTheMeetingCard() {
+        let meetingRows = SettingsSearchIndex.entries.filter { $0.cardAnchor == "meeting" }
+
+        if AppFeatures.meetingRecordingEnabled {
+            XCTAssertFalse(meetingRows.isEmpty, "The meeting card should contribute search rows when enabled")
+        } else {
+            XCTAssertTrue(meetingRows.isEmpty, "No row may survive into search when the meeting card is hidden")
+            XCTAssertFalse(
+                SettingsSearchIndex.entries.contains { $0.id == "system.permissions.screen" },
+                "Screen-recording permission exists for meeting recording and must be gated with it"
+            )
+        }
+    }
+
+    func testLiveTranscriptionQueriesFindMeetingToggle() {
+        for query in ["live transcription", "live captions", "battery", "just record"] {
+            let entry = SettingsSearchIndex.matches(query).first { $0.id == "meeting.liveTranscription" }
+            if AppFeatures.meetingRecordingEnabled {
+                XCTAssertEqual(entry?.tab, .capture, "Query \(query) should find the meeting toggle")
+                XCTAssertEqual(entry?.cardAnchor, "meeting")
+            } else {
+                XCTAssertNil(entry)
+            }
+        }
+    }
+
+    func testStartMeetingsMutedQueriesFindMeetingToggle() {
+        for query in ["start muted", "join muted", "mic off"] {
+            let entry = SettingsSearchIndex.matches(query).first { $0.id == "meeting.startMuted" }
+            if AppFeatures.meetingRecordingEnabled {
+                XCTAssertEqual(entry?.tab, .capture, "Query \(query) should find start meetings muted")
+                XCTAssertEqual(entry?.cardAnchor, "meeting")
+            } else {
+                XCTAssertNil(entry)
             }
         }
     }
@@ -283,7 +383,11 @@ final class SettingsSearchIndexTests: XCTestCase {
             "meeting",
             "meeting.hotkey",
             "meeting.floatingControls",
+            "meeting.openAppAfterEnd",
+            "meeting.notifyOnEnd",
             "meeting.speakerDetection",
+            "meeting.liveTranscription",
+            "meeting.startMuted",
             "meeting.autoStop",
             "meeting.calendar",
             "system.permissions.screen"

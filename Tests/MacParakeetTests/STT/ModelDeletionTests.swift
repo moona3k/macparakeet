@@ -1,4 +1,5 @@
 import XCTest
+import FluidAudio
 @testable import MacParakeetCore
 
 /// Covers the pure file-removal cores behind per-model delete. The telemetry
@@ -69,7 +70,8 @@ final class ModelDeletionTests: XCTestCase {
     func testParakeetUnifiedRequiredModelFilesTrackRuntimeDownloadSet() {
         let requiredFiles = ParakeetUnifiedEngine.requiredModelFiles()
 
-        XCTAssertTrue(requiredFiles.contains("parakeet_unified_preprocessor.mlmodelc"))
+        // FluidAudio 0.15.6 computes mel features in Swift; the CoreML preprocessor is neither downloaded nor loaded.
+        XCTAssertFalse(requiredFiles.contains("parakeet_unified_preprocessor.mlmodelc"))
         XCTAssertTrue(requiredFiles.contains("parakeet_unified_encoder_streaming_70_13_13_int8.mlmodelc"))
         XCTAssertTrue(requiredFiles.contains("parakeet_unified_decoder.mlmodelc"))
         XCTAssertTrue(requiredFiles.contains("parakeet_unified_joint_decision_single_step.mlmodelc"))
@@ -81,7 +83,8 @@ final class ModelDeletionTests: XCTestCase {
     func testParakeetUnifiedRequiredStreamingModelFilesTrackStreamingDownloadSet() {
         let requiredFiles = ParakeetUnifiedEngine.requiredStreamingModelFiles()
 
-        XCTAssertTrue(requiredFiles.contains("parakeet_unified_preprocessor.mlmodelc"))
+        // FluidAudio 0.15.6 computes mel features in Swift; the CoreML preprocessor is neither downloaded nor loaded.
+        XCTAssertFalse(requiredFiles.contains("parakeet_unified_preprocessor.mlmodelc"))
         XCTAssertTrue(requiredFiles.contains("parakeet_unified_encoder_streaming_70_13_13_int8.mlmodelc"))
         XCTAssertTrue(requiredFiles.contains("parakeet_unified_decoder.mlmodelc"))
         XCTAssertTrue(requiredFiles.contains("parakeet_unified_joint_decision_single_step.mlmodelc"))
@@ -120,6 +123,50 @@ final class ModelDeletionTests: XCTestCase {
         }
 
         XCTAssertTrue(ParakeetUnifiedEngine.isModelCached(cacheRoot: cacheRoot))
+    }
+
+    /// A cache written by FluidAudio 0.15.6 has no preprocessor bundle; it must
+    /// still count as complete so a fresh install is not asked to re-download.
+    func testParakeetUnifiedIsModelCachedTrueForFresh0156LayoutWithoutPreprocessor() throws {
+        let cacheRoot = tempRoot.appendingPathComponent("parakeet-unified-en-0.6b-coreml", isDirectory: true)
+        for fileName in [
+            "parakeet_unified_encoder_streaming_70_13_13_int8.mlmodelc",
+            "parakeet_unified_decoder.mlmodelc",
+            "parakeet_unified_joint_decision_single_step.mlmodelc",
+            "vocab.json",
+            "metadata.json",
+        ] {
+            try writeUnifiedModelFile(fileName, in: cacheRoot)
+        }
+
+        XCTAssertTrue(ParakeetUnifiedEngine.isModelCached(cacheRoot: cacheRoot))
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: cacheRoot.appendingPathComponent("parakeet_unified_preprocessor.mlmodelc").path
+            )
+        )
+    }
+
+    func testNemotronEnglishCacheCompletenessRequiresEveryDownloadedFile() throws {
+        let tierDir = tempRoot.appendingPathComponent("nemotron-streaming/1120ms", isDirectory: true)
+        try FileManager.default.createDirectory(at: tierDir, withIntermediateDirectories: true)
+        // Readiness gate files only: the engine can load, but the pre-gate download must still run.
+        for fileName in [ModelNames.NemotronStreaming.metadata, ModelNames.NemotronStreaming.encoderInt8File] {
+            let url = tierDir.appendingPathComponent(fileName)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try "x".write(to: url, atomically: true, encoding: .utf8)
+        }
+        XCTAssertTrue(NemotronEnglishEngine.isModelCached(cacheRoot: tierDir))
+        XCTAssertFalse(NemotronEnglishEngine.isModelCacheComplete(cacheRoot: tierDir))
+
+        for fileName in ModelNames.NemotronStreaming.requiredModels {
+            let url = tierDir.appendingPathComponent(fileName)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            if !FileManager.default.fileExists(atPath: url.path) {
+                try "x".write(to: url, atomically: true, encoding: .utf8)
+            }
+        }
+        XCTAssertTrue(NemotronEnglishEngine.isModelCacheComplete(cacheRoot: tierDir))
     }
 
     // MARK: - Nemotron repo file removal

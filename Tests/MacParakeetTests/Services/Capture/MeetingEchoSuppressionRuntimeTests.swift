@@ -521,6 +521,12 @@ final class MeetingEchoSuppressionRuntimeTests: XCTestCase {
             at: appURL.appendingPathComponent("Contents", isDirectory: true),
             withIntermediateDirectories: true
         )
+        let plist = try PropertyListSerialization.data(
+            fromPropertyList: ["LSMinimumSystemVersion": "14.2"],
+            format: .xml,
+            options: 0
+        )
+        try plist.write(to: appURL.appendingPathComponent("Contents/Info.plist"))
         return appURL
     }
 
@@ -593,7 +599,7 @@ final class MeetingEchoSuppressionRuntimeTests: XCTestCase {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/clang")
-        var arguments = ["-dynamiclib", sourceURL.path]
+        var arguments = ["-dynamiclib", "-mmacosx-version-min=14.2", sourceURL.path]
         if universal {
             arguments += ["-arch", "arm64", "-arch", "x86_64"]
         }

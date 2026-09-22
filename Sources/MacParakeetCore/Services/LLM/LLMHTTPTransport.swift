@@ -15,6 +15,12 @@ protocol LLMHTTPAdapter: Sendable {
         options: ChatCompletionOptions
     ) -> AsyncThrowingStream<String, Error>
 
+    func chatCompletionDetailedStream(
+        messages: [ChatMessage],
+        config: LLMProviderConfig,
+        options: ChatCompletionOptions
+    ) -> AsyncThrowingStream<LLMStreamEvent, Error>
+
     func testConnection(config: LLMProviderConfig) async throws
     func listModels(config: LLMProviderConfig) async throws -> [String]
 }
@@ -40,7 +46,7 @@ struct LLMHTTPTransport: Sendable {
 
     func data(for request: URLRequest) async throws -> (Data, URLResponse) {
         do {
-            return try await session.data(for: request)
+            return try await session.data(for: request, delegate: OpenCodeRequestHeaders.redirectDelegate(for: request))
         } catch {
             throw LLMError.connectionFailed(error.localizedDescription)
         }
@@ -48,9 +54,53 @@ struct LLMHTTPTransport: Sendable {
 
     func bytes(for request: URLRequest) async throws -> (URLSession.AsyncBytes, URLResponse) {
         do {
-            return try await session.bytes(for: request)
+            return try await session.bytes(
+                for: request, delegate: OpenCodeRequestHeaders.redirectDelegate(for: request))
         } catch {
             throw LLMError.connectionFailed(error.localizedDescription)
+        }
+    }
+}
+
+/// OpenCode Go's session metadata is restricted to its documented API origin and endpoints.
+enum OpenCodeRequestHeaders {
+    static func isOpenCodeGoURL(_ url: URL?) -> Bool {
+        guard let url,
+            url.scheme?.lowercased() == "https",
+            url.host?.lowercased() == "opencode.ai",
+            url.port == nil || url.port == 443,
+            url.user == nil, url.password == nil
+        else { return false }
+        switch url.path {
+        case "/zen/go/v1/chat/completions", "/zen/go/v1/messages", "/zen/go/v1/models":
+            return true
+        default:
+            return false
+        }
+    }
+
+    static func apply(to request: inout URLRequest, conversationID: UUID? = nil) {
+        guard isOpenCodeGoURL(request.url) else { return }
+        request.setValue((conversationID ?? UUID()).uuidString, forHTTPHeaderField: "x-opencode-session")
+        request.setValue("MacParakeet", forHTTPHeaderField: "User-Agent")
+    }
+
+    static func redirectDelegate(for request: URLRequest) -> (any URLSessionTaskDelegate)? {
+        request.value(forHTTPHeaderField: "x-opencode-session") == nil ? nil : redirectHandler
+    }
+
+    private static let redirectHandler = RedirectHandler()
+
+    private final class RedirectHandler: NSObject, URLSessionTaskDelegate {
+        func urlSession(
+            _ session: URLSession,
+            task: URLSessionTask,
+            willPerformHTTPRedirection response: HTTPURLResponse,
+            newRequest request: URLRequest,
+            completionHandler: @escaping @Sendable (URLRequest?) -> Void
+        ) {
+            // Refuse the redirect entirely: stripping headers would still forward the prompt body.
+            completionHandler(OpenCodeRequestHeaders.isOpenCodeGoURL(request.url) ? request : nil)
         }
     }
 }
@@ -65,7 +115,8 @@ enum LLMHTTPErrorMapper {
         if let errorBody = try? JSONDecoder().decode(OpenAIErrorResponse.self, from: data) {
             rawMessage = errorBody.error.message
         } else if let geminiArray = try? JSONDecoder().decode([GeminiErrorWrapper].self, from: data),
-                  let first = geminiArray.first {
+            let first = geminiArray.first
+        {
             rawMessage = first.error.message
         } else {
             rawMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
@@ -90,7 +141,7 @@ enum LLMHTTPErrorMapper {
             }
             return .providerError(message)
         case 400:
-            if message.lowercased().contains("context") || message.lowercased().contains("token") {
+            if isContextOverflowMessage(message) {
                 return .contextTooLong
             }
             return .providerError(message)
@@ -103,10 +154,7 @@ enum LLMHTTPErrorMapper {
         let message = scrubAPIKeyArtifacts(from: rawMessage)
         let lowered = message.lowercased()
 
-        if lowered.contains("context")
-            || lowered.contains("tokens to keep")
-            || lowered.contains("too many tokens")
-            || lowered.contains("maximum number of tokens") {
+        if isContextOverflowMessage(message) {
             return .contextTooLong
         }
         if lowered.contains("rate limit") || lowered.contains("rate_limit") {
@@ -114,14 +162,43 @@ enum LLMHTTPErrorMapper {
         }
         if lowered.contains("unauthorized")
             || lowered.contains("authentication")
-            || lowered.contains("api key") {
+            || lowered.contains("api key")
+        {
             return .authenticationFailed(message)
         }
         if lowered.contains("model")
-            && (lowered.contains("not found") || lowered.contains("does not exist")) {
+            && (lowered.contains("not found") || lowered.contains("does not exist"))
+        {
             return .modelNotFound(message)
         }
         return .streamingError(message)
+    }
+
+    /// True context-window failures, not parameter-compatibility errors that
+    /// happen to mention `max_tokens`.
+    static func isContextOverflowMessage(_ message: String) -> Bool {
+        let lowered = message.lowercased()
+        if isUnsupportedTokenParameterMessage(lowered) {
+            return false
+        }
+        return lowered.contains("context length")
+            || lowered.contains("context window")
+            || lowered.contains("context limit")
+            || lowered.contains("maximum context")
+            || lowered.contains("too many tokens")
+            || lowered.contains("tokens to keep")
+            || lowered.contains("maximum number of tokens")
+            || lowered.contains("prompt is too long")
+    }
+
+    private static func isUnsupportedTokenParameterMessage(_ lowered: String) -> Bool {
+        let mentionsTokenParameter =
+            lowered.contains("max_tokens") || lowered.contains("max_completion_tokens")
+        let mentionsUnsupported =
+            lowered.contains("unsupported")
+            || lowered.contains("not supported")
+            || lowered.contains("unknown parameter")
+        return mentionsTokenParameter && mentionsUnsupported
     }
 
     /// Strips obvious API-key artifacts from a provider error message before
@@ -173,16 +250,19 @@ enum LLMHTTPStreamCompletionPolicy {
     /// produce false positives:
     ///
     /// - **Strict**: OpenAI (`[DONE]`), OpenRouter (`[DONE]`, OpenAI-compat
-    ///   aggregator), Anthropic (`message_stop` event).
+    ///   aggregator), Anthropic (`message_stop` event), DeepSeek and Qwen
+    ///   DashScope Chat Completions (documented `data: [DONE]`).
     /// - **Lenient**: Gemini (no `[DONE]` per spec), OpenAI-Compatible
-    ///   (Together/Fireworks/Groq vary), LM Studio (varies), Ollama (uses
+    ///   (Together/Fireworks/Groq vary), Moonshot / Z.AI / MiniMax (not
+    ///   pinned without live evidence), LM Studio (varies), Ollama (uses
     ///   `done:true` field detected separately, not the SSE `[DONE]` line),
     ///   localCLI (subprocess output, not HTTP SSE).
     static func providerEnforcesStreamSentinel(_ id: LLMProviderID) -> Bool {
         switch id {
-        case .openai, .openrouter, .anthropic:
+        case .openai, .openrouter, .anthropic, .deepseek, .qwen:
             return true
-        case .openaiCompatible, .gemini, .ollama, .lmstudio, .localCLI, .inProcessLocal:
+        case .openaiCompatible, .gemini, .moonshot, .zai, .minimax, .ollama, .lmstudio, .localCLI,
+            .inProcessLocal:
             return false
         }
     }
@@ -207,21 +287,24 @@ enum LLMHTTPStreamCompletionPolicy {
 enum LLMHTTPModelCatalog {
     static func modelsURL(for config: LLMProviderConfig) -> URL {
         if config.id.modelListEndpoint == .anthropic,
-           let url = urlByAppendingQueryItems(
-            [URLQueryItem(name: "limit", value: "1000")],
-            to: config.baseURL.appendingPathComponent("models")
-           ) {
+            let url = urlByAppendingQueryItems(
+                [URLQueryItem(name: "limit", value: "1000")],
+                to: config.baseURL.appendingPathComponent("models")
+            )
+        {
             return url
         }
         if config.id.modelListEndpoint == .gemini,
-           let url = geminiModelsURL(from: config.baseURL, apiKey: config.apiKey) {
+            let url = geminiModelsURL(from: config.baseURL, apiKey: config.apiKey)
+        {
             return url
         }
         if config.id == .openrouter,
-           let url = urlByAppendingQueryItems(
-            [URLQueryItem(name: "output_modalities", value: "text")],
-            to: config.baseURL.appendingPathComponent("models")
-           ) {
+            let url = urlByAppendingQueryItems(
+                [URLQueryItem(name: "output_modalities", value: "text")],
+                to: config.baseURL.appendingPathComponent("models")
+            )
+        {
             return url
         }
         return config.baseURL.appendingPathComponent("models")
@@ -263,7 +346,7 @@ enum LLMHTTPModelCatalog {
                     return isOpenRouterTextLLMModel(entry)
                 case .gemini:
                     return isGeminiTextLLMModelID(entry.id)
-                case .openaiCompatible, .lmstudio, .ollama:
+                case .openaiCompatible, .moonshot, .deepseek, .qwen, .zai, .minimax, .lmstudio, .ollama:
                     return !isClearlyNonTextModelID(entry.id)
                 case .localCLI, .inProcessLocal:
                     return false
@@ -323,7 +406,8 @@ enum LLMHTTPModelCatalog {
     private static func supportsTextInputOutput(_ architecture: ModelsListResponse.ModelArchitecture?) -> Bool {
         guard let architecture else { return true }
         if let inputModalities = architecture.input_modalities?.map({ $0.lowercased() }),
-           !inputModalities.contains("text") {
+            !inputModalities.contains("text")
+        {
             return false
         }
         if let outputModalities = architecture.output_modalities?.map({ $0.lowercased() }) {
@@ -409,18 +493,21 @@ struct StreamErrorResponse: Decodable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         if let message = try? container.decode(String.self, forKey: .message),
-           !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
             error = message
             return
         }
         if let errorMessage = try? container.decode(String.self, forKey: .error),
-           !errorMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            !errorMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
             error = errorMessage
             return
         }
         if let errorObject = try? container.decode(ErrorObject.self, forKey: .error),
-           let message = errorObject.message,
-           !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let message = errorObject.message,
+            !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
             error = message
             return
         }
@@ -461,4 +548,22 @@ struct GeminiModelsListResponse: Decodable {
 /// Ollama-specific request options to override defaults (e.g., context window size).
 struct OllamaRequestOptions: Encodable {
     let num_ctx: Int
+    let temperature: Double?
+    let top_p: Double?
+    let top_k: Int?
+    let num_predict: Int?
+
+    init(
+        num_ctx: Int,
+        temperature: Double? = nil,
+        top_p: Double? = nil,
+        top_k: Int? = nil,
+        num_predict: Int? = nil
+    ) {
+        self.num_ctx = num_ctx
+        self.temperature = temperature
+        self.top_p = top_p
+        self.top_k = top_k
+        self.num_predict = num_predict
+    }
 }

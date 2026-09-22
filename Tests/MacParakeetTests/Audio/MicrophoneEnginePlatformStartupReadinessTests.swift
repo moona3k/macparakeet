@@ -51,6 +51,178 @@ final class MicrophoneEnginePlatformStartupReadinessTests: XCTestCase {
         XCTAssertFalse(startedEngines[0] === startedEngines[1])
     }
 
+    func testImplicitBluetoothDefaultRetriesFreshlyResolvedSystemDefaultBeforeBuiltIn() throws {
+        let routeBuildCount = OSAllocatedUnfairLock(initialState: 0)
+        let invocationCount = OSAllocatedUnfairLock(initialState: 0)
+        let explicitlySetDeviceIDs = OSAllocatedUnfairLock(initialState: [AudioDeviceID]())
+        let engines = OSAllocatedUnfairLock(initialState: [AVAudioEngine]())
+        let bluetoothState = OSAllocatedUnfairLock<Bool?>(initialState: true)
+        let buffer = UncheckedSendableAudioPCMBuffer(
+            makeStartupReadinessBuffer(nonZero: true)
+        )
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: {
+                let build = routeBuildCount.withLock { value -> Int in
+                    value += 1
+                    return value
+                }
+                return [
+                    .implicitSystemDefault(resolvedDeviceID: build == 1 ? 10 : 11),
+                    MeetingInputDeviceAttempt(source: .builtIn, deviceID: 20),
+                ]
+            },
+            inputDeviceSetter: { deviceID, _ in
+                explicitlySetDeviceIDs.withLock { $0.append(deviceID) }
+                return true
+            },
+            startupReadinessTimeout: 0,
+            bluetoothInputState: { deviceID in
+                deviceID == 10 ? bluetoothState.withLock { $0 } : false
+            },
+            engineStarter: { engine, _, _, tapHandler in
+                let invocation = invocationCount.withLock { value -> Int in
+                    value += 1
+                    return value
+                }
+                engines.withLock { $0.append(engine) }
+                if invocation == 1 {
+                    bluetoothState.withLock { $0 = nil }
+                } else {
+                    tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
+                }
+            }
+        )
+        defer { platform.stopEngine() }
+
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+
+        XCTAssertEqual(routeBuildCount.withLock { $0 }, 2)
+        XCTAssertEqual(invocationCount.withLock { $0 }, 2)
+        XCTAssertEqual(explicitlySetDeviceIDs.withLock { $0 }, [])
+        XCTAssertEqual(
+            platform.lastSucceededAttempt,
+            .implicitSystemDefault(resolvedDeviceID: 11)
+        )
+        let startedEngines = engines.withLock { $0 }
+        XCTAssertEqual(startedEngines.count, 2)
+        XCTAssertFalse(startedEngines[0] === startedEngines[1])
+    }
+
+    func testImplicitBluetoothDefaultRetryHonorsCancellationBeforeFreshEngineStarts() {
+        let platformBox = OSAllocatedUnfairLock<AVAudioEngineMicrophonePlatform?>(initialState: nil)
+        let routeBuildCount = OSAllocatedUnfairLock(initialState: 0)
+        let invocationCount = OSAllocatedUnfairLock(initialState: 0)
+        let explicitlySetDeviceIDs = OSAllocatedUnfairLock(initialState: [AudioDeviceID]())
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: {
+                let build = routeBuildCount.withLock { value -> Int in
+                    value += 1
+                    return value
+                }
+                if build == 2 {
+                    platformBox.withLock { $0 }?.noteStartupCancellationForTesting()
+                }
+                return [
+                    .implicitSystemDefault(resolvedDeviceID: 10),
+                    MeetingInputDeviceAttempt(source: .builtIn, deviceID: 20),
+                ]
+            },
+            inputDeviceSetter: { deviceID, _ in
+                explicitlySetDeviceIDs.withLock { $0.append(deviceID) }
+                return true
+            },
+            startupReadinessTimeout: 0,
+            bluetoothInputState: { $0 == 10 },
+            engineStarter: { _, _, _, _ in
+                invocationCount.withLock { $0 += 1 }
+            }
+        )
+        platformBox.withLock { $0 = platform }
+        defer {
+            platformBox.withLock { $0 = nil }
+            platform.stopEngine()
+        }
+
+        XCTAssertThrowsError(
+            try platform.configureAndStart(
+                vpioEnabled: false,
+                bufferSize: 256,
+                tapHandler: { _, _ in }
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? AVAudioEngineMicrophonePlatformError,
+                .startupCancelled
+            )
+        }
+
+        XCTAssertEqual(routeBuildCount.withLock { $0 }, 2)
+        XCTAssertEqual(invocationCount.withLock { $0 }, 1)
+        XCTAssertEqual(explicitlySetDeviceIDs.withLock { $0 }, [])
+        XCTAssertFalse(platform.isEngineRunning)
+    }
+
+    func testImplicitBluetoothDefaultRetryIsBoundedBeforeBuiltInFallback() throws {
+        let routeBuildCount = OSAllocatedUnfairLock(initialState: 0)
+        let invocationCount = OSAllocatedUnfairLock(initialState: 0)
+        let explicitlySetDeviceIDs = OSAllocatedUnfairLock(initialState: [AudioDeviceID]())
+        let engines = OSAllocatedUnfairLock(initialState: [AVAudioEngine]())
+        let buffer = UncheckedSendableAudioPCMBuffer(
+            makeStartupReadinessBuffer(nonZero: true)
+        )
+
+        let platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: {
+                routeBuildCount.withLock { $0 += 1 }
+                return [
+                    .implicitSystemDefault(resolvedDeviceID: 10),
+                    MeetingInputDeviceAttempt(source: .builtIn, deviceID: 20),
+                ]
+            },
+            inputDeviceSetter: { deviceID, _ in
+                explicitlySetDeviceIDs.withLock { $0.append(deviceID) }
+                return true
+            },
+            startupReadinessTimeout: 0,
+            bluetoothInputState: { $0 == 10 },
+            engineStarter: { engine, _, _, tapHandler in
+                let invocation = invocationCount.withLock { value -> Int in
+                    value += 1
+                    return value
+                }
+                engines.withLock { $0.append(engine) }
+                if invocation == 3 {
+                    tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
+                }
+            }
+        )
+        defer { platform.stopEngine() }
+
+        try platform.configureAndStart(
+            vpioEnabled: false,
+            bufferSize: 256,
+            tapHandler: { _, _ in }
+        )
+
+        XCTAssertEqual(routeBuildCount.withLock { $0 }, 2)
+        XCTAssertEqual(invocationCount.withLock { $0 }, 3)
+        XCTAssertEqual(explicitlySetDeviceIDs.withLock { $0 }, [20])
+        XCTAssertEqual(
+            platform.lastSucceededAttempt,
+            MeetingInputDeviceAttempt(source: .builtIn, deviceID: 20)
+        )
+        let startedEngines = engines.withLock { $0 }
+        XCTAssertEqual(startedEngines.count, 3)
+        XCTAssertFalse(startedEngines[0] === startedEngines[1])
+        XCTAssertFalse(startedEngines[1] === startedEngines[2])
+    }
+
     func testStartFailsWhenNoRouteProducesABuffer() {
         let invocationCount = OSAllocatedUnfairLock(initialState: 0)
         let platform = AVAudioEngineMicrophonePlatform(
@@ -286,6 +458,37 @@ final class MicrophoneEnginePlatformStartupReadinessTests: XCTestCase {
         XCTAssertTrue(platform.isEngineRunning)
     }
 
+    func testBluetoothProfileChangeBeforeUsableBufferDoesNotInvalidateStartup() throws {
+        let buffer = UncheckedSendableAudioPCMBuffer(
+            makeStartupReadinessBuffer(nonZero: true)
+        )
+        let platform = AVAudioEngineMicrophonePlatform(
+            deviceAttemptsBuilder: {
+                [.implicitSystemDefault(resolvedDeviceID: 10)]
+            },
+            inputDeviceSetter: { _, _ in true },
+            startupReadinessTimeout: 0,
+            bluetoothInputState: { $0 == 10 },
+            engineStarter: { engine, _, _, tapHandler in
+                NotificationCenter.default.post(
+                    name: .AVAudioEngineConfigurationChange,
+                    object: engine
+                )
+                tapHandler(buffer.buffer, AVAudioTime(hostTime: 1))
+            }
+        )
+        defer { platform.stopEngine() }
+
+        XCTAssertNoThrow(
+            try platform.configureAndStart(
+                vpioEnabled: false,
+                bufferSize: 256,
+                tapHandler: { _, _ in }
+            ),
+            "A usable buffer from the post-change AirPods graph should certify startup"
+        )
+    }
+
     func testColdStartFallsBackWhenConfigurationChangesDuringReadiness() throws {
         let currentEngine = OSAllocatedUnfairLock<AVAudioEngine?>(initialState: nil)
         let currentDefaultDeviceID = OSAllocatedUnfairLock<AudioDeviceID>(initialState: 10)
@@ -424,7 +627,7 @@ final class MicrophoneEnginePlatformStartupReadinessTests: XCTestCase {
         )
     }
 
-    func testImplicitDefaultRefreshesBluetoothSignalPolicyWhileRunning() throws {
+    func testImplicitDefaultPolicyRefreshCannotRestoreSilenceFilteringAfterCommit() throws {
         let currentDeviceID = OSAllocatedUnfairLock<AudioDeviceID>(initialState: 20)
         let currentBluetoothState = OSAllocatedUnfairLock<Bool?>(initialState: false)
         let installedTapHandler = OSAllocatedUnfairLock<
@@ -480,8 +683,8 @@ final class MicrophoneEnginePlatformStartupReadinessTests: XCTestCase {
 
         XCTAssertEqual(
             deliveredBufferCount.withLock { $0 },
-            2,
-            "Unresolved/Bluetooth transitions must filter zero PCM but forward real samples"
+            5,
+            "An established stream preserves silence through unresolved/Bluetooth policy refreshes"
         )
     }
 }

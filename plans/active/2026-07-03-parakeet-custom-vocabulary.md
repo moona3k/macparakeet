@@ -1,6 +1,6 @@
 # Parakeet custom vocabulary (names/jargon boosting)
 
-> Status: **Phase 0 complete — GO for Phase 1** (decision Daniel, 2026-07-04)
+> Status: **PARTIAL — Phase 1 implemented; longer-audio follow-up remains**. The current runtime uses the CTC sidecar for supported Parakeet TDT v2/v3 anchors only when recognition boosting is explicitly enabled (default off). See [spec/06](../../spec/06-stt-engine.md#custom-vocabulary-boosting-v0110) and ADR-026; Phase 0/GO notes below preserve the original decision history, not pending implementation instructions.
 > Date: 2026-07-03
 > Governing decision: [ADR-026 §3](../../spec/adr/026-asr-engine-strategy.md) — roadmap item 1
 > Sequencing: prefer after capability-registry Phase A
@@ -16,7 +16,7 @@ most common accuracy complaint class, and the clearest moat against
 Apple's free zero-download engine (which offers only generic
 `contextualStrings`).
 
-## Phase 0 — verify the mechanism (do this before any product code)
+## Phase 0 — historical mechanism evaluation
 
 Our pinned FluidAudio 0.15.4 already ships the API — no upgrade needed:
 `CustomVocabularyContext`/`CustomVocabularyTerm`, exposed via
@@ -42,7 +42,7 @@ with a throwaway harness (not app code):
 If the mechanism only works on the 110M CTC model and its base WER is
 far off our default, write that up and stop — the plan dies cheaply.
 
-## Product shape (after Phase 0)
+## Product shape (implemented Phase 1)
 
 - **Reuse the existing vocabulary feature — mandatory, not optional.**
   The app already has a user-facing dictionary: `CustomWord` /

@@ -4,6 +4,10 @@
 > Date: 2026-05-12
 > Implementation: Phase 2 merged to `main` on 2026-05-13; `AppFeatures.transformsEnabled` is now `true`.
 > Related: ADR-002 (local-first processing, BYO-key amendment), ADR-009 (custom hotkey support), ADR-011 (LLM via cloud + optional local providers), ADR-012 (telemetry), ADR-013 (Prompt Library + multi-summary)
+> Prompt Versioning Amendment (2026-09-05): Transforms share ADR-013's immutable
+> prompt-version lifecycle and uniform built-in rights. Their prompt body,
+> inference settings, and optional model override are versioned; shortcut and
+> running label remain mutable prompt metadata.
 
 ## Context
 
@@ -36,6 +40,15 @@ Two nullable columns are added to `prompts` via a forward-only migration:
 | `runningLabel` | TEXT, nullable | Optional gerund-form label for the floating progress pill (e.g., *"Polishing…"*). NULL means "derive via the `{Name}ing…` heuristic; fall back to *Transforming…* for awkward names." |
 
 Migration is additive. `.result` prompts ignore both columns (they will always read NULL, and they have no UI to set them). No data migration needed for existing rows.
+
+The 2026-09-05 prompt-versioning amendment moves Transform prompt content and
+generation settings into the same immutable `prompt_versions` records as result
+prompts. `keyboardShortcut` and `runningLabel` remain on `prompts` and changing
+only either field creates no version. Built-in Transforms have the same edit,
+delete, soft-restore, history, diff, and restore-as-new-version semantics as
+every other prompt. Transform execution resolves and snapshots the active
+version, including typed settings and optional model override, before the LLM
+request starts.
 
 ### 3. AX-first capture with clipboard-hijack fallback (locked by spike)
 

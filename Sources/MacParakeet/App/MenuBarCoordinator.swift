@@ -4,6 +4,33 @@ import UniformTypeIdentifiers
 import MacParakeetCore
 import MacParakeetViewModels
 
+struct MenuBarStatusItemState: Equatable {
+    enum Transition: Equatable {
+        case none
+        case install(BreathWaveIcon.MenuBarState)
+        case remove
+        case update(BreathWaveIcon.MenuBarState)
+    }
+
+    private(set) var isVisible = false
+    private(set) var iconState: BreathWaveIcon.MenuBarState = .idle
+
+    mutating func setVisible(_ shouldBeVisible: Bool) -> Transition {
+        guard shouldBeVisible != isVisible else { return .none }
+        isVisible = shouldBeVisible
+        return shouldBeVisible ? .install(iconState) : .remove
+    }
+
+    mutating func updateIcon(_ state: BreathWaveIcon.MenuBarState) -> Transition {
+        iconState = state
+        return isVisible ? .update(state) : .none
+    }
+
+    mutating func markInstallationFailed() {
+        isVisible = false
+    }
+}
+
 @MainActor
 final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     private let updaterController: SPUStandardUpdaterController
@@ -27,8 +54,11 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     private let onCreateTransform: () -> Void
     private let onQuit: () -> Void
     private let onShowAboutPanel: () -> Void
+    var onVoiceControl: (() -> Void)?
+    var onInteractionBusy: (() -> Void)?
 
     private var statusItem: NSStatusItem?
+    private var statusItemState = MenuBarStatusItemState()
     private var newTranscriptionMenuItem: NSMenuItem?
     private var startDictationMenuItem: NSMenuItem?
     private var createTransformMenuItem: NSMenuItem?
@@ -215,6 +245,9 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         )
         captureMenu.addItem(startDictationItem)
         startDictationMenuItem = startDictationItem
+        if AppFeatures.isVoiceControlAvailable() {
+            captureMenu.addItem(makeMenuItem(title: "Voice Control…", action: #selector(openVoiceControl), key: ""))
+        }
         captureMenu.addItem(NSMenuItem.separator())
         let fileTranscriptionItem = makeMenuItem(
             title: "Transcribe File...",
@@ -320,13 +353,34 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         NSApp.mainMenu = mainMenu
     }
 
-    func setupMenuBar() {
+    func setMenuBarIconVisible(_ visible: Bool) {
+        switch statusItemState.setVisible(visible) {
+        case .install(let state):
+            if !installMenuBarIcon(state: state) {
+                statusItemState.markInstallationFailed()
+            }
+        case .remove:
+            removeMenuBarIcon()
+        case .none, .update:
+            break
+        }
+    }
+
+    private func installMenuBarIcon(state: BreathWaveIcon.MenuBarState) -> Bool {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
-        guard let statusItem,
-              let button = statusItem.button else { return }
+        guard
+            let statusItem,
+            let button = statusItem.button
+        else {
+            if let statusItem {
+                NSStatusBar.system.removeStatusItem(statusItem)
+            }
+            self.statusItem = nil
+            return false
+        }
 
-        button.image = BreathWaveIcon.menuBarIcon(pointSize: 18)
+        button.image = BreathWaveIcon.menuBarIcon(pointSize: 18, state: state)
 
         let dropView = MenuBarDropView(frame: button.bounds)
         dropView.onDrop = { [weak self] urls in
@@ -361,6 +415,9 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
+        if AppFeatures.isVoiceControlAvailable() {
+            menu.addItem(makeMenuItem(title: "Voice Control…", action: #selector(openVoiceControl), key: ""))
+        }
         let pasteItem = NSMenuItem(
             title: "Paste Last Dictation",
             action: #selector(pasteLastDictation),
@@ -485,6 +542,28 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         menu.addItem(quitItem)
 
         statusItem.menu = menu
+        return true
+    }
+
+    private func removeMenuBarIcon() {
+        guard let statusItem else { return }
+
+        if let menu = statusItem.menu {
+            transcribeFileMenuItems.removeAll { $0.menu === menu }
+            transcribeYouTubeMenuItems.removeAll { $0.menu === menu }
+            recordMeetingMenuItems.removeAll { $0.menu === menu }
+        }
+
+        statusItem.menu = nil
+        NSStatusBar.system.removeStatusItem(statusItem)
+        self.statusItem = nil
+        pasteLastMenuItem = nil
+        recentDictationsMenuItem = nil
+        pasteLastTransformMenuItem = nil
+        recentTransformsMenuItem = nil
+        openLiveMeetingPanelMenuItem = nil
+        hotkeyMenuItem = nil
+        cohereLanguageMenuItem = nil
     }
 
     func refreshHotkeyTitle() {
@@ -513,7 +592,8 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     }
 
     func updateIcon(state: BreathWaveIcon.MenuBarState) {
-        statusItem?.button?.image = BreathWaveIcon.menuBarIcon(pointSize: 18, state: state)
+        guard case .update(let visibleState) = statusItemState.updateIcon(state) else { return }
+        statusItem?.button?.image = BreathWaveIcon.menuBarIcon(pointSize: 18, state: visibleState)
     }
 
     @objc private func showAboutPanel() {
@@ -594,10 +674,12 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         NSWorkspace.shared.open(url)
     }
 
+    @objc private func openVoiceControl() { onVoiceControl?() }
+
     @objc private func pasteLastDictation() {
         guard let env = environmentProvider() else { return }
         Task {
-            guard let dictation = (try? env.dictationRepo.fetchAll(limit: 1))?.first else { return }
+            guard let dictation = (try? env.dictationRepo.fetchCompleted(limit: 1))?.first else { return }
             // displayText honors the per-row "Undo AI edit" override.
             let text = dictation.displayText
             await pasteFromMenu(text: text, clipboardService: env.clipboardService)
@@ -608,7 +690,8 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         guard let env = environmentProvider(),
               let id = sender.representedObject as? UUID else { return }
         Task {
-            guard let dictation = try? env.dictationRepo.fetch(id: id) else { return }
+            guard let dictation = try? env.dictationRepo.fetch(id: id),
+                  dictation.status == .completed else { return }
             let text = dictation.displayText
             await pasteFromMenu(text: text, clipboardService: env.clipboardService)
         }
@@ -698,7 +781,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
             return
         }
 
-        let dictations = (try? env.dictationRepo.fetchAll(limit: 5)) ?? []
+        let dictations = (try? env.dictationRepo.fetchCompleted(limit: 5)) ?? []
         pasteLastMenuItem?.isEnabled = !dictations.isEmpty
         rebuildRecentDictationsSubmenu(with: dictations)
 
@@ -721,6 +804,8 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
 
     /// Resign menu-bar focus, wait for the target app to regain focus, then paste.
     private func pasteFromMenu(text: String, clipboardService: ClipboardServiceProtocol) async {
+        guard let lease = GUIMutationArbiter.shared.acquire(.historyPaste) else { onInteractionBusy?(); return }
+        defer { GUIMutationArbiter.shared.release(lease) }
         NSApp.deactivate()
         try? await Task.sleep(for: .milliseconds(200))
         do {

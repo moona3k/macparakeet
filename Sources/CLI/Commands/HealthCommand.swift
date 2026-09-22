@@ -63,17 +63,12 @@ struct HealthCommand: AsyncParsableCommand {
         }
 
         // 2. Directories
-        do {
-            try AppPaths.ensureDirectories()
-            report.directoriesOK = true
-        } catch {
-            report.directoriesOK = false
-            report.directoriesError = error.localizedDescription
-        }
+        report.directoriesError = probeHealthDirectories(AppPaths.requiredDirectories)
+        report.directoriesOK = report.directoriesError == nil
         if !json {
             print("Directories:")
             if report.directoriesOK {
-                print("  All directories exist or created.")
+                print("  All required directories exist and are writable.")
             } else {
                 print("  ERROR: \(report.directoriesError ?? "unknown")")
             }
@@ -244,6 +239,19 @@ struct HealthCommand: AsyncParsableCommand {
     }
 }
 
+func probeHealthDirectories(_ paths: [String]) -> String? {
+    let fileManager = FileManager.default
+    for path in paths {
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory) else {
+            return "Directory not created yet: \(path)"
+        }
+        guard isDirectory.boolValue else { return "Not a directory: \(path)" }
+        guard fileManager.isWritableFile(atPath: path) else { return "Directory is not writable: \(path)" }
+    }
+    return nil
+}
+
 func probeHealthDatabase(at path: String) -> HealthDatabaseReport {
     guard FileManager.default.fileExists(atPath: path) else {
         return .init(status: "missing", dictations: nil, transcriptions: nil, error: nil)
@@ -260,13 +268,13 @@ func probeHealthDatabase(at path: String) -> HealthDatabaseReport {
             )
         }
 
-        let dbManager = try DatabaseManager(path: path)
+        let dbManager = try DatabaseManager(readOnlyPath: path)
         let dictStats = try DictationRepository(dbQueue: dbManager.dbQueue).stats()
-        let transcriptions = try TranscriptionRepository(dbQueue: dbManager.dbQueue).fetchAll(limit: nil)
+        let transcriptionCount = try TranscriptionRepository(dbQueue: dbManager.dbQueue).count()
         return .init(
             status: "ok",
             dictations: dictStats.totalCount,
-            transcriptions: transcriptions.count,
+            transcriptions: transcriptionCount,
             error: nil
         )
     } catch {

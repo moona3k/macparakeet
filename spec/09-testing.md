@@ -79,7 +79,7 @@ struct MockTranscriptionService: TranscriptionService {
 The suite includes targeted regressions for progress behavior in URL transcription:
 
 - `STTClientTests`: STT progress updates are parsed and forwarded correctly
-- `YouTubeDownloaderTests`: yt-dlp download percent line parsing
+- `YouTubeDownloaderTests`: yt-dlp download percent line parsing and YouTube anti-bot error mapping
 - `TranscriptionServiceTests`: download-phase percentages are forwarded to `onProgress`
 - `TranscriptionViewModelTests`: phase text percent parsing updates UI progress and resets on non-percent phases
 
@@ -142,7 +142,7 @@ timing instead of ignoring it.
 - `transforms` saved-prompt CRUD/run JSON envelopes and local history commands
 - `vocab` process/words/snippets command parsing and JSON output
 
-**Tip:** For runtime smoke runs, use a throwaway database path (e.g. `--database /tmp/macparakeet-cli-test.db`) to avoid polluting the real app database. For DEBUG app-level smoke runs, set `MACPARAKEET_DEBUG_APP_STATE_DIR` to an absolute throwaway directory before launching the app so the database, meeting artifacts, AppPaths-managed helper caches, the FluidAudio speech/speaker model cache, and logs stay away from real user state — including destructive `models delete`/`models clear` runs.
+**Tip:** For runtime smoke runs, use a throwaway database path (e.g. `--database /tmp/macparakeet-cli-test.db`) to avoid polluting the real app database. `scripts/dev/run_app.sh` uses an isolated Dev state root by default; set `MACPARAKEET_DEBUG_APP_STATE_DIR` to an absolute throwaway directory when a unique app-level smoke state is required. The override scopes the database, meeting artifacts, AppPaths-managed helper caches, the FluidAudio speech/speaker model cache, and logs away from real user state — including destructive `models delete`/`models clear` runs.
 
 ### LLM Metadata + Transforms Tests
 
@@ -171,11 +171,8 @@ timing instead of ignoring it.
 ## Running Tests
 
 ```bash
-# Full suite (deterministic; usually ~1-2 minutes depending on cache state)
+# Full suite: final gate, at most once per task (see AGENTS.md)
 swift test
-
-# Parallel run when chasing wall-clock time
-swift test --parallel
 
 # Single test file
 swift test --filter TextProcessingPipelineTests
@@ -185,28 +182,69 @@ swift test --filter STTClientTests
 swift test --filter WhisperLanguageCatalogTests
 ```
 
-**Note:** `swift test` works for all tests because tests don't need Metal shaders. The app itself requires `xcodebuild` (see CLAUDE.md).
+**Note:** Normal `swift test` does not exercise a real in-process MLX model.
+The app requires the Xcode app-build path; optional runtime build gates and
+canonical commands are documented in [AGENTS.md](../AGENTS.md).
+
+## Continuous Integration
+
+The [CI workflow](../.github/workflows/ci.yml) validates PRs and the integrated
+`main` branch. Its trigger policy avoids running the entire pipeline twice for
+the same feature-branch update:
+
+| Event | CI behavior |
+|-------|-------------|
+| PR opened, updated, or reopened, including fork PRs | Run against the PR merge ref, subject to GitHub approval requirements |
+| Push to `main` | Run against the integrated commit |
+| Push to another branch | No automatic push run; use the PR or manual dispatch |
+| Tag push | Run; tag validation is retained explicitly |
+| Manual dispatch | Run against the selected ref |
+
+The existing `docs/**` and `plans/**` exclusions still apply to push and PR
+path filtering. GitHub does not apply path filters to tag pushes. PR updates
+cancel superseded runs for that PR; the `swift-test` check name and all build,
+bundle, concurrency, language-mode, and test gates are retained. See GitHub's
+[branch and tag filter semantics](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore).
+
+For a branch that needs hosted validation before a PR exists, select it under
+Actions → CI → Run workflow, or use:
+
+```bash
+gh workflow run ci.yml --ref <branch>
+```
+
+### Timing baseline and optimization priorities
+
+On 2026-09-08, six sampled successful jobs took approximately 40–52 minutes.
+For PR #984, the [PR job](https://github.com/moona3k/macparakeet/actions/runs/34195968512)
+took 40m 55s, and its redundant
+[branch-push job](https://github.com/moona3k/macparakeet/actions/runs/34195965402)
+took 46m 53s: nearly 88 runner-minutes combined. The PR job spent 9m 30s on
+the release build, 13m on the app bundle, 5m 15s on concurrency compilation,
+4m 17s on Swift 6 compilation, and 8m 9s on test compilation and execution.
+These are historical measurements, not performance guarantees.
+
+Removing the feature-branch push run saves duplicate runner work; it does not
+halve the duration of the remaining job. Measure subsequent runs before
+changing the pipeline further. Independent build jobs and compiled-output
+reuse are follow-up candidates, but must preserve the Xcode bundle/resource
+check and the separate Swift 6 compatibility gate. The current cache stores
+dependencies, not compiled outputs. Compare both elapsed time and total
+runner-minutes before adding parallel jobs or more caching.
 
 ## AI Agent Testing Loop
 
-AI agents working on this codebase must follow this loop:
+Follow [AGENTS.md](../AGENTS.md#commands), not a second full-suite loop here:
+iterate with focused tests for the changed area, then run the full suite at
+most once as the final gate unless the user specifies another scope. A reported
+hardware failure is evidence; do not erase it with a passing mock-based suite.
 
-### Before Coding
-```bash
-swift test  # Establish baseline -- all tests must pass
-```
-
-### After Changes
-```bash
-swift test  # Verify no regressions
-```
-
-### Bug Fix Protocol
-1. Write a test that reproduces the bug (must fail)
-2. Run `swift test` to confirm failure
-3. Fix the bug
-4. Run `swift test` to confirm all pass
-5. Commit test + fix together (never separately)
+For a bug fix, keep a focused reproduction that fails before the fix and passes
+afterward when practical. Verify UI/capture changes on the real surface as
+well, and distinguish fixture results, live hardware checks, and checks not run.
+Never run destructive CLI smoke commands against the user's database or model
+cache. Use the [integration isolation rules](../integrations/README.md#safe-automation-and-isolation);
+`--database` alone is not full application-state isolation.
 
 ## Test Quality Rules
 
@@ -218,9 +256,9 @@ swift test  # Verify no regressions
 
 ### Fast
 - Individual test: < 1 second
-- Full suite: usually ~1-2 minutes on a warm Apple Silicon checkout; investigate large regressions
-- Database tests use in-memory SQLite (no disk I/O)
-- No network calls (mock everything external)
+- Full-suite cost depends on DSP fixtures and model/cache state; avoid repeating it during iteration
+- Repository unit tests use in-memory SQLite; persistence/recovery tests use test-owned temporary folders
+- Keep external services mocked or fixture-backed; real model/hardware smoke runs are separate evidence
 
 ### Clear Errors
 - Test names describe the scenario: `testImportVTTCreatesMemoryWithCorrectTimestamps`

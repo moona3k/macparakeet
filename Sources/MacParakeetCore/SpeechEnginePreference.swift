@@ -476,6 +476,8 @@ public enum WhisperModelVariant: String, CaseIterable, Codable, Sendable {
 public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
     case v3
     case v2
+    /// Optional Oruk adaptation, loaded explicitly from its own pinned Core ML archive.
+    case orukeet
     /// NVIDIA Parakeet Unified EN 0.6B (`parakeet-unified-en-0.6b`). English-only
     /// Unified-FastConformer-RNNT — a *different* FluidAudio runtime from the TDT
     /// v2/v3 builds (its own preprocessor/encoder/decoder chain, no
@@ -490,6 +492,7 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
         case .v3: "Multilingual"
         case .v2: "English only"
         case .unified: "English (Unified)"
+        case .orukeet: "Orukeet (preview)"
         }
     }
 
@@ -499,6 +502,7 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
         case .v3: "Parakeet TDT 0.6B v3"
         case .v2: "Parakeet TDT 0.6B v2"
         case .unified: "Parakeet Unified 0.6B"
+        case .orukeet: "Orukeet"
         }
     }
 
@@ -511,6 +515,8 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
             "English-only option for stable meetings and exports. Includes word timestamps."
         case .unified:
             "Readable English with live preview. Includes word timestamps for exports."
+        case .orukeet:
+            "Oruk's Parakeet v3 adaptation for 25 languages. Local Core ML preview, licensed CC BY-SA 4.0."
         }
     }
 
@@ -522,6 +528,7 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
         switch self {
         case .v3, .v2: "~465 MB"
         case .unified: "~565 MB"
+        case .orukeet: "445 MiB"
         }
     }
 
@@ -538,6 +545,7 @@ public enum ParakeetModelVariant: String, CaseIterable, Codable, Sendable {
         case .v3: .v2
         case .v2: .v3
         case .unified: .v2
+        case .orukeet: .v3
         }
     }
 }
@@ -682,12 +690,14 @@ public struct MeetingSpeechPlan: Codable, Equatable, Sendable {
     public static func resolve(
         live: SpeechEngineSelection,
         final: SpeechEngineSelection,
-        liveCapabilities: SpeechEngineCapabilities?
+        liveCapabilities: SpeechEngineCapabilities?,
+        liveTranscriptionEnabled: Bool = true
     ) -> MeetingSpeechPlan {
         let canPreview =
-            liveCapabilities.map {
+            liveTranscriptionEnabled
+            && (liveCapabilities.map {
                 $0.key.engine == live.engine && $0.supportsMeetingLivePreview
-            } ?? false
+            } ?? false)
         return MeetingSpeechPlan(preview: canPreview ? live : nil, final: final)
     }
 }

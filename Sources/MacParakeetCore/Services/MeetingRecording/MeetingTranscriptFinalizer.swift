@@ -10,6 +10,23 @@ struct MeetingTranscriptFinalizer {
     struct SystemDiarization: Sendable {
         let speakers: [SpeakerInfo]
         let segments: [SpeakerSegment]
+        /// Keyed by the same source-prefixed ids as `speakers`, empty when the
+        /// diarizer produced none.
+        let speakerEmbeddings: [String: SpeakerEmbedding]
+        /// Speech per speaker id, in milliseconds.
+        let speechMsBySpeaker: [String: Int]
+
+        init(
+            speakers: [SpeakerInfo],
+            segments: [SpeakerSegment],
+            speakerEmbeddings: [String: SpeakerEmbedding] = [:],
+            speechMsBySpeaker: [String: Int] = [:]
+        ) {
+            self.speakers = speakers
+            self.segments = segments
+            self.speakerEmbeddings = speakerEmbeddings
+            self.speechMsBySpeaker = speechMsBySpeaker
+        }
     }
 
     struct FinalizedTranscript: Sendable {

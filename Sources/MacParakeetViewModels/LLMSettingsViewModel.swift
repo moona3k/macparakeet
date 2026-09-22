@@ -219,6 +219,16 @@ public final class LLMSettingsViewModel {
             return "Optional API key"
         case .openai:
             return "sk-..."
+        case .moonshot:
+            return "Moonshot API key"
+        case .deepseek:
+            return "DeepSeek API key"
+        case .qwen:
+            return "DashScope API key"
+        case .zai:
+            return "Z.AI API key"
+        case .minimax:
+            return "MiniMax API key"
         case .ollama, .localCLI, .inProcessLocal, nil:
             return ""
         }
@@ -247,7 +257,9 @@ public final class LLMSettingsViewModel {
     }
 
     public var setupStatus: AISetupStatus {
-        if case .error(let message) = connectionTestState {
+        if case .error(let message) = connectionTestState,
+            !isConfigured || !hasUnsavedChanges
+        {
             let displayName = draftAIOptionDisplayName ?? savedAIOptionDisplayName ?? "AI"
             return .cannotConnect(displayName: displayName, message: message)
         }
@@ -418,6 +430,16 @@ public final class LLMSettingsViewModel {
         }
     }
 
+    public var aiFormatterDictationPrompt: String {
+        get { draft.aiFormatterDictationPrompt }
+        set {
+            var nextDraft = draft
+            nextDraft.aiFormatterDictationPrompt = newValue
+            updateDraft(nextDraft)
+            persistAIFormatterDraftIfNeeded()
+        }
+    }
+
     /// Whether the AI Formatter also runs on live dictation. Transcript
     /// formatting has its own routing toggle; dictation remains the
     /// latency-sensitive opt-in path. The value persists immediately through
@@ -434,10 +456,9 @@ public final class LLMSettingsViewModel {
     }
 
     /// Whether the AI Formatter runs on file/meeting transcripts. Default
-    /// `true` preserves the pre-#493 behavior where transcripts followed the
-    /// saved provider config alone; the toggle gives users an opt-out (slow
-    /// providers can spend the entire timeout on long transcripts). The value
-    /// persists immediately through the injected `defaults` store.
+    /// `false` matches dictation: a saved provider does not rewrite file or
+    /// meeting transcripts until the user turns this on. The value persists
+    /// immediately through the injected `defaults` store.
     public var aiFormatterEnabledForTranscriptions: Bool {
         didSet {
             guard aiFormatterEnabledForTranscriptions != oldValue else { return }
@@ -477,6 +498,12 @@ public final class LLMSettingsViewModel {
 
     public var aiFormatterPromptModeText: String {
         draft.normalizedAIFormatterPrompt == AIFormatter.defaultPromptTemplate
+            ? "Built-in default"
+            : "Customized"
+    }
+
+    public var aiFormatterDictationPromptModeText: String {
+        draft.normalizedAIFormatterDictationPrompt == AIFormatter.defaultDictationPromptTemplate
             ? "Built-in default"
             : "Customized"
     }
@@ -524,7 +551,7 @@ public final class LLMSettingsViewModel {
         {
             return "Smart default"
         }
-        if promptTemplate == draft.normalizedAIFormatterPrompt {
+        if promptTemplate == draft.normalizedAIFormatterDictationPrompt {
             return "Fallback prompt"
         }
         return "Custom prompt"
@@ -572,6 +599,10 @@ public final class LLMSettingsViewModel {
         draft.aiFormatterPrompt != AIFormatter.defaultPromptTemplate
     }
 
+    public var canResetAIFormatterDictationPrompt: Bool {
+        draft.aiFormatterDictationPrompt != AIFormatter.defaultDictationPromptTemplate
+    }
+
     public var canManageAIFormatterProfiles: Bool {
         aiFormatterProfileRepo != nil
     }
@@ -606,7 +637,8 @@ public final class LLMSettingsViewModel {
         self.aiFormatterSmartDefaultsPolicy = AIFormatterSmartDefaultsPolicy.current(defaults: defaults)
         self.transcriptAIContextMode = TranscriptAIContextMode.current(defaults: defaults)
         self.draft = LLMSettingsDraft(
-            aiFormatterPrompt: Self.loadStoredAIFormatterPrompt(from: defaults)
+            aiFormatterPrompt: Self.loadStoredAIFormatterPrompt(from: defaults),
+            aiFormatterDictationPrompt: Self.loadStoredAIFormatterDictationPrompt(from: defaults)
         )
     }
 
@@ -642,29 +674,28 @@ public final class LLMSettingsViewModel {
     public func saveConfiguration() {
         guard let configStore else { return }
         guard draft.providerID != nil else {
-            clearConfiguration()
-            saveState = .saved
+            clearConfiguration(finalSaveState: .saved)
             return
         }
         do {
             guard let config = try buildConfig(from: draft) else { return }
-            try configStore.saveConfig(config)
-
-            // Save CLI config separately when using Local CLI
-            if draft.providerID == .localCLI {
-                let cliConfig = LocalCLIConfig(
+            let cliConfig =
+                draft.providerID == .localCLI
+                ? LocalCLIConfig(
                     commandTemplate: draft.trimmedCommandTemplate,
                     timeoutSeconds: draft.cliTimeoutSeconds
-                )
-                try cliConfigStore?.save(cliConfig)
+                ) : nil
+            if let cliConfig {
+                guard let cliConfigStore else { throw LocalCLIError.commandNotConfigured }
+                try cliConfigStore.save(cliConfig, providerConfig: config, configStore: configStore)
+            } else {
+                try configStore.saveConfig(config)
             }
 
-            let persistedPrompt = persistAIFormatterPreferences(from: draft)
-            if draft.aiFormatterPrompt != persistedPrompt {
-                var normalizedDraft = draft
-                normalizedDraft.aiFormatterPrompt = persistedPrompt
-                draft = normalizedDraft
-            }
+            _ = persistAIFormatterPreferences(from: draft)
+            // Rehydrate the exact committed payload, without a fallible credential
+            // reread or restarting discovery after the save has already succeeded.
+            loadCommittedDraft(config, cliConfig: cliConfig, suggestedModels: availableModels)
 
             saveState = .saved
             inProcessModelManager.refreshSelectionState()
@@ -708,19 +739,25 @@ public final class LLMSettingsViewModel {
     }
 
     public func clearConfiguration() {
+        clearConfiguration(finalSaveState: .idle)
+    }
+
+    private func clearConfiguration(finalSaveState: SaveState) {
         guard let configStore else { return }
-        // Use the persisted provider to decide what to delete. The draft may
-        // point at an unsaved provider switch in Settings.
+        // Provider lookup only controls optional CLI cleanup. The store's
+        // deletion boundary can also recover undecodable provider metadata.
         let storedProviderID = (try? configStore.loadConfig())?.id
-        let preservedCLIConfig =
-            draft.providerID == .localCLI && storedProviderID != .localCLI
-            ? cliConfigStore?.load()
-            : nil
         do {
             try configStore.deleteConfig()
         } catch {
             logger.error("Failed to delete LLM configuration error=\(error.localizedDescription, privacy: .public)")
+            saveState = .error(error.localizedDescription)
+            return
         }
+        let preservedCLIConfig =
+            draft.providerID == .localCLI && storedProviderID != .localCLI
+            ? cliConfigStore?.load()
+            : nil
         if storedProviderID == .localCLI {
             cliConfigStore?.delete()
         }
@@ -733,17 +770,22 @@ public final class LLMSettingsViewModel {
         }
         defaults.removeObject(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
         defaults.set(AIFormatter.defaultPromptTemplate, forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey)
+        defaults.set(
+            AIFormatter.defaultDictationPromptTemplate,
+            forKey: UserDefaultsAppRuntimePreferences.aiFormatterDictationPromptKey
+        )
         // Restore the routing preferences to their defaults so a config
         // clear returns the formatter to a fully predictable state.
         aiFormatterEnabledForDictation = false
-        aiFormatterEnabledForTranscriptions = true
+        aiFormatterEnabledForTranscriptions = false
         autoGenerateMeetingTitles = true
         draft = .defaults(
             for: currentProvider,
             apiKey: apiKey,
             defaultModelName: defaultModelNameAfterClearing(currentProvider),
             cliConfig: preservedCLIConfig,
-            aiFormatterPrompt: AIFormatter.defaultPromptTemplate
+            aiFormatterPrompt: AIFormatter.defaultPromptTemplate,
+            aiFormatterDictationPrompt: AIFormatter.defaultDictationPromptTemplate
         )
         if currentProvider == .lmstudio {
             draft.useCustomModel = discoveredModels.isEmpty
@@ -753,13 +795,17 @@ public final class LLMSettingsViewModel {
             resetDiscoveredModels()
         }
         connectionTestState = .idle
-        saveState = .idle
+        saveState = finalSaveState
         inProcessModelManager.refreshSelectionState()
         onConfigurationChanged?()
     }
 
     public func resetAIFormatterPrompt() {
         aiFormatterPrompt = AIFormatter.defaultPromptTemplate
+    }
+
+    public func resetAIFormatterDictationPrompt() {
+        aiFormatterDictationPrompt = AIFormatter.defaultDictationPromptTemplate
     }
 
     public func loadAIFormatterProfiles() {
@@ -792,7 +838,7 @@ public final class LLMSettingsViewModel {
             promptTemplate = categoryDefault.promptTemplate
         } else {
             name = "New app profile"
-            promptTemplate = draft.normalizedAIFormatterPrompt
+            promptTemplate = draft.normalizedAIFormatterDictationPrompt
         }
 
         aiFormatterProfileDraft = AIFormatterProfileDraft(
@@ -874,7 +920,7 @@ public final class LLMSettingsViewModel {
                 draft.name = "New app profile"
             }
             if isAIFormatterAutoPrompt(normalizedPrompt, previousCategoryDefault: previousSmartDefault) {
-                draft.promptTemplate = self.draft.normalizedAIFormatterPrompt
+                draft.promptTemplate = self.draft.normalizedAIFormatterDictationPrompt
             }
             aiFormatterProfileDraft = draft
             aiFormatterProfileError = nil
@@ -925,7 +971,7 @@ public final class LLMSettingsViewModel {
         {
             draft.promptTemplate = categoryDefault.promptTemplate
         } else if shouldUseSmartDefaultPrompt {
-            draft.promptTemplate = self.draft.normalizedAIFormatterPrompt
+            draft.promptTemplate = self.draft.normalizedAIFormatterDictationPrompt
         }
         aiFormatterProfileDraft = draft
         aiFormatterProfileError = nil
@@ -947,7 +993,7 @@ public final class LLMSettingsViewModel {
         return AIFormatterProfileMatcher.resolve(
             profiles: profiles,
             context: context,
-            globalPromptTemplate: self.draft.normalizedAIFormatterPrompt,
+            globalPromptTemplate: self.draft.normalizedAIFormatterDictationPrompt,
             smartDefaultsPolicy: aiFormatterSmartDefaultsPolicy
         )
     }
@@ -998,7 +1044,7 @@ public final class LLMSettingsViewModel {
             if let categoryDefault = AIFormatterSmartDefaults.categoryDefault(for: appCategory) {
                 draft.promptTemplate = categoryDefault.promptTemplate
             } else {
-                draft.promptTemplate = self.draft.normalizedAIFormatterPrompt
+                draft.promptTemplate = self.draft.normalizedAIFormatterDictationPrompt
             }
         }
         aiFormatterProfileDraft = draft
@@ -1024,7 +1070,8 @@ public final class LLMSettingsViewModel {
         {
             return true
         }
-        return normalizedPrompt == draft.normalizedAIFormatterPrompt
+        return normalizedPrompt == draft.normalizedAIFormatterDictationPrompt
+            || normalizedPrompt == AIFormatter.defaultDictationPromptTemplate
             || normalizedPrompt == AIFormatter.defaultPromptTemplate
     }
 
@@ -1123,11 +1170,13 @@ public final class LLMSettingsViewModel {
     private func applyProviderChange(to providerID: LLMProviderID?) {
         guard draft.providerID != providerID else { return }
         let formatterPrompt = draft.aiFormatterPrompt
+        let dictationPrompt = draft.aiFormatterDictationPrompt
         guard let providerID else {
             resetDiscoveredModels()
             updateDraft(
                 LLMSettingsDraft(
-                    aiFormatterPrompt: formatterPrompt
+                    aiFormatterPrompt: formatterPrompt,
+                    aiFormatterDictationPrompt: dictationPrompt
                 )
             )
             return
@@ -1140,7 +1189,8 @@ public final class LLMSettingsViewModel {
             apiKey: apiKey,
             defaultModelName: Self.defaultModelName(for: providerID),
             cliConfig: cliConfig,
-            aiFormatterPrompt: formatterPrompt
+            aiFormatterPrompt: formatterPrompt,
+            aiFormatterDictationPrompt: dictationPrompt
         )
         // Auto-switch to custom model input when provider has no fallback list.
         if Self.suggestedModels(for: providerID).isEmpty && providerID != .localCLI {
@@ -1155,7 +1205,8 @@ public final class LLMSettingsViewModel {
     private func loadExistingConfig() {
         guard let configStore, let config = try? configStore.loadConfig() else {
             draft = LLMSettingsDraft(
-                aiFormatterPrompt: Self.loadStoredAIFormatterPrompt(from: defaults)
+                aiFormatterPrompt: Self.loadStoredAIFormatterPrompt(from: defaults),
+                aiFormatterDictationPrompt: Self.loadStoredAIFormatterDictationPrompt(from: defaults)
             )
             resetDiscoveredModels()
             connectionTestState = .idle
@@ -1163,14 +1214,7 @@ public final class LLMSettingsViewModel {
             return
         }
         let cliConfig = config.id == .localCLI ? cliConfigStore?.load() : nil
-        draft = .fromStoredConfig(
-            config,
-            suggestedModels: Self.suggestedModels(for: config.id),
-            defaultModelName: Self.defaultModelName(for: config.id),
-            defaultBaseURL: Self.defaultBaseURL(for: config.id),
-            cliConfig: cliConfig,
-            aiFormatterPrompt: Self.loadStoredAIFormatterPrompt(from: defaults)
-        )
+        loadCommittedDraft(config, cliConfig: cliConfig, suggestedModels: Self.suggestedModels(for: config.id))
         if Self.usesDiscoveredModelList(config.id) {
             refreshAvailableModels()
         } else {
@@ -1178,6 +1222,22 @@ public final class LLMSettingsViewModel {
         }
         connectionTestState = .idle
         saveState = .idle
+    }
+
+    private func loadCommittedDraft(
+        _ config: LLMProviderConfig,
+        cliConfig: LocalCLIConfig?,
+        suggestedModels: [String]
+    ) {
+        draft = .fromStoredConfig(
+            config,
+            suggestedModels: suggestedModels,
+            defaultModelName: Self.defaultModelName(for: config.id),
+            defaultBaseURL: Self.defaultBaseURL(for: config.id),
+            cliConfig: cliConfig,
+            aiFormatterPrompt: Self.loadStoredAIFormatterPrompt(from: defaults),
+            aiFormatterDictationPrompt: Self.loadStoredAIFormatterDictationPrompt(from: defaults)
+        )
     }
 
     private func buildConfig(from draft: LLMSettingsDraft) throws -> LLMProviderConfig? {
@@ -1309,11 +1369,16 @@ public final class LLMSettingsViewModel {
         providerID.supportsModelListing
     }
 
-    private func persistAIFormatterPreferences(from draft: LLMSettingsDraft) -> String {
+    private func persistAIFormatterPreferences(from draft: LLMSettingsDraft) -> (
+        transcript: String,
+        dictation: String
+    ) {
         let enabled = draft.providerID != nil
-        let normalizedPrompt = draft.normalizedAIFormatterPrompt
+        let transcriptPrompt = draft.normalizedAIFormatterPrompt
+        let dictationPrompt = draft.normalizedAIFormatterDictationPrompt
         defaults.set(enabled, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
-        defaults.set(normalizedPrompt, forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey)
+        defaults.set(transcriptPrompt, forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey)
+        defaults.set(dictationPrompt, forKey: UserDefaultsAppRuntimePreferences.aiFormatterDictationPromptKey)
         if defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForDictationKey) == nil {
             defaults.set(
                 aiFormatterEnabledForDictation,
@@ -1326,15 +1391,18 @@ public final class LLMSettingsViewModel {
                 forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey
             )
         }
-        return normalizedPrompt
+        return (transcriptPrompt, dictationPrompt)
     }
 
     private func persistAIFormatterDraftIfNeeded() {
         guard isAIFormatterAvailable else { return }
-        let persistedPrompt = persistAIFormatterPreferences(from: draft)
-        if draft.aiFormatterPrompt != persistedPrompt {
+        let persisted = persistAIFormatterPreferences(from: draft)
+        if draft.aiFormatterPrompt != persisted.transcript
+            || draft.aiFormatterDictationPrompt != persisted.dictation
+        {
             var normalizedDraft = draft
-            normalizedDraft.aiFormatterPrompt = persistedPrompt
+            normalizedDraft.aiFormatterPrompt = persisted.transcript
+            normalizedDraft.aiFormatterDictationPrompt = persisted.dictation
             updateDraft(normalizedDraft)
         }
     }
@@ -1345,7 +1413,7 @@ public final class LLMSettingsViewModel {
 
     private static func loadStoredAIFormatterEnabledForTranscriptions(from defaults: UserDefaults) -> Bool {
         defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey) as? Bool
-            ?? true
+            ?? false
     }
 
     private static func loadStoredAutoGenerateMeetingTitles(from defaults: UserDefaults) -> Bool {
@@ -1356,6 +1424,10 @@ public final class LLMSettingsViewModel {
         AIFormatter.normalizedPromptTemplate(
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey) ?? ""
         )
+    }
+
+    private static func loadStoredAIFormatterDictationPrompt(from defaults: UserDefaults) -> String {
+        UserDefaultsAppRuntimePreferences.resolvedAIFormatterDictationPrompt(from: defaults)
     }
 
     private static func aiFormatterProfileCategoryName(_ category: TelemetryAppCategory) -> String {

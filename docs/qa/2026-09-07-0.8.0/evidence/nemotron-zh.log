@@ -1,0 +1,21 @@
+Transcribing cmn_hans_cn_0000.wav with nemotron...
+Converting audio...
+Preparing speech model...
+[15:01:49.779] [INFO] [FluidAudio.NemotronMultilingualStreaming] Using cached multilingual variant at /tmp/macparakeet-080-qa/isolated-home/Library/Application Support/FluidAudio/Models/nemotron-multilingual/multilingual/1120ms
+[15:01:49.779] [INFO] [FluidAudio.NemotronMultilingualStreaming] Preloading shared Nemotron multilingual models from /tmp/macparakeet-080-qa/isolated-home/Library/Application Support/FluidAudio/Models/nemotron-multilingual/multilingual/1120ms...
+[15:01:49.780] [INFO] [FluidAudio.NemotronMultilingualStreaming] Loaded multilingual config: 1120ms chunks, vocab=13087, 128 prompts
+[15:01:49.963] [INFO] [FluidAudio.NemotronMultilingualStreaming] Loaded shared decoder.mlmodelc
+[15:01:49.975] [INFO] [FluidAudio.NemotronMultilingualStreaming] Loaded shared joint.mlmodelc
+[15:01:49.989] [INFO] [FluidAudio.NemotronMultilingualStreaming] Loaded shared decoder_joint.mlmodelc
+[15:01:50.008] [INFO] [FluidAudio.NemotronMultilingualStreaming] Shared models preload complete — ready for N consumers
+[15:01:50.032] [INFO] [FluidAudio.NemotronMultilingualStreaming] Nemotron multilingual manager initialized from shared models (1120ms chunks).
+[15:01:50.055] [INFO] [FluidAudio.NemotronMultilingualStreaming] Nemotron multilingual manager initialized from shared models (1120ms chunks).
+[15:01:50.057] [INFO] [FluidAudio.NemotronMultilingualStreaming] Prompt id set to 101 for language zh
+[15:01:50.059] [INFO] [FluidAudio.NemotronMultilingualStreaming] Prompt id set to 101 for language zh
+Transcribing... 0%
+[15:01:50.064] [INFO] [FluidAudio.NemotronMultilingualStreaming] Prompt id set to 101 for language zh
+Transcribing... 25%
+Transcribing... 90%
+Transcribing... 99%
+[15:01:50.497] [INFO] [FluidAudio.NemotronMultilingualStreaming] StreamingNemotronMultilingualAsrManager resources cleaned up
+[15:01:50.513] [INFO] [FluidAudio.NemotronMultilingualStreaming] StreamingNemotronMultilingualAsrManager resources cleaned up

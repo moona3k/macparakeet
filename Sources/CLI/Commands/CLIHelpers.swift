@@ -10,15 +10,31 @@ struct CLIJSONEnvelopeExit: Error {
     let originalError: Error
 }
 
+/// CLI-local alias for `AppPaths.appDefaults(bundleIdentifier:)`, kept so the
+/// existing call sites across `Sources/CLI/Commands/` don't need to name
+/// the `AppPaths` type at every use.
 func macParakeetAppDefaults(
     bundleIdentifier: String? = Bundle.main.bundleIdentifier
 ) -> UserDefaults {
-    // The bundled CLI already inherits the app's defaults domain. Reopening it
-    // as a named suite makes Foundation emit a nonsensical-suite warning.
-    if bundleIdentifier == AppPaths.preferencesSuiteName {
-        return .standard
-    }
-    return AppPaths.sharedAppDefaults()
+    AppPaths.appDefaults(bundleIdentifier: bundleIdentifier)
+}
+
+/// LLM stores that read the same preference suite the GUI uses. Bare
+/// `LLMService()` would bind both stores to `.standard`, which misses
+/// GUI-saved provider metadata on the standalone Homebrew CLI.
+func makeSharedLLMContextResolver(
+    defaults: UserDefaults = macParakeetAppDefaults()
+) -> StoredLLMExecutionContextResolver {
+    StoredLLMExecutionContextResolver(
+        configStore: LLMConfigStore(defaults: defaults),
+        cliConfigStore: LocalCLIConfigStore(defaults: defaults)
+    )
+}
+
+func makeSharedLLMService(
+    defaults: UserDefaults = macParakeetAppDefaults()
+) -> LLMService {
+    LLMService(contextResolver: makeSharedLLMContextResolver(defaults: defaults))
 }
 
 func validateCLISpeechEngineMemoryRequirement(
@@ -104,7 +120,7 @@ private func isUUIDPrefixCandidate(_ value: String) -> Bool {
     }
 }
 
-private func uuidPrefixSearchKey(_ value: String) -> String? {
+func uuidPrefixSearchKey(_ value: String) -> String? {
     let lowered = value.lowercased()
     guard lowered.count >= minimumUUIDPrefixLength,
           isUUIDPrefixCandidate(lowered)
@@ -114,7 +130,7 @@ private func uuidPrefixSearchKey(_ value: String) -> String? {
     return lowered
 }
 
-private func shortUUIDPrefixErrorIfApplicable(_ value: String) -> CLILookupError? {
+func shortUUIDPrefixErrorIfApplicable(_ value: String) -> CLILookupError? {
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty,
           trimmed.count < minimumUUIDPrefixLength,
@@ -219,17 +235,24 @@ func findDictation(id: String, repo: DictationRepository) throws -> Dictation {
 /// Resolves a prompt by exact UUID, UUID prefix, or case-insensitive name.
 /// Names are checked only when no UUID-prefix match was found, so an ambiguous
 /// prefix surfaces as such instead of silently falling through to a name match.
-func findPrompt(idOrName: String, repo: PromptRepository) throws -> Prompt {
+func findPrompt(
+    idOrName: String,
+    repo: PromptRepository,
+    category: Prompt.Category? = .result,
+    categories: [Prompt.Category]? = nil
+) throws -> Prompt {
     let trimmed = idOrName.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { throw CLILookupError.emptyID }
 
     if let uuid = UUID(uuidString: trimmed),
        let prompt = try repo.fetch(id: uuid),
-       prompt.category == .result {
+       categories?.contains(prompt.category) ?? (category == nil || prompt.category == category) {
         return prompt
     }
 
-    let all = try repo.fetchAll().filter { $0.category == .result }
+    let all = try repo.fetchAll().filter {
+        categories?.contains($0.category) ?? (category == nil || $0.category == category)
+    }
     let lowered = trimmed.lowercased()
 
     if let prefix = uuidPrefixSearchKey(trimmed) {
@@ -404,6 +427,7 @@ enum CLIErrorType {
     static let auth = "auth"
     static let config = "config"
     static let connection = "connection"
+    static let conflict = "conflict"
     static let context = "context"
     static let importSchema = "import_schema"
     static let inputEmpty = "input_empty"
@@ -419,19 +443,52 @@ enum CLIErrorType {
     static let validation = "validation"
 
     static func key(for error: Error) -> String {
+        if let importError = error as? MeetingImportError {
+            switch importError {
+            case .invalidSource, .unsupportedFormat, .blankTitle:
+                return validation
+            case .invalidAudio:
+                return runtime
+            }
+        }
         if let llm = error as? LLMError {
             switch llm {
             case .notConfigured: return config
             case .connectionFailed: return connection
             case .authenticationFailed: return auth
             case .rateLimited: return rateLimit
-            case .modelNotFound: return model
+            case .modelNotFound, .invalidModelOverride: return model
             case .contextTooLong: return context
             case .formatterTruncated, .formatterEmptyResponse: return truncated
             case .providerError: return provider
             case .streamingError: return streaming
             case .invalidResponse: return invalidResponse
             case .cliError: return runtime
+            }
+        }
+        if error is MeetingClassificationRepositoryError { return validation }
+        if error is MeetingCorrectionCLIError { return validation }
+        if let correction = error as? SpeakerCorrectionServiceError {
+            switch correction {
+            case .conflict:
+                return conflict
+            case .transcriptionNotFound:
+                return lookup
+            case .invalidCommand(.invalidText):
+                return inputEmpty
+            case .malformedHistory:
+                return runtime
+            case .transcriptionIncomplete, .timingsRequired, .durableSegmentsRequired,
+                .untimedTranscriptEdit, .invalidCommand, .nothingToUndo, .nothingToRedo:
+                return validation
+            }
+        }
+        if let collection = error as? PromptCollectionRepositoryError {
+            switch collection {
+            case .collectionNotFound:
+                return lookup
+            case .emptyName, .duplicateName, .invalidOrder:
+                return validation
             }
         }
         if error is CLILookupError { return lookup }
@@ -532,6 +589,19 @@ enum CLIErrorFix {
                 return "Send UTF-8 input."
             }
         }
+        if let correction = error as? SpeakerCorrectionServiceError {
+            switch correction {
+            case .conflict:
+                return "Read the latest transcript JSON, then retry with its revision and current segment IDs."
+            case .transcriptionNotFound:
+                return "List meetings and retry with a full UUID or longer UUID prefix."
+            case .malformedHistory:
+                return nil
+            case .transcriptionIncomplete, .timingsRequired, .durableSegmentsRequired,
+                .untimedTranscriptEdit, .invalidCommand, .nothingToUndo, .nothingToRedo:
+                return "Read the latest transcript JSON and retry with a supported correction."
+            }
+        }
         if error is ValidationError {
             return "Run the command with --help and retry with a supported flag combination."
         }
@@ -605,8 +675,39 @@ private func rethrowWithOptionalJSONEnvelope(_ error: Error, json: Bool) throws 
 }
 
 func isCLIValidationMisuse(_ error: Error) -> Bool {
+    if let importError = error as? MeetingImportError {
+        switch importError {
+        case .invalidSource, .unsupportedFormat, .blankTitle:
+            return true
+        case .invalidAudio:
+            return false
+        }
+    }
     if error is ValidationError || error is CLIInputError {
         return true
+    }
+    if error is MeetingClassificationRepositoryError {
+        return true
+    }
+    if error is MeetingCorrectionCLIError {
+        return true
+    }
+    if let correction = error as? SpeakerCorrectionServiceError {
+        switch correction {
+        case .conflict, .transcriptionNotFound, .malformedHistory:
+            return false
+        case .transcriptionIncomplete, .timingsRequired, .durableSegmentsRequired,
+            .untimedTranscriptEdit, .invalidCommand, .nothingToUndo, .nothingToRedo:
+            return true
+        }
+    }
+    if let collection = error as? PromptCollectionRepositoryError {
+        switch collection {
+        case .emptyName, .duplicateName, .invalidOrder:
+            return true
+        case .collectionNotFound:
+            return false
+        }
     }
     if let transforms = error as? CLITransformsError, transforms.isValidationMisuse {
         return true

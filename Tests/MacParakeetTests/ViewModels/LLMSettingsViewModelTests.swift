@@ -42,6 +42,8 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.aiFormatterEnabled)
         XCTAssertEqual(viewModel.aiFormatterPrompt, AIFormatter.defaultPromptTemplate)
         XCTAssertEqual(viewModel.aiFormatterPromptModeText, "Built-in default")
+        XCTAssertEqual(viewModel.aiFormatterDictationPrompt, AIFormatter.defaultDictationPromptTemplate)
+        XCTAssertEqual(viewModel.aiFormatterDictationPromptModeText, "Built-in default")
         XCTAssertEqual(viewModel.transcriptAIContextMode, .richTranscript)
     }
 
@@ -124,23 +126,23 @@ final class LLMSettingsViewModelTests: XCTestCase {
 
     // MARK: - AI Formatter: transcripts routing toggle (#493)
 
-    func testAIFormatterEnabledForTranscriptionsDefaultsToTrue() {
-        XCTAssertTrue(viewModel.aiFormatterEnabledForTranscriptions)
+    func testAIFormatterEnabledForTranscriptionsDefaultsToFalse() {
+        XCTAssertFalse(viewModel.aiFormatterEnabledForTranscriptions)
     }
 
     func testAIFormatterEnabledForTranscriptionsPersistsThroughInjectedDefaults() {
         let key = UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey
 
-        viewModel.aiFormatterEnabledForTranscriptions = false
+        viewModel.aiFormatterEnabledForTranscriptions = true
 
-        XCTAssertEqual(defaults.object(forKey: key) as? Bool, false)
-        XCTAssertFalse(LLMSettingsViewModel(defaults: defaults).aiFormatterEnabledForTranscriptions)
+        XCTAssertEqual(defaults.object(forKey: key) as? Bool, true)
+        XCTAssertTrue(LLMSettingsViewModel(defaults: defaults).aiFormatterEnabledForTranscriptions)
     }
 
     func testAIFormatterEnabledForTranscriptionsLoadsStoredValueOnInit() {
-        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey)
+        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey)
         let reloaded = LLMSettingsViewModel(defaults: defaults)
-        XCTAssertFalse(reloaded.aiFormatterEnabledForTranscriptions)
+        XCTAssertTrue(reloaded.aiFormatterEnabledForTranscriptions)
     }
 
     func testAutoGenerateMeetingTitlesDefaultsToTrue() {
@@ -162,10 +164,10 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertFalse(reloaded.autoGenerateMeetingTitles)
     }
 
-    func testSaveConfigurationPreservesTranscriptsOptOut() throws {
+    func testSaveConfigurationPreservesTranscriptsOptIn() throws {
         mockConfigStore.config = .lmstudio(model: "local-model")
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
-        viewModel.aiFormatterEnabledForTranscriptions = false
+        viewModel.aiFormatterEnabledForTranscriptions = true
 
         viewModel.saveConfiguration()
 
@@ -174,9 +176,9 @@ final class LLMSettingsViewModelTests: XCTestCase {
             defaults.object(
                 forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey
             ) as? Bool,
-            false
+            true
         )
-        XCTAssertFalse(LLMSettingsViewModel(defaults: defaults).aiFormatterEnabledForTranscriptions)
+        XCTAssertTrue(LLMSettingsViewModel(defaults: defaults).aiFormatterEnabledForTranscriptions)
     }
 
     func testTranscriptAIContextModePersistsThroughInjectedDefaults() {
@@ -207,16 +209,16 @@ final class LLMSettingsViewModelTests: XCTestCase {
     func testClearConfigurationRestoresTranscriptsRoutingDefault() {
         mockConfigStore.config = .lmstudio(model: "local-model")
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
-        viewModel.aiFormatterEnabledForTranscriptions = false
+        viewModel.aiFormatterEnabledForTranscriptions = true
 
         viewModel.clearConfiguration()
 
-        XCTAssertTrue(viewModel.aiFormatterEnabledForTranscriptions)
+        XCTAssertFalse(viewModel.aiFormatterEnabledForTranscriptions)
         XCTAssertEqual(
             defaults.object(
                 forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey
             ) as? Bool,
-            true
+            false
         )
     }
 
@@ -255,17 +257,43 @@ final class LLMSettingsViewModelTests: XCTestCase {
         )
     }
 
-    func testSetupStatusCannotConnectUsesDraftProviderDisplayName() {
+    func testFailedDraftProviderTestDoesNotRelabelSavedProvider() {
         mockConfigStore.config = .lmstudio(model: "local-model")
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
 
         viewModel.selectedProviderID = .ollama
         viewModel.connectionTestState = .error("Connection failed")
 
-        XCTAssertEqual(
-            viewModel.setupStatus,
-            .cannotConnect(displayName: "Ollama", message: "Connection failed")
+        XCTAssertTrue(viewModel.hasUnsavedChanges)
+        XCTAssertEqual(viewModel.setupStatus, .ready(displayName: "LM Studio"))
+    }
+
+    func testFailedUnsavedConnectionInputsDoNotRelabelSavedProvider() {
+        mockConfigStore.config = .openai(apiKey: "working-key")
+        viewModel.configure(
+            configStore: mockConfigStore,
+            llmClient: mockClient,
+            cliConfigStore: LocalCLIConfigStore(defaults: defaults)
         )
+        viewModel.apiKeyInput = "draft-key"
+        viewModel.baseURLOverride = "https://draft.example/v1"
+        viewModel.connectionTestState = .error("Draft endpoint unavailable")
+
+        XCTAssertTrue(viewModel.hasUnsavedChanges)
+        XCTAssertEqual(viewModel.setupStatus, .ready(displayName: "OpenAI"))
+    }
+
+    func testFailedDraftTestWithoutSavedProviderRemainsVisible() {
+        viewModel.configure(
+            configStore: mockConfigStore,
+            llmClient: mockClient,
+            cliConfigStore: LocalCLIConfigStore(defaults: defaults)
+        )
+        viewModel.selectedProviderID = .openai
+        viewModel.apiKeyInput = "draft-key"
+        viewModel.connectionTestState = .error("Unavailable")
+
+        XCTAssertEqual(viewModel.setupStatus, .cannotConnect(displayName: "OpenAI", message: "Unavailable"))
     }
 
     // MARK: - Provider Change
@@ -448,7 +476,9 @@ final class LLMSettingsViewModelTests: XCTestCase {
 
     func testClearResetsAIFormatterPreferences() {
         defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
-        defaults.set("Rewrite:\n\(AIFormatter.transcriptPlaceholder)", forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey)
+        defaults.set(
+            "Rewrite:\n\(AIFormatter.transcriptPlaceholder)",
+            forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey)
         mockConfigStore.config = .openai(apiKey: "sk-test")
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
 
@@ -460,8 +490,13 @@ final class LLMSettingsViewModelTests: XCTestCase {
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey),
             AIFormatter.defaultPromptTemplate
         )
+        XCTAssertEqual(
+            defaults.string(forKey: UserDefaultsAppRuntimePreferences.aiFormatterDictationPromptKey),
+            AIFormatter.defaultDictationPromptTemplate
+        )
         XCTAssertFalse(viewModel.aiFormatterEnabled)
         XCTAssertEqual(viewModel.aiFormatterPrompt, AIFormatter.defaultPromptTemplate)
+        XCTAssertEqual(viewModel.aiFormatterDictationPrompt, AIFormatter.defaultDictationPromptTemplate)
     }
 
     // MARK: - AI Formatter Profiles
@@ -568,7 +603,8 @@ final class LLMSettingsViewModelTests: XCTestCase {
     func testChangingCategoryProfileDraftPreservesCustomNameAndPrompt() {
         viewModel.startCreatingAIFormatterProfile(targetKind: .category)
         viewModel.updateAIFormatterProfileDraft(\.name, to: "My Messages")
-        viewModel.updateAIFormatterProfileDraft(\.promptTemplate, to: "Custom prompt \(AIFormatter.transcriptPlaceholder)")
+        viewModel.updateAIFormatterProfileDraft(
+            \.promptTemplate, to: "Custom prompt \(AIFormatter.transcriptPlaceholder)")
 
         viewModel.applyAIFormatterProfileDraftCategory(.email)
 
@@ -625,7 +661,7 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.aiFormatterProfileDraft?.bundleIdentifier, "com.example.privateapp")
         XCTAssertEqual(viewModel.aiFormatterProfileDraft?.appCategory, .other)
         XCTAssertEqual(viewModel.aiFormatterProfileDraft?.name, "Private App")
-        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.promptTemplate, AIFormatter.defaultPromptTemplate)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.promptTemplate, AIFormatter.defaultDictationPromptTemplate)
     }
 
     func testChangingSelectedAppReplacesPreviousSmartDefaultPrompt() {
@@ -651,7 +687,7 @@ final class LLMSettingsViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.aiFormatterProfileDraft?.targetKind, .bundle)
         XCTAssertEqual(viewModel.aiFormatterProfileDraft?.name, "New app profile")
-        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.promptTemplate, AIFormatter.defaultPromptTemplate)
+        XCTAssertEqual(viewModel.aiFormatterProfileDraft?.promptTemplate, AIFormatter.defaultDictationPromptTemplate)
 
         viewModel.applyAIFormatterProfileDraftApp(
             bundleIdentifier: "com.apple.mail",
@@ -841,7 +877,7 @@ final class LLMSettingsViewModelTests: XCTestCase {
     }
 
     func testAIFormatterProfileBadgeTextDistinguishesPromptProvenance() {
-        viewModel.aiFormatterPrompt = "My custom fallback \(AIFormatter.transcriptPlaceholder)"
+        viewModel.aiFormatterDictationPrompt = "My custom fallback \(AIFormatter.transcriptPlaceholder)"
 
         let fallback = AIFormatterProfile.exactApp(
             name: "Mail",
@@ -868,24 +904,27 @@ final class LLMSettingsViewModelTests: XCTestCase {
     func testProfilesAreListedInMatchPrecedenceOrder() throws {
         let dbManager = try DatabaseManager()
         let repo = AIFormatterProfileRepository(dbQueue: dbManager.dbQueue)
-        try repo.save(AIFormatterProfile.exactApp(
-            name: "zoom",
-            bundleIdentifier: "us.zoom.xos",
-            promptTemplate: "p",
-            sortOrder: 1
-        ))
-        try repo.save(AIFormatterProfile.exactApp(
-            name: "Apple Mail",
-            bundleIdentifier: "com.apple.mail",
-            promptTemplate: "p",
-            sortOrder: 1
-        ))
-        try repo.save(AIFormatterProfile.category(
-            name: "browser",
-            appCategory: .browser,
-            promptTemplate: "p",
-            sortOrder: 0
-        ))
+        try repo.save(
+            AIFormatterProfile.exactApp(
+                name: "zoom",
+                bundleIdentifier: "us.zoom.xos",
+                promptTemplate: "p",
+                sortOrder: 1
+            ))
+        try repo.save(
+            AIFormatterProfile.exactApp(
+                name: "Apple Mail",
+                bundleIdentifier: "com.apple.mail",
+                promptTemplate: "p",
+                sortOrder: 1
+            ))
+        try repo.save(
+            AIFormatterProfile.category(
+                name: "browser",
+                appCategory: .browser,
+                promptTemplate: "p",
+                sortOrder: 0
+            ))
 
         viewModel.configure(
             configStore: mockConfigStore,
@@ -924,11 +963,12 @@ final class LLMSettingsViewModelTests: XCTestCase {
     func testDuplicateAIFormatterProfileSurfacesErrorAndKeepsDraft() throws {
         let dbManager = try DatabaseManager()
         let repo = AIFormatterProfileRepository(dbQueue: dbManager.dbQueue)
-        try repo.save(AIFormatterProfile.category(
-            name: "Email",
-            appCategory: .email,
-            promptTemplate: "Email prompt"
-        ))
+        try repo.save(
+            AIFormatterProfile.category(
+                name: "Email",
+                appCategory: .email,
+                promptTemplate: "Email prompt"
+            ))
         viewModel.configure(
             configStore: mockConfigStore,
             llmClient: mockClient,
@@ -1059,23 +1099,188 @@ final class LLMSettingsViewModelTests: XCTestCase {
 
     // MARK: - Configuration Changed Callback
 
-    func testSaveCallsOnConfigurationChanged() {
-        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
-        var callbackCalled = false
-        viewModel.onConfigurationChanged = { callbackCalled = true }
+    func testSaveCallbackObservesCommittedNormalizedConfiguration() throws {
+        let store = LLMConfigStore(defaults: defaults, keychain: InMemoryKeyValueStore())
+        viewModel.configure(
+            configStore: store,
+            llmClient: mockClient,
+            cliConfigStore: LocalCLIConfigStore(defaults: defaults)
+        )
         viewModel.selectedProviderID = .openai
-        viewModel.apiKeyInput = "sk-test"
+        viewModel.apiKeyInput = "  committed-key  "
+        var callbackCount = 0
+        viewModel.onConfigurationChanged = {
+            callbackCount += 1
+            XCTAssertEqual(self.viewModel.saveState, .saved)
+            XCTAssertEqual(self.viewModel.apiKeyInput, "committed-key")
+            XCTAssertFalse(self.viewModel.hasUnsavedChanges)
+            XCTAssertEqual(try? store.loadAPIKey(), "committed-key")
+            XCTAssertEqual(self.viewModel.setupStatus, .ready(displayName: "OpenAI"))
+        }
+
         viewModel.saveConfiguration()
-        XCTAssertTrue(callbackCalled)
+
+        XCTAssertEqual(callbackCount, 1)
+        XCTAssertEqual(try store.loadConfig()?.id, .openai)
     }
 
-    func testClearCallsOnConfigurationChanged() {
-        mockConfigStore.config = .openai(apiKey: "sk-test")
-        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
-        var callbackCalled = false
-        viewModel.onConfigurationChanged = { callbackCalled = true }
+    func testSavingNoneCallbackObservesCommittedClearAndFinalSaveState() throws {
+        let store = LLMConfigStore(defaults: defaults, keychain: InMemoryKeyValueStore())
+        try store.saveConfig(.openai(apiKey: "working-key"))
+        viewModel.configure(
+            configStore: store,
+            llmClient: mockClient,
+            cliConfigStore: LocalCLIConfigStore(defaults: defaults)
+        )
+        viewModel.selectedProviderID = nil
+        var callbackCount = 0
+        viewModel.onConfigurationChanged = {
+            callbackCount += 1
+            XCTAssertEqual(self.viewModel.saveState, .saved)
+            XCTAssertNil(self.viewModel.selectedProviderID)
+            XCTAssertFalse(self.viewModel.hasUnsavedChanges)
+            XCTAssertNil(try? store.loadConfig())
+            XCTAssertEqual(self.viewModel.setupStatus, .setUpNeeded)
+        }
+
+        viewModel.saveConfiguration()
+
+        XCTAssertEqual(callbackCount, 1)
+        XCTAssertNil(try store.loadAPIKey(for: .openai))
+    }
+
+    func testFailedSavePreservesWorkingProviderAndDoesNotNotifyConsumers() throws {
+        let credentials = InMemoryKeyValueStore()
+        let store = LLMConfigStore(defaults: defaults, keychain: credentials)
+        try store.saveConfig(.openai(apiKey: "working-key", model: "working-model"))
+        viewModel.configure(
+            configStore: store,
+            llmClient: mockClient,
+            cliConfigStore: LocalCLIConfigStore(defaults: defaults)
+        )
+        viewModel.selectedProviderID = .anthropic
+        viewModel.apiKeyInput = "replacement-key"
+        credentials.setError = KeyValueStoreError.unsupported
+        viewModel.onConfigurationChanged = { XCTFail("Failed save must not notify consumers") }
+
+        viewModel.saveConfiguration()
+
+        guard case .error = viewModel.saveState else { return XCTFail("Expected a save error") }
+        XCTAssertEqual(try store.loadConfig()?.id, .openai)
+        XCTAssertEqual(try store.loadConfig()?.modelName, "working-model")
+        XCTAssertEqual(try store.loadAPIKey(), "working-key")
+        XCTAssertEqual(viewModel.selectedProviderID, .anthropic)
+        XCTAssertTrue(viewModel.hasUnsavedChanges)
+        XCTAssertEqual(viewModel.setupStatus, .ready(displayName: "OpenAI"))
+    }
+
+    func testFailedClearAndSavingNonePreserveConfigurationAndPreferences() throws {
+        let credentials = InMemoryKeyValueStore()
+        let store = LLMConfigStore(defaults: defaults, keychain: credentials)
+        try store.saveConfig(.openai(apiKey: "working-key"))
+        viewModel.configure(
+            configStore: store,
+            llmClient: mockClient,
+            cliConfigStore: LocalCLIConfigStore(defaults: defaults)
+        )
+        viewModel.aiFormatterEnabledForDictation = true
+        viewModel.aiFormatterEnabledForTranscriptions = false
+        viewModel.autoGenerateMeetingTitles = false
+        let preferencesBefore = defaults.dictionaryRepresentation()
+        credentials.deleteError = KeyValueStoreError.unsupported
+        viewModel.onConfigurationChanged = { XCTFail("Failed clear must not notify consumers") }
+
         viewModel.clearConfiguration()
-        XCTAssertTrue(callbackCalled)
+
+        guard case .error = viewModel.saveState else { return XCTFail("Expected a clear error") }
+        XCTAssertEqual(viewModel.selectedProviderID, .openai)
+        XCTAssertEqual(try store.loadAPIKey(), "working-key")
+        XCTAssertEqual(defaults.dictionaryRepresentation() as NSDictionary, preferencesBefore as NSDictionary)
+
+        viewModel.selectedProviderID = nil
+        viewModel.saveConfiguration()
+
+        guard case .error = viewModel.saveState else { return XCTFail("Saving None must preserve the clear error") }
+        XCTAssertEqual(try store.loadConfig()?.id, .openai)
+        XCTAssertEqual(try store.loadAPIKey(), "working-key")
+        XCTAssertTrue(viewModel.aiFormatterEnabledForDictation)
+        XCTAssertFalse(viewModel.aiFormatterEnabledForTranscriptions)
+        XCTAssertFalse(viewModel.autoGenerateMeetingTitles)
+        XCTAssertEqual(defaults.dictionaryRepresentation() as NSDictionary, preferencesBefore as NSDictionary)
+    }
+
+    func testClearRemovesUnreadableProviderMetadata() throws {
+        let store = LLMConfigStore(defaults: defaults, keychain: InMemoryKeyValueStore())
+        let cliStore = LocalCLIConfigStore(defaults: defaults)
+        let rememberedCLI = LocalCLIConfig(commandTemplate: "echo remembered", timeoutSeconds: 90)
+        try cliStore.save(rememberedCLI)
+        defaults.set(Data("invalid provider metadata".utf8), forKey: "llm_provider_config")
+        viewModel.configure(
+            configStore: store,
+            llmClient: mockClient,
+            cliConfigStore: cliStore
+        )
+        XCTAssertThrowsError(try store.loadConfig())
+
+        viewModel.clearConfiguration()
+
+        XCTAssertNil(try store.loadConfig())
+        XCTAssertEqual(viewModel.saveState, .idle)
+        XCTAssertEqual(viewModel.setupStatus, .setUpNeeded)
+        XCTAssertEqual(cliStore.load(), rememberedCLI)
+
+        viewModel.selectedProviderID = .localCLI
+
+        XCTAssertEqual(viewModel.commandTemplate, rememberedCLI.commandTemplate)
+        XCTAssertEqual(viewModel.cliTimeoutSeconds, rememberedCLI.timeoutSeconds)
+        XCTAssertNil(try store.loadConfig(), "Selecting a remembered draft must not reactivate AI")
+        XCTAssertEqual(viewModel.setupStatus, .setUpNeeded)
+    }
+
+    func testFailedCLIEncodingPreservesWorkingProviderAndCLISettings() throws {
+        let store = LLMConfigStore(defaults: defaults, keychain: InMemoryKeyValueStore())
+        let cliStore = LocalCLIConfigStore(defaults: defaults)
+        let originalCLI = LocalCLIConfig(commandTemplate: "echo working", timeoutSeconds: 30)
+        try cliStore.save(originalCLI)
+        try store.saveConfig(.openai(apiKey: "working-key", model: "working-model"))
+        viewModel.configure(configStore: store, llmClient: mockClient, cliConfigStore: cliStore)
+        viewModel.selectedProviderID = .localCLI
+        viewModel.commandTemplate = "echo replacement"
+        viewModel.cliTimeoutSeconds = .infinity
+        viewModel.onConfigurationChanged = { XCTFail("Failed CLI save must not notify consumers") }
+
+        viewModel.saveConfiguration()
+
+        guard case .error = viewModel.saveState else { return XCTFail("Expected a CLI encoding error") }
+        XCTAssertEqual(try store.loadConfig()?.id, .openai)
+        XCTAssertEqual(try store.loadConfig()?.modelName, "working-model")
+        XCTAssertEqual(try store.loadAPIKey(), "working-key")
+        XCTAssertEqual(cliStore.load(), originalCLI)
+        XCTAssertTrue(viewModel.hasUnsavedChanges)
+    }
+
+    func testCLISaveCallbackObservesCommittedCommandAndTimeout() throws {
+        let store = LLMConfigStore(defaults: defaults, keychain: InMemoryKeyValueStore())
+        let cliStore = LocalCLIConfigStore(defaults: defaults)
+        try cliStore.save(LocalCLIConfig(commandTemplate: "echo old", timeoutSeconds: 30))
+        try store.saveConfig(.localCLI())
+        viewModel.configure(configStore: store, llmClient: mockClient, cliConfigStore: cliStore)
+        viewModel.commandTemplate = "  echo committed  "
+        viewModel.cliTimeoutSeconds = 90
+        var callbackCount = 0
+        viewModel.onConfigurationChanged = {
+            callbackCount += 1
+            XCTAssertEqual(self.viewModel.saveState, .saved)
+            XCTAssertEqual(self.viewModel.commandTemplate, "echo committed")
+            XCTAssertEqual(self.viewModel.cliTimeoutSeconds, 90)
+            XCTAssertEqual(cliStore.load(), LocalCLIConfig(commandTemplate: "echo committed", timeoutSeconds: 90))
+            XCTAssertFalse(self.viewModel.hasUnsavedChanges)
+        }
+
+        viewModel.saveConfiguration()
+
+        XCTAssertEqual(callbackCount, 1)
+        XCTAssertEqual(try store.loadConfig()?.id, .localCLI)
     }
 
     // MARK: - Provider switch preserves per-provider keys
@@ -1309,7 +1514,9 @@ final class LLMSettingsViewModelTests: XCTestCase {
     }
 
     func testHasUnsavedChangesTracksLocalCLIConfigDraft() throws {
-        let defaults = UserDefaults(suiteName: "test.vm.\(UUID().uuidString)")!
+        let suiteName = "test.vm.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         let cliStore = LocalCLIConfigStore(defaults: defaults)
         try cliStore.save(
             LocalCLIConfig(commandTemplate: "claude -p --model haiku", timeoutSeconds: 90)
@@ -1345,6 +1552,10 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey),
             "Rewrite this carefully:\n\(AIFormatter.transcriptPlaceholder)"
+        )
+        XCTAssertEqual(
+            defaults.string(forKey: UserDefaultsAppRuntimePreferences.aiFormatterDictationPromptKey),
+            AIFormatter.defaultDictationPromptTemplate
         )
     }
 
@@ -1407,7 +1618,9 @@ final class LLMSettingsViewModelTests: XCTestCase {
 
     func testLoadsStoredAIFormatterPreferences() {
         defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
-        defaults.set("Rewrite:\n\(AIFormatter.transcriptPlaceholder)", forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey)
+        defaults.set(
+            "Rewrite:\n\(AIFormatter.transcriptPlaceholder)",
+            forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey)
         mockConfigStore.config = .openai(apiKey: "sk-test")
 
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
@@ -1415,15 +1628,19 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.aiFormatterEnabled)
         XCTAssertEqual(viewModel.aiFormatterPrompt, "Rewrite:\n\(AIFormatter.transcriptPlaceholder)")
         XCTAssertEqual(viewModel.aiFormatterPromptModeText, "Customized")
+        XCTAssertEqual(viewModel.aiFormatterDictationPrompt, "Rewrite:\n\(AIFormatter.transcriptPlaceholder)")
+        XCTAssertEqual(viewModel.aiFormatterDictationPromptModeText, "Customized")
     }
 
     func testLoadsLegacyDefaultAIFormatterPromptAsUpdatedDefault() {
-        defaults.set(AIFormatter.legacyDefaultPromptTemplateV1, forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey)
+        defaults.set(
+            AIFormatter.legacyDefaultPromptTemplateV1, forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey)
         mockConfigStore.config = .openai(apiKey: "sk-test")
 
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
 
         XCTAssertEqual(viewModel.aiFormatterPrompt, AIFormatter.defaultPromptTemplate)
+        XCTAssertEqual(viewModel.aiFormatterDictationPrompt, AIFormatter.defaultDictationPromptTemplate)
     }
 
     func testAIFormatterUnavailableUntilProviderIsSaved() {
@@ -1475,6 +1692,65 @@ final class LLMSettingsViewModelTests: XCTestCase {
             AIFormatter.defaultPromptTemplate
         )
         XCTAssertEqual(viewModel.aiFormatterPrompt, AIFormatter.defaultPromptTemplate)
+    }
+
+    func testAIFormatterDictationPromptPersistsIndependentlyWhenConfigured() {
+        mockConfigStore.config = .openai(apiKey: "sk-test")
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        viewModel.aiFormatterDictationPrompt = "Dictation:\n\(AIFormatter.transcriptPlaceholder)"
+        viewModel.aiFormatterPrompt = "Transcript:\n\(AIFormatter.transcriptPlaceholder)"
+
+        XCTAssertEqual(
+            defaults.string(forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey),
+            "Transcript:\n\(AIFormatter.transcriptPlaceholder)"
+        )
+        XCTAssertEqual(
+            defaults.string(forKey: UserDefaultsAppRuntimePreferences.aiFormatterDictationPromptKey),
+            "Dictation:\n\(AIFormatter.transcriptPlaceholder)"
+        )
+        XCTAssertEqual(viewModel.aiFormatterPrompt, "Transcript:\n\(AIFormatter.transcriptPlaceholder)")
+        XCTAssertEqual(viewModel.aiFormatterDictationPrompt, "Dictation:\n\(AIFormatter.transcriptPlaceholder)")
+    }
+
+    func testResetAIFormatterDictationPromptRestoresDictationDefaultWithoutChangingTranscriptPrompt() {
+        mockConfigStore.config = .openai(apiKey: "sk-test")
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.aiFormatterPrompt = "Transcript:\n\(AIFormatter.transcriptPlaceholder)"
+        viewModel.aiFormatterDictationPrompt = "Dictation:\n\(AIFormatter.transcriptPlaceholder)"
+
+        XCTAssertTrue(viewModel.canResetAIFormatterDictationPrompt)
+
+        viewModel.resetAIFormatterDictationPrompt()
+
+        XCTAssertEqual(viewModel.aiFormatterDictationPrompt, AIFormatter.defaultDictationPromptTemplate)
+        XCTAssertFalse(viewModel.canResetAIFormatterDictationPrompt)
+        XCTAssertEqual(viewModel.aiFormatterPrompt, "Transcript:\n\(AIFormatter.transcriptPlaceholder)")
+        XCTAssertEqual(
+            defaults.string(forKey: UserDefaultsAppRuntimePreferences.aiFormatterDictationPromptKey),
+            AIFormatter.defaultDictationPromptTemplate
+        )
+        XCTAssertEqual(
+            defaults.string(forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey),
+            "Transcript:\n\(AIFormatter.transcriptPlaceholder)"
+        )
+    }
+
+    func testLoadsStoredDictationPromptIndependentlyOfTranscriptPrompt() {
+        defaults.set(
+            "Transcript:\n\(AIFormatter.transcriptPlaceholder)",
+            forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey
+        )
+        defaults.set(
+            "Dictation:\n\(AIFormatter.transcriptPlaceholder)",
+            forKey: UserDefaultsAppRuntimePreferences.aiFormatterDictationPromptKey
+        )
+        mockConfigStore.config = .openai(apiKey: "sk-test")
+
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        XCTAssertEqual(viewModel.aiFormatterPrompt, "Transcript:\n\(AIFormatter.transcriptPlaceholder)")
+        XCTAssertEqual(viewModel.aiFormatterDictationPrompt, "Dictation:\n\(AIFormatter.transcriptPlaceholder)")
     }
 
     // MARK: - Model Selection
@@ -1594,7 +1870,9 @@ final class LLMSettingsViewModelTests: XCTestCase {
     }
 
     func testLoadsExistingLocalCLIConfigRehydratesPresetSelection() throws {
-        let defaults = UserDefaults(suiteName: "test.vm.\(UUID().uuidString)")!
+        let suiteName = "test.vm.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         let cliStore = LocalCLIConfigStore(defaults: defaults)
         try cliStore.save(
             LocalCLIConfig(
@@ -1613,7 +1891,10 @@ final class LLMSettingsViewModelTests: XCTestCase {
     }
 
     func testLocalCLICanSaveWithCommand() {
-        let cliStore = LocalCLIConfigStore(defaults: UserDefaults(suiteName: "test.vm.\(UUID().uuidString)")!)
+        let suiteName = "test.vm.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let cliStore = LocalCLIConfigStore(defaults: defaults)
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient, cliConfigStore: cliStore)
         viewModel.selectedProviderID = .localCLI
         viewModel.commandTemplate = "claude -p --model haiku"
@@ -1637,7 +1918,9 @@ final class LLMSettingsViewModelTests: XCTestCase {
     }
 
     func testLocalCLISaveDuringConnectionTestDoesNotRestoreStaleCommand() async throws {
-        let defaults = UserDefaults(suiteName: "test.vm.\(UUID().uuidString)")!
+        let suiteName = "test.vm.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         let cliStore = LocalCLIConfigStore(defaults: defaults)
         try cliStore.save(LocalCLIConfig(commandTemplate: "echo OLD", timeoutSeconds: 10))
 
@@ -1657,7 +1940,9 @@ final class LLMSettingsViewModelTests: XCTestCase {
     }
 
     func testClearKeepsSavedLocalCLIConfigAfterUnsavedProviderSwitch() throws {
-        let defaults = UserDefaults(suiteName: "test.vm.\(UUID().uuidString)")!
+        let suiteName = "test.vm.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         let cliStore = LocalCLIConfigStore(defaults: defaults)
         try cliStore.save(
             LocalCLIConfig(

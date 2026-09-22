@@ -62,8 +62,7 @@ final class AppPathsTests: XCTestCase {
         XCTAssertEqual(AppPaths.configuredMeetingRecordingsDir(defaults: defaults), custom)
     }
 
-    #if DEBUG
-    func testDebugAppStateDirOverridesAppSupport() {
+    func testDeveloperAppStateDirOverridesAppSupport() {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("macparakeet-debug-state-\(UUID().uuidString)", isDirectory: true)
             .standardizedFileURL
@@ -73,7 +72,7 @@ final class AppPathsTests: XCTestCase {
         XCTAssertEqual(AppPaths.defaultMeetingRecordingsDir(environment: environment), root.appendingPathComponent("meeting-recordings").path)
     }
 
-    func testDebugAppStateDirScopesFluidAudioModelsInsideThrowawayRoot() {
+    func testDeveloperAppStateDirScopesFluidAudioModelsInsideThrowawayRoot() {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("macparakeet-debug-state-\(UUID().uuidString)", isDirectory: true)
             .standardizedFileURL
@@ -93,7 +92,7 @@ final class AppPathsTests: XCTestCase {
         )
     }
 
-    func testDebugAppStateDirKeepsMeetingRecordingsInsideThrowawayRoot() {
+    func testDeveloperAppStateDirKeepsMeetingRecordingsInsideThrowawayRoot() {
         let suiteName = "macparakeet.test.paths.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -113,11 +112,14 @@ final class AppPathsTests: XCTestCase {
             root.appendingPathComponent("meeting-recordings").path
         )
     }
-    #endif
-
     func testLogsDirIsInsideUserLogs() {
         XCTAssertTrue(AppPaths.logsDir.contains("Library/Logs"))
         XCTAssertTrue(AppPaths.logsDir.hasSuffix("MacParakeet"))
+    }
+
+    func testVoiceControlLogsDirIsInsideLogsDir() {
+        XCTAssertTrue(AppPaths.voiceControlLogsDir.hasPrefix(AppPaths.logsDir))
+        XCTAssertTrue(AppPaths.voiceControlLogsDir.hasSuffix("voice-control"))
     }
 
     func testTempDirContainsMacParakeet() {
@@ -150,5 +152,51 @@ final class AppPathsTests: XCTestCase {
         // Also verify the real ensureDirectories doesn't throw
         // (it may create real dirs, but those are expected app directories)
         try AppPaths.ensureDirectories()
+    }
+
+    // MARK: - appDefaults(bundleIdentifier:)
+
+    func testAppDefaultsReturnsStandardWhenBundleIdentifierMatchesSuite() {
+        XCTAssertTrue(
+            AppPaths.appDefaults(bundleIdentifier: AppPaths.preferencesSuiteName)
+                === UserDefaults.standard
+        )
+    }
+
+    // The two shared-suite cases verify the resolved instance against
+    // `sharedAppDefaults()` by writing through it, which targets the real
+    // `com.macparakeet.MacParakeet` domain: that is the only way to observe
+    // which suite an opaque `UserDefaults` wraps. The keys carry the
+    // `macparakeet.tests.` prefix so any leftover from a killed test run is
+    // identifiable, and the `defer` cleanup does not run on SIGKILL/abort.
+    private func assertResolvesToSharedSuite(
+        _ resolved: UserDefaults,
+        _ message: String
+    ) {
+        let key = "macparakeet.tests.AppPathsTests.\(UUID().uuidString)"
+        let value = UUID().uuidString
+        let shared = AppPaths.sharedAppDefaults()
+        defer {
+            shared.removeObject(forKey: key)
+        }
+
+        resolved.set(value, forKey: key)
+
+        XCTAssertFalse(resolved === UserDefaults.standard, message)
+        XCTAssertEqual(shared.string(forKey: key), value, message)
+    }
+
+    func testAppDefaultsReturnsSharedSuiteWhenBundleIdentifierIsNil() {
+        assertResolvesToSharedSuite(
+            AppPaths.appDefaults(bundleIdentifier: nil),
+            "nil bundle identifier resolves to the shared suite"
+        )
+    }
+
+    func testAppDefaultsReturnsSharedSuiteForUnrelatedBundleIdentifier() {
+        assertResolvesToSharedSuite(
+            AppPaths.appDefaults(bundleIdentifier: "com.macparakeet.tests.other"),
+            "unrelated bundle identifier resolves to the shared suite"
+        )
     }
 }

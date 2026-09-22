@@ -5,6 +5,16 @@
 
 This document captures the future design space that was split out of `spec/12`: typed actions, workflows, agent profiles, voice control, and Apple Shortcuts / App Intents integration. It is a roadmap and architecture exploration, not a locked implementation contract.
 
+This proposal is not the agent operator guide. Existing automation already
+includes CLI discovery, local history/segment search, cited transcript slices,
+knowledge-card reads/generation, saved meeting notes/results/artifacts/exports,
+and the disabled-by-default post-meeting executable hook. Use
+[`integrations/README.md`](../integrations/README.md) and the installed
+`macparakeet-cli spec --json` for those contracts and their I/O boundaries.
+Generalized workflows, agent profiles, autonomous desktop actions, and App
+Intents below remain proposals; no MCP service or GUI-mirroring requirement is
+introduced by this document.
+
 ---
 
 ## Purpose
@@ -21,7 +31,10 @@ This doc exists to:
 
 1. Defining an implementation-ready schema for actions, workflows, or agent profiles.
 2. Committing to a shipping order beyond rough sequencing.
-3. Claiming that desktop context, voice control, or agent handoff are available today.
+3. Claiming that generalized desktop control, spoken commands, or autonomous
+   agent handoff are available today. Existing selected-text Transforms and
+   the one-shot meeting start-context snapshot are narrower implemented uses
+   of desktop context, not that proposed system.
 
 ---
 
@@ -37,7 +50,7 @@ The broader processing layer may evolve into four related capabilities:
 │  ┌─ Prompt Library ──────────────────────────────┐  SHIPPED     │
 │  │  Named, reusable instruction templates        │  (spec/12)   │
 │  │  Prompt { id, name, content, category, ... }  │             │
-│  │  Summary { id, transcriptionId, ... }         │             │
+│  │  PromptResult { id, transcriptionId, ... }    │             │
 │  └───────────────────────────┬───────────────────┘             │
 │                              │                                  │
 │               ┌──── snapshot │ FK ────┐                         │
@@ -89,11 +102,13 @@ If MacParakeet introduces action execution, each action likely needs a standard 
 
 ### Transcript Context
 
-Already available in current models:
+Illustrative context assembled from current models (not an existing shared
+`ProcessingContext` type). Transcription source types include file, YouTube,
+podcast, and meeting; dictation is a separate model:
 
 ```
 transcript: String
-source: .file | .youtube | .dictation
+source: .file | .youtube | .podcast | .meeting | .dictation
 filename: String?
 duration: TimeInterval?
 speakers: Int?
@@ -226,7 +241,7 @@ This may be lower-risk than building a full native workflow engine, but it also 
 
 ## Open Questions
 
-1. Should future prompt categories expand beyond `.summary` and `.transform`, or should agents/workflows use separate models entirely?
+1. Should future prompt categories expand beyond `.result` and `.transform`, or should agents/workflows use separate models entirely?
 2. What desktop context is reliable and privacy-safe to collect on macOS?
 3. What permissions and user confirmation are required before an agent can act on other apps?
 4. Is `agentHandoff` a distinct action type, or just a constrained flavor of CLI execution?
@@ -246,3 +261,7 @@ Until those are answered, this document should guide discussion only.
 | Agent-assisted builder | Explore natural-language workflow creation |
 | Agent handoff | Add safe autonomous tool execution if justified |
 | Apple Shortcuts | Can progress independently if App Intents are the better first automation surface |
+
+## Voice Control implementation authority (2026-09-19)
+
+[ADR-033](adr/033-explicit-voice-control.md) and the [Jev Voice Control plan](../plans/active/2026-09-19-jev-voice-control.md) govern the current implementation. Earlier explorations in this document are background, not evidence that command control has shipped.

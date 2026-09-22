@@ -5,6 +5,7 @@ import OSLog
 
 public enum MeetingRecordingRecoveryError: Error, LocalizedError, Sendable {
     case missingSessionFolder
+    case writerFinalizationInProgress
     case noRecoverableAudio
     case audioRepairFailed(String)
     case mixFailed(String)
@@ -13,6 +14,9 @@ public enum MeetingRecordingRecoveryError: Error, LocalizedError, Sendable {
         switch self {
         case .missingSessionFolder:
             return "The interrupted recording folder no longer exists."
+        case .writerFinalizationInProgress:
+            return
+                "The meeting audio writer is still finalizing. Try recovery again after it finishes or after relaunching MacParakeet."
         case .noRecoverableAudio:
             return "No recoverable meeting audio was found."
         case .audioRepairFailed(let message):
@@ -40,7 +44,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "MeetingRecordingRecoveryService")
 
     private let meetingsRoot: URL
-    private let lockFileStore: MeetingRecordingLockFileStoring
+    private let lockFileStore: any MeetingRecordingLockFileStoring & MeetingFinalizationOwnershipClaiming
     private let transcriptionService: TranscriptionServiceProtocol
     private let transcriptionRepo: TranscriptionRepositoryProtocol
     private let settlement: MeetingRecordingSettlement
@@ -57,7 +61,9 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
 
     public convenience init(
         meetingsRoot: URL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true),
-        lockFileStore: MeetingRecordingLockFileStoring = MeetingRecordingLockFileStore(),
+        lockFileStore:
+            any MeetingRecordingLockFileStoring & MeetingFinalizationOwnershipClaiming =
+            MeetingRecordingLockFileStore(),
         transcriptionService: TranscriptionServiceProtocol,
         transcriptionRepo: TranscriptionRepositoryProtocol,
         audioConverter: AudioFileConverting = AudioFileConverter(),
@@ -80,14 +86,17 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
 
     init(
         meetingsRoot: URL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true),
-        lockFileStore: MeetingRecordingLockFileStoring = MeetingRecordingLockFileStore(),
+        lockFileStore:
+            any MeetingRecordingLockFileStoring & MeetingFinalizationOwnershipClaiming =
+            MeetingRecordingLockFileStore(),
         transcriptionService: TranscriptionServiceProtocol,
         transcriptionRepo: TranscriptionRepositoryProtocol,
         settlement: MeetingRecordingSettlement? = nil,
         audioConverter: AudioFileConverting = AudioFileConverter(),
         fileManager: FileManager = .default,
         micConditionerFactory: @escaping @Sendable () -> any MicConditioning,
-        recordingDurationProvider: @escaping @Sendable ([TimeInterval], Date) -> TimeInterval = { sourceDurations, startedAt in
+        recordingDurationProvider: @escaping @Sendable ([TimeInterval], Date) -> TimeInterval = {
+            sourceDurations, startedAt in
             sourceDurations.max() ?? max(0, Date().timeIntervalSince(startedAt))
         }
     ) {
@@ -133,6 +142,14 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         var viable: [MeetingRecordingLockFile] = []
         viable.reserveCapacity(candidates.count)
         for lock in candidates {
+            if let folderURL = lock.folderURL,
+                MeetingAudioWriterFinalizationRegistry.contains(folderURL: folderURL)
+            {
+                logger.info(
+                    "meeting_recovery_skipped_active_writer_finalization session=\(lock.sessionId.uuidString, privacy: .public)"
+                )
+                continue
+            }
             do {
                 if try canOfferRecovery(for: lock) {
                     viable.append(lock)
@@ -179,6 +196,24 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         guard fileManager.fileExists(atPath: folderURL.path) else {
             throw MeetingRecordingRecoveryError.missingSessionFolder
         }
+        guard !MeetingAudioWriterFinalizationRegistry.contains(folderURL: folderURL) else {
+            throw MeetingRecordingRecoveryError.writerFinalizationInProgress
+        }
+        let ownershipLease = try lockFileStore.claimFinalizationOwnership(
+            folderURL: folderURL
+        )
+        var shouldRestoreOwnership = true
+        defer {
+            if shouldRestoreOwnership {
+                do {
+                    try lockFileStore.releaseFinalizationOwnership(ownershipLease)
+                } catch {
+                    logger.error(
+                        "meeting_recovery_ownership_release_failed session=\(lock.sessionId.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .private)"
+                    )
+                }
+            }
+        }
 
         let microphoneAudio = MeetingArtifactAudioFileNames.resolveRawMicrophoneURL(
             in: folderURL,
@@ -190,7 +225,13 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
 
         if let existing = try existingCompletedTranscription(in: folderURL) {
             await writeNotesSidecar(for: lock, folderURL: folderURL)
-            return try await completeExistingTranscription(existing, folderURL: folderURL, lock: lock)
+            let completed = try await completeExistingTranscription(
+                existing,
+                folderURL: folderURL,
+                lock: lock
+            )
+            shouldRestoreOwnership = false
+            return completed
         }
         let incompleteRows = try existingIncompleteTranscriptions(in: folderURL)
         let rowToUpdate = selectedIncompleteTranscription(from: incompleteRows)
@@ -214,7 +255,9 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
                     )
                 )
             } catch {
-                logger.error("meeting_recovery_source_skipped session=\(lock.sessionId.uuidString, privacy: .public) source=\(String(describing: source), privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+                logger.error(
+                    "meeting_recovery_source_skipped session=\(lock.sessionId.uuidString, privacy: .public) source=\(String(describing: source), privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+                )
             }
         }
 
@@ -243,7 +286,8 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             startContext: existingMetadata?.startContext ?? lock.startContext,
             echoSuppression: existingMetadata?.echoSuppression,
             calendarEventSnapshot: existingMetadata?.calendarEventSnapshot
-                ?? lock.calendarEventSnapshot
+                ?? lock.calendarEventSnapshot,
+            meetingTypeId: existingMetadata?.meetingTypeId ?? lock.meetingTypeId
         )
         try MeetingRecordingMetadataStore.save(
             recoveredMetadata,
@@ -278,7 +322,9 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
                 )
             }
         } catch {
-            logger.error("meeting_recovery_playback_failed session=\(lock.sessionId.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+            logger.error(
+                "meeting_recovery_playback_failed session=\(lock.sessionId.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+            )
             throw MeetingRecordingRecoveryError.mixFailed(error.localizedDescription)
         }
 
@@ -321,7 +367,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
 
         let recording = MeetingRecordingOutput(
             sessionID: lock.sessionId,
-            displayName: lock.displayName,
+            displayName: lock.titleOverride ?? lock.displayName,
             folderURL: folderURL,
             mixedAudioURL: mixedURL,
             microphoneAudioURL: microphoneAudio.url,
@@ -336,7 +382,11 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             previewSpeechEngine: recoveredMetadata.previewSpeechEngine,
             startContext: recoveredMetadata.startContext,
             userNotes: lock.notes,
-            calendarEventSnapshot: recoveredMetadata.calendarEventSnapshot
+            calendarEventSnapshot: recoveredMetadata.calendarEventSnapshot,
+            meetingTypeId: recoveredMetadata.meetingTypeId,
+            startedAt: lock.startedAt,
+            audioRetentionStartedAt: lock.audioRetentionStartedAt,
+            titleOverride: lock.titleOverride
         )
 
         do {
@@ -350,26 +400,64 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             } else {
                 transcription = try await transcriptionService.transcribeMeeting(recording: recording, onProgress: nil)
             }
-            return try await completeRecovery(transcription, folderURL: folderURL, lock: lock)
+            let completed = try await completeRecovery(
+                transcription,
+                folderURL: folderURL,
+                lock: lock
+            )
+            shouldRestoreOwnership = false
+            return completed
         } catch {
-            logger.error("meeting_recovery_transcription_failed session=\(lock.sessionId.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+            logger.error(
+                "meeting_recovery_transcription_failed session=\(lock.sessionId.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+            )
             throw error
         }
     }
 
     public func discard(_ lock: MeetingRecordingLockFile) async throws {
         guard let folderURL = lock.folderURL else { return }
-        if fileManager.fileExists(atPath: folderURL.path) {
+        guard !MeetingAudioWriterFinalizationRegistry.contains(folderURL: folderURL) else {
+            throw MeetingRecordingRecoveryError.writerFinalizationInProgress
+        }
+        guard fileManager.fileExists(atPath: folderURL.path) else { return }
+        // Discovery can outlive its dialog. Claim the current on-disk lock so
+        // a stale Discard cannot remove audio that recovery or Retry now owns.
+        let ownershipLease = try lockFileStore.claimFinalizationOwnership(folderURL: folderURL)
+        do {
             if let completed = try existingCompletedTranscription(in: folderURL) {
                 try await settlement.settleCompletedTranscription(
                     folderURL: folderURL,
                     transcriptionID: completed.id,
                     sessionID: lock.sessionId
                 )
-                logger.info("meeting_recovery_discard_cleaned_completed_session session=\(lock.sessionId.uuidString, privacy: .public)")
+                logger.info(
+                    "meeting_recovery_discard_cleaned_completed_session session=\(lock.sessionId.uuidString, privacy: .public)"
+                )
                 return
             }
             try fileManager.removeItem(at: folderURL)
+        } catch {
+            if fileManager.fileExists(atPath: folderURL.path) {
+                do {
+                    try MeetingRecordingLockFileStore.restoreMissingLockAfterFailedDiscard(
+                        ownershipLease,
+                        lockFileStore: lockFileStore
+                    )
+                } catch {
+                    logger.error(
+                        "meeting_discard_lock_restore_failed session=\(lock.sessionId.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .private)"
+                    )
+                }
+                do {
+                    try lockFileStore.releaseFinalizationOwnership(ownershipLease)
+                } catch {
+                    logger.error(
+                        "meeting_discard_ownership_release_failed session=\(lock.sessionId.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .private)"
+                    )
+                }
+            }
+            throw error
         }
     }
 
@@ -386,9 +474,11 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
     ) -> MeetingCleanedMicrophoneReadiness {
         let outputURL = folderURL.appendingPathComponent(
             MeetingCleanedMicRenderer.cleanedMicrophoneFileName)
-        guard MeetingCleanedMicrophoneReadinessPolicy.production.shouldAttemptRender(
-            for: recordingDuration
-        ) else {
+        guard
+            MeetingCleanedMicrophoneReadinessPolicy.production.shouldAttemptRender(
+                for: recordingDuration
+            )
+        else {
             return MeetingCleanedMicrophoneRenderScheduler.skipPredictedRenderTimeout(
                 outputURL: outputURL,
                 sessionID: sessionID,
@@ -421,8 +511,9 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
                 (recoveredSource.duration * recoveredSource.sampleRate).rounded())
             let writtenDuration: TimeInterval
             if let existingTrack,
-               existingTrack.sampleRate.isFinite,
-               existingTrack.sampleRate > 0 {
+                existingTrack.sampleRate.isFinite,
+                existingTrack.sampleRate > 0
+            {
                 writtenDuration = min(
                     recoveredSource.duration,
                     Double(max(0, existingTrack.writtenFrameCount)) / existingTrack.sampleRate
@@ -458,6 +549,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             sourceAlignment: sourceAlignment,
             elapsedDurationMs: report.elapsedDurationMs,
             interruptedSources: Set(report.interruptedSources),
+            silentSources: Set(report.sources.compactMap { $0.status == .silent ? $0.source : nil }),
             captureFailed: report.captureFailed,
             playbackFallbackSource: playbackFallbackSource
         )
@@ -472,7 +564,9 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
                 fileManager: MeetingNotesFile.SendableFileManager(fileManager)
             )
         } catch {
-            logger.warning("meeting_notes_file_write_failed session=\(lock.sessionId.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+            logger.warning(
+                "meeting_notes_file_write_failed session=\(lock.sessionId.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+            )
         }
     }
 
@@ -550,7 +644,8 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
                 transcriptionID: transcription.id,
                 sessionID: lock.sessionId
             )
-            logger.info("meeting_recovery_cleaned_completed_session session=\(lock.sessionId.uuidString, privacy: .public)")
+            logger.info(
+                "meeting_recovery_cleaned_completed_session session=\(lock.sessionId.uuidString, privacy: .public)")
             return transcription
         }
         return try await completeRecovery(transcription, folderURL: folderURL, lock: lock)
@@ -591,10 +686,12 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             .appendingPathComponent("\(url.deletingPathExtension().lastPathComponent)-repaired.m4a")
         try? fileManager.removeItem(at: repairedURL)
 
-        guard let exportSession = AVAssetExportSession(
-            asset: AVURLAsset(url: url),
-            presetName: AVAssetExportPresetAppleM4A
-        ) else {
+        guard
+            let exportSession = AVAssetExportSession(
+                asset: AVURLAsset(url: url),
+                presetName: AVAssetExportPresetAppleM4A
+            )
+        else {
             throw MeetingRecordingRecoveryError.audioRepairFailed("Unable to create export session.")
         }
         exportSession.outputURL = repairedURL
@@ -605,8 +702,8 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             throw MeetingRecordingRecoveryError.audioRepairFailed(error.localizedDescription)
         }
         guard exportSession.status == .completed,
-              let info = try? await loadAudioInfo(repairedURL),
-              info.duration > 0
+            let info = try? await loadAudioInfo(repairedURL),
+            info.duration > 0
         else {
             throw MeetingRecordingRecoveryError.audioRepairFailed("Export did not produce playable audio.")
         }

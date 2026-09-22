@@ -1,0 +1,254 @@
+[
+  {
+    "name": "track-1-en-verified",
+    "command": [
+      "<QA_ROOT>/macparakeet-cli-runtime",
+      "transcribe",
+      "<QA_ROOT>/audio-runtime/two-tracks.mkv",
+      "--database",
+      "<QA_OUTPUT>/track-1-en-verified.sqlite",
+      "--mode",
+      "raw",
+      "--format",
+      "json",
+      "--engine",
+      "nemotron",
+      "--nemotron-model",
+      "multilingual-1120ms",
+      "--speaker-detection",
+      "off",
+      "--language",
+      "en",
+      "--audio-track",
+      "1"
+    ],
+    "environment": {
+      "CFFIXED_USER_HOME": "<QA_ROOT>/isolated-home",
+      "MACPARAKEET_TELEMETRY": "0",
+      "DO_NOT_TRACK": "1"
+    },
+    "timeoutSeconds": 180,
+    "timedOut": false,
+    "exitCode": 0,
+    "wallSeconds": 1.456,
+    "jsonValid": true,
+    "rows": [
+      {
+        "id": "77b8c124bc72455ea9782302ac5c270b",
+        "status": "completed",
+        "audioTrackOrdinal": 0,
+        "engine": "nemotron",
+        "engineVariant": "multilingual-1120ms",
+        "language": "en",
+        "rawTranscript": "However, due to the slow communication channels, styles in the West could lag behind by twenty five to thirty years.",
+        "durationMs": 8720,
+        "speakerCount": null
+      }
+    ]
+  },
+  {
+    "name": "track-2-ja",
+    "command": [
+      "<QA_ROOT>/macparakeet-cli-runtime",
+      "transcribe",
+      "<QA_ROOT>/audio-runtime/two-tracks.mkv",
+      "--database",
+      "<QA_OUTPUT>/track-2-ja.sqlite",
+      "--mode",
+      "raw",
+      "--format",
+      "json",
+      "--engine",
+      "nemotron",
+      "--nemotron-model",
+      "multilingual-1120ms",
+      "--speaker-detection",
+      "off",
+      "--language",
+      "ja",
+      "--audio-track",
+      "2"
+    ],
+    "environment": {
+      "CFFIXED_USER_HOME": "<QA_ROOT>/isolated-home",
+      "MACPARAKEET_TELEMETRY": "0",
+      "DO_NOT_TRACK": "1"
+    },
+    "timeoutSeconds": 180,
+    "timedOut": false,
+    "exitCode": 0,
+    "wallSeconds": 34.277,
+    "jsonValid": true,
+    "rows": [
+      {
+        "id": "185f42d732034fb49687c7086c379caf",
+        "status": "completed",
+        "audioTrackOrdinal": 1,
+        "engine": "nemotron",
+        "engineVariant": "multilingual-1120ms",
+        "language": "ja",
+        "rawTranscript": "インターネットで敵体的環境コースについて検索すると、おそらく現地企業の住所が出てくるでしょう.",
+        "durationMs": 8400,
+        "speakerCount": null
+      }
+    ]
+  },
+  {
+    "name": "track-0-invalid",
+    "command": [
+      "<QA_ROOT>/macparakeet-cli-runtime",
+      "transcribe",
+      "<QA_ROOT>/audio-runtime/two-tracks.mkv",
+      "--database",
+      "<QA_OUTPUT>/track-0-invalid.sqlite",
+      "--mode",
+      "raw",
+      "--format",
+      "json",
+      "--engine",
+      "nemotron",
+      "--nemotron-model",
+      "multilingual-1120ms",
+      "--speaker-detection",
+      "off",
+      "--language",
+      "en",
+      "--audio-track",
+      "0"
+    ],
+    "environment": {
+      "CFFIXED_USER_HOME": "<QA_ROOT>/isolated-home",
+      "MACPARAKEET_TELEMETRY": "0",
+      "DO_NOT_TRACK": "1"
+    },
+    "timeoutSeconds": 180,
+    "timedOut": false,
+    "exitCode": 2,
+    "wallSeconds": 0.03,
+    "jsonValid": false,
+    "rows": []
+  },
+  {
+    "name": "track-3-missing",
+    "command": [
+      "<QA_ROOT>/macparakeet-cli-runtime",
+      "transcribe",
+      "<QA_ROOT>/audio-runtime/two-tracks.mkv",
+      "--database",
+      "<QA_OUTPUT>/track-3-missing.sqlite",
+      "--mode",
+      "raw",
+      "--format",
+      "json",
+      "--engine",
+      "nemotron",
+      "--nemotron-model",
+      "multilingual-1120ms",
+      "--speaker-detection",
+      "off",
+      "--language",
+      "en",
+      "--audio-track",
+      "3"
+    ],
+    "environment": {
+      "CFFIXED_USER_HOME": "<QA_ROOT>/isolated-home",
+      "MACPARAKEET_TELEMETRY": "0",
+      "DO_NOT_TRACK": "1"
+    },
+    "timeoutSeconds": 180,
+    "timedOut": false,
+    "exitCode": 2,
+    "wallSeconds": 0.311,
+    "jsonValid": true,
+    "rows": []
+  },
+  {
+    "name": "diarization-auto",
+    "command": [
+      "<QA_ROOT>/macparakeet-cli-runtime",
+      "transcribe",
+      "<QA_OUTPUT>/two-public-speakers.wav",
+      "--database",
+      "<QA_OUTPUT>/diarization-auto.sqlite",
+      "--mode",
+      "raw",
+      "--format",
+      "json",
+      "--engine",
+      "parakeet",
+      "--parakeet-model",
+      "v3",
+      "--speaker-detection",
+      "on"
+    ],
+    "environment": {
+      "CFFIXED_USER_HOME": "<QA_ROOT>/isolated-home",
+      "MACPARAKEET_TELEMETRY": "0",
+      "DO_NOT_TRACK": "1"
+    },
+    "timeoutSeconds": 180,
+    "timedOut": false,
+    "exitCode": 0,
+    "wallSeconds": 28.09,
+    "jsonValid": true,
+    "rows": [
+      {
+        "id": "217b13153b3041b0a10127ad9a6d8a47",
+        "status": "completed",
+        "audioTrackOrdinal": null,
+        "engine": "parakeet",
+        "engineVariant": "v3",
+        "language": "en",
+        "rawTranscript": "He hoped there would be stew for dinner, turnips and carrots and bruised potatoes and fat mutton pieces to be ladled out in thick, peppered, flour fattened sauce. You will find me continually speaking of four men, Titian, Holbein, Turner, and Tintaret, in almost the same terms.",
+        "durationMs": 22660,
+        "speakerCount": 2
+      }
+    ]
+  },
+  {
+    "name": "diarization-exact-2",
+    "command": [
+      "<QA_ROOT>/macparakeet-cli-runtime",
+      "transcribe",
+      "<QA_OUTPUT>/two-public-speakers.wav",
+      "--database",
+      "<QA_OUTPUT>/diarization-exact-2.sqlite",
+      "--mode",
+      "raw",
+      "--format",
+      "json",
+      "--engine",
+      "parakeet",
+      "--parakeet-model",
+      "v3",
+      "--speaker-detection",
+      "on",
+      "--speaker-count",
+      "2"
+    ],
+    "environment": {
+      "CFFIXED_USER_HOME": "<QA_ROOT>/isolated-home",
+      "MACPARAKEET_TELEMETRY": "0",
+      "DO_NOT_TRACK": "1"
+    },
+    "timeoutSeconds": 180,
+    "timedOut": false,
+    "exitCode": 0,
+    "wallSeconds": 1.155,
+    "jsonValid": true,
+    "rows": [
+      {
+        "id": "bf56ecb12c5a42fcb490df121367e402",
+        "status": "completed",
+        "audioTrackOrdinal": null,
+        "engine": "parakeet",
+        "engineVariant": "v3",
+        "language": "en",
+        "rawTranscript": "He hoped there would be stew for dinner, turnips and carrots and bruised potatoes and fat mutton pieces to be ladled out in thick, peppered, flour fattened sauce. You will find me continually speaking of four men, Titian, Holbein, Turner, and Tintaret, in almost the same terms.",
+        "durationMs": 22660,
+        "speakerCount": 2
+      }
+    ]
+  }
+]

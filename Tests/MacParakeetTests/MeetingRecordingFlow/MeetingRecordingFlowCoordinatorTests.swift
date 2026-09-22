@@ -42,10 +42,12 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
 
         let lines = MeetingRecordingFlowCoordinator.testHook_makePreviewLines(from: update)
 
-        XCTAssertEqual(lines.map(\.text), [
-            "First sentence ends. Second sentence ends. Third sentence ends.",
-            "Fourth sentence ends.",
-        ])
+        XCTAssertEqual(
+            lines.map(\.text),
+            [
+                "First sentence ends. Second sentence ends. Third sentence ends.",
+                "Fourth sentence ends.",
+            ])
         XCTAssertEqual(lines.map(\.timestamp), ["0:00", "0:01"])
     }
 
@@ -119,6 +121,74 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(operation.durationSeconds, output.durationSeconds)
         XCTAssertEqual(operation.microphoneTrackPresent, true)
         XCTAssertEqual(operation.systemTrackPresent, true)
+        XCTAssertEqual(operation.captureStartCompleted, true)
+    }
+
+    func testFailedStopUsesSessionCaptureFactsWithoutOutput() async throws {
+        for captureStarted in [false, true] {
+            let service = MeetingRecordingServiceSpy(
+                output: makeRecordingOutput(),
+                stopShouldFail: true,
+                diagnostics: MeetingCaptureDiagnostics(
+                    captureStartCompleted: captureStarted,
+                    sourceMode: .microphoneAndSystem,
+                    elapsedSeconds: 428,
+                    microphoneFrames: 0,
+                    systemFrames: captureStarted ? 16_000 : 0
+                )
+            )
+            let coordinator = makeQuitTeardownCoordinator(recordingService: service)
+            coordinator.testHook_enterRecording()
+            XCTAssertTrue(coordinator.stopRecording(operationTrigger: .manual))
+            await coordinator.testHook_waitForActionTask()
+
+            let event = try XCTUnwrap(telemetry.snapshot().last { $0.name == .meetingOperation })
+            XCTAssertEqual(event.props?["outcome"], "failure")
+            XCTAssertEqual(event.props?["stage"], "stop_recording")
+            XCTAssertEqual(
+                event.props?["error_type"], TelemetryErrorClassifier.classify(MeetingAudioError.noAudioCaptured))
+            XCTAssertEqual(event.props?["capture_start_completed"], String(captureStarted))
+            XCTAssertEqual(Double(event.props?["duration_seconds"] ?? ""), 428)
+            XCTAssertEqual(event.props?["capture_source_mode"], "microphone_and_system")
+            XCTAssertEqual(event.props?["microphone_frames"], "0")
+            XCTAssertEqual(event.props?["system_frames"], captureStarted ? "16000" : "0")
+            XCTAssertNil(event.props?["microphone_track_present"])
+        }
+    }
+
+    func testCancelledDurableStopLeavesProcessingState() async throws {
+        let output = makeRecordingOutput()
+        let recordingService = MeetingRecordingServiceSpy(
+            output: output,
+            stopShouldCancel: true
+        )
+        let transcriptionService = MockTranscriptionService()
+        let settlementHarness = await makeSettlementHarness(
+            transcriptionService: transcriptionService
+        )
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: recordingService,
+            transcriptionService: transcriptionService,
+            permissionService: MockPermissionService(),
+            transcriptionRepo: settlementHarness.transcriptionRepo,
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            llmService: nil,
+            pillViewModel: MeetingRecordingPillViewModel(),
+            meetingRecordingSettlement: settlementHarness.settlement,
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in }
+        )
+        coordinator.testHook_enterRecording()
+
+        XCTAssertTrue(coordinator.stopRecording(operationTrigger: .manual))
+        await coordinator.testHook_waitForActionTask()
+
+        XCTAssertEqual(
+            coordinator.testHook_state,
+            .finishing(error: "Meeting stop was cancelled")
+        )
     }
 
     func testQueuedFinalizationFailurePersistsRetryableRowAndPostsOneNotification() async throws {
@@ -129,6 +199,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         let settlementHarness = await makeSettlementHarness(transcriptionService: transcriptionService)
 
         var retryNotifications: [TranscriptionCompletionNotifier.Content] = []
+        var failedTranscriptionIDs: [UUID] = []
         let coordinator = MeetingRecordingFlowCoordinator(
             meetingRecordingService: recordingService,
             transcriptionService: transcriptionService,
@@ -142,7 +213,8 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             meetingRecordingSettlement: settlementHarness.settlement,
             onMenuBarIconUpdate: { _ in },
             onTranscriptionReady: { _ in },
-            onQueuedTranscriptionFailed: { content in
+            onQueuedTranscriptionFailed: { transcriptionID, content in
+                failedTranscriptionIDs.append(transcriptionID)
                 retryNotifications.append(content)
             }
         )
@@ -158,6 +230,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(row.status, .error)
         XCTAssertEqual(row.sourceType, .meeting)
         XCTAssertEqual(row.errorMessage, FlowTestError.finalizationFailed.localizedDescription)
+        XCTAssertEqual(failedTranscriptionIDs, [row.id])
         XCTAssertEqual(retryNotifications, [TranscriptionCompletionNotifier.meetingNeedsRetryContent()])
         XCTAssertTrue(settlementHarness.lockStore.deletes.isEmpty)
     }
@@ -180,6 +253,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             sourceType: .meeting
         )
         try settlementHarness.transcriptionRepo.save(failed)
+        let ownershipClaimer = FlowFinalizationOwnershipClaimer()
         let coordinator = MeetingRecordingFlowCoordinator(
             meetingRecordingService: MeetingRecordingServiceSpy(output: makeRecordingOutput()),
             transcriptionService: transcriptionService,
@@ -191,6 +265,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             llmService: nil,
             pillViewModel: MeetingRecordingPillViewModel(),
             meetingRecordingSettlement: settlementHarness.settlement,
+            finalizationOwnershipClaimer: ownershipClaimer,
             onMenuBarIconUpdate: { _ in },
             onTranscriptionReady: { _ in }
         )
@@ -218,15 +293,31 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(snapshot.finalizedMeetingTranscriptionIDs, [failed.id])
         XCTAssertEqual(snapshot.finalizedMeetingRecordings.first?.displayName, failed.fileName)
         XCTAssertEqual(snapshot.finalizedMeetingRecordings.first?.durationSeconds, 12)
+        XCTAssertEqual(ownershipClaimer.claimedFolderURLs, [folderURL.standardizedFileURL])
     }
 
-    func testCaptureFailureSignalUsesStopTranscribeFlowExactlyOnce() async throws {
-        let output = makeRecordingOutput()
-        let recordingService = MeetingRecordingServiceSpy(output: output)
+    func testRetryMeetingFinalizationDoesNotQueueWithoutOwnership() async throws {
         let transcriptionService = MockTranscriptionService()
-        let settlementHarness = await makeSettlementHarness(transcriptionService: transcriptionService)
+        let settlementHarness = await makeSettlementHarness(
+            transcriptionService: transcriptionService
+        )
+        let folderURL = try makeArchivedRetryFolder()
+        defer { try? FileManager.default.removeItem(at: folderURL) }
+        let failed = Transcription(
+            fileName: "Retry meeting",
+            filePath: folderURL.appendingPathComponent(
+                MeetingArtifactAudioFileNames.playback
+            ).path,
+            meetingArtifactFolderPath: folderURL.path,
+            status: .error,
+            sourceType: .meeting
+        )
+        try settlementHarness.transcriptionRepo.save(failed)
+        let ownershipClaimer = FlowFinalizationOwnershipClaimer(
+            claimError: MeetingFinalizationOwnershipError.ownedByLiveProcess(pid: 42)
+        )
         let coordinator = MeetingRecordingFlowCoordinator(
-            meetingRecordingService: recordingService,
+            meetingRecordingService: MeetingRecordingServiceSpy(output: makeRecordingOutput()),
             transcriptionService: transcriptionService,
             permissionService: MockPermissionService(),
             transcriptionRepo: settlementHarness.transcriptionRepo,
@@ -236,12 +327,52 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             llmService: nil,
             pillViewModel: MeetingRecordingPillViewModel(),
             meetingRecordingSettlement: settlementHarness.settlement,
+            finalizationOwnershipClaimer: ownershipClaimer,
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in }
+        )
+
+        do {
+            try await coordinator.retryMeetingFinalization(failed)
+            XCTFail("Expected an active owner to refuse retry admission")
+        } catch {
+            XCTAssertEqual(
+                error as? MeetingFinalizationOwnershipError,
+                .ownedByLiveProcess(pid: 42)
+            )
+        }
+
+        let snapshot = await transcriptionService.meetingFlowSnapshot()
+        XCTAssertEqual(snapshot.finalizeMeetingCallCount, 0)
+        XCTAssertEqual(
+            try settlementHarness.transcriptionRepo.fetch(id: failed.id)?.status,
+            .error
+        )
+    }
+
+    func testCaptureFailureSignalUsesStopTranscribeFlowExactlyOnce() async throws {
+        let output = makeRecordingOutput()
+        let recordingService = MeetingRecordingServiceSpy(output: output)
+        let transcriptionService = MockTranscriptionService()
+        let settlementHarness = await makeSettlementHarness(transcriptionService: transcriptionService)
+        let pillViewModel = MeetingRecordingPillViewModel()
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: recordingService,
+            transcriptionService: transcriptionService,
+            permissionService: MockPermissionService(),
+            transcriptionRepo: settlementHarness.transcriptionRepo,
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            llmService: nil,
+            pillViewModel: pillViewModel,
+            meetingRecordingSettlement: settlementHarness.settlement,
             onMenuBarIconUpdate: { _ in },
             onTranscriptionReady: { _ in }
         )
 
         XCTAssertNotNil(coordinator.startRecording(trigger: .manual))
-        try await waitForStartCall(on: recordingService, coordinator: coordinator)
+        try await waitForPillState(pillViewModel, .recording)
 
         await recordingService.emitCaptureFailure()
         await recordingService.emitCaptureFailure()
@@ -254,11 +385,209 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(transcriptionSnapshot.prepareMeetingCallCount, 1)
     }
 
+    func testSuspendedStartKeepsCaptureControlsInactiveUntilAcceptedSuccess() async throws {
+        let service = MeetingRecordingServiceSpy(output: makeRecordingOutput(), blocksStart: true)
+        let pill = MeetingRecordingPillViewModel()
+        var menuStates: [BreathWaveIcon.MenuBarState] = []
+        let coordinator = makeQuitTeardownCoordinator(
+            recordingService: service,
+            shouldShowFloatingMeetingPill: { false },
+            pillViewModel: pill,
+            onMenuBarIconUpdate: { menuStates.append($0) }
+        )
+
+        XCTAssertNotNil(coordinator.startRecording())
+        await service.waitUntilStartCalled()
+        let panel = try XCTUnwrap(coordinator.testHook_panelViewModel)
+        XCTAssertEqual(pill.state, .starting)
+        XCTAssertEqual(panel.state, .starting)
+        XCTAssertFalse(pill.canTogglePause)
+        XCTAssertFalse(panel.canTogglePause)
+        XCTAssertFalse(panel.canToggleMicrophoneMute)
+        XCTAssertTrue(panel.canStop)
+        XCTAssertFalse(panel.isMicrophoneMuted)
+        XCTAssertFalse(panel.showsAudioLevels)
+        XCTAssertFalse(panel.showsElapsedTime)
+        XCTAssertFalse(coordinator.isCapturingMeetingAudioForAutoStop)
+        XCTAssertFalse(menuStates.contains(.recording))
+
+        coordinator.togglePause()
+        coordinator.toggleMicrophoneMute()
+        await service.releaseStart()
+        await coordinator.testHook_waitForActionTask()
+
+        XCTAssertEqual(pill.state, .recording)
+        XCTAssertEqual(panel.state, .recording)
+        XCTAssertTrue(pill.canTogglePause)
+        XCTAssertTrue(panel.canTogglePause)
+        XCTAssertTrue(panel.canToggleMicrophoneMute)
+        XCTAssertTrue(panel.canStop)
+        XCTAssertTrue(panel.showsAudioLevels)
+        XCTAssertTrue(coordinator.isCapturingMeetingAudioForAutoStop)
+        XCTAssertEqual(menuStates.last, .recording)
+        let pauseCalls = await service.pauseCallCount
+        let muteCalls = await service.muteCallCount
+        XCTAssertEqual(pauseCalls, 0)
+        XCTAssertEqual(muteCalls, 0)
+        await coordinator.discardRecordingAndWaitForCompletion()
+    }
+
+    func testStartMeetingsMutedShowsMutedDuringStarting() async throws {
+        let service = MeetingRecordingServiceSpy(output: makeRecordingOutput(), blocksStart: true)
+        let pill = MeetingRecordingPillViewModel()
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: service,
+            transcriptionService: MockTranscriptionService(),
+            permissionService: MockPermissionService(),
+            transcriptionRepo: MockTranscriptionRepository(),
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            startMeetingsMutedProvider: { true },
+            shouldShowFloatingMeetingPill: { false },
+            llmService: nil,
+            pillViewModel: pill,
+            meetingRecordingSettlement: makeSettlement(),
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in }
+        )
+
+        XCTAssertNotNil(coordinator.startRecording())
+        await service.waitUntilStartCalled()
+        let panel = try XCTUnwrap(coordinator.testHook_panelViewModel)
+        XCTAssertEqual(panel.state, .starting)
+        XCTAssertTrue(panel.isMicrophoneMuted)
+        XCTAssertFalse(panel.canToggleMicrophoneMute)
+        XCTAssertTrue(panel.showsMicrophoneMuteControl)
+
+        await coordinator.discardRecordingAndWaitForCompletion()
+        await service.releaseStart()
+    }
+
+    func testStartMeetingsMutedDoesNotShowMutedForSystemOnly() async throws {
+        let service = MeetingRecordingServiceSpy(output: makeRecordingOutput(), blocksStart: true)
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: service,
+            transcriptionService: MockTranscriptionService(),
+            permissionService: MockPermissionService(),
+            transcriptionRepo: MockTranscriptionRepository(),
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            meetingAudioSourceModeProvider: { .systemOnly },
+            startMeetingsMutedProvider: { true },
+            shouldShowFloatingMeetingPill: { false },
+            llmService: nil,
+            pillViewModel: MeetingRecordingPillViewModel(),
+            meetingRecordingSettlement: makeSettlement(),
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in }
+        )
+
+        XCTAssertNotNil(coordinator.startRecording())
+        await service.waitUntilStartCalled()
+        let panel = try XCTUnwrap(coordinator.testHook_panelViewModel)
+        XCTAssertEqual(panel.state, .starting)
+        XCTAssertFalse(panel.isMicrophoneMuted)
+        XCTAssertFalse(panel.canToggleMicrophoneMute)
+        XCTAssertFalse(panel.showsMicrophoneMuteControl)
+
+        await coordinator.discardRecordingAndWaitForCompletion()
+        await service.releaseStart()
+    }
+
+    func testStopDuringSuspendedStartSavesInsteadOfDiscarding() async throws {
+        let service = MeetingRecordingServiceSpy(output: makeRecordingOutput(), blocksStart: true)
+        let coordinator = makeQuitTeardownCoordinator(
+            recordingService: service,
+            shouldShowFloatingMeetingPill: { false }
+        )
+        XCTAssertNotNil(coordinator.startRecording())
+        await service.waitUntilStartCalled()
+        let pendingStart = try XCTUnwrap(coordinator.testHook_actionTask)
+        XCTAssertEqual(coordinator.quitState, .capturing)
+        XCTAssertEqual(coordinator.testHook_state, .starting)
+
+        await coordinator.stopRecordingAndWaitForCompletion()
+        await service.releaseStart()
+        await pendingStart.value
+
+        XCTAssertEqual(coordinator.testHook_state, .idle)
+        let stopCount = await service.stopCallCount
+        let cancelCount = await service.cancelCallCount
+        XCTAssertEqual(stopCount, 1)
+        XCTAssertEqual(cancelCount, 0)
+    }
+
+    func testCancelledSuspendedStartCannotReviveRecordingPresentation() async throws {
+        let service = MeetingRecordingServiceSpy(output: makeRecordingOutput(), blocksStart: true)
+        let pill = MeetingRecordingPillViewModel()
+        var menuStates: [BreathWaveIcon.MenuBarState] = []
+        let coordinator = makeQuitTeardownCoordinator(
+            recordingService: service,
+            shouldShowFloatingMeetingPill: { false },
+            pillViewModel: pill,
+            onMenuBarIconUpdate: { menuStates.append($0) }
+        )
+        XCTAssertNotNil(coordinator.startRecording())
+        await service.waitUntilStartCalled()
+        let pendingStart = try XCTUnwrap(coordinator.testHook_actionTask)
+        XCTAssertEqual(pill.state, .starting)
+        XCTAssertTrue(coordinator.testHook_panelViewModel?.canStop == true)
+
+        await coordinator.discardRecordingAndWaitForCompletion()
+        XCTAssertEqual(coordinator.testHook_state, .idle)
+        XCTAssertEqual(pill.state, .idle)
+        XCTAssertNil(coordinator.testHook_panelViewModel)
+        await service.releaseStart()
+        await pendingStart.value
+
+        XCTAssertEqual(coordinator.testHook_state, .idle)
+        XCTAssertEqual(pill.state, .idle)
+        XCTAssertFalse(pill.canTogglePause)
+        XCTAssertNil(coordinator.testHook_panelViewModel)
+        XCTAssertFalse(menuStates.contains(.recording))
+        XCTAssertFalse(telemetry.snapshot().map(\.name).contains(.meetingRecordingStarted))
+    }
+
+    func testFailedSuspendedStartNeverPublishesRecordingPresentation() async throws {
+        let service = MeetingRecordingServiceSpy(
+            output: makeRecordingOutput(), blocksStart: true, startShouldFail: true
+        )
+        let pill = MeetingRecordingPillViewModel()
+        var menuStates: [BreathWaveIcon.MenuBarState] = []
+        let coordinator = makeQuitTeardownCoordinator(
+            recordingService: service,
+            shouldShowFloatingMeetingPill: { false },
+            pillViewModel: pill,
+            onMenuBarIconUpdate: { menuStates.append($0) }
+        )
+        XCTAssertNotNil(coordinator.startRecording())
+        await service.waitUntilStartCalled()
+        XCTAssertEqual(pill.state, .starting)
+        await service.releaseStart()
+        await coordinator.testHook_waitForActionTask()
+
+        guard case .error = pill.state else {
+            return XCTFail("Failed startup must present recovery, not active capture")
+        }
+        XCTAssertFalse(pill.canTogglePause)
+        XCTAssertFalse(coordinator.testHook_panelViewModel?.canStop ?? true)
+        XCTAssertFalse(coordinator.testHook_panelViewModel?.canToggleMicrophoneMute ?? true)
+        XCTAssertFalse(menuStates.contains(.recording))
+        XCTAssertFalse(telemetry.snapshot().map(\.name).contains(.meetingRecordingStarted))
+        let failure = try XCTUnwrap(telemetry.snapshot().compactMap(\.meetingOperationPayload).last)
+        XCTAssertEqual(failure.outcome, .failure)
+        XCTAssertGreaterThanOrEqual(try XCTUnwrap(failure.durationSeconds), 0)
+        XCTAssertEqual(failure.captureStartCompleted, false)
+    }
+
     func testStopWhileServiceStartIsPendingSuppressesLateStartSideEffects() async throws {
         let recordingService = MeetingRecordingServiceSpy(
             output: makeRecordingOutput(),
             blocksStart: true
         )
+        let pill = MeetingRecordingPillViewModel()
         let coordinator = MeetingRecordingFlowCoordinator(
             meetingRecordingService: recordingService,
             transcriptionService: MockTranscriptionService(),
@@ -268,7 +597,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             quickPromptRepo: NoOpQuickPromptRepository(),
             configStore: NoOpLLMConfigStore(),
             llmService: nil,
-            pillViewModel: MeetingRecordingPillViewModel(),
+            pillViewModel: pill,
             meetingRecordingSettlement: makeSettlement(),
             onMenuBarIconUpdate: { _ in },
             onTranscriptionReady: { _ in }
@@ -277,18 +606,24 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertNotNil(coordinator.startRecording(trigger: .manual))
         await recordingService.waitUntilStartCalled()
         XCTAssertEqual(coordinator.testHook_state, .starting)
+        let pendingStart = try XCTUnwrap(coordinator.testHook_actionTask)
+        XCTAssertEqual(pill.state, .starting)
+        XCTAssertTrue(coordinator.testHook_panelViewModel?.canStop == true)
+        XCTAssertFalse(pill.canTogglePause)
 
         XCTAssertTrue(coordinator.stopRecording(operationTrigger: .manual))
         try await waitForStopCall(on: recordingService, coordinator: coordinator)
         XCTAssertEqual(coordinator.testHook_state, .idle)
 
         await recordingService.releaseStart()
-        try await Task.sleep(for: .milliseconds(50))
+        await pendingStart.value
 
         let eventNames = telemetry.snapshot().map(\.name)
         XCTAssertFalse(eventNames.contains(.meetingRecordingStarted))
         XCTAssertFalse(eventNames.contains(.meetingRecordingFailed))
         XCTAssertEqual(coordinator.testHook_state, .idle)
+        XCTAssertNotEqual(pill.state, .recording)
+        XCTAssertFalse(pill.canTogglePause)
     }
 
     func testCaptureFailureSignalWhilePausedUsesStopTranscribeFlow() async throws {
@@ -313,9 +648,10 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         )
 
         XCTAssertNotNil(coordinator.startRecording(trigger: .manual))
-        try await waitForStartCall(on: recordingService, coordinator: coordinator)
+        try await waitForPillState(pillViewModel, .recording)
         coordinator.togglePause()
-        try await waitForPillState(pillViewModel, .paused)
+        await coordinator.testHook_waitForPauseToggleTask()
+        XCTAssertEqual(pillViewModel.state, .paused)
 
         await recordingService.emitCaptureFailure()
         try await waitForStopCall(on: recordingService, coordinator: coordinator)
@@ -325,6 +661,43 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.testHook_state, .idle)
         XCTAssertEqual(recordingSnapshot.stopCallCount, 1)
         XCTAssertEqual(transcriptionSnapshot.prepareMeetingCallCount, 1)
+    }
+
+    func testPollingSnapshotBeforePauseCannotRestoreRecordingState() async throws {
+        let service = MeetingRecordingServiceSpy(output: makeRecordingOutput())
+        let pill = MeetingRecordingPillViewModel()
+        let panel = MeetingRecordingPanelViewModel()
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: service,
+            transcriptionService: MockTranscriptionService(),
+            permissionService: MockPermissionService(),
+            transcriptionRepo: MockTranscriptionRepository(),
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            llmService: nil,
+            pillViewModel: pill,
+            meetingRecordingSettlement: makeSettlement(),
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in }
+        )
+        coordinator.testHook_enterRecording()
+        pill.state = .recording
+        panel.state = .recording
+        let snapshotRead = expectation(description: "Poll captured full mode before pause")
+        await service.blockNextCaptureHealthRead(reached: snapshotRead)
+        let poll = Task { await coordinator.testHook_refreshPillState(panel: panel) }
+        await fulfillment(of: [snapshotRead], timeout: 5)
+
+        coordinator.togglePause()
+        await coordinator.testHook_waitForPauseToggleTask()
+        XCTAssertEqual(pill.state, .paused)
+        XCTAssertTrue(panel.isPaused)
+        await service.releaseCaptureHealthRead()
+        await poll.value
+
+        XCTAssertEqual(pill.state, .paused)
+        XCTAssertTrue(panel.isPaused)
     }
 
     func testStaleGenerationCaptureFailureSignalIsIgnored() async throws {
@@ -361,6 +734,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         let transcriptionService = MockTranscriptionService()
         await transcriptionService.holdMeetingFinalization()
         let settlementHarness = await makeSettlementHarness(transcriptionService: transcriptionService)
+        let pillViewModel = MeetingRecordingPillViewModel()
 
         var queuedSelections: [Bool] = []
         let coordinator = MeetingRecordingFlowCoordinator(
@@ -372,7 +746,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             quickPromptRepo: NoOpQuickPromptRepository(),
             configStore: NoOpLLMConfigStore(),
             llmService: nil,
-            pillViewModel: MeetingRecordingPillViewModel(),
+            pillViewModel: pillViewModel,
             meetingRecordingSettlement: settlementHarness.settlement,
             onMenuBarIconUpdate: { _ in },
             onTranscriptionReady: { _ in },
@@ -388,7 +762,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
 
         let nextGeneration = coordinator.startRecording(trigger: .manual)
         XCTAssertNotNil(nextGeneration)
-        await coordinator.testHook_waitForActionTask()
+        try await waitForPillState(pillViewModel, .recording)
 
         let recordingSnapshot = await recordingService.snapshot()
         XCTAssertEqual(coordinator.testHook_state, .recording)
@@ -398,6 +772,70 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         await coordinator.testHook_waitForMeetingTranscriptionQueue()
         XCTAssertEqual(queuedSelections, [false])
         XCTAssertEqual(settlementHarness.lockStore.deletes, [output.folderURL])
+        XCTAssertEqual(coordinator.testHook_state, .recording)
+        XCTAssertEqual(pillViewModel.state, .recording)
+    }
+
+    func testOlderCompletionCannotPresentAfterNewerMeetingHasStoppedAndQueued() async throws {
+        let firstOutput = makeRecordingOutput()
+        let secondOutput = makeRecordingOutput()
+        let recordingService = MeetingRecordingServiceSpy(output: firstOutput)
+        let transcriptionService = MockTranscriptionService()
+        await transcriptionService.holdMeetingFinalization()
+        let settlementHarness = await makeSettlementHarness(transcriptionService: transcriptionService)
+        let pillViewModel = MeetingRecordingPillViewModel()
+        var completedTranscriptions: [Transcription] = []
+        var queuedSelections: [Bool] = []
+        let coordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: recordingService,
+            transcriptionService: transcriptionService,
+            permissionService: MockPermissionService(),
+            transcriptionRepo: settlementHarness.transcriptionRepo,
+            conversationRepo: MockChatConversationRepository(),
+            quickPromptRepo: NoOpQuickPromptRepository(),
+            configStore: NoOpLLMConfigStore(),
+            llmService: nil,
+            pillViewModel: pillViewModel,
+            meetingRecordingSettlement: settlementHarness.settlement,
+            onMenuBarIconUpdate: { _ in },
+            onTranscriptionReady: { _ in },
+            onQueuedTranscriptionReady: { transcription, canPresent in
+                completedTranscriptions.append(transcription)
+                queuedSelections.append(canPresent)
+            }
+        )
+        coordinator.testHook_enterRecording()
+        XCTAssertTrue(coordinator.stopRecording(operationTrigger: .manual))
+        await coordinator.testHook_waitForActionTask()
+        try await waitForMeetingFinalizeCall(on: transcriptionService)
+
+        await recordingService.setOutput(secondOutput)
+        XCTAssertNotNil(coordinator.startRecording(trigger: .manual))
+        try await waitForPillState(pillViewModel, .recording)
+        XCTAssertTrue(coordinator.stopRecording(operationTrigger: .manual))
+        await coordinator.testHook_waitForActionTask()
+        XCTAssertEqual(coordinator.testHook_state, .idle)
+        XCTAssertEqual(coordinator.queuedMeetingTranscriptionIDs.count, 2)
+        XCTAssertTrue(completedTranscriptions.isEmpty)
+
+        await transcriptionService.releaseMeetingFinalization()
+        await coordinator.testHook_waitForMeetingTranscriptionQueue()
+
+        XCTAssertEqual(queuedSelections, [false, true])
+        XCTAssertEqual(
+            completedTranscriptions.map(\.filePath),
+            [firstOutput.mixedAudioURL.path, secondOutput.mixedAudioURL.path]
+        )
+        for transcription in completedTranscriptions {
+            XCTAssertEqual(
+                try settlementHarness.transcriptionRepo.fetch(id: transcription.id)?.status,
+                .completed
+            )
+        }
+        XCTAssertEqual(
+            settlementHarness.lockStore.deletes,
+            [firstOutput.folderURL, secondOutput.folderURL]
+        )
     }
 
     func testManualStartPassesProbableCalendarSnapshotWithoutChangingTitle() async throws {
@@ -643,7 +1081,7 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(start.startContext?.sourceMode, .systemOnly)
     }
 
-    func testCohereRecordingShowsLivePreviewUnsupportedCopy() async throws {
+    func testCohereRecordingShowsLivePreviewOffCopy() async throws {
         let liveSelection = SpeechEngineSelection(engine: .cohere, language: "ja")
         let coordinator = MeetingRecordingFlowCoordinator(
             meetingRecordingService: MeetingRecordingServiceSpy(
@@ -672,15 +1110,15 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         await coordinator.testHook_waitForActionTask()
         let startedAt = ContinuousClock.now
         while startedAt.duration(to: .now) <= .seconds(1) {
-            if coordinator.testHook_panelViewModel?.liveTranscriptStatus == .previewUnsupported(engine: .cohere) {
+            if coordinator.testHook_panelViewModel?.liveTranscriptStatus == .previewOff {
                 break
             }
             try await Task.sleep(for: .milliseconds(20))
         }
 
         let panelViewModel = try XCTUnwrap(coordinator.testHook_panelViewModel)
-        XCTAssertEqual(panelViewModel.liveTranscriptStatus, .previewUnsupported(engine: .cohere))
-        XCTAssertEqual(panelViewModel.transcriptEmptyStateTitle, "Live preview off for Cohere")
+        XCTAssertEqual(panelViewModel.liveTranscriptStatus, .previewOff)
+        XCTAssertEqual(panelViewModel.transcriptEmptyStateTitle, "Live transcription is off")
         XCTAssertEqual(
             panelViewModel.transcriptEmptyStateDetail,
             "Audio will be transcribed after you stop recording."
@@ -733,54 +1171,56 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(backgroundWarmUps, 0)
     }
 
-    func testMeetingStartupDoesNotWarmUnsupportedLiveEngineAndAttributesFinalRoute() async throws {
-        let stt = MockSTTClient()
-        await stt.setReady(false)
-        let pinnedSelection = SpeechEngineSelection(engine: .cohere, language: "fr")
-        let finalSelection = SpeechEngineSelection(engine: .parakeet)
-        let recordingService = MeetingRecordingServiceSpy(
-            output: makeRecordingOutput(),
-            activeSpeechEngineSelection: pinnedSelection,
-            activeMeetingSpeechPlan: MeetingSpeechPlan(preview: nil, final: finalSelection)
-        )
-        let coordinator = MeetingRecordingFlowCoordinator(
-            meetingRecordingService: recordingService,
-            transcriptionService: MockTranscriptionService(),
-            permissionService: MockPermissionService(),
-            transcriptionRepo: MockTranscriptionRepository(),
-            conversationRepo: MockChatConversationRepository(),
-            quickPromptRepo: NoOpQuickPromptRepository(),
-            configStore: NoOpLLMConfigStore(),
-            sttManager: stt,
-            speechEngineSelectionProvider: { finalSelection },
-            llmService: nil,
-            pillViewModel: MeetingRecordingPillViewModel(),
-            meetingRecordingSettlement: makeSettlement(),
-            onMenuBarIconUpdate: { _ in },
-            onTranscriptionReady: { _ in }
-        )
+    func testMeetingStartupDoesNotWarmAnyLiveEngineWhenPreviewIsOff() async throws {
+        for engine in [SpeechEnginePreference.cohere, .parakeet] {
+            let stt = MockSTTClient()
+            await stt.setReady(false)
+            let pinnedSelection = SpeechEngineSelection(engine: engine)
+            let finalSelection = SpeechEngineSelection(engine: .whisper, language: "ko")
+            let recordingService = MeetingRecordingServiceSpy(
+                output: makeRecordingOutput(),
+                activeSpeechEngineSelection: pinnedSelection,
+                activeMeetingSpeechPlan: MeetingSpeechPlan(preview: nil, final: finalSelection)
+            )
+            let coordinator = MeetingRecordingFlowCoordinator(
+                meetingRecordingService: recordingService,
+                transcriptionService: MockTranscriptionService(),
+                permissionService: MockPermissionService(),
+                transcriptionRepo: MockTranscriptionRepository(),
+                conversationRepo: MockChatConversationRepository(),
+                quickPromptRepo: NoOpQuickPromptRepository(),
+                configStore: NoOpLLMConfigStore(),
+                sttManager: stt,
+                speechEngineSelectionProvider: { finalSelection },
+                llmService: nil,
+                pillViewModel: MeetingRecordingPillViewModel(),
+                meetingRecordingSettlement: makeSettlement(),
+                onMenuBarIconUpdate: { _ in },
+                onTranscriptionReady: { _ in }
+            )
 
-        XCTAssertNotNil(coordinator.startRecording(trigger: .manual))
-        await coordinator.testHook_waitForActionTask()
+            XCTAssertNotNil(coordinator.startRecording(trigger: .manual))
+            await coordinator.testHook_waitForActionTask()
 
-        let startedAt = ContinuousClock.now
-        while startedAt.duration(to: .now) <= .seconds(1) {
-            if coordinator.testHook_panelViewModel?.liveTranscriptStatus == .previewUnsupported(engine: .cohere) {
-                break
+            let startedAt = ContinuousClock.now
+            while startedAt.duration(to: .now) <= .seconds(1) {
+                if coordinator.testHook_panelViewModel?.liveTranscriptStatus == .previewOff {
+                    break
+                }
+                try await Task.sleep(for: .milliseconds(20))
             }
-            try await Task.sleep(for: .milliseconds(20))
-        }
 
-        let routedWarmUps = await stt.routedWarmUpSelectionsSnapshot()
-        XCTAssertEqual(routedWarmUps, [])
-        XCTAssertEqual(
-            coordinator.testHook_panelViewModel?.liveTranscriptStatus,
-            .previewUnsupported(engine: .cohere)
-        )
-        XCTAssertEqual(
-            coordinator.testHook_panelViewModel?.speechRouteAttribution,
-            "Live preview: Off (Cohere (fr)) · Final transcript: Parakeet after recording ends"
-        )
+            let routedWarmUps = await stt.routedWarmUpSelectionsSnapshot()
+            XCTAssertEqual(routedWarmUps, [])
+            XCTAssertEqual(
+                coordinator.testHook_panelViewModel?.liveTranscriptStatus,
+                .previewOff
+            )
+            XCTAssertEqual(
+                coordinator.testHook_panelViewModel?.speechRouteAttribution,
+                "Final transcript: Whisper (ko) after recording ends"
+            )
+        }
     }
 
     func testMeetingReadinessUsesEnginePinnedByStartedSession() async throws {
@@ -865,13 +1305,15 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
     func testStartWithFloatingPillHiddenStillStartsRecordingFlow() async throws {
         let recordingService = MeetingRecordingServiceSpy(output: makeRecordingOutput())
         let visibility = FloatingPillVisibilityProbe(shouldShow: false)
+        let pillViewModel = MeetingRecordingPillViewModel()
         let coordinator = makeQuitTeardownCoordinator(
             recordingService: recordingService,
-            shouldShowFloatingMeetingPill: { visibility.shouldShow }
+            shouldShowFloatingMeetingPill: { visibility.shouldShow },
+            pillViewModel: pillViewModel
         )
 
         XCTAssertNotNil(coordinator.startRecording())
-        try await waitForStartCall(on: recordingService, coordinator: coordinator)
+        try await waitForPillState(pillViewModel, .recording)
 
         let snapshot = await recordingService.snapshot()
         XCTAssertEqual(snapshot.startCallCount, 1)
@@ -884,10 +1326,14 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
 
     func testStartRecordingCanPresentLivePanelWhenReady() async throws {
         let recordingService = MeetingRecordingServiceSpy(output: makeRecordingOutput())
-        let coordinator = makeQuitTeardownCoordinator(recordingService: recordingService)
+        let pillViewModel = MeetingRecordingPillViewModel()
+        let coordinator = makeQuitTeardownCoordinator(
+            recordingService: recordingService,
+            pillViewModel: pillViewModel
+        )
 
         XCTAssertNotNil(coordinator.startRecording(presentLivePanelWhenReady: true))
-        try await waitForStartCall(on: recordingService, coordinator: coordinator)
+        try await waitForPillState(pillViewModel, .recording)
 
         XCTAssertEqual(coordinator.testHook_state, .recording)
         XCTAssertTrue(coordinator.testHook_isMeetingPanelVisible)
@@ -896,13 +1342,15 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
     func testRefreshingFloatingPillVisibilityDoesNotDisturbRecordingFlow() async throws {
         let recordingService = MeetingRecordingServiceSpy(output: makeRecordingOutput())
         let visibility = FloatingPillVisibilityProbe(shouldShow: false)
+        let pillViewModel = MeetingRecordingPillViewModel()
         let coordinator = makeQuitTeardownCoordinator(
             recordingService: recordingService,
-            shouldShowFloatingMeetingPill: { visibility.shouldShow }
+            shouldShowFloatingMeetingPill: { visibility.shouldShow },
+            pillViewModel: pillViewModel
         )
 
         XCTAssertNotNil(coordinator.startRecording())
-        try await waitForStartCall(on: recordingService, coordinator: coordinator)
+        try await waitForPillState(pillViewModel, .recording)
         XCTAssertEqual(coordinator.testHook_state, .recording)
         XCTAssertFalse(coordinator.testHook_isFloatingPillVisible)
 
@@ -923,9 +1371,57 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertFalse(coordinator.testHook_isFloatingPillVisible)
     }
 
+    /// #1079: the Transcribe tile shows "Wrapping up…" while the shared pill VM
+    /// is `.completing`. That state used to advance only from the floating
+    /// pill's collapse callback, which `refreshState()` does not run once the
+    /// pill is hidden. Stop with the pill hidden must still leave completing
+    /// and return the tile to idle after the saved celebration.
+    func testStopWithFloatingPillHiddenDoesNotStickOnWrappingUp() async throws {
+        let recordingService = MeetingRecordingServiceSpy(output: makeRecordingOutput())
+        let pillViewModel = MeetingRecordingPillViewModel()
+        let coordinator = makeQuitTeardownCoordinator(
+            recordingService: recordingService,
+            shouldShowFloatingMeetingPill: { false },
+            pillViewModel: pillViewModel
+        )
+
+        XCTAssertNotNil(coordinator.startRecording())
+        try await waitForPillState(pillViewModel, .recording)
+        XCTAssertFalse(coordinator.testHook_isFloatingPillVisible)
+
+        XCTAssertTrue(coordinator.stopRecording(operationTrigger: .manual))
+        await coordinator.testHook_waitForActionTask()
+
+        XCTAssertEqual(coordinator.testHook_state, .idle)
+        XCTAssertNotEqual(pillViewModel.state, .completing)
+        XCTAssertEqual(pillViewModel.state, .transcribing)
+
+        try await waitForPillState(pillViewModel, .idle, timeout: .seconds(5))
+    }
+
+    /// The same deadlock as #1079 if stop runs without a pill window (quit-time
+    /// dismiss, or tests that enter recording without `.showRecordingPill`).
+    /// Completing must not be a terminal tile state just because no animation
+    /// surface exists.
+    func testStopWithoutPillWindowDoesNotStickOnWrappingUp() async throws {
+        let pillViewModel = MeetingRecordingPillViewModel()
+        pillViewModel.state = .recording
+        let coordinator = makeQuitTeardownCoordinator(pillViewModel: pillViewModel)
+        coordinator.testHook_enterRecording()
+
+        XCTAssertTrue(coordinator.stopRecording(operationTrigger: .manual))
+        await coordinator.testHook_waitForActionTask()
+
+        XCTAssertEqual(coordinator.testHook_state, .idle)
+        XCTAssertNotEqual(pillViewModel.state, .completing)
+        try await waitForPillState(pillViewModel, .idle, timeout: .seconds(5))
+    }
+
     private func makeQuitTeardownCoordinator(
         recordingService: MeetingRecordingServiceSpy? = nil,
-        shouldShowFloatingMeetingPill: @escaping @MainActor @Sendable () -> Bool = { true }
+        shouldShowFloatingMeetingPill: @escaping @MainActor @Sendable () -> Bool = { true },
+        pillViewModel: MeetingRecordingPillViewModel? = nil,
+        onMenuBarIconUpdate: @escaping (BreathWaveIcon.MenuBarState) -> Void = { _ in }
     ) -> MeetingRecordingFlowCoordinator {
         let recordingService = recordingService ?? MeetingRecordingServiceSpy(output: makeRecordingOutput())
         return MeetingRecordingFlowCoordinator(
@@ -938,9 +1434,9 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
             configStore: NoOpLLMConfigStore(),
             shouldShowFloatingMeetingPill: shouldShowFloatingMeetingPill,
             llmService: nil,
-            pillViewModel: MeetingRecordingPillViewModel(),
+            pillViewModel: pillViewModel ?? MeetingRecordingPillViewModel(),
             meetingRecordingSettlement: makeSettlement(),
-            onMenuBarIconUpdate: { _ in },
+            onMenuBarIconUpdate: onMenuBarIconUpdate,
             onTranscriptionReady: { _ in }
         )
     }
@@ -1032,11 +1528,12 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
 
     private func waitForPillState(
         _ pillViewModel: MeetingRecordingPillViewModel,
-        _ expectedState: MeetingRecordingPillViewModel.PillState
+        _ expectedState: MeetingRecordingPillViewModel.PillState,
+        timeout: Duration = .seconds(1)
     ) async throws {
         let startedAt = ContinuousClock.now
         while pillViewModel.state != expectedState {
-            if startedAt.duration(to: .now) > .seconds(1) {
+            if startedAt.duration(to: .now) > timeout {
                 XCTFail("Timed out waiting for pill state \(expectedState); latest state: \(pillViewModel.state)")
                 return
             }
@@ -1172,13 +1669,20 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
         let calendarEventSnapshot: MeetingCalendarSnapshot?
     }
 
-    private let output: MeetingRecordingOutput
+    private var output: MeetingRecordingOutput
     private let blocksStart: Bool
+    private let stopShouldCancel: Bool
+    private let stopShouldFail: Bool
+    private let diagnostics: MeetingCaptureDiagnostics?
+    private let startShouldFail: Bool
     let activeSpeechEngineSelection: SpeechEngineSelection?
     let activeMeetingSpeechPlan: MeetingSpeechPlan?
     var startCallCount = 0
     var startCalls: [StartCall] = []
     var stopCallCount = 0
+    var cancelCallCount = 0
+    var pauseCallCount = 0
+    var muteCallCount = 0
     var startTitles: [String?] = []
     var calendarEventSnapshots: [MeetingCalendarSnapshot?] = []
     private var paused = false
@@ -1187,17 +1691,54 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
     private var captureFailureContinuations: [UUID: AsyncStream<MeetingCaptureFailureSignal>.Continuation] = [:]
     private var startContinuation: CheckedContinuation<Void, Never>?
     private var startObservationContinuations: [CheckedContinuation<Void, Never>] = []
+    private var captureHealthReadReached: XCTestExpectation?
+    private var captureHealthReadContinuation: CheckedContinuation<Void, Never>?
+
+    func blockNextCaptureHealthRead(reached: XCTestExpectation) {
+        captureHealthReadReached = reached
+    }
+
+    func releaseCaptureHealthRead() {
+        captureHealthReadReached = nil
+        captureHealthReadContinuation?.resume()
+        captureHealthReadContinuation = nil
+    }
+
+    var captureHealth: MeetingCaptureHealthSummary {
+        get async {
+            if let reached = captureHealthReadReached {
+                captureHealthReadReached = nil
+                await withCheckedContinuation { continuation in
+                    captureHealthReadContinuation = continuation
+                    reached.fulfill()
+                }
+            }
+            return .notRecording
+        }
+    }
 
     init(
         output: MeetingRecordingOutput,
         activeSpeechEngineSelection: SpeechEngineSelection? = nil,
         activeMeetingSpeechPlan: MeetingSpeechPlan? = nil,
-        blocksStart: Bool = false
+        blocksStart: Bool = false,
+        stopShouldCancel: Bool = false,
+        stopShouldFail: Bool = false,
+        diagnostics: MeetingCaptureDiagnostics? = nil,
+        startShouldFail: Bool = false
     ) {
         self.output = output
         self.activeSpeechEngineSelection = activeSpeechEngineSelection
         self.activeMeetingSpeechPlan = activeMeetingSpeechPlan
         self.blocksStart = blocksStart
+        self.stopShouldCancel = stopShouldCancel
+        self.stopShouldFail = stopShouldFail
+        self.diagnostics = diagnostics
+        self.startShouldFail = startShouldFail
+    }
+
+    func setOutput(_ output: MeetingRecordingOutput) {
+        self.output = output
     }
 
     func startRecording(
@@ -1228,6 +1769,9 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
                 startContinuation = continuation
             }
         }
+        if startShouldFail {
+            throw FlowTestError.finalizationFailed
+        }
     }
 
     func waitUntilStartCalled() async {
@@ -1247,15 +1791,27 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
         stopCallCount += 1
         paused = false
         resetCaptureFailureObservationState()
+        if stopShouldCancel {
+            throw CancellationError()
+        }
+        if stopShouldFail { throw MeetingAudioError.noAudioCaptured }
         return output
     }
 
+    var activeSessionID: UUID? { output.sessionID }
+
+    func captureDiagnostics(for sessionID: UUID) async -> MeetingCaptureDiagnostics? {
+        sessionID == output.sessionID ? diagnostics : nil
+    }
+
     func cancelRecording() async {
+        cancelCallCount += 1
         paused = false
         resetCaptureFailureObservationState()
     }
 
     func pauseRecording() async {
+        pauseCallCount += 1
         paused = true
     }
 
@@ -1264,7 +1820,8 @@ private actor MeetingRecordingServiceSpy: MeetingRecordingServiceProtocol {
     }
 
     func setMicrophoneMuted(_ muted: Bool) async -> MeetingMicrophoneMuteState {
-        MeetingMicrophoneMuteState(isMuted: muted, canMute: true)
+        muteCallCount += 1
+        return MeetingMicrophoneMuteState(isMuted: muted, canMute: true)
     }
 
     func updateNotes(_ notes: String) async {}
@@ -1369,6 +1926,53 @@ private final class ProbableCalendarSnapshotHolder: @unchecked Sendable {
     var snapshot: MeetingCalendarSnapshot?
 }
 
+private final class FlowFinalizationOwnershipClaimer:
+    MeetingFinalizationOwnershipClaiming,
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private let claimError: Error?
+    private(set) var claimedFolderURLs: [URL] = []
+    private(set) var releasedLeaseIDs: [UUID] = []
+
+    init(claimError: Error? = nil) {
+        self.claimError = claimError
+    }
+
+    func claimFinalizationOwnership(
+        folderURL: URL
+    ) throws -> MeetingFinalizationOwnershipLease {
+        if let claimError {
+            throw claimError
+        }
+        return lock.withLock {
+            let standardizedFolderURL = folderURL.standardizedFileURL
+            claimedFolderURLs.append(standardizedFolderURL)
+            let leaseID = UUID()
+            return MeetingFinalizationOwnershipLease(
+                id: leaseID,
+                folderURL: standardizedFolderURL,
+                previousLock: MeetingRecordingLockFile(
+                    sessionId: UUID(),
+                    startedAt: Date(),
+                    pid: 42,
+                    displayName: "Retry meeting",
+                    state: .awaitingTranscription,
+                    folderURL: standardizedFolderURL
+                )
+            )
+        }
+    }
+
+    func releaseFinalizationOwnership(
+        _ lease: MeetingFinalizationOwnershipLease
+    ) throws {
+        lock.withLock {
+            releasedLeaseIDs.append(lease.id)
+        }
+    }
+}
+
 private final class FlowRecordingLockFileStore: MeetingRecordingLockFileStoring, @unchecked Sendable {
     private let lock = NSLock()
     private(set) var deletes: [URL] = []
@@ -1446,6 +2050,7 @@ private struct MeetingOperationPayload: Equatable {
     let durationSeconds: Double?
     let microphoneTrackPresent: Bool?
     let systemTrackPresent: Bool?
+    let captureStartCompleted: Bool?
 }
 
 private extension TelemetryEventSpec {
@@ -1464,6 +2069,8 @@ private extension TelemetryEventSpec {
                 let systemTrackPresent,
                 _,
                 _,
+                _,
+                let captureStartCompleted,
                 _
             ) = self
         else {
@@ -1475,7 +2082,8 @@ private extension TelemetryEventSpec {
             trigger: trigger,
             durationSeconds: durationSeconds,
             microphoneTrackPresent: microphoneTrackPresent,
-            systemTrackPresent: systemTrackPresent
+            systemTrackPresent: systemTrackPresent,
+            captureStartCompleted: captureStartCompleted
         )
     }
 }

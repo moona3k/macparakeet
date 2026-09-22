@@ -29,7 +29,7 @@ public struct SpeakerTurn: Sendable {
 }
 
 /// Per-speaker statistics computed from diarization segments and word timestamps.
-public struct SpeakerStatistics: Sendable {
+public struct SpeakerStatistics: Sendable, Equatable {
     public var speakingTimeMs: Int = 0
     public var wordCount: Int = 0
 
@@ -42,6 +42,20 @@ public struct SpeakerStatistics: Sendable {
 // MARK: - TranscriptSegmenter
 
 public enum TranscriptSegmenter {
+    /// Stable presentation ranges used by timed transcript rendering and speaker editing.
+    /// Keeping this as the single boundary primitive prevents correction mode from
+    /// drifting from the existing punctuation/gap/length segmentation rules.
+    public static func editableWordRanges(words: [WordTimestamp]) -> [TranscriptSegmentWordRange] {
+        segmentBoundaries(words: words).map(\.wordRange)
+    }
+
+    /// Matches the silence boundary used by timed transcript presentation.
+    /// Speaker-correction projections reuse it so reconstructed diarization
+    /// never turns a long pause into speaking time.
+    static func hasSignificantGap(from word: WordTimestamp, to nextWord: WordTimestamp) -> Bool {
+        nextWord.startMs - word.endMs > 1500
+    }
+
     /// Group word timestamps into segments based on punctuation, gaps, and speaker changes.
     public static func groupIntoSegments(words: [WordTimestamp]) -> [TranscriptSegment] {
         segmentBoundaries(words: words).map {
@@ -188,7 +202,9 @@ public enum TranscriptSegmenter {
             }
 
             let endsWithPunctuation = word.word.last.map { ".!?".contains($0) } ?? false
-            let hasLongGap = i + 1 < words.count && (words[i + 1].startMs - word.endMs) > 1500
+            let hasLongGap =
+                i + 1 < words.count
+                && hasSignificantGap(from: word, to: words[i + 1])
             let tooLong = currentWords.count >= 40
 
             if isLast || (endsWithPunctuation && currentWords.count >= 3) || hasLongGap || tooLong {

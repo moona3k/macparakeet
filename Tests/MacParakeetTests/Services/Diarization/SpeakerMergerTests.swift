@@ -6,9 +6,11 @@ final class SpeakerMergerTests: XCTestCase {
     // MARK: - Empty inputs
 
     func testEmptyWords() {
-        let result = SpeakerMerger.mergeWordTimestampsWithSpeakers(words: [], segments: [
-            SpeakerSegment(speakerId: "S1", startMs: 0, endMs: 5000)
-        ])
+        let result = SpeakerMerger.mergeWordTimestampsWithSpeakers(
+            words: [],
+            segments: [
+                SpeakerSegment(speakerId: "S1", startMs: 0, endMs: 5000)
+            ])
         XCTAssertTrue(result.isEmpty)
     }
 
@@ -66,7 +68,7 @@ final class SpeakerMergerTests: XCTestCase {
         // Overlap with S1: 200ms (400-600), overlap with S2: 300ms (600-900)
         // S2 wins.
         let words = [
-            WordTimestamp(word: "split", startMs: 400, endMs: 900, confidence: 0.9),
+            WordTimestamp(word: "split", startMs: 400, endMs: 900, confidence: 0.9)
         ]
         let segments = [
             SpeakerSegment(speakerId: "S1", startMs: 0, endMs: 600),
@@ -81,10 +83,10 @@ final class SpeakerMergerTests: XCTestCase {
 
     func testNoOverlap() {
         let words = [
-            WordTimestamp(word: "gap", startMs: 5000, endMs: 5500, confidence: 0.9),
+            WordTimestamp(word: "gap", startMs: 5000, endMs: 5500, confidence: 0.9)
         ]
         let segments = [
-            SpeakerSegment(speakerId: "S1", startMs: 0, endMs: 1000),
+            SpeakerSegment(speakerId: "S1", startMs: 0, endMs: 1000)
         ]
 
         let result = SpeakerMerger.mergeWordTimestampsWithSpeakers(words: words, segments: segments)
@@ -155,7 +157,7 @@ final class SpeakerMergerTests: XCTestCase {
         // Word spans 500-1000ms. S1: 0-750 (250ms overlap), S2: 750-1500 (250ms overlap)
         // Equal overlap → earlier segment (S1) wins
         let words = [
-            WordTimestamp(word: "tie", startMs: 500, endMs: 1000, confidence: 0.9),
+            WordTimestamp(word: "tie", startMs: 500, endMs: 1000, confidence: 0.9)
         ]
         let segments = [
             SpeakerSegment(speakerId: "S1", startMs: 0, endMs: 750),
@@ -170,7 +172,7 @@ final class SpeakerMergerTests: XCTestCase {
 
     func testPreservesWordContent() {
         let words = [
-            WordTimestamp(word: "Hello", startMs: 0, endMs: 500, confidence: 0.95),
+            WordTimestamp(word: "Hello", startMs: 0, endMs: 500, confidence: 0.95)
         ]
         let segments = [
             SpeakerSegment(speakerId: "S1", startMs: 0, endMs: 1000)
@@ -182,5 +184,90 @@ final class SpeakerMergerTests: XCTestCase {
         XCTAssertEqual(result[0].endMs, 500)
         XCTAssertEqual(result[0].confidence, 0.95)
         XCTAssertEqual(result[0].speakerId, "S1")
+    }
+
+    // MARK: - Isolated assignment smoothing
+
+    func testIsolatedOneWordFlipInheritsNeighborSpeaker() {
+        let words = [
+            WordTimestamp(word: "Hello", startMs: 0, endMs: 400, confidence: 0.9),
+            WordTimestamp(word: "yeah", startMs: 400, endMs: 480, confidence: 0.9),
+            WordTimestamp(word: "there", startMs: 480, endMs: 900, confidence: 0.9),
+        ]
+        let segments = [
+            SpeakerSegment(speakerId: "S1", startMs: 0, endMs: 400),
+            SpeakerSegment(speakerId: "S2", startMs: 400, endMs: 480),
+            SpeakerSegment(speakerId: "S1", startMs: 480, endMs: 900),
+        ]
+
+        let result = SpeakerMerger.mergeWordTimestampsWithSpeakers(words: words, segments: segments)
+        XCTAssertEqual(result.map(\.speakerId), ["S1", "S1", "S1"])
+    }
+
+    func testTwoWordFlipIsNotSmoothed() {
+        let words = [
+            WordTimestamp(word: "A", startMs: 0, endMs: 300, confidence: 0.9),
+            WordTimestamp(word: "B", startMs: 300, endMs: 600, confidence: 0.9),
+            WordTimestamp(word: "C", startMs: 600, endMs: 900, confidence: 0.9),
+            WordTimestamp(word: "D", startMs: 900, endMs: 1200, confidence: 0.9),
+        ]
+        let segments = [
+            SpeakerSegment(speakerId: "S1", startMs: 0, endMs: 300),
+            SpeakerSegment(speakerId: "S2", startMs: 300, endMs: 900),
+            SpeakerSegment(speakerId: "S1", startMs: 900, endMs: 1200),
+        ]
+
+        let result = SpeakerMerger.mergeWordTimestampsWithSpeakers(words: words, segments: segments)
+        XCTAssertEqual(result.map(\.speakerId), ["S1", "S2", "S2", "S1"])
+    }
+
+    func testNilGapBetweenTheSameSpeakerInheritsThatSpeaker() {
+        let words = [
+            WordTimestamp(word: "A", startMs: 0, endMs: 400, confidence: 0.9),
+            WordTimestamp(word: "mid1", startMs: 1200, endMs: 1400, confidence: 0.9),
+            WordTimestamp(word: "mid2", startMs: 1600, endMs: 1800, confidence: 0.9),
+            WordTimestamp(word: "B", startMs: 2500, endMs: 2900, confidence: 0.9),
+        ]
+        let segments = [
+            SpeakerSegment(speakerId: "S1", startMs: 0, endMs: 1000),
+            SpeakerSegment(speakerId: "S1", startMs: 2000, endMs: 4000),
+        ]
+
+        let result = SpeakerMerger.mergeWordTimestampsWithSpeakers(words: words, segments: segments)
+        XCTAssertEqual(result.map(\.speakerId), ["S1", "S1", "S1", "S1"])
+    }
+
+    func testWordInGapBetweenDifferentSpeakersStaysNil() {
+        let words = [
+            WordTimestamp(word: "A", startMs: 0, endMs: 500, confidence: 0.9),
+            WordTimestamp(word: "gap", startMs: 1500, endMs: 2000, confidence: 0.9),
+            WordTimestamp(word: "B", startMs: 3000, endMs: 3500, confidence: 0.9),
+        ]
+        let segments = [
+            SpeakerSegment(speakerId: "S1", startMs: 0, endMs: 1000),
+            SpeakerSegment(speakerId: "S2", startMs: 2500, endMs: 4000),
+        ]
+
+        let result = SpeakerMerger.mergeWordTimestampsWithSpeakers(words: words, segments: segments)
+        XCTAssertEqual(result[0].speakerId, "S1")
+        XCTAssertNil(result[1].speakerId)
+        XCTAssertEqual(result[2].speakerId, "S2")
+    }
+
+    func testSpeakerFlipsAtTranscriptEdgesAreNotSmoothed() {
+        let words = [
+            WordTimestamp(word: "A", startMs: 0, endMs: 300, confidence: 0.9),
+            WordTimestamp(word: "B", startMs: 300, endMs: 600, confidence: 0.9),
+            WordTimestamp(word: "C", startMs: 600, endMs: 900, confidence: 0.9),
+            WordTimestamp(word: "D", startMs: 900, endMs: 1200, confidence: 0.9),
+        ]
+        let segments = [
+            SpeakerSegment(speakerId: "S2", startMs: 0, endMs: 300),
+            SpeakerSegment(speakerId: "S1", startMs: 300, endMs: 900),
+            SpeakerSegment(speakerId: "S2", startMs: 900, endMs: 1200),
+        ]
+
+        let result = SpeakerMerger.mergeWordTimestampsWithSpeakers(words: words, segments: segments)
+        XCTAssertEqual(result.map(\.speakerId), ["S2", "S1", "S1", "S2"])
     }
 }

@@ -1,20 +1,47 @@
 import SwiftUI
 import MacParakeetCore
+import MacParakeetViewModels
 
 private let sharedThumbnailCache = ThumbnailCacheService.shared
 
 /// Thumbnail card for displaying a transcription in a grid layout.
 struct TranscriptionThumbnailCard<MenuContent: View>: View {
     let transcription: Transcription
+    var classification: MeetingClassification? = nil
     var searchText: String = ""
     var isSelected: Bool = false
     var showsSelectionControls: Bool = false
+    var sourceLabelStyle: LibrarySourceLabelStyle = .visible
     var onTap: () -> Void
     @ViewBuilder var menuContent: () -> MenuContent
 
     @State private var hovered = false
 
     var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            cardButton
+
+            if showsUnavailableAudioIndicator {
+                MeetingAudioStateChip(state: .removed)
+                    .padding(8)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .onHover { hovered = $0 }
+        .animation(DesignSystem.Animation.hoverTransition, value: hovered)
+        .onAppear {
+            // If not locally cached, trigger background download so it's cached for next render
+            if sharedThumbnailCache.cachedThumbnail(for: transcription.id) == nil,
+               let urlString = transcription.thumbnailURL {
+                let id = transcription.id
+                Task.detached(priority: .utility) {
+                    _ = try? await ThumbnailCacheService.shared.downloadThumbnail(from: urlString, for: id)
+                }
+            }
+        }
+    }
+
+    private var cardButton: some View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 0) {
                 thumbnailArea
@@ -52,18 +79,6 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
             moreButton
                 .opacity(hovered ? 1 : 0)
                 .allowsHitTesting(hovered)
-        }
-        .onHover { hovered = $0 }
-        .animation(DesignSystem.Animation.hoverTransition, value: hovered)
-        .onAppear {
-            // If not locally cached, trigger background download so it's cached for next render
-            if sharedThumbnailCache.cachedThumbnail(for: transcription.id) == nil,
-               let urlString = transcription.thumbnailURL {
-                let id = transcription.id
-                Task.detached(priority: .utility) {
-                    _ = try? await ThumbnailCacheService.shared.downloadThumbnail(from: urlString, for: id)
-                }
-            }
         }
         .accessibilityValue(showsSelectionControls ? (isSelected ? "Selected" : "Not selected") : "")
         .accessibilityHint(showsSelectionControls ? "Toggles selection" : "Opens transcription")
@@ -147,15 +162,6 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
                         .padding(8)
                 }
             }
-            .overlay(alignment: .bottomLeading) {
-                if transcription.sourceType == .meeting {
-                    let state = MeetingAudioFile.state(for: transcription)
-                    if state != .notMeeting {
-                        MeetingAudioStateChip(state: state)
-                            .padding(8)
-                    }
-                }
-            }
             .clipShape(Rectangle())
     }
 
@@ -175,7 +181,11 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                default:
+                case .empty:
+                    remoteLoadingView
+                case .failure:
+                    placeholderView
+                @unknown default:
                     placeholderView
                 }
             }
@@ -198,32 +208,21 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
     }
 
     private var placeholderView: some View {
+        BranchingRecordingCoverView(recordingID: transcription.id)
+            .id(transcription.id)
+    }
+
+    private var remoteLoadingView: some View {
         ZStack {
             DesignSystem.Colors.surfaceElevated
-
-            if let symbolText = sourceDisplay.symbolText {
-                Text(symbolText)
-                    .font(.system(size: 28, weight: .semibold))
-                    .foregroundStyle(sourceDisplay.tint)
-            } else {
-                Image(systemName: sourceIcon)
-                    .font(.system(size: 28, weight: .light))
-                    .foregroundStyle(DesignSystem.Colors.textTertiary)
-            }
+            ProgressView()
+                .controlSize(.small)
+                .tint(DesignSystem.Colors.textTertiary)
         }
     }
 
     private var displayTitle: String {
         transcription.effectiveDisplayTitle
-    }
-
-    private var sourceIcon: String {
-        if transcription.sourceURL != nil {
-            return sourceDisplay.systemImage
-        }
-        let ext = transcription.filePath.map { URL(fileURLWithPath: $0).pathExtension.lowercased() } ?? ""
-        let videoExts: Set = ["mp4", "mov", "mkv", "avi", "webm", "m4v", "flv", "wmv"]
-        return videoExts.contains(ext) ? "film" : "waveform"
     }
 
     private var sourceDisplay: TranscriptionSourceDisplay {
@@ -234,26 +233,62 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
 
     private var infoArea: some View {
         VStack(alignment: .leading, spacing: 4) {
-            highlightedText(displayTitle)
-                .font(DesignSystem.Typography.bodySmall.weight(.medium))
-                .foregroundStyle(DesignSystem.Colors.textPrimary)
-                .lineLimit(2)
-                .truncationMode(.tail)
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                highlightedText(displayTitle)
+                    .font(DesignSystem.Typography.bodySmall.weight(.medium))
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+                    .layoutPriority(1)
+
+                if transcription.isFavorite {
+                    FavoriteStatusMarker()
+                        .fixedSize()
+                }
+            }
 
             if let channelName = transcription.channelName {
                 highlightedText(channelName)
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(DesignSystem.Colors.textTertiary)
                     .lineLimit(1)
+            }
+
+            HStack(spacing: 6) {
+                // Guarded rather than relying on an EmptyView contributing no
+                // spacing, so a hidden label cannot shift the date 6pt right.
+                if sourceLabelStyle != .hidden {
+                    TranscriptionSourceLabel(source: sourceDisplay, style: sourceLabelStyle)
+                }
 
                 Text(transcription.createdAt.relativeFormatted)
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(DesignSystem.Colors.textTertiary)
-            } else {
-                Text(transcription.createdAt.relativeFormatted)
-                    .font(DesignSystem.Typography.caption)
                     .foregroundStyle(DesignSystem.Colors.textTertiary)
                     .lineLimit(1)
+            }
+            .font(DesignSystem.Typography.caption)
+
+            transcriptionStatus
+
+            if transcription.sourceType == .meeting,
+                MeetingAudioFile.state(for: transcription) == .missing
+            {
+                MeetingAudioStateChip(state: MeetingAudioFile.state(for: transcription))
+            }
+
+            if let partialCapture = MeetingPartialCapturePresentation.make(for: transcription) {
+                Text(partialCapture.badgeText)
+                    .font(DesignSystem.Typography.micro.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.warningAmber)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule()
+                            .fill(DesignSystem.Colors.warningAmber.opacity(0.10))
+                    )
+                    .fixedSize()
+                    .help(partialCapture.message)
+                    .accessibilityLabel(partialCapture.badgeText)
+                    .accessibilityHint(partialCapture.message)
             }
 
             if transcription.recoveredFromCrash {
@@ -262,10 +297,49 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
                     .foregroundStyle(DesignSystem.Colors.warningAmber)
                     .lineLimit(1)
             }
+
+            MeetingClassificationBadges(classification: classification)
         }
         .padding(DesignSystem.Spacing.sm)
+        .padding(.trailing, showsUnavailableAudioIndicator ? 36 : 0)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 80, alignment: .top)
+        .frame(minHeight: 100, alignment: .top)
+    }
+
+    private var showsUnavailableAudioIndicator: Bool {
+        transcription.sourceType == .meeting && MeetingAudioFile.state(for: transcription) == .removed
+    }
+
+    @ViewBuilder
+    private var transcriptionStatus: some View {
+        switch transcription.status {
+        case .processing:
+            HStack(spacing: 5) {
+                ParakeetSpinner(.inline)
+                    .scaleEffect(0.85)
+                    .frame(width: 12, height: 12)
+                Text("Transcribing")
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+            }
+        case .error:
+            HStack(spacing: 5) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.warningAmber)
+                Text("Transcription failed")
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+            }
+            .help(transcription.errorMessage ?? "Transcription failed")
+            .accessibilityHint(transcription.errorMessage ?? "Transcription failed")
+        case .cancelled:
+            Text("Transcription stopped")
+                .font(DesignSystem.Typography.bodySmall)
+                .foregroundStyle(DesignSystem.Colors.textTertiary)
+        case .completed:
+            EmptyView()
+        }
     }
 
     // MARK: - Search Highlighting

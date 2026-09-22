@@ -81,6 +81,26 @@
       "caveat": "English-only build with punctuation/capitalization."
     },
     {
+      "id": "parakeet-orukeet",
+      "name": "Orukeet (Parakeet v3 preview)",
+      "runtime": "FluidAudio CoreML/ANE via macparakeet-cli",
+      "status": "shipping_opt_in",
+      "language_scope": "multilingual",
+      "product_surfaces": [
+        "dictation_final",
+        "meeting_final",
+        "file_media",
+        "performance"
+      ],
+      "cli_flags": [
+        "--engine",
+        "parakeet",
+        "--parakeet-model",
+        "orukeet"
+      ],
+      "caveat": "Optional Parakeet preview. Native streaming, tail preview, and custom vocabulary are off. The 2026-09-21 same-machine comparison against v3 is in docs/research/2026-09-21-orukeet-asr-benchmark.md and is not part of the committed macOS 15 fixture set."
+    },
+    {
       "id": "nemotron-en",
       "name": "Nemotron English 1120ms Beta",
       "runtime": "FluidAudio CoreML/ANE via macparakeet-cli",

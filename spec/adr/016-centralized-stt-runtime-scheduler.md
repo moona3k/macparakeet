@@ -10,7 +10,7 @@
 > Amendment 2026-06-27: Cohere Transcribe routes through the same runtime owner as an opt-in, explicitly downloaded, batch-only FluidAudio CoreML engine. It is allowed for recorded dictation finalization, file transcription, and meeting finalization/retranscribe, but it must not enter live dictation preview or meeting live-chunk paths because it emits no live partials, word timestamps, or speaker labels. Because the Cohere runtime is a single large batch pipeline rather than separate interactive/background managers, the scheduler treats Cohere as a global single-flight resource instead of hiding cross-slot waits inside the engine.
 > Amendment 2026-07-11: GUI routing preferences are split by workflow. `speechRecognitionEngine` remains the dictation engine; `transcriptionSpeechRecognitionEngine` routes file/media/URL jobs and is captured by new meeting leases. Missing workflow state inherits dictation for backward compatibility. Both routes remain inside the single runtime/scheduler control plane.
 > Amendment 2026-07-15: The GUI split is defined by live-vs-final responsibility rather than feature grouping. `speechRecognitionEngine` is Live Speech for dictation and meeting preview. `transcriptionSpeechRecognitionEngine` is an optional Advanced Final Transcription override for post-meeting and file/media work; absence means inheritance. Meetings always lease Live Speech and capture a separate immutable final route.
-> Amendment 2026-07-25: ADR-029 replaces the internal Cohere FluidAudio pipeline with a pinned transcribe.cpp adapter. Runtime ownership, scheduler-wide single-flight admission, workflow routing, cancellation, and the batch-only capability contract are unchanged. The runtime now deterministically drains the native session before releasing its model or deleting model files.
+> Amendment 2026-07-25: ADR-034 replaces the internal Cohere FluidAudio pipeline with a pinned transcribe.cpp adapter. Runtime ownership, scheduler-wide single-flight admission, workflow routing, cancellation, and the batch-only capability contract are unchanged. The runtime now deterministically drains the native session before releasing its model or deleting model files.
 
 ## Context
 
@@ -117,7 +117,7 @@ This means:
 
 - dictation stays responsive even during other work
 - meeting finalization beats live preview
-- file transcription yields to meeting work
+- queued file transcription yields priority to meeting work; already-running file work is not preempted
 - file transcription does not receive dedicated always-on capacity
 
 Meeting recordings use `meetingFinalize` from the background finalization queue after durable stop and during archived retranscribe when the saved folder still contains `meeting-recording-metadata.json` plus the per-source files.
@@ -146,6 +146,9 @@ TranscriptionService -------┘
 ### 6. Backpressure is explicit
 
 Meeting live chunk transcription is best-effort and droppable under backlog.
+The current scheduler caps pending live chunks at 120 by default and drops
+the oldest pending live chunk when another arrives at the limit. Durable
+file/finalization jobs are not dropped by this admission rule.
 
 If the control plane exceeds configured queue or latency thresholds, it may:
 

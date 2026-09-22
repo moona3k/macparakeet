@@ -14,7 +14,9 @@ final class MeetingMonitorTests: XCTestCase {
         meetUrl: String? = "https://zoom.us/j/123",
         participants: [EventParticipant] = [EventParticipant(email: "alice@example.com")],
         userStatus: EventParticipant.ParticipantStatus? = .accepted,
-        isAllDay: Bool = false
+        isAllDay: Bool = false,
+        externalId: String? = nil,
+        isRecurring: Bool = false
     ) -> CalendarEvent {
         let start = referenceDate.addingTimeInterval(seconds)
         let end = start.addingTimeInterval(TimeInterval(durationMinutes * 60))
@@ -26,21 +28,27 @@ final class MeetingMonitorTests: XCTestCase {
             meetUrl: meetUrl,
             participants: participants,
             isAllDay: isAllDay,
-            userStatus: userStatus
+            userStatus: userStatus,
+            externalId: externalId,
+            isRecurring: isRecurring
         )
     }
 
     private func config(
         mode: CalendarAutoStartMode = .notify,
         reminderMinutes: Int = 5,
-        triggerFilter: MeetingTriggerFilter = .withLink
+        triggerFilter: MeetingTriggerFilter = .withLink,
+        skippedOccurrences: Set<String> = [],
+        skippedEvents: Set<String> = []
     ) -> MeetingMonitor.Config {
         MeetingMonitor.Config(
             mode: mode,
             reminderMinutes: reminderMinutes,
             countdownSeconds: 5,
             triggerFilter: triggerFilter,
-            lateJoinGraceMinutes: 10
+            lateJoinGraceMinutes: 10,
+            skippedOccurrences: skippedOccurrences,
+            skippedEvents: skippedEvents
         )
     }
 
@@ -63,7 +71,6 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(mode: .off),
             activeRecording: false,
-            dismissedEventIds: [],
             remindedEventIds: [],
             countdownShownEventIds: []
         )
@@ -81,7 +88,6 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(mode: .notify, reminderMinutes: 0),
             activeRecording: false,
-            dismissedEventIds: [],
             remindedEventIds: [],
             countdownShownEventIds: []
         )
@@ -99,7 +105,6 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(mode: .notify, reminderMinutes: 5),
             activeRecording: false,
-            dismissedEventIds: [],
             remindedEventIds: [],
             countdownShownEventIds: []
         )
@@ -120,7 +125,6 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(mode: .autoStart, reminderMinutes: 0),
             activeRecording: false,
-            dismissedEventIds: [],
             remindedEventIds: [],
             countdownShownEventIds: []
         )
@@ -142,7 +146,6 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(reminderMinutes: 5),
             activeRecording: false,
-            dismissedEventIds: [],
             remindedEventIds: [],
             countdownShownEventIds: []
         )
@@ -159,7 +162,6 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(reminderMinutes: 5),
             activeRecording: false,
-            dismissedEventIds: [],
             remindedEventIds: [],
             countdownShownEventIds: []
         )
@@ -174,7 +176,6 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(reminderMinutes: 5),
             activeRecording: false,
-            dismissedEventIds: [],
             remindedEventIds: [],
             countdownShownEventIds: []
         )
@@ -189,7 +190,6 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(reminderMinutes: 5),
             activeRecording: false,
-            dismissedEventIds: [],
             remindedEventIds: [evt.dedupeKey],
             countdownShownEventIds: []
         )
@@ -212,7 +212,6 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(reminderMinutes: 5),
             activeRecording: false,
-            dismissedEventIds: [],
             remindedEventIds: [oldSlotKey],
             countdownShownEventIds: []
         )
@@ -228,7 +227,6 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(reminderMinutes: 0),
             activeRecording: false,
-            dismissedEventIds: [],
             remindedEventIds: [],
             countdownShownEventIds: []
         )
@@ -245,7 +243,6 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(triggerFilter: .withLink),
             activeRecording: false,
-            dismissedEventIds: [],
             remindedEventIds: [],
             countdownShownEventIds: []
         )
@@ -265,7 +262,6 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(triggerFilter: .withParticipants),
             activeRecording: false,
-            dismissedEventIds: [],
             remindedEventIds: [],
             countdownShownEventIds: []
         )
@@ -280,7 +276,6 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(triggerFilter: .withParticipants),
             activeRecording: false,
-            dismissedEventIds: [],
             remindedEventIds: [],
             countdownShownEventIds: []
         )
@@ -295,7 +290,6 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(triggerFilter: .allEvents),
             activeRecording: false,
-            dismissedEventIds: [],
             remindedEventIds: [],
             countdownShownEventIds: []
         )
@@ -312,7 +306,6 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(triggerFilter: .allEvents),
             activeRecording: false,
-            dismissedEventIds: [],
             remindedEventIds: [],
             countdownShownEventIds: []
         )
@@ -327,22 +320,24 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(),
             activeRecording: false,
-            dismissedEventIds: [],
             remindedEventIds: [],
             countdownShownEventIds: []
         )
         XCTAssertTrue(result.isEmpty)
     }
 
-    func testDismissedEventsAreSkipped() {
+    func testSkippedOccurrenceIsNotEvaluatedButStaysACandidate() {
         let now = Date()
         let evt = event(startsIn: 5 * 60, from: now)
+        let config = config(skippedOccurrences: [evt.dedupeKey])
+        let candidates = MeetingMonitor.candidates(events: [evt], config: config)
+        XCTAssertEqual(candidates.count, 1)
+        XCTAssertEqual(candidates[0].skipScope, .occurrence)
         let result = MeetingMonitor.evaluate(
             events: [evt],
             now: now,
-            config: config(),
+            config: config,
             activeRecording: false,
-            dismissedEventIds: [evt.dedupeKey],
             remindedEventIds: [],
             countdownShownEventIds: []
         )
@@ -359,7 +354,6 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(mode: .autoStart, reminderMinutes: 0),
             activeRecording: false,
-            dismissedEventIds: [],
             remindedEventIds: [],
             countdownShownEventIds: []
         )
@@ -376,7 +370,6 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(mode: .autoStart, reminderMinutes: 0),
             activeRecording: true,
-            dismissedEventIds: [],
             remindedEventIds: [],
             countdownShownEventIds: []
         )
@@ -391,7 +384,6 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(mode: .autoStart, reminderMinutes: 0),
             activeRecording: false,
-            dismissedEventIds: [],
             remindedEventIds: [],
             countdownShownEventIds: [evt.dedupeKey]
         )
@@ -408,7 +400,6 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(mode: .autoStart, reminderMinutes: 0),
             activeRecording: false,
-            dismissedEventIds: [],
             remindedEventIds: [],
             countdownShownEventIds: []
         )
@@ -424,7 +415,6 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(mode: .autoStart, reminderMinutes: 0),
             activeRecording: false,
-            dismissedEventIds: [],
             remindedEventIds: [],
             countdownShownEventIds: []
         )
@@ -441,7 +431,6 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(mode: .notify, reminderMinutes: 5),
             activeRecording: false,
-            dismissedEventIds: [],
             remindedEventIds: [],
             countdownShownEventIds: []
         )
@@ -460,7 +449,6 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(mode: .autoStart, reminderMinutes: 0),
             activeRecording: false,
-            dismissedEventIds: [],
             remindedEventIds: [],
             countdownShownEventIds: []
         )
@@ -476,7 +464,6 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(mode: .autoStart, reminderMinutes: 0),
             activeRecording: false,
-            dismissedEventIds: [],
             remindedEventIds: [],
             countdownShownEventIds: []
         )
@@ -488,16 +475,86 @@ final class MeetingMonitorTests: XCTestCase {
     func testHandlesMultipleEventsIndependently() {
         let now = Date()
         let upcoming = event(id: "upcoming", startsIn: 5 * 60, from: now)
-        let dismissed = event(id: "dismissed", startsIn: 5 * 60, from: now)
+        let skipped = event(id: "skipped", startsIn: 5 * 60, from: now)
         let result = MeetingMonitor.evaluate(
-            events: [upcoming, dismissed],
+            events: [upcoming, skipped],
             now: now,
-            config: config(),
+            config: config(skippedOccurrences: [skipped.dedupeKey]),
             activeRecording: false,
-            dismissedEventIds: [dismissed.dedupeKey],
             remindedEventIds: [],
             countdownShownEventIds: []
         )
         XCTAssertEqual(extractIds(result), ["upcoming"])
+    }
+
+    func testSkippedEventKeyAppliesAfterReschedule() {
+        let now = Date()
+        let original = event(id: "evt-1", startsIn: 5 * 60, from: now, externalId: "ext-1")
+        let moved = CalendarEvent(
+            id: "evt-1",
+            title: "Standup",
+            startTime: now.addingTimeInterval(20 * 60),
+            endTime: now.addingTimeInterval(50 * 60),
+            meetUrl: "https://zoom.us/j/123",
+            participants: [EventParticipant(email: "alice@example.com")],
+            userStatus: .accepted,
+            externalId: "ext-1"
+        )
+        let config = config(
+            mode: .autoStart,
+            reminderMinutes: 0,
+            skippedEvents: [original.eventKey]
+        )
+        XCTAssertTrue(
+            MeetingMonitor.evaluate(
+                events: [moved],
+                now: now.addingTimeInterval(20 * 60),
+                config: config,
+                activeRecording: false,
+                remindedEventIds: [],
+                countdownShownEventIds: []
+            ).isEmpty
+        )
+        XCTAssertEqual(
+            MeetingMonitor.candidates(events: [moved], config: config).first?.skipScope,
+            .event
+        )
+    }
+
+    func testIsRecurringFalseWhenExternalIdPresent() {
+        let evt = event(id: "evt-1", startsIn: 0, from: Date(), externalId: "ext-1")
+        XCTAssertFalse(evt.isRecurring)
+        XCTAssertEqual(evt.eventKey, "ext-1")
+    }
+
+    func testEventLevelSkipWinsOverOccurrence() {
+        let now = Date()
+        let evt = event(startsIn: 5 * 60, from: now, externalId: "series", isRecurring: true)
+        let config = config(
+            skippedOccurrences: [evt.dedupeKey],
+            skippedEvents: [evt.eventKey]
+        )
+        XCTAssertEqual(
+            MeetingMonitor.candidates(events: [evt], config: config).first?.skipScope,
+            .event
+        )
+    }
+
+    func testPrunedOccurrencesKeepUnparseableAndRecentKeys() {
+        let now = Date()
+        let recent = "id|\(Int(now.timeIntervalSinceReferenceDate))"
+        let old = "id|\(Int(now.addingTimeInterval(-20 * 24 * 60 * 60).timeIntervalSinceReferenceDate))"
+        let pruned = CalendarSkip.prunedOccurrences([recent, old, "nofilter"], now: now)
+        XCTAssertEqual(pruned, [recent, "nofilter"])
+    }
+
+    func testCalendarEventDecodesMissingIsRecurringAsFalse() throws {
+        let json = """
+        {"id":"e1","title":"Standup","startTime":0,"endTime":1800,"participants":[],"isAllDay":false,"syncedAt":0}
+        """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .secondsSince1970
+        let decoded = try decoder.decode(CalendarEvent.self, from: Data(json.utf8))
+        XCTAssertFalse(decoded.isRecurring)
     }
 }

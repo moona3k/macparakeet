@@ -3,6 +3,7 @@ import Foundation
 public enum AppPreferences {
     public static let appearanceModeKey = "appearanceMode"
     public static let menuBarOnlyModeKey = "menuBarOnlyMode"
+    public static let showMenuBarIconKey = "showMenuBarIcon"
     public static let telemetryEnabledKey = "telemetryEnabled"
 
     public static func appearanceMode(defaults: UserDefaults = .standard) -> AppAppearanceMode {
@@ -11,6 +12,10 @@ public enum AppPreferences {
 
     public static func isMenuBarOnlyModeEnabled(defaults: UserDefaults = .standard) -> Bool {
         defaults.object(forKey: menuBarOnlyModeKey) as? Bool ?? false
+    }
+
+    public static func isMenuBarIconVisible(defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: showMenuBarIconKey) as? Bool ?? true
     }
 
     public static func isTelemetryEnabled(defaults: UserDefaults = .standard) -> Bool {
@@ -65,6 +70,16 @@ public enum CalendarAutoStartPreferences {
     /// Stored as the inverse so a fresh install / new calendar account is
     /// included by default — users opt out, not in.
     public static let excludedCalendarIdsKey = "CalendarAutoStart.excludedCalendarIds"
+    public static let skippedOccurrencesKey = "CalendarAutoStart.skippedOccurrences"
+    public static let skippedEventsKey = "CalendarAutoStart.skippedEvents"
 
     public static let defaultReminderMinutes = 5
+
+    public static func skippedOccurrences(defaults: UserDefaults) -> Set<String> {
+        Set(defaults.stringArray(forKey: skippedOccurrencesKey) ?? [])
+    }
+
+    public static func skippedEvents(defaults: UserDefaults) -> Set<String> {
+        Set(defaults.stringArray(forKey: skippedEventsKey) ?? [])
+    }
 }

@@ -2,66 +2,51 @@ import XCTest
 @testable import MacParakeet
 
 final class DictationHistoryViewTests: XCTestCase {
-    func testShortDictationTextHasNoCollapsedLineLimit() {
-        let text = "Send the launch notes to Sarah before standup."
-
-        XCTAssertFalse(DictationTranscriptPresentation.isExpandable(text))
-        XCTAssertNil(DictationTranscriptPresentation.lineLimit(for: text, isExpanded: false))
-    }
-
-    func testLongDictationTextCollapsesToPreviewLineLimit() {
-        let text = Array(repeating: "This is a longer dictated note that should stay compact in the history list.", count: 5)
-            .joined(separator: " ")
-
-        XCTAssertTrue(DictationTranscriptPresentation.isExpandable(text))
-        XCTAssertEqual(
-            DictationTranscriptPresentation.lineLimit(for: text, isExpanded: false),
-            DictationTranscriptPresentation.collapsedLineLimit
-        )
-    }
-
-    func testExpandedLongDictationTextRemovesLineLimit() {
-        let text = Array(repeating: "Expanded text should be readable and selectable inside the note.", count: 6)
-            .joined(separator: " ")
-
-        XCTAssertTrue(DictationTranscriptPresentation.isExpandable(text))
-        XCTAssertNil(DictationTranscriptPresentation.lineLimit(for: text, isExpanded: true))
-    }
-
-    func testLongDictationTextDoesNotCollapseWithoutToggleSupport() {
-        let text = Array(repeating: "This is a longer dictated note that cannot be expanded in this context.", count: 5)
-            .joined(separator: " ")
-
-        XCTAssertFalse(DictationTranscriptPresentation.isExpandable(text, canToggleExpansion: false))
-        XCTAssertNil(
-            DictationTranscriptPresentation.lineLimit(
-                for: text,
-                isExpanded: false,
-                canToggleExpansion: false
+    func testFullyVisibleTranscriptNeedsNoExpansionControl() {
+        XCTAssertFalse(
+            DictationTranscriptPresentation.isExpandable(
+                fullHeight: 42,
+                collapsedHeight: 42
             )
         )
     }
 
-    func testMultiParagraphDictationTextIsExpandableEvenWhenBrief() {
-        let text = """
-        First thought.
-        Second thought.
-        Third thought.
-        Fourth thought.
-        """
-
-        XCTAssertTrue(DictationTranscriptPresentation.isExpandable(text))
-        XCTAssertEqual(
-            DictationTranscriptPresentation.lineLimit(for: text, isExpanded: false),
-            DictationTranscriptPresentation.collapsedLineLimit
+    func testTranscriptTallerThanCollapsedPreviewCanExpand() {
+        XCTAssertTrue(
+            DictationTranscriptPresentation.isExpandable(
+                fullHeight: 84,
+                collapsedHeight: 42
+            )
         )
     }
 
-    func testWindowsLineEndingsDoNotDoubleCountParagraphBreaks() {
-        let text = "First paragraph.\r\nSecond paragraph.\r\nThird paragraph."
+    func testSubPointMeasurementNoiseDoesNotOfferExpansion() {
+        XCTAssertFalse(
+            DictationTranscriptPresentation.isExpandable(
+                fullHeight: 42.4,
+                collapsedHeight: 42
+            )
+        )
+    }
 
-        XCTAssertFalse(DictationTranscriptPresentation.isExpandable(text))
-        XCTAssertNil(DictationTranscriptPresentation.lineLimit(for: text, isExpanded: false))
+    func testTranscriptDoesNotCollapseWithoutToggleSupport() {
+        XCTAssertFalse(
+            DictationTranscriptPresentation.isExpandable(
+                fullHeight: 84,
+                collapsedHeight: 42,
+                canToggleExpansion: false
+            )
+        )
+        XCTAssertNil(
+            DictationTranscriptPresentation.previewLineLimit(canToggleExpansion: false)
+        )
+    }
+
+    func testToggleSupportUsesThreeLinePreviewWhileMeasuring() {
+        XCTAssertEqual(
+            DictationTranscriptPresentation.previewLineLimit(canToggleExpansion: true),
+            DictationTranscriptPresentation.collapsedLineLimit
+        )
     }
 
     func testExpandedViewportDoesNotForceCapBeforeContentIsMeasured() {
@@ -91,7 +76,8 @@ final class DictationHistoryViewTests: XCTestCase {
     }
 
     func testExpandedTextChangesStayCappedWhileRemeasuring() {
-        let pendingHeight = DictationTranscriptPresentation
+        let pendingHeight =
+            DictationTranscriptPresentation
             .resetMeasuredExpandedContentHeight(isCurrentlyExpanded: true)
 
         XCTAssertEqual(

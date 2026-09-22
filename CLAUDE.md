@@ -21,6 +21,7 @@
   instruction only matters to Claude Code.
 - If a rule must be enforced rather than merely suggested, prefer tests,
   scripts, hooks, or product code over another instruction line.
+- Do not add Cursor or other assistant `Co-authored-by` trailers.
 
 ## Local-State Cautions
 

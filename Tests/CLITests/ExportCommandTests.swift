@@ -1,4 +1,5 @@
 import ArgumentParser
+import GRDB
 import XCTest
 @testable import CLI
 @testable import MacParakeetCore
@@ -94,6 +95,70 @@ final class ExportCommandTests: XCTestCase {
         XCTAssertTrue(output.contains("<p>CLI DAPT transcript.</p>"))
     }
 
+    func testJSONStdoutUsesEffectiveSpeakerProjectionAndMetadata() async throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let manager = try DatabaseManager(path: dbURL.path)
+        let repository = TranscriptionRepository(dbQueue: manager.dbQueue)
+        let transcription = Transcription(
+            fileName: "corrected.mp3",
+            rawTranscript: "Hello.",
+            wordTimestamps: [
+                WordTimestamp(word: "Hello.", startMs: 0, endMs: 500, confidence: 1, speakerId: "S1")
+            ],
+            speakerCount: 1,
+            speakers: [SpeakerInfo(id: "S1", label: "Speaker 1")],
+            transcriptSegments: [TranscriptSegmentRecord(
+                startMs: 0,
+                endMs: 500,
+                speakerId: "S1",
+                speakerLabel: "Speaker 1",
+                text: "Hello.",
+                wordRange: .init(startIndex: 0, endIndexExclusive: 1)
+            )],
+            status: .completed
+        )
+        try repository.save(transcription)
+        let fingerprint = SpeakerAttributionResolver.fingerprint(for: transcription)
+        _ = try await SpeakerCorrectionService(dbQueue: manager.dbQueue).apply(
+            transcriptionId: transcription.id,
+            command: .rename(speakerID: "S1", label: "Dana"),
+            expectedFingerprint: fingerprint,
+            expectedRevision: 0
+        )
+        let command = try ExportCommand.parse([
+            transcription.id.uuidString,
+            "--format", "json",
+            "--stdout",
+            "--database", dbURL.path,
+        ])
+
+        let output = try await captureStandardOutput { try await command.run() }
+        let payload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any]
+        )
+        let speakers = try XCTUnwrap(payload["speakers"] as? [[String: Any]])
+        XCTAssertEqual(speakers.first?["label"] as? String, "Dana")
+        XCTAssertEqual(payload["speakerCorrectionsApplied"] as? Bool, true)
+        XCTAssertEqual(payload["speakerCorrectionRevision"] as? Int, 1)
+        let txt = try ExportCommand.parse([
+            transcription.id.uuidString, "--format", "txt", "--stdout", "--database", dbURL.path
+        ])
+        let text = try await captureStandardOutput { try await txt.run() }
+        XCTAssertTrue(text.contains("Dana"))
+        XCTAssertFalse(text.contains("Speaker 1"))
+        XCTAssertTrue(text.contains("Hello."))
+        let prompt = Prompt(name: "Speaker identity regression", content: "Echo the transcript.")
+        try PromptRepository(dbQueue: manager.dbQueue).save(prompt)
+        let run = try PromptsCommand.RunSubcommand.parse([
+            prompt.id.uuidString, "--transcription", transcription.id.uuidString,
+            "--provider", "cli", "--command", "/bin/cat", "--no-store", "--database", dbURL.path
+        ])
+        let context = try await captureStandardOutput { try await run.run() }
+        XCTAssertTrue(context.contains("Dana:"))
+        XCTAssertFalse(context.contains("Speaker 1:"))
+    }
+
     func testJSONStdoutEmitsFailureEnvelopeForLookupMiss() async throws {
         let dbURL = temporaryDatabaseURL()
         defer { try? FileManager.default.removeItem(at: dbURL) }
@@ -122,6 +187,73 @@ final class ExportCommandTests: XCTestCase {
         XCTAssertEqual(object["ok"] as? Bool, false)
         XCTAssertEqual(object["errorType"] as? String, "lookup")
         XCTAssertTrue((object["error"] as? String)?.contains("No transcription matching") == true)
+    }
+
+    func testJSONStdoutDoesNotExportPopulatedVoiceprintTables() async throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let manager = try DatabaseManager(path: dbURL.path)
+        let repository = TranscriptionRepository(dbQueue: manager.dbQueue)
+        let speaker = SpeakerInfo(id: "system:S1", label: "Others 1")
+        let enrollment = Transcription(
+            fileName: "enrollment.wav", speakerCount: 1, speakers: [speaker],
+            status: .completed, sourceType: .meeting
+        )
+        let meeting = Transcription(
+            fileName: "export.wav", rawTranscript: "Visible meeting transcript.",
+            speakerCount: 1, speakers: [speaker], status: .completed, sourceType: .meeting
+        )
+        try repository.save(enrollment)
+        try repository.save(meeting)
+        let command = try ExportCommand.parse([
+            meeting.id.uuidString, "--format", "json", "--stdout", "--database", dbURL.path,
+        ])
+        let before = try await captureStandardOutput { try await command.run() }
+
+        let voiceprints = SpeakerVoiceprintService(
+            profiles: SpeakerProfileRepository(dbQueue: manager.dbQueue),
+            candidates: SpeakerEmbeddingCandidateRepository(dbQueue: manager.dbQueue),
+            journal: SpeakerMatchJournalRepository(dbQueue: manager.dbQueue),
+            isEnabled: { true }
+        )
+        let embedding = try XCTUnwrap(SpeakerEmbedding(
+            rawVector: [1] + [Float](repeating: 0, count: SpeakerEmbedding.dimension - 1),
+            identity: SpeakerModelIdentity(
+                embeddingModelId: "private-cli-voice-model", aggregationProfileId: "private-cli-voice-config"
+            )
+        ))
+        let observation = SpeakerClusterObservation(
+            speakerId: speaker.id, embedding: embedding, speechSeconds: 30, captureDomain: .system
+        )
+        _ = try await voiceprints.enroll(
+            displayName: "PrivateCLIProfileName", observation: observation,
+            transcriptionId: enrollment.id,
+            fingerprint: SpeakerAttributionResolver.fingerprint(for: enrollment),
+            allowMergeIntoExistingName: false
+        )
+        let suggestions = try await voiceprints.evaluate(
+            transcriptionId: meeting.id,
+            fingerprint: SpeakerAttributionResolver.fingerprint(for: meeting), clusters: [observation]
+        )
+        let suggestion = try XCTUnwrap(suggestions.first)
+        try await manager.dbQueue.read { db in
+            for table in [
+                "speaker_profiles", "speaker_profile_exemplars", "speaker_profile_links",
+                "speaker_match_journal", "speaker_embedding_candidates",
+            ] {
+                XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM \(table)"), 1, table)
+            }
+        }
+
+        let after = try await captureStandardOutput { try await command.run() }
+        XCTAssertEqual(after, before, "Voiceprint storage must not change the CLI's public JSON projection")
+        XCTAssertTrue(after.contains("Visible meeting transcript."))
+        for secret in [
+            "PrivateCLIProfileName", "private-cli-voice-model", "private-cli-voice-config",
+            suggestion.profileId.uuidString, embedding.data.base64EncodedString(),
+        ] {
+            XCTAssertFalse(after.contains(secret), secret)
+        }
     }
 
     @MainActor func testExportToTxtWritesFile() throws {

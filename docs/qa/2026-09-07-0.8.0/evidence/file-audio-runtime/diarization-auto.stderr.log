@@ -1,0 +1,64 @@
+Transcribing two-public-speakers.wav with parakeet...
+Converting audio...
+Preparing speech model...
+[15:30:03.540] [INFO] [FluidAudio.AsrModels] Downloading ASR models to: <QA_ROOT>/isolated-home/Library/Application Support/FluidAudio/Models/parakeet-tdt-0.6b-v3
+[15:30:03.554] [INFO] [FluidAudio.AsrModels] ASR models already present at: <QA_ROOT>/isolated-home/Library/Application Support/FluidAudio/Models/parakeet-tdt-0.6b-v3
+[15:30:03.554] [INFO] [FluidAudio.AsrModels] Loading ASR models from: <QA_ROOT>/isolated-home/Library/Application Support/FluidAudio/Models/parakeet-tdt-0.6b-v3
+[15:30:03.587] [INFO] [FluidAudio.DownloadUtils] Host environment: macOS Version 26.6.2 (Build 25G83), arch=arm64, chip=Apple M4 Pro, cores=14/14, mem=48 GB, rosetta=false
+[15:30:03.587] [INFO] [FluidAudio.DownloadUtils] Found parakeet-tdt-0.6b-v3 locally, no download needed
+[15:30:03.701] [INFO] [FluidAudio.DownloadUtils] Compiled model Preprocessor.mlmodelc in 112.59 ms :: macOS Version 26.6.2 (Build 25G83), arch=arm64, chip=Apple M4 Pro, cores=14/14, mem=48 GB, rosetta=false
+[15:30:03.701] [INFO] [FluidAudio.AsrModels] Loaded Preprocessor.mlmodelc with compute units: cpuOnly
+[15:30:03.701] [INFO] [FluidAudio.DownloadUtils] Found parakeet-tdt-0.6b-v3 locally, no download needed
+[15:30:28.833] [INFO] [FluidAudio.DownloadUtils] Compiled model Encoder.mlmodelc in 25130.41 ms :: macOS Version 26.6.2 (Build 25G83), arch=arm64, chip=Apple M4 Pro, cores=14/14, mem=48 GB, rosetta=false
+[15:30:28.833] [INFO] [FluidAudio.AsrModels] Loaded Encoder.mlmodelc with compute units: cpuAndNeuralEngine
+[15:30:28.833] [INFO] [FluidAudio.DownloadUtils] Found parakeet-tdt-0.6b-v3 locally, no download needed
+[15:30:28.994] [INFO] [FluidAudio.DownloadUtils] Compiled model Decoder.mlmodelc in 160.78 ms :: macOS Version 26.6.2 (Build 25G83), arch=arm64, chip=Apple M4 Pro, cores=14/14, mem=48 GB, rosetta=false
+[15:30:28.994] [INFO] [FluidAudio.DownloadUtils] Found parakeet-tdt-0.6b-v3 locally, no download needed
+[15:30:29.108] [INFO] [FluidAudio.DownloadUtils] Compiled model JointDecisionv3.mlmodelc in 113.08 ms :: macOS Version 26.6.2 (Build 25G83), arch=arm64, chip=Apple M4 Pro, cores=14/14, mem=48 GB, rosetta=false
+[15:30:29.108] [INFO] [FluidAudio.AsrModels] Loaded JointDecisionv3.mlmodelc
+[15:30:29.117] [INFO] [FluidAudio.AsrModels] Loaded vocabulary with 8192 tokens from <QA_ROOT>/isolated-home/Library/Application Support/FluidAudio/Models/parakeet-tdt-0.6b-v3/parakeet_vocab.json
+[15:30:29.117] [INFO] [FluidAudio.AsrModels] Successfully loaded all ASR models with optimized compute units
+[15:30:29.117] [INFO] [FluidAudio.ASR] Loading AsrManager with provided models
+[15:30:29.117] [INFO] [FluidAudio.ASR] AsrManager loaded successfully with provided models
+[15:30:29.117] [INFO] [FluidAudio.ASR] Loading AsrManager with provided models
+[15:30:29.117] [INFO] [FluidAudio.ASR] AsrManager loaded successfully with provided models
+Transcribing... 0%
+[15:30:29.120] [DEBUG] [FluidAudio.ChunkProcessor] ChunkProcessor using worker pool of size 4
+Transcribing... 66%
+Transcribing... 99%
+Identifying speakers...
+[15:30:29.376] [INFO] [FluidAudio.OfflineDiarizerModels] Loading offline diarization models from <QA_ROOT>/isolated-home/Library/Application Support/FluidAudio/Models
+[15:30:29.377] [INFO] [FluidAudio.DownloadUtils] Found speaker-diarization locally, no download needed
+[15:30:29.847] [INFO] [FluidAudio.DownloadUtils] Compiled model Segmentation.mlmodelc in 469.87 ms :: macOS Version 26.6.2 (Build 25G83), arch=arm64, chip=Apple M4 Pro, cores=14/14, mem=48 GB, rosetta=false
+[15:30:30.542] [INFO] [FluidAudio.DownloadUtils] Compiled model Embedding.mlmodelc in 695.37 ms :: macOS Version 26.6.2 (Build 25G83), arch=arm64, chip=Apple M4 Pro, cores=14/14, mem=48 GB, rosetta=false
+[15:30:30.652] [INFO] [FluidAudio.DownloadUtils] Compiled model PldaRho.mlmodelc in 109.50 ms :: macOS Version 26.6.2 (Build 25G83), arch=arm64, chip=Apple M4 Pro, cores=14/14, mem=48 GB, rosetta=false
+[15:30:30.652] [INFO] [FluidAudio.DownloadUtils] Found speaker-diarization locally, no download needed
+[15:30:30.756] [INFO] [FluidAudio.DownloadUtils] Compiled model FBank.mlmodelc in 102.68 ms :: macOS Version 26.6.2 (Build 25G83), arch=arm64, chip=Apple M4 Pro, cores=14/14, mem=48 GB, rosetta=false
+[15:30:30.756] [INFO] [FluidAudio.OfflineDiarizerModels] Offline diarization models ready (compile: 1.379s, computeUnits: segmentation/embedding/plda=.all, fbank=.cpuOnly)
+[15:30:30.756] [INFO] [FluidAudio.OfflineDiarizer] Offline diarizer models initialized
+[15:30:30.759] [DEBUG] [FluidAudio.AudioSourceFactory] Streaming conversion 16000.0Hz×1ch → 16000.0Hz×1ch
+[15:30:30.761] [DEBUG] [FluidAudio.AudioSourceFactory] Streaming audio temp file size=1450240 bytes
+[15:30:30.761] [DEBUG] [FluidAudio.AudioSourceFactory] Streaming audio total samples=362560
+[15:30:30.762] [DEBUG] [FluidAudio.OfflineSegmentation] Offline segmentation: chunkSize=160000, stepSize=16000, totalSamples=362560
+[15:30:30.762] [DEBUG] [FluidAudio.OfflineEmbedding] Offline embedding configured with FBANK input audio[1×1×160000] → fbank_features; embedding consumes fbank_features + weights[1×589] (frames=589), maxBatch=32, output=embedding
+[15:30:30.978] [DEBUG] [FluidAudio.OfflineSegmentation] Chunk 0 speaker frame counts: [0, 589, 0]
+[15:30:31.043] [DEBUG] [FluidAudio.OfflineSegmentation] Segmentation histogram: speechFrames=9009 totalFrames=13547 speechRatio=0.665 avgNonSpeechProb=0.335
+[15:30:31.043] [DEBUG] [FluidAudio.OfflineSegmentation] Segmentation mask speech frames = 9012 / 13547 (ratio=0.665, speechSeconds≈153.0s)
+[15:30:31.043] [DEBUG] [FluidAudio.OfflineSegmentation] Winning speaker probability stats: count=9009, avg=0.967, min=0.488, max=1.000
+[15:30:31.043] [DEBUG] [FluidAudio.OfflineSegmentation] Winning probability distribution ≥0.500:9006, ≥0.700:8814, ≥0.800:8473, ≥0.900:8145, ≥0.950:7631, ≥0.980:6862, ≥0.990:6168, ≥0.995:5306, ≥0.999:2850
+[Profiling] Segmentation timings: windows=23 prepareTotal=1.03ms (perWindow=0.0447ms) predictionTotal=161.19ms (perWindow=7.0082ms)
+[15:30:31.043] [DEBUG] [FluidAudio.OfflineSegmentation] Empty-class probability on speech frames: avg=0.023
+[15:30:31.043] [DEBUG] [FluidAudio.OfflineSegmentation] Segmentation timings: windows=23 prepareTotal=1.03ms (perWindow=0.0447ms) predictionTotal=161.19ms (perWindow=7.0082ms)
+[Profiling] Embedding timings: fbankTotal=21.49ms (perWindow=0.934ms), maskPrepTotal=2.13ms (perEval=0.031ms), resampleTotal=0.02ms (perValid=0.001ms), embeddingTotal=107.66ms (perValid=4.681ms), pldaTotal=0.99ms (perValid=0.043ms), batches(fbank=1, plda=1)
+[15:30:31.184] [DEBUG] [FluidAudio.OfflineEmbedding] Embedding masks generated: 23 (meanActiveFrames=379.78, fallbackMasks=0, emptyMasks=46)
+[15:30:31.184] [DEBUG] [FluidAudio.OfflineEmbedding] Embedding timings: fbankTotal=21.49ms (perWindow=0.934ms), maskPrepTotal=2.13ms (perEval=0.031ms), resampleTotal=0.02ms (perValid=0.001ms), embeddingTotal=107.66ms (perValid=4.681ms), pldaTotal=0.99ms (perValid=0.043ms), batches(fbank=1, plda=1)
+[15:30:31.184] [DEBUG] [FluidAudio.OfflineDiarizer] Segmentation completed in 0.2816120386123657s (async)
+[15:30:31.184] [DEBUG] [FluidAudio.OfflineDiarizer] Embedding extraction produced 23 vectors in 0.42253804206848145s (async)
+[15:30:31.185] [DEBUG] [FluidAudio.OfflineDiarizer] Clustering will use 23/23 embeddings (NaN filtered)
+[15:30:31.186] [DEBUG] [FluidAudio.OfflineVBx] VBx warm start clusters: 4 histogram: [1: 10, 2: 3, 3: 2, 0: 8]
+[15:30:31.187] [DEBUG] [FluidAudio.OfflineVBx] VBx mixture weights – min: 2.719115541864124e-18, max: 0.5662233354902191, count: 4
+[15:30:31.187] [DEBUG] [FluidAudio.OfflineDiarizer] Clustering completed in 0.0027559995651245117s with 3 centroids (assignment histogram: [1: 13, 2: 2, 0: 8])
+[15:30:31.187] [DEBUG] [FluidAudio.OfflineEmbedding] Offline embedding configured with FBANK input audio[1×1×160000] → fbank_features; embedding consumes fbank_features + weights[1×589] (frames=589), maxBatch=32, output=embedding
+[15:30:31.208] [DEBUG] [FluidAudio.OfflineReconstruction] Speaker-count histogram 0:720, 1:1165
+[15:30:31.246] [INFO] [FluidAudio.ASR] AsrManager resources cleaned up
+[15:30:31.256] [INFO] [FluidAudio.ASR] AsrManager resources cleaned up

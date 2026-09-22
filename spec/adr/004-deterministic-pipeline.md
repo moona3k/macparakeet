@@ -2,7 +2,7 @@
 
 > Status: **Accepted**
 > Date: 2026-02-08
-> Note: Core decision (deterministic pipeline for default processing) unchanged and strengthened. LLM-powered modes (formal, email, code, command) referenced below were removed 2026-02-23 — only raw and clean modes remain. Amendment: the pipeline is now five steps after the Voice Return/trailing-action step shipped.
+> Note: The deterministic-over-LLM cleanup decision is unchanged. LLM-powered modes (formal, email, code, command) were removed 2026-02-23 — only Raw and Clean remain. The pipeline is now five steps after Voice Return/trailing-action extraction shipped. Current defaults differ from the original proposal: `AppRuntimePreferences.processingMode` defaults to Raw, which bypasses cleanup but still extracts configured terminal actions.
 
 ## Context
 
@@ -21,14 +21,14 @@ Two approaches exist for this cleanup:
 
 ## Decision
 
-Use a **deterministic 5-step pipeline** for the default "clean" processing mode. Only two modes exist: raw (verbatim) and clean (5-step pipeline).
+Use a **deterministic 5-step pipeline** for Clean processing rather than an implicit LLM refinement pass. Only two modes exist: Raw (default; no cleanup except terminal action extraction) and Clean (5-step pipeline).
 
 ### Pipeline Steps (in order)
 
 | Step | What It Does | Example |
 |------|-------------|---------|
-| 1. Filler removal | Strip only always-safe hesitation sounds | "uh the API" -> "the API" |
-| 2. Custom word replacement | User-defined vocabulary anchors and corrections | "kube" -> "Kubernetes", "mac parakeet" -> "MacParakeet" |
+| 1. Filler removal | Strip always-safe hesitation sounds; standalone `um` on by default, opt-out for Portuguese/German | "I um think" -> "I think" |
+| 2. Custom word replacement | User-defined replacement corrections | "kube" -> "Kubernetes", "mac parakeet" -> "MacParakeet" |
 | 3. Trailing action extraction | Strip terminal action-snippet triggers and surface a post-paste action | "send this press return" -> text plus Return action |
 | 4. Snippet expansion | Trigger phrase text expansion | "my address" -> "123 Main St, Springfield, IL 62704" |
 | 5. Whitespace cleanup | Collapse spaces and fix punctuation spacing | "hello   world ." -> "hello world." |
@@ -37,8 +37,8 @@ Use a **deterministic 5-step pipeline** for the default "clean" processing mode.
 
 | Mode | Pipeline | LLM | Latency | Use Case |
 |------|----------|-----|---------|----------|
-| Raw | None | No | 0ms | Verbatim transcription |
-| **Clean (default)** | **5-step** | **No** | **<5ms** | **General dictation** |
+| Raw (default) | Terminal action extraction only | No | Minimal | Preserve speech-engine text except configured action triggers |
+| **Clean** | **5-step** | **No** | **<5ms target** | **Deterministic dictation cleanup** |
 
 > Note: Formal, Email, Code, and Command modes were removed 2026-02-23 when local LLM (Qwen3-8B) was eliminated. LLM features are now accessed via dedicated service methods (summarize, chat), not processing modes.
 
@@ -70,13 +70,13 @@ Dictation is a real-time workflow. Users speak, pause, and expect their words to
 | Paste to app | ~10ms |
 | **Total** | **<600ms target** |
 
-The deterministic pipeline runs in under 5ms. LLM-based formatting or Transforms can add seconds depending on provider latency. That latency is acceptable only when the user explicitly opts into an LLM surface, and unacceptable for the default deterministic cleanup stage.
+The deterministic pipeline has a sub-5ms latency target. LLM-based formatting or Transforms can add seconds depending on provider latency. That latency is acceptable only when the user explicitly opts into an LLM surface, not as an implicit cleanup stage.
 
 ### User control via custom words and snippets
 
-The deterministic pipeline includes two user-configurable features:
+The deterministic pipeline includes three user-configurable features:
 
-- **Custom words**: Users define vocabulary anchors (ensure "PostgreSQL" not "post gress q l") and corrections (always replace "kube" with "Kubernetes"). These are predictable and immediate.
+- **Custom words**: Users define replacement corrections (for example, replace "kube" with "Kubernetes"). Entries with nil or blank replacement still participate in this deterministic step: case-insensitive matches are replaced with the stored word, restoring its casing. Those entries also supply recognition-time anchors to the separate, opt-in STT sidecar described in [the engine spec](../06-stt-engine.md); the sidecar is not required for casing correction.
 - **Text snippets**: Users define natural language trigger phrases ("my address" expands to their full address, "my signature" expands to their email sign-off). Triggers are spoken phrases — not abbreviations — because STT outputs natural speech. These are instant and deterministic.
 - **Trailing action snippets**: Users can attach a post-paste action such as Voice Return to one or more terminal trigger phrases. The pipeline strips the trigger before normal snippet expansion and surfaces the action to the paste layer.
 
@@ -86,7 +86,7 @@ An LLM-based approach would require prompt engineering to respect user-defined w
 
 ### Positive
 
-- Default "clean" mode adds <5ms latency -- effectively instant
+- Clean mode targets <5ms latency without an LLM call
 - Behavior is 100% predictable and deterministic
 - Users can customize via custom words and snippets
 - No LLM loading overhead for basic dictation

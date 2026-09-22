@@ -1,0 +1,61 @@
+Using Git helper commands from /opt/homebrew/opt/git/libexec/git-core for xcodebuild package resolution.
+[1/4] Building via xcodebuild (Release)…
+2026-09-07 16:24:38.834 xcodebuild[96304:12298673] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:macOS, arch:arm64, id:<LOCAL_MAC>, name:My Mac }
+{ platform:macOS, arch:arm64, variant:Mac Catalyst, id:<LOCAL_MAC>, name:My Mac }
+{ platform:macOS, arch:arm64, variant:DriverKit, id:<LOCAL_MAC>, name:My Mac }
+{ platform:macOS, arch:arm64, variant:Designed for [iPad,iPhone], id:<LOCAL_MAC>, name:My Mac }
+[2/4] Assembling app bundle…
+[0/1] Planning build
+Building for production...
+[0/2] Write swift-version--58304C5D6DBC2206.txt
+[1/4] Write sources
+[4/5] Compiling MacParakeetCore AppFeatures.swift
+<REPO>/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:55:27: warning: 'is' test is always true
+ 53 |             // A custom description can contain user content, even when it looks
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+    |                           `- warning: 'is' test is always true
+ 56 |                 !(error is any CustomDebugStringConvertible)
+ 57 |             else { return typeName }
+
+<REPO>/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:56:25: warning: 'is' test is always true
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+ 56 |                 !(error is any CustomDebugStringConvertible)
+    |                         `- warning: 'is' test is always true
+ 57 |             else { return typeName }
+ 58 |             let described = String(describing: error)
+[5/6] Compiling CLI AudioInputDiagnostics.swift
+[5/7] Write Objects.LinkFileList
+[6/7] Linking macparakeet-cli
+Build of product 'macparakeet-cli' complete! (74.52s)
+Bundled CLI: <REPO>/dist/MacParakeet.app/Contents/MacOS/macparakeet-cli
+Bundled FFmpeg from: <QA>/candidate-3827999d/MacParakeet.app/Contents/Resources/ffmpeg
+Bundled yt-dlp from: <QA>/candidate-3827999d/MacParakeet.app/Contents/Resources/yt-dlp
+Bundling Node.js 24.13.1…
+Preparing bundled meeting echo assets in <REPO>/.build/meeting-echo-assets
+Meeting echo model already present: <REPO>/.build/meeting-echo-assets/model/localvqe-v1.4-aec-200K-f32.gguf
+Meeting echo runtime already present: <REPO>/.build/meeting-echo-assets/lib/liblocalvqe.dylib
+Prepared meeting echo runtime: <REPO>/.build/meeting-echo-assets/lib/liblocalvqe.dylib
+Prepared meeting echo model: <REPO>/.build/meeting-echo-assets/model/localvqe-v1.4-aec-200K-f32.gguf
+Meeting echo model SHA256: b6e43138588a83bfe903ab5e143b4020b91c1e1629f5a575ac5855ff0003c731
+Meeting echo model SHA256 verified: b6e43138588a83bfe903ab5e143b4020b91c1e1629f5a575ac5855ff0003c731
+Bundled meeting echo runtime: <REPO>/dist/MacParakeet.app/Contents/Frameworks/liblocalvqe.dylib
+Bundled meeting echo model: <REPO>/dist/MacParakeet.app/Contents/Resources/MeetingEchoSuppression/localvqe-v1.4-aec-200K-f32.gguf
+Meeting echo model SHA256 verified: b6e43138588a83bfe903ab5e143b4020b91c1e1629f5a575ac5855ff0003c731
+Meeting echo assets verified: localvqe-v1.4-aec-200K-f32.gguf
+Embedding Sparkle.framework…
+Embedded Sparkle.framework from: <REPO>/.build/xcode-dev/Build/Products/Release/PackageFrameworks/Sparkle.framework
+Adding @executable_path/../Frameworks to rpath…
+Bundled AppIcon.icns
+Bundled legal notices: <REPO>/dist/MacParakeet.app/Contents/Resources/Legal
+[3/4] Writing Info.plist…
+Verifying Sparkle update-signature trust anchor…
+Sparkle trust anchor OK: SUPublicEDKey present and matches, feed is HTTPS.
+Archiving dSYM for crash symbolication…
+Archived dSYM: <REPO>/dist/MacParakeet.dSYM (UUID: 8893DCA8-5B1F-3DFB-98B3-41FC8D5E3344)
+[4/4] Done: <REPO>/dist/MacParakeet.app
+Metadata: version=0.8.0 build=20260907232424 commit=250bbe2994a4 built=2026-09-07T23:24:24Z source=release-080-qa-notes
+dSYM: <REPO>/dist/MacParakeet.dSYM (UUID: 8893DCA8-5B1F-3DFB-98B3-41FC8D5E3344)

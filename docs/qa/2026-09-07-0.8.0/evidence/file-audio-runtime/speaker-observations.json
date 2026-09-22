@@ -1,0 +1,136 @@
+[
+  {
+    "name": "diarization-auto",
+    "speakerCount": 2,
+    "speakers": [
+      {
+        "id": "S1",
+        "label": "Speaker 1"
+      },
+      {
+        "id": "S2",
+        "label": "Speaker 2"
+      }
+    ],
+    "diarizationSegments": [
+      {
+        "endMs": 10119,
+        "speakerId": "S1",
+        "startMs": 0
+      },
+      {
+        "endMs": 22122,
+        "speakerId": "S2",
+        "startMs": 12462
+      }
+    ],
+    "transcriptSegments": [
+      {
+        "endMs": 12320,
+        "id": "F7F200BF-9438-4F15-A5E8-55C61951606D",
+        "speakerId": "S1",
+        "speakerLabel": "Speaker 1",
+        "startMs": 240,
+        "text": "He hoped there would be stew for dinner, turnips and carrots and bruised potatoes and fat mutton pieces to be ladled out in thick, peppered, flour fattened sauce. You",
+        "wordRange": {
+          "endIndexExclusive": 29,
+          "startIndex": 0
+        }
+      },
+      {
+        "endMs": 22400,
+        "id": "E7E47CFA-CBAB-4D25-8D25-82386E6D8CD7",
+        "speakerId": "S2",
+        "speakerLabel": "Speaker 2",
+        "startMs": 12400,
+        "text": "will find me continually speaking of four men, Titian, Holbein, Turner, and Tintaret, in almost the same terms.",
+        "wordRange": {
+          "endIndexExclusive": 47,
+          "startIndex": 29
+        }
+      }
+    ],
+    "rawTranscript": "He hoped there would be stew for dinner, turnips and carrots and bruised potatoes and fat mutton pieces to be ladled out in thick, peppered, flour fattened sauce. You will find me continually speaking of four men, Titian, Holbein, Turner, and Tintaret, in almost the same terms.",
+    "durationMs": 22660,
+    "expectedSources": [
+      {
+        "speakerID": "1089",
+        "startMs": 0,
+        "endMs": 10435
+      },
+      {
+        "speakerID": "1188",
+        "startMs": 11935,
+        "endMs": 22660
+      }
+    ],
+    "limitation": "Speaker IDs are anonymous output clusters. Fixture file boundaries include silence; no manually labeled word or voice-activity ground truth, overlap, DER, or general accuracy claim."
+  },
+  {
+    "name": "diarization-exact-2",
+    "speakerCount": 2,
+    "speakers": [
+      {
+        "id": "S1",
+        "label": "Speaker 1"
+      },
+      {
+        "id": "S2",
+        "label": "Speaker 2"
+      }
+    ],
+    "diarizationSegments": [
+      {
+        "endMs": 10119,
+        "speakerId": "S1",
+        "startMs": 0
+      },
+      {
+        "endMs": 22122,
+        "speakerId": "S2",
+        "startMs": 12462
+      }
+    ],
+    "transcriptSegments": [
+      {
+        "endMs": 12320,
+        "id": "4AF73DBD-6BC8-4CAE-818A-FC9CE0447E6C",
+        "speakerId": "S1",
+        "speakerLabel": "Speaker 1",
+        "startMs": 240,
+        "text": "He hoped there would be stew for dinner, turnips and carrots and bruised potatoes and fat mutton pieces to be ladled out in thick, peppered, flour fattened sauce. You",
+        "wordRange": {
+          "endIndexExclusive": 29,
+          "startIndex": 0
+        }
+      },
+      {
+        "endMs": 22400,
+        "id": "8E9FAB66-B01A-4F17-BF72-FDC0A8736D03",
+        "speakerId": "S2",
+        "speakerLabel": "Speaker 2",
+        "startMs": 12400,
+        "text": "will find me continually speaking of four men, Titian, Holbein, Turner, and Tintaret, in almost the same terms.",
+        "wordRange": {
+          "endIndexExclusive": 47,
+          "startIndex": 29
+        }
+      }
+    ],
+    "rawTranscript": "He hoped there would be stew for dinner, turnips and carrots and bruised potatoes and fat mutton pieces to be ladled out in thick, peppered, flour fattened sauce. You will find me continually speaking of four men, Titian, Holbein, Turner, and Tintaret, in almost the same terms.",
+    "durationMs": 22660,
+    "expectedSources": [
+      {
+        "speakerID": "1089",
+        "startMs": 0,
+        "endMs": 10435
+      },
+      {
+        "speakerID": "1188",
+        "startMs": 11935,
+        "endMs": 22660
+      }
+    ],
+    "limitation": "Speaker IDs are anonymous output clusters. Fixture file boundaries include silence; no manually labeled word or voice-activity ground truth, overlap, DER, or general accuracy claim."
+  }
+]

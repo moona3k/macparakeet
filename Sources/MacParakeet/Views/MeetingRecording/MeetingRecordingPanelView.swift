@@ -154,7 +154,8 @@ struct MeetingRecordingPanelView: View {
         isActive: Bool
     ) -> some View {
         let weight: Font.Weight = isActive ? .medium : .regular
-        let foreground: Color = isActive
+        let foreground: Color =
+            isActive
             ? DesignSystem.Colors.textPrimary
             : DesignSystem.Colors.textTertiary
         let hasTrailing = isStreaming || badge != nil
@@ -186,9 +187,11 @@ struct MeetingRecordingPanelView: View {
                                 .foregroundStyle(DesignSystem.Colors.textTertiary.opacity(0.6))
                             Text(badge)
                                 .font(.system(size: 11, weight: .regular).monospacedDigit())
-                                .foregroundStyle(isActive
-                                    ? DesignSystem.Colors.accent
-                                    : DesignSystem.Colors.textTertiary)
+                                .foregroundStyle(
+                                    isActive
+                                        ? DesignSystem.Colors.accent
+                                        : DesignSystem.Colors.textTertiary
+                                )
                                 .lineLimit(1)
                         }
                     }
@@ -233,8 +236,11 @@ struct MeetingRecordingPanelView: View {
                         .foregroundStyle(DesignSystem.Colors.textTertiary.opacity(0.8))
                 }
 
-                if viewModel.canToggleMicrophoneMute {
-                    MeetingMicrophoneMuteButton(isMuted: viewModel.isMicrophoneMuted) {
+                if viewModel.showsMicrophoneMuteControl {
+                    MeetingMicrophoneMuteButton(
+                        isMuted: viewModel.isMicrophoneMuted,
+                        isEnabled: viewModel.canToggleMicrophoneMute
+                    ) {
                         viewModel.onMicrophoneMuteToggle?()
                     }
                 }
@@ -288,9 +294,12 @@ struct MeetingRecordingPanelView: View {
             // Flower of life — always present, fades to watermark when text appears
             VStack(spacing: DesignSystem.Spacing.md) {
                 if viewModel.canStop {
-                    BreathingSeedOfLifeView(freeze: viewModel.isPaused)
-                        .opacity(hasContent ? 0.15 : 1.0)
-                        .animation(.easeInOut(duration: 0.8), value: hasContent)
+                    BreathingSeedOfLifeView(
+                        freeze: viewModel.isPaused,
+                        quiet: viewModel.isTranscriptRosetteQuiet
+                    )
+                    .opacity(hasContent ? 0.15 : 1.0)
+                    .animation(.easeInOut(duration: 0.8), value: hasContent)
                 } else {
                     Image(systemName: "sparkles")
                         .font(.system(size: 20, weight: .light))
@@ -369,6 +378,8 @@ struct MeetingRecordingPanelView: View {
     @ViewBuilder
     private var statusDot: some View {
         switch viewModel.state {
+        case .starting:
+            ParakeetSpinner(.inline, tint: DesignSystem.Colors.textTertiary)
         case .hidden, .recording:
             // Recording: vivid success green. Paused: shifts to warning
             // amber — the same color language used by the pause button on
@@ -377,9 +388,10 @@ struct MeetingRecordingPanelView: View {
             // lights). 0.85 opacity keeps it slightly quieter than the
             // recording dot — paused is a held-breath, not a shout.
             Circle()
-                .fill(viewModel.isPaused
-                    ? DesignSystem.Colors.warningAmber.opacity(0.85)
-                    : DesignSystem.Colors.successGreen
+                .fill(
+                    viewModel.isPaused
+                        ? DesignSystem.Colors.warningAmber.opacity(0.85)
+                        : DesignSystem.Colors.successGreen
                 )
                 .frame(width: 8, height: 8)
                 .animation(.easeInOut(duration: 0.2), value: viewModel.isPaused)
@@ -452,21 +464,31 @@ private struct AskStreamingDot: View {
 /// `freeze`: when `true`, the animations halt at their current frame via the
 /// canonical Core Animation pause (`layer.speed = 0` + `timeOffset`) and resume
 /// seamlessly from the same frame — the clean, externally-cancellable pause the
-/// old `TimelineView(paused:)` was reaching for. `reduceMotion` renders a still
-/// rosette (same shape and color, no rotation or pulse).
+/// old `TimelineView(paused:)` was reaching for. Full color: a held breath,
+/// not a quiet mark.
+///
+/// `quiet`: rest pose, no rotation or pulse, faded coral. Used when live
+/// transcription is off so the empty state does not look like it is listening.
+/// Matches the recording pill's idle/paused dim rather than the pause freeze.
+/// Quiet forces motion off inside the NSView even if the caller still passes
+/// `animating: true` — a faded spin would still read as "listening."
+///
+/// `reduceMotion` renders a still rosette (same shape and color, no rotation
+/// or pulse) — accessibility, not "off".
 struct BreathingSeedOfLifeView: NSViewRepresentable {
     var freeze: Bool = false
+    var quiet: Bool = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeNSView(context: Context) -> BreathingSeedOfLifeNSView {
         let view = BreathingSeedOfLifeNSView()
-        view.update(animating: !reduceMotion, frozen: freeze)
+        view.update(animating: !reduceMotion, frozen: freeze, quiet: quiet)
         return view
     }
 
     func updateNSView(_ nsView: BreathingSeedOfLifeNSView, context: Context) {
-        nsView.update(animating: !reduceMotion, frozen: freeze)
+        nsView.update(animating: !reduceMotion, frozen: freeze, quiet: quiet)
     }
 
     func sizeThatFits(
@@ -499,6 +521,12 @@ final class BreathingSeedOfLifeNSView: NSView {
     private let peakGlowOpacity: Float = 0.5
     private let peakGlowScale: CGFloat = 1.2
     private let peakShadowOpacity: Float = 0.4
+    /// Quiet (live transcription off) keeps the same coral, just quieter —
+    /// close to the recording pill's idle dim and the drop-zone merkaba's
+    /// 0.7 idle opacity, without greying the mark out.
+    static let quietColorFactor: CGFloat = 0.62
+    static let listeningCenterRingAlpha: CGFloat = 0.7
+    static let listeningPetalRingAlpha: CGFloat = 0.5
 
     private let glowLayer = CAShapeLayer()
     private let flowerLayer = CALayer()
@@ -507,6 +535,20 @@ final class BreathingSeedOfLifeNSView: NSView {
     private var didBuild = false
     private var isAnimating = false
     private var isFrozen = false
+    private var isQuiet = false
+
+    var testHook_hasRotationAnimation: Bool {
+        flowerLayer.animation(forKey: "rotation") != nil
+    }
+
+    var testHook_hasBreathingAnimation: Bool {
+        glowLayer.animation(forKey: "breathOpacity") != nil
+    }
+
+    var testHook_flowerLayerSpeed: Float { flowerLayer.speed }
+
+    var testHook_isQuiet: Bool { isQuiet }
+    private(set) var testHook_centerRingStrokeAlpha: CGFloat = -1
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -533,22 +575,33 @@ final class BreathingSeedOfLifeNSView: NSView {
         layoutLayers()
     }
 
-    func update(animating: Bool, frozen: Bool) {
+    func update(animating: Bool, frozen: Bool, quiet: Bool = false) {
+        let quietChanged = quiet != isQuiet
+        isQuiet = quiet
+        // Quiet is a complete presentation mode, not a color-only flag: a
+        // faded listening spin would still read as "on." Force motion off
+        // here so callers cannot accidentally combine them.
+        let shouldAnimate = animating && !quiet
         buildIfNeeded()
+        if quietChanged {
+            applyColors()
+        }
 
-        if animating != isAnimating {
-            isAnimating = animating
-            if animating {
+        if shouldAnimate != isAnimating {
+            isAnimating = shouldAnimate
+            if shouldAnimate {
                 startAnimations()
             } else {
                 stopAnimations()
             }
+        } else if !isAnimating, quietChanged {
+            settleGlowToRest()
         }
 
         isFrozen = frozen
         // Freezing is only meaningful while animations are attached.
-        setPaused(animating && frozen, flowerLayer)
-        setPaused(animating && frozen, glowLayer)
+        setPaused(shouldAnimate && frozen, flowerLayer)
+        setPaused(shouldAnimate && frozen, glowLayer)
     }
 
     // MARK: - Layer construction
@@ -558,10 +611,10 @@ final class BreathingSeedOfLifeNSView: NSView {
         didBuild = true
         root.masksToBounds = false
 
-        glowLayer.opacity = restGlowOpacity
+        glowLayer.opacity = effectiveRestGlowOpacity
         glowLayer.shadowRadius = 12
         glowLayer.shadowOffset = .zero
-        glowLayer.shadowOpacity = restShadowOpacity
+        glowLayer.shadowOpacity = effectiveRestShadowOpacity
         glowLayer.transform = CATransform3DMakeScale(restGlowScale, restGlowScale, 1)
         root.addSublayer(glowLayer)
 
@@ -588,9 +641,16 @@ final class BreathingSeedOfLifeNSView: NSView {
             let accent = NSColor(DesignSystem.Colors.accent)
             glowLayer.fillColor = accent.cgColor
             glowLayer.shadowColor = accent.cgColor
-            let ringAlphas: [CGFloat] = [0.7] + Array(repeating: 0.5, count: 6)
-            for (ring, alpha) in zip(ringLayers, ringAlphas) {
-                ring.strokeColor = accent.withAlphaComponent(alpha).cgColor
+            let factor = isQuiet ? Self.quietColorFactor : 1
+            let ringAlphas: [CGFloat] =
+                [Self.listeningCenterRingAlpha]
+                + Array(repeating: Self.listeningPetalRingAlpha, count: 6)
+            for (index, (ring, alpha)) in zip(ringLayers, ringAlphas).enumerated() {
+                let applied = alpha * factor
+                ring.strokeColor = accent.withAlphaComponent(applied).cgColor
+                if index == 0 {
+                    testHook_centerRingStrokeAlpha = applied
+                }
             }
         }
     }
@@ -674,9 +734,20 @@ final class BreathingSeedOfLifeNSView: NSView {
         glowLayer.removeAnimation(forKey: "breathOpacity")
         glowLayer.removeAnimation(forKey: "breathShadow")
         glowLayer.removeAnimation(forKey: "breathScale")
-        // Settle to the rest pose so a still rosette matches the trough frame.
-        glowLayer.opacity = restGlowOpacity
-        glowLayer.shadowOpacity = restShadowOpacity
+        settleGlowToRest()
+    }
+
+    private var effectiveRestGlowOpacity: Float {
+        restGlowOpacity * Float(isQuiet ? Self.quietColorFactor : 1)
+    }
+
+    private var effectiveRestShadowOpacity: Float {
+        restShadowOpacity * Float(isQuiet ? Self.quietColorFactor : 1)
+    }
+
+    private func settleGlowToRest() {
+        glowLayer.opacity = effectiveRestGlowOpacity
+        glowLayer.shadowOpacity = effectiveRestShadowOpacity
         glowLayer.transform = CATransform3DMakeScale(restGlowScale, restGlowScale, 1)
     }
 
@@ -733,9 +804,10 @@ private struct FooterButton: View {
                 .padding(.vertical, 5)
                 .background(
                     Capsule()
-                        .fill(isHovered
-                            ? DesignSystem.Colors.surfaceElevated
-                            : .clear
+                        .fill(
+                            isHovered
+                                ? DesignSystem.Colors.surfaceElevated
+                                : .clear
                         )
                 )
                 .scaleEffect(isHovered ? 1.03 : 1.0)
@@ -791,9 +863,10 @@ private struct FooterIconButton: View {
             .padding(.vertical, 5)
             .background(
                 Capsule()
-                    .fill(isHovered
-                        ? DesignSystem.Colors.surfaceElevated
-                        : .clear
+                    .fill(
+                        isHovered
+                            ? DesignSystem.Colors.surfaceElevated
+                            : .clear
                     )
             )
             // Hover expand/contract is the only layout change this button

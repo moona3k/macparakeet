@@ -47,6 +47,7 @@ public final class CardGenerationService: CardGenerating, @unchecked Sendable {
     private let transcriptionRepository: TranscriptionRepositoryProtocol
     private let segmentRepository: SegmentRepositoryProtocol
     private let cardRepository: CardRepositoryProtocol
+    private let speakerAttributionReader: SpeakerAttributionReading?
     private let completionProvider: CardCompletionProviding
     private let now: @Sendable () -> Date
 
@@ -54,12 +55,14 @@ public final class CardGenerationService: CardGenerating, @unchecked Sendable {
         transcriptionRepository: TranscriptionRepositoryProtocol,
         segmentRepository: SegmentRepositoryProtocol,
         cardRepository: CardRepositoryProtocol,
+        speakerAttributionReader: SpeakerAttributionReading? = nil,
         completionProvider: CardCompletionProviding,
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.transcriptionRepository = transcriptionRepository
         self.segmentRepository = segmentRepository
         self.cardRepository = cardRepository
+        self.speakerAttributionReader = speakerAttributionReader
         self.completionProvider = completionProvider
         self.now = now
     }
@@ -71,7 +74,10 @@ public final class CardGenerationService: CardGenerating, @unchecked Sendable {
         guard transcription.status == .completed else {
             throw CardGenerationError.transcriptionIncomplete
         }
-        let context = TranscriptAIContextFormatter.format(transcription: transcription)
+        let initialProjection = try resolveAttribution(for: transcription)
+        let context = TranscriptAIContextFormatter.format(
+            transcription: initialProjection.effectiveTranscription
+        )
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !context.isEmpty else { throw CardGenerationError.emptyTranscript }
 
@@ -98,10 +104,15 @@ public final class CardGenerationService: CardGenerating, @unchecked Sendable {
         else {
             throw CardGenerationError.sourceChangedDuringGeneration
         }
-        let currentContext = TranscriptAIContextFormatter.format(transcription: currentTranscription)
+        let currentProjection = try resolveAttribution(for: currentTranscription)
+        let currentContext = TranscriptAIContextFormatter.format(
+            transcription: currentProjection.effectiveTranscription
+        )
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !currentContext.isEmpty,
-            CardContentFingerprint.transcriptHash(for: currentContext) == provenance.transcriptHash
+            CardContentFingerprint.transcriptHash(for: currentContext) == provenance.transcriptHash,
+            currentProjection.attribution.fingerprint == initialProjection.attribution.fingerprint,
+            currentProjection.correctionRevision == initialProjection.correctionRevision
         else {
             throw CardGenerationError.sourceChangedDuringGeneration
         }
@@ -126,7 +137,9 @@ public final class CardGenerationService: CardGenerating, @unchecked Sendable {
         }
         let generationSnapshot = CardGenerationSnapshot(
             transcriptHash: provenance.transcriptHash,
-            segmentsHash: CardContentFingerprint.segmentsHash(segments)
+            segmentsHash: CardContentFingerprint.segmentsHash(segments),
+            attributionFingerprint: currentProjection.attribution.fingerprint,
+            correctionRevision: currentProjection.correctionRevision
         )
         let decisions =
             source == .meeting
@@ -176,6 +189,19 @@ public final class CardGenerationService: CardGenerating, @unchecked Sendable {
             throw CardGenerationError.sourceChangedDuringGeneration
         }
         return CardGenerationOutcome(card: savedCard, usage: result.usage, wasSkipped: false)
+    }
+
+    private func resolveAttribution(
+        for transcription: Transcription
+    ) throws -> SpeakerAttributionProjection {
+        if let speakerAttributionReader {
+            return try speakerAttributionReader.resolve(transcription: transcription)
+        }
+        return SpeakerAttributionProjection(
+            automaticTranscription: transcription,
+            attribution: SpeakerAttributionResolver.resolve(transcription: transcription),
+            correctionsApplied: false
+        )
     }
 
     private static func resolve(item: CardDraftCitation, segments: [Segment]) -> CardCitationRange? {

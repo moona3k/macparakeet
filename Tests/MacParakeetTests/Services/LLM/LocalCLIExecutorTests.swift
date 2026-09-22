@@ -64,7 +64,9 @@ final class LocalCLIExecutorTests: XCTestCase {
     // MARK: - Config Store
 
     func testConfigStoreRoundTrip() throws {
-        let defaults = UserDefaults(suiteName: "test.localcli.\(UUID().uuidString)")!
+        let suiteName = "test.localcli.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = LocalCLIConfigStore(defaults: defaults)
 
         XCTAssertNil(store.load())
@@ -89,7 +91,9 @@ final class LocalCLIExecutorTests: XCTestCase {
     }
 
     func testConfigStoreMigratesLegacyDefaultTimeoutOnFirstLoad() throws {
-        let defaults = UserDefaults(suiteName: "test.localcli.\(UUID().uuidString)")!
+        let suiteName = "test.localcli.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = LocalCLIConfigStore(defaults: defaults)
 
         // Simulate a pre-#478 store: a config saved with the old 45s default,
@@ -113,7 +117,9 @@ final class LocalCLIExecutorTests: XCTestCase {
     }
 
     func testConfigStoreDoesNotMigrateNonDefaultLegacyTimeout() throws {
-        let defaults = UserDefaults(suiteName: "test.localcli.\(UUID().uuidString)")!
+        let suiteName = "test.localcli.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = LocalCLIConfigStore(defaults: defaults)
 
         try store.save(
@@ -124,7 +130,9 @@ final class LocalCLIExecutorTests: XCTestCase {
     }
 
     func testConfigStoreEmptyLoadConsumesMigrationWindow() throws {
-        let defaults = UserDefaults(suiteName: "test.localcli.\(UUID().uuidString)")!
+        let suiteName = "test.localcli.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = LocalCLIConfigStore(defaults: defaults)
 
         // A load with no stored config marks the store as post-#478: a 45
@@ -228,6 +236,130 @@ final class LocalCLIExecutorTests: XCTestCase {
         XCTAssertEqual(output, "\n  indented\n")
     }
 
+    func testSuccessfulExecutionSanitizesTerminalSequences() async throws {
+        let executor = LocalCLIExecutor()
+        let config = LocalCLIConfig(
+            commandTemplate:
+                "printf '\\0337\\033(B\\033[31mclean\\033[0m\\0338\\033c\\u0090hidden\\007still hidden\\u009c\\177\\u0085\\033Pother hidden data\\033\\\\'",
+            timeoutSeconds: 10
+        )
+
+        let output = try await executor.execute(
+            systemPrompt: "",
+            userPrompt: "",
+            config: config
+        )
+
+        XCTAssertEqual(output, "clean")
+    }
+
+    func testSanitizeStandardOutputRemovesReportedCharsetAndResetPrefix() {
+        XCTAssertEqual(
+            LocalCLIExecutor.sanitizeStandardOutput("\u{1B}(B\u{1B}[mTranscript"),
+            "Transcript"
+        )
+    }
+
+    func testSanitizeStandardOutputRemovesCSIColorSequences() {
+        XCTAssertEqual(
+            LocalCLIExecutor.sanitizeStandardOutput(
+                "\u{1B}[38;5;196mred\u{1B}[0m and \u{9B}32mgreen\u{9B}0m"
+            ),
+            "red and green"
+        )
+    }
+
+    func testSanitizeStandardOutputRemovesBELTerminatedOSC() {
+        XCTAssertEqual(
+            LocalCLIExecutor.sanitizeStandardOutput(
+                "before\u{1B}]0;window title\u{7}after"
+            ),
+            "beforeafter"
+        )
+    }
+
+    func testSanitizeStandardOutputRemovesSTTerminatedOSC() {
+        XCTAssertEqual(
+            LocalCLIExecutor.sanitizeStandardOutput(
+                "left\u{1B}]8;;https://example.com\u{1B}\\link\u{1B}]8;;\u{1B}\\right"
+            ),
+            "leftlinkright"
+        )
+        XCTAssertEqual(
+            LocalCLIExecutor.sanitizeStandardOutput(
+                "before\u{9D}0;window title\u{9C}after"
+            ),
+            "beforeafter"
+        )
+    }
+
+    func testSanitizeStandardOutputRemovesUnsafeC0Controls() {
+        XCTAssertEqual(
+            LocalCLIExecutor.sanitizeStandardOutput(
+                "\u{0}A\u{1}B\u{7}C\u{8}D\u{B}E\u{C}F\u{E}\u{1F}GH\tI\nJ\rK"
+            ),
+            "ABCDEFGH\tI\nJ\nK"
+        )
+    }
+
+    func testSanitizeStandardOutputPreservesCleanUnicodeAndWhitespace() {
+        let output = "Résumé — 你好 👋\n  keep\tinternal  spacing\r\n[]{}!?;:'\""
+
+        XCTAssertEqual(
+            LocalCLIExecutor.sanitizeStandardOutput(output),
+            "Résumé — 你好 👋\n  keep\tinternal  spacing\n[]{}!?;:'\""
+        )
+    }
+
+    func testSanitizeStandardOutputNormalizesCRLFToSingleLF() {
+        XCTAssertEqual(
+            LocalCLIExecutor.sanitizeStandardOutput("line one\r\nline two\r\n"),
+            "line one\nline two\n"
+        )
+    }
+
+    func testSanitizeStandardOutputNormalizesBareCRToLF() {
+        XCTAssertEqual(
+            LocalCLIExecutor.sanitizeStandardOutput("SAFE\rDANGER"),
+            "SAFE\nDANGER"
+        )
+    }
+
+    func testSuccessfulExecutionNormalizesBareCarriageReturnOverwrite() async throws {
+        let executor = LocalCLIExecutor()
+        let config = LocalCLIConfig(
+            commandTemplate: "printf 'SAFE\\rDANGER'",
+            timeoutSeconds: 10
+        )
+
+        let output = try await executor.execute(
+            systemPrompt: "",
+            userPrompt: "",
+            config: config
+        )
+
+        XCTAssertEqual(output, "SAFE\nDANGER")
+    }
+
+    func testFailingExecutionNormalizesCarriageReturnsInStderr() async throws {
+        let executor = LocalCLIExecutor()
+        let config = LocalCLIConfig(
+            commandTemplate: "printf 'first line\\r\\nsecond\\rthird' 1>&2; exit 1",
+            timeoutSeconds: 10
+        )
+
+        do {
+            _ = try await executor.execute(
+                systemPrompt: "",
+                userPrompt: "",
+                config: config
+            )
+            XCTFail("Expected execution to throw")
+        } catch LocalCLIError.nonZeroExit(_, let stderr) {
+            XCTAssertEqual(stderr, "first line\nsecond\nthird")
+        }
+    }
+
     func testStdinDelivery() async throws {
         let executor = LocalCLIExecutor()
 
@@ -245,12 +377,12 @@ final class LocalCLIExecutorTests: XCTestCase {
         let executor = LocalCLIExecutor()
         let config = LocalCLIConfig(
             commandTemplate: """
-            printf 'system=%s\\n' "${MACPARAKEET_SYSTEM_PROMPT-unset}"
-            printf 'user=%s\\n' "${MACPARAKEET_USER_PROMPT-unset}"
-            printf 'full=%s\\n' "${MACPARAKEET_FULL_PROMPT-unset}"
-            printf 'stdin='
-            cat
-            """,
+                printf 'system=%s\\n' "${MACPARAKEET_SYSTEM_PROMPT-unset}"
+                printf 'user=%s\\n' "${MACPARAKEET_USER_PROMPT-unset}"
+                printf 'full=%s\\n' "${MACPARAKEET_FULL_PROMPT-unset}"
+                printf 'stdin='
+                cat
+                """,
             timeoutSeconds: 10
         )
 
@@ -280,6 +412,42 @@ final class LocalCLIExecutorTests: XCTestCase {
             } else {
                 XCTFail("Expected nonZeroExit, got \(error)")
             }
+        }
+    }
+
+    func testNonZeroExitSanitizesTerminalSequencesInError() async throws {
+        let executor = LocalCLIExecutor()
+        let config = LocalCLIConfig(
+            commandTemplate:
+                "printf '\\u009fprivate control data\\u009c\\033]0;private title\\007\\033[31mprovider failed\\033[0m\\u0085\\n' >&2; exit 3",
+            timeoutSeconds: 10
+        )
+        do {
+            _ = try await executor.execute(systemPrompt: "", userPrompt: "", config: config)
+            XCTFail("Expected nonZeroExit error")
+        } catch let error as LocalCLIError {
+            guard case .nonZeroExit(let code, let stderr) = error else {
+                return XCTFail("Expected nonZeroExit, got \(error)")
+            }
+            XCTAssertEqual(code, 3)
+            XCTAssertEqual(stderr, "provider failed")
+        }
+    }
+
+    func testCommandNotFoundDetectionUsesSanitizedError() async throws {
+        let executor = LocalCLIExecutor()
+        let config = LocalCLIConfig(
+            commandTemplate: "printf 'command \\033[31mnot found\\033[0m\\n' >&2; exit 1",
+            timeoutSeconds: 10
+        )
+        do {
+            _ = try await executor.execute(systemPrompt: "", userPrompt: "", config: config)
+            XCTFail("Expected commandNotFound error")
+        } catch let error as LocalCLIError {
+            guard case .commandNotFound(let message) = error else {
+                return XCTFail("Expected commandNotFound, got \(error)")
+            }
+            XCTAssertEqual(message, "command not found")
         }
     }
 
@@ -362,10 +530,10 @@ final class LocalCLIExecutorTests: XCTestCase {
 
         let config = LocalCLIConfig(
             commandTemplate: """
-            sh -c 'sleep 30 </dev/null >/dev/null 2>&1 & echo $! > \(shellQuote(grandchildPIDPath))' &
-            while [ ! -f \(shellQuote(grandchildPIDPath)) ]; do sleep 0.01; done
-            printf ok
-            """,
+                sh -c 'sleep 30 </dev/null >/dev/null 2>&1 & echo $! > \(shellQuote(grandchildPIDPath))' &
+                while [ ! -f \(shellQuote(grandchildPIDPath)) ]; do sleep 0.01; done
+                printf ok
+                """,
             timeoutSeconds: 30
         )
 
@@ -399,12 +567,12 @@ final class LocalCLIExecutorTests: XCTestCase {
         let shellPIDPath = directory.appendingPathComponent("shell.txt").path
         let childPIDPath = directory.appendingPathComponent("child.txt").path
         let command = """
-        echo $$ > \(shellQuote(shellPIDPath))
-        sleep 30 &
-        echo $! > \(shellQuote(childPIDPath))
-        echo started > \(shellQuote(startedPath))
-        while true; do sleep 1; done
-        """
+            echo $$ > \(shellQuote(shellPIDPath))
+            sleep 30 &
+            echo $! > \(shellQuote(childPIDPath))
+            echo started > \(shellQuote(startedPath))
+            while true; do sleep 1; done
+            """
         let config = LocalCLIConfig(commandTemplate: command, timeoutSeconds: 30)
 
         let task = Task {
@@ -469,14 +637,32 @@ final class LocalCLIExecutorTests: XCTestCase {
         }
     }
 
+    func testControlOnlyOutputIsEmptyAfterSanitization() async throws {
+        let executor = LocalCLIExecutor()
+        let config = LocalCLIConfig(
+            commandTemplate: "printf '\\033(B\\033[m\\007\\001'",
+            timeoutSeconds: 10
+        )
+
+        do {
+            _ = try await executor.execute(systemPrompt: "", userPrompt: "", config: config)
+            XCTFail("Expected emptyOutput error")
+        } catch let error as LocalCLIError {
+            guard case .emptyOutput = error else {
+                XCTFail("Expected emptyOutput, got \(error)")
+                return
+            }
+        }
+    }
+
     func testPromptEnvironmentVariablesAreNotSet() async throws {
         let executor = LocalCLIExecutor()
 
         // Print env vars to verify prompt content is not propagated via process env.
         let config = LocalCLIConfig(
             commandTemplate: """
-            echo "sys:${MACPARAKEET_SYSTEM_PROMPT-unset} usr:${MACPARAKEET_USER_PROMPT-unset} full:${MACPARAKEET_FULL_PROMPT-unset}"
-            """,
+                echo "sys:${MACPARAKEET_SYSTEM_PROMPT-unset} usr:${MACPARAKEET_USER_PROMPT-unset} full:${MACPARAKEET_FULL_PROMPT-unset}"
+                """,
             timeoutSeconds: 10
         )
         let output = try await executor.execute(
@@ -564,7 +750,8 @@ final class LocalCLIExecutorTests: XCTestCase {
         let paths = LocalCLIExecutor.candidatePATHProbeShellURLs(fileManager: fileManager).map(\.path)
 
         var seen = Set<String>()
-        let expected = ([LocalCLIExecutor.userLoginShellURL()?.path].compactMap { $0 }
+        let expected =
+            ([LocalCLIExecutor.userLoginShellURL()?.path].compactMap { $0 }
             + Self.standardPATHProbeShellPaths)
             .filter { path in
                 executablePaths.contains(path) && seen.insert(path).inserted
@@ -629,9 +816,9 @@ final class LocalCLIExecutorTests: XCTestCase {
 
     func testParsePathHelperPATH() {
         let output = """
-        PATH="/usr/local/bin:/usr/bin:/bin"; export PATH;
-        MANPATH="/usr/share/man"; export MANPATH;
-        """
+            PATH="/usr/local/bin:/usr/bin:/bin"; export PATH;
+            MANPATH="/usr/share/man"; export MANPATH;
+            """
 
         XCTAssertEqual(
             LocalCLIExecutor.parsePathHelperPATH(in: output),

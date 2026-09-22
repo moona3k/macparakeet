@@ -1,9 +1,11 @@
 # ADR-017: Calendar-Driven Meeting Auto-Start
 
-> Status: **IMPLEMENTED (amended)** — Phase 1 (notify-only) and Phase 2 (auto-start + countdown) are implemented and enabled (`AppFeatures.calendarEnabled = true` as of the post-#318 reliability hardening: mid-flight teardown, RSVP/zero-duration guards, reschedule re-fire). Auto-start defaults to mode `.off`, so users opt in from Settings — nothing changes for existing users until they do. Phase 3 (late-join, retro-link, generic URL extraction) remains **PROPOSED** (see Phased Rollout below).
+> Status: **IMPLEMENTED (amended)** — Phase 1 (notify-only) and Phase 2 (auto-start + countdown) are implemented and enabled (`AppFeatures.calendarEnabled = true` as of the post-#318 reliability hardening: mid-flight teardown, RSVP/zero-duration guards, reschedule re-fire). Auto-start defaults to mode `.off`, so users opt in from Settings — nothing changes for existing users until they do. Phase 2b (per-event skip, #609) is **IMPLEMENTED**. Phase 3 (late-join, retro-link, generic URL extraction) remains **PROPOSED** (see Phased Rollout below).
 > Date: 2026-04-19
-> **Amendment (2026-05-22): calendar-driven auto-stop removed.** §5 (auto-stop at event end) is withdrawn — see the amendment note in §5. Scheduled end times are too unreliable to drive a stop; the calendar coordinator never stops a recording. The replacement is ADR-023 (Activity-Based Meeting Auto-Stop, 2026-06-14), implemented behind a default-off flag using activity signals plus a veto countdown.
+> **Amendment (2026-05-22): calendar-driven auto-stop removed.** §5 (auto-stop at event end) is withdrawn — see the amendment note in §5. Scheduled end times are too unreliable to drive a stop; the calendar coordinator never stops a recording. The replacement is ADR-023 (Activity-Based Meeting Auto-Stop, 2026-06-14), now enabled with a separate per-user opt-in setting defaulting off, using activity signals plus a veto countdown.
 > **Amendment (2026-06-13): Calendar removed from first-run onboarding.** The six-step dictation-first flow in ADR-005 no longer asks for EventKit access. Calendar setup is opt-in from the Meeting Recording settings surface, which requests Calendar and notification access in context.
+> **Amendment (2026-09-13): Microsoft calendar setup made explicit.** The EventKit architecture already includes Microsoft 365 and Exchange calendars enabled for Calendar in macOS Internet Accounts. Settings now explains that provider boundary, opens Internet Accounts, refreshes visible calendars on demand and after app reactivation, and indexes Outlook/Microsoft terminology. This does not add Microsoft Graph, OAuth, or access to calendars stored only inside Outlook.
+> **Amendment (2026-09-14): per-event skip implemented (#609).** Session-only toast dismiss is incomplete. Users can mute one occurrence or a repeating series; skip persists as a UserDefaults preference and blocks reminders and auto-start only. Optional-invitee is the motivation, not an automatic filter. See §11 and [the implementation plan](../../plans/active/2026-09-14-issue-609-calendar-event-skip.md).
 > Related: ADR-002 (local-first), ADR-005 (onboarding), ADR-009 (custom hotkeys), ADR-014 (meeting recording), ADR-015 (concurrent dictation/meeting)
 
 ## Context
@@ -18,7 +20,7 @@ This ADR defines MacParakeet's scope for that feature. It is deliberately narrow
 
 ### 1. EventKit only — no cloud calendar APIs
 
-Calendar access goes through Apple's EventKit framework (`EKEventStore`), which reads whatever calendars the user has already configured in the macOS Calendar app (iCloud, Google via macOS Internet Accounts, Exchange, CalDAV). MacParakeet does not run its own OAuth flows and does not ship Google/Microsoft SDKs.
+Calendar access goes through Apple's EventKit framework (`EKEventStore`), which reads whatever calendars the user has already configured in the macOS Calendar app (iCloud, Google via macOS Internet Accounts, Exchange, CalDAV). Microsoft 365 and Exchange calendars therefore work when Calendar is enabled for the account in System Settings → Internet Accounts; an account configured only inside Outlook is outside EventKit and is not visible to MacParakeet. Shared and delegated Exchange calendars are not claimed without representative runtime verification. MacParakeet does not run its own OAuth flows and does not ship Google/Microsoft SDKs.
 
 **Why:** ADR-002 (local-first). Events stay on-device; we don't add a new cloud surface. The in-context Settings flow delegates authorization to macOS without adding first-run friction.
 
@@ -88,21 +90,71 @@ Also: subscribe to `.EKEventStoreChanged` so a calendar edit (e.g., meeting move
 
 The implemented Settings surface is folded into the Meeting Recording card rather than a standalone Settings card. When `AppFeatures.calendarEnabled` is `true`, the Meeting Recording card includes:
 
-- Mode picker (`Off` / `Notify` / `Auto-start`)
+- An adaptive auto-start row (`Turn On…`, permission recovery, or on/off toggle)
+- A behavior picker (`Notify me` / `Start automatically`) when the row is on
 - Reminder lead time (`Off` / `1 min` / `5 min` / `10 min`)
 - Trigger filter picker (`With video link` / `With participants` / `All events`)
-- Per-calendar include list (checkboxes over the user's visible calendars)
-- A "Grant Calendar access" button if permission is `.notDetermined` or `.denied`
+- An always-visible Calendar accounts row explaining Microsoft 365/Exchange setup through macOS, with a best-effort Internet Accounts link
+- Loading, loaded-empty, and populated calendar-list states; the populated state exposes per-calendar checkboxes and both loaded states can be refreshed explicitly
+- A contextual Calendar permission action: request access when `.notDetermined`, or open Privacy & Security → Calendars when denied
 
-This subsection appears once Calendar access is granted (`AppFeatures.calendarEnabled = true`).
+Account guidance remains visible while auto-start is off. Calendar-list controls appear after access is granted, while the auto-start options panel additionally requires the row to be on.
 
 ### 9. Setup: in-context from Settings
 
-Calendar is not part of first-run onboarding. When `AppFeatures.calendarEnabled` is `true`, the Meeting Recording settings surface explains the feature, requests EventKit access, and requests notification authorization when needed. Until the user opts in, `calendarAutoStartMode` remains `.off`.
+Calendar is not part of first-run onboarding. When `AppFeatures.calendarEnabled` is `true`, the Meeting Recording settings surface explains the feature, requests EventKit access, and requests notification authorization when needed. It also explains that Microsoft 365/Exchange must be enabled for Calendar in System Settings → Internet Accounts, provides a best-effort link to that pane, and reloads authorization and visible calendars when the app becomes active. While Settings is open, the same permission poll that drives other permission rows also self-heals a stranded calendar list: if it observes a not-yet-loaded list transition to granted (e.g. an MDM-pushed profile granting access without an app reactivation), it starts the calendar load itself rather than waiting for the user to notice and press Refresh. Until the user opts in, `calendarAutoStartMode` remains `.off`.
 
 ### 10. Hotkey / manual start still works independently
 
 Nothing about this ADR removes the manual flow. The meeting hotkey, the menu bar "Start Recording" item, and the Meetings panel's record button all continue to work even with auto-start fully on. If a user starts a recording manually and a calendar event's auto-start fires mid-call, the coordinator observes that a recording is already active and **no-ops** (does not restart, does not double-notify).
+
+### 11. Per-event skip — persist the user's "not this meeting" (IMPLEMENTED 2026-09-14)
+
+Coarse filters (mode, trigger, per-calendar include, RSVP) are not enough.
+Users need to mute **one calendar entry** without turning automation off or
+ignoring a whole calendar. Issue #609: optional-invite meetings still match
+the filters, and the only veto is a 5-second toast whose dismiss dies on
+relaunch.
+
+**Decision:**
+
+- Skip is a user decision stored as preference IDs, not an EventKit cache and
+  not SQLite (extends §6). Keys: occurrence = `CalendarEvent.dedupeKey`;
+  meeting/series = `eventKey` (`externalId ?? id`). Never title.
+  `externalId` is not a recurrence flag. Ingest `isRecurring` from
+  `hasRecurrenceRules || isDetached`. Series skip is offered only when
+  `isRecurring` is true.
+- Upcoming default is the whole meeting for one-off events and this
+  occurrence for recurring events. Toast ✕ is always this occurrence.
+- `MeetingMonitor.candidates` is shared by Upcoming and the coordinator.
+  Skipped events remain visible (annotated) and drop out of `evaluate`
+  (no reminder, no auto-start). CLI `calendar upcoming` keeps today's
+  membership and only annotates skips.
+- Undo: occurrence undo removes that `dedupeKey`. Event/series undo removes
+  the `eventKey` and the selected occurrence key; other occurrence skips
+  for that series stay.
+- Effect boundary: a skip prevents effects not yet committed. Recheck full
+  eligibility (mode, permission, trigger filter, excluded calendar, and skip)
+  after awaits, immediately before countdown presentation, and immediately
+  before notify/start. On any calendar settings change, re-evaluate only the
+  occurrence that owns the visible countdown under the new policy: close it
+  if it is no longer eligible, otherwise keep it. Countdowns for other
+  occurrences are never closed by a skip write (preserves post-#318
+  mid-flight teardown). Skip/unskip of the owning occurrence must clear that
+  occurrence’s `countdownShownEventIds` mark immediately, without waiting for
+  a calendar fetch, so undo inside the auto-start window can re-fire. Do not
+  clear `remindedEventIds` on skip (avoids a duplicate reminder).
+  Programmatic close never writes a skip. Skip never stops a live recording.
+- Skip blocks automation only. Manual Record / hotkey / menu bar still work
+  (same independence as §10).
+- Do **not** auto-exclude EventKit optional `participantRole`. Optional invite
+  is why users want mute, not the mute itself. Tentative RSVP stays eligible
+  for auto-start, as today. Overlapping-meeting choice, notification actions,
+  and menu-bar next-event (#875) are later work, not this amendment.
+
+Settings copy stays on the event, not a skipped-meetings manager. Full
+architecture, UI, types, and tests:
+[plans/active/2026-09-14-issue-609-calendar-event-skip.md](../../plans/active/2026-09-14-issue-609-calendar-event-skip.md).
 
 ## Architecture
 
@@ -113,12 +165,15 @@ Nothing about this ADR removes the manual flow. The meeting hotkey, the menu bar
 │  CalendarService      (EventKit wrapper, permission, fetch)     │
 │  MeetingLinkParser    (Zoom/Meet/Teams/Webex URL extraction)    │
 │  MeetingMonitor       (pure state machine; no side effects)     │
-│     ├── evaluate(events, now, config, activeRecording,          │
-│     │            dismissedIds, remindedIds, countdownShownIds)  │
+│     ├── candidates(events, policy) -> [CalendarCandidate]       │
+│     ├── evaluate(candidates, now, policy, activeRecording,      │
+│     │            remindedIds, countdownShownIds)                │
 │     │          -> [MonitorEvent]                                │
 │     ├── MonitorEvent: .reminderDue / .autoStartDue /            │
 │     │                 .lateJoinAvailable                        │
 │     └── TriggerFilter: .withLink / .withParticipants / .all     │
+│  Phase 2b (#609, implemented): candidates annotate skipped      │
+│  events; evaluate ignores them.                                 │
 └────────────────────────────────────────────────────────────────┘
                            │
                            ▼
@@ -127,10 +182,11 @@ Nothing about this ADR removes the manual flow. The meeting hotkey, the menu bar
 │                                                                 │
 │  MeetingAutoStartCoordinator  (@MainActor)                      │
 │    ├── polls CalendarService every 60s (or 5s near events)     │
-│    ├── feeds events → MeetingMonitor.evaluate()                │
+│    ├── candidates → evaluate → reminder / toast / start        │
+│    ├── persists per-event skip via SettingsViewModel (#609)    │
 │    ├── fires notifications via UNUserNotificationCenter        │
 │    ├── shows countdown toast (MeetingCountdownToastController) │
-│    └── calls MeetingRecordingFlowCoordinator.startRecording    │
+│    └── calls MeetingRecordingFlowCoordinator.startFromCalendar │
 │            for auto-start                                      │
 └────────────────────────────────────────────────────────────────┘
 ```
@@ -175,6 +231,7 @@ Notifications are dismissed silently by macOS when the user isn't at their machi
 - **New permission (Calendar)**: an additional optional permission, requested in context from Meeting Recording settings rather than during first-run onboarding.
 - **Polling**: 60-second timer when no events are near is cheap but non-zero. Acceptable for an app that's already idle-friendly post-PR #111.
 - **Video-link detection is heuristic**: meetings without URLs but with participants won't match the default filter. Users who rely on phone calls or non-standard conferencing tools need to change the filter to `.withParticipants` or `.allEvents`.
+- **Skip is a user decision, not an invite-role heuristic (#609 / §11):** optional-invite meetings that pass the coarse filters still remind and auto-start until the user skips that occurrence or series.
 - **Countdown toast is new UI surface area**: another floating panel controller to maintain alongside pill / panel / dictation overlay.
 - **Ported code can drift** from Oatmeal. Low impact — we don't import Oatmeal as a dependency, so drift is local.
 
@@ -184,13 +241,13 @@ Notifications are dismissed silently by macOS when the user isn't at their machi
 
 - `CalendarService` — EventKit wrapper; public surface: `permissionStatus`, `requestPermission() async -> Bool`, `fetchUpcomingEvents(withinDays:) async throws -> [CalendarEvent]`, `availableCalendars() -> [CalendarInfo]`
 - `MeetingLinkParser` — static `extractConferenceURL(from: CalendarEvent) -> URL?`
-- `MeetingMonitor` — static `evaluate(...) -> [MonitorEvent]`; no stored state, stateless pure function
+- `MeetingMonitor` — `candidates(...)` + `evaluate(...)`; no stored state. Phase 2b annotates skipped candidates instead of a coordinator-private dismiss set.
 - `CalendarEvent` / `CalendarInfo` / `EventParticipant` — plain `Sendable` structs, no GRDB
 
 ### Settings (MacParakeetViewModels)
 
-- Extend `SettingsViewModel` with `calendarAutoStartMode`, `calendarReminderMinutes`, `meetingTriggerFilter`, `calendarIncludedIdentifiers: Set<String>`
-- Persist via `UserDefaults` (keys namespaced `CalendarAutoStart.*`)
+- Extend `SettingsViewModel` with `calendarAutoStartMode`, `calendarReminderMinutes`, `meetingTriggerFilter`, `calendarExcludedIdentifiers`, and Phase 2b skipped occurrence/event sets
+- Persist via `UserDefaults` (keys namespaced `CalendarAutoStart.*`, including Phase 2b skipped occurrence/event IDs)
 - Post a new `AppNotification.macParakeetCalendarSettingsDidChange` on any change
 
 ### App layer (MacParakeet)
@@ -204,7 +261,7 @@ Notifications are dismissed silently by macOS when the user isn't at their machi
 
 - `.calendarReminderShown(mode:leadMinutes:hasMeetUrl:)` — fired after a reminder notification is delivered
 - `.calendarAutoStartTriggered(leadSeconds:hasMeetUrl:)` — fired when the auto-start countdown is shown
-- `.calendarAutoStartCancelled(reason:)` — user cancels countdown
+- `.calendarAutoStartCancelled(reason:)` — user cancels countdown (Phase 2b: toast ✕ is an occurrence skip; telemetry may add skip/unskip with scope only, never titles)
 - `.calendarAutoStartFailed(reason:)` — auto-start countdown completed but recording could not start
 - `.permissionGranted(permission: .calendar)` / `.permissionDenied(permission: .calendar)`
 - `.settingChanged(setting: .calendarAutoStartMode)` etc.
@@ -228,9 +285,10 @@ Repo: `https://github.com/moona3k/oatmeal` (same owner, GPL-3.0).
 1. **Phase 1 — Notify only ✅ IMPLEMENTED (2026-04-25; onboarding amended 2026-06-13):** Ported `CalendarService`, `MeetingLinkParser`, `MeetingMonitor`, `CalendarEvent` from Oatmeal. Built `MeetingAutoStartCoordinator` (`@MainActor`, adaptive 60s/15s/5s polling, `.EKEventStoreChanged` observer, daily stale-id cleanup). The Settings subsection and per-calendar include list are implemented and enabled (`AppFeatures.calendarEnabled = true`). CLI surface (`macparakeet-cli calendar upcoming` + `health` extension) ships alongside for headless verification. Mode defaults to `.off` and is enabled from Settings. The original onboarding step was removed by ADR-005's dictation-first amendment.
 2. **Phase 2 — Auto-start with countdown ✅ IMPLEMENTED (2026-04-25):** Built `MeetingCountdownToastController` for the pre-meeting auto-start countdown. **Superseded by the 2026-05-22 amendment:** the original end-of-meeting auto-stop countdown was removed, and the auto-start toast was redesigned as a minimal top-right "countdown halo" (sacred-geometry rosette inside a coral ring, ✕ to cancel / ↵ to start now). Current coordinator behavior handles `.autoStartDue` -> toast -> `MeetingRecordingFlowCoordinator.startFromCalendar()` and never stops recordings from calendar end times. Settings exposes all three modes but no auto-stop toggle. Current telemetry events are `calendar_reminder_shown`, `calendar_auto_start_triggered`, `calendar_auto_start_cancelled`, and `calendar_auto_start_failed`; removed auto-stop events are historical only. `meeting_recording_started` gained an optional `trigger` prop. `CalendarServicing` protocol + `MockCalendarService` extracted for `MeetingAutoStartCoordinatorTests`.
    - **Post-#318 reliability hardening (2026-05-21) — flag enabled:** countdowns are closed/ignored when calendar settings or permissions disable the action mid-flight; auto-start is gated on RSVP (declined/pending excluded) and zero-duration/inverted events are dropped; rescheduled occurrences re-fire via `CalendarEvent.dedupeKey`; and `pollAsync` is reentrancy-guarded with coalescing.
-3. **Phase 3 — Refinements (PROPOSED):** Better URL extraction (Phone/FaceTime/generic URLs), `.lateJoinAvailable` UI (separate `lateJoinShownEventIds` set in `MeetingMonitor.evaluate(...)` so dismissed countdowns don't suppress late-join), optional retro-link (match a manually-started recording back to a calendar event).
+3. **Phase 2b — Per-event skip (IMPLEMENTED 2026-09-14):** Persist occurrence (`dedupeKey`) and meeting/series (`eventKey`) skips. Offer series skip only when `isRecurring`. Upcoming + coordinator share `candidates`; CLI annotates without changing membership. Toast ✕ is this occurrence. Effect-boundary: re-evaluate the owning countdown under the full new policy; skip of B must not close A; skip/unskip of A must rearm A without waiting for a fetch. Issue #609. See §11.
+4. **Phase 3 — Refinements (PROPOSED):** Better URL extraction (Phone/FaceTime/generic URLs), `.lateJoinAvailable` UI (separate `lateJoinShownEventIds` set in `MeetingMonitor.evaluate(...)` so dismissed countdowns don't suppress late-join), optional retro-link (match a manually-started recording back to a calendar event), concurrent-event choice when two meetings share a start window, notification Record/Skip actions, menu-bar next event (#875). These reuse Phase 2b identity and `candidates`; they are not part of the #609 skip amendment.
 
 ## Open Questions
 
-- **Naming in copy**: "Auto-start" vs "Auto-record" vs "Start automatically" — pick one and use it everywhere.
+- **Naming in copy**: Settings still uses "Start automatically" / "Notify me". Per-event skip copy is settled: "Don't auto-record this meeting" / "Auto-record again".
 - **Countdown with LLM features**: should insights (ADR-018) begin warming up during the countdown so the first live insight lands sooner? Or wait until recording actually starts? Lean towards wait — zero-second "ghost warm-up" is complexity we don't need until measurements justify it.

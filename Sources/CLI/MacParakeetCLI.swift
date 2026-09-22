@@ -8,7 +8,7 @@ struct CLI: AsyncParsableCommand {
     /// distinguishable from synthesized Bundle.main values (the bare executable
     /// has no Info.plist and macOS otherwise reports an SDK marker like "16.0").
     /// Bump in lockstep with `Sources/CLI/CHANGELOG.md`.
-    static let cliVersion = "3.1.0"
+    static let cliVersion = "4.5.0"
 
     static let configuration = CommandConfiguration(
         commandName: "macparakeet-cli",
@@ -38,6 +38,7 @@ struct CLI: AsyncParsableCommand {
             CalendarCommand.self,
             MeetingVADSimCommand.self,
             FeedbackCommand.self,
+            VoiceControlCommand.self,
         ],
         defaultSubcommand: nil
     )

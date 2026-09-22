@@ -3,8 +3,11 @@ import MacParakeetCore
 import MacParakeetViewModels
 import OSLog
 
-enum MeetingRecordingQuitState {
+enum MeetingRecordingQuitState: Equatable {
     case starting
+    /// Capture has been requested. Source audio may already be on disk even
+    /// though the live UI is still Starting, so quit must offer save.
+    case capturing
     case recording
     case finishing
 }
@@ -63,8 +66,10 @@ final class MeetingRecordingFlowCoordinator {
         switch stateMachine.state {
         case .idle, .finishing:
             return nil
-        case .checkingPermissions, .starting:
+        case .checkingPermissions:
             return .starting
+        case .starting:
+            return .capturing
         case .recording:
             return .recording
         case .stopping:
@@ -83,6 +88,10 @@ final class MeetingRecordingFlowCoordinator {
     private let sttManager: (any STTRuntimeManaging)?
     private let speechEngineSelectionProvider: (@Sendable () async -> SpeechEngineSelection?)?
     private let meetingAudioSourceModeProvider: @MainActor @Sendable () -> MeetingAudioSourceMode
+    private let startMeetingsMutedProvider: @MainActor @Sendable () -> Bool
+    private let meetingTypeIDProvider: @MainActor @Sendable () -> UUID?
+    private let meetingTypesProvider: @MainActor @Sendable () -> [MeetingType]
+    private let meetingTypeIDSetter: @MainActor @Sendable (UUID?) -> Void
     private let shouldShowFloatingMeetingPill: @MainActor @Sendable () -> Bool
     private let frontmostApplicationProvider: any FrontmostApplicationProviding
     private let probableCalendarSnapshotProvider: @MainActor @Sendable () -> MeetingCalendarSnapshot?
@@ -90,7 +99,7 @@ final class MeetingRecordingFlowCoordinator {
     private let onMenuBarIconUpdate: (BreathWaveIcon.MenuBarState) -> Void
     private let onTranscriptionReady: (Transcription) -> Void
     private let onQueuedTranscriptionReady: (Transcription, Bool) -> Void
-    private let onQueuedTranscriptionFailed: (TranscriptionCompletionNotifier.Content) -> Void
+    private let onQueuedTranscriptionFailed: (UUID, TranscriptionCompletionNotifier.Content) -> Void
     private let onRecordingBegan: () -> Void
     private let onRecordingStopping: () -> Void
     private let onFlowReturnedToIdle: () -> Void
@@ -106,7 +115,9 @@ final class MeetingRecordingFlowCoordinator {
     private var panelViewModel: MeetingRecordingPanelViewModel?
     private var actionTask: Task<Void, Never>?
     private var pauseToggleTask: Task<Void, Never>?
+    private var pausePublicationRevision: UInt64 = 0
     private var microphoneMuteToggleTask: Task<Void, Never>?
+    private var meetingTypeUpdateTail: Task<Void, Never>?
     private var autoDismissTask: Task<Void, Never>?
     private var pillPollingTask: Task<Void, Never>?
     private var pillGlowPollingTask: Task<Void, Never>?
@@ -118,6 +129,7 @@ final class MeetingRecordingFlowCoordinator {
     // these drive the pill's self-contained, interruptible visual epilogue.
     private var metatronMinDurationTask: Task<Void, Never>?
     private var savedCompletionDismissTask: Task<Void, Never>?
+    private var completingFlourishTask: Task<Void, Never>?
     private var meetingDurablySaved = false
     private var metatronBloomSettled = false
     /// Minimum on-screen time for the Metatron "saving" bloom before it may
@@ -127,6 +139,9 @@ final class MeetingRecordingFlowCoordinator {
     private let metatronMinimumDisplay: Duration = .milliseconds(1500)
     /// How long the "saved" checkmark holds before the pill self-dismisses.
     private let savedCheckmarkHold: Duration = .milliseconds(1700)
+    /// Collapse animation is 1.0 s. 2 s is enough slack if that callback never
+    /// arrives (hidden pill, quit-time dismiss).
+    private let completingFlourishFallback: Duration = .seconds(2)
     private var activeFlowSettlementWaiters: [CheckedContinuation<Void, Never>] = []
     private var currentMeetingOperationContext: ObservabilityOperationContext?
     private var currentMeetingTrigger: TelemetryMeetingOperationTrigger?
@@ -147,6 +162,10 @@ final class MeetingRecordingFlowCoordinator {
         meetingAudioSourceModeProvider: @escaping @MainActor @Sendable () -> MeetingAudioSourceMode = {
             .microphoneAndSystem
         },
+        startMeetingsMutedProvider: @escaping @MainActor @Sendable () -> Bool = { false },
+        meetingTypeIDProvider: @escaping @MainActor @Sendable () -> UUID? = { nil },
+        meetingTypesProvider: @escaping @MainActor @Sendable () -> [MeetingType] = { [] },
+        meetingTypeIDSetter: @escaping @MainActor @Sendable (UUID?) -> Void = { _ in },
         shouldShowFloatingMeetingPill: @escaping @MainActor @Sendable () -> Bool = { true },
         frontmostApplicationProvider: any FrontmostApplicationProviding = NSWorkspaceFrontmostApplicationProvider(),
         probableCalendarSnapshotProvider: @escaping @MainActor @Sendable () -> MeetingCalendarSnapshot? = {
@@ -155,11 +174,13 @@ final class MeetingRecordingFlowCoordinator {
         llmService: LLMServiceProtocol?,
         pillViewModel: MeetingRecordingPillViewModel,
         meetingRecordingSettlement: MeetingRecordingSettlement,
+        finalizationOwnershipClaimer: any MeetingFinalizationOwnershipClaiming =
+            MeetingRecordingLockFileStore(),
         meetingTranscriptionQueue: MeetingTranscriptionQueue? = nil,
         onMenuBarIconUpdate: @escaping (BreathWaveIcon.MenuBarState) -> Void,
         onTranscriptionReady: @escaping (Transcription) -> Void,
         onQueuedTranscriptionReady: ((Transcription, Bool) -> Void)? = nil,
-        onQueuedTranscriptionFailed: ((TranscriptionCompletionNotifier.Content) -> Void)? = nil,
+        onQueuedTranscriptionFailed: ((UUID, TranscriptionCompletionNotifier.Content) -> Void)? = nil,
         onRecordingBegan: @escaping () -> Void = {},
         onRecordingStopping: @escaping () -> Void = {},
         onFlowReturnedToIdle: @escaping () -> Void = {}
@@ -175,6 +196,10 @@ final class MeetingRecordingFlowCoordinator {
         self.sttManager = sttManager
         self.speechEngineSelectionProvider = speechEngineSelectionProvider
         self.meetingAudioSourceModeProvider = meetingAudioSourceModeProvider
+        self.startMeetingsMutedProvider = startMeetingsMutedProvider
+        self.meetingTypeIDProvider = meetingTypeIDProvider
+        self.meetingTypesProvider = meetingTypesProvider
+        self.meetingTypeIDSetter = meetingTypeIDSetter
         self.shouldShowFloatingMeetingPill = shouldShowFloatingMeetingPill
         self.frontmostApplicationProvider = frontmostApplicationProvider
         self.probableCalendarSnapshotProvider = probableCalendarSnapshotProvider
@@ -185,7 +210,8 @@ final class MeetingRecordingFlowCoordinator {
             ?? MeetingTranscriptionQueue(
                 transcriptionService: transcriptionService,
                 transcriptionRepo: transcriptionRepo,
-                meetingRecordingSettlement: meetingRecordingSettlement
+                meetingRecordingSettlement: meetingRecordingSettlement,
+                finalizationOwnershipClaimer: finalizationOwnershipClaimer
             )
         self.onMenuBarIconUpdate = onMenuBarIconUpdate
         self.onTranscriptionReady = onTranscriptionReady
@@ -194,7 +220,7 @@ final class MeetingRecordingFlowCoordinator {
                 onTranscriptionReady(transcription)
             }
         self.onQueuedTranscriptionFailed =
-            onQueuedTranscriptionFailed ?? { content in
+            onQueuedTranscriptionFailed ?? { _, content in
                 TranscriptionCompletionPresenter.presentNotification(content)
             }
         self.onRecordingBegan = onRecordingBegan
@@ -253,6 +279,7 @@ final class MeetingRecordingFlowCoordinator {
             // capture-failure that landed during the await may have moved
             // the pill to `.transcribing` / `.error`; we must not stomp it.
             guard self.pillViewModel.canTogglePause else { return }
+            self.pausePublicationRevision &+= 1
             self.pillViewModel.state = wantPause ? .paused : .recording
             self.pillController?.refreshState()
             self.panelViewModel?.isPaused = wantPause
@@ -260,17 +287,29 @@ final class MeetingRecordingFlowCoordinator {
     }
 
     func toggleMicrophoneMute() {
-        guard panelViewModel?.canToggleMicrophoneMute == true else { return }
+        guard stateMachine.state == .recording, panelViewModel?.canToggleMicrophoneMute == true else { return }
         let wantMuted = !(panelViewModel?.isMicrophoneMuted ?? false)
+        let generation = stateMachine.generation
         microphoneMuteToggleTask?.cancel()
         microphoneMuteToggleTask = Task { @MainActor [meetingRecordingService, weak self] in
             let microphoneMuteState = await meetingRecordingService.setMicrophoneMuted(wantMuted)
             let captureHealth = await meetingRecordingService.captureHealth
             guard !Task.isCancelled, let self else { return }
+            guard self.stateMachine.generation == generation, self.stateMachine.state == .recording else { return }
             self.panelViewModel?.isMicrophoneMuted = microphoneMuteState.isMuted
             self.panelViewModel?.canToggleMicrophoneMute = microphoneMuteState.canMute
             self.panelViewModel?.captureHealth = captureHealth
             self.pillViewModel.captureHealth = captureHealth
+        }
+    }
+
+    private func updateActiveMeetingType(_ meetingTypeID: UUID?) {
+        meetingTypeIDSetter(meetingTypeID)
+        let previousUpdate = meetingTypeUpdateTail
+        meetingTypeUpdateTail = Task { @MainActor [meetingRecordingService] in
+            await previousUpdate?.value
+            guard !Task.isCancelled else { return }
+            await meetingRecordingService.updateMeetingType(meetingTypeID)
         }
     }
 
@@ -327,7 +366,7 @@ final class MeetingRecordingFlowCoordinator {
 
     func stopRecordingAndWaitForCompletion() async {
         switch stateMachine.state {
-        case .checkingPermissions, .starting:
+        case .checkingPermissions:
             sendEvent(.cancelRequested)
         default:
             _ = stopRecording(trigger: .manual)
@@ -449,7 +488,7 @@ final class MeetingRecordingFlowCoordinator {
         pendingAudioSourceMode = nil
         pendingLivePanelPresentation = false
         pendingStartContext = nil
-        currentMeetingOperationContext = nil
+        clearMeetingOperationContext()
         currentMeetingTrigger = nil
         if wasCalendarTriggered {
             Telemetry.send(.calendarAutoStartFailed(reason: failureReason))
@@ -579,22 +618,30 @@ final class MeetingRecordingFlowCoordinator {
             vm.micLevel = 0
             vm.systemLevel = 0
             vm.captureHealth = initialCaptureHealth
-            vm.state = .recording
+            vm.state = .starting
             let panelVM = panelViewModel ?? MeetingRecordingPanelViewModel()
-            panelVM.state = .recording
+            panelVM.state = .starting
             panelVM.elapsedSeconds = 0
             panelVM.micLevel = 0
             panelVM.systemLevel = 0
             panelVM.captureHealth = initialCaptureHealth
             panelVM.isPaused = false
-            panelVM.isMicrophoneMuted = false
-            panelVM.canToggleMicrophoneMute = initialSourceMode.capturesMicrophone
+            panelVM.isMicrophoneMuted =
+                startMeetingsMutedProvider() && initialSourceMode.capturesMicrophone
+            panelVM.canToggleMicrophoneMute = false
             panelVM.updateLiveTranscriptStatus(.startingAudio)
             panelVM.updatePreviewLines([], isTranscriptionLagging: false)
             panelVM.onStop = { [weak self] in self?.toggleRecording() }
             panelVM.onPauseToggle = { [weak self] in self?.togglePause() }
             panelVM.onMicrophoneMuteToggle = { [weak self] in self?.toggleMicrophoneMute() }
             panelVM.onClose = { [weak self] in self?.hideMeetingPanel() }
+            panelVM.configureMeetingTypes(
+                meetingTypesProvider(),
+                selectedID: meetingTypeIDProvider(),
+                onChange: { [weak self] meetingTypeID in
+                    self?.updateActiveMeetingType(meetingTypeID)
+                }
+            )
             // Configure live Ask: in-memory mode (no transcriptionId/conversationRepo).
             // Promotion to a persisted ChatConversation happens after stop-time
             // stub creation, before the panel is torn down for queued finalize.
@@ -649,8 +696,6 @@ final class MeetingRecordingFlowCoordinator {
                 showMeetingPanel()
             }
             refreshFloatingPillVisibility()
-            startPillPolling()
-            startPillGlowPolling()
             startTranscriptObservation()
 
         case .startRecording:
@@ -660,6 +705,7 @@ final class MeetingRecordingFlowCoordinator {
             let trigger = pendingTrigger
             let title = pendingTitle
             let calendarEventSnapshot = pendingCalendarEventSnapshot
+            let meetingTypeID = meetingTypeIDProvider()
             let sourceMode = pendingAudioSourceMode ?? meetingAudioSourceModeProvider()
             let startContext =
                 pendingStartContext
@@ -673,6 +719,11 @@ final class MeetingRecordingFlowCoordinator {
             let operationContext = currentMeetingOperationContext ?? ObservabilityOperationContext()
             currentMeetingOperationContext = operationContext
             currentMeetingTrigger = trigger.map(TelemetryMeetingOperationTrigger.init)
+            Observability.beginCaptureCorrelation(
+                ObservabilityCaptureCorrelation(
+                    workflowID: operationContext.workflowID, consumer: .meeting
+                )
+            )
             actionTask = Task { @MainActor in
                 do {
                     try await meetingRecordingService.startRecording(
@@ -681,6 +732,7 @@ final class MeetingRecordingFlowCoordinator {
                         startContext: startContext,
                         calendarEventSnapshot: calendarEventSnapshot
                     )
+                    await meetingRecordingService.updateMeetingType(meetingTypeID)
                     guard self.ownsPendingStart(generation: gen) else {
                         self.recordIgnoredStartResult(generation: gen, outcome: "success")
                         return
@@ -712,7 +764,6 @@ final class MeetingRecordingFlowCoordinator {
                         )
                         self.refreshInitialLiveTranscriptStatus(
                             for: panelViewModel,
-                            liveSpeechEngineSelection: activeLiveSpeechEngineSelection,
                             plan: activeSpeechPlan
                         )
                     }
@@ -742,16 +793,30 @@ final class MeetingRecordingFlowCoordinator {
                         self.panelViewModel?.updateLiveTranscriptStatus(.preparingSpeechModel(message: nil))
                     case .some(.preparingSpeechModel) where isSpeechModelReady:
                         self.panelViewModel?.updateLiveTranscriptStatus(.listening)
-                    case .some(.listening), .some(.live), .some(.previewUnsupported), .some(.previewUnavailable), .none:
+                    case .some(.listening), .some(.live), .some(.previewOff), .some(.previewUnavailable), .none:
                         break
                     case .some(.preparingSpeechModel):
                         break
                     }
+                    let microphoneMuteState = await meetingRecordingService.microphoneMuteState
+                    guard self.ownsPendingStart(generation: gen) else {
+                        self.recordIgnoredStartResult(generation: gen, outcome: "success")
+                        return
+                    }
                     self.sendEvent(.recordingStarted(generation: gen))
+                    self.pillViewModel.state = .recording
+                    self.panelViewModel?.state = .recording
+                    self.panelViewModel?.isMicrophoneMuted = microphoneMuteState.isMuted
+                    self.panelViewModel?.canToggleMicrophoneMute = microphoneMuteState.canMute
+                    self.pillController?.refreshState()
+                    self.onMenuBarIconUpdate(.recording)
+                    self.startPillPolling()
+                    self.startPillGlowPolling()
                     self.startCaptureFailureObservation(generation: gen)
                     Telemetry.send(.meetingRecordingStarted(trigger: trigger))
                     self.onRecordingBegan()
                 } catch {
+                    Observability.endCaptureCorrelation(workflowID: operationContext.workflowID)
                     guard self.ownsPendingStart(generation: gen) else {
                         self.recordIgnoredStartResult(generation: gen, outcome: "failure")
                         return
@@ -772,9 +837,10 @@ final class MeetingRecordingFlowCoordinator {
                         outcome: .failure,
                         trigger: trigger.map(TelemetryMeetingOperationTrigger.init),
                         stage: .startRecording,
+                        durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
                         errorType: TelemetryErrorClassifier.classify(error)
                     )
-                    self.currentMeetingOperationContext = nil
+                    self.clearMeetingOperationContext()
                     self.currentMeetingTrigger = nil
                     self.sendEvent(.startFailed(generation: gen, message: error.localizedDescription))
                 }
@@ -790,17 +856,9 @@ final class MeetingRecordingFlowCoordinator {
             pillViewModel.micLevel = 0
             pillViewModel.systemLevel = 0
             pillViewModel.captureHealth = .notRecording
-            pillViewModel.state = .completing
-            pillController?.refreshState()
-            pillViewModel.onCompletionAnimationFinished = { [weak self] in
-                guard let self, self.pillViewModel.state == .completing else { return }
-                // Flower collapsed → the Metatron "saving" bloom takes over and
-                // holds until the recording is durably queued (`.showSavedCompletion`).
-                self.pillViewModel.state = .transcribing
-                self.pillController?.refreshState()
-                self.startMetatronMinimumDisplay()
-            }
+            beginPostStopPillCelebration()
             panelViewModel?.state = .transcribing
+            panelViewModel?.canToggleMicrophoneMute = false
             panelViewModel?.micLevel = 0
             panelViewModel?.systemLevel = 0
             panelViewModel?.captureHealth = .notRecording
@@ -816,6 +874,7 @@ final class MeetingRecordingFlowCoordinator {
             currentMeetingOperationContext = operationContext
             actionTask = Task { @MainActor in
                 var stoppedOutput: MeetingRecordingOutput?
+                var captureDiagnostics: MeetingCaptureDiagnostics?
                 let queueingStartedAt = Date()
                 var queueingOutcome = "success"
                 var queueingFailureDetail: String?
@@ -870,6 +929,10 @@ final class MeetingRecordingFlowCoordinator {
                         do {
                             output = try await meetingRecordingService.stopRecording()
                         } catch {
+                            if let activeSessionID {
+                                captureDiagnostics = await meetingRecordingService.captureDiagnostics(
+                                    for: activeSessionID)
+                            }
                             appendStopStage(
                                 "service_stop",
                                 sessionID: activeSessionID,
@@ -880,6 +943,7 @@ final class MeetingRecordingFlowCoordinator {
                             throw error
                         }
                         stoppedOutput = output
+                        captureDiagnostics = await meetingRecordingService.captureDiagnostics(for: output.sessionID)
                         appendStopStage(
                             "service_stop",
                             sessionID: output.sessionID,
@@ -892,11 +956,20 @@ final class MeetingRecordingFlowCoordinator {
                                 liveTranscriptLagged: liveTranscriptLagged
                             ))
                         let prepareRowStartedAt = Date()
-                        let prepared: Transcription
+                        var prepared: Transcription
                         do {
                             prepared = try await transcriptionService.prepareMeetingTranscription(
                                 recording: output
                             )
+                            // The user can refine the type while recording.
+                            // Snapshot it immediately before queueing so the
+                            // durable stub and auto-run routing agree.
+                            let meetingTypeID = output.meetingTypeId ?? self.meetingTypeIDProvider()
+                            try self.transcriptionRepo.updateMeetingType(
+                                id: prepared.id,
+                                meetingTypeId: meetingTypeID
+                            )
+                            prepared.meetingTypeId = meetingTypeID
                         } catch {
                             appendStopStage(
                                 "prepare_row",
@@ -914,10 +987,11 @@ final class MeetingRecordingFlowCoordinator {
                         )
                         self.persistLiveAskConversationIfNeeded(transcriptionID: prepared.id)
                         let enqueueStartedAt = Date()
-                        meetingTranscriptionQueue.enqueue(
+                        await meetingTranscriptionQueue.enqueue(
                             MeetingTranscriptionQueue.Item(
                                 recording: output,
                                 transcriptionID: prepared.id,
+                                recordingGeneration: gen,
                                 operationContext: operationContext,
                                 trigger: operationTrigger,
                                 liveWordCount: liveWordCount,
@@ -930,7 +1004,7 @@ final class MeetingRecordingFlowCoordinator {
                         )
                         return prepared
                     }
-                    self.currentMeetingOperationContext = nil
+                    self.clearMeetingOperationContext()
                     self.currentMeetingTrigger = nil
                     self.sendEvent(.recordingQueued(generation: gen, transcriptionID: prepared.id))
                 } catch {
@@ -943,10 +1017,20 @@ final class MeetingRecordingFlowCoordinator {
                             outcome: .cancelled,
                             output: stoppedOutput,
                             stage: stoppedOutput == nil ? .stopRecording : .completeTranscription,
+                            captureDiagnostics: captureDiagnostics,
                             liveWordCount: liveWordCount,
                             liveTranscriptLagged: liveTranscriptLagged
                         )
-                        self.currentMeetingOperationContext = nil
+                        let message =
+                            stoppedOutput == nil
+                            ? "Meeting stop was cancelled"
+                            : "Meeting processing was interrupted and will be retried automatically."
+                        self.sendEvent(
+                            .transcriptionFailed(
+                                generation: gen,
+                                message: message
+                            ))
+                        self.clearMeetingOperationContext()
                         self.currentMeetingTrigger = nil
                     } else {
                         queueingOutcome = "failure"
@@ -960,11 +1044,12 @@ final class MeetingRecordingFlowCoordinator {
                             outcome: .failure,
                             output: stoppedOutput,
                             stage: stoppedOutput == nil ? .stopRecording : .completeTranscription,
+                            captureDiagnostics: captureDiagnostics,
                             liveWordCount: liveWordCount,
                             liveTranscriptLagged: liveTranscriptLagged,
                             errorType: TelemetryErrorClassifier.classify(error)
                         )
-                        self.currentMeetingOperationContext = nil
+                        self.clearMeetingOperationContext()
                         self.currentMeetingTrigger = nil
                         self.sendEvent(.transcriptionFailed(generation: gen, message: error.localizedDescription))
                     }
@@ -997,7 +1082,7 @@ final class MeetingRecordingFlowCoordinator {
                     stage: .cancel,
                     durationSeconds: durationSeconds
                 )
-                self.currentMeetingOperationContext = nil
+                self.clearMeetingOperationContext()
                 self.currentMeetingTrigger = nil
             }
 
@@ -1007,6 +1092,7 @@ final class MeetingRecordingFlowCoordinator {
             stopTranscriptObservation()
             stopSpeechWarmUpObservation()
             panelViewModel?.state = .error(message)
+            panelViewModel?.canToggleMicrophoneMute = false
             pillViewModel.state = .error(
                 panelViewModel?.compactErrorRecoveryMessage
                     ?? "Meeting interrupted. Open Library to retry transcription or export captured audio."
@@ -1034,7 +1120,7 @@ final class MeetingRecordingFlowCoordinator {
             let iconState: BreathWaveIcon.MenuBarState =
                 switch state {
                 case .idle: .idle
-                case .recording: .recording
+                case .recording: stateMachine.state == .starting ? .processing : .recording
                 case .processing: .processing
                 }
             onMenuBarIconUpdate(iconState)
@@ -1062,6 +1148,38 @@ final class MeetingRecordingFlowCoordinator {
     }
 
     // MARK: - Saved-completion celebration
+
+    /// The tile shows "Wrapping up…" for `.completing`. That state used to wait
+    /// on the floating pill's collapse callback, which never runs when the pill
+    /// is hidden (#1079). Finish immediately if there is no visible pill;
+    /// otherwise keep the flourish and a 2 s fallback.
+    private func beginPostStopPillCelebration() {
+        pillViewModel.onCompletionAnimationFinished = { [weak self] in
+            self?.finishCompletingFlourish()
+        }
+        pillViewModel.state = .completing
+        guard pillController?.isVisible == true else {
+            finishCompletingFlourish()
+            return
+        }
+        pillController?.refreshState()
+        completingFlourishTask?.cancel()
+        let duration = completingFlourishFallback
+        completingFlourishTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: duration)
+            guard !Task.isCancelled, let self else { return }
+            self.finishCompletingFlourish()
+        }
+    }
+
+    private func finishCompletingFlourish() {
+        completingFlourishTask = nil
+        guard pillViewModel.state == .completing else { return }
+        pillViewModel.onCompletionAnimationFinished = nil
+        pillViewModel.state = .transcribing
+        pillController?.refreshState()
+        startMetatronMinimumDisplay()
+    }
 
     /// Hold the Metatron bloom for a minimum on-screen time before it may resolve
     /// to the checkmark, so the celebration reads even when queueing is instant.
@@ -1104,6 +1222,8 @@ final class MeetingRecordingFlowCoordinator {
     }
 
     private func cancelSavedCompletion() {
+        completingFlourishTask?.cancel()
+        completingFlourishTask = nil
         metatronMinDurationTask?.cancel()
         metatronMinDurationTask = nil
         savedCompletionDismissTask?.cancel()
@@ -1126,6 +1246,8 @@ final class MeetingRecordingFlowCoordinator {
         pauseToggleTask = nil
         microphoneMuteToggleTask?.cancel()
         microphoneMuteToggleTask = nil
+        completingFlourishTask?.cancel()
+        completingFlourishTask = nil
         pillController?.hide()
         pillController = nil
         pillViewModel.onStop = nil
@@ -1195,70 +1317,72 @@ final class MeetingRecordingFlowCoordinator {
         pillPollingTask = Task { @MainActor [weak self] in
             guard let self else { return }
             while !Task.isCancelled {
-                let micLevel = Self.displayLevel(await meetingRecordingService.micLevel)
-                let systemLevel = Self.displayLevel(await meetingRecordingService.systemLevel)
-                let elapsedSeconds = await meetingRecordingService.elapsedSeconds
-                let captureMode = await meetingRecordingService.captureMode
-                let microphoneMuteState = await meetingRecordingService.microphoneMuteState
-                let captureHealth = await meetingRecordingService.captureHealth
-
-                guard !Task.isCancelled else { break }
-                if pillViewModel.micLevel != micLevel {
-                    pillViewModel.micLevel = micLevel
-                }
-                if pillViewModel.systemLevel != systemLevel {
-                    pillViewModel.systemLevel = systemLevel
-                }
-                if pillViewModel.elapsedSeconds != elapsedSeconds {
-                    pillViewModel.elapsedSeconds = elapsedSeconds
-                }
-                if pillViewModel.captureHealth != captureHealth {
-                    pillViewModel.captureHealth = captureHealth
-                }
-                if let panelViewModel {
-                    if panelViewModel.elapsedSeconds != elapsedSeconds {
-                        panelViewModel.elapsedSeconds = elapsedSeconds
-                    }
-                    // While actively recording the panel orbs are driven by the
-                    // fast (~30 fps) glow loop; this 1 s loop only settles them
-                    // (→ 0) when paused/stopped so they don't freeze on the last
-                    // live frame. Writing levels here every second while recording
-                    // would also visibly fight the fast loop's smoother updates.
-                    if captureMode != .full {
-                        if panelViewModel.micLevel != micLevel {
-                            panelViewModel.micLevel = micLevel
-                        }
-                        if panelViewModel.systemLevel != systemLevel {
-                            panelViewModel.systemLevel = systemLevel
-                        }
-                    }
-                    if panelViewModel.isMicrophoneMuted != microphoneMuteState.isMuted {
-                        panelViewModel.isMicrophoneMuted = microphoneMuteState.isMuted
-                    }
-                    if panelViewModel.canToggleMicrophoneMute != microphoneMuteState.canMute {
-                        panelViewModel.canToggleMicrophoneMute = microphoneMuteState.canMute
-                    }
-                    if panelViewModel.captureHealth != captureHealth {
-                        panelViewModel.captureHealth = captureHealth
-                    }
-                }
-                // Pause/resume reconciliation (issue #235). The user-facing
-                // toggle does an optimistic flip; this poll is the
-                // authoritative source if the optimistic flip diverged from
-                // the service (e.g., capture failed before the service saw
-                // the pause call). Only flip pillViewModel.state between
-                // .recording and .paused — never override .completing /
-                // .transcribing / .completed / .error from here.
-                let serviceIsPaused = (captureMode == .paused)
-                if pillViewModel.state == .recording, serviceIsPaused {
-                    pillViewModel.state = .paused
-                } else if pillViewModel.state == .paused, !serviceIsPaused, captureMode == .full {
-                    pillViewModel.state = .recording
-                }
-                panelViewModel?.isPaused = serviceIsPaused
+                await refreshPillState()
                 try? await Task.sleep(for: .seconds(1))
             }
         }
+    }
+
+    private func refreshPillState() async {
+        let pauseRevision = pausePublicationRevision
+        let micLevel = Self.displayLevel(await meetingRecordingService.micLevel)
+        let systemLevel = Self.displayLevel(await meetingRecordingService.systemLevel)
+        let elapsedSeconds = await meetingRecordingService.elapsedSeconds
+        let captureMode = await meetingRecordingService.captureMode
+        let microphoneMuteState = await meetingRecordingService.microphoneMuteState
+        let captureHealth = await meetingRecordingService.captureHealth
+
+        guard !Task.isCancelled else { return }
+        if pillViewModel.micLevel != micLevel {
+            pillViewModel.micLevel = micLevel
+        }
+        if pillViewModel.systemLevel != systemLevel {
+            pillViewModel.systemLevel = systemLevel
+        }
+        if pillViewModel.elapsedSeconds != elapsedSeconds {
+            pillViewModel.elapsedSeconds = elapsedSeconds
+        }
+        if pillViewModel.captureHealth != captureHealth {
+            pillViewModel.captureHealth = captureHealth
+        }
+        if let panelViewModel {
+            if panelViewModel.elapsedSeconds != elapsedSeconds {
+                panelViewModel.elapsedSeconds = elapsedSeconds
+            }
+            // While actively recording the panel orbs are driven by the
+            // fast (~30 fps) glow loop; this 1 s loop only settles them
+            // (→ 0) when paused/stopped so they don't freeze on the last
+            // live frame. Writing levels here every second while recording
+            // would also visibly fight the fast loop's smoother updates.
+            if captureMode != .full {
+                if panelViewModel.micLevel != micLevel {
+                    panelViewModel.micLevel = micLevel
+                }
+                if panelViewModel.systemLevel != systemLevel {
+                    panelViewModel.systemLevel = systemLevel
+                }
+            }
+            if panelViewModel.isMicrophoneMuted != microphoneMuteState.isMuted {
+                panelViewModel.isMicrophoneMuted = microphoneMuteState.isMuted
+            }
+            if panelViewModel.canToggleMicrophoneMute != microphoneMuteState.canMute {
+                panelViewModel.canToggleMicrophoneMute = microphoneMuteState.canMute
+            }
+            if panelViewModel.captureHealth != captureHealth {
+                panelViewModel.captureHealth = captureHealth
+            }
+        }
+        // A confirmed toggle may have published while these service reads
+        // suspended. Keep its newer pause state, while still updating health
+        // and levels above. Polling only reconciles recording/paused states.
+        guard pausePublicationRevision == pauseRevision else { return }
+        let serviceIsPaused = (captureMode == .paused)
+        if pillViewModel.state == .recording, serviceIsPaused {
+            pillViewModel.state = .paused
+        } else if pillViewModel.state == .paused, !serviceIsPaused, captureMode == .full {
+            pillViewModel.state = .recording
+        }
+        panelViewModel?.isPaused = serviceIsPaused
     }
 
     private static func displayLevel(_ level: Float) -> Float {
@@ -1450,7 +1574,7 @@ final class MeetingRecordingFlowCoordinator {
 
     private func handleSpeechWarmUpState(_ state: STTWarmUpState) {
         guard let panelViewModel, panelViewModel.previewLines.isEmpty else { return }
-        if case .previewUnsupported = panelViewModel.liveTranscriptStatus {
+        if case .previewOff = panelViewModel.liveTranscriptStatus {
             return
         }
 
@@ -1470,17 +1594,14 @@ final class MeetingRecordingFlowCoordinator {
 
     private func refreshInitialLiveTranscriptStatus(
         for panelViewModel: MeetingRecordingPanelViewModel,
-        liveSpeechEngineSelection: SpeechEngineSelection?,
         plan: MeetingSpeechPlan?
     ) {
         guard let plan else {
             panelViewModel.updateLiveTranscriptStatus(.previewUnavailable)
             return
         }
-        guard plan.preview == nil, let liveSpeechEngineSelection else { return }
-        panelViewModel.updateLiveTranscriptStatus(
-            .previewUnsupported(engine: liveSpeechEngineSelection.engine)
-        )
+        guard plan.preview == nil else { return }
+        panelViewModel.updateLiveTranscriptStatus(.previewOff)
     }
 
     nonisolated private static func makePreviewLines(from update: MeetingTranscriptUpdate)
@@ -1532,7 +1653,13 @@ final class MeetingRecordingFlowCoordinator {
 
     func retryMeetingFinalization(_ transcription: Transcription) async throws {
         let item = try await makeRetryQueueItem(from: transcription)
-        meetingTranscriptionQueue.enqueue(item)
+        guard
+            try await meetingTranscriptionQueue.enqueueClaimingFinalizationOwnership(
+                item
+            )
+        else {
+            throw MeetingFinalizationRetryError.alreadyProcessing
+        }
     }
 
     var queuedMeetingTranscriptionIDs: Set<UUID> {
@@ -1555,7 +1682,13 @@ final class MeetingRecordingFlowCoordinator {
                 liveWordCount: item.liveWordCount,
                 liveTranscriptLagged: item.liveTranscriptLagged
             )
-            onQueuedTranscriptionReady(transcription, stateMachine.state == .idle)
+            // Idle alone is insufficient: a newer meeting may already have
+            // stopped and queued behind this one. Only the current generation
+            // can present; every completed item still runs background effects.
+            let canPresent =
+                stateMachine.state == .idle
+                && item.recordingGeneration == stateMachine.generation
+            onQueuedTranscriptionReady(transcription, canPresent)
 
         case .failure(let item, let error):
             Telemetry.send(
@@ -1573,12 +1706,16 @@ final class MeetingRecordingFlowCoordinator {
                 liveTranscriptLagged: item.liveTranscriptLagged,
                 errorType: TelemetryErrorClassifier.classify(error)
             )
-            onQueuedTranscriptionFailed(TranscriptionCompletionNotifier.meetingNeedsRetryContent())
+            onQueuedTranscriptionFailed(
+                item.transcriptionID,
+                TranscriptionCompletionNotifier.meetingNeedsRetryContent()
+            )
         }
     }
 
     private func makeRetryQueueItem(from transcription: Transcription) async throws -> MeetingTranscriptionQueue.Item {
         let repo = transcriptionRepo
+        let recordingGeneration = stateMachine.generation
         return try await Task.detached(priority: .userInitiated) {
             let latest = try repo.fetch(id: transcription.id) ?? transcription
             guard latest.sourceType == .meeting else {
@@ -1608,6 +1745,7 @@ final class MeetingRecordingFlowCoordinator {
             return MeetingTranscriptionQueue.Item(
                 recording: recording,
                 transcriptionID: latest.id,
+                recordingGeneration: recordingGeneration,
                 operationContext: ObservabilityOperationContext(),
                 trigger: nil,
                 liveWordCount: 0,
@@ -1626,11 +1764,19 @@ final class MeetingRecordingFlowCoordinator {
         )
     }
 
+    private func clearMeetingOperationContext() {
+        if let workflowID = currentMeetingOperationContext?.workflowID {
+            Observability.endCaptureCorrelation(workflowID: workflowID)
+        }
+        currentMeetingOperationContext = nil
+    }
+
     private func sendMeetingOperation(
         outcome: ObservabilityOutcome,
         trigger: TelemetryMeetingOperationTrigger? = nil,
         output: MeetingRecordingOutput? = nil,
         stage: TelemetryMeetingOperationStage? = nil,
+        captureDiagnostics: MeetingCaptureDiagnostics? = nil,
         durationSeconds: Double? = nil,
         liveWordCount: Int? = nil,
         liveTranscriptLagged: Bool? = nil,
@@ -1642,6 +1788,7 @@ final class MeetingRecordingFlowCoordinator {
             trigger: trigger ?? currentMeetingTrigger,
             output: output,
             stage: stage,
+            captureDiagnostics: captureDiagnostics,
             durationSeconds: durationSeconds,
             liveWordCount: liveWordCount,
             liveTranscriptLagged: liveTranscriptLagged,
@@ -1655,6 +1802,7 @@ final class MeetingRecordingFlowCoordinator {
         trigger: TelemetryMeetingOperationTrigger? = nil,
         output: MeetingRecordingOutput? = nil,
         stage: TelemetryMeetingOperationStage? = nil,
+        captureDiagnostics: MeetingCaptureDiagnostics? = nil,
         durationSeconds: Double? = nil,
         liveWordCount: Int? = nil,
         liveTranscriptLagged: Bool? = nil,
@@ -1669,14 +1817,17 @@ final class MeetingRecordingFlowCoordinator {
                 outcome: outcome,
                 trigger: trigger,
                 stage: stage,
-                durationSeconds: output?.durationSeconds ?? durationSeconds,
+                durationSeconds: output?.durationSeconds ?? captureDiagnostics?.elapsedSeconds ?? durationSeconds,
                 liveWordCount: liveWordCount,
                 liveTranscriptLagged: liveTranscriptLagged,
                 microphoneTrackPresent: output.map { $0.sourceAlignment.microphone != nil },
                 systemTrackPresent: output.map { $0.sourceAlignment.system != nil },
                 notesUsed: notes.map { !$0.isEmpty },
                 notesLengthBucket: output.map { Observability.textLengthBucket($0.userNotes) },
-                errorType: errorType
+                errorType: errorType,
+                captureStartCompleted: captureDiagnostics?.captureStartCompleted
+                    ?? (output != nil ? true : (stage == .startRecording ? false : nil)),
+                captureDiagnostics: captureDiagnostics
             ))
     }
 }
@@ -1716,6 +1867,19 @@ extension MeetingRecordingFlowCoordinator {
 
     func testHook_waitForActionTask() async {
         await actionTask?.value
+    }
+
+    func testHook_refreshPillState(panel: MeetingRecordingPanelViewModel) async {
+        panelViewModel = panel
+        await refreshPillState()
+    }
+
+    func testHook_waitForPauseToggleTask() async {
+        await pauseToggleTask?.value
+    }
+
+    var testHook_actionTask: Task<Void, Never>? {
+        actionTask
     }
 
     func testHook_startCaptureFailureObservation(generation: Int) {

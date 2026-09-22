@@ -90,10 +90,13 @@ The cleaned mic is exposed in the artifact manifest
   audibly ducks the user during double-talk (observed directly in earlier
   testing; see also `../../docs/research/vpio-process-tap-conflict.md`). VPIO
   optimizes live-call comfort; we optimize post-hoc transcript accuracy.
-- **Transcript-level echo removal** (delete mic-transcript segments that
-  duplicate the system transcript) — rejected. Bleed corrupts the user's
+- **Transcript-level echo removal as the primary AEC solution** (delete
+  mic-transcript segments that duplicate the system transcript) — rejected. Bleed corrupts the user's
   own words before ASR sees them; deleting duplicates cannot restore
-  accuracy and fails on overlapping speech.
+  accuracy and fails on overlapping speech. The existing
+  `MeetingTranscriptSourceReconciler` still applies duplicate-speech heuristics
+  during final transcript assembly; it is a supporting filter, not a
+  substitute for cleaned-audio rendering.
 - **Linear DSP AEC only** (adaptive filter, WebRTC-AEC3 style) — rejected
   as the sole mechanism. Leaves nonlinear residual (speaker distortion,
   reverb, clock drift). May later be added as a pre-stage if measurement

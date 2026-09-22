@@ -1,0 +1,47 @@
+{
+  "name": "track-1-en-verified",
+  "command": [
+    "<QA_ROOT>/macparakeet-cli-runtime",
+    "transcribe",
+    "<QA_ROOT>/audio-runtime/two-tracks.mkv",
+    "--database",
+    "<QA_OUTPUT>/track-1-en-verified.sqlite",
+    "--mode",
+    "raw",
+    "--format",
+    "json",
+    "--engine",
+    "nemotron",
+    "--nemotron-model",
+    "multilingual-1120ms",
+    "--speaker-detection",
+    "off",
+    "--language",
+    "en",
+    "--audio-track",
+    "1"
+  ],
+  "environment": {
+    "CFFIXED_USER_HOME": "<QA_ROOT>/isolated-home",
+    "MACPARAKEET_TELEMETRY": "0",
+    "DO_NOT_TRACK": "1"
+  },
+  "timeoutSeconds": 180,
+  "timedOut": false,
+  "exitCode": 0,
+  "wallSeconds": 1.456,
+  "jsonValid": true,
+  "rows": [
+    {
+      "id": "77b8c124bc72455ea9782302ac5c270b",
+      "status": "completed",
+      "audioTrackOrdinal": 0,
+      "engine": "nemotron",
+      "engineVariant": "multilingual-1120ms",
+      "language": "en",
+      "rawTranscript": "However, due to the slow communication channels, styles in the West could lag behind by twenty five to thirty years.",
+      "durationMs": 8720,
+      "speakerCount": null
+    }
+  ]
+}

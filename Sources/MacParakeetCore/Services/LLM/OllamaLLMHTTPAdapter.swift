@@ -1,6 +1,8 @@
 import Foundation
 
 struct OllamaLLMHTTPAdapter: LLMHTTPAdapter {
+    static let contextWindowTokens = 8192
+
     private let transport: LLMHTTPTransport
     private let openAICompatibleFallbackAdapter: OpenAICompatibleLLMHTTPAdapter
 
@@ -14,7 +16,7 @@ struct OllamaLLMHTTPAdapter: LLMHTTPAdapter {
         config: LLMProviderConfig,
         options: ChatCompletionOptions
     ) async throws -> ChatCompletionResponse {
-        let request = try buildRequest(messages: messages, config: config, stream: false)
+        let request = try buildRequest(messages: messages, config: config, options: options, stream: false)
 
         let (data, response) = try await transport.data(for: request)
 
@@ -24,6 +26,12 @@ struct OllamaLLMHTTPAdapter: LLMHTTPAdapter {
 
         guard (200...299).contains(http.statusCode) else {
             throw LLMHTTPErrorMapper.mapError(statusCode: http.statusCode, data: data)
+        }
+
+        if let envelope = try? JSONDecoder().decode(StreamErrorResponse.self, from: data),
+            let error = envelope.error
+        {
+            throw LLMHTTPErrorMapper.mapStreamingError(message: error)
         }
 
         guard let ollamaResponse = try? JSONDecoder().decode(OllamaChatResponse.self, from: data) else {
@@ -48,7 +56,8 @@ struct OllamaLLMHTTPAdapter: LLMHTTPAdapter {
             content: ollamaResponse.message.content,
             finishReason: ollamaResponse.done_reason,
             model: ollamaResponse.model,
-            usage: usage
+            usage: usage,
+            effectiveInferenceSettings: options.effectiveInferenceSettings
         )
     }
 
@@ -60,7 +69,12 @@ struct OllamaLLMHTTPAdapter: LLMHTTPAdapter {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let request = try buildRequest(messages: messages, config: config, stream: true)
+                    let request = try buildRequest(
+                        messages: messages,
+                        config: config,
+                        options: options,
+                        stream: true
+                    )
 
                     let (bytes, response) = try await transport.bytes(for: request)
 
@@ -81,15 +95,14 @@ struct OllamaLLMHTTPAdapter: LLMHTTPAdapter {
                     for try await line in bytes.lines {
                         try Task.checkCancellation()
 
-                        guard !line.isEmpty,
-                              let data = line.data(using: .utf8),
-                              let chunk = try? JSONDecoder().decode(OllamaChatResponse.self, from: data) else {
-                            continue
-                        }
-
-                        // Check for errors
-                        if let error = chunk.error {
+                        guard !line.isEmpty, let data = line.data(using: .utf8) else { continue }
+                        if let envelope = try? JSONDecoder().decode(StreamErrorResponse.self, from: data),
+                            let error = envelope.error
+                        {
                             throw LLMHTTPErrorMapper.mapStreamingError(message: error)
+                        }
+                        guard let chunk = try? JSONDecoder().decode(OllamaChatResponse.self, from: data) else {
+                            continue
                         }
 
                         let content = chunk.message.content
@@ -127,6 +140,106 @@ struct OllamaLLMHTTPAdapter: LLMHTTPAdapter {
         }
     }
 
+    func chatCompletionDetailedStream(
+        messages: [ChatMessage],
+        config: LLMProviderConfig,
+        options: ChatCompletionOptions
+    ) -> AsyncThrowingStream<LLMStreamEvent, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let request = try buildRequest(
+                        messages: messages,
+                        config: config,
+                        options: options,
+                        stream: true
+                    )
+                    let (bytes, response) = try await transport.bytes(for: request)
+                    guard let http = response as? HTTPURLResponse else {
+                        throw LLMError.connectionFailed("Invalid response.")
+                    }
+                    guard (200...299).contains(http.statusCode) else {
+                        var errorData = Data()
+                        for try await byte in bytes { errorData.append(byte) }
+                        throw LLMHTTPErrorMapper.mapError(statusCode: http.statusCode, data: errorData)
+                    }
+
+                    var yieldedAnyContent = false
+                    var lastChunk: OllamaChatResponse?
+                    for try await line in bytes.lines {
+                        try Task.checkCancellation()
+                        guard !line.isEmpty, let data = line.data(using: .utf8) else { continue }
+                        if let envelope = try? JSONDecoder().decode(StreamErrorResponse.self, from: data),
+                            let error = envelope.error
+                        {
+                            throw LLMHTTPErrorMapper.mapStreamingError(message: error)
+                        }
+                        guard let chunk = try? JSONDecoder().decode(OllamaChatResponse.self, from: data) else {
+                            continue
+                        }
+                        lastChunk = chunk
+                        if !chunk.message.content.isEmpty {
+                            yieldedAnyContent = true
+                            continuation.yield(.text(chunk.message.content))
+                        }
+                        if chunk.done == true {
+                            try validateStreamCompletion(
+                                providerID: config.id,
+                                sawSentinel: true,
+                                yieldedAnyContent: yieldedAnyContent
+                            )
+                            continuation.yield(.completed(Self.terminalReceipt(
+                                for: chunk, config: config, options: options
+                            )))
+                            continuation.finish()
+                            return
+                        }
+                    }
+                    try validateStreamCompletion(
+                        providerID: config.id,
+                        sawSentinel: false,
+                        yieldedAnyContent: yieldedAnyContent
+                    )
+                    // Match the legacy Ollama EOF policy. Content has already
+                    // passed validation; retain observed metadata without
+                    // inventing a stop reason or usage for the missing sentinel.
+                    if let lastChunk {
+                        continuation.yield(.completed(Self.terminalReceipt(
+                            for: lastChunk, config: config, options: options
+                        )))
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    private static func terminalReceipt(
+        for chunk: OllamaChatResponse,
+        config: LLMProviderConfig,
+        options: ChatCompletionOptions
+    ) -> LLMStreamTerminal {
+        let usage: LLMUsage?
+        if chunk.prompt_eval_count != nil || chunk.eval_count != nil {
+            usage = LLMUsage(
+                promptTokens: chunk.prompt_eval_count,
+                completionTokens: chunk.eval_count,
+                totalTokens: LLMUsage.derivedTotal(
+                    promptTokens: chunk.prompt_eval_count, completionTokens: chunk.eval_count
+                )
+            )
+        } else {
+            usage = nil
+        }
+        return LLMStreamTerminal(
+            provider: config.id.rawValue, model: chunk.model, usage: usage,
+            stopReason: chunk.done_reason, effectiveSettings: options.effectiveInferenceSettings
+        )
+    }
+
     func listModels(config: LLMProviderConfig) async throws -> [String] {
         do {
             return try await listNativeModels(config: config)
@@ -141,8 +254,10 @@ struct OllamaLLMHTTPAdapter: LLMHTTPAdapter {
     func buildRequest(
         messages: [ChatMessage],
         config: LLMProviderConfig,
+        options: ChatCompletionOptions,
         stream: Bool
     ) throws -> URLRequest {
+        try options.validateInferenceSettings(for: config)
         // Use native /api/chat endpoint (strip /v1 suffix if present)
         var baseStr = config.baseURL.absoluteString
         if baseStr.hasSuffix("/v1") {
@@ -159,12 +274,19 @@ struct OllamaLLMHTTPAdapter: LLMHTTPAdapter {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
+        let usesPromptInferenceSettings = options.usesPromptInferenceSettings
         let body = OllamaChatRequest(
             model: config.modelName,
             messages: messages.map { OllamaMessage(role: $0.role.rawValue, content: $0.content) },
             stream: stream,
-            think: false,
-            options: OllamaRequestOptions(num_ctx: 8192)
+            think: usesPromptInferenceSettings && options.thinkingMode == .enabled,
+            options: OllamaRequestOptions(
+                num_ctx: Self.contextWindowTokens,
+                temperature: usesPromptInferenceSettings ? options.temperature : nil,
+                top_p: usesPromptInferenceSettings ? options.topP : nil,
+                top_k: usesPromptInferenceSettings ? options.topK : nil,
+                num_predict: usesPromptInferenceSettings ? options.maxTokens : nil
+            )
         )
 
         request.httpBody = try JSONEncoder().encode(body)
@@ -224,7 +346,6 @@ struct OllamaChatResponse: Decodable {
     let message: OllamaResponseMessage
     let done: Bool?
     let done_reason: String?
-    let error: String?
     let prompt_eval_count: Int?
     let eval_count: Int?
 

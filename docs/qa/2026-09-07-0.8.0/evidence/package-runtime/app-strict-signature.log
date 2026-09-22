@@ -1,0 +1,16 @@
+--prepared:<REPO>/dist/MacParakeet.app/Contents/Frameworks/liblocalvqe.dylib
+--validated:<REPO>/dist/MacParakeet.app/Contents/Frameworks/liblocalvqe.dylib
+--prepared:<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/.
+--prepared:<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Downloader.xpc
+--validated:<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Downloader.xpc
+--prepared:<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate
+--validated:<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate
+--prepared:<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app
+--prepared:<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Installer.xpc
+--validated:<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Installer.xpc
+--validated:<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app
+--validated:<REPO>/dist/MacParakeet.app/Contents/Frameworks/Sparkle.framework/Versions/Current/.
+--prepared:<REPO>/dist/MacParakeet.app/Contents/MacOS/macparakeet-cli
+--validated:<REPO>/dist/MacParakeet.app/Contents/MacOS/macparakeet-cli
+<REPO>/dist/MacParakeet.app: valid on disk
+<REPO>/dist/MacParakeet.app: satisfies its Designated Requirement

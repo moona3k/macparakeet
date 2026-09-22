@@ -147,10 +147,9 @@ final class MicrophoneEngineRealPlatformTests: XCTestCase {
         )
     }
 
-    /// Core Audio can renegotiate the input chain while a stopped engine is
-    /// waiting for key-down. The configuration observer must discard that
-    /// preparation so the next start cannot reuse a stale tap format.
-    func testConfigurationChangeDiscardsPreparedEngine() throws {
+    /// Some devices deliver the setup notification after `prepare()` returns.
+    /// If the actual route and format stayed unchanged, keep the prepared graph.
+    func testDelayedUnchangedConfigurationChangeKeepsPreparedEngine() throws {
         platform.stopEngine()
         platform = try makePreparablePlatform()
 
@@ -169,10 +168,10 @@ final class MicrophoneEngineRealPlatformTests: XCTestCase {
         _ = platform.isEngineRunning  // queue sync flushes observer invalidation
 
         let after = platform.preparedEngineStateForTesting
-        XCTAssertFalse(after.prepared)
-        XCTAssertFalse(
+        XCTAssertTrue(after.prepared)
+        XCTAssertTrue(
             before.engine === after.engine,
-            "A configuration change must replace the stale prepared engine."
+            "An unchanged delayed setup notification must keep the prepared engine."
         )
     }
 

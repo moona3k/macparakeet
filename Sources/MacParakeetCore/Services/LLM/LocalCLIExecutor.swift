@@ -81,7 +81,8 @@ public enum LocalCLIError: Error, LocalizedError, Sendable {
         case .commandNotFound(let details):
             return "CLI command not found. Ensure it is installed and on your PATH. Details: \(details)"
         case .timeout(let seconds):
-            return "Timed out after \(Int(seconds))s. Verify the command runs successfully in a terminal and is logged in if required."
+            return
+                "Timed out after \(Int(seconds))s. Verify the command runs successfully in a terminal and is logged in if required."
         case .drainTimeout:
             return "CLI command exited, but its output pipes did not close in time."
         case .nonZeroExit(let code, let stderr):
@@ -120,10 +121,10 @@ public final class LocalCLIConfigStore: @unchecked Sendable {
             defaults.set(true, forKey: Self.timeoutMigrationKey)
         }
         guard let data = defaults.data(forKey: Self.configKey),
-              let config = try? JSONDecoder().decode(LocalCLIConfig.self, from: data)
+            let config = try? JSONDecoder().decode(LocalCLIConfig.self, from: data)
         else { return nil }
         guard needsTimeoutMigration,
-              config.timeoutSeconds == LocalCLIConfig.legacyDefaultTimeout
+            config.timeoutSeconds == LocalCLIConfig.legacyDefaultTimeout
         else { return config }
         let migrated = LocalCLIConfig(commandTemplate: config.commandTemplate)
         try? save(migrated)
@@ -132,6 +133,18 @@ public final class LocalCLIConfigStore: @unchecked Sendable {
 
     public func save(_ config: LocalCLIConfig) throws {
         let data = try JSONEncoder().encode(config)
+        defaults.set(data, forKey: Self.configKey)
+    }
+
+    /// Prepare the CLI payload before switching the active provider. After
+    /// provider persistence succeeds, only the nonthrowing defaults write remains.
+    public func save(
+        _ config: LocalCLIConfig,
+        providerConfig: LLMProviderConfig,
+        configStore: any LLMConfigStoreProtocol
+    ) throws {
+        let data = try JSONEncoder().encode(config)
+        try configStore.saveConfig(providerConfig)
         defaults.set(data, forKey: Self.configKey)
     }
 
@@ -238,6 +251,16 @@ public final class LocalCLIExecutor: Sendable {
         }
     }
 
+    private enum StandardOutputSanitizerState {
+        case text
+        case escape
+        case escapeIntermediate
+        case csiParameter
+        case csiIntermediate
+        case controlString(endsOnBEL: Bool)
+        case controlStringEscape(endsOnBEL: Bool)
+    }
+
     public init() {}
 
     /// Execute a CLI command with the given prompt components.
@@ -245,7 +268,7 @@ public final class LocalCLIExecutor: Sendable {
     ///   - systemPrompt: System-level instructions for the LLM.
     ///   - userPrompt: User-facing prompt content.
     ///   - config: Explicit CLI execution configuration.
-    /// - Returns: The CLI's stdout output verbatim.
+    /// - Returns: The CLI's stdout with terminal control sequences removed.
     public func execute(
         systemPrompt: String,
         userPrompt: String,
@@ -324,11 +347,136 @@ public final class LocalCLIExecutor: Sendable {
             appropriateFor: nil,
             create: true
         )
-        let workingDirectory = appSupportDirectory
+        let workingDirectory =
+            appSupportDirectory
             .appendingPathComponent("MacParakeet", isDirectory: true)
             .appendingPathComponent("LocalCLI", isDirectory: true)
         try fileManager.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
         return workingDirectory
+    }
+
+    // MARK: - Output Sanitization
+
+    static func sanitizeStandardOutput(_ output: String) -> String {
+        var sanitized = ""
+        sanitized.reserveCapacity(output.utf8.count)
+
+        let scalars = output.unicodeScalars
+        var index = scalars.startIndex
+        var state = StandardOutputSanitizerState.text
+
+        while index != scalars.endIndex {
+            let scalar = scalars[index]
+            let value = scalar.value
+
+            switch state {
+            case .text:
+                switch value {
+                case 0x1B:
+                    state = .escape
+                case 0x9B:
+                    state = .csiParameter
+                case 0x9D:
+                    state = .controlString(endsOnBEL: true)
+                case 0x90, 0x98, 0x9E, 0x9F:
+                    state = .controlString(endsOnBEL: false)
+                case 0x7F...0x9F:
+                    break
+                case 0x0D:
+                    sanitized.unicodeScalars.append(Unicode.Scalar(0x0A))
+                    var next = scalars.index(after: index)
+                    if next != scalars.endIndex && scalars[next].value == 0x0A {
+                        next = scalars.index(after: next)
+                    }
+                    index = next
+                    continue
+                case 0x00...0x1F where value != 0x09 && value != 0x0A:
+                    break
+                default:
+                    sanitized.unicodeScalars.append(scalar)
+                }
+
+            case .escape:
+                switch value {
+                case 0x5B:
+                    state = .csiParameter
+                case 0x5D:
+                    state = .controlString(endsOnBEL: true)
+                case 0x50, 0x58, 0x5E, 0x5F:
+                    state = .controlString(endsOnBEL: false)
+                case 0x20...0x2F:
+                    state = .escapeIntermediate
+                case 0x30...0x7E:
+                    state = .text
+                default:
+                    state = .text
+                    continue
+                }
+
+            case .escapeIntermediate:
+                switch value {
+                case 0x20...0x2F:
+                    break
+                case 0x30...0x7E:
+                    state = .text
+                default:
+                    state = .text
+                    continue
+                }
+
+            case .csiParameter:
+                switch value {
+                case 0x30...0x3F:
+                    break
+                case 0x20...0x2F:
+                    state = .csiIntermediate
+                case 0x40...0x7E:
+                    state = .text
+                default:
+                    state = .text
+                    continue
+                }
+
+            case .csiIntermediate:
+                switch value {
+                case 0x20...0x2F:
+                    break
+                case 0x40...0x7E:
+                    state = .text
+                default:
+                    state = .text
+                    continue
+                }
+
+            case .controlString(let endsOnBEL):
+                switch value {
+                case 0x07 where endsOnBEL:
+                    state = .text
+                case 0x9C:
+                    state = .text
+                case 0x1B:
+                    state = .controlStringEscape(endsOnBEL: endsOnBEL)
+                default:
+                    break
+                }
+
+            case .controlStringEscape(let endsOnBEL):
+                switch value {
+                case 0x07 where endsOnBEL:
+                    state = .text
+                case 0x5C, 0x9C:
+                    state = .text
+                case 0x1B:
+                    break
+                default:
+                    state = .controlString(endsOnBEL: endsOnBEL)
+                }
+            }
+
+            index = scalars.index(after: index)
+        }
+
+        return sanitized
     }
 
     // MARK: - Private
@@ -369,7 +517,8 @@ public final class LocalCLIExecutor: Sendable {
                             errorPipe: errorPipe
                         )
                     } catch {
-                        let failure: Error = state.isCancelled
+                        let failure: Error =
+                            state.isCancelled
                             ? CancellationError()
                             : LocalCLIError.executionFailed(error.localizedDescription)
                         Self.resume(continuation, state: state, result: .failure(failure))
@@ -497,8 +646,9 @@ public final class LocalCLIExecutor: Sendable {
                     Self.stopProcess(processID, state: state)
 
                     let stdout = String(data: stdoutCapture.get(), encoding: .utf8) ?? ""
-                    let stderr = (String(data: stderrCapture.get(), encoding: .utf8) ?? "")
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    let stderr = Self.sanitizeStandardOutput(
+                        String(data: stderrCapture.get(), encoding: .utf8) ?? ""
+                    ).trimmingCharacters(in: .whitespacesAndNewlines)
 
                     let exitCode = Self.exitCode(from: terminationState.currentStatus() ?? 0)
                     if exitCode != 0 {
@@ -507,9 +657,10 @@ public final class LocalCLIExecutor: Sendable {
                             Self.resume(
                                 continuation,
                                 state: state,
-                                result: .failure(LocalCLIError.commandNotFound(
-                                    stderr.isEmpty ? commandTemplate : stderr
-                                ))
+                                result: .failure(
+                                    LocalCLIError.commandNotFound(
+                                        stderr.isEmpty ? commandTemplate : stderr
+                                    ))
                             )
                         } else {
                             Self.resume(
@@ -521,12 +672,13 @@ public final class LocalCLIExecutor: Sendable {
                         return
                     }
 
-                    guard !stdout.isEmpty else {
+                    let sanitizedStdout = Self.sanitizeStandardOutput(stdout)
+                    guard !sanitizedStdout.isEmpty else {
                         Self.resume(continuation, state: state, result: .failure(LocalCLIError.emptyOutput))
                         return
                     }
 
-                    Self.resume(continuation, state: state, result: .success(stdout))
+                    Self.resume(continuation, state: state, result: .success(sanitizedStdout))
                 }
             }
         } onCancel: {
@@ -563,16 +715,16 @@ public final class LocalCLIExecutor: Sendable {
 
         let configuredFileActions = workingDirectory.withUnsafeFileSystemRepresentation { workingDirectoryPath in
             guard let workingDirectoryPath else { return false }
-            return addChangeDirectoryAction(&fileActions, path: workingDirectoryPath) &&
-                posix_spawn_file_actions_adddup2(&fileActions, stdinRead, STDIN_FILENO) == 0 &&
-                posix_spawn_file_actions_adddup2(&fileActions, stdoutWrite, STDOUT_FILENO) == 0 &&
-                posix_spawn_file_actions_adddup2(&fileActions, stderrWrite, STDERR_FILENO) == 0 &&
-                posix_spawn_file_actions_addclose(&fileActions, stdinWrite) == 0 &&
-                posix_spawn_file_actions_addclose(&fileActions, stdoutRead) == 0 &&
-                posix_spawn_file_actions_addclose(&fileActions, stderrRead) == 0 &&
-                posix_spawn_file_actions_addclose(&fileActions, stdinRead) == 0 &&
-                posix_spawn_file_actions_addclose(&fileActions, stdoutWrite) == 0 &&
-                posix_spawn_file_actions_addclose(&fileActions, stderrWrite) == 0
+            return addChangeDirectoryAction(&fileActions, path: workingDirectoryPath)
+                && posix_spawn_file_actions_adddup2(&fileActions, stdinRead, STDIN_FILENO) == 0
+                && posix_spawn_file_actions_adddup2(&fileActions, stdoutWrite, STDOUT_FILENO) == 0
+                && posix_spawn_file_actions_adddup2(&fileActions, stderrWrite, STDERR_FILENO) == 0
+                && posix_spawn_file_actions_addclose(&fileActions, stdinWrite) == 0
+                && posix_spawn_file_actions_addclose(&fileActions, stdoutRead) == 0
+                && posix_spawn_file_actions_addclose(&fileActions, stderrRead) == 0
+                && posix_spawn_file_actions_addclose(&fileActions, stdinRead) == 0
+                && posix_spawn_file_actions_addclose(&fileActions, stdoutWrite) == 0
+                && posix_spawn_file_actions_addclose(&fileActions, stderrWrite) == 0
         }
         guard configuredFileActions else {
             throw LocalCLIError.executionFailed("Unable to configure spawn file actions")
@@ -586,7 +738,7 @@ public final class LocalCLIExecutor: Sendable {
 
         let flags = Int16(POSIX_SPAWN_SETPGROUP)
         guard posix_spawnattr_setflags(&attr, flags) == 0,
-              posix_spawnattr_setpgroup(&attr, 0) == 0
+            posix_spawnattr_setpgroup(&attr, 0) == 0
         else {
             throw LocalCLIError.executionFailed("Unable to configure spawn process group")
         }
@@ -723,7 +875,8 @@ public final class LocalCLIExecutor: Sendable {
         var pollCount = 0
         while state.shouldMonitor(processID: rootPID) {
             state.recordObservedDescendants(descendantProcessIDs(of: rootPID))
-            let interval = pollCount < Self.processTreeWarmupPollCount
+            let interval =
+                pollCount < Self.processTreeWarmupPollCount
                 ? Self.processTreeWarmupPollIntervalUs
                 : Self.processTreePollIntervalUs
             usleep(interval)
@@ -815,10 +968,10 @@ public final class LocalCLIExecutor: Sendable {
     static func discoverPATH(timeout: Double = 3) -> String? {
         let deadline = Date().addingTimeInterval(timeout)
         let script = """
-        printf '%s\\n' '\(pathStartMarker)'
-        printf '%s\\n' "$PATH"
-        printf '%s\\n' '\(pathEndMarker)'
-        """
+            printf '%s\\n' '\(pathStartMarker)'
+            printf '%s\\n' "$PATH"
+            printf '%s\\n' '\(pathEndMarker)'
+            """
 
         for executableURL in candidatePATHProbeShellURLs() {
             for arguments in pathProbeArguments(forShellPath: executableURL.path, script: script) {
@@ -849,11 +1002,13 @@ public final class LocalCLIExecutor: Sendable {
         ],
         timeout: Double = 3
     ) -> String? {
-        guard let output = processOutput(
-            executableURL: executableURL,
-            arguments: arguments,
-            timeout: timeout
-        ) else {
+        guard
+            let output = processOutput(
+                executableURL: executableURL,
+                arguments: arguments,
+                timeout: timeout
+            )
+        else {
             return nil
         }
 
@@ -933,9 +1088,9 @@ public final class LocalCLIExecutor: Sendable {
         var seen = Set<String>()
         return candidatePaths.compactMap { path in
             guard let path,
-                  path.hasPrefix("/"),
-                  seen.insert(path).inserted,
-                  fileManager.isExecutableFile(atPath: path)
+                path.hasPrefix("/"),
+                seen.insert(path).inserted,
+                fileManager.isExecutableFile(atPath: path)
             else {
                 return nil
             }
@@ -965,7 +1120,7 @@ public final class LocalCLIExecutor: Sendable {
 
     static func userLoginShellURL() -> URL? {
         guard let pwdEntry = getpwuid(getuid()),
-              let shell = pwdEntry.pointee.pw_shell
+            let shell = pwdEntry.pointee.pw_shell
         else {
             return nil
         }
@@ -976,11 +1131,13 @@ public final class LocalCLIExecutor: Sendable {
     }
 
     static func discoverPATHWithPathHelper(timeout: Double) -> String? {
-        guard let output = processOutput(
-            executableURL: URL(fileURLWithPath: "/usr/libexec/path_helper"),
-            arguments: ["-s"],
-            timeout: timeout
-        ) else {
+        guard
+            let output = processOutput(
+                executableURL: URL(fileURLWithPath: "/usr/libexec/path_helper"),
+                arguments: ["-s"],
+                timeout: timeout
+            )
+        else {
             return nil
         }
 
@@ -989,7 +1146,7 @@ public final class LocalCLIExecutor: Sendable {
 
     static func parseMarkedPATH(in output: String) -> String? {
         guard let startRange = output.range(of: pathStartMarker),
-              let endRange = output.range(of: pathEndMarker, range: startRange.upperBound..<output.endIndex)
+            let endRange = output.range(of: pathEndMarker, range: startRange.upperBound..<output.endIndex)
         else {
             return nil
         }
@@ -1006,7 +1163,8 @@ public final class LocalCLIExecutor: Sendable {
             guard line.hasPrefix("PATH=") else { continue }
 
             let assignment = line.dropFirst("PATH=".count)
-            let value = assignment.split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false)
+            let value =
+                assignment.split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false)
                 .first?
                 .trimmingCharacters(in: CharacterSet(charactersIn: "\"'")) ?? ""
             return value.isEmpty ? nil : String(value)

@@ -69,10 +69,14 @@ public final class DiscoverService: DiscoverServiceProtocol {
     }
 
     public func fetchFresh() async -> DiscoverFeed? {
+        guard !Task.isCancelled else { return nil }
         do {
             var request = URLRequest(url: feedURL, timeoutInterval: 10)
             request.httpMethod = "GET"
             let (data, response) = try await session.data(for: request)
+            // Cancellation can race a successful URLSession completion. Do
+            // not enqueue cache work for an already-disabled Discover session.
+            guard !Task.isCancelled else { return nil }
 
             guard let http = response as? HTTPURLResponse,
                   (200...299).contains(http.statusCode) else {
@@ -96,6 +100,7 @@ public final class DiscoverService: DiscoverServiceProtocol {
                 }
                 return feed
             }
+            guard !Task.isCancelled else { return nil }
 
             guard let decodedFeed else {
                 log.warning("Failed to decode discover feed response")

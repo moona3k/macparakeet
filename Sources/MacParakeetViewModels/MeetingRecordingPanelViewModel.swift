@@ -6,6 +6,7 @@ import SwiftUI
 public final class MeetingRecordingPanelViewModel {
     public enum PanelState: Equatable {
         case hidden
+        case starting
         case recording
         case transcribing
         case error(String)
@@ -16,7 +17,7 @@ public final class MeetingRecordingPanelViewModel {
         case preparingSpeechModel(message: String?)
         case listening
         case live
-        case previewUnsupported(engine: SpeechEnginePreference)
+        case previewOff
         case previewUnavailable
     }
 
@@ -48,6 +49,11 @@ public final class MeetingRecordingPanelViewModel {
     /// Meeting-local mic mute. Unlike pause, system audio keeps recording.
     public var isMicrophoneMuted: Bool = false
     public var canToggleMicrophoneMute: Bool = false
+    /// Keep the muted mic control visible during `.starting` even though the
+    /// toggle stays disabled until the microphone is ready.
+    public var showsMicrophoneMuteControl: Bool {
+        canToggleMicrophoneMute || isMicrophoneMuted
+    }
     public var previewLines: [MeetingRecordingPreviewLine] = []
     public var isTranscriptionLagging: Bool = false
     public private(set) var liveTranscriptStatus: LiveTranscriptStatus = .listening
@@ -62,10 +68,13 @@ public final class MeetingRecordingPanelViewModel {
     public let chatViewModel: TranscriptChatViewModel = TranscriptChatViewModel()
     public let notesViewModel: MeetingNotesViewModel = MeetingNotesViewModel()
     public let quickPromptsViewModel: QuickPromptsViewModel = QuickPromptsViewModel()
+    public private(set) var meetingTypes: [MeetingType] = []
+    public private(set) var activeMeetingTypeID: UUID?
     public var onStop: (() -> Void)?
     public var onPauseToggle: (() -> Void)?
     public var onMicrophoneMuteToggle: (() -> Void)?
     public var onClose: (() -> Void)?
+    private var onMeetingTypeChange: ((UUID?) -> Void)?
 
     private var copiedResetTask: Task<Void, Never>?
     private var previewLineWordCounts: [Int] = []
@@ -107,6 +116,22 @@ public final class MeetingRecordingPanelViewModel {
         }
     }
 
+    public func configureMeetingTypes(
+        _ meetingTypes: [MeetingType],
+        selectedID: UUID?,
+        onChange: @escaping (UUID?) -> Void
+    ) {
+        self.meetingTypes = meetingTypes
+        activeMeetingTypeID = selectedID
+        onMeetingTypeChange = onChange
+    }
+
+    public func selectMeetingType(_ meetingTypeID: UUID?) {
+        guard activeMeetingTypeID != meetingTypeID else { return }
+        activeMeetingTypeID = meetingTypeID
+        onMeetingTypeChange?(meetingTypeID)
+    }
+
     public func updatePreviewLines(
         _ lines: [MeetingRecordingPreviewLine],
         isTranscriptionLagging: Bool = false
@@ -115,10 +140,12 @@ public final class MeetingRecordingPanelViewModel {
             oldLines: previewLines,
             newLines: lines
         ) {
-            let removedWordCount = firstChangedIndex < previewLineWordCounts.count
+            let removedWordCount =
+                firstChangedIndex < previewLineWordCounts.count
                 ? previewLineWordCounts[firstChangedIndex...].reduce(0, +)
                 : 0
-            let addedWordCounts = firstChangedIndex < lines.count
+            let addedWordCounts =
+                firstChangedIndex < lines.count
                 ? lines[firstChangedIndex...].map { Self.wordCount(for: $0.text) }
                 : []
             wordCount += addedWordCounts.reduce(0, +) - removedWordCount
@@ -177,6 +204,9 @@ public final class MeetingRecordingPanelViewModel {
         copiedResetTask?.cancel()
         showCopiedConfirmation = false
         selectedTab = .notes
+        meetingTypes = []
+        activeMeetingTypeID = nil
+        onMeetingTypeChange = nil
         notesViewModel.reset()
         chatViewModel.loadTranscript("", transcriptionId: nil)
     }
@@ -188,20 +218,19 @@ public final class MeetingRecordingPanelViewModel {
     }
 
     public var canStop: Bool {
-        if case .recording = state {
-            return true
-        }
-        return false
+        state == .starting || state == .recording
     }
 
     /// Header Pause/Resume button is only meaningful while the meeting is
     /// in `.recording` panel state. Hidden during transcribing / error.
     public var canTogglePause: Bool {
-        canStop
+        state == .recording
     }
 
     public var statusTitle: String {
         switch state {
+        case .starting:
+            return "Starting…"
         case .hidden, .recording:
             return isPaused ? "Paused" : "Recording"
         case .transcribing:
@@ -213,9 +242,12 @@ public final class MeetingRecordingPanelViewModel {
 
     public var statusMessage: String {
         switch state {
+        case .starting:
+            return "Starting audio capture. Recording has not started yet."
         case .hidden, .recording:
             if isTranscriptionLagging {
-                return "Live transcript preview is catching up. The final transcript will still include the full meeting."
+                return
+                    "Live transcript preview is catching up. The final transcript will still include the full meeting."
             }
             if let livePreviewStatusMessage {
                 return livePreviewStatusMessage
@@ -235,13 +267,14 @@ public final class MeetingRecordingPanelViewModel {
             // single recoverable surface for either failure mode.
             let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
             let detail = trimmed.isEmpty ? "An unexpected error occurred." : trimmed
-            return "\(detail)\n\nIf any audio was captured it's in your Library, where you can retry transcription or export the audio."
+            return
+                "\(detail)\n\nIf any audio was captured it's in your Library, where you can retry transcription or export the audio."
         }
     }
 
     public var compactErrorRecoveryMessage: String? {
         guard case .error = state else { return nil }
-        return "Meeting interrupted. Open Library to retry transcription or export captured audio."
+        return "Meeting interrupted. If audio was captured, open Library to retry transcription or export it."
     }
 
     public var showsLaggingIndicator: Bool {
@@ -252,6 +285,9 @@ public final class MeetingRecordingPanelViewModel {
     }
 
     public var showsElapsedTime: Bool {
+        if case .starting = state {
+            return false
+        }
         if case .error = state {
             return false
         }
@@ -313,8 +349,7 @@ public final class MeetingRecordingPanelViewModel {
                 + "Final transcript: \(Self.describe(plan.final)) after recording ends"
         } else if plan.preview == nil, live != plan.final {
             speechRouteAttribution =
-                "Live preview: Off (\(Self.describe(live))) · "
-                + "Final transcript: \(Self.describe(plan.final)) after recording ends"
+                "Final transcript: \(Self.describe(plan.final)) after recording ends"
         } else {
             speechRouteAttribution = nil
         }
@@ -332,8 +367,8 @@ public final class MeetingRecordingPanelViewModel {
             return "Preparing speech model..."
         case .listening, .live:
             return canStop ? "Listening..." : "Transcription in progress..."
-        case .previewUnsupported(let engine):
-            return "Live preview off for \(engine.displayName)"
+        case .previewOff:
+            return "Live transcription is off"
         case .previewUnavailable:
             return "Live preview unavailable"
         }
@@ -351,17 +386,26 @@ public final class MeetingRecordingPanelViewModel {
             return Self.cleanWarmUpMessage(message) ?? "Recording continues while local transcription starts."
         case .listening, .live:
             return nil
-        case .previewUnsupported:
+        case .previewOff:
             return "Audio will be transcribed after you stop recording."
         case .previewUnavailable:
-            return "Audio is still recording. If preview does not recover, retry transcription from Library after the meeting."
+            return
+                "Audio is still recording. If preview does not recover, retry transcription from Library after the meeting."
         }
+    }
+
+    /// Transcript empty-state seed-of-life sits still and faded when live
+    /// preview is off. Pause is a different "held breath" freeze that keeps
+    /// full color and the current animation frame. Notes keeps the living
+    /// rosette because the meeting is still recording.
+    public var isTranscriptRosetteQuiet: Bool {
+        liveTranscriptStatus == .previewOff
     }
 
     private var livePreviewStatusMessage: String? {
         switch liveTranscriptStatus {
-        case .previewUnsupported(let engine):
-            return "Live preview is off for \(engine.displayName). Audio is still recording for final transcription."
+        case .previewOff:
+            return "Audio is recording. Your transcript will be ready after you stop."
         case .previewUnavailable:
             return "Audio is still recording. Live preview may stay off until the final transcript is ready."
         case .startingAudio, .preparingSpeechModel, .listening, .live:

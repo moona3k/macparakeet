@@ -43,6 +43,7 @@ enum TranscribeParakeetModel: String, ExpressibleByArgument, CaseIterable, Senda
     case v3
     case v2
     case unified
+    case orukeet
 }
 
 enum TranscribeNemotronModel: String, ExpressibleByArgument, CaseIterable, Sendable {
@@ -110,7 +111,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     @Option(help: "Language hint for Nemotron or Whisper, such as ko, en, or en-US. Cohere accepts its legacy supported codes for compatibility but detects language automatically. Parakeet and the English-only Nemotron build ignore this flag.")
     var language: String?
 
-    @Option(name: .long, help: "Parakeet build: app-default, v3 (English + supported European languages), v2 (English word timestamps), unified (readable English with word timestamps). app-default follows the saved preference; ignored for Nemotron, Cohere, and Whisper.")
+    @Option(name: .long, help: "Parakeet build: app-default, v3 (English + supported European languages), v2 (English word timestamps), unified (readable English with word timestamps), orukeet (multilingual preview). app-default follows the saved preference; ignored for Nemotron, Cohere, and Whisper.")
     var parakeetModel: TranscribeParakeetModel = .appDefault
 
     @Option(name: .long, help: "Nemotron Beta build: app-default, multilingual-1120ms, english-1120ms. app-default follows the saved preference; ignored for Parakeet, Cohere, and Whisper. The English build ignores --language.")
@@ -328,6 +329,8 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
             return .v2
         case .unified:
             return .unified
+        case .orukeet:
+            return .orukeet
         }
     }
 
@@ -658,6 +661,9 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 processingMode: {
                     processingMode
                 },
+                removeUmFiller: {
+                    UserDefaultsAppRuntimePreferences.removeUmFiller(defaults: defaults)
+                },
                 shouldKeepDownloadedAudio: {
                     shouldKeepDownloadedAudio
                 },
@@ -667,7 +673,10 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 podcastResolver: PodcastEpisodeResolver(),
                 podcastSearchResolver: PodcastQueryResolver(),
                 podcastAudioFetcher: PodcastAudioDownloader(),
-                diarizationService: diarizationService
+                diarizationService: diarizationService,
+                meetingArtifactStore: MeetingArtifactStore(
+                    speakerAttributionReader: SpeakerAttributionReadService(dbQueue: dbManager.dbQueue)
+                )
             )
 
             var stdoutEmission: TranscribeStdoutEmission = .none

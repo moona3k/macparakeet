@@ -51,6 +51,8 @@ public protocol MeetingRecordingServiceProtocol: Sendable {
         calendarEventSnapshot: MeetingCalendarSnapshot?
     ) async throws
     func stopRecording() async throws -> MeetingRecordingOutput
+    /// Session-scoped so a late terminal event cannot read a replacement meeting's facts.
+    func captureDiagnostics(for sessionID: UUID) async -> MeetingCaptureDiagnostics?
     func cancelRecording() async
     /// Pause an active recording. No-op when no session is active or when
     /// already paused. The OS-level capture stays running (mic + ScreenCaptureKit
@@ -72,6 +74,8 @@ public protocol MeetingRecordingServiceProtocol: Sendable {
     /// (completion-path deletion is owned by `MeetingRecordingSettlement`) —
     /// so notes-saves cannot race with state-transition writes.
     func updateNotes(_ notes: String) async
+    /// Persist the active recording's primary type to its crash-recovery lock.
+    func updateMeetingType(_ meetingTypeId: UUID?) async
     var isRecording: Bool { get async }
     var activeSessionID: UUID? { get async }
     /// Speech engine pinned to the active recording session. Consumers should
@@ -98,6 +102,10 @@ public protocol MeetingRecordingServiceProtocol: Sendable {
 }
 
 public extension MeetingRecordingServiceProtocol {
+    func captureDiagnostics(for sessionID: UUID) async -> MeetingCaptureDiagnostics? { nil }
+
+    func updateMeetingType(_ meetingTypeId: UUID?) async {}
+
     /// Existing manual / hotkey callers use the no-arg form — the calendar
     /// path is the only caller that has a meaningful title to pass.
     func startRecording(title: String?) async throws {
@@ -159,6 +167,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         var requestedMicMode: MeetingMicProcessingMode?
         var effectiveMicMode: MeetingMicProcessingEffectiveMode?
         var captureStartedAt: Date?
+        var captureStartCompleted = false
         var microphoneStarted = false
         var microphoneFirstBufferSeen = false
         var systemFirstBufferSeen = false
@@ -169,6 +178,11 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         var microphoneSystemDominantDrops = 0
         var backpressureDrops = 0
         var transcriptionFailures = 0
+        // Highest per-buffer level seen on each source while recording, on the
+        // same 0...1 scale as `AVAudioPCMBuffer.rmsLevel`. A system peak of zero
+        // after a full meeting means the tap only ever delivered silence.
+        var microphonePeakLevel: Float = 0
+        var systemPeakLevel: Float = 0
     }
 
     private struct Session: Sendable {
@@ -234,6 +248,14 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     /// default gives tests deterministic fixed chunking. See
     /// `plans/completed/2026-05-meeting-vad-guided-live-chunking.md`.
     private let isVadLiveChunkingEnabled: @Sendable () -> Bool
+    /// User preference gate on top of engine capability: even when the live
+    /// engine can render meeting preview, the user can turn off the live STT
+    /// pass to save CPU/GPU and just record. Read once per session (see
+    /// `startRecording`), not polled continuously, matching
+    /// `isVadLiveChunkingEnabled`. Final transcription is unaffected — it
+    /// always re-reads the saved audio after the meeting ends.
+    private let isLiveTranscriptionEnabled: @Sendable () -> Bool
+    private let startMicrophoneMuted: @Sendable () -> Bool
     private let requestedMicProcessingMode: MeetingMicProcessingMode
     private let liveChunkTranscriber: LiveChunkTranscriber
     private let lockFileStore: MeetingRecordingLockFileStoring
@@ -267,6 +289,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     /// typed (which we preserve as `nil` rather than empty so downstream
     /// `Transcription.userNotes` is `nil` for non-notepad recordings).
     private var currentNotes: String?
+    private var currentMeetingTypeId: UUID?
     /// In-memory mirror of the session's `recording.lock` content. Held so
     /// `updateNotes` can persist notes by mutating + atomic-writing in one
     /// step instead of read-modify-write on every keystroke debounce. The
@@ -282,7 +305,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     /// Once set, the durable Stop path owns this session's settlement. A stale
     /// start task may still resume from `audioCaptureService.start()`, but its
     /// catch must not run failed-start deletion over finalized/recoverable data.
-    private var durableStopSessionID: UUID?
+    private var settlementSessionID: UUID?
+    private var settlementWaiters: [CheckedContinuation<Void, Never>] = []
+    private var sourceStartupStates: [AudioSource: MeetingAudioCaptureSourceStartupState] = [:]
     private var writer: MeetingAudioStorageWriter?
     private var processingTask: Task<Void, Never>?
     private var captureOrchestrator = CaptureOrchestrator()
@@ -299,6 +324,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private var recoveringSources: Set<AudioSource> = []
     private var sourceCaptureMetrics: [AudioSource: SourceCaptureMetrics] = [:]
     private var captureHealthMetrics = CaptureHealthMetrics()
+    private var lastCaptureDiagnostics: (sessionID: UUID, snapshot: MeetingCaptureDiagnostics)?
     private var latestLevels = MeetingAudioLevels()
     private var sourceHealthLastBufferAt: [AudioSource: Date] = [:]
     private var sourceHealthLastBufferActiveSeconds: [AudioSource: TimeInterval] = [:]
@@ -344,6 +370,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         fileManager: FileManager = .default,
         finalSpeechEngineSelection: @escaping @Sendable () -> SpeechEngineSelection? = { nil },
         isVadLiveChunkingEnabled: @escaping @Sendable () -> Bool = { false },
+        isLiveTranscriptionEnabled: @escaping @Sendable () -> Bool = { true },
+        startMicrophoneMuted: @escaping @Sendable () -> Bool = { false },
         echoSuppressionConfiguration: MeetingEchoSuppressionConfiguration = .fromEnvironment()
     ) {
         self.init(
@@ -355,6 +383,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             fileManager: fileManager,
             finalSpeechEngineSelection: finalSpeechEngineSelection,
             isVadLiveChunkingEnabled: isVadLiveChunkingEnabled,
+            isLiveTranscriptionEnabled: isLiveTranscriptionEnabled,
+            startMicrophoneMuted: startMicrophoneMuted,
             micConditionerFactory: {
                 MeetingEchoSuppressionFactory.makeConditioner(
                     configuration: echoSuppressionConfiguration
@@ -372,6 +402,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         fileManager: FileManager = .default,
         finalSpeechEngineSelection: @escaping @Sendable () -> SpeechEngineSelection? = { nil },
         isVadLiveChunkingEnabled: @escaping @Sendable () -> Bool = { false },
+        isLiveTranscriptionEnabled: @escaping @Sendable () -> Bool = { true },
+        startMicrophoneMuted: @escaping @Sendable () -> Bool = { false },
         micConditionerFactory: @escaping @Sendable () -> any MicConditioning,
         cleanedMicConditionerFactory: (@Sendable () -> any MicConditioning)? = nil,
         wallClockNow: @escaping @Sendable () -> Date = { Date() },
@@ -392,9 +424,10 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 eventName: eventName
             )
         },
-        writerFinalizationReportTransform: @escaping @Sendable (
-            MeetingAudioStorageWriter.FinalizationReport
-        ) -> MeetingAudioStorageWriter.FinalizationReport = { $0 }
+        writerFinalizationReportTransform:
+            @escaping @Sendable (
+                MeetingAudioStorageWriter.FinalizationReport
+            ) -> MeetingAudioStorageWriter.FinalizationReport = { $0 }
     ) {
         self.requestedMicProcessingMode = micProcessingMode
         self.audioCaptureService = audioCaptureService
@@ -403,6 +436,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         self.fileManager = fileManager
         self.finalSpeechEngineSelection = finalSpeechEngineSelection
         self.isVadLiveChunkingEnabled = isVadLiveChunkingEnabled
+        self.isLiveTranscriptionEnabled = isLiveTranscriptionEnabled
+        self.startMicrophoneMuted = startMicrophoneMuted
         self.micConditionerFactory = micConditionerFactory
         self.cleanedMicConditionerFactory = cleanedMicConditionerFactory ?? micConditionerFactory
         self.wallClockNow = wallClockNow
@@ -462,11 +497,16 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             && !captureFailed
             && !interruptedSources.contains(.microphone)
             && captureHealthMetrics.sourceMode?.capturesMicrophone == true
+            && (sourceStartupStates[.microphone].map { $0 == .ready } ?? captureHealthMetrics.microphoneStarted)
     }
 
     public var microphoneMuteState: MeetingMicrophoneMuteState {
         let canMute = canMuteMicrophone
-        return MeetingMicrophoneMuteState(isMuted: canMute && microphoneMuted, canMute: canMute)
+        let capturesMic = captureHealthMetrics.sourceMode?.capturesMicrophone == true
+        return MeetingMicrophoneMuteState(
+            isMuted: capturesMic && microphoneMuted,
+            canMute: canMute
+        )
     }
 
     public var captureHealth: MeetingCaptureHealthSummary {
@@ -488,7 +528,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             activeMicrophoneStall: activeMicrophoneStall,
             microphoneBufferDeliveryTimedOut: microphoneBufferDeliveryTimedOut,
             systemBufferDeliveryTimedOut: systemBufferDeliveryTimedOut,
-            captureFailed: captureFailed
+            captureFailed: captureFailed,
+            startupStates: sourceStartupStates
         )
     }
 
@@ -590,11 +631,12 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         startContext: MeetingStartContext? = nil,
         calendarEventSnapshot: MeetingCalendarSnapshot? = nil
     ) async throws {
-        guard currentSession == nil, startingSessionID == nil else {
+        guard currentSession == nil, startingSessionID == nil, settlementSessionID == nil else {
             throw MeetingAudioError.alreadyRunning
         }
 
         let sessionID = UUID()
+        lastCaptureDiagnostics = nil
         startingSessionID = sessionID
         defer {
             if startingSessionID == sessionID {
@@ -632,7 +674,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         let speechPlan = MeetingSpeechPlan.resolve(
             live: liveSpeechEngine,
             final: finalSpeechEngine,
-            liveCapabilities: liveSpeechEngineCapabilities
+            liveCapabilities: liveSpeechEngineCapabilities,
+            liveTranscriptionEnabled: isLiveTranscriptionEnabled()
         )
         let session = Session(
             id: sessionID,
@@ -681,6 +724,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             recoveringSources = []
             sourceCaptureMetrics = [:]
             captureHealthMetrics = CaptureHealthMetrics()
+            let resolvedSourceMode = sourceMode ?? .microphoneAndSystem
+            captureHealthMetrics.sourceMode = resolvedSourceMode
+            sourceStartupStates = [:]
             sourceHealthLastBufferAt = [:]
             sourceHealthLastBufferActiveSeconds = [:]
             activeMicrophoneStall = nil
@@ -691,6 +737,22 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             syncLagEmaMs = nil
             syncLagWarningActive = false
             lastLoggedSyncLagBucketMs = nil
+
+            microphoneMuted = false
+            microphoneMutedHostTime = nil
+            completedMicrophoneMuteHostTimeRanges = []
+            if resolvedSourceMode.capturesMicrophone, startMicrophoneMuted() {
+                microphoneMuted = true
+                // Host time 0 covers the first tap callbacks, which can arrive
+                // before `setMicrophoneMuted` would have a real host-time origin.
+                microphoneMutedHostTime = 0
+                latestLevels.microphone = 0
+                recentMicrophoneRms = 0
+                recentProcessedMicRms = 0
+                AudioCaptureDiagnostics.append(
+                    "meeting_microphone_start_muted session=\(session.id.uuidString)"
+                )
+            }
 
             if let previewSpeechEngine = session.speechPlan.preview {
                 await liveChunkTranscriber.startSession(
@@ -706,19 +768,28 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             }
             try await validateStartStillCurrent(session)
 
-            let captureStartReport = try await audioCaptureService.start(sourceMode: sourceMode)
-            try await validateStartStillCurrent(session)
-            captureHealthMetrics.sourceMode = captureStartReport.sourceMode
-            captureHealthMetrics.requestedMicMode = captureStartReport.microphone.requestedMode
-            captureHealthMetrics.effectiveMicMode = captureStartReport.microphone.effectiveMode
-            captureHealthMetrics.captureStartedAt = wallClockNow()
-            captureHealthMetrics.microphoneStarted = captureStartReport.microphoneStarted
-            configureMicConditioner(from: captureStartReport)
+            // The writer and lock already exist. Consume each source immediately,
+            // independently of another native source's startup settlement.
             processingTask = Task { [weak self] in
                 guard let self else { return }
                 for await event in events {
-                    await self.handleCaptureEvent(event)
+                    await self.handleCaptureEvent(event, sessionID: session.id)
                 }
+            }
+            let captureStartReport = try await audioCaptureService.start(sourceMode: sourceMode)
+            try await validateStartStillCurrent(session)
+            captureHealthMetrics.sourceMode = captureStartReport.sourceMode
+            clearStartMicrophoneMuteIfNeeded(for: captureStartReport.sourceMode)
+            captureHealthMetrics.captureStartCompleted = true
+            if captureHealthMetrics.captureStartedAt == nil {
+                captureHealthMetrics.captureStartedAt = wallClockNow()
+            }
+            // Stream events can already be newer than the returned first-source
+            // snapshot. Use it only to fill missing facts (including test adapters).
+            sourceStartupStates[.microphone] = sourceStartupStates[.microphone] ?? captureStartReport.microphoneState
+            sourceStartupStates[.system] = sourceStartupStates[.system] ?? captureStartReport.systemState
+            if captureStartReport.microphoneStarted {
+                acceptMicrophoneStartReport(captureStartReport.microphone)
             }
             logger.info("Meeting recording started: \(sessionID.uuidString, privacy: .public)")
             AudioCaptureDiagnostics.append(
@@ -728,26 +799,36 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             AudioCaptureDiagnostics.append(
                 "meeting_recording_start_failed session=\(sessionID.uuidString) \(AudioCaptureDiagnostics.errorFields(error))"
             )
-            if durableStopSessionID == sessionID || currentSession?.id != sessionID {
+            if settlementSessionID == sessionID || currentSession?.id != sessionID {
                 AudioCaptureDiagnostics.append(
                     "meeting_recording_start_cleanup_skipped session=\(sessionID.uuidString) reason=settlement_owned"
                 )
             } else {
-                await cleanupFailedStart(folderURL: folderURL)
+                await cleanupFailedStart(session: session)
             }
             throw error
         }
     }
 
-    private func cleanupFailedStart(folderURL: URL) async {
-        processingTask?.cancel()
-        processingTask = nil
+    private func cleanupFailedStart(session: Session) async {
+        guard settlementSessionID == nil, currentSession?.id == session.id else { return }
+        settlementSessionID = session.id
+        defer { finishSettlement(sessionID: session.id) }
+        let folderURL = session.folderURL
+        await audioCaptureService.stop()
+        await drainProcessingTaskAfterCaptureStop()
         await liveChunkTranscriber.finishSession()
         let writer = self.writer
         self.writer = nil
-        _ = await finalizeWriter(writer)
+        let finalization = await finalizeWriter(writer)
+        let hasCapturedFrames = [AudioSource.microphone, .system].contains {
+            (writer?.metrics(for: $0).writtenFrameCount ?? 0) > 0
+        }
         await releaseSpeechEngineLease()
         cleanupState()
+        // Startup may fail after a source wrote real audio. Keep its recovery
+        // lock and media; only proven-empty, settled attempts may be removed.
+        guard finalization.timedOutSources.isEmpty, !hasCapturedFrames else { return }
 
         do {
             try lockFileStore.delete(folderURL: folderURL)
@@ -777,24 +858,22 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     }
 
     private func validateStartStillCurrent(_ session: Session) async throws {
-        guard currentSession?.id == session.id else {
-            await audioCaptureService.stop()
+        guard currentSession?.id == session.id, settlementSessionID != session.id else {
             throw CancellationError()
         }
-
-        do {
-            try Task.checkCancellation()
-        } catch {
-            await audioCaptureService.stop()
-            throw error
-        }
+        try Task.checkCancellation()
     }
 
     public func stopRecording() async throws -> MeetingRecordingOutput {
         guard let session = currentSession else {
             throw MeetingAudioError.notRunning
         }
-        durableStopSessionID = session.id
+        if settlementSessionID != nil {
+            await waitForSettlement()
+            throw MeetingAudioError.notRunning
+        }
+        settlementSessionID = session.id
+        defer { finishSettlement(sessionID: session.id) }
 
         // Freeze the user-visible capture interval before any asynchronous
         // shutdown, writer finalization, mixing, or artifact I/O. Those stages
@@ -850,13 +929,21 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         let writerFinalizeStartedAt = Date()
         let finalizedWriter = writer
         writer = nil
-        let writerFinalization = writerFinalizationReportTransform(
-            await finalizeWriter(finalizedWriter)
-        )
+        let writerFinalization = await finalizeWriter(finalizedWriter)
         let writerMetrics = [
             AudioSource.microphone: finalizedWriter?.metrics(for: .microphone),
             AudioSource.system: finalizedWriter?.metrics(for: .system),
         ]
+        lastCaptureDiagnostics = (
+            session.id,
+            MeetingCaptureDiagnostics(
+                captureStartCompleted: captureHealthMetrics.captureStartCompleted,
+                sourceMode: captureHealthMetrics.sourceMode,
+                elapsedSeconds: captureElapsedDurationSeconds,
+                microphoneFrames: (writerMetrics[.microphone] ?? nil)?.writtenFrameCount ?? 0,
+                systemFrames: (writerMetrics[.system] ?? nil)?.writtenFrameCount ?? 0
+            )
+        )
         await liveChunkTranscriber.cancelPendingTasks(waitForCancellation: false)
         do {
             try Self.requireSuccessfulWriterFinalization(writerFinalization)
@@ -891,7 +978,10 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         let sourceURLsStartedAt = Date()
         let inputURLs: [URL]
         do {
-            inputURLs = try existingSourceURLs(for: session)
+            inputURLs = try existingSourceURLs(
+                for: session,
+                excluding: writerFinalization.timedOutSources
+            )
             appendStopStage("source_urls", startedAt: sourceURLsStartedAt)
         } catch {
             serviceStopOutcome = "failure_source_urls"
@@ -914,10 +1004,12 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 )
             )
             await liveChunkTranscriber.finishSession()
-            try? lockFileStore.delete(folderURL: session.folderURL)
             await releaseSpeechEngineLease()
             cleanupState()
-            try? fileManager.removeItem(at: session.folderURL)
+            if writerFinalization.timedOutSources.isEmpty {
+                try? lockFileStore.delete(folderURL: session.folderURL)
+                try? fileManager.removeItem(at: session.folderURL)
+            }
             serviceStopOutcome = "failure_no_audio"
             throw MeetingAudioError.noAudioCaptured
         }
@@ -928,11 +1020,21 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             writerMetrics: writerMetrics
         )
         let captureSourceMode = captureHealthMetrics.sourceMode ?? .microphoneAndSystem
+        let hasQualifyingSilentSystemTrack =
+            !interruptedSources.contains(.system)
+            && MeetingSystemAudioSignalVerdict.shouldWarn(
+                verdict: systemAudioSignalVerdict,
+                microphonePeakLevel: captureHealthMetrics.microphonePeakLevel,
+                durationSeconds: captureElapsedDurationSeconds
+            )
+        let silentSources: Set<AudioSource> =
+            hasQualifyingSilentSystemTrack ? [.system] : []
         let preliminaryCaptureReport = MeetingCaptureReport(
             sourceMode: captureSourceMode,
             sourceAlignment: sourceAlignment,
             elapsedDurationMs: Int((captureElapsedDurationSeconds * 1_000).rounded()),
             interruptedSources: interruptedSources,
+            silentSources: silentSources,
             captureFailed: captureFailed
         )
         var recordingMetadata = MeetingRecordingMetadata(
@@ -941,7 +1043,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             speechEngine: session.speechPlan.final,
             previewSpeechEngine: session.speechPlan.preview,
             startContext: session.startContext,
-            calendarEventSnapshot: session.calendarEventSnapshot
+            calendarEventSnapshot: session.calendarEventSnapshot,
+            meetingTypeId: currentMeetingTypeId
         )
         let metadataStartedAt = Date()
         do {
@@ -1009,6 +1112,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             sourceAlignment: sourceAlignment,
             elapsedDurationMs: preliminaryCaptureReport.elapsedDurationMs,
             interruptedSources: interruptedSources,
+            silentSources: silentSources,
             captureFailed: captureFailed,
             playbackFallbackSource: playbackArtifact.method == .bestSourceFallback
                 ? playbackArtifact.source
@@ -1042,6 +1146,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         }
 
         let finalNotes = currentNotes
+        let finalMeetingTypeId = currentMeetingTypeId
         let notesFileManager = MeetingNotesFile.SendableFileManager(fileManager)
         let notesStartedAt = Date()
         do {
@@ -1125,7 +1230,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             previewSpeechEngine: session.speechPlan.preview,
             startContext: session.startContext,
             userNotes: finalNotes,
-            calendarEventSnapshot: session.calendarEventSnapshot
+            calendarEventSnapshot: session.calendarEventSnapshot,
+            meetingTypeId: finalMeetingTypeId
         )
 
         let cleanupStartedAt = Date()
@@ -1144,6 +1250,11 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 captureFailed: captureFailed,
                 captureReport: captureReport
             )
+        )
+        emitSystemAudioSilenceWarningIfNeeded(
+            session: session,
+            durationSeconds: captureElapsedDurationSeconds,
+            shouldEmit: hasQualifyingSilentSystemTrack
         )
         AudioCaptureDiagnostics.append(
             echoSuppressionSummaryLine(session: session)
@@ -1191,6 +1302,32 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             // an I/O error is preferable to surfacing a UI error mid-meeting.
             logger.error(
                 "meeting_recording_notes_persist_failed session=\(session.id.uuidString, privacy: .public) error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
+            )
+        }
+    }
+
+    public func updateMeetingType(_ meetingTypeId: UUID?) async {
+        guard let session = currentSession else { return }
+        currentMeetingTypeId = meetingTypeId
+        let base =
+            currentLockFile
+            ?? MeetingRecordingLockFile(
+                sessionId: session.id,
+                startedAt: session.startedAt,
+                pid: ProcessInfo.processInfo.processIdentifier,
+                displayName: session.displayName,
+                speechEngine: session.speechPlan.final,
+                startContext: session.startContext,
+                calendarEventSnapshot: session.calendarEventSnapshot,
+                folderURL: session.folderURL
+            )
+        let updated = base.withMeetingTypeId(meetingTypeId)
+        do {
+            try lockFileStore.write(updated, folderURL: session.folderURL)
+            currentLockFile = updated
+        } catch {
+            logger.error(
+                "meeting_recording_type_persist_failed session=\(session.id.uuidString, privacy: .public) error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)"
             )
         }
     }
@@ -1271,6 +1408,12 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
 
     public func cancelRecording() async {
         guard let session = currentSession else { return }
+        if settlementSessionID != nil {
+            await waitForSettlement()
+            return
+        }
+        settlementSessionID = session.id
+        defer { finishSettlement(sessionID: session.id) }
 
         await audioCaptureService.stop()
         await drainProcessingTaskAfterCaptureStop()
@@ -1278,11 +1421,15 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         await liveChunkTranscriber.finishSession()
         let finalizedWriter = writer
         writer = nil
-        _ = await finalizeWriter(finalizedWriter)
-        try? lockFileStore.delete(folderURL: session.folderURL)
+        let finalization = await finalizeWriter(finalizedWriter)
         await releaseSpeechEngineLease()
         cleanupState()
-        try? fileManager.removeItem(at: session.folderURL)
+        // A deadline bounds waiting, not AVFoundation's ownership. Preserve
+        // pending artifacts and their lock for later safe recovery/discard.
+        if finalization.timedOutSources.isEmpty {
+            try? lockFileStore.delete(folderURL: session.folderURL)
+            try? fileManager.removeItem(at: session.folderURL)
+        }
         logger.info("Meeting recording cancelled: \(session.id.uuidString, privacy: .public)")
         AudioCaptureDiagnostics.append(
             "meeting_recording_cancelled session=\(session.id.uuidString)"
@@ -1301,11 +1448,12 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         guard let writer else {
             return MeetingAudioStorageWriter.FinalizationReport(failedSources: [])
         }
-        return await withCheckedContinuation { continuation in
+        let report = await withCheckedContinuation { continuation in
             writer.finalize { report in
                 continuation.resume(returning: report)
             }
         }
+        return writerFinalizationReportTransform(report)
     }
 
     static func requireSuccessfulWriterFinalization(
@@ -1343,8 +1491,28 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         processingTask = nil
     }
 
-    private func handleCaptureEvent(_ event: MeetingAudioCaptureEvent) async {
+    private func handleCaptureEvent(_ event: MeetingAudioCaptureEvent, sessionID: UUID) async {
+        guard currentSession?.id == sessionID else { return }
         switch event {
+        case .captureStarting(let sourceMode):
+            captureHealthMetrics.sourceMode = sourceMode
+            clearStartMicrophoneMuteIfNeeded(for: sourceMode)
+            sourceStartupStates = [
+                .microphone: sourceMode.capturesMicrophone ? .starting : .notSelected,
+                .system: sourceMode.capturesSystemAudio ? .starting : .notSelected,
+            ]
+        case .sourceStartupState(let source, let state):
+            sourceStartupStates[source] = state
+            // A selected source may still be pending when the previously healthy
+            // source fails. Re-evaluate when that pending source's window expires.
+            if state == .unavailable, !interruptedSources.isEmpty,
+                captureHealthMetrics.microphoneFirstBufferSeen || captureHealthMetrics.systemFirstBufferSeen,
+                allSelectedSourcesUnavailable
+            {
+                await failCapture(MeetingAudioError.captureStartupTimedOut)
+            }
+        case .microphoneStarted(let report):
+            acceptMicrophoneStartReport(report)
         case .microphoneBuffer(let buffer, let time):
             guard !captureFailed, !interruptedSources.contains(.microphone) else { return }
             let handling = captureBufferHandling(time: time)
@@ -1368,8 +1536,16 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                     timelineTimeSeconds: pauseAdjustedHostTimeSeconds(for: time)
                 )
                 recordCaptureMetrics(for: .microphone, time: time)
+                // Peak tracks every buffer that reaches the file, including the
+                // pre-pause buffers `preserveAudioOnly` writes without processing,
+                // so the reported level always describes the recorded audio.
+                let microphoneLevel = muted ? 0 : recordingBuffer.rmsLevel
+                captureHealthMetrics.microphonePeakLevel = max(
+                    captureHealthMetrics.microphonePeakLevel,
+                    microphoneLevel
+                )
                 if handling == .recordAndProcess {
-                    latestLevels.microphone = muted ? 0 : recordingBuffer.rmsLevel
+                    latestLevels.microphone = microphoneLevel
                     updateMicrophoneRms(with: latestLevels.microphone)
                     if let samples = AudioChunker.extractAndResample(from: recordingBuffer) {
                         await ingestResampledSamples(
@@ -1393,6 +1569,10 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                     timelineTimeSeconds: pauseAdjustedHostTimeSeconds(for: time)
                 )
                 recordCaptureMetrics(for: .system, time: time)
+                // Include preserved pre-pause writes, but classify the mono
+                // signal actually retained rather than input channel zero.
+                captureHealthMetrics.systemPeakLevel =
+                    writer?.metrics(for: .system).peakSampleMagnitude ?? 0
                 if handling == .recordAndProcess {
                     latestLevels.system = buffer.rmsLevel
                     updateSystemRms(with: latestLevels.system)
@@ -1475,17 +1655,21 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             latestSystemSignalAt = nil
         }
 
-        if allSelectedSourcesAreInterrupted {
+        if allSelectedSourcesUnavailable {
             await failCapture(error)
         }
     }
 
-    private var allSelectedSourcesAreInterrupted: Bool {
+    private var allSelectedSourcesUnavailable: Bool {
         guard let sourceMode = captureHealthMetrics.sourceMode else { return false }
-        let microphoneInterrupted = !sourceMode.capturesMicrophone
+        let microphoneInterrupted =
+            !sourceMode.capturesMicrophone
             || interruptedSources.contains(.microphone)
-        let systemInterrupted = !sourceMode.capturesSystemAudio
+            || (sourceStartupStates[.microphone] == .unavailable && !recoveringSources.contains(.microphone))
+        let systemInterrupted =
+            !sourceMode.capturesSystemAudio
             || interruptedSources.contains(.system)
+            || (sourceStartupStates[.system] == .unavailable && !recoveringSources.contains(.system))
         return microphoneInterrupted && systemInterrupted
     }
 
@@ -1695,6 +1879,18 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         }
     }
 
+    private func acceptMicrophoneStartReport(_ report: MeetingMicrophoneCaptureStartReport) {
+        guard !captureHealthMetrics.microphoneStarted else { return }
+        captureHealthMetrics.microphoneStarted = true
+        captureHealthMetrics.requestedMicMode = report.requestedMode
+        captureHealthMetrics.effectiveMicMode = report.effectiveMode
+        configureMicConditioner(
+            from: MeetingAudioCaptureStartReport(
+                sourceMode: captureHealthMetrics.sourceMode ?? .microphoneAndSystem,
+                microphone: report
+            ))
+    }
+
     private func yieldTranscriptUpdate(_ update: MeetingTranscriptUpdate) {
         if isTranscriptionLagging && !update.isTranscriptionLagging {
             transcriptContinuation?.yield(
@@ -1713,6 +1909,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
 
     private func recordCaptureMetrics(for source: AudioSource, time: AVAudioTime) {
         let now = wallClockNow()
+        if captureHealthMetrics.captureStartedAt == nil {
+            captureHealthMetrics.captureStartedAt = now
+        }
         sourceHealthLastBufferAt[source] = now
         if let captureStartedAt = captureHealthMetrics.captureStartedAt {
             sourceHealthLastBufferActiveSeconds[source] = activeRecordingSeconds(
@@ -1720,16 +1919,19 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 asOf: now
             )
         }
+        // A buffer reaching this point has been written, so the source has
+        // produced audio regardless of whether its host time is usable. Only
+        // the host-time metrics below depend on that.
+        switch source {
+        case .microphone:
+            captureHealthMetrics.microphoneFirstBufferSeen = true
+        case .system:
+            captureHealthMetrics.systemFirstBufferSeen = true
+        }
         guard time.isHostTimeValid else { return }
         var metrics = sourceCaptureMetrics[source] ?? SourceCaptureMetrics()
         if metrics.firstHostTime == nil {
             metrics.firstHostTime = time.hostTime
-            switch source {
-            case .microphone:
-                captureHealthMetrics.microphoneFirstBufferSeen = true
-            case .system:
-                captureHealthMetrics.systemFirstBufferSeen = true
-            }
         }
         metrics.lastHostTime = time.hostTime
         sourceCaptureMetrics[source] = metrics
@@ -1787,6 +1989,13 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         )
     }
 
+    private func clearStartMicrophoneMuteIfNeeded(for sourceMode: MeetingAudioSourceMode) {
+        guard !sourceMode.capturesMicrophone else { return }
+        microphoneMuted = false
+        microphoneMutedHostTime = nil
+        completedMicrophoneMuteHostTimeRanges = []
+    }
+
     private func appendBoundedCompletedHostTimeRange(
         start: UInt64,
         end: UInt64,
@@ -1814,11 +2023,15 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         return false
     }
 
-    private func existingSourceURLs(for session: Session) throws -> [URL] {
+    private func existingSourceURLs(
+        for session: Session,
+        excluding pendingSources: Set<AudioSource>
+    ) throws -> [URL] {
         // Preserve deterministic channel mapping for dual-source sessions:
         // input[0] = microphone (L), input[1] = system (R).
         let candidates = [session.microphoneAudioURL, session.systemAudioURL]
         return try candidates.filter { url in
+            guard !pendingSources.contains(source(for: url)) else { return false }
             guard fileManager.fileExists(atPath: url.path) else { return false }
             let size = try fileManager.attributesOfItem(atPath: url.path)[.size] as? NSNumber
             guard (size?.intValue ?? 0) > 0 else { return false }
@@ -1944,6 +2157,40 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         )
     }
 
+    private var systemAudioSignalVerdict: MeetingSystemAudioSignalVerdict {
+        MeetingSystemAudioSignalVerdict.evaluate(
+            capturesSystemAudio: captureHealthMetrics.sourceMode?.capturesSystemAudio ?? false,
+            systemBufferObserved: captureHealthMetrics.systemFirstBufferSeen,
+            systemPeakLevel: captureHealthMetrics.systemPeakLevel
+        )
+    }
+
+    /// Emit diagnostics for a system track that stayed at digital silence for
+    /// a whole meeting. This finalized signal verdict is also supplied to the
+    /// capture report, where missing coverage and failures take precedence.
+    private func emitSystemAudioSilenceWarningIfNeeded(
+        session: Session,
+        durationSeconds: TimeInterval,
+        shouldEmit: Bool
+    ) {
+        guard shouldEmit else { return }
+        let sessionID = session.id.uuidString
+        let durationLabel = String(format: "%.3f", durationSeconds)
+        let micPeakLabel = String(format: "%.3f", captureHealthMetrics.microphonePeakLevel)
+        logger.warning(
+            "meeting_system_audio_silent session=\(sessionID, privacy: .public) duration_s=\(durationLabel, privacy: .public)"
+        )
+        AudioCaptureDiagnostics.append(
+            [
+                "meeting_system_audio_silent",
+                "session=\(sessionID)",
+                "duration_s=\(durationLabel)",
+                "mic_peak_level=\(micPeakLabel)",
+                "detail=system_audio_tap_delivered_only_silence",
+            ].joined(separator: " ")
+        )
+    }
+
     private func captureHealthSummaryLine(
         session: Session,
         durationSeconds: TimeInterval,
@@ -1967,6 +2214,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         func statusLabel(for source: AudioSource) -> String {
             captureReport?.source(for: source)?.status.rawValue ?? "unknown"
         }
+        func levelLabel(_ level: Float) -> String {
+            String(format: "%.3f", level)
+        }
         return [
             "meeting_recording_health",
             "session=\(session.id.uuidString)",
@@ -1974,6 +2224,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             "captured_duration_s=\(String(format: "%.3f", Double(captureReport?.capturedDurationMs ?? 0) / 1_000))",
             "capture_quality=\(captureReport?.quality.rawValue ?? "unknown")",
             "source_mode=\(captureHealthMetrics.sourceMode?.rawValue ?? "unknown")",
+            "capture_start_completed=\(captureHealthMetrics.captureStartCompleted)",
             "mic_started=\(captureHealthMetrics.microphoneStarted)",
             "requested_mic_mode=\(micModeLabel(captureHealthMetrics.requestedMicMode))",
             "effective_mic_mode=\(captureHealthMetrics.effectiveMicMode?.rawValue ?? "unknown")",
@@ -1993,6 +2244,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             "mic_chunks_low_signal_dropped=\(captureHealthMetrics.microphoneLowSignalDrops)",
             "system_chunks_low_signal_dropped=\(captureHealthMetrics.systemLowSignalDrops)",
             "mic_chunks_system_dominant_dropped=\(captureHealthMetrics.microphoneSystemDominantDrops)",
+            "mic_peak_level=\(levelLabel(captureHealthMetrics.microphonePeakLevel))",
+            "system_peak_level=\(levelLabel(captureHealthMetrics.systemPeakLevel))",
+            "system_signal=\(systemAudioSignalVerdict.rawValue)",
             "backpressure_drops=\(captureHealthMetrics.backpressureDrops)",
             "transcription_failures=\(captureHealthMetrics.transcriptionFailures)",
             "interrupted_sources=\(interruptedSourceLabel.isEmpty ? "none" : interruptedSourceLabel)",
@@ -2148,13 +2402,16 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         return sqrt(sumSquares / Float(samples.count))
     }
 
+    public func captureDiagnostics(for sessionID: UUID) async -> MeetingCaptureDiagnostics? {
+        guard lastCaptureDiagnostics?.sessionID == sessionID else { return nil }
+        return lastCaptureDiagnostics?.snapshot
+    }
+
     private func cleanupState() {
         let finishedSessionID = currentSession?.id
         currentSession = nil
-        if durableStopSessionID == finishedSessionID {
-            durableStopSessionID = nil
-        }
         currentNotes = nil
+        currentMeetingTypeId = nil
         currentLockFile = nil
         paused = false
         pausedAt = nil
@@ -2169,6 +2426,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         latestLevels = MeetingAudioLevels()
         sourceCaptureMetrics = [:]
         captureHealthMetrics = CaptureHealthMetrics()
+        sourceStartupStates = [:]
         sourceHealthLastBufferAt = [:]
         sourceHealthLastBufferActiveSeconds = [:]
         activeMicrophoneStall = nil
@@ -2190,6 +2448,19 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         if let finishedSessionID {
             finishCaptureFailureSignal(for: finishedSessionID)
         }
+    }
+
+    private func waitForSettlement() async {
+        guard settlementSessionID != nil else { return }
+        await withCheckedContinuation { settlementWaiters.append($0) }
+    }
+
+    private func finishSettlement(sessionID: UUID) {
+        guard settlementSessionID == sessionID else { return }
+        settlementSessionID = nil
+        let waiters = settlementWaiters
+        settlementWaiters = []
+        waiters.forEach { $0.resume() }
     }
 
     private static func resolveDisplayName(title: String?, fallbackDate: Date) -> String {

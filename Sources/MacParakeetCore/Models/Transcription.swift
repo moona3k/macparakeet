@@ -17,6 +17,8 @@ public struct Transcription: Codable, Identifiable, Sendable {
 
     public var id: UUID
     public var createdAt: Date
+    /// When managed meeting audio entered the library. Legacy rows use `createdAt`.
+    public var audioRetentionStartedAt: Date?
     public var fileName: String
     public var filePath: String?
     /// Zero-based ordinal among the source file's audio streams (`0:a:N`).
@@ -44,6 +46,9 @@ public struct Transcription: Codable, Identifiable, Sendable {
     public var videoDescription: String?
     public var isFavorite: Bool
     public var sourceType: SourceType
+    /// Optional primary classification for a meeting. Labels are stored in the
+    /// `transcription_meeting_labels` join table instead of this row.
+    public var meetingTypeId: UUID?
     public var recoveredFromCrash: Bool
     public var isTranscriptEdited: Bool
     /// Free-form notes the user typed during a meeting recording.
@@ -70,8 +75,9 @@ public struct Transcription: Codable, Identifiable, Sendable {
     /// from, or probably overlaps, an EventKit event. Contains attendee data
     /// and remains local-only.
     public var calendarEventSnapshot: MeetingCalendarSnapshot?
-    /// User-authored display title for non-meeting transcription rows. This is
-    /// app metadata only; it does not rename or move the original source file.
+    /// User-authored file display title or explicit meeting-title intent.
+    /// A normalized non-nil value protects a meeting name from automatic generation.
+    /// This metadata never renames or moves the external source file.
     public var titleOverride: String?
     /// Display-ready title derived from the transcript content at completion
     /// (substantive first sentence, filler-stripped). `nil` when the transcript
@@ -81,6 +87,11 @@ public struct Transcription: Codable, Identifiable, Sendable {
     /// completion (substantive sentence in [40, 140] chars, filler-stripped).
     /// `nil` when the transcript is empty or predates v0.9 backfill.
     public var derivedSnippet: String?
+    /// Split and transcribe provenance (`spec/contracts/meeting-splitting.md`).
+    /// Set only on child rows created by that feature; `nil` for every other
+    /// row, including the untouched source recording. See
+    /// `MeetingSplitProvenance` for why this is a snapshot, not a live reference.
+    public var splitProvenance: MeetingSplitProvenance?
     public var updatedAt: Date
 
     public enum TranscriptionStatus: String, Codable, Sendable {
@@ -117,6 +128,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         videoDescription: String? = nil,
         isFavorite: Bool = false,
         sourceType: SourceType = .file,
+        meetingTypeId: UUID? = nil,
         recoveredFromCrash: Bool = false,
         isTranscriptEdited: Bool = false,
         userNotes: String? = nil,
@@ -128,10 +140,13 @@ public struct Transcription: Codable, Identifiable, Sendable {
         titleOverride: String? = nil,
         derivedTitle: String? = nil,
         derivedSnippet: String? = nil,
+        splitProvenance: MeetingSplitProvenance? = nil,
+        audioRetentionStartedAt: Date? = nil,
         updatedAt: Date = Date()
     ) {
         self.id = id
         self.createdAt = createdAt
+        self.audioRetentionStartedAt = audioRetentionStartedAt
         self.fileName = fileName
         self.filePath = filePath
         self.audioTrackOrdinal = audioTrackOrdinal
@@ -156,6 +171,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         self.videoDescription = videoDescription
         self.isFavorite = isFavorite
         self.sourceType = sourceType
+        self.meetingTypeId = meetingTypeId
         self.recoveredFromCrash = recoveredFromCrash
         self.isTranscriptEdited = isTranscriptEdited
         self.userNotes = userNotes
@@ -167,11 +183,24 @@ public struct Transcription: Codable, Identifiable, Sendable {
         self.titleOverride = Self.normalizedTitleOverride(from: titleOverride)
         self.derivedTitle = derivedTitle
         self.derivedSnippet = derivedSnippet
+        self.splitProvenance = splitProvenance
         self.updatedAt = updatedAt
     }
 }
 
 extension Transcription {
+    /// The strongest timing claim the currently materialized transcript text
+    /// can make. Legacy whole-text edits are untimed; corrected timed lines
+    /// retain only their segment envelope, while automatic text retains the
+    /// recognizer's word-level alignment.
+    public var transcriptTextAlignment: TranscriptTextAlignment {
+        if isTranscriptEdited || !hasWordTimestamps { return .untimed }
+        if transcriptSegments?.contains(where: { $0.isTextEdited == true }) == true {
+            return .segment
+        }
+        return .automatic
+    }
+
     /// Whether this transcription carries word-level timing. This is the source
     /// of truth for the "Timed" transcript view and for whether timestamps can
     /// be exported. Plain-text engines (such as Cohere) and older pre-timestamp
@@ -247,6 +276,23 @@ public struct SpeakerInfo: Codable, Sendable, Equatable {
         self.id = id
         self.label = label
     }
+
+    /// Whether this still carries a generated label rather than a name the user
+    /// typed. Diarization produces "Speaker 1" for files and "Others 1" for the
+    /// system track of a meeting.
+    ///
+    /// Pattern-matched rather than compared against the automatic snapshot,
+    /// which the callers that need this do not hold. Someone who deliberately
+    /// names a person "Speaker 2" reads as unnamed — an acceptable miss, since
+    /// the consequence is only that a prompt is not offered.
+    public var carriesAutomaticLabel: Bool {
+        let trimmed = label.trimmingCharacters(in: .whitespaces)
+        for prefix in ["Speaker ", "Others "] where trimmed.hasPrefix(prefix) {
+            let suffix = trimmed.dropFirst(prefix.count)
+            if !suffix.isEmpty, suffix.allSatisfy(\.isNumber) { return true }
+        }
+        return false
+    }
 }
 
 public struct DiarizationSegmentRecord: Codable, Sendable, Equatable {
@@ -261,7 +307,7 @@ public struct DiarizationSegmentRecord: Codable, Sendable, Equatable {
     }
 }
 
-public struct TranscriptSegmentWordRange: Codable, Sendable, Equatable {
+public struct TranscriptSegmentWordRange: Codable, Sendable, Equatable, Hashable {
     public var startIndex: Int
     public var endIndexExclusive: Int
 
@@ -279,6 +325,13 @@ public struct TranscriptSegmentRecord: Codable, Sendable, Equatable, Identifiabl
     public var speakerLabel: String
     public var text: String
     public var wordRange: TranscriptSegmentWordRange
+    /// `true` only on an effective projection whose displayed text or boundary
+    /// was corrected. Omitted from automatic/legacy segment JSON.
+    public var isTextEdited: Bool?
+    /// Durable automatic segments that contributed to a structurally changed
+    /// effective segment. Omitted when the effective segment keeps one durable
+    /// segment's ID and range unchanged.
+    public var anchorTranscriptSegmentIDs: [UUID]?
 
     public init(
         id: UUID = UUID(),
@@ -287,7 +340,9 @@ public struct TranscriptSegmentRecord: Codable, Sendable, Equatable, Identifiabl
         speakerId: String?,
         speakerLabel: String,
         text: String,
-        wordRange: TranscriptSegmentWordRange
+        wordRange: TranscriptSegmentWordRange,
+        isTextEdited: Bool? = nil,
+        anchorTranscriptSegmentIDs: [UUID]? = nil
     ) {
         self.id = id
         self.startMs = startMs
@@ -296,6 +351,8 @@ public struct TranscriptSegmentRecord: Codable, Sendable, Equatable, Identifiabl
         self.speakerLabel = speakerLabel
         self.text = text
         self.wordRange = wordRange
+        self.isTextEdited = isTextEdited
+        self.anchorTranscriptSegmentIDs = anchorTranscriptSegmentIDs
     }
 
     public static func updatingSpeakerLabels(
@@ -325,16 +382,23 @@ public struct TranscriptSegmentRecord: Codable, Sendable, Equatable, Identifiabl
     }
 }
 
+public enum TranscriptTextAlignment: String, Codable, Sendable {
+    case automatic
+    case segment
+    case untimed
+}
+
 extension Transcription: FetchableRecord, PersistableRecord {
     public static let databaseTableName = "transcriptions"
 
     public enum Columns: String, ColumnExpression {
-        case id, createdAt, fileName, filePath, audioTrackOrdinal, meetingArtifactFolderPath, fileSizeBytes, durationMs
+        case id, createdAt, audioRetentionStartedAt, fileName, filePath, audioTrackOrdinal, meetingArtifactFolderPath, fileSizeBytes, durationMs
         case rawTranscript, cleanTranscript, wordTimestamps, language
         case speakerCount, speakers, diarizationSegments, transcriptSegments, chatMessages
         case status, errorMessage, exportPath, sourceURL
-        case thumbnailURL, channelName, videoDescription, isFavorite, sourceType, recoveredFromCrash, isTranscriptEdited, userNotes, meetingStartContext, meetingCaptureReport, engine, engineVariant, titleOverride, derivedTitle, derivedSnippet, updatedAt
+        case thumbnailURL, channelName, videoDescription, isFavorite, sourceType, meetingTypeId, recoveredFromCrash, isTranscriptEdited, userNotes, meetingStartContext, meetingCaptureReport, engine, engineVariant, titleOverride, derivedTitle, derivedSnippet, updatedAt
         case calendarEventSnapshot
+        case splitProvenance
     }
 
     /// Backward-compatible decoding: `speakers` column may contain old `[String]` JSON
@@ -343,6 +407,7 @@ extension Transcription: FetchableRecord, PersistableRecord {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
+        audioRetentionStartedAt = try container.decodeIfPresent(Date.self, forKey: .audioRetentionStartedAt)
         fileName = try container.decode(String.self, forKey: .fileName)
         filePath = try container.decodeIfPresent(String.self, forKey: .filePath)
         audioTrackOrdinal = try container.decodeIfPresent(Int.self, forKey: .audioTrackOrdinal)
@@ -395,6 +460,7 @@ extension Transcription: FetchableRecord, PersistableRecord {
         } else {
             sourceType = .file
         }
+        meetingTypeId = try container.decodeIfPresent(UUID.self, forKey: .meetingTypeId)
         recoveredFromCrash = try container.decodeIfPresent(Bool.self, forKey: .recoveredFromCrash) ?? false
         isTranscriptEdited = try container.decodeIfPresent(Bool.self, forKey: .isTranscriptEdited) ?? false
         userNotes = try container.decodeIfPresent(String.self, forKey: .userNotes)
@@ -412,6 +478,10 @@ extension Transcription: FetchableRecord, PersistableRecord {
         titleOverride = Self.normalizedTitleOverride(from: try container.decodeIfPresent(String.self, forKey: .titleOverride))
         derivedTitle = try container.decodeIfPresent(String.self, forKey: .derivedTitle)
         derivedSnippet = try container.decodeIfPresent(String.self, forKey: .derivedSnippet)
+        splitProvenance = try container.decodeIfPresent(
+            MeetingSplitProvenance.self,
+            forKey: .splitProvenance
+        )
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
 }

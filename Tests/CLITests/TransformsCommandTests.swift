@@ -353,14 +353,11 @@ final class TransformsCommandTests: XCTestCase {
             "0fce",
             "--database", dbPath,
         ])
-        XCTAssertThrowsError(try del.run()) { error in
-            let message = String(describing: error)
-            XCTAssertTrue(message.contains("Cannot delete the built-in Transform"), "Expected UUID prefix to resolve before exact name, got: \(message)")
-        }
+        XCTAssertNoThrow(try del.run())
 
         let after = try repo.fetchVisible(category: .transform)
         XCTAssertTrue(after.contains(where: { $0.id == custom.id }))
-        XCTAssertTrue(after.contains(where: { $0.id.uuidString == "0FCE9DDB-7E2D-4B1A-AE3E-6F7C9B2A4D11" }))
+        XCTAssertFalse(after.contains(where: { $0.id.uuidString == "0FCE9DDB-7E2D-4B1A-AE3E-6F7C9B2A4D11" }))
     }
 
     func testLookupRejectsUnicodeCaseInsensitiveNameAmbiguity() throws {
@@ -551,22 +548,25 @@ final class TransformsCommandTests: XCTestCase {
         }
     }
 
-    func testDeleteRefusesBuiltIn() throws {
+    func testDeleteSoftDeletesBuiltIn() throws {
         let tmp = FileManager.default.temporaryDirectory
             .appendingPathComponent("transforms-cli-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tmp) }
         let dbPath = tmp.appendingPathComponent("test.db").path
-        _ = try DatabaseManager(path: dbPath)
+        let manager = try DatabaseManager(path: dbPath)
+        let repo = PromptRepository(dbQueue: manager.dbQueue)
+        let polish = try XCTUnwrap(
+            try repo.fetchVisible(category: .transform).first(where: { $0.name == "Polish" })
+        )
 
         let del = try TransformsCommand.DeleteSubcommand.parse([
             "Polish",
             "--database", dbPath,
         ])
-        XCTAssertThrowsError(try del.run()) { error in
-            let message = String(describing: error)
-            XCTAssertTrue(message.contains("built-in"), "Expected built-in-protection error, got: \(message)")
-        }
+        XCTAssertNoThrow(try del.run())
+        XCTAssertNil(try repo.fetch(id: polish.id))
+        XCTAssertNotNil(try repo.fetchDeleted().first(where: { $0.id == polish.id }))
     }
 
     func testRestoreDefaultsResetsSingleBuiltInTransform() throws {

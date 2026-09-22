@@ -10,6 +10,61 @@ final class ExportServiceTests: XCTestCase {
         exportService = ExportService()
     }
 
+    func testPlainTextAndMarkdownExportsPreserveExplicitUnassignedCorrection() throws {
+        let words = ["Alice", "speaks", "first.", "An", "unknown", "speaker.", "Alice", "speaks", "again."]
+            .enumerated().map { index, word in
+                WordTimestamp(
+                    word: word, startMs: index * 200, endMs: index * 200 + 150,
+                    confidence: 1, speakerId: "S1"
+                )
+            }
+        let speakers = [SpeakerInfo(id: "S1", label: "Alice")]
+        let automatic = Transcription(
+            fileName: "speakers.wav", wordTimestamps: words,
+            speakerCount: 1, speakers: speakers,
+            transcriptSegments: TranscriptSegmenter.materializeSegments(words: words, speakers: speakers),
+            status: .completed
+        )
+        let baseline = SpeakerAttributionResolver.resolve(transcription: automatic)
+        let target = try XCTUnwrap(baseline.editableSegments.dropFirst().first)
+        let correction = SpeakerCorrection(
+            transcriptionId: automatic.id, parentId: nil, sequence: 1,
+            transcriptFingerprint: baseline.fingerprint,
+            payload: .assign(
+                targets: [.init(
+                    anchorTranscriptSegmentIDs: target.anchorTranscriptSegmentIDs,
+                    wordRange: target.wordRange
+                )],
+                to: .unassigned
+            )
+        )
+        let state = SpeakerCorrectionState(
+            transcriptionId: automatic.id,
+            transcriptFingerprint: baseline.fingerprint.rawValue,
+            headId: correction.id, revision: 1
+        )
+        let attribution = SpeakerAttributionResolver.resolve(
+            transcription: automatic, corrections: [correction], state: state
+        )
+        XCTAssertTrue(attribution.unresolvedCorrections.isEmpty)
+        let projection = SpeakerAttributionProjection(
+            automaticTranscription: automatic, attribution: attribution, correctionsApplied: true
+        )
+        let options = TranscriptExportOptions(
+            includeTimestamps: false, includeSpeakerLabels: true, includeMetadata: false
+        )
+
+        XCTAssertEqual(
+            exportService.formatPlainText(projection: projection, options: options),
+            "Alice:\nAlice speaks first.\n\nUnassigned:\nAn unknown speaker.\n\nAlice:\nAlice speaks again."
+        )
+        XCTAssertEqual(
+            exportService.formatMarkdown(projection: projection, options: options),
+            "**Alice**\n\nAlice speaks first.\n\n**Unassigned**\n\nAn unknown speaker.\n\n**Alice**\n\nAlice speaks again.\n"
+        )
+        XCTAssertEqual(automatic.wordTimestamps, words)
+    }
+
     func testFormatForClipboard() {
         let transcription = Transcription(
             fileName: "test.mp3",
@@ -122,6 +177,46 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertTrue(text.contains("Alice:"))
         XCTAssertTrue(text.contains("Bob:"))
         XCTAssertFalse(text.contains("Automatically cleaned transcript."))
+    }
+
+    func testSegmentTimedCorrectionFeedsTextSubtitleAndDAPTExportsWithoutInventingWordTiming() {
+        var transcription = makeExportOptionsTranscription()
+        transcription.cleanTranscript = "Corrected greeting. Goodbye."
+        transcription.transcriptSegments = [
+            TranscriptSegmentRecord(
+                startMs: 0,
+                endMs: 500,
+                speakerId: "S1",
+                speakerLabel: "Alice",
+                text: "Corrected greeting.",
+                wordRange: .init(startIndex: 0, endIndexExclusive: 1),
+                isTextEdited: true
+            ),
+            TranscriptSegmentRecord(
+                startMs: 2_000,
+                endMs: 2_500,
+                speakerId: "S2",
+                speakerLabel: "Bob",
+                text: "Goodbye.",
+                wordRange: .init(startIndex: 1, endIndexExclusive: 2)
+            ),
+        ]
+
+        let plain = exportService.formatPlainText(
+            transcription: transcription,
+            options: .init(includeTimestamps: true, includeSpeakerLabels: true, includeMetadata: false)
+        )
+        XCTAssertEqual(plain, "Alice:\n[0:00] Corrected greeting.\n\nBob:\n[0:02] Goodbye.")
+
+        let srt = exportService.formatSRT(transcription: transcription)
+        XCTAssertTrue(srt.contains("00:00:00,000 --> 00:00:00,500\nAlice: Corrected greeting."))
+        XCTAssertTrue(srt.contains("00:00:02,000 --> 00:00:02,500\nBob: Goodbye."))
+        XCTAssertFalse(srt.contains("Hello."))
+
+        let dapt = exportService.formatDAPT(transcription: transcription)
+        XCTAssertTrue(dapt.contains("begin=\"00:00:00.000\" end=\"00:00:00.500\""))
+        XCTAssertTrue(dapt.contains("<p>Corrected greeting.</p>"))
+        XCTAssertFalse(dapt.contains("<p>Hello.</p>"))
     }
 
     func testFormatPlainTextCanOmitMetadataTimestampsAndSpeakers() {

@@ -36,8 +36,92 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
         )
     }
 
+    func testTwentyFourKilohertzInputPreservesDurationWhenResampled() async throws {
+        try await assertResamplingPreservesDuration(
+            inputSampleRate: 24_000,
+            routeDescription: "24 kHz AirPods input"
+        )
+    }
+
+    func testFortyEightKilohertzInputPreservesDurationWhenResampled() async throws {
+        try await assertResamplingPreservesDuration(
+            inputSampleRate: 48_000,
+            routeDescription: "48 kHz built-in input"
+        )
+    }
+
+    private func assertResamplingPreservesDuration(
+        inputSampleRate: Double,
+        routeDescription: String
+    ) async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 4_096)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+        let inputFrameCount = 4_096
+        let bufferCount = 12
+
+        try await startRecorder(
+            recorder,
+            stream: stream,
+            platform: platform,
+            firstBuffer: try makeMonoFloatBuffer(
+                frameCount: inputFrameCount,
+                sampleRate: inputSampleRate
+            )
+        )
+        for _ in 1..<bufferCount {
+            platform.deliverBuffer(
+                try makeMonoFloatBuffer(
+                    frameCount: inputFrameCount,
+                    sampleRate: inputSampleRate
+                )
+            )
+        }
+
+        let url = try await recorder.stop()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let samples = try readFloatSamples(from: url)
+        let expectedOutputFrames =
+            Double(inputFrameCount * bufferCount) * 16_000 / inputSampleRate
+        XCTAssertEqual(
+            Double(samples.count),
+            expectedOutputFrames,
+            accuracy: 64,
+            "\(routeDescription) must preserve duration while converting to 16 kHz."
+        )
+    }
+
     func testSharedModeStopAcceptsFluidAudioMinimumSamples() async throws {
         let platform = AudioRecorderBlockingPlatform()
+        let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
+        let recorder = AudioRecorder(
+            sharedStream: stream,
+            permissionProvider: { true }
+        )
+
+        try await startRecorder(
+            recorder,
+            stream: stream,
+            platform: platform,
+            firstBuffer: try makeMonoFloatBuffer(frameCount: 4_800)
+        )
+
+        let url = try await recorder.stop()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    func testStartRecorderWaitsOutDelayedMockEngineStart() async throws {
+        let platform = AudioRecorderBlockingPlatform()
+        // Just longer than the old 2s helper poll. CI `--parallel` can stall
+        // subscribe this long without a stuck engine.
+        platform.configureAndStartHook = {
+            Thread.sleep(forTimeInterval: 2.2)
+        }
         let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
         let recorder = AudioRecorder(
             sharedStream: stream,
@@ -685,8 +769,8 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
             XCTFail("Unexpected start #1 error: \(error)")
         }
 
-        let readyForFirstBuffer = await pollUntil(timeout: .seconds(2)) {
-            stream.diagnostics.activeSubscriberCount >= 1 && stream.diagnostics.engineRunning
+        let readyForFirstBuffer = await pollUntil(timeout: .seconds(5)) {
+            platform.isEngineRunning && stream.diagnostics.activeSubscriberCount >= 1
         }
         XCTAssertTrue(readyForFirstBuffer, "expected start #2 to hold a subscriber before first-buffer gate")
         platform.deliverBuffer(try makeMonoFloatBuffer(frameCount: 4_800))
@@ -1085,17 +1169,32 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
         let startTask = Task {
             try await recorder.start(sampleSink: sampleSink)
         }
-        let readyForFirstBuffer = await pollUntil(timeout: .seconds(2)) {
-            stream.diagnostics.activeSubscriberCount >= 1 && stream.diagnostics.engineRunning
+        // Mock configureAndStart is immediate; CI `--parallel` can stall the
+        // actor + diagnostic-log + subscribe path past 2s. This bound is the
+        // helper's engine-up wait, not AudioRecorder.firstBufferTimeoutSeconds.
+        let readyForFirstBuffer = await pollUntil(timeout: .seconds(5)) {
+            // Stream diagnostics flip optimistic before configureAndStart
+            // installs the tap. The mock's isEngineRunning is the tap-ready
+            // signal; delivering a buffer earlier drops it.
+            platform.isEngineRunning && stream.diagnostics.activeSubscriberCount >= 1
         }
-        XCTAssertTrue(
-            readyForFirstBuffer,
-            "expected mock platform to start before delivering first buffer",
-            file: file,
-            line: line
-        )
-        if !readyForFirstBuffer {
+        guard readyForFirstBuffer else {
             startTask.cancel()
+            _ = await startTask.result
+            let diagnostics = stream.diagnostics
+            XCTFail(
+                """
+                expected mock platform to start before delivering first buffer \
+                (platformRunning=\(platform.isEngineRunning) \
+                engineRunning=\(diagnostics.engineRunning) \
+                activeSubscribers=\(diagnostics.activeSubscriberCount) \
+                subscribers=\(diagnostics.subscriberCount) \
+                configureAndStart=\(platform.configureAndStartCallCount))
+                """,
+                file: file,
+                line: line
+            )
+            throw RecorderMockEngineStartTimeout()
         }
         platform.deliverBuffer(firstBuffer)
         try await startTask.value
@@ -1166,6 +1265,10 @@ final class AudioRecorderFormatChangeTests: XCTestCase {
         return (0..<Int(buffer.frameLength)).map { samples[$0] }
     }
 }
+
+/// `startRecorder` timed out waiting for the mock engine. Distinct from a
+/// cancelled `AudioRecorder.start()` so CI does not report CancellationError.
+private struct RecorderMockEngineStartTimeout: Error {}
 
 private enum TestMicrophoneStartError: Error, LocalizedError {
     case coreAudio10868

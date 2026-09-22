@@ -2,10 +2,10 @@
 
 > **Status:** IMPLEMENTED 2026-07-04 — shipped as PR #707 (source health
 > model + UI), PR #708 (meeting.md artifact + shared renderer + CLI/contract
-> promotion), and PR #710 (speaker rename UX + rollback guard). Remaining:
-> health UI hidden behind default-off flag per product decision 2026-07-04
-> (chips read as warnings during normal quiet capture); model/plumbing
-> retained; future direction = invisible-until-confirmed-actionable surface.
+> promotion), and PR #710 (speaker rename UX + rollback guard). Current source
+> keeps routine health decoration hidden while confirmed actionable recovery,
+> stall, interruption, and unavailability bypass the presentation flag.
+> Hardware capture/AEC validation is separate and remains outside this plan.
 > **Date:** 2026-07-04
 > **Priority:** P1 for visible source health, P2 for artifact/CLI promotion and
 > speaker rename polish
@@ -66,7 +66,7 @@ Keep the implementation boring and obvious:
   artifacts/Markdown/CLI exports consistently. Do not add profiles, merges,
   enrollment, attendee matching, or live diarization.
 
-## Current State
+## Original planning snapshot (superseded by implementation above)
 
 - ADR-014 defines meeting recording as source-separated capture. Final STT uses
   the retained source files; `meeting-playback.m4a` is playback/export, not the

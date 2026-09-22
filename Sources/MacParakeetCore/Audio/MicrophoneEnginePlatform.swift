@@ -78,7 +78,30 @@ final class MutableMicrophoneTapHandler: @unchecked Sendable {
 
     enum LivenessFailure: Equatable {
         case callbackGap(TimeInterval)
-        case zeroFilled(TimeInterval)
+        case invalidBuffers(TimeInterval)
+    }
+
+    /// Scalar, pre-filter evidence only. Never retain PCM or format log lines on
+    /// the render thread. Snapshots are formatted on the platform queue.
+    struct SignalSnapshot {
+        var callbacks: UInt64 = 0
+        var emptyBuffers: UInt64 = 0
+        var invalidBuffers: UInt64 = 0
+        var silentBuffers: UInt64 = 0
+        var nonzeroBuffers: UInt64 = 0
+        var uninspectedBuffers: UInt64 = 0
+        var forwardedBuffers: UInt64 = 0
+        var lastFrameCount: AVAudioFrameCount = 0
+        var lastChannelCount: AVAudioChannelCount = 0
+        var lastSampleRate: Double = 0
+
+        var logFields: String {
+            "callbacks=\(callbacks) empty_buffers=\(emptyBuffers) invalid_buffers=\(invalidBuffers) silent_buffers=\(silentBuffers) nonzero_buffers=\(nonzeroBuffers) uninspected_buffers=\(uninspectedBuffers) forwarded_buffers=\(forwardedBuffers) last_frames=\(lastFrameCount) last_channels=\(lastChannelCount) last_sample_rate=\(lastSampleRate)"
+        }
+    }
+
+    private enum SignalKind {
+        case empty, invalid, silent, nonzero, uninspected
     }
 
     /// Keep the function behind a stable reference. Repeatedly copying a
@@ -98,12 +121,26 @@ final class MutableMicrophoneTapHandler: @unchecked Sendable {
         var monitoringCallbacks = false
         var requiresNonZeroSignal: Bool
         var receivedUsableBuffer = false
+        /// Input format of the first usable buffer, captured once (issue #1102).
+        /// Immutable until reset so a later callback cannot race the commit that
+        /// records it as the absorb baseline.
+        var firstUsableBufferSampleRate: Double = 0
+        var firstUsableBufferChannelCount: AVAudioChannelCount = 0
+        var tracksStartupConfiguration = false
+        var latestUsableBufferConfigurationGeneration: UInt64?
         var lastCallbackUptimeNanoseconds: UInt64?
         var zeroFilledSinceUptimeNanoseconds: UInt64?
+        var invalidBuffersSinceUptimeNanoseconds: UInt64?
+        var signal = SignalSnapshot()
+        var reportedSilence = false
+        var nonzeroBuffersAtReportedSilence: UInt64 = 0
+        var reportedSignalReturn = false
     }
 
+    let diagnosticID = UUID().uuidString
     private let state: OSAllocatedUnfairLock<State>
     private let nowUptimeNanoseconds: @Sendable () -> UInt64
+    private let configurationGenerationProvider: @Sendable () -> UInt64
     private let checksOnlyChannelZeroForSignal: Bool
 
     init(
@@ -112,9 +149,11 @@ final class MutableMicrophoneTapHandler: @unchecked Sendable {
         nowUptimeNanoseconds: @escaping @Sendable () -> UInt64 = {
             DispatchTime.now().uptimeNanoseconds
         },
+        configurationGenerationProvider: @escaping @Sendable () -> UInt64 = { 0 },
         _ handler: @escaping Handler
     ) {
         self.nowUptimeNanoseconds = nowUptimeNanoseconds
+        self.configurationGenerationProvider = configurationGenerationProvider
         self.checksOnlyChannelZeroForSignal = checksOnlyChannelZeroForSignal
         self.state = OSAllocatedUnfairLock(
             initialState: State(
@@ -141,8 +180,17 @@ final class MutableMicrophoneTapHandler: @unchecked Sendable {
         state.withLock { state in
             state.monitoringCallbacks = true
             state.receivedUsableBuffer = false
+            state.firstUsableBufferSampleRate = 0
+            state.firstUsableBufferChannelCount = 0
+            state.tracksStartupConfiguration = true
+            state.latestUsableBufferConfigurationGeneration = nil
             state.lastCallbackUptimeNanoseconds = nil
             state.zeroFilledSinceUptimeNanoseconds = nil
+            state.invalidBuffersSinceUptimeNanoseconds = nil
+            state.signal = SignalSnapshot()
+            state.reportedSilence = false
+            state.nonzeroBuffersAtReportedSilence = 0
+            state.reportedSignalReturn = false
         }
     }
 
@@ -151,21 +199,54 @@ final class MutableMicrophoneTapHandler: @unchecked Sendable {
         // The render callback owns `buffer` for this synchronous critical
         // section; it is read here but never stored or allowed to escape.
         let current: Target? = state.withLockUnchecked { state -> Target? in
-            let hasUsableSignal =
-                !state.requiresNonZeroSignal
-                || Self.hasNonZeroSample(
-                    buffer,
-                    channelZeroOnly: checksOnlyChannelZeroForSignal
-                )
             if state.monitoringCallbacks {
+                let signal = Self.classifySignal(buffer, channelZeroOnly: checksOnlyChannelZeroForSignal)
                 state.lastCallbackUptimeNanoseconds = now
-                if !hasUsableSignal {
-                    state.zeroFilledSinceUptimeNanoseconds =
-                        state.zeroFilledSinceUptimeNanoseconds ?? now
+                state.signal.callbacks &+= 1
+                state.signal.lastFrameCount = buffer.frameLength
+                state.signal.lastChannelCount = buffer.format.channelCount
+                state.signal.lastSampleRate = buffer.format.sampleRate
+                switch signal {
+                case .empty:
+                    state.signal.emptyBuffers &+= 1
+                case .invalid:
+                    break
+                case .silent:
+                    state.signal.silentBuffers &+= 1
+                case .nonzero:
+                    state.signal.nonzeroBuffers &+= 1
+                case .uninspected:
+                    state.signal.uninspectedBuffers &+= 1
+                }
+                if signal == .empty || signal == .invalid {
+                    state.signal.invalidBuffers &+= 1
+                    state.invalidBuffersSinceUptimeNanoseconds =
+                        state.invalidBuffersSinceUptimeNanoseconds ?? now
+                    state.zeroFilledSinceUptimeNanoseconds = nil
                     return nil
                 }
-                state.zeroFilledSinceUptimeNanoseconds = nil
+                state.invalidBuffersSinceUptimeNanoseconds = nil
+                if signal == .silent {
+                    state.zeroFilledSinceUptimeNanoseconds =
+                        state.zeroFilledSinceUptimeNanoseconds ?? now
+                    // Silence cannot certify Bluetooth startup, but after the
+                    // route commits it is valid PCM, not proof of engine death.
+                    if state.requiresNonZeroSignal && state.tracksStartupConfiguration {
+                        return nil
+                    }
+                } else {
+                    state.zeroFilledSinceUptimeNanoseconds = nil
+                }
+                if !state.receivedUsableBuffer {
+                    state.firstUsableBufferSampleRate = buffer.format.sampleRate
+                    state.firstUsableBufferChannelCount = buffer.format.channelCount
+                }
                 state.receivedUsableBuffer = true
+                if state.tracksStartupConfiguration {
+                    state.latestUsableBufferConfigurationGeneration =
+                        configurationGenerationProvider()
+                }
+                if state.target != nil { state.signal.forwardedBuffers &+= 1 }
             }
             return state.target
         }
@@ -176,12 +257,38 @@ final class MutableMicrophoneTapHandler: @unchecked Sendable {
         state.withLock { $0.monitoringCallbacks && $0.receivedUsableBuffer }
     }
 
+    func latestUsableBufferConfigurationGeneration() -> UInt64? {
+        state.withLock { state in
+            guard state.monitoringCallbacks, state.receivedUsableBuffer else { return nil }
+            return state.latestUsableBufferConfigurationGeneration
+        }
+    }
+
+    /// Immutable input format of the first usable buffer that satisfied startup
+    /// readiness (issue #1102). Captured once when the winning buffer arrives so
+    /// a later callback cannot race the commit that records the absorb baseline.
+    /// The tap installs with `format: nil`, so this equals the input node's
+    /// `outputFormat(forBus:)` the observer later reads. Nil until seen.
+    func firstUsableBufferFormat() -> (sampleRate: Double, channelCount: AVAudioChannelCount)? {
+        state.withLock { state in
+            guard state.monitoringCallbacks, state.receivedUsableBuffer,
+                state.firstUsableBufferSampleRate > 0
+            else { return nil }
+            return (state.firstUsableBufferSampleRate, state.firstUsableBufferChannelCount)
+        }
+    }
+
+    /// Only a successful route commit ends both the startup signal gate and
+    /// generation tracking. A first nonzero buffer alone must not end either.
+    func completeStartupConfigurationTracking() {
+        state.withLock { $0.tracksStartupConfiguration = false }
+    }
+
     @discardableResult
-    func setFiltersZeroFilledBuffers(_ enabled: Bool) -> Bool {
+    func setStartupRequiresNonZeroSignal(_ enabled: Bool) -> Bool {
         state.withLock { state in
             guard state.requiresNonZeroSignal != enabled else { return false }
             state.requiresNonZeroSignal = enabled
-            state.zeroFilledSinceUptimeNanoseconds = nil
             return true
         }
     }
@@ -207,58 +314,92 @@ final class MutableMicrophoneTapHandler: @unchecked Sendable {
         return hasReceivedUsableBuffer() ? .ready : .timedOut
     }
 
-    /// Bluetooth route failures can keep delivering correctly shaped buffers
-    /// whose samples are all exactly zero. Bluetooth and unresolved inputs use
-    /// this fail-closed gate; known non-Bluetooth inputs preserve digital silence.
-    private static func hasNonZeroSample(
+    /// Keep valid digital silence distinct from malformed/empty callbacks.
+    /// VPIO reference-channel activity cannot certify microphone signal.
+    private static func classifySignal(
         _ buffer: AVAudioPCMBuffer,
         channelZeroOnly: Bool
-    ) -> Bool {
+    ) -> SignalKind {
         let frameCount = Int(buffer.frameLength)
         let channelCount = Int(buffer.format.channelCount)
-        guard frameCount > 0, channelCount > 0 else { return false }
+        guard frameCount > 0 else { return .empty }
+        guard channelCount > 0, buffer.format.sampleRate.isFinite,
+            buffer.format.sampleRate > 0
+        else { return .invalid }
 
         // AVAudioEngine input taps use Float32. Fail open for an unexpected
-        // format instead of rejecting legitimate audio we cannot inspect.
-        guard buffer.format.commonFormat == .pcmFormatFloat32,
-            let channelData = buffer.floatChannelData
-        else { return true }
+        // format, but do not mislabel it as observed nonzero Float32 PCM.
+        guard buffer.format.commonFormat == .pcmFormatFloat32 else { return .uninspected }
+        guard let channelData = buffer.floatChannelData else { return .invalid }
 
+        var hasNonzero = false
         if buffer.format.isInterleaved {
             let sampleCount = frameCount * channelCount
             let stride = channelZeroOnly ? channelCount : 1
-            for sample in Swift.stride(from: 0, to: sampleCount, by: stride)
-            where channelData[0][sample] != 0 {
-                return true
+            for sample in Swift.stride(from: 0, to: sampleCount, by: stride) {
+                let value = channelData[0][sample]
+                guard value.isFinite else { return .invalid }
+                hasNonzero = hasNonzero || value != 0
             }
-            return false
+        } else {
+            let channelsToScan = channelZeroOnly ? 1 : channelCount
+            for channel in 0..<channelsToScan {
+                for frame in 0..<frameCount {
+                    let value = channelData[channel][frame]
+                    guard value.isFinite else { return .invalid }
+                    hasNonzero = hasNonzero || value != 0
+                }
+            }
         }
+        return hasNonzero ? .nonzero : .silent
+    }
 
-        let channelsToScan = channelZeroOnly ? 1 : channelCount
-        for channel in 0..<channelsToScan {
-            for frame in 0..<frameCount where channelData[channel][frame] != 0 {
-                return true
+    func signalSnapshot() -> SignalSnapshot {
+        state.withLock { $0.signal }
+    }
+
+    /// At most one silence/resumption pair per engine, sampled by the liveness
+    /// timer. Ordinary pauses never become an unbounded diagnostic stream.
+    func takeSignalDiagnosticEvent() -> String? {
+        state.withLock { state in
+            guard state.monitoringCallbacks, !state.tracksStartupConfiguration else { return nil }
+            if !state.reportedSilence,
+                let since = state.zeroFilledSinceUptimeNanoseconds,
+                let last = state.lastCallbackUptimeNanoseconds,
+                last >= since, last - since >= 2_000_000_000
+            {
+                state.reportedSilence = true
+                state.nonzeroBuffersAtReportedSilence = state.signal.nonzeroBuffers
+                return "sustained_silence"
             }
+            if state.reportedSilence, !state.reportedSignalReturn,
+                state.zeroFilledSinceUptimeNanoseconds == nil,
+                state.invalidBuffersSinceUptimeNanoseconds == nil,
+                state.signal.nonzeroBuffers > state.nonzeroBuffersAtReportedSilence
+            {
+                state.reportedSignalReturn = true
+                return "signal_resumed"
+            }
+            return nil
         }
-        return false
     }
 
     func livenessFailure(
         nowUptimeNanoseconds: UInt64,
         callbackStallTimeout: TimeInterval,
-        zeroFilledTimeout: TimeInterval
+        invalidBufferTimeout: TimeInterval
     ) -> LivenessFailure? {
         state.withLock { state in
             guard state.monitoringCallbacks else { return nil }
 
-            if zeroFilledTimeout > 0,
-                let zeroFilledSince = state.zeroFilledSinceUptimeNanoseconds,
+            if invalidBufferTimeout > 0,
+                let invalidSince = state.invalidBuffersSinceUptimeNanoseconds,
                 let lastCallback = state.lastCallbackUptimeNanoseconds,
-                lastCallback >= zeroFilledSince
+                lastCallback >= invalidSince
             {
-                let duration = Double(lastCallback - zeroFilledSince) / 1_000_000_000
-                if duration >= zeroFilledTimeout {
-                    return .zeroFilled(duration)
+                let duration = Double(lastCallback - invalidSince) / 1_000_000_000
+                if duration >= invalidBufferTimeout {
+                    return .invalidBuffers(duration)
                 }
             }
 
@@ -277,13 +418,48 @@ final class MutableMicrophoneTapHandler: @unchecked Sendable {
             state.target = nil
             state.monitoringCallbacks = false
             state.receivedUsableBuffer = false
+            state.firstUsableBufferSampleRate = 0
+            state.firstUsableBufferChannelCount = 0
+            state.tracksStartupConfiguration = false
+            state.latestUsableBufferConfigurationGeneration = nil
             state.lastCallbackUptimeNanoseconds = nil
             state.zeroFilledSinceUptimeNanoseconds = nil
+            state.invalidBuffersSinceUptimeNanoseconds = nil
             return previous
         }
         // An in-flight invocation retains its own Target. Future invocations
         // see nil, while the detached function is destroyed outside the lock.
         withExtendedLifetime(previous) {}
+    }
+}
+
+/// Generation-scoped state for collapsing Core Audio notification storms.
+/// Retired listeners and delayed deliveries cannot consume a replacement burst.
+struct DefaultInputChangeBurstCoalescer {
+    private(set) var pendingCount = 0
+    private(set) var deliveryScheduled = false
+    private(set) var generation: UInt64 = 0
+
+    mutating func invalidate() {
+        generation &+= 1
+        pendingCount = 0
+        deliveryScheduled = false
+    }
+
+    mutating func observeChange(generation: UInt64) -> Bool {
+        guard generation == self.generation else { return false }
+        pendingCount += 1
+        guard !deliveryScheduled else { return false }
+        deliveryScheduled = true
+        return true
+    }
+
+    mutating func takePendingCount(generation: UInt64) -> Int? {
+        guard generation == self.generation, deliveryScheduled else { return nil }
+        let count = pendingCount
+        pendingCount = 0
+        deliveryScheduled = false
+        return count
     }
 }
 
@@ -310,6 +486,8 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             AVAudioFrameCount,
             @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
         ) throws -> Void
+    typealias LifecycleDiagnosticsFactory =
+        @Sendable (AudioEngineLifecycleSnapshot.Operation, Bool, AVAudioFrameCount) -> AudioEngineLifecycleDiagnostics
     enum StartupReadinessResult: Equatable {
         case ready
         case timedOut
@@ -330,22 +508,29 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     private let deviceAttemptsBuilder: DeviceAttemptsBuilder?
     private let inputDeviceSetter: InputDeviceSetter
     private let engineStarter: EngineStarter?
+    /// Optional running-state probe used only by deterministic
+    /// configuration-change tests; production reads the real
+    /// `AVAudioEngine.isRunning`.
+    private let engineRunningProbe: (@Sendable (AVAudioEngine) -> Bool)?
+    private let lifecycleDiagnosticsFactory: LifecycleDiagnosticsFactory
+    // Only lifecycle work on the platform queue changes this reference. The
+    // recorder's independent watchdog reads its own locked snapshot, never HAL.
+    private var activeLifecycleDiagnosticsLocked: AudioEngineLifecycleDiagnostics?
     /// The production schedule spans 31.5 seconds so a Bluetooth handoff that
     /// takes ~20 seconds to settle remains recoverable without an unbounded loop.
     private static let defaultRecoveryRetryDelays: [TimeInterval] = [0.5, 1, 2, 4, 8, 16]
     private static let defaultRecoveryRouteChangeDebounce: TimeInterval = 0.5
     /// Healthy routes normally deliver their first tap buffer in 100-200 ms.
-    /// One second leaves ample settle time without allowing a silent preferred
-    /// route to consume the meeting recorder's higher-level startup deadline.
+    /// This bounds first-buffer readiness after native setup returns. It does
+    /// not impose a deadline on synchronous Core Audio setup/start calls.
     private static let defaultStartupReadinessTimeout: TimeInterval = 1
     /// Tap callbacks normally arrive many times per second. Five seconds is
     /// long enough to ignore route-settle jitter while matching the existing
     /// recorder heartbeat cadence that exposed the frozen callback count.
     private static let defaultCallbackStallTimeout: TimeInterval = 5
-    /// Bluetooth or unresolved routes that continuously emit exact-zero PCM are
-    /// as unusable as a stopped callback stream, but need a shorter bounded gate
-    /// so callers can fall back before recording empty audio.
-    private static let defaultZeroFilledTimeout: TimeInterval = 2
+    /// Empty or malformed callbacks cannot provide audio on any transport.
+    /// Valid silent PCM is deliberately excluded from this recovery trigger.
+    private static let defaultInvalidBufferTimeout: TimeInterval = 2
     private static let defaultCallbackStallCheckInterval: TimeInterval = 1
     private let recoveryRetryDelays: [TimeInterval]
     private let recoveryRouteChangeDebounce: TimeInterval
@@ -353,11 +538,25 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     private let bluetoothInputState: @Sendable (AudioDeviceID) -> Bool?
     private let callbackUptimeProvider: @Sendable () -> UInt64
     private let callbackStallTimeout: TimeInterval
-    private let zeroFilledTimeout: TimeInterval
+    private let invalidBufferTimeout: TimeInterval
     private let callbackStallCheckInterval: TimeInterval
     private var audioEngine = AVAudioEngine()
     private var running: Bool = false
     private var lastSucceededAttemptLocked: MeetingInputDeviceAttempt?
+    /// Input format + resolved route + attempt captured when the running engine
+    /// last committed (issue #1102). The configuration-change observer compares a
+    /// self-emitted change against these before re-broadcasting it as a route
+    /// change: an unchanged running route is absorbed rather than posting
+    /// `.macParakeetMicrophoneSelectionDidChange` and driving a warm-engine
+    /// rebuild. Bluetooth safety is re-evaluated **live** at observation time
+    /// from `committedAttempt` (mirroring the `prepared` branch) so a transport
+    /// flip behind a stable device ID/format still posts (#862). The format is
+    /// the first-usable-buffer format (immutable once captured), not a fresh HAL
+    /// query, so this adds no latency to the start path.
+    private var committedInputSampleRate: Double = 0
+    private var committedInputChannelCount: AVAudioChannelCount = 0
+    private var committedRouteSnapshot: [MeetingInputDeviceAttempt]?
+    private var committedAttempt: MeetingInputDeviceAttempt?
     /// Token for the `AVAudioEngine.configurationChangeNotification` observer
     /// installed on the current `audioEngine` instance. Cleared on
     /// `tearDown` / `resetEngine` / `replaceEngineAfterFailure` so the
@@ -367,6 +566,9 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     /// change, format change, sample-rate change).
     private var configurationChangeObserver: NSObjectProtocol?
     private var defaultInputChangeObserver: AudioObjectPropertyListenerBlock?
+    private let defaultInputChangeCoalescer = OSAllocatedUnfairLock(
+        initialState: DefaultInputChangeBurstCoalescer()
+    )
     /// Parameters for the capture the caller still wants active. This desired
     /// state is deliberately separate from `running`, which reflects the actual
     /// AVAudioEngine state and becomes false during a recovery attempt. External
@@ -400,6 +602,23 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     private var prepared = false
     private var preparedAttempt: MeetingInputDeviceAttempt?
     private var preparedRouteSnapshot: [MeetingInputDeviceAttempt]?
+    private struct InputConfigurationSnapshot: Equatable {
+        let sampleRate: Double
+        let channelCount: AVAudioChannelCount
+        let commonFormat: AVAudioCommonFormat
+        let isInterleaved: Bool
+
+        init?(_ format: AVAudioFormat?) {
+            guard let format, format.sampleRate > 0, format.channelCount > 0 else {
+                return nil
+            }
+            sampleRate = format.sampleRate
+            channelCount = format.channelCount
+            commonFormat = format.commonFormat
+            isInterleaved = format.isInterleaved
+        }
+    }
+    private var preparedInputConfiguration: InputConfigurationSnapshot?
     private var preparedVPIO = false
     private var preparedBufferSize: AVAudioFrameCount = 0
     private var tapHandlerBox: MutableMicrophoneTapHandler?
@@ -460,13 +679,17 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         self.deviceAttemptsBuilder = deviceAttemptsBuilder
         self.inputDeviceSetter = inputDeviceSetter
         self.engineStarter = nil
+        self.engineRunningProbe = nil
+        self.lifecycleDiagnosticsFactory = { operation, vpio, bufferSize in
+            AudioEngineLifecycleDiagnostics(operation: operation, vpioEnabled: vpio, bufferSize: bufferSize)
+        }
         self.recoveryRetryDelays = Self.defaultRecoveryRetryDelays
         self.recoveryRouteChangeDebounce = Self.defaultRecoveryRouteChangeDebounce
         self.startupReadinessTimeout = Self.defaultStartupReadinessTimeout
         self.bluetoothInputState = { AudioDeviceManager.bluetoothInputState($0) }
         self.callbackUptimeProvider = { DispatchTime.now().uptimeNanoseconds }
         self.callbackStallTimeout = Self.defaultCallbackStallTimeout
-        self.zeroFilledTimeout = Self.defaultZeroFilledTimeout
+        self.invalidBufferTimeout = Self.defaultInvalidBufferTimeout
         self.callbackStallCheckInterval = Self.defaultCallbackStallCheckInterval
     }
 
@@ -485,20 +708,26 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             DispatchTime.now().uptimeNanoseconds
         },
         callbackStallTimeout: TimeInterval = AVAudioEngineMicrophonePlatform.defaultCallbackStallTimeout,
-        zeroFilledTimeout: TimeInterval = AVAudioEngineMicrophonePlatform.defaultZeroFilledTimeout,
+        invalidBufferTimeout: TimeInterval = AVAudioEngineMicrophonePlatform.defaultInvalidBufferTimeout,
         callbackStallCheckInterval: TimeInterval = AVAudioEngineMicrophonePlatform.defaultCallbackStallCheckInterval,
+        lifecycleDiagnosticsFactory: @escaping LifecycleDiagnosticsFactory = { operation, vpio, bufferSize in
+            AudioEngineLifecycleDiagnostics(operation: operation, vpioEnabled: vpio, bufferSize: bufferSize)
+        },
+        engineRunningProbe: (@Sendable (AVAudioEngine) -> Bool)? = nil,
         engineStarter: @escaping EngineStarter
     ) {
         self.deviceAttemptsBuilder = deviceAttemptsBuilder
         self.inputDeviceSetter = inputDeviceSetter
         self.engineStarter = engineStarter
+        self.engineRunningProbe = engineRunningProbe
+        self.lifecycleDiagnosticsFactory = lifecycleDiagnosticsFactory
         self.recoveryRetryDelays = recoveryRetryDelays.map { max(0, $0) }
         self.recoveryRouteChangeDebounce = max(0, recoveryRouteChangeDebounce)
         self.startupReadinessTimeout = max(0, startupReadinessTimeout)
         self.bluetoothInputState = bluetoothInputState
         self.callbackUptimeProvider = callbackUptimeProvider
         self.callbackStallTimeout = max(0, callbackStallTimeout)
-        self.zeroFilledTimeout = max(0, zeroFilledTimeout)
+        self.invalidBufferTimeout = max(0, invalidBufferTimeout)
         self.callbackStallCheckInterval = max(0, callbackStallCheckInterval)
     }
 
@@ -536,6 +765,10 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         defaultInputChangeGeneration.withLock { $0 &+= 1 }
     }
 
+    func noteStartupCancellationForTesting() {
+        startupCancellationGeneration.withLock { $0 &+= 1 }
+    }
+
     public var inputFormat: AVAudioFormat? {
         dispatchPrecondition(condition: .notOnQueue(queue))
         return queue.sync {
@@ -571,28 +804,38 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         bufferSize: AVAudioFrameCount,
         tapHandler: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
     ) throws {
+        let diagnostics = lifecycleDiagnosticsFactory(.start, vpioEnabled, bufferSize)
         startupCancellationGeneration.withLock { $0 &+= 1 }
-        try queue.sync {
-            cancelRecoveryLocked(clearActiveRequest: true)
-            let request = StartRequest(
-                vpioEnabled: vpioEnabled,
-                bufferSize: bufferSize,
-                tapHandler: tapHandler
-            )
-            activeStartRequestLocked = request
-            do {
-                try configureAndStartLocked(
-                    vpioEnabled: request.vpioEnabled,
-                    bufferSize: request.bufferSize,
-                    tapHandler: request.tapHandler
-                )
-            } catch {
-                // An external start that never succeeded owns no continuing
-                // capture intent. Do not retain its tap closure for a future
-                // unrelated start.
+        do {
+            try queue.sync {
+                activeLifecycleDiagnosticsLocked = diagnostics
+                defer { activeLifecycleDiagnosticsLocked = nil }
                 cancelRecoveryLocked(clearActiveRequest: true)
-                throw error
+                let request = StartRequest(
+                    vpioEnabled: vpioEnabled,
+                    bufferSize: bufferSize,
+                    tapHandler: tapHandler
+                )
+                activeStartRequestLocked = request
+                do {
+                    try configureAndStartLocked(
+                        vpioEnabled: request.vpioEnabled,
+                        bufferSize: request.bufferSize,
+                        tapHandler: request.tapHandler
+                    )
+                } catch {
+                    // An external start that never succeeded owns no continuing
+                    // capture intent. Do not retain its tap closure for a future
+                    // unrelated start.
+                    cancelRecoveryLocked(clearActiveRequest: true)
+                    throw error
+                }
+                diagnostics.enter(.ready)
             }
+            diagnostics.finish()
+        } catch {
+            diagnostics.finish(error: error)
+            throw error
         }
     }
 
@@ -613,8 +856,15 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         bufferSize: AVAudioFrameCount,
         tapHandler: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
     ) {
+        let diagnostics = lifecycleDiagnosticsFactory(.prepare, vpioEnabled, bufferSize)
         queue.sync {
+            activeLifecycleDiagnosticsLocked = diagnostics
+            defer {
+                activeLifecycleDiagnosticsLocked = nil
+                diagnostics.finish()
+            }
             guard !running, !prepared else { return }
+            diagnostics.enter(.routeResolution)
             // Route observation stays active even when preparation is currently
             // suppressed, so a later move from Bluetooth/unresolved to a safe
             // device can proactively retry before the next dictation.
@@ -649,8 +899,10 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                 )
                 preparedRouteSnapshot = routeSnapshot
             } catch {
+                diagnostics.finish(error: error)
                 prepared = false
                 preparedRouteSnapshot = nil
+                preparedInputConfiguration = nil
                 AudioCaptureDiagnostics.append(
                     "shared_mic_engine_prepare_failed \(AudioCaptureDiagnostics.errorFields(error))"
                 )
@@ -659,9 +911,15 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     }
 
     public func stopEngine() {
+        let diagnostics = lifecycleDiagnosticsFactory(.stop, false, 0)
         // Cancel a source-readiness wait before waiting for the platform queue.
         startupCancellationGeneration.withLock { $0 &+= 1 }
         queue.sync {
+            activeLifecycleDiagnosticsLocked = diagnostics
+            defer {
+                activeLifecycleDiagnosticsLocked = nil
+                diagnostics.finish()
+            }
             // Explicit stop always wins, including while the physical engine is
             // down between recovery attempts.
             cancelRecoveryLocked(clearActiveRequest: true)
@@ -697,6 +955,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         attemptsOverride: [MeetingInputDeviceAttempt]? = nil,
         preserveRouteObservation: Bool = false
     ) throws {
+        activeLifecycleDiagnosticsLocked?.enter(.routeResolution)
         let cancellationGeneration = startupCancellationGeneration.withLock { $0 }
         // Capture before resolving System Default so a route change anywhere
         // in setup/readiness cannot be absorbed into a stale attempt snapshot.
@@ -715,6 +974,11 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                 bluetoothInputState: bluetoothInputState
             )
         {
+            activeLifecycleDiagnosticsLocked?.beginAttempt(
+                source: preparedAttempt?.source.logValue ?? "unknown",
+                transport: AudioCaptureDiagnostics.deviceTransportLabel(preparedAttempt?.deviceID),
+                prepared: true
+            )
             if try goPreparedLocked(
                 tapHandler: tapHandler,
                 expectedDefaultInputGeneration: preparedAttempt?.usesImplicitSystemDefault == true
@@ -723,6 +987,10 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                 startupCancellationGeneration: cancellationGeneration
             ) {
                 lastSucceededAttemptLocked = preparedAttempt
+                recordCommittedConfigurationLocked(
+                    attempt: preparedAttempt,
+                    route: currentRouteSnapshot
+                )
                 return
             }
         }
@@ -743,6 +1011,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
 
         let attempts = attemptsOverride ?? currentRouteSnapshot ?? []
         if attempts.isEmpty {
+            activeLifecycleDiagnosticsLocked?.beginAttempt(source: "unknown", transport: "unknown", prepared: false)
             // No device chain — use whatever the engine's input node picks.
             try startConfiguredEngineLocked(
                 vpioEnabled: vpioEnabled,
@@ -757,6 +1026,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             )
             if startNow {
                 lastSucceededAttemptLocked = nil
+                recordCommittedConfigurationLocked(attempt: nil, route: currentRouteSnapshot)
             } else {
                 markPreparedLocked(
                     attempt: nil,
@@ -767,12 +1037,31 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             return
         }
 
+        var pendingAttempts = attempts.map {
+            (attempt: $0, defaultInputGeneration: defaultInputGenerationBeforeRouteSnapshot)
+        }
+        var retriedImplicitBluetoothDefault = false
         var lastError: Error?
-        for attempt in attempts {
+        while !pendingAttempts.isEmpty {
+            activeLifecycleDiagnosticsLocked?.enter(.routeResolution)
+            let pendingAttempt = pendingAttempts.removeFirst()
+            let attempt = pendingAttempt.attempt
+            guard startupCancellationGeneration.withLock({ $0 }) == cancellationGeneration else {
+                throw AVAudioEngineMicrophonePlatformError.startupCancelled
+            }
+            // Snapshot transport eligibility with the attempt. A Bluetooth
+            // device can disappear while startup is timing out; that route
+            // transition is another reason to rebuild System Default, not a
+            // reason to suppress the one bounded retry.
+            let resolvedBluetoothState = attempt.deviceID.flatMap(bluetoothInputState)
             let transport = AudioCaptureDiagnostics.deviceTransportLabel(attempt.deviceID)
             let deviceLabel = AudioCaptureDiagnostics.deviceLabel(attempt.deviceID)
+            activeLifecycleDiagnosticsLocked?.beginAttempt(
+                source: attempt.source.logValue, transport: transport, prepared: false
+            )
             var setDeviceMilliseconds = "0.000"
             if let deviceID = attempt.explicitDeviceID {
+                activeLifecycleDiagnosticsLocked?.enter(.setDevice)
                 let setDeviceStartedAt = Self.nowNanos()
                 let didSetDevice = inputDeviceSetter(deviceID, audioEngine)
                 let setDeviceEndedAt = Self.nowNanos()
@@ -781,6 +1070,9 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                     to: setDeviceEndedAt
                 )
                 guard didSetDevice else {
+                    activeLifecycleDiagnosticsLocked?.noteError(
+                        AVAudioEngineMicrophonePlatformError.deviceSetFailed(attempt)
+                    )
                     logger.warning(
                         "shared_mic_engine_input_device_set_failed source=\(attempt.source.logValue, privacy: .public) transport=\(transport, privacy: .public)"
                     )
@@ -806,9 +1098,9 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                     // transport, or aggregate topology while a route settles.
                     // Keep that uncertain window strict so zero-filled
                     // Bluetooth PCM cannot be mistaken for a ready source.
-                    requiresNonZeroSignal: attempt.deviceID.flatMap(bluetoothInputState) ?? true,
+                    requiresNonZeroSignal: resolvedBluetoothState ?? true,
                     expectedDefaultInputGeneration: startNow && attempt.usesImplicitSystemDefault
-                        ? defaultInputGenerationBeforeRouteSnapshot
+                        ? pendingAttempt.defaultInputGeneration
                         : nil,
                     startupCancellationGeneration: cancellationGeneration
                 )
@@ -819,6 +1111,10 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                 )
                 if startNow {
                     lastSucceededAttemptLocked = attempt
+                    recordCommittedConfigurationLocked(
+                        attempt: attempt,
+                        route: currentRouteSnapshot
+                    )
                 } else {
                     markPreparedLocked(
                         attempt: attempt,
@@ -855,6 +1151,43 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                 AudioCaptureDiagnostics.append(
                     "shared_mic_engine_input_device_start_failed source=\(attempt.source.logValue) device=\(deviceLabel) transport=\(transport) set_device_ms=\(setDeviceMilliseconds) \(AudioCaptureDiagnostics.errorFields(error))"
                 )
+                if startNow,
+                    !retriedImplicitBluetoothDefault,
+                    attempt.usesImplicitSystemDefault,
+                    resolvedBluetoothState == true,
+                    error as? AVAudioEngineMicrophonePlatformError == .initialReadinessTimedOut
+                {
+                    // Starting a Bluetooth input can wake its capture profile
+                    // without attaching this engine's tap to the settled graph.
+                    // Give System Default one fresh implicit attempt before
+                    // abandoning the user's selected macOS route. Resolve it
+                    // again so a concurrent default-input change is followed.
+                    activeLifecycleDiagnosticsLocked?.enter(.routeResolution)
+                    let refreshedDefaultInputGeneration = defaultInputChangeGeneration.withLock { $0 }
+                    let refreshedAttempts = deviceAttemptsBuilder?() ?? []
+                    if let refreshedSystemDefault = refreshedAttempts.first(where: \.usesImplicitSystemDefault) {
+                        retriedImplicitBluetoothDefault = true
+                        pendingAttempts.insert(
+                            (
+                                attempt: refreshedSystemDefault,
+                                defaultInputGeneration: refreshedDefaultInputGeneration
+                            ),
+                            at: 0
+                        )
+                        let refreshedTransport = AudioCaptureDiagnostics.deviceTransportLabel(
+                            refreshedSystemDefault.deviceID
+                        )
+                        let refreshedDeviceLabel = AudioCaptureDiagnostics.deviceLabel(
+                            refreshedSystemDefault.deviceID
+                        )
+                        logger.info(
+                            "shared_mic_engine_input_device_retrying source=system_default transport=\(refreshedTransport, privacy: .public) reason=initial_readiness_timeout"
+                        )
+                        AudioCaptureDiagnostics.append(
+                            "shared_mic_engine_input_device_retrying source=system_default device=\(refreshedDeviceLabel) transport=\(refreshedTransport) reason=initial_readiness_timeout"
+                        )
+                    }
+                }
                 // startConfiguredEngineLocked already replaces the engine on
                 // failure, so nothing more to reset here.
             }
@@ -888,6 +1221,9 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             requiresNonZeroSignal: requiresNonZeroSignal,
             checksOnlyChannelZeroForSignal: vpioEnabled,
             nowUptimeNanoseconds: callbackUptimeProvider,
+            configurationGenerationProvider: { [weak self] in
+                self?.configurationChangeGeneration.withLock { $0 } ?? 0
+            },
             tapHandler
         )
         guard startNow else {
@@ -901,29 +1237,45 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         }
         let startupConfigurationGeneration = beginStartupObservationLocked()
         do {
+            activeLifecycleDiagnosticsLocked?.enter(.startEngine)
             try engineStarter(audioEngine, vpioEnabled, bufferSize, monitoredTapHandler)
         } catch {
+            activeLifecycleDiagnosticsLocked?.noteError(error)
             replaceEngineAfterFailureLocked()
             throw error
         }
         tapHandlerBox = installedTapHandler
         do {
+            activeLifecycleDiagnosticsLocked?.enter(.firstBuffer)
             try waitForStartupReadinessLocked(
                 tapHandler: installedTapHandler,
                 cancellationGeneration: startupCancellationGeneration
             )
         } catch {
+            activeLifecycleDiagnosticsLocked?.noteError(error)
             replaceEngineAfterFailureLocked()
             throw error
         }
+        activeLifecycleDiagnosticsLocked?.enter(.validateRoute)
+        // AirPods commonly emit a configuration change while switching into
+        // their capture profile. A usable buffer stamped after that change
+        // proves the installed tap survived the new graph. A change after the
+        // last usable buffer still invalidates this attempt below.
+        let readinessConfigurationGeneration =
+            installedTapHandler.latestUsableBufferConfigurationGeneration()
+            ?? startupConfigurationGeneration
         let configurationStayedCurrent = commitRunningIfStartupStayedCurrent(
-            configurationGeneration: startupConfigurationGeneration,
+            configurationGeneration: readinessConfigurationGeneration,
             defaultInputGeneration: expectedDefaultInputGeneration
         )
         guard configurationStayedCurrent else {
+            activeLifecycleDiagnosticsLocked?.noteError(
+                AVAudioEngineMicrophonePlatformError.inputRouteChangedDuringStartup
+            )
             replaceEngineAfterFailureLocked()
             throw AVAudioEngineMicrophonePlatformError.inputRouteChangedDuringStartup
         }
+        installedTapHandler.completeStartupConfigurationTracking()
         armCallbackLivenessTimerLocked(tapHandler: installedTapHandler)
     }
 
@@ -942,8 +1294,10 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         var outputFormatMilliseconds = "0.000"
         var installTapMilliseconds = "0.000"
         var audioEngineStartMilliseconds = "0.000"
+        activeLifecycleDiagnosticsLocked?.enter(.inputNode)
         let inputNode = audioEngine.inputNode
         do {
+            activeLifecycleDiagnosticsLocked?.enter(.voiceProcessing)
             let phaseStartedAt = Self.nowNanos()
             try catchingObjCException {
                 try inputNode.setVoiceProcessingEnabled(vpioEnabled)
@@ -955,10 +1309,12 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         } catch {
             // VPIO toggle failed before tap install / engine start. Replace
             // the engine so the next attempt isn't on a half-configured one.
+            activeLifecycleDiagnosticsLocked?.noteError(error)
             replaceEngineAfterFailureLocked()
             throw error
         }
         if vpioEnabled, #available(macOS 14.0, *) {
+            activeLifecycleDiagnosticsLocked?.enter(.ducking)
             do {
                 let phaseStartedAt = Self.nowNanos()
                 try catchingObjCException {
@@ -995,6 +1351,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
 
         let liveFormat: AVAudioFormat
         do {
+            activeLifecycleDiagnosticsLocked?.enter(.inputFormat)
             let phaseStartedAt = Self.nowNanos()
             liveFormat = try catchingObjCException {
                 inputNode.outputFormat(forBus: 0)
@@ -1004,10 +1361,16 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                 to: Self.nowNanos()
             )
         } catch {
+            activeLifecycleDiagnosticsLocked?.noteError(error)
             replaceEngineAfterFailureLocked()
             throw error
         }
         guard liveFormat.sampleRate > 0, liveFormat.channelCount > 0 else {
+            activeLifecycleDiagnosticsLocked?.noteError(
+                AVAudioEngineMicrophonePlatformError.invalidInputFormat(
+                    sampleRate: liveFormat.sampleRate, channels: liveFormat.channelCount
+                )
+            )
             replaceEngineAfterFailureLocked()
             throw AVAudioEngineMicrophonePlatformError.invalidInputFormat(
                 sampleRate: liveFormat.sampleRate,
@@ -1019,11 +1382,15 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             requiresNonZeroSignal: requiresNonZeroSignal,
             checksOnlyChannelZeroForSignal: vpioEnabled,
             nowUptimeNanoseconds: callbackUptimeProvider,
+            configurationGenerationProvider: { [weak self] in
+                self?.configurationChangeGeneration.withLock { $0 } ?? 0
+            },
             tapHandler
         )
         do {
             let phaseStartedAt = Self.nowNanos()
             try catchingObjCException {
+                activeLifecycleDiagnosticsLocked?.enter(.installTap)
                 inputNode.installTap(
                     onBus: 0,
                     bufferSize: bufferSize,
@@ -1038,6 +1405,8 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                 to: Self.nowNanos()
             )
         } catch {
+            activeLifecycleDiagnosticsLocked?.noteError(error)
+            activeLifecycleDiagnosticsLocked?.enter(.teardown)
             try? catchingObjCException {
                 inputNode.removeTap(onBus: 0)
             }
@@ -1054,6 +1423,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         guard startNow else {
             // Pre-allocate render resources so the eventual `start()` is cheaper.
             // Best-effort: a throw here just means start() does the work instead.
+            activeLifecycleDiagnosticsLocked?.enter(.prepareEngine)
             try? catchingObjCException {
                 audioEngine.prepare()
             }
@@ -1067,6 +1437,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         installedTapHandler.activateCallbackMonitoring()
         let startupConfigurationGeneration = beginStartupObservationLocked()
         do {
+            activeLifecycleDiagnosticsLocked?.enter(.startEngine)
             let phaseStartedAt = Self.nowNanos()
             try catchingObjCException {
                 try audioEngine.start()
@@ -1076,6 +1447,8 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                 to: Self.nowNanos()
             )
         } catch {
+            activeLifecycleDiagnosticsLocked?.noteError(error)
+            activeLifecycleDiagnosticsLocked?.enter(.teardown)
             try? catchingObjCException {
                 inputNode.removeTap(onBus: 0)
             }
@@ -1086,22 +1459,32 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             throw error
         }
         do {
+            activeLifecycleDiagnosticsLocked?.enter(.firstBuffer)
             try waitForStartupReadinessLocked(
                 tapHandler: installedTapHandler,
                 cancellationGeneration: startupCancellationGeneration
             )
         } catch {
+            activeLifecycleDiagnosticsLocked?.noteError(error)
             replaceEngineAfterFailureLocked()
             throw error
         }
+        activeLifecycleDiagnosticsLocked?.enter(.validateRoute)
+        let readinessConfigurationGeneration =
+            installedTapHandler.latestUsableBufferConfigurationGeneration()
+            ?? startupConfigurationGeneration
         let configurationStayedCurrent = commitRunningIfStartupStayedCurrent(
-            configurationGeneration: startupConfigurationGeneration,
+            configurationGeneration: readinessConfigurationGeneration,
             defaultInputGeneration: expectedDefaultInputGeneration
         )
         guard configurationStayedCurrent else {
+            activeLifecycleDiagnosticsLocked?.noteError(
+                AVAudioEngineMicrophonePlatformError.inputRouteChangedDuringStartup
+            )
             replaceEngineAfterFailureLocked()
             throw AVAudioEngineMicrophonePlatformError.inputRouteChangedDuringStartup
         }
+        installedTapHandler.completeStartupConfigurationTracking()
         armCallbackLivenessTimerLocked(tapHandler: installedTapHandler)
         let totalMilliseconds = Self.elapsedMilliseconds(
             from: totalStartedAt,
@@ -1120,6 +1503,10 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     ) {
         prepared = true
         preparedAttempt = attempt
+        activeLifecycleDiagnosticsLocked?.enter(.inputFormat)
+        preparedInputConfiguration = InputConfigurationSnapshot(
+            UncheckedSendableAudioEngine(audioEngine).inputFormat()
+        )
         preparedVPIO = vpioEnabled
         preparedBufferSize = bufferSize
         // AVAudioEngine can emit a configuration-change notification as a
@@ -1159,6 +1546,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         }
         tapHandlerBox.replace(with: tapHandler)
         tapHandlerBox.activateCallbackMonitoring()
+        activeLifecycleDiagnosticsLocked?.enter(.startEngine)
         let phaseStartedAt = Self.nowNanos()
         do {
             if let engineStarter {
@@ -1178,15 +1566,18 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                 }
             }
         } catch {
+            activeLifecycleDiagnosticsLocked?.noteError(error)
             replaceEngineAfterFailureLocked()  // clears prepared
             return false
         }
         do {
+            activeLifecycleDiagnosticsLocked?.enter(.firstBuffer)
             try waitForStartupReadinessLocked(
                 tapHandler: tapHandlerBox,
                 cancellationGeneration: startupCancellationGeneration
             )
         } catch {
+            activeLifecycleDiagnosticsLocked?.noteError(error)
             let wasCancelled =
                 error as? AVAudioEngineMicrophonePlatformError == .startupCancelled
             AudioCaptureDiagnostics.append(
@@ -1196,19 +1587,28 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             if wasCancelled { throw error }
             return false
         }
+        activeLifecycleDiagnosticsLocked?.enter(.validateRoute)
+        let readinessConfigurationGeneration =
+            tapHandlerBox.latestUsableBufferConfigurationGeneration()
+            ?? preparedConfigurationGeneration
         let configurationStayedCurrent = commitRunningIfStartupStayedCurrent(
-            configurationGeneration: preparedConfigurationGeneration,
+            configurationGeneration: readinessConfigurationGeneration,
             defaultInputGeneration: expectedDefaultInputGeneration
         )
         guard configurationStayedCurrent else {
+            activeLifecycleDiagnosticsLocked?.noteError(
+                AVAudioEngineMicrophonePlatformError.inputRouteChangedDuringStartup
+            )
             AudioCaptureDiagnostics.append(
                 "shared_mic_engine_prepared_discarded reason=configuration_changed_during_start"
             )
             tearDownLocked()
             return false
         }
+        tapHandlerBox.completeStartupConfigurationTracking()
         prepared = false
         preparedRouteSnapshot = nil
+        preparedInputConfiguration = nil
         installConfigurationChangeObserverLocked()
         installRouteChangeObserversLocked()
         armCallbackLivenessTimerLocked(tapHandler: tapHandlerBox)
@@ -1219,10 +1619,14 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     }
 
     private func tearDownLocked(preserveRouteObservation: Bool = false) {
+        activeLifecycleDiagnosticsLocked?.enter(.teardown)
         cancelCallbackLivenessTimerLocked()
         prepared = false
         preparedRouteSnapshot = nil
+        preparedInputConfiguration = nil
         preparedConfigurationGeneration = 0
+        clearCommittedConfigurationLocked()
+        if let tapHandlerBox { logSignalSnapshotLocked(tapHandlerBox, reason: "teardown") }
         tapHandlerBox?.clear()
         tapHandlerBox = nil
         removeConfigurationChangeObserverLocked()
@@ -1260,10 +1664,14 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     }
 
     private func replaceEngineAfterFailureLocked() {
+        activeLifecycleDiagnosticsLocked?.enter(.teardown)
         cancelCallbackLivenessTimerLocked()
         prepared = false
         preparedRouteSnapshot = nil
+        preparedInputConfiguration = nil
         preparedConfigurationGeneration = 0
+        clearCommittedConfigurationLocked()
+        if let tapHandlerBox { logSignalSnapshotLocked(tapHandlerBox, reason: "failed_attempt") }
         tapHandlerBox?.clear()
         tapHandlerBox = nil
         removeConfigurationChangeObserverLocked()
@@ -1304,8 +1712,14 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             self.queue.async { [weak self, engineBox] in
                 guard let self else { return }
                 guard engineBox.wraps(self.audioEngine) else { return }
-                let format = engineBox.inputFormat()
-                let engineIsRunning = engineBox.isEngineRunning()
+                let engineIsRunning = engineBox.isEngineRunning(using: self.engineRunningProbe)
+                // A stopped engine is normally the recovery case, where asking
+                // the input node for a format can block on Core Audio's failed
+                // reconfiguration. A deliberately prepared engine is also
+                // stopped, but its format is required to distinguish its own
+                // delayed setup notification from a real route mutation.
+                let shouldReadFormat = self.prepared || engineIsRunning
+                let format = shouldReadFormat ? engineBox.inputFormat() : nil
                 let snapshot = (
                     sr: format?.sampleRate ?? 0,
                     ch: format?.channelCount ?? 0,
@@ -1320,6 +1734,60 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                     "shared_mic_engine_configuration_changed sr=\(snapshot.sr, privacy: .public) ch=\(snapshot.ch, privacy: .public) isRunning=\(snapshot.isRunning, privacy: .public) engine_is_running=\(snapshot.engineIsRunning, privacy: .public)"
                 )
                 self.refreshActiveTapSignalPolicyLocked()
+                if self.prepared,
+                    self.deviceAttemptsBuilder?() == self.preparedRouteSnapshot,
+                    Self.preparedAttemptIsSafe(
+                        self.preparedAttempt,
+                        bluetoothInputState: self.bluetoothInputState
+                    ),
+                    let preparedInputConfiguration = self.preparedInputConfiguration,
+                    InputConfigurationSnapshot(format) == preparedInputConfiguration
+                {
+                    // Device selection / prepare can post its own notification
+                    // after markPreparedLocked has installed the observer. If
+                    // the resolved route and negotiated input configuration are
+                    // still identical, absorb that delayed setup echo into the
+                    // existing generation snapshot. A later real mutation still
+                    // fails these checks and follows the invalidation path.
+                    self.preparedConfigurationGeneration =
+                        self.configurationChangeGeneration.withLock { $0 }
+                    AudioCaptureDiagnostics.append(
+                        "shared_mic_engine_configuration_change_ignored reason=unchanged_prepared_setup"
+                    )
+                    return
+                }
+                if !self.prepared,
+                    self.running,
+                    engineIsRunning,
+                    Self.preparedAttemptIsSafe(
+                        self.committedAttempt,
+                        bluetoothInputState: self.bluetoothInputState
+                    ),
+                    self.committedInputSampleRate > 0,
+                    let format,
+                    format.sampleRate == self.committedInputSampleRate,
+                    format.channelCount == self.committedInputChannelCount,
+                    self.deviceAttemptsBuilder?() == self.committedRouteSnapshot
+                {
+                    // A running engine self-emits a configuration change as it
+                    // selects and prepares its own input device (pronounced on
+                    // macOS 27). When the engine is still running and the
+                    // resolved route + negotiated format are unchanged on a
+                    // positively non-Bluetooth input, re-broadcasting it as a
+                    // mic-selection change drives the warm-capture rebuild loop
+                    // in issue #1102. Absorb it. A real format/route change, a
+                    // stopped engine (recovery), or any Bluetooth/unresolved
+                    // route fails these gates and follows the post path below.
+                    // There is no start-in-progress case to guard: start runs
+                    // inside `queue.sync`, this block runs `queue.async` on the
+                    // same serial queue, and a failed start replaces the engine,
+                    // so a change emitted mid-start is seen either after commit
+                    // (here) or not at all (`engineBox.wraps` above).
+                    AudioCaptureDiagnostics.append(
+                        "shared_mic_engine_configuration_change_ignored reason=unchanged_running_route"
+                    )
+                    return
+                }
                 // The device ID can stay constant while a Bluetooth aggregate
                 // changes transport/profile. Route consumers must re-evaluate
                 // warm-capture eligibility for configuration changes too, not
@@ -1364,12 +1832,44 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             }
         ) {
         case .ready:
+            logSignalSnapshotLocked(tapHandler, reason: "startup_ready")
             return
         case .timedOut:
+            logSignalSnapshotLocked(tapHandler, reason: "startup_timeout")
             throw AVAudioEngineMicrophonePlatformError.initialReadinessTimedOut
         case .cancelled:
             throw AVAudioEngineMicrophonePlatformError.startupCancelled
         }
+    }
+
+    /// Snapshot the input configuration + resolved route + attempt of a freshly
+    /// committed running engine so the configuration-change observer can
+    /// distinguish a benign self-emitted change from a real route mutation
+    /// (issue #1102). The observer re-evaluates Bluetooth safety live from the
+    /// stored attempt, so a route that becomes Bluetooth/unresolved after commit
+    /// (transport flip behind a stable device ID/format) still re-broadcasts
+    /// (#862), matching the `prepared` branch.
+    private func recordCommittedConfigurationLocked(
+        attempt: MeetingInputDeviceAttempt?,
+        route: [MeetingInputDeviceAttempt]?
+    ) {
+        // Immutable format of the buffer that won startup readiness, not the
+        // mutable latest-callback snapshot, so a post-commit callback race
+        // cannot shift the baseline. The tap installs with `format: nil`, so it
+        // matches the observer's `inputFormat()` read in production; a rare
+        // tap/node skew fails the comparison and falls open to the post path.
+        let format = tapHandlerBox?.firstUsableBufferFormat()
+        committedInputSampleRate = format?.sampleRate ?? 0
+        committedInputChannelCount = format?.channelCount ?? 0
+        committedRouteSnapshot = route
+        committedAttempt = attempt
+    }
+
+    private func clearCommittedConfigurationLocked() {
+        committedInputSampleRate = 0
+        committedInputChannelCount = 0
+        committedRouteSnapshot = nil
+        committedAttempt = nil
     }
 
     private func commitRunningIfStartupStayedCurrent(
@@ -1408,7 +1908,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     private func recoverFromConfigurationChangeLocked(engineBox: UncheckedSendableAudioEngine) {
         guard running else { return }
         guard engineBox.wraps(audioEngine) else { return }
-        guard !engineBox.isEngineRunning() else { return }
+        guard !engineBox.isEngineRunning(using: engineRunningProbe) else { return }
         guard activeStartRequestLocked != nil else { return }
 
         recoverAfterLivenessFailureLocked(trigger: "configuration_change")
@@ -1430,7 +1930,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
 
     private func armCallbackLivenessTimerLocked(tapHandler: MutableMicrophoneTapHandler) {
         cancelCallbackLivenessTimerLocked()
-        let enabledTimeouts = [callbackStallTimeout, zeroFilledTimeout].filter { $0 > 0 }
+        let enabledTimeouts = [callbackStallTimeout, invalidBufferTimeout].filter { $0 > 0 }
         guard let firstCheckDelay = enabledTimeouts.min(), callbackStallCheckInterval > 0 else {
             return
         }
@@ -1461,11 +1961,14 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         else { return }
 
         let now = callbackUptimeProvider()
+        if let event = tapHandler.takeSignalDiagnosticEvent() {
+            logSignalSnapshotLocked(tapHandler, reason: event)
+        }
         guard
             let failure = tapHandler.livenessFailure(
                 nowUptimeNanoseconds: now,
                 callbackStallTimeout: callbackStallTimeout,
-                zeroFilledTimeout: zeroFilledTimeout
+                invalidBufferTimeout: invalidBufferTimeout
             )
         else {
             completeRecoveryProbationIfHealthyLocked(nowUptimeNanoseconds: now)
@@ -1483,15 +1986,16 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             logger.error(
                 "shared_mic_engine_callback_stalled callback_gap_s=\(gap, privacy: .public) engine_is_running=\(engineIsRunning, privacy: .public)"
             )
-        case .zeroFilled(let duration):
-            trigger = "zero_filled"
+        case .invalidBuffers(let duration):
+            trigger = "invalid_buffers"
             AudioCaptureDiagnostics.append(
-                "shared_mic_engine_zero_filled zero_filled_s=\(String(format: "%.3f", duration)) engine_is_running=\(engineIsRunning)"
+                "shared_mic_engine_invalid_buffers invalid_buffer_s=\(String(format: "%.3f", duration)) engine_is_running=\(engineIsRunning)"
             )
             logger.error(
-                "shared_mic_engine_zero_filled zero_filled_s=\(duration, privacy: .public) engine_is_running=\(engineIsRunning, privacy: .public)"
+                "shared_mic_engine_invalid_buffers invalid_buffer_s=\(duration, privacy: .public) engine_is_running=\(engineIsRunning, privacy: .public)"
             )
         }
+        logSignalSnapshotLocked(tapHandler, reason: trigger)
         cancelCallbackLivenessTimerLocked()
         recoverAfterLivenessFailureLocked(trigger: trigger)
     }
@@ -1515,8 +2019,8 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
 
     /// System Default can move to a new endpoint without changing this
     /// platform's implicit routing attempt. Aggregate topology can likewise
-    /// change behind a stable device ID. Refresh only the Bluetooth exact-zero
-    /// policy; the engine's routing contract remains untouched.
+    /// change behind a stable device ID. Refresh the startup-only signal
+    /// requirement; a committed engine always preserves valid silent PCM.
     private func refreshActiveTapSignalPolicyLocked() {
         guard let tapHandlerBox, let lastSucceededAttemptLocked else { return }
         let deviceID: AudioDeviceID?
@@ -1528,14 +2032,19 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         } else {
             deviceID = lastSucceededAttemptLocked.deviceID
         }
-        // Preserve fail-closed filtering while Core Audio temporarily cannot
-        // resolve the device or aggregate topology. A positively identified
-        // non-Bluetooth route is the only state where exact digital silence is
-        // accepted as healthy PCM.
+        // Unknown topology still requires signal during startup. This must not
+        // re-enable silence filtering after the running route has committed.
         let shouldFilter = deviceID.flatMap(bluetoothInputState) ?? true
-        guard tapHandlerBox.setFiltersZeroFilledBuffers(shouldFilter) else { return }
+        guard tapHandlerBox.setStartupRequiresNonZeroSignal(shouldFilter) else { return }
         AudioCaptureDiagnostics.append(
-            "shared_mic_engine_zero_filter_changed enabled=\(shouldFilter)"
+            "shared_mic_engine_startup_signal_policy_changed requires_nonzero=\(shouldFilter)"
+        )
+    }
+
+    private func logSignalSnapshotLocked(_ tapHandler: MutableMicrophoneTapHandler, reason: String) {
+        let snapshot = tapHandler.signalSnapshot()
+        AudioCaptureDiagnostics.append(
+            "shared_mic_engine_signal tap_id=\(tapHandler.diagnosticID) reason=\(reason) \(snapshot.logFields)"
         )
     }
 
@@ -1556,6 +2065,9 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             "shared_mic_engine_config_change_recovery_attempt attempt=\(attempt, privacy: .public) trigger=\(trigger, privacy: .public)"
         )
 
+        let diagnostics = lifecycleDiagnosticsFactory(.recovery, request.vpioEnabled, request.bufferSize)
+        activeLifecycleDiagnosticsLocked = diagnostics
+        defer { activeLifecycleDiagnosticsLocked = nil }
         do {
             try configureAndStartLocked(
                 vpioEnabled: request.vpioEnabled,
@@ -1568,7 +2080,10 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                 attempt: attempt,
                 trigger: trigger
             )
+            diagnostics.enter(.ready)
+            diagnostics.finish()
         } catch {
+            diagnostics.finish(error: error)
             if error as? AVAudioEngineMicrophonePlatformError == .startupCancelled {
                 AudioCaptureDiagnostics.append(
                     "shared_mic_engine_config_change_recovery_cancelled attempt=\(attempt) trigger=\(trigger)"
@@ -1618,7 +2133,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             let startedAt = recoveryProbationStartedAtLocked
         else { return }
 
-        let probationInterval = max(callbackStallTimeout, zeroFilledTimeout)
+        let probationInterval = max(callbackStallTimeout, invalidBufferTimeout)
         let elapsedNanoseconds =
             nowUptimeNanoseconds >= startedAt
             ? nowUptimeNanoseconds - startedAt
@@ -1762,15 +2277,43 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                 mScope: kAudioObjectPropertyScopeGlobal,
                 mElement: kAudioObjectPropertyElementMain
             )
+            let generation = defaultInputChangeCoalescer.withLock { $0.generation }
             let inputBlock: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-                self?.defaultInputChangeGeneration.withLock { $0 &+= 1 }
-                AudioCaptureDiagnostics.append(
-                    "audio_default_input_changed \(AudioCaptureDiagnostics.defaultInputDeviceSummary())"
-                )
-                NotificationCenter.default.post(name: .macParakeetMicrophoneSelectionDidChange, object: nil)
-                self?.queue.async { [weak self] in
-                    self?.refreshActiveTapSignalPolicyLocked()
-                    self?.rescheduleRecoveryAfterRouteChangeLocked()
+                guard let self else { return }
+                let shouldSchedule = self.defaultInputChangeCoalescer.withLock { coalescer in
+                    guard coalescer.generation == generation else { return false }
+                    self.defaultInputChangeGeneration.withLock { $0 &+= 1 }
+                    return coalescer.observeChange(generation: generation)
+                }
+                guard shouldSchedule else { return }
+
+                // Core Audio can emit hundreds of callbacks for one unstable
+                // route transition. Collapse the burst before querying Core
+                // Audio, writing diagnostics, notifying the app, or scheduling
+                // recovery work. The generation above still invalidates any
+                // startup attempt immediately.
+                let delay = min(self.recoveryRouteChangeDebounce, 0.1)
+                self.routeListenerQueue.asyncAfter(deadline: .now() + delay) { [weak self] in
+                    guard let self,
+                        let notificationCount = self.defaultInputChangeCoalescer.withLock({
+                            $0.takePendingCount(generation: generation)
+                        })
+                    else { return }
+                    let summary = AudioCaptureDiagnostics.defaultInputDeviceSummary()
+                    AudioCaptureDiagnostics.appendAsync(
+                        "audio_default_input_changed notifications=\(notificationCount) \(summary)"
+                    )
+                    NotificationCenter.default.post(
+                        name: .macParakeetMicrophoneSelectionDidChange,
+                        object: nil
+                    )
+                    self.queue.async { [weak self] in
+                        guard let self,
+                            self.defaultInputChangeCoalescer.withLock({ $0.generation == generation })
+                        else { return }
+                        self.refreshActiveTapSignalPolicyLocked()
+                        self.rescheduleRecoveryAfterRouteChangeLocked()
+                    }
                 }
             }
             let inputStatus = AudioObjectAddPropertyListenerBlock(
@@ -1782,6 +2325,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             if inputStatus == noErr {
                 defaultInputChangeObserver = inputBlock
             } else {
+                defaultInputChangeCoalescer.withLock { $0.invalidate() }
                 AudioCaptureDiagnostics.append(
                     "audio_default_input_listener_failed status=\(inputStatus)"
                 )
@@ -1791,6 +2335,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     }
 
     private func removeRouteChangeObserversLocked() {
+        defaultInputChangeCoalescer.withLock { $0.invalidate() }
         if let inputBlock = defaultInputChangeObserver {
             var inputAddress = AudioObjectPropertyAddress(
                 mSelector: kAudioHardwarePropertyDefaultInputDevice,

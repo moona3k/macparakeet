@@ -1,0 +1,39 @@
+2026-08-10T03:11:42.356Z dictation_diagnostics_session_start pid=22270 version=0.7.3 build=20260717011712 source=dist-xcodebuild-release commit=d6321f87dcce
+2026-08-10T03:12:23.093Z shared_mic_engine_start_timing vpio=false buffer_size=4096 set_vpio_ms=0.004 ducking_ms=0.000 output_format_ms=0.010 install_tap_ms=0.006 audio_engine_start_ms=78.314 total_ms=218.323
+2026-08-10T03:12:23.094Z shared_mic_engine_input_device_started source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 start_engine_ms=219.074
+2026-08-10T03:12:23.094Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-10T03:12:27.587Z dictation_hotkey_stop mode=persistent tail_ms=0
+2026-08-10T03:12:27.638Z shared_mic_engine_stopped
+2026-08-10T03:12:27.638Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-10T03:12:27.705Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=0.005 output_format_ms=0.010 install_tap_ms=0.004 total_ms=66.023
+2026-08-10T03:12:27.705Z shared_mic_engine_input_device_prepared source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 prepare_engine_ms=66.547
+2026-08-10T03:12:30.202Z shared_mic_engine_started_from_prepared audio_engine_start_ms=59.713
+2026-08-10T03:12:30.203Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-10T03:12:33.355Z dictation_hotkey_stop mode=hold_to_talk tail_ms=0
+2026-08-10T03:12:33.411Z shared_mic_engine_stopped
+2026-08-10T03:12:33.413Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-10T03:12:33.522Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=6.271 output_format_ms=0.013 install_tap_ms=0.007 total_ms=108.510
+2026-08-10T03:12:33.523Z shared_mic_engine_input_device_prepared source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 prepare_engine_ms=109.068
+2026-08-10T03:13:20.858Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-08-10T03:13:21.069Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-08-11T04:23:14.741Z dictation_preview_started engine=parakeet
+2026-08-11T04:23:14.743Z dictation_capture_start permission_status=3
+2026-08-11T04:23:17.418Z dictation_capture_starting
+2026-08-11T04:23:17.503Z shared_mic_engine_started_from_prepared audio_engine_start_ms=83.239
+2026-08-11T04:23:17.504Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-11T04:23:17.504Z dictation_capture_engine_started file_created=true default_input=present default_input_transport=built-in sr=48000.0 ch=1
+2026-08-11T04:23:17.601Z dictation_capture_first_buffer sr=48000.0 ch=1 original_ch=1 common_format=1 interleaved=false frames=4800 has_float_data=true
+2026-08-11T04:23:17.707Z dictation_preview_failed engine=parakeet error_type=STTError.transcriptionFailed error_detail="Transcription failed: Invalid audio data provided. Must be at least 300ms of 16kHz audio."
+2026-08-11T04:23:18.337Z dictation_hotkey_stop_tail_scheduled mode=hold_to_talk tail_ms=200
+2026-08-11T04:23:18.547Z dictation_hotkey_stop_tail_fired mode=hold_to_talk tail_ms=200
+2026-08-11T04:23:18.563Z dictation_stop_requested mode=hold_to_talk session=1
+2026-08-11T04:23:18.623Z shared_mic_engine_stopped
+2026-08-11T04:23:18.624Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-11T04:23:18.625Z dictation_capture_stop sample_count=14400 effective_sample_count=14400 duration_s=0.900 wall_duration_s=1.121 file_bytes=61696 input_buffers=10 output_buffers=9 input_frames=48000 max_rms=0.014842 max_level=0.074 non_silent_buffers=3 missing_float_buffers=0 invalid_format_buffers=0 no_buffer_timeout=false
+2026-08-11T04:23:18.626Z dictation_transcribe_begin file_bytes=61696
+2026-08-11T04:23:18.799Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=6.273 output_format_ms=0.017 install_tap_ms=0.008 total_ms=174.619
+2026-08-11T04:23:18.800Z shared_mic_engine_input_device_prepared source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 prepare_engine_ms=175.251
+2026-08-11T04:23:18.902Z dictation_transcribe_complete chars=7 words=1 engine=parakeet variant=v3
+2026-08-11T04:24:29.531Z dictation_diagnostics_session_start pid=58833 version=0.7.3 build=20260717011712 source=dist-xcodebuild-release commit=d6321f87dcce
+2026-08-11T04:24:30.209Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=0.006 output_format_ms=0.006 install_tap_ms=0.004 total_ms=107.178
+2026-08-11T04:24:30.209Z shared_mic_engine_input_device_prepared source=system_default device=present transport=built-in vpio=false set_device_ms=0.000 prepare_engine_ms=107.781

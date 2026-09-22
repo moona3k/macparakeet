@@ -1,9 +1,9 @@
 # MacParakeet Spec Index
 
 > Status: **ACTIVE** - Authoritative, current
-> Runtime Note: FluidAudio CoreML remains the primary Parakeet and Nemotron architecture. WhisperKit and the pinned Cohere transcribe.cpp adapter are optional local runtimes. Core STT is local; LLM provider use is opt-in, telemetry/crash reporting is opt-out, and a fully local setup is supported by disabling telemetry and using only local features/providers.
+> Runtime Note: FluidAudio CoreML remains the primary Parakeet and Nemotron architecture. WhisperKit and the pinned Cohere transcribe.cpp adapter are optional local runtimes. Core STT is local; LLM provider use is opt-in and telemetry/crash reporting is opt-out. Discover's default-on launch feed has a separate opt-out in Settings → System → Appearance. Neither setting is a global network switch; see [ADR-002](adr/002-local-only.md) for the external I/O boundaries.
 
-**MacParakeet** is a voice toolkit for macOS with on-device STT, optional AI and telemetry features, and support for a fully local setup.
+**MacParakeet** is a voice toolkit for macOS with on-device STT and a durable local library. Core capture and transcription work offline after model setup; that is not a promise that the app makes no network requests.
 
 ## Spec Documents
 
@@ -21,8 +21,10 @@
 | 09 | [Testing](09-testing.md) | Testing strategy, patterns, guidelines | Active |
 | 10 | [Agent Working Method](10-ai-coding-method.md) | Pragmatic agent workflow, spec precedence, plans, tests, and review | Active |
 | 11 | [LLM Integration](11-llm-integration.md) | LLM providers, summary, chat, transforms | Implemented (§1 summary superseded by spec/12) |
-| 12 | [Processing Layer](12-processing-layer.md) | Prompt library, multi-summary, v0.5 implementation contract | Active |
+| 12 | [Processing Layer](12-processing-layer.md) | Versioned prompts, label routing, and multi-summary contract | Active |
 | 13 | [Agent Workflows](13-agent-workflows.md) | Future actions, workflows, agents, voice control, App Intents | Draft |
+| 14 | [Per-Prompt Inference Settings](14-per-prompt-inference-settings.md) | Version-owned generation settings and effective-setting snapshots | Implemented; shipped in 0.8.0 via [PR #968](https://github.com/moona3k/macparakeet/pull/968) and [PR #961](https://github.com/moona3k/macparakeet/pull/961) |
+| 15 | [Shareable Transcript Snapshots](15-shareable-transcripts.md) | Explicit encrypted text sharing, recipient experience, lifecycle, and privacy boundary | Implemented behind a default-off flag; public release pending |
 
 ## Boundary Contracts
 
@@ -31,7 +33,29 @@ semi-public boundaries such as meeting artifact folders, recovery/retention
 safety, and CLI JSON output. Update the matching contract doc and focused tests
 when changing one of those surfaces.
 
+[Speaker Voiceprints](contracts/speaker-voiceprints.md) defines the experimental
+voice-profile gate, local storage lifecycle and export exclusion. Implementation
+behind that gate is separate from accuracy evaluation and official release.
+
+[Share Link and Bundle v1](contracts/share-link-bundle-v1.md) and
+[Share Service v1](contracts/share-service-v1.md) define the encrypted
+recipient-link, bundle, anonymous owner, lifecycle, and deletion boundaries.
+
+[Voice Control](contracts/voice-control.md) defines explicit command capture,
+cloud consent, target authority, effect receipts and browser pairing. Its
+[capability matrix](../docs/research/2026-09-19-jev-voice-control/release-scope.md)
+separates current implementation from the broader research design.
+
 ## Design References
+
+### Planned speaker timeline
+
+[Audio Speaker Timeline v1](contracts/audio-speaker-timeline-v1.md) and its
+[implementation plan](../docs/plans/2026-09-14-2147-feat-audio-speaker-timeline-plan.md)
+define the accepted direction for #836: detected audio turns and playback navigation independent of word timings.
+This is planned work, including for Cohere; it does not change current text-alignment capabilities or release status.
+
+### Current design references
 
 - [UI Patterns](04-ui-patterns.md) is the active product UI contract.
 - [`docs/brand-identity.md`](../docs/brand-identity.md) is the active runtime
@@ -62,29 +86,43 @@ These decisions are final. Do not second-guess them.
 
 | Channel | Status | Notes |
 |---------|--------|-------|
-| Stable DMG `0.7.3` | User-facing release, recommended for normal use | Dictation, file/media URL transcription, System Default microphone routing, separate live/final speech-engine routes, meeting recording with cleaned-mic finalization and bounded capture lifecycle, calendar auto-start and activity-based auto-stop (both opt-in, default off), Transforms, VAD-guided meeting live-preview chunking, optional Nemotron Beta, Cohere, and WhisperKit, bundled CLI 3.0, exports, vocabulary, AI features |
-| `main` | Development | Current `0.7.3` source plus subsequent reviewed development; developer-gated in-process MLX local LLM groundwork remains compiled/tested but hidden from normal users |
+| Stable DMG `0.8.7` | User-facing release, recommended for normal use | Hold-to-talk restored when the microphone is already granted, Fn admitted with Caps Lock latched, hold-to-talk overlay keeps 16pt while cancelled/Undo is 7pt, dictation, file/media URL transcription, System Default microphone routing, separate live/final speech-engine routes, meeting recording with cleaned-mic finalization, independent source startup, and bounded capture lifecycle, calendar auto-start and activity-based auto-stop (both opt-in, default off), per-event calendar skip, start-meetings-muted (default off), Microsoft 365/Exchange calendar setup, meeting import and split, live transcription during recording (default on), timed transcript corrections, isolated speaker-assignment smoothing, Seed of Life library covers when a recording has no thumbnail, Clean English “um” stripping (Portuguese/German opt-out), optional preserved discarded dictations, Transcribe tile no longer sticks on Wrapping up after stop (status label only), skip-microphone onboarding for file-only users, AI Formatter off by default with separate dictation and transcript prompts, optional streaming-cursor dictation insert (default off), China-lab LLM providers, Sonoma Parakeet encoder off ANE, Transforms, VAD-guided meeting live-preview chunking, optional Nemotron Beta, Cohere, and WhisperKit, bundled CLI 4.4.0, exports, vocabulary, AI features |
+| Development source (this revision) | Unreleased; `main` and feature branches are not the stable download | This branch adds experimental, explicitly enabled Voice Control beyond the 0.8.7 DMG. See [Sources/CLI/CHANGELOG.md](../Sources/CLI/CHANGELOG.md) for CLI version history, including the 4.0.0 major bump because `export --stdout --format txt` now matches TXT file export. Voice profiles remain gated off in release builds. Encrypted share links remain disabled. Check branch/commit identity; do not attribute later changes to the stable DMG. |
 
-Current `main` feature gates in `Sources/MacParakeetCore/AppFeatures.swift`:
+Feature gates in the current source (`Sources/MacParakeetCore/AppFeatures.swift`); an implemented gated surface is not a shipped feature:
 
 | Flag | Value | Release note |
 |------|-------|--------------|
+| `voiceControlEnabled` | `false` | Explicit Voice Control is implemented on this branch; DEBUG builds may opt in with `--enable-voice-control`. Release builds ignore the argument. Native/browser and speech qualification remain separate gates; see [contract](contracts/voice-control.md). |
+| `shareLinksEnabled` | `false` | Encrypted text sharing is implemented but not publicly enabled. DEBUG builds may expose it with `--enable-share-links`; release builds ignore that argument. See the [implementation and release handoff](../docs/share-links-implementation.md). |
 | `meetingRecordingEnabled` | `true` | Shipping meeting-recording surface |
 | `calendarEnabled` | `true` | Shipping calendar reminders/auto-start; per-user auto-start defaults off |
 | `meetingAutoStopEnabled` | `true` | Shipping ADR-023 surface; per-user setting defaults off, so recordings stop manually until the user opts in |
 | `meetingCaptureReliabilityEnabled` | `true` | Default-on kill switch for ADR-025 signal-based mic-health monitoring and telemetry; direct source lifecycle recovery is independent |
 | `meetingSourceHealthUIEnabled` | `false` | Routine source-health chips/pill glyph/tile mirror stay hidden; actionable recovering, stalled, interrupted, or unavailable warnings bypass this presentation flag |
 | `meetingActivityDetectionEnabled` | `false` | ADR-024 collectors/detector are compiled but runtime coordinator/UI remain gated |
+| `voiceProfilesEnabled` | `false` | Experimental meeting voice profiles; DEBUG builds may opt in with `--enable-voice-profiles`, but the preference remains off and requires consent plus meeting speaker detection. Release builds ignore that argument. Consent, enrollment, suggestion, manual assignment and administration UI are implemented. Held-out real-meeting evaluation and native workflow qualification remain release gates; see the [contract](contracts/speaker-voiceprints.md) and [release gates](../plans/active/2026-07-03-speaker-voiceprints.md#integration-and-release-gates-2026-09-10). |
 | `transformsEnabled` | `true` | Productized Transforms shipping surface |
 | `cohereEngineEnabled` | `true` | Settings exposes Cohere Transcribe as an opt-in, downloaded, batch-only local engine; no live preview/timestamps |
 | `meetingVadLiveChunkingEnabled` | `true` | VAD-guided meeting live-preview chunking; final post-stop transcript path unchanged |
 | `liveDictationStreamingEnabled` | `true` | Display-only live dictation preview enabled on `main`; final paste remains stop-time transcription |
-| `aiFormatterProfilesEnabled` | `false` | App-aware AI Formatter profiles are code-complete but held out of the current tagged release train |
-| `inProcessLocalLLMEnabled` | `false` | In-process local LLM (MLX) foundation seam, verified model downloader, and one-click Settings card are compiled and tested, but provider lists hide the option unless the developer override (`MacParakeetEnableInProcessLocalLLM` default or `--enable-local-ai`) is active; the real MLX runtime links only in opt-in `MACPARAKEET_ENABLE_MLX_LOCAL_LLM=1` app builds |
+| `aiFormatterProfilesEnabled` | `false` | App-aware AI Formatter profile code is present, but normal Settings/routing surfaces remain disabled |
+| `inProcessLocalLLMEnabled` | `false` | In-process MLX provider/setup code remains developer-gated. The real runtime links only in opt-in `MACPARAKEET_ENABLE_MLX_LOCAL_LLM=1` app builds; developer visibility overrides do not make it available in a build without that runtime |
+
+The 0.8.0 preparation evidence lives in
+[the dated QA package](../docs/qa/2026-09-07-0.8.0/README.md). Its results apply to
+the candidates named there, not automatically to later merges.
+
+Implementation status is not release verification. Candidate hardware capture,
+long-transcript interaction, signed upgrade, and full-suite evidence must be
+reported separately; a source/doc review does not establish those gates.
 
 ## Architecture Decision Records (ADRs)
 
-All ADRs live in `spec/adr/`. These are locked -- they record decisions already made.
+All ADRs live in `spec/adr/`. Accepted decisions govern implementation; explicit
+amendments supersede older implementation details. Historical, dormant,
+partially implemented and proposed portions retain their stated status. An
+accepted direction is not proof that every phase is implemented or released.
 
 | ADR | Decision |
 |-----|----------|
@@ -104,19 +142,25 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | [ADR-014](adr/014-meeting-recording.md) | Meeting recording via ScreenCaptureKit system audio |
 | [ADR-015](adr/015-concurrent-dictation-meeting.md) | Concurrent dictation and meeting recording |
 | [ADR-016](adr/016-centralized-stt-runtime-scheduler.md) | Centralized STT runtime and two-slot scheduler |
-| [ADR-017](adr/017-calendar-meeting-auto-start.md) | Calendar-driven meeting auto-start (Phases 1 + 2 implemented and enabled; Phase 3 proposed) |
+| [ADR-017](adr/017-calendar-meeting-auto-start.md) | Calendar-driven meeting auto-start (Phases 1 + 2 implemented and enabled; Phase 2b per-event skip implemented; Phase 3 proposed) |
 | [ADR-018](adr/018-live-meeting-insights-and-ask.md) | Live meeting Ask tab (Insights dropped per amendment; Ask shipped 2026-04-24) |
 | [ADR-019](adr/019-crash-resilient-meeting-recording.md) | Crash-resilient meeting recording via fragmented MP4 + session lock files (implemented 2026-04-25) |
 | [ADR-020](adr/020-live-meeting-notepad-and-memo-summaries.md) | Live meeting notepad + memo-steered summaries (implemented 2026-04-25) |
 | [ADR-021](adr/021-whisperkit-multilingual-stt.md) | WhisperKit as optional multilingual STT engine |
 | [ADR-022](adr/022-transforms-system-wide-rewrite.md) | Transforms — system-wide LLM rewrites on selected text (implemented 2026-05-13) |
-| [ADR-023](adr/023-activity-based-meeting-auto-stop.md) | Activity-based meeting auto-stop (silence + app-quit signals, veto countdown; Phases A+B implemented behind default-off flag — replaces withdrawn ADR-017 calendar auto-stop) |
+| [ADR-023](adr/023-activity-based-meeting-auto-stop.md) | Activity-based meeting auto-stop (silence + app-quit signals, veto countdown; Phases A+B enabled, per-user opt-in default off — replaces withdrawn ADR-017 calendar auto-stop) |
 | [ADR-024](adr/024-activity-based-meeting-detection.md) | Activity-based meeting detection (Phases A+B process-audio/camera collectors + pure detector implemented behind default-off flag; coordinator/prompt phases proposed) |
 | [ADR-025](adr/025-meeting-capture-reliability.md) | Meeting capture reliability — direct mic/system lifecycle recovery, actionable warnings, and frame-derived capture reports implemented; signal-inferred mic restart and VAD transcript-gap repair proposed |
-| [ADR-026](adr/026-asr-engine-strategy.md) | ASR engine and runtime strategy: local-only reaffirmed; FluidAudio primary, WhisperKit fallback, and ADR-029's narrow Cohere adapter exception; engines grow as variants not new cards |
+| [ADR-026](adr/026-asr-engine-strategy.md) | ASR engine and runtime strategy — local-only reaffirmed; FluidAudio primary, WhisperKit fallback, and ADR-034's narrow Cohere adapter exception; engines grow as variants not new cards; capability registry required before a new engine family; Apple SpeechTranscriber spike-only |
 | [ADR-027](adr/027-product-north-star.md) | Product north star — MacParakeet is the private speech memory of your Mac; Library (search + QA + export) becomes the center of gravity; agent access first-class; ambient capture parked (not rejected); session-based capture stands |
 | [ADR-028](adr/028-meeting-echo-cancellation.md) | Offline meeting echo cancellation via derived cleaned-mic artifact |
-| [ADR-029](adr/029-cohere-transcribe-cpp-backend.md) | Cohere Transcribe backend replacement via pinned transcribe.cpp adapter and immutable owned arm64 artifact |
+| [ADR-029](adr/029-encrypted-shareable-transcript-snapshots.md) | Explicit encrypted, expiring transcript-derived snapshots as a hosted export rather than Library sync |
+| [ADR-030](adr/030-external-meeting-import.md) | Import external recordings as managed meetings with historical chronology, fresh audio retention, and ordinary recovery |
+| [ADR-031](adr/031-timed-transcript-corrections.md) | One effective transcript from immutable automatic evidence plus reversible segment-timed text and speaker corrections |
+| [ADR-032](adr/032-llm-task-group-routing.md) | Per-task LLM selection — define cleanup/analysis(/transform) tasks, then inherit default, pick a general route, or pick a specialist recipe; not a per-feature picker (accepted direction; current runtime remains one saved config) |
+| [ADR-034](adr/034-cohere-transcribe-cpp-backend.md) | Cohere Transcribe backend replacement via pinned transcribe.cpp adapter and immutable owned arm64 artifact |
+
+The [meeting import v1 contract](contracts/meeting-import-v1.md) defines the shared app/CLI input, ownership, and durable-result boundary.
 
 ## Version Roadmap
 
@@ -128,7 +172,8 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | v0.4 | Polish & Launch | Diarization, custom hotkey, non-blocking progress, direct distribution | **Implemented** |
 | v0.5 | Data, UI & Prompts | Private dictation, favorites, video player, split-pane detail, library grid, prompt library, multi-summary | **Implemented** |
 | v0.6 | Meeting Recording + Multilingual STT + Transforms | System audio + mic capture, concurrent with dictation, local transcription, VAD-guided live-preview chunking, library integration, optional Nemotron Beta and WhisperKit engines, system-wide selected-text rewrites, calendar auto-start | **Implemented** |
-| v0.7 | Post-v0.6 polish | Activity-based auto-stop (ADR-023, per-user default off), meeting reliability (ADR-025 Phase A behind a default-on kill switch), activity-based detection groundwork (ADR-024 Phases A+B behind a default-off flag), optional Cohere Transcribe, display-only live dictation transcript preview, meeting echo-cancellation/cleaned-mic artifacts, meeting audio N-day retention, System Default microphone-routing repair, split live/final speech-engine routes, bounded meeting-capture lifecycle, CLI 3.0, developer-gated local MLX groundwork, and follow-up polish | **Implemented; stable 0.7.3** |
+| v0.7 | Post-v0.6 polish | Activity-based auto-stop (ADR-023, per-user default off), meeting reliability (ADR-025 Phase A behind a default-on kill switch), activity-based detection groundwork (ADR-024 Phases A+B behind a default-off flag), optional Cohere Transcribe, display-only live dictation transcript preview, meeting echo-cancellation/cleaned-mic artifacts, meeting audio N-day retention, System Default microphone-routing repair, split live/final speech-engine routes, bounded meeting-capture lifecycle, CLI 3.0, developer-gated local MLX groundwork, and follow-up polish | **Implemented** |
+| v0.8 | Library, meetings, and transcript workflow | Meeting import and split, timed transcript corrections, live transcription toggle, independent capture-source startup, per-event calendar skip, start-meetings-muted, Microsoft 365/Exchange calendar setup, labels and Library layouts, Seed of Life covers, Clean English “um” stripping, optional preserved discarded dictations, skip-microphone onboarding, AI Formatter default-off with split prompts, optional streaming-cursor insert, China-lab LLM providers, Sonoma encoder off ANE, hold-to-talk restore, Caps Lock+Fn, overlay inset split, DAPT export, CLI 4.4.0, and capture/recovery hardening | **Implemented; stable 0.8.7** |
 
 ## Version Progress
 
@@ -147,7 +192,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Basic export (TXT/Markdown/SRT/VTT + copy to clipboard)
 - [x] SQLite database (GRDB, dictations + transcriptions + substring search)
 - [x] CLI tool (`macparakeet-cli transcribe`, `history`, `health`, `models`, `vocab`)
-- [x] Test suite passing (`swift test` green)
+- [x] Automated test suite exists; current-run results belong in verification evidence, not this historical feature checklist
 
 ### v0.2 Clean Pipeline (Implemented)
 
@@ -185,7 +230,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Multi-conversation chat per transcription (migrated from single chatMessages field)
 - [x] YouTube video metadata (thumbnail, channel name, description)
 - [x] Transcription favorites with library filtering
-- [x] FTS5 removal (unused search infrastructure dropped, search uses LIKE)
+- [x] Historical unused FTS5 removal; current development adds the separate segment/card knowledge indexes described in the [CLI contract](contracts/cli-json-v1.md)
 - [x] Open-source release (GPL-3.0)
 
 #### Video Player & UI Revamp
@@ -255,11 +300,11 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Hotkey conflict prevention (dictation vs meeting)
 - [x] Concurrent dictation during meeting recording (ADR-015)
 - [x] Centralized STT runtime + two-slot scheduler (ADR-016)
-- [x] Live panel tabs: Transcript / Ask (ADR-018; Insights dropped per amendment 2026-04-24)
+- [x] Live panel tabs: Notes / Transcript / Ask, with Notes default (ADR-018 as amended by ADR-020; Insights dropped)
 - [x] Live Ask chat with thinking-partner quick prompts + pinned after-response pills + persist-on-finalize handoff
 - [x] Customizable Ask quick prompts: GRDB-backed unified prompt library with pinning, Ask Prompts sheet, and `macparakeet-cli quick-prompts` import/export
 - [x] Crash-resilient meeting recovery (ADR-019): session lock files, launch/settings recovery affordance, recovered badge
-- [x] Dictation AI Formatter profiles: exact-app/category prompt routing, built-in smart defaults (readable + toggleable, master and per-category), Settings management, fallback prompt routing, local-only routing provenance surfaced in History
+- [x] Dictation AI Formatter profile implementation exists, but `AppFeatures.aiFormatterProfilesEnabled = false` keeps app/category routing, management, and History provenance out of the normal product surface
 - [x] Fragmented MP4 meeting writer (ADR-019): 1s fragments, playable source audio after kill-9 up to the last fragment
 - [x] Live meeting notepad (ADR-020): Notes/Transcript/Ask three-tab layout with Notes default (⌘1/⌘2/⌘3), debounced auto-save through `MeetingRecordingService.updateNotes`, lock-file extension carries notes through crash recovery, soft-cap warning at 7,500 words
 - [x] Memo-steered summary infrastructure (ADR-020): `{{userNotes}}` + `{{transcript}}` template variables via `PromptTemplateRenderer` (single-pass, simultaneous), `userNotesSnapshot` captured on the `PromptResult` row at generation time. *Note: the "Memo-Steered Notes" built-in prompt that exercised this path was reverted on 2026-05-02 (see ADR-020 amendment) — the template variables remain available for custom prompts.*
@@ -267,14 +312,16 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Plain-noun tab strip with one ambient indicator (ADR-020 §1, amended 2026-05-02): `Notes`, `Transcript`, `Ask` plus a breathing dot on Ask while `chatViewModel.isStreaming`; `ViewThatFits` collapses the dot into the tooltip at the 360px floor
 - [x] STT failure copy refinement (ADR-020): "Recording Error" → "Meeting interrupted" + Library-recovery hint wrapper around the technical detail
 
-Calendar-related code is implemented and **enabled** (`AppFeatures.calendarEnabled = true`) after the post-#318 reliability hardening. It surfaces the Settings subsection, first-use permission prompt, search entry, reminder notifications, auto-start countdown, and coordinator polling; auto-start defaults to mode `.off`, so it is strictly opt-in:
+Calendar-related code is implemented and **enabled** (`AppFeatures.calendarEnabled = true`) after the post-#318 reliability hardening. It surfaces the Settings subsection, first-use permission prompt, search entry, reminder notifications, auto-start countdown, and coordinator polling; auto-start defaults to mode `.off`, so it is strictly opt-in. EventKit includes Microsoft 365 and Exchange calendars enabled in System Settings → Internet Accounts without a MacParakeet Microsoft sign-in:
 
 - [x] Calendar-driven reminders (ADR-017 Phase 1): EventKit integration + first-use prompt + settings + per-calendar include list
+- [x] Provider discovery: Outlook/Microsoft 365/Exchange Settings search terms, always-visible Internet Accounts guidance, and explicit/reactivation calendar refresh
 - [x] Pre-meeting macOS notifications at configurable lead time (off / 1 / 5 / 10 min)
 - [x] Auto-start countdown toast (ADR-017 Phase 2): 5s cancellable, top-right, non-activating
-- [x] Activity-based auto-stop replacement (ADR-023 Phases A+B): scheduled end times remain removed; the default-off validation build stops only after app-quit or sustained dual-channel-silence signals persist through grace and a veto countdown is not dismissed.
+- [x] Activity-based auto-stop replacement (ADR-023 Phases A+B): enabled in the v0.7 release train, with a separate per-user setting defaulting off; scheduled end times remain removed, and app-quit or sustained dual-channel silence must persist through grace and a veto countdown
 - [x] Calendar event title applied to auto-started recordings instead of date-based default
 - [x] Rich pre-meeting countdown toast for calendar starts (ADR-020): attendees + service icon row + steering hint pointing the user at the Notes tab. Manual-trigger toasts unchanged
+- [x] Per-event skip (ADR-017 Phase 2b / #609 / F48): persist occurrence (`dedupeKey`) or meeting/series (`eventKey`) mute; series skip only when `isRecurring`; Upcoming + coordinator share `candidates`; CLI annotates without changing membership; owning countdown re-evaluated under the full new policy; skip/unskip rearms without a fetch; no optional-invite auto-exclude. Plan: [`plans/active/2026-09-14-issue-609-calendar-event-skip.md`](../plans/active/2026-09-14-issue-609-calendar-event-skip.md)
 
 ### Optional Local STT Engines
 
@@ -285,7 +332,8 @@ Calendar-related code is implemented and **enabled** (`AppFeatures.calendarEnabl
 - [x] `SpeechEnginePreference`, `SpeechEngineSelection`, `ParakeetModelVariant`, and `NemotronModelVariant` persisted or modeled through `UserDefaults` where user-selectable
 - [x] Settings speech-recognition engine picker plus Parakeet Model, Nemotron Beta, Cohere Performance, and Whisper Language controls. Cohere language detection is automatic
 - [x] Engine switching blocked while jobs are queued/running or a meeting speech-engine lease is active
-- [x] CLI `transcribe --engine parakeet|nemotron|whisper|cohere --language <code> --parakeet-model app-default|v3|v2|unified`, `config set parakeet-model`, `config set nemotron-language`, `config set cohere-language`, and `models download parakeet-v2|parakeet-v3|parakeet-unified|nemotron-multilingual-1120ms|nemotron-english-1120ms|cohere-transcribe|whisper-large-v3-v20240930-turbo-632MB`
+- [x] CLI `transcribe --engine parakeet|nemotron|whisper|cohere --language <code> --parakeet-model app-default|v3|v2|unified|orukeet`, `config set parakeet-model`, `config set nemotron-language`, `config set cohere-language`, and `models download parakeet-v2|parakeet-v3|parakeet-unified|parakeet-orukeet|nemotron-multilingual-1120ms|nemotron-english-1120ms|cohere-transcribe|whisper-large-v3-v20240930-turbo-632MB`
+- [x] Optional Orukeet preview as a Parakeet variant (`ParakeetModelVariant.orukeet`), not a fifth engine. Default remains v3. Own pinned Core ML cache, `engineVariant=orukeet`, no native streaming, tail preview, or custom vocabulary. Weights are CC BY-SA 4.0 and are not bundled.
 - [x] Meeting recordings capture the active engine/language at start and preserve it through metadata, lock files, crash recovery, and final transcription
 
 ### v0.6 Productized Transforms
@@ -297,6 +345,34 @@ Calendar-related code is implemented and **enabled** (`AppFeatures.calendarEnabl
 - [x] Transforms sidebar tab and management UI enabled on `main` by `AppFeatures.transformsEnabled = true`
 - [x] Local Transform history with input/output/source-app/timing stored in `transform_history`
 - [x] CLI `transforms` and `transforms history` command trees for headless provisioning and verification
+
+### v0.8 Library, meetings, and transcript workflow (Implemented; stable 0.8.7)
+
+Shipped across 0.8.0–0.8.7. Feature detail lives in [spec/02-features.md](02-features.md); this list is the release-train summary, not a second checklist.
+
+- [x] Meeting import and split, with matching public CLI 4.1+ commands
+- [x] Timed transcript corrections with Undo/Redo across display, playback, retrieval, exports, and AI
+- [x] Live transcription during recording (default on) plus independent microphone/system-audio startup
+- [x] Per-event calendar skip and Microsoft 365/Exchange calendar setup through EventKit
+- [x] Library labels, grid/list layouts, and Seed of Life covers when a recording has no thumbnail
+- [x] DAPT export, rich Markdown results/chat, and per-prompt inference settings
+- [x] Capture/recovery hardening from 0.8.0–0.8.2 (Bluetooth/route changes, stuck-mic source isolation)
+- [x] Start meetings muted (default off), Clean English “um” stripping with a Portuguese/German opt-out, and optional preserved discarded dictations
+- [x] Skip the microphone during first-run if you only transcribe files; dictation still asks before the first capture
+- [x] AI Formatter off by default for new installs, with separate dictation and transcript prompts
+- [x] Optional streaming-cursor dictation insert (Settings → Dictation, default off); paste remains the default path
+- [x] First-class Moonshot, DeepSeek, Qwen, Z.AI, and MiniMax LLM providers
+- [x] Sonoma Parakeet TDT encoder stays off ANE; bundled CLI 4.4.0
+- [x] Hold-to-talk restored for an already-granted microphone, Fn admitted with Caps Lock latched, and cancelled/Undo overlay tightened while hold-to-talk stays 16pt
+
+Voice profiles, encrypted share links, activity-based meeting detection, app-aware AI Formatter profiles, and in-process MLX remain gated as in the flag table above.
+
+## Documentation audit
+
+The [2026-09-07 alignment audit](../docs/audits/2026-09-07-documentation-alignment.md)
+records source coverage, corrected drift and verification limits. Its separate
+[improvement notes](../docs/research/2026-09-07-documentation-audit-followups.md)
+are proposals, not accepted architecture or release requirements.
 
 ## For Coding Agents
 

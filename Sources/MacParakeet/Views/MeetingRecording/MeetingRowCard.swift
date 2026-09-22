@@ -1,4 +1,5 @@
 import MacParakeetCore
+import MacParakeetViewModels
 import SwiftUI
 
 /// Single row in the Meetings list. Apple-minimal layout: title + snippet on
@@ -6,9 +7,12 @@ import SwiftUI
 /// (recovered dot, speaker count) appear only when they carry signal.
 struct MeetingRowCard<MenuContent: View>: View {
     let transcription: Transcription
+    var classification: MeetingClassification? = nil
     var searchText: String = ""
+    var effectiveTranscriptText: String? = nil
     var isSelected: Bool = false
     var showsSelectionControls: Bool = false
+    var sourceLabelStyle: LibrarySourceLabelStyle = .hidden
     var isRetrying: Bool = false
     var onTap: () -> Void
     var onRetry: (() -> Void)? = nil
@@ -21,6 +25,11 @@ struct MeetingRowCard<MenuContent: View>: View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
                 rowActivationButton
+
+                if audioState == .removed {
+                    MeetingAudioStateChip(state: audioState)
+                        .padding(.top, 2)
+                }
 
                 if showsRetryButton {
                     retryButton
@@ -105,6 +114,10 @@ struct MeetingRowCard<MenuContent: View>: View {
     private var contentColumn: some View {
         VStack(alignment: .leading, spacing: 3) {
             titleRow
+            MeetingClassificationBadges(
+                classification: classification,
+                maximumLabels: 2
+            )
             snippetRow
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -144,6 +157,15 @@ struct MeetingRowCard<MenuContent: View>: View {
                 .contentTransition(.opacity)
                 .layoutPriority(1)
 
+            if transcription.isFavorite {
+                FavoriteStatusMarker()
+                    .fixedSize()
+            }
+
+            if sourceLabelStyle != .hidden {
+                sourceInline
+            }
+
             speakerInline
                 .layoutPriority(0)
 
@@ -152,6 +174,14 @@ struct MeetingRowCard<MenuContent: View>: View {
 
             Spacer(minLength: 0)
         }
+    }
+
+    private var sourceInline: some View {
+        TranscriptionSourceLabel(
+            source: TranscriptionSourceDisplay.resolve(for: transcription),
+            style: sourceLabelStyle,
+            font: DesignSystem.Typography.micro.weight(.medium)
+        )
     }
 
     @ViewBuilder
@@ -167,7 +197,7 @@ struct MeetingRowCard<MenuContent: View>: View {
 
     @ViewBuilder
     private var audioInline: some View {
-        if showsAudioInline {
+        if audioState == .missing {
             MeetingAudioStateChip(state: audioState)
         }
     }
@@ -305,6 +335,14 @@ struct MeetingRowCard<MenuContent: View>: View {
     }
 
     private var displayedSnippet: String? {
+        if let effectiveTranscriptText,
+            let effectiveSnippet = SnippetDeriver.derive(
+                from: effectiveTranscriptText,
+                excluding: transcription.derivedTitle
+            ) ?? snippet(from: effectiveTranscriptText)
+        {
+            return effectiveSnippet
+        }
         if let derived = transcription.derivedSnippet?.trimmingCharacters(in: .whitespacesAndNewlines), !derived.isEmpty
         {
             return derived
@@ -313,7 +351,11 @@ struct MeetingRowCard<MenuContent: View>: View {
     }
 
     private var legacySnippet: String? {
-        guard let text = transcription.cleanTranscript ?? transcription.rawTranscript, !text.isEmpty else {
+        snippet(from: transcription.cleanTranscript ?? transcription.rawTranscript)
+    }
+
+    private func snippet(from text: String?) -> String? {
+        guard let text, !text.isEmpty else {
             return nil
         }
         let cleaned =
@@ -347,7 +389,7 @@ struct MeetingRowCard<MenuContent: View>: View {
         case .saved:
             return "Transcription failed — audio is saved"
         case .removed:
-            return "Transcription failed — audio removed"
+            return "Transcription failed — audio unavailable"
         case .missing:
             return "Transcription failed — audio missing"
         case .notMeeting:
@@ -379,14 +421,8 @@ struct MeetingRowCard<MenuContent: View>: View {
             : "Saved meeting audio is required before retrying transcription"
     }
 
-    private var showsAudioInline: Bool {
-        guard audioState != .notMeeting else { return false }
-        return transcription.status != .error && transcription.status != .cancelled
-    }
-
     private func statusLine(_ prefix: String) -> String {
-        guard let suffix = audioStateSuffix else { return prefix }
-        return "\(prefix) · \(suffix)"
+        prefix
     }
 
     private var audioStateSuffix: String? {
@@ -394,7 +430,7 @@ struct MeetingRowCard<MenuContent: View>: View {
         case .saved:
             return "audio saved"
         case .removed:
-            return "audio removed"
+            return "audio unavailable"
         case .missing:
             return "audio missing"
         case .notMeeting:

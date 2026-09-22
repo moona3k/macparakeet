@@ -83,6 +83,7 @@ private extension SettingsCaptureWorkflow {
 struct SettingsView: View {
     @Bindable var viewModel: SettingsViewModel
     @Bindable var llmSettingsViewModel: LLMSettingsViewModel
+    @Bindable var voiceProfilesViewModel: VoiceProfilesViewModel
     let updater: SPUUpdater
     let transformHotkeys: [Prompt]
     let requestedTab: SettingsTab?
@@ -112,11 +113,15 @@ struct SettingsView: View {
     @State private var pendingModelDeletion: PendingModelDeletion?
     @State private var pendingMeetingAudioRetention: PendingMeetingAudioRetention?
     @State private var coherePolicyRelaunchInFlight = false
+    @State private var showVoiceProfiles = false
+    /// Owned by this view rather than the app: the sheet is the only consumer,
+    /// and it reloads from the store each time it opens.
     @State private var advancedTranscriptionExpanded = false
 
     init(
         viewModel: SettingsViewModel,
         llmSettingsViewModel: LLMSettingsViewModel,
+        voiceProfilesViewModel: VoiceProfilesViewModel,
         updater: SPUUpdater,
         transformHotkeys: [Prompt] = [],
         requestedTab: SettingsTab? = nil,
@@ -127,6 +132,7 @@ struct SettingsView: View {
     ) {
         self.viewModel = viewModel
         self.llmSettingsViewModel = llmSettingsViewModel
+        self.voiceProfilesViewModel = voiceProfilesViewModel
         self.updater = updater
         self.transformHotkeys = transformHotkeys
         self.requestedTab = requestedTab
@@ -190,9 +196,16 @@ struct SettingsView: View {
             viewModel.stopPermissionPolling()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            viewModel.refreshPermissions()
             viewModel.engine.refreshSpeechEngineSwitchAvailability()
-            Task { await viewModel.refreshCalendarNotificationAuthorization() }
+            guard AppFeatures.calendarEnabled,
+                rootViewModel.activeTab == .capture,
+                displayedCaptureWorkflow == .meetings,
+                !rootViewModel.isSearching
+            else { return }
+            Task {
+                await viewModel.refreshCalendarAccess()
+                await viewModel.refreshCalendarNotificationAuthorization()
+            }
         }
         .onAppear {
             if requestedTab != nil || requestedAnchor != nil {
@@ -701,19 +714,29 @@ struct SettingsView: View {
             subtitle: "Choose how MacParakeet looks across app windows.",
             icon: "circle.lefthalf.filled"
         ) {
-            SettingsRow(
-                title: "Theme",
-                detail: viewModel.appAppearanceMode.detail
-            ) {
-                Picker("Theme", selection: $viewModel.appAppearanceMode) {
-                    ForEach(AppAppearanceMode.allCases, id: \.self) { mode in
-                        Text(mode.displayTitle).tag(mode)
+            VStack(spacing: DesignSystem.Spacing.md) {
+                SettingsRow(
+                    title: "Theme",
+                    detail: viewModel.appAppearanceMode.detail
+                ) {
+                    Picker("Theme", selection: $viewModel.appAppearanceMode) {
+                        ForEach(AppAppearanceMode.allCases, id: \.self) { mode in
+                            Text(mode.displayTitle).tag(mode)
+                        }
                     }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(width: 260)
+                    .accessibilityHint("Choose whether MacParakeet follows macOS or uses a fixed light or dark appearance.")
                 }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .frame(width: 260)
-                .accessibilityHint("Choose whether MacParakeet follows macOS or uses a fixed light or dark appearance.")
+
+                Divider()
+
+                settingsToggleRow(
+                    title: "Show Discover in the sidebar",
+                    detail: "When off, the Discover card is hidden and its feed is not requested.",
+                    isOn: $viewModel.showDiscover
+                )
             }
         }
     }
@@ -766,6 +789,10 @@ struct SettingsView: View {
                 Spacer(minLength: DesignSystem.Spacing.md)
 
                 HStack(spacing: DesignSystem.Spacing.sm) {
+                    if !viewModel.microphoneGranted {
+                        microphonePermissionActionButton
+                    }
+
                     Picker("Microphone", selection: $viewModel.selectedMicrophoneDeviceUID) {
                         Text("System Default").tag(SettingsViewModel.systemDefaultMicrophoneSelection)
                         ForEach(viewModel.microphoneDeviceOptions) { device in
@@ -904,7 +931,11 @@ struct SettingsView: View {
     private var microphoneTestDetail: String {
         switch viewModel.microphoneTestState {
         case .idle:
-            return viewModel.microphoneGranted ? "Run a short level check before recording." : "Grant microphone permission before testing."
+            return viewModel.microphoneGranted
+                ? "Run a short level check before recording."
+                : viewModel.microphoneStatus == .notDetermined
+                    ? "Grant microphone access to test input. File transcription does not need it."
+                    : "Open System Settings → Privacy & Security → Microphone, then try again."
         case .testing:
             return "Speak into the selected microphone."
         case .succeeded:
@@ -979,9 +1010,23 @@ struct SettingsView: View {
                 Divider()
 
                 settingsToggleRow(
+                    title: "Hide menu bar icon",
+                    detail: "Remove MacParakeet from the menu bar. The Dock icon stays available.",
+                    isOn: Binding(
+                        get: { !viewModel.showMenuBarIcon },
+                        set: { viewModel.setMenuBarIconHidden($0) }
+                    )
+                )
+
+                Divider()
+
+                settingsToggleRow(
                     title: "Menu bar only mode",
                     detail: "Hide the Dock icon and run from the menu bar only.",
-                    isOn: $viewModel.menuBarOnlyMode
+                    isOn: Binding(
+                        get: { viewModel.menuBarOnlyMode },
+                        set: { viewModel.setMenuBarOnlyMode($0) }
+                    )
                 )
             }
         }
@@ -1122,6 +1167,14 @@ struct SettingsView: View {
                 Divider()
 
                 settingsToggleRow(
+                    title: "Preserve discarded dictations",
+                    detail: "When you cancel or the undo window expires, keep the transcript in History instead of deleting it. Audio follows Save audio recordings. Off by default. Requires Save dictation history. Nothing is pasted.",
+                    isOn: $viewModel.preserveDiscardedDictations
+                )
+
+                Divider()
+
+                settingsToggleRow(
                     title: "Auto-stop after silence",
                     detail: "Stops recording when speech pauses for the selected delay.",
                     isOn: $viewModel.silenceAutoStop
@@ -1173,6 +1226,14 @@ struct SettingsView: View {
                     detail: "Leaves the same text MacParakeet pastes on the clipboard, useful when remote desktops need a manual ⌘V.",
                     isOn: $viewModel.keepDictationOnClipboard
                 )
+
+                Divider()
+
+                settingsToggleRow(
+                    title: "Streaming cursor",
+                    detail: "Types the finished transcript into the app with a fast caret. Off keeps instant paste. Reduce Motion always pastes. ⌘Z may undo in pieces. Multi-line results still paste.",
+                    isOn: $viewModel.dictationStreamingCursorEnabled
+                )
             }
         }
     }
@@ -1219,6 +1280,23 @@ struct SettingsView: View {
 
                 Divider()
 
+                settingsToggleRow(
+                    title: "Open app when meeting ends",
+                    detail: "Brings MacParakeet forward showing the transcript when a recording finishes. Turn this off to keep working — the meeting saves to your library in the background.",
+                    isOn: $viewModel.openAppAfterMeetingEnd
+                )
+
+                Divider()
+
+                settingsToggleRow(
+                    title: "Notify when transcript is ready",
+                    detail: "Plays a chime and shows a notification when a meeting finishes transcribing in the background. Applies when the app isn't set to open automatically.",
+                    isOn: $viewModel.notifyOnMeetingEnd
+                )
+                .disabled(viewModel.openAppAfterMeetingEnd)
+
+                Divider()
+
                 HStack(alignment: .center) {
                     rowText(
                         title: "Audio sources",
@@ -1238,10 +1316,48 @@ struct SettingsView: View {
                 Divider()
 
                 settingsToggleRow(
+                    title: "Start meetings muted",
+                    detail: "Begin recording with your microphone off. Unmute from the meeting panel when you want to speak. System-audio-only capture ignores this. Changes apply to your next recording.",
+                    isOn: $viewModel.startMeetingsMuted
+                )
+                .disabled(!viewModel.meetingAudioSourceMode.capturesMicrophone)
+
+                Divider()
+
+                settingsToggleRow(
+                    title: "Live transcription during recording",
+                    detail: "Show a transcript as you record. Turn off to reduce processing during meetings; "
+                        + "the full transcript is still created after you stop. Changes apply to your next recording.",
+                    isOn: $viewModel.meetingLiveTranscriptionEnabled
+                )
+
+                Divider()
+
+                settingsToggleRow(
                     title: "Speaker detection",
                     detail: "Split captured system audio into other speakers after recording when audio is clear.",
                     isOn: $viewModel.meetingSpeakerDiarization
                 )
+
+                // The toggle is gated twice over — the feature must be
+                // available, and speaker detection on, since without clusters
+                // there is nothing to remember.
+                if AppFeatures.isVoiceProfilesAvailable(), viewModel.meetingSpeakerDiarization {
+                    rememberSpeakersRow
+                }
+
+                // The management row answers to the flag *or* to voices being
+                // stored. A build where the flag is off can still be sitting on
+                // voices enrolled while it was on — a DEBUG session with
+                // `--enable-voice-profiles`, then a normal launch — and
+                // biometric data with no way to delete it is the one outcome
+                // this feature must never produce. Someone with neither sees no
+                // administration row for a feature they do not have.
+                if AppFeatures.isVoiceProfilesAvailable()
+                    || voiceProfilesViewModel.hasEnrolledVoices
+                {
+                    voiceProfilesManagementRow
+                }
 
                 Divider()
 
@@ -1282,6 +1398,12 @@ struct SettingsView: View {
                     }
                 }
             }
+        }
+        // On the card, never on the row above: that row is conditional on what
+        // this load finds, so loading from there would leave it hidden forever
+        // for exactly the people it exists to serve.
+        .task {
+            await voiceProfilesViewModel.load()
         }
     }
 
@@ -1331,6 +1453,66 @@ struct SettingsView: View {
                     isOn: $viewModel.meetingAutoStopEnabled
                 )
             }
+        }
+    }
+
+    /// The switch reports intent rather than owning the value: turning it on
+    /// has to pass through consent, so the view model decides whether the
+    /// preference actually moves.
+    private var rememberSpeakersRow: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            Divider()
+
+            settingsToggleRow(
+                title: "Remember speakers",
+                detail: "Suggest a name in later meetings once you have named someone. Suggestions always need your confirmation, and voice samples never leave this Mac.",
+                isBeta: true,
+                isOn: Binding(
+                    get: { viewModel.rememberSpeakers },
+                    set: { viewModel.requestRememberSpeakers($0) }
+                )
+            )
+
+            if viewModel.rememberSpeakers, let acknowledgedAt = viewModel.voiceprintConsentAcknowledgedAt {
+                HStack(spacing: DesignSystem.Spacing.sm) {
+                    Text("Permission confirmed \(acknowledgedAt.formatted(date: .abbreviated, time: .shortened)).")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Withdraw") { viewModel.withdrawVoiceprintConsent() }
+                        .parakeetAction(.secondary)
+                }
+            }
+
+        }
+        .sheet(isPresented: $viewModel.isRequestingVoiceprintConsent) {
+            VoiceProfileConsentSheet(viewModel: viewModel)
+        }
+    }
+
+    /// Outside every preference check. Voices stored before the user turned
+    /// anything off are still on disk, and this is the only screen that can
+    /// show or remove one of them.
+    private var voiceProfilesManagementRow: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            Divider()
+
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                rowText(
+                    title: "Voice profiles",
+                    detail: "See and delete the voices saved on this Mac."
+                )
+                Spacer(minLength: DesignSystem.Spacing.md)
+                Button("Manage…") { showVoiceProfiles = true }
+                    .parakeetAction(.secondary)
+            }
+        }
+        // Cleared on dismissal: the view model is shared with the Reset &
+        // Cleanup card, so a rename failure raised inside the sheet would
+        // otherwise reappear under "Delete data", attributed to a destructive
+        // action the user never took.
+        .sheet(isPresented: $showVoiceProfiles, onDismiss: { voiceProfilesViewModel.clearError() }) {
+            VoiceProfilesSheet(viewModel: voiceProfilesViewModel)
         }
     }
 
@@ -1703,19 +1885,17 @@ struct SettingsView: View {
         }
     }
 
-    /// AI tab is opt-in, so this never returns `.required`. We only show
-    /// signal when there is something actionable: yellow when the last
-    /// connection test failed, green when a saved setup exists and nothing is
-    /// currently broken. Silent in the not-yet-configured state because the
-    /// card body already explains the empty case.
+    /// Reflect the same saved-versus-draft status as the AI settings body.
+    /// AI remains opt-in, so a missing configuration is never required.
     private var aiProviderCardStatus: SettingsCardStatus? {
-        if case .error = llmSettingsViewModel.connectionTestState {
+        switch llmSettingsViewModel.setupStatus {
+        case .cannotConnect:
             return SettingsCardStatus(.recommended, label: "Last test failed")
-        }
-        if llmSettingsViewModel.isConfigured {
+        case .ready:
             return SettingsCardStatus(.ok, label: "Ready")
+        case .setUpNeeded:
+            return nil
         }
-        return nil
     }
 
     // MARK: - Storage
@@ -1912,6 +2092,15 @@ struct SettingsView: View {
                             .foregroundStyle(DesignSystem.Colors.errorRed)
                     }
 
+                    // The voice-profile row below deletes through its own view
+                    // model, so its failures land in a different property and
+                    // would otherwise be invisible on this card.
+                    if let error = voiceProfilesViewModel.errorMessage {
+                        Text(error)
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(DesignSystem.Colors.errorRed)
+                    }
+
                     resetActionRow(
                         title: "Dictation history",
                         detail: "All dictations and their audio files.",
@@ -1952,6 +2141,26 @@ struct SettingsView: View {
                             confirmationMessage: "This will delete all downloaded video audio files and detach them from existing transcriptions. This cannot be undone.",
                             confirmButtonLabel: "Clear Audio",
                             perform: viewModel.clearDownloadedYouTubeAudio
+                        )
+                    )
+
+                    // In Reset & Cleanup as well as inside the feature block:
+                    // this is where people look for "delete my data", and it
+                    // has to be findable without knowing where voices come
+                    // from. Not gated on the feature flag either: a build with
+                    // it off can still hold voices enrolled while it was on.
+                    Divider()
+
+                    resetActionRow(
+                        title: "Voice profiles",
+                        detail: "Saved voices and any still waiting to be named. Names already applied to transcripts stay.",
+                        action: ResetDestructiveAction(
+                            buttonTitle: "Forget…",
+                            accessibilityLabel: "Forget all voice profiles",
+                            confirmationTitle: "Forget All Voices?",
+                            confirmationMessage: "This deletes every saved voice, its samples, and any voices still waiting to be named. Names already applied to your transcripts stay as they are. This cannot be undone.",
+                            confirmButtonLabel: "Forget All",
+                            perform: { Task { await voiceProfilesViewModel.forgetAll() } }
                         )
                     )
 
@@ -2338,7 +2547,7 @@ struct SettingsView: View {
     }
 
     /// Parakeet build picker (multilingual `v3`, English-only `v2`, and the
-    /// English-only Unified build). Only shown when Parakeet is the active
+    /// English-only Unified build, plus the optional Orukeet preview). Only shown when Parakeet is the active
     /// engine — symmetric to the Whisper Language card. English-only builds fix
     /// the v3 auto-detect mis-firing English as another language (issues #311,
     /// #398); Unified is the punctuated English streaming build (issue #520).
@@ -2359,6 +2568,8 @@ struct SettingsView: View {
                     parakeetModelOptionRow(.v2)
                     Divider()
                     parakeetModelOptionRow(.unified)
+                    Divider()
+                    parakeetModelOptionRow(.orukeet)
                 }
             }
             .transition(.opacity)
@@ -2749,6 +2960,12 @@ struct SettingsView: View {
     }
 
     private var engineSelectorCardStatus: SettingsCardStatus? {
+        if viewModel.engine.speechEngineSwitchStalled {
+            return SettingsCardStatus(.required, label: "Taking too long")
+        }
+        if viewModel.engine.speechEngineSwitchFinishingInBackground {
+            return SettingsCardStatus(.recommended, label: "Still compiling")
+        }
         if viewModel.engine.speechEngineSwitching {
             return SettingsCardStatus(.recommended, label: speechEngineSwitchTitle)
         }
@@ -2759,7 +2976,23 @@ struct SettingsView: View {
     }
 
     private var speechEngineSwitchBannerState: (title: String, detail: String)? {
+        if viewModel.engine.speechEngineSwitchFinishingInBackground,
+           !viewModel.engine.speechEngineSwitching,
+           let target = viewModel.engine.abandonedSpeechEngineSwitchTarget
+        {
+            return (
+                "Still compiling in the background",
+                EngineSettingsViewModel.finishingAbandonedSpeechEngineSwitchDetail(for: target)
+            )
+        }
         guard viewModel.engine.speechEngineSwitching else { return nil }
+        if viewModel.engine.speechEngineSwitchStalled {
+            let detail = viewModel.engine.speechEngineSwitchDetail
+                ?? EngineSettingsViewModel.stalledSpeechEngineSwitchDetail(
+                    for: currentSpeechEngineSwitchTarget
+                )
+            return ("This is taking too long", detail)
+        }
         let phase = viewModel.engine.speechEngineSwitchDetail ?? "Preparing speech engine..."
         return (
             speechEngineSwitchTitle,
@@ -2882,20 +3115,36 @@ struct SettingsView: View {
     }
 
     private func speechEngineSwitchBanner(title: String, detail: String) -> some View {
-        HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
-            ParakeetSpinner(.inline)
-                .frame(width: 18, height: 18)
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                if viewModel.engine.speechEngineSwitchStalled {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(DesignSystem.Colors.warningAmber)
+                        .frame(width: 18, height: 18)
+                } else {
+                    ParakeetSpinner(.inline)
+                        .frame(width: 18, height: 18)
+                }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(DesignSystem.Typography.bodySmall.weight(.semibold))
-                Text(detail)
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(DesignSystem.Typography.bodySmall.weight(.semibold))
+                    Text(detail)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: DesignSystem.Spacing.md)
             }
 
-            Spacer(minLength: DesignSystem.Spacing.md)
+            if viewModel.engine.speechEngineSwitchStalled {
+                Button("Use previous engine") {
+                    viewModel.engine.leaveStalledSpeechEngineSwitch()
+                }
+                .parakeetAction(.secondary)
+                .help("Restores the previous engine in Settings. Core ML keeps compiling and is not cancelled. Speech stays paused until that finishes.")
+            }
         }
         .padding(.horizontal, DesignSystem.Spacing.md)
         .padding(.vertical, DesignSystem.Spacing.sm)
@@ -2907,7 +3156,9 @@ struct SettingsView: View {
             RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
                 .strokeBorder(DesignSystem.Colors.warningAmber.opacity(0.28), lineWidth: 0.5)
         )
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(
+            children: viewModel.engine.speechEngineSwitchStalled ? .contain : .combine
+        )
     }
 
     /// Routes a tile click through a confirmation step. The VM's eventual
@@ -3330,8 +3581,8 @@ struct SettingsView: View {
 
     private var permissionsCard: some View {
         let permissionsSubtitle = AppFeatures.meetingRecordingEnabled
-            ? "Microphone and Accessibility are required. Screen Recording is needed for system-audio meetings."
-            : "Microphone and Accessibility are required."
+            ? "Microphone is needed for dictation and microphone meetings. Accessibility is required for the global hotkey and paste. Screen Recording is needed for system-audio meetings."
+            : "Microphone is needed for dictation. Accessibility is required for the global hotkey and paste."
 
         return SettingsCard(
             title: "Permissions",
@@ -3341,7 +3592,10 @@ struct SettingsView: View {
         ) {
             VStack(spacing: DesignSystem.Spacing.md) {
                 HStack {
-                    rowText(title: "Microphone", detail: "Required for voice capture.")
+                    rowText(
+                        title: "Microphone",
+                        detail: "Needed for dictation and microphone meetings. File transcription does not use it."
+                    )
                     Spacer()
                     permissionPill(granted: viewModel.microphoneGranted)
                 }
@@ -3370,9 +3624,13 @@ struct SettingsView: View {
                 let needsScreenRecordingAction = AppFeatures.meetingRecordingEnabled
                     && viewModel.meetingAudioSourceMode.capturesSystemAudio
                     && !viewModel.screenRecordingGranted
-                if !viewModel.accessibilityGranted || needsScreenRecordingAction {
+                if !viewModel.microphoneGranted || !viewModel.accessibilityGranted || needsScreenRecordingAction {
                     Divider()
                     HStack(spacing: DesignSystem.Spacing.sm) {
+                        if !viewModel.microphoneGranted {
+                            microphonePermissionActionButton
+                        }
+
                         if !viewModel.accessibilityGranted {
                             Button("Open Accessibility Settings") {
                                 openAccessibilitySettings()
@@ -3402,7 +3660,7 @@ struct SettingsView: View {
     private var privacyCard: some View {
         settingsCard(
             title: "Privacy",
-            subtitle: "Your audio and transcriptions never leave your device.",
+            subtitle: "Speech recognition stays on your Mac. Optional network features use only text you choose.",
             icon: "hand.raised"
         ) {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
@@ -3929,6 +4187,21 @@ struct SettingsView: View {
             "Model setup is currently running."
         case .failed:
             "The last model setup attempt failed."
+        }
+    }
+
+    @ViewBuilder
+    private var microphonePermissionActionButton: some View {
+        if viewModel.microphoneStatus == .notDetermined {
+            Button("Grant Microphone Access") {
+                viewModel.requestMicrophoneAccess()
+            }
+            .parakeetAction(.primaryProminent)
+        } else {
+            Button("Open Microphone Settings") {
+                viewModel.openMicrophoneSystemSettings()
+            }
+            .parakeetAction(.primaryProminent)
         }
     }
 

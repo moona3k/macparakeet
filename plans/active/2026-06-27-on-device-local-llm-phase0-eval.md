@@ -380,9 +380,10 @@ Gemma-4-E4B (Apache) · Gemma-3-4B *(quality reference only — its custom licen
 disqualifies it as a shippable base per parent plan §5; if the Gemma cleanup style
 wins, ship the Apache-licensed Gemma-4-E4B, not Gemma-3)*. Community signal is that
 the Gemma 4B line leans terse and faithful (good for cleanup) while Qwen leans
-stronger at summarization/structuring; shipping local-dictation tools already offer
-per-scope model selection, so plan for
-the possibility that cleanup and summary want different models (#408).
+stronger at summarization/structuring. Phase 0 still bakes off **one** first-party
+default. BYO users who want cleanup and summary on different models are covered
+by ADR-032 if that routing is implemented; do not treat per-scope selection as
+a reason to ship two first-party checkpoints.
 
 ### Eval tooling
 - **promptfoo** (MIT, Ollama-native): prompt A/B, `select-best` pairwise, YAML CI gates.
@@ -443,8 +444,11 @@ untenable even with map-reduce → restructure or defer long-transcript cleanup.
    transcripts (privacy-safe, local), with ~50 fully hand-cleaned anchors?
 3. **Bake-off breadth:** evaluate all four candidate models, or start Qwen-only and
    add Gemma only if Qwen trips the fidelity gates?
-4. **Cleanup vs summary model split:** allow different models per task (#408), or
-   hold the parent plan's single-model invariant?
+4. **Cleanup vs summary model split:** closed 2026-09-14. The first-party
+   local model stays one checkpoint (parent plan §5). BYO cleanup-vs-analysis
+   routing, if added, follows [ADR-032](../../spec/adr/032-llm-task-group-routing.md)
+   (inherited task groups, not per-feature pickers). This eval does not
+   implement that routing.
 
 ---
 

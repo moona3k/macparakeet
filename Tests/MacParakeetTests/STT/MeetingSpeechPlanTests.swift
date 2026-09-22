@@ -56,4 +56,32 @@ final class MeetingSpeechPlanTests: XCTestCase {
         XCTAssertNil(plan.preview)
         XCTAssertEqual(plan.final, final)
     }
+
+    func testUserDisabledLiveTranscriptionForcesPreviewNilRegardlessOfCapabilities() {
+        let live = SpeechEngineSelection(engine: .parakeet)
+        let final = SpeechEngineSelection(engine: .cohere, language: "fr")
+
+        let plan = MeetingSpeechPlan.resolve(
+            live: live,
+            final: final,
+            liveCapabilities: SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3)),
+            liveTranscriptionEnabled: false
+        )
+
+        XCTAssertNil(plan.preview)
+        XCTAssertEqual(plan.final, final)
+    }
+
+    func testLiveTranscriptionEnabledDefaultsToTrue() {
+        let live = SpeechEngineSelection(engine: .parakeet)
+        let final = SpeechEngineSelection(engine: .parakeet)
+
+        let plan = MeetingSpeechPlan.resolve(
+            live: live,
+            final: final,
+            liveCapabilities: SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3))
+        )
+
+        XCTAssertEqual(plan.preview, live)
+    }
 }

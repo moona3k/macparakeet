@@ -312,8 +312,9 @@ public actor AudioRecorder {
             // pre-roll and engine state exactly as they found it.
             try? await Task.sleep(for: warmCaptureRefreshDebounce)
             guard !Task.isCancelled,
-                  myGeneration == warmRefreshGeneration,
-                  instantDictationEnabled else { return }
+                myGeneration == warmRefreshGeneration,
+                instantDictationEnabled
+            else { return }
         }
         warmCaptureLifecycleGeneration += 1
         preRollAcceptingSamples.withLock { $0 = false }
@@ -389,12 +390,14 @@ public actor AudioRecorder {
             throw AudioProcessorError.microphonePermissionDenied
         }
 
-        guard let outputFormat = AVAudioFormat(
-            commonFormat: .pcmFormatFloat32,
-            sampleRate: Double(Self.outputSampleRate),
-            channels: 1,
-            interleaved: false
-        ) else {
+        guard
+            let outputFormat = AVAudioFormat(
+                commonFormat: .pcmFormatFloat32,
+                sampleRate: Double(Self.outputSampleRate),
+                channels: 1,
+                interleaved: false
+            )
+        else {
             throw AudioProcessorError.recordingFailed("Failed to create output format")
         }
 
@@ -422,7 +425,8 @@ public actor AudioRecorder {
         self.sharedProcessingQueue.sync {}
         self.preRollCaptureGeneration.withLock { $0 += 1 }
         self.preRollConverterCache.reset()
-        let preRollSamples: [Float] = instantDictationEnabled
+        let preRollSamples: [Float] =
+            instantDictationEnabled
             ? self.preRollBuffer.withLock { buffer in
                 let samples = buffer.suffix(maxSamples: Self.preRollPrependSamples)
                 buffer.clear()
@@ -449,119 +453,121 @@ public actor AudioRecorder {
         let outputFormatBox = UncheckedSendableAudioFormat(outputFormat)
         let fileBox = UncheckedSendableAudioFile(file)
 
-        let processCopiedBuffer: @Sendable (
-            UncheckedSendableAudioPCMBuffer,
-            AVAudioChannelCount,
-            Bool
-        ) -> Void = { [weak self] copiedBufferBox, originalChannelCount, extractVPIOChannelZero in
-            guard let self else { return }
-            guard self.sessionGeneration.withLock({ $0 }) == tapGeneration else { return }
-            let buffer = copiedBufferBox.buffer
+        let processCopiedBuffer:
+            @Sendable (
+                UncheckedSendableAudioPCMBuffer,
+                AVAudioChannelCount,
+                Bool
+            ) -> Void = { [weak self] copiedBufferBox, originalChannelCount, extractVPIOChannelZero in
+                guard let self else { return }
+                guard self.sessionGeneration.withLock({ $0 }) == tapGeneration else { return }
+                let buffer = copiedBufferBox.buffer
 
-            guard let monoBuffer = microphoneCaptureMonoBuffer(
-                from: buffer,
-                extractVPIOChannelZero: extractVPIOChannelZero
-            ) else {
-                self.runtimeMetrics.withLock { $0.invalidFormatBufferCount += 1 }
-                return
-            }
-
-            let bufferFormat = monoBuffer.format
-            let frameCount = Int(monoBuffer.frameLength)
-            self.runtimeMetrics.withLock { metrics in
-                metrics.inputBufferCount += 1
-                metrics.inputFrameCount += frameCount
-            }
-
-            if let data = monoBuffer.floatChannelData?[0], frameCount > 0 {
-                var rms: Float = 0
-                for i in 0..<frameCount {
-                    rms += data[i] * data[i]
+                guard
+                    let monoBuffer = microphoneCaptureMonoBuffer(
+                        from: buffer,
+                        extractVPIOChannelZero: extractVPIOChannelZero
+                    )
+                else {
+                    self.runtimeMetrics.withLock { $0.invalidFormatBufferCount += 1 }
+                    return
                 }
-                rms = sqrtf(rms / Float(frameCount))
-                let normalized = min(rms * 5.0, 1.0)
-                self.atomicAudioLevel.withLock { level in
-                    level = level * 0.3 + normalized * 0.7
-                }
-                let rmsValue = rms
-                let normalizedValue = normalized
+
+                let bufferFormat = monoBuffer.format
+                let frameCount = Int(monoBuffer.frameLength)
                 self.runtimeMetrics.withLock { metrics in
-                    metrics.maxRMS = max(metrics.maxRMS, rmsValue)
-                    metrics.maxAudioLevel = max(metrics.maxAudioLevel, normalizedValue)
-                    if normalizedValue >= AudioCaptureHealth.silentInputMaximumLevel {
-                        metrics.nonSilentBufferCount += 1
+                    metrics.inputBufferCount += 1
+                    metrics.inputFrameCount += frameCount
+                }
+
+                if let data = monoBuffer.floatChannelData?[0], frameCount > 0 {
+                    var rms: Float = 0
+                    for i in 0..<frameCount {
+                        rms += data[i] * data[i]
+                    }
+                    rms = sqrtf(rms / Float(frameCount))
+                    let normalized = min(rms * 5.0, 1.0)
+                    self.atomicAudioLevel.withLock { level in
+                        level = level * 0.3 + normalized * 0.7
+                    }
+                    let rmsValue = rms
+                    let normalizedValue = normalized
+                    self.runtimeMetrics.withLock { metrics in
+                        metrics.maxRMS = max(metrics.maxRMS, rmsValue)
+                        metrics.maxAudioLevel = max(metrics.maxAudioLevel, normalizedValue)
+                        if normalizedValue >= AudioCaptureHealth.silentInputMaximumLevel {
+                            metrics.nonSilentBufferCount += 1
+                        }
+                    }
+                } else {
+                    self.runtimeMetrics.withLock {
+                        $0.missingFloatChannelDataBufferCount += 1
                     }
                 }
-            } else {
-                self.runtimeMetrics.withLock {
-                    $0.missingFloatChannelDataBufferCount += 1
-                }
-            }
 
-            let shouldLogFirstBuffer = self.firstBufferLogged.withLock { logged in
-                guard !logged else { return false }
-                logged = true
-                return true
-            }
-            if shouldLogFirstBuffer {
-                self.markFirstBufferReceivedForDiagnostics(generation: tapGeneration)
-                let sr = bufferFormat.sampleRate
-                let ch = bufferFormat.channelCount
-                let commonFormat = bufferFormat.commonFormat.rawValue
-                let interleaved = bufferFormat.isInterleaved
-                let frameLength = monoBuffer.frameLength
-                let hasFloatData = monoBuffer.floatChannelData != nil
-                Task {
-                    AudioCaptureDiagnostics.append(
+                let shouldLogFirstBuffer = self.firstBufferLogged.withLock { logged in
+                    guard !logged else { return false }
+                    logged = true
+                    return true
+                }
+                if shouldLogFirstBuffer {
+                    self.markFirstBufferReceivedForDiagnostics(generation: tapGeneration)
+                    let sr = bufferFormat.sampleRate
+                    let ch = bufferFormat.channelCount
+                    let commonFormat = bufferFormat.commonFormat.rawValue
+                    let interleaved = bufferFormat.isInterleaved
+                    let frameLength = monoBuffer.frameLength
+                    let hasFloatData = monoBuffer.floatChannelData != nil
+                    AudioCaptureDiagnostics.appendAsync(
                         "dictation_capture_first_buffer sr=\(sr) ch=\(ch) original_ch=\(originalChannelCount) common_format=\(commonFormat) interleaved=\(interleaved) frames=\(frameLength) has_float_data=\(hasFloatData)"
                     )
                 }
-            }
 
-            guard bufferFormat.sampleRate > 0, bufferFormat.channelCount > 0 else {
-                self.runtimeMetrics.withLock { $0.invalidFormatBufferCount += 1 }
-                return
-            }
+                guard bufferFormat.sampleRate > 0, bufferFormat.channelCount > 0 else {
+                    self.runtimeMetrics.withLock { $0.invalidFormatBufferCount += 1 }
+                    return
+                }
 
-            switch convertDictationBuffer(
-                monoBuffer,
-                outputFormat: outputFormatBox.format,
-                converterCache: converterCache
-            ) {
-            case .converted(let convertedBuffer):
-                guard self.sessionGeneration.withLock({ $0 }) == tapGeneration else { return }
-                do {
-                    let convertedFrameLength = Int(convertedBuffer.frameLength)
-                    try fileBox.file.write(from: convertedBuffer)
-                    self.sampleCounter.withLock { $0 += convertedFrameLength }
-                    self.runtimeMetrics.withLock { $0.outputBufferCount += 1 }
-                    if let sampleSink,
-                       convertedFrameLength > 0,
-                       let samples = convertedBuffer.floatChannelData?[0] {
-                        sampleSink.onSamples(
-                            Array(UnsafeBufferPointer(start: samples, count: convertedFrameLength))
-                        )
+                switch convertDictationBuffer(
+                    monoBuffer,
+                    outputFormat: outputFormatBox.format,
+                    converterCache: converterCache
+                ) {
+                case .converted(let convertedBuffer):
+                    guard self.sessionGeneration.withLock({ $0 }) == tapGeneration else { return }
+                    do {
+                        let convertedFrameLength = Int(convertedBuffer.frameLength)
+                        try fileBox.file.write(from: convertedBuffer)
+                        self.sampleCounter.withLock { $0 += convertedFrameLength }
+                        self.runtimeMetrics.withLock { $0.outputBufferCount += 1 }
+                        if let sampleSink,
+                            convertedFrameLength > 0,
+                            let samples = convertedBuffer.floatChannelData?[0]
+                        {
+                            sampleSink.onSamples(
+                                Array(UnsafeBufferPointer(start: samples, count: convertedFrameLength))
+                            )
+                        }
+                    } catch {
+                        let alreadyLogged = self.tapErrorLogged.withLock { logged in
+                            let was = logged; logged = true; return was
+                        }
+                        if !alreadyLogged {
+                            let errorFields = AudioCaptureDiagnostics.errorFields(error)
+                            Task { await self.logTapError("audio_write_error \(errorFields)") }
+                        }
                     }
-                } catch {
+                case .failed(let message):
                     let alreadyLogged = self.tapErrorLogged.withLock { logged in
                         let was = logged; logged = true; return was
                     }
                     if !alreadyLogged {
-                        let errorFields = AudioCaptureDiagnostics.errorFields(error)
-                        Task { await self.logTapError("audio_write_error \(errorFields)") }
+                        Task { await self.logTapError(message) }
                     }
+                case .noData:
+                    break
                 }
-            case .failed(let message):
-                let alreadyLogged = self.tapErrorLogged.withLock { logged in
-                    let was = logged; logged = true; return was
-                }
-                if !alreadyLogged {
-                    Task { await self.logTapError(message) }
-                }
-            case .noData:
-                break
             }
-        }
         let bufferHandler: SharedMicrophoneStream.BufferHandler = { [weak self] buffer, _ in
             guard let self else { return }
             guard self.sessionGeneration.withLock({ $0 }) == tapGeneration else { return }
@@ -605,7 +611,8 @@ public actor AudioRecorder {
                     throw error
                 }
 
-                let startWasCancelled = preSubscribeGeneration != self.sessionGeneration.withLock { $0 }
+                let startWasCancelled =
+                    preSubscribeGeneration != self.sessionGeneration.withLock { $0 }
                     || !self.starting
                     || self.startCallGeneration != myStartCallGeneration
                 if startWasCancelled {
@@ -761,7 +768,8 @@ public actor AudioRecorder {
         // Snapshot + reset the discard state while still in the synchronous
         // section: the trim below suspends, and a reentrant start() must see
         // clean per-session state.
-        let discardFrames = (discardPreRollRequested && preRollFramesWritten > 0)
+        let discardFrames =
+            (discardPreRollRequested && preRollFramesWritten > 0)
             ? preRollFramesWritten
             : 0
         preRollFramesWritten = 0
@@ -893,10 +901,12 @@ public actor AudioRecorder {
         let chunkFrames: AVAudioFrameCount = 16_384
         while remaining > 0 {
             let count = AVAudioFrameCount(min(AVAudioFramePosition(chunkFrames), remaining))
-            guard let buffer = AVAudioPCMBuffer(
-                pcmFormat: source.processingFormat,
-                frameCapacity: count
-            ) else {
+            guard
+                let buffer = AVAudioPCMBuffer(
+                    pcmFormat: source.processingFormat,
+                    frameCapacity: count
+                )
+            else {
                 throw AudioProcessorError.recordingFailed("Failed to allocate pre-roll trim buffer")
             }
             try source.read(into: buffer, frameCount: count)
@@ -995,11 +1005,12 @@ public actor AudioRecorder {
         format: AVAudioFormat
     ) throws {
         guard !samples.isEmpty,
-              let buffer = AVAudioPCMBuffer(
-                  pcmFormat: format,
-                  frameCapacity: AVAudioFrameCount(samples.count)
-              ),
-              let destination = buffer.floatChannelData?[0] else {
+            let buffer = AVAudioPCMBuffer(
+                pcmFormat: format,
+                frameCapacity: AVAudioFrameCount(samples.count)
+            ),
+            let destination = buffer.floatChannelData?[0]
+        else {
             return
         }
 
@@ -1021,7 +1032,8 @@ public actor AudioRecorder {
 
     private func startWarmCaptureIfNeeded() async {
         guard instantDictationEnabled,
-              warmSubscriberToken == nil else { return }
+            warmSubscriberToken == nil
+        else { return }
         if warmCaptureStartInFlight {
             warmCaptureStartPending = true
             return
@@ -1086,8 +1098,9 @@ public actor AudioRecorder {
                 handler: bufferHandler
             )
             guard instantDictationEnabled,
-                  lifecycleGeneration == warmCaptureLifecycleGeneration,
-                  warmSubscriberToken == nil else {
+                lifecycleGeneration == warmCaptureLifecycleGeneration,
+                warmSubscriberToken == nil
+            else {
                 preRollAcceptingSamples.withLock { $0 = false }
                 preRollCaptureGeneration.withLock { $0 += 1 }
                 sharedProcessingQueue.sync {}
@@ -1135,16 +1148,20 @@ public actor AudioRecorder {
         extractVPIOChannelZero: Bool
     ) {
         guard preRollCaptureGeneration.withLock({ $0 }) == generation else { return }
-        guard let monoBuffer = microphoneCaptureMonoBuffer(
-            from: buffer,
-            extractVPIOChannelZero: extractVPIOChannelZero
-        ) else { return }
+        guard
+            let monoBuffer = microphoneCaptureMonoBuffer(
+                from: buffer,
+                extractVPIOChannelZero: extractVPIOChannelZero
+            )
+        else { return }
         guard monoBuffer.format.sampleRate > 0, monoBuffer.format.channelCount > 0 else { return }
-        guard case .converted(let convertedBuffer) = convertDictationBuffer(
-            monoBuffer,
-            outputFormat: Self.preRollOutputFormatBox.format,
-            converterCache: preRollConverterCache
-        ) else {
+        guard
+            case .converted(let convertedBuffer) = convertDictationBuffer(
+                monoBuffer,
+                outputFormat: Self.preRollOutputFormatBox.format,
+                converterCache: preRollConverterCache
+            )
+        else {
             return
         }
         let frameCount = Int(convertedBuffer.frameLength)
@@ -1159,7 +1176,8 @@ public actor AudioRecorder {
 
     private static func fileSizeBytes(at url: URL) -> UInt64? {
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
-              let size = attributes[.size] as? UInt64 else {
+            let size = attributes[.size] as? UInt64
+        else {
             return nil
         }
         return size
@@ -1292,6 +1310,10 @@ private func convertDictationBuffer(
         incomingBufferFormat: bufferFormat
     ) {
         converterCache.converter = AVAudioConverter(from: bufferFormat, to: outputFormat)
+        // Dictation supplies live chunks and cannot provide the converter's
+        // requested read-ahead frames. Apple's real-time mode avoids treating
+        // those unavailable trailing frames as a reason to withhold output.
+        converterCache.converter?.primeMethod = .none
         converterCache.sourceFormat = bufferFormat
     }
     guard let converter = converterCache.converter else {
@@ -1304,10 +1326,11 @@ private func convertDictationBuffer(
         ceil(Double(monoBuffer.frameLength) * outputFormat.sampleRate / bufferFormat.sampleRate)
     )
     guard outputFrameCapacity > 0,
-          let convertedBuffer = AVAudioPCMBuffer(
-              pcmFormat: outputFormat,
-              frameCapacity: outputFrameCapacity
-          ) else {
+        let convertedBuffer = AVAudioPCMBuffer(
+            pcmFormat: outputFormat,
+            frameCapacity: outputFrameCapacity
+        )
+    else {
         return .noData
     }
 
@@ -1334,7 +1357,13 @@ private func convertDictationBuffer(
     case .error:
         let errorFields = error.map(AudioCaptureDiagnostics.errorFields) ?? "error_type=unknown"
         return .failed("converter_error \(errorFields)")
-    case .endOfStream, .inputRanDry:
+    case .inputRanDry:
+        // A stateful sample-rate converter can consume the complete input
+        // chunk and return valid partial output without filling the requested
+        // destination capacity. This is common for AirPods' 24 kHz input.
+        // Discarding that partial buffer drops roughly one third of speech.
+        return convertedBuffer.frameLength > 0 ? .converted(convertedBuffer) : .noData
+    case .endOfStream:
         return .noData
     @unknown default:
         return .noData
@@ -1369,18 +1398,22 @@ func extractChannelZero(from buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
     if inputFormat.isInterleaved {
         return buffer
     }
-    guard let monoFormat = AVAudioFormat(
-        commonFormat: inputFormat.commonFormat,
-        sampleRate: inputFormat.sampleRate,
-        channels: 1,
-        interleaved: false
-    ) else {
+    guard
+        let monoFormat = AVAudioFormat(
+            commonFormat: inputFormat.commonFormat,
+            sampleRate: inputFormat.sampleRate,
+            channels: 1,
+            interleaved: false
+        )
+    else {
         return nil
     }
-    guard let extracted = AVAudioPCMBuffer(
-        pcmFormat: monoFormat,
-        frameCapacity: buffer.frameCapacity
-    ) else {
+    guard
+        let extracted = AVAudioPCMBuffer(
+            pcmFormat: monoFormat,
+            frameCapacity: buffer.frameCapacity
+        )
+    else {
         return nil
     }
     extracted.frameLength = buffer.frameLength
@@ -1423,17 +1456,19 @@ func downmixChannelsToMono(from buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
         return buffer
     }
 
-    guard let monoFormat = AVAudioFormat(
-        commonFormat: .pcmFormatFloat32,
-        sampleRate: inputFormat.sampleRate,
-        channels: 1,
-        interleaved: false
-    ),
+    guard
+        let monoFormat = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: inputFormat.sampleRate,
+            channels: 1,
+            interleaved: false
+        ),
         let mixed = AVAudioPCMBuffer(
             pcmFormat: monoFormat,
             frameCapacity: buffer.frameCapacity
         ),
-        let destination = mixed.floatChannelData?[0] else {
+        let destination = mixed.floatChannelData?[0]
+    else {
         return nil
     }
 
@@ -1443,26 +1478,32 @@ func downmixChannelsToMono(from buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
 
     switch inputFormat.commonFormat {
     case .pcmFormatFloat32:
-        guard fillDownmixedFloat32(
-            from: buffer,
-            channelCount: channelCount,
-            frameCount: frameCount,
-            destination: destination
-        ) else { return nil }
+        guard
+            fillDownmixedFloat32(
+                from: buffer,
+                channelCount: channelCount,
+                frameCount: frameCount,
+                destination: destination
+            )
+        else { return nil }
     case .pcmFormatInt16:
-        guard fillDownmixedInt16(
-            from: buffer,
-            channelCount: channelCount,
-            frameCount: frameCount,
-            destination: destination
-        ) else { return nil }
+        guard
+            fillDownmixedInt16(
+                from: buffer,
+                channelCount: channelCount,
+                frameCount: frameCount,
+                destination: destination
+            )
+        else { return nil }
     case .pcmFormatInt32:
-        guard fillDownmixedInt32(
-            from: buffer,
-            channelCount: channelCount,
-            frameCount: frameCount,
-            destination: destination
-        ) else { return nil }
+        guard
+            fillDownmixedInt32(
+                from: buffer,
+                channelCount: channelCount,
+                frameCount: frameCount,
+                destination: destination
+            )
+        else { return nil }
     default:
         return nil
     }
@@ -1480,24 +1521,16 @@ private func fillDownmixedFloat32(
         let audioBuffer = buffer.audioBufferList.pointee.mBuffers
         guard let sourceData = audioBuffer.mData else { return false }
         let source = sourceData.assumingMemoryBound(to: Float.self)
-        for frameIndex in 0..<frameCount {
-            var sum: Float = 0
-            for channelIndex in 0..<channelCount {
-                sum += source[(frameIndex * channelCount) + channelIndex]
-            }
-            destination[frameIndex] = sum / Float(channelCount)
-        }
+        fillDownmixedSamples(
+            channelCount: channelCount, frameCount: frameCount, destination: destination
+        ) { frame, channel in Double(source[frame * channelCount + channel]) }
         return true
     }
 
     guard let source = buffer.floatChannelData else { return false }
-    for frameIndex in 0..<frameCount {
-        var sum: Float = 0
-        for channelIndex in 0..<channelCount {
-            sum += source[channelIndex][frameIndex]
-        }
-        destination[frameIndex] = sum / Float(channelCount)
-    }
+    fillDownmixedSamples(
+        channelCount: channelCount, frameCount: frameCount, destination: destination
+    ) { frame, channel in Double(source[channel][frame]) }
     return true
 }
 
@@ -1511,24 +1544,18 @@ private func fillDownmixedInt16(
         let audioBuffer = buffer.audioBufferList.pointee.mBuffers
         guard let sourceData = audioBuffer.mData else { return false }
         let source = sourceData.assumingMemoryBound(to: Int16.self)
-        for frameIndex in 0..<frameCount {
-            var sum: Float = 0
-            for channelIndex in 0..<channelCount {
-                sum += Float(source[(frameIndex * channelCount) + channelIndex]) / Float(Int16.max)
-            }
-            destination[frameIndex] = sum / Float(channelCount)
-        }
+        fillDownmixedSamples(
+            channelCount: channelCount, frameCount: frameCount, destination: destination,
+            normalization: Float(Int16.max)
+        ) { frame, channel in Double(source[frame * channelCount + channel]) }
         return true
     }
 
     guard let source = buffer.int16ChannelData else { return false }
-    for frameIndex in 0..<frameCount {
-        var sum: Float = 0
-        for channelIndex in 0..<channelCount {
-            sum += Float(source[channelIndex][frameIndex]) / Float(Int16.max)
-        }
-        destination[frameIndex] = sum / Float(channelCount)
-    }
+    fillDownmixedSamples(
+        channelCount: channelCount, frameCount: frameCount, destination: destination,
+        normalization: Float(Int16.max)
+    ) { frame, channel in Double(source[channel][frame]) }
     return true
 }
 
@@ -1542,35 +1569,78 @@ private func fillDownmixedInt32(
         let audioBuffer = buffer.audioBufferList.pointee.mBuffers
         guard let sourceData = audioBuffer.mData else { return false }
         let source = sourceData.assumingMemoryBound(to: Int32.self)
-        for frameIndex in 0..<frameCount {
-            var sum: Float = 0
-            for channelIndex in 0..<channelCount {
-                sum += Float(source[(frameIndex * channelCount) + channelIndex]) / Float(Int32.max)
-            }
-            destination[frameIndex] = sum / Float(channelCount)
-        }
+        fillDownmixedSamples(
+            channelCount: channelCount, frameCount: frameCount, destination: destination,
+            normalization: Float(Int32.max)
+        ) { frame, channel in Double(source[frame * channelCount + channel]) }
         return true
     }
 
     guard let source = buffer.int32ChannelData else { return false }
-    for frameIndex in 0..<frameCount {
-        var sum: Float = 0
-        for channelIndex in 0..<channelCount {
-            sum += Float(source[channelIndex][frameIndex]) / Float(Int32.max)
-        }
-        destination[frameIndex] = sum / Float(channelCount)
-    }
+    fillDownmixedSamples(
+        channelCount: channelCount, frameCount: frameCount, destination: destination,
+        normalization: Float(Int32.max)
+    ) { frame, channel in Double(source[channel][frame]) }
     return true
+}
+
+/// Preserve the ordinary mean unless the whole buffer destructively cancels.
+/// One dominant channel then supplies every frame, never nonlinear sample switching.
+@inline(__always)
+private func fillDownmixedSamples(
+    channelCount: Int,
+    frameCount: Int,
+    destination: UnsafeMutablePointer<Float>,
+    normalization: Float = 1,
+    sample: (Int, Int) -> Double
+) {
+    var inputEnergy = 0.0
+    var summedEnergy = 0.0
+    for frame in 0..<frameCount {
+        var sum: Float = 0
+        var energySum = 0.0
+        for channel in 0..<channelCount {
+            let value = sample(frame, channel)
+            sum += Float(value) / normalization
+            energySum += value
+            inputEnergy += value * value
+        }
+        destination[frame] = sum / Float(channelCount)
+        summedEnergy += energySum * energySum
+    }
+    guard inputEnergy > 0, inputEnergy.isFinite, summedEnergy.isFinite,
+        summedEnergy < 0.25 * inputEnergy
+    else { return }
+
+    // Only cancellation needs another scan; no channel-energy scratch buffer.
+    var dominantChannel = 0
+    var dominantEnergy = -1.0
+    for channel in 0..<channelCount {
+        var energy = 0.0
+        for frame in 0..<frameCount {
+            let value = sample(frame, channel)
+            energy += value * value
+        }
+        if energy > dominantEnergy {
+            dominantChannel = channel
+            dominantEnergy = energy
+        }
+    }
+    for frame in 0..<frameCount {
+        destination[frame] = Float(sample(frame, dominantChannel)) / normalization
+    }
 }
 
 /// Copies a tap buffer so heavier processing can happen off the audio render
 /// thread while respecting `SharedMicrophoneStream`'s synchronous buffer
 /// lifetime contract.
 func copyPCMBufferForAsyncUse(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
-    guard let copy = AVAudioPCMBuffer(
-        pcmFormat: buffer.format,
-        frameCapacity: max(buffer.frameLength, 1)
-    ) else {
+    guard
+        let copy = AVAudioPCMBuffer(
+            pcmFormat: buffer.format,
+            frameCapacity: max(buffer.frameLength, 1)
+        )
+    else {
         return nil
     }
     copy.frameLength = buffer.frameLength
@@ -1584,7 +1654,8 @@ func copyPCMBufferForAsyncUse(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
         let byteCount = min(Int(source.mDataByteSize), Int(destination.mDataByteSize))
         guard byteCount > 0 else { return copy }
         guard let sourceData = source.mData,
-              let destinationData = destination.mData else {
+            let destinationData = destination.mData
+        else {
             return nil
         }
         destinationData.copyMemory(from: sourceData, byteCount: byteCount)

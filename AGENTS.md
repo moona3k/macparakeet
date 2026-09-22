@@ -43,6 +43,21 @@ swift run macparakeet-cli --help
 swift run macparakeet-cli health
 ```
 
+For a testable GUI build, use `scripts/dev/run_app.sh` instead of copying its
+`xcodebuild` command by hand. `SwiftStreamingMarkdown` depends transitively on
+the `EquatableMacros` plugin, so Xcode builds must keep
+`-skipMacroValidation`; otherwise dependency resolution stops with
+`Macro “EquatableMacros” ... must be enabled before it can be used`. The dev
+script owns this flag. Do not install another Markdown renderer or edit the
+package checkout to work around the error. The script must confirm this worktree’s replaced dev executables have exited
+before it rebuilds or re-signs their bundle; preserve unrelated app instances.
+Re-signing a bundle in place while macOS is executing it can cause a delayed
+`SIGKILL (Code Signature Invalid)` when a menu or sheet loads another page.
+
+For UI verification, use Playwright for browser pages and web views. For the
+native macOS app, use Xcode/XCUITest or the system Accessibility and screenshot
+tools directly. Do not use Orca computer-use in this repository.
+
 Iterate on focused tests ONLY (`swift test --filter <AreaTests>` for the
 areas the diff touches). Run the full `swift test` suite AT MOST ONCE per
 task, as the final gate before declaring code-change work complete — never
@@ -84,8 +99,8 @@ This repo often has many parallel worktrees.
 - UI buttons use `.parakeetAction(...)`; do not tint whole hosting roots coral.
 
 When editing a load-bearing Core subsystem, read its local README before code:
-`Audio/`, `STT/`, `TextProcessing/`, `Database/`, `Licensing/`, and
-`Services/System/` currently have subsystem rules.
+`Audio/`, `STT/`, `TextProcessing/`, `Database/`, `Licensing/`, `Calendar/`,
+and `Services/System/` currently have subsystem rules.
 
 ## Product Rules
 
@@ -150,7 +165,8 @@ with the documented PR workflow and say so in the handoff or PR notes.
 
 Commit messages should help a future reader understand the change. The rich
 format in [`docs/commit-guidelines.md`](./docs/commit-guidelines.md) is a tool
-for significant work, not ceremony for every typo.
+for significant work, not ceremony for every typo. Do not add Cursor or other
+assistant `Co-authored-by` trailers.
 
 ## Where To Look
 
@@ -162,7 +178,15 @@ for significant work, not ceremony for every typo.
 - Testing strategy: [`spec/09-testing.md`](./spec/09-testing.md)
 - Agent working method: [`spec/10-ai-coding-method.md`](./spec/10-ai-coding-method.md)
 - Agent memory governance: [`docs/agent-memory-governance.md`](./docs/agent-memory-governance.md)
+- Documented solutions: [`docs/solutions/`](./docs/solutions/) -- categorized
+  learnings with `module`, `tags`, and `problem_type` frontmatter, relevant when
+  implementing, debugging, or making decisions in covered areas.
 - Agent instruction research: [`docs/research/coding-agent-instructions-2026-06.md`](./docs/research/coding-agent-instructions-2026-06.md)
 - Active/completed plans: [`plans/README.md`](./plans/README.md)
 - Distribution/release steps: [`docs/distribution.md`](./docs/distribution.md)
 - CLI automation contract: [`integrations/README.md`](./integrations/README.md)
+- Human-readable PR/issue walkthroughs: publish self-contained HTML at
+  `https://macparakeet.com/dev/pr/<number>` or
+  `/dev/issue/<number>`. Conventions live in the website repo
+  [`public/dev/README.md`](https://github.com/moona3k/macparakeet-website/blob/main/public/dev/README.md).
+  Link the live URL from the GitHub thread. Skip for typos and one-line fixes.

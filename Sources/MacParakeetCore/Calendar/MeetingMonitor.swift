@@ -23,6 +23,18 @@ public enum MeetingMonitor {
         case lateJoinAvailable(CalendarEvent)
     }
 
+    public struct CalendarCandidate: Equatable, Sendable {
+        public var event: CalendarEvent
+        public var skipScope: CalendarSkipScope?
+
+        public var isSkipped: Bool { skipScope != nil }
+
+        public init(event: CalendarEvent, skipScope: CalendarSkipScope?) {
+            self.event = event
+            self.skipScope = skipScope
+        }
+    }
+
     public struct Config: Codable, Sendable, Equatable {
         public var mode: CalendarAutoStartMode
         /// 0 disables the reminder. Typical values: 1, 5, 10.
@@ -32,50 +44,79 @@ public enum MeetingMonitor {
         public var countdownSeconds: Int
         public var triggerFilter: MeetingTriggerFilter
         public var lateJoinGraceMinutes: Int
+        public var excludedCalendarIdentifiers: Set<String>
+        public var skippedOccurrences: Set<String>
+        public var skippedEvents: Set<String>
 
         public init(
             mode: CalendarAutoStartMode = .notify,
             reminderMinutes: Int = 5,
             countdownSeconds: Int = 5,
             triggerFilter: MeetingTriggerFilter = .withLink,
-            lateJoinGraceMinutes: Int = 10
+            lateJoinGraceMinutes: Int = 10,
+            excludedCalendarIdentifiers: Set<String> = [],
+            skippedOccurrences: Set<String> = [],
+            skippedEvents: Set<String> = []
         ) {
             self.mode = mode
             self.reminderMinutes = reminderMinutes
             self.countdownSeconds = countdownSeconds
             self.triggerFilter = triggerFilter
             self.lateJoinGraceMinutes = lateJoinGraceMinutes
+            self.excludedCalendarIdentifiers = excludedCalendarIdentifiers
+            self.skippedOccurrences = skippedOccurrences
+            self.skippedEvents = skippedEvents
         }
 
         public static let `default` = Config()
     }
 
-    /// Evaluate calendar events and return any pending monitor events.
+    /// Shared candidate filter for Upcoming and the coordinator. Skipped
+    /// events stay in the list and are annotated. Fail open when
+    /// `calendarIdentifier` is missing.
+    public static func candidates(
+        events: [CalendarEvent],
+        config: Config
+    ) -> [CalendarCandidate] {
+        events.compactMap { event in
+            guard !event.isAllDay else { return nil }
+            guard event.userStatus != .declined else { return nil }
+            if let identifier = event.calendarIdentifier,
+               config.excludedCalendarIdentifiers.contains(identifier)
+            {
+                return nil
+            }
+            guard passesTriggerFilter(event, filter: config.triggerFilter) else { return nil }
+            let skipScope = CalendarSkip.matches(
+                event,
+                occurrences: config.skippedOccurrences,
+                events: config.skippedEvents
+            )
+            return CalendarCandidate(event: event, skipScope: skipScope)
+        }
+    }
+
+    /// Evaluate candidates and return any pending monitor events.
     /// Pure function — all state passed in, no side effects.
     ///
-    /// The three suppression sets hold `CalendarEvent.dedupeKey` values (id +
+    /// The two suppression sets hold `CalendarEvent.dedupeKey` values (id +
     /// start time), not bare ids — so a rescheduled occurrence re-fires.
     public static func evaluate(
-        events: [CalendarEvent],
+        candidates: [CalendarCandidate],
         now: Date,
         config: Config,
         activeRecording: Bool,
-        dismissedEventIds: Set<String>,
         remindedEventIds: Set<String>,
         countdownShownEventIds: Set<String>
     ) -> [MonitorEvent] {
         guard config.mode != .off else { return [] }
 
-        let candidates = events.filter { event in
-            guard !event.isAllDay else { return false }
-            guard event.userStatus != .declined else { return false }
-            guard !dismissedEventIds.contains(event.dedupeKey) else { return false }
-            return passesTriggerFilter(event, filter: config.triggerFilter)
-        }
-
         var result: [MonitorEvent] = []
 
-        for event in candidates {
+        for candidate in candidates {
+            guard !candidate.isSkipped else { continue }
+            let event = candidate.event
+
             if config.reminderMinutes > 0 && !remindedEventIds.contains(event.dedupeKey) {
                 let reminderTime = event.startTime.addingTimeInterval(-Double(config.reminderMinutes * 60))
                 let reminderWindowEnd = reminderTime.addingTimeInterval(90)
@@ -108,6 +149,24 @@ public enum MeetingMonitor {
         }
 
         return result
+    }
+
+    public static func evaluate(
+        events: [CalendarEvent],
+        now: Date,
+        config: Config,
+        activeRecording: Bool,
+        remindedEventIds: Set<String>,
+        countdownShownEventIds: Set<String>
+    ) -> [MonitorEvent] {
+        evaluate(
+            candidates: candidates(events: events, config: config),
+            now: now,
+            config: config,
+            activeRecording: activeRecording,
+            remindedEventIds: remindedEventIds,
+            countdownShownEventIds: countdownShownEventIds
+        )
     }
 
     /// Whether an event is eligible for *auto-start* (and late-join) based on

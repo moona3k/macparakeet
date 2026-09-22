@@ -1,0 +1,399 @@
+{
+  "createdAt": "2026-09-07T22:30:03Z",
+  "derivedSnippet": "You will find me continually speaking of four men, Titian, Holbein, Turner, and Tintaret, in almost the same terms.",
+  "derivedTitle": "He hoped there would be stew for dinner, turnips and carrots and bruised…",
+  "diarizationSegments": [
+    {
+      "endMs": 10119,
+      "speakerId": "S1",
+      "startMs": 0
+    },
+    {
+      "endMs": 22122,
+      "speakerId": "S2",
+      "startMs": 12462
+    }
+  ],
+  "durationMs": 22660,
+  "engine": "parakeet",
+  "engineVariant": "v3",
+  "fileName": "two-public-speakers.wav",
+  "filePath": "<QA_ROOT>/file-audio-runtime/two-public-speakers.wav",
+  "fileSizeBytes": 725198,
+  "id": "217B1315-3B30-41B0-A101-27AD9A6D8A47",
+  "isFavorite": false,
+  "isTranscriptEdited": false,
+  "language": "en",
+  "rawTranscript": "He hoped there would be stew for dinner, turnips and carrots and bruised potatoes and fat mutton pieces to be ladled out in thick, peppered, flour fattened sauce. You will find me continually speaking of four men, Titian, Holbein, Turner, and Tintaret, in almost the same terms.",
+  "recoveredFromCrash": false,
+  "sourceType": "file",
+  "speakerCount": 2,
+  "speakers": [
+    {
+      "id": "S1",
+      "label": "Speaker 1"
+    },
+    {
+      "id": "S2",
+      "label": "Speaker 2"
+    }
+  ],
+  "status": "completed",
+  "transcriptSegments": [
+    {
+      "endMs": 12320,
+      "id": "F7F200BF-9438-4F15-A5E8-55C61951606D",
+      "speakerId": "S1",
+      "speakerLabel": "Speaker 1",
+      "startMs": 240,
+      "text": "He hoped there would be stew for dinner, turnips and carrots and bruised potatoes and fat mutton pieces to be ladled out in thick, peppered, flour fattened sauce. You",
+      "wordRange": {
+        "endIndexExclusive": 29,
+        "startIndex": 0
+      }
+    },
+    {
+      "endMs": 22400,
+      "id": "E7E47CFA-CBAB-4D25-8D25-82386E6D8CD7",
+      "speakerId": "S2",
+      "speakerLabel": "Speaker 2",
+      "startMs": 12400,
+      "text": "will find me continually speaking of four men, Titian, Holbein, Turner, and Tintaret, in almost the same terms.",
+      "wordRange": {
+        "endIndexExclusive": 47,
+        "startIndex": 29
+      }
+    }
+  ],
+  "updatedAt": "2026-09-07T22:30:31Z",
+  "wordTimestamps": [
+    {
+      "confidence": 0.9599609375,
+      "endMs": 400,
+      "speakerId": "S1",
+      "startMs": 240,
+      "word": "He"
+    },
+    {
+      "confidence": 0.9998372197151184,
+      "endMs": 880,
+      "speakerId": "S1",
+      "startMs": 400,
+      "word": "hoped"
+    },
+    {
+      "confidence": 0.9951171875,
+      "endMs": 1040,
+      "speakerId": "S1",
+      "startMs": 880,
+      "word": "there"
+    },
+    {
+      "confidence": 1,
+      "endMs": 1200,
+      "speakerId": "S1",
+      "startMs": 1040,
+      "word": "would"
+    },
+    {
+      "confidence": 1,
+      "endMs": 1360,
+      "speakerId": "S1",
+      "startMs": 1200,
+      "word": "be"
+    },
+    {
+      "confidence": 0.998291015625,
+      "endMs": 1840,
+      "speakerId": "S1",
+      "startMs": 1360,
+      "word": "stew"
+    },
+    {
+      "confidence": 0.99951171875,
+      "endMs": 1920,
+      "speakerId": "S1",
+      "startMs": 1840,
+      "word": "for"
+    },
+    {
+      "confidence": 0.9674479365348816,
+      "endMs": 2400,
+      "speakerId": "S1",
+      "startMs": 1920,
+      "word": "dinner,"
+    },
+    {
+      "confidence": 0.9986979365348816,
+      "endMs": 2960,
+      "speakerId": "S1",
+      "startMs": 2400,
+      "word": "turnips"
+    },
+    {
+      "confidence": 0.9990234375,
+      "endMs": 3200,
+      "speakerId": "S1",
+      "startMs": 3040,
+      "word": "and"
+    },
+    {
+      "confidence": 1,
+      "endMs": 3600,
+      "speakerId": "S1",
+      "startMs": 3200,
+      "word": "carrots"
+    },
+    {
+      "confidence": 0.99951171875,
+      "endMs": 3920,
+      "speakerId": "S1",
+      "startMs": 3680,
+      "word": "and"
+    },
+    {
+      "confidence": 0.999755859375,
+      "endMs": 4320,
+      "speakerId": "S1",
+      "startMs": 3920,
+      "word": "bruised"
+    },
+    {
+      "confidence": 0.9998372197151184,
+      "endMs": 4880,
+      "speakerId": "S1",
+      "startMs": 4400,
+      "word": "potatoes"
+    },
+    {
+      "confidence": 0.99951171875,
+      "endMs": 5200,
+      "speakerId": "S1",
+      "startMs": 4960,
+      "word": "and"
+    },
+    {
+      "confidence": 1,
+      "endMs": 5520,
+      "speakerId": "S1",
+      "startMs": 5200,
+      "word": "fat"
+    },
+    {
+      "confidence": 0.9998372197151184,
+      "endMs": 6000,
+      "speakerId": "S1",
+      "startMs": 5520,
+      "word": "mutton"
+    },
+    {
+      "confidence": 0.99267578125,
+      "endMs": 6400,
+      "speakerId": "S1",
+      "startMs": 6000,
+      "word": "pieces"
+    },
+    {
+      "confidence": 1,
+      "endMs": 6560,
+      "speakerId": "S1",
+      "startMs": 6400,
+      "word": "to"
+    },
+    {
+      "confidence": 0.99951171875,
+      "endMs": 6720,
+      "speakerId": "S1",
+      "startMs": 6560,
+      "word": "be"
+    },
+    {
+      "confidence": 0.9873046875,
+      "endMs": 7200,
+      "speakerId": "S1",
+      "startMs": 6720,
+      "word": "ladled"
+    },
+    {
+      "confidence": 1,
+      "endMs": 7440,
+      "speakerId": "S1",
+      "startMs": 7280,
+      "word": "out"
+    },
+    {
+      "confidence": 0.9990234375,
+      "endMs": 7680,
+      "speakerId": "S1",
+      "startMs": 7440,
+      "word": "in"
+    },
+    {
+      "confidence": 0.88330078125,
+      "endMs": 8080,
+      "speakerId": "S1",
+      "startMs": 7680,
+      "word": "thick,"
+    },
+    {
+      "confidence": 0.948974609375,
+      "endMs": 8640,
+      "speakerId": "S1",
+      "startMs": 8080,
+      "word": "peppered,"
+    },
+    {
+      "confidence": 0.9736328125,
+      "endMs": 8960,
+      "speakerId": "S1",
+      "startMs": 8640,
+      "word": "flour"
+    },
+    {
+      "confidence": 0.9845377802848816,
+      "endMs": 9600,
+      "speakerId": "S1",
+      "startMs": 9040,
+      "word": "fattened"
+    },
+    {
+      "confidence": 0.98046875,
+      "endMs": 12160,
+      "speakerId": "S1",
+      "startMs": 9760,
+      "word": "sauce."
+    },
+    {
+      "confidence": 0.78662109375,
+      "endMs": 12320,
+      "startMs": 12160,
+      "word": "You"
+    },
+    {
+      "confidence": 0.99951171875,
+      "endMs": 12640,
+      "speakerId": "S2",
+      "startMs": 12400,
+      "word": "will"
+    },
+    {
+      "confidence": 1,
+      "endMs": 12960,
+      "speakerId": "S2",
+      "startMs": 12640,
+      "word": "find"
+    },
+    {
+      "confidence": 0.99853515625,
+      "endMs": 13120,
+      "speakerId": "S2",
+      "startMs": 12960,
+      "word": "me"
+    },
+    {
+      "confidence": 0.999267578125,
+      "endMs": 13600,
+      "speakerId": "S2",
+      "startMs": 13120,
+      "word": "continually"
+    },
+    {
+      "confidence": 0.99951171875,
+      "endMs": 14000,
+      "speakerId": "S2",
+      "startMs": 13600,
+      "word": "speaking"
+    },
+    {
+      "confidence": 0.9990234375,
+      "endMs": 14160,
+      "speakerId": "S2",
+      "startMs": 14000,
+      "word": "of"
+    },
+    {
+      "confidence": 0.992431640625,
+      "endMs": 14480,
+      "speakerId": "S2",
+      "startMs": 14160,
+      "word": "four"
+    },
+    {
+      "confidence": 0.75,
+      "endMs": 15520,
+      "speakerId": "S2",
+      "startMs": 14480,
+      "word": "men,"
+    },
+    {
+      "confidence": 0.9906005859375,
+      "endMs": 16800,
+      "speakerId": "S2",
+      "startMs": 15520,
+      "word": "Titian,"
+    },
+    {
+      "confidence": 0.9638671875,
+      "endMs": 17680,
+      "speakerId": "S2",
+      "startMs": 16800,
+      "word": "Holbein,"
+    },
+    {
+      "confidence": 0.9781901240348816,
+      "endMs": 18480,
+      "speakerId": "S2",
+      "startMs": 17680,
+      "word": "Turner,"
+    },
+    {
+      "confidence": 0.998046875,
+      "endMs": 18720,
+      "speakerId": "S2",
+      "startMs": 18480,
+      "word": "and"
+    },
+    {
+      "confidence": 0.7176269292831421,
+      "endMs": 20320,
+      "speakerId": "S2",
+      "startMs": 18720,
+      "word": "Tintaret,"
+    },
+    {
+      "confidence": 0.9970703125,
+      "endMs": 20560,
+      "speakerId": "S2",
+      "startMs": 20320,
+      "word": "in"
+    },
+    {
+      "confidence": 0.9996744990348816,
+      "endMs": 20960,
+      "speakerId": "S2",
+      "startMs": 20560,
+      "word": "almost"
+    },
+    {
+      "confidence": 0.9970703125,
+      "endMs": 21120,
+      "speakerId": "S2",
+      "startMs": 20960,
+      "word": "the"
+    },
+    {
+      "confidence": 0.99951171875,
+      "endMs": 21600,
+      "speakerId": "S2",
+      "startMs": 21120,
+      "word": "same"
+    },
+    {
+      "confidence": 0.9599609375,
+      "endMs": 22400,
+      "speakerId": "S2",
+      "startMs": 21600,
+      "word": "terms."
+    }
+  ]
+}

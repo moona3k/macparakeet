@@ -4,6 +4,10 @@ import PackageDescription
 import Foundation
 
 let skipWhisperKit = ProcessInfo.processInfo.environment["MACPARAKEET_SKIP_WHISPERKIT"] == "1"
+// The existing no-WhisperKit mode is the repository's first-party Swift 6
+// compatibility build. Omit the Swift 5-only Markdown dependency graph there
+// as well; normal release, concurrency, and test builds still compile it.
+let skipStreamingMarkdown = skipWhisperKit
 let enableMLXLocalLLM = ProcessInfo.processInfo.environment["MACPARAKEET_ENABLE_MLX_LOCAL_LLM"] == "1"
 let transcribeCppPackagePath =
     ProcessInfo.processInfo.environment["MACPARAKEET_TRANSCRIBE_CPP_PACKAGE_PATH"]?
@@ -11,13 +15,29 @@ let transcribeCppPackagePath =
 let enableTranscribeCpp =
     transcribeCppPackagePath?.isEmpty == false
 
+let streamingMarkdownPackageDependencies: [Package.Dependency] = skipStreamingMarkdown ? [] : [
+    // Shared SwiftUI renderer for static and streaming LLM Markdown output.
+    // v0.7.0 transitively pins two dependencies by revision, so SwiftPM rejects
+    // the stable-version requirement. The fork removes one trailing argument
+    // comma that Swift 6.0 / Xcode 16.1 cannot parse and restores selectable
+    // macOS table cells with named actions. Keep these fixes immutably pinned.
+    .package(
+        url: "https://github.com/alfred-sa/SwiftStreamingMarkdown",
+        revision: "1f10d5286985349b63145e1193f4f6ad5f7fdfe1"
+    )
+]
+
 var packageDependencies: [Package.Dependency] = [
     // GRDB for SQLite (dictation history + transcription records)
     .package(url: "https://github.com/groue/GRDB.swift", from: "7.0.0"),
-    // FluidAudio for Parakeet and Nemotron STT on CoreML/ANE. Keep this exact
-    // until MacParakeet migrates from DownloadUtils to the ModelHub API that
-    // replaced it in the breaking 0.15.5 release.
-    .package(url: "https://github.com/FluidInference/FluidAudio", exact: "0.15.4"),
+    // FluidAudio for Parakeet and Nemotron STT plus offline speaker
+    // diarization on CoreML/ANE. Pinned exact: the STT engines depend on the
+    // registry's model file names and the ModelHub download API, and the
+    // diarizer's clustering semantics changed between minor releases
+    // (0.15.5 / 0.15.6 clustering, 0.15.7 speaker-cap dual-census / FluidAudio
+    // #891; see ADR-010). Bump deliberately with an STT regression pass and a
+    // diarization before/after comparison.
+    .package(url: "https://github.com/FluidInference/FluidAudio", exact: "0.15.7"),
     // ArgumentParser for CLI
     .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
     // Sparkle for auto-updates (non-App Store distribution)
@@ -39,7 +59,7 @@ if let transcribeCppPackagePath, enableTranscribeCpp {
     )
 }
 
-packageDependencies += (enableMLXLocalLLM ? [
+packageDependencies += streamingMarkdownPackageDependencies + (enableMLXLocalLLM ? [
     // Opt-in only. mlx-swift-lm currently needs Swift tools 6.1 and Xcode-built
     // Metal shaders, so plain `swift build` / `swift test` / CI must not resolve it.
     .package(url: "https://github.com/ml-explore/mlx-swift-lm", exact: "3.31.4"),
@@ -81,11 +101,14 @@ let coreSwiftSettings = whisperKitSwiftSettings + transcribeCppSwiftSettings
 let testSwiftSettings =
     whisperKitSwiftSettings + mlxLocalLLMSwiftSettings + transcribeCppSwiftSettings
 
+let streamingMarkdownTargetDependencies: [Target.Dependency] = skipStreamingMarkdown ? [] : [
+    .product(name: "SwiftStreamingMarkdown", package: "SwiftStreamingMarkdown")
+]
 let appDependencies: [Target.Dependency] = [
     "MacParakeetCore",
     "MacParakeetViewModels",
-    .product(name: "Sparkle", package: "Sparkle")
-] + (enableMLXLocalLLM ? [
+    .product(name: "Sparkle", package: "Sparkle"),
+] + streamingMarkdownTargetDependencies + (enableMLXLocalLLM ? [
     "MacParakeetLocalLLM"
 ] : [])
 
@@ -93,8 +116,8 @@ let appTestDependencies: [Target.Dependency] = [
     "MacParakeet",
     "MacParakeetCore",
     "MacParakeetViewModels",
-    "MacParakeetObjCShims"
-] + (enableMLXLocalLLM ? [
+    "MacParakeetObjCShims",
+] + streamingMarkdownTargetDependencies + (enableMLXLocalLLM ? [
     "MacParakeetLocalLLM"
 ] : [])
 
@@ -164,6 +187,7 @@ let package = Package(
             path: "Sources/MacParakeetCore",
             exclude: [
                 "Audio/README.md",
+                "Calendar/README.md",
                 "Database/README.md",
                 "Licensing/README.md",
                 "Resources",

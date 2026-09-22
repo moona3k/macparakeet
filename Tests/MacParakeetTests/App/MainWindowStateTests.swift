@@ -70,8 +70,17 @@ final class MainWindowStateTests: XCTestCase {
         if AppFeatures.meetingRecordingEnabled {
             expected.append(.meetings)
         }
-
         XCTAssertEqual(SidebarItem.primaryItems, expected)
+    }
+
+    func testPromptManagerIsAFirstClassSidebarDestination() {
+        XCTAssertFalse(SidebarItem.primaryItems.contains(.prompts))
+        XCTAssertEqual(SidebarItem.configItems.first, .prompts)
+        if AppFeatures.transformsEnabled {
+            XCTAssertEqual(SidebarItem.configItems.dropFirst().first, .transforms)
+        }
+        XCTAssertEqual(SidebarItem.prompts.rawValue, "Prompts")
+        XCTAssertEqual(SidebarItem.prompts.icon, "text.quote")
     }
 
     func testStartNewTranscriptionReturnsToTranscribeAndHidesProgressDetail() {

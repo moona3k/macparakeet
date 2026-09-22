@@ -4,13 +4,15 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 . "$ROOT_DIR/scripts/dist/meeting_echo_asset_defaults.sh"
+. "$ROOT_DIR/scripts/dist/macho_min_version.sh"
 
 APP_PATH="${1:-${APP_PATH:-$ROOT_DIR/dist/MacParakeet.app}}"
 REQUIRE_MEETING_ECHO_ASSETS="${REQUIRE_MEETING_ECHO_ASSETS:-0}"
 VERIFY_CODE_SIGNATURES="${VERIFY_CODE_SIGNATURES:-0}"
 STRICT_MEETING_ECHO_ASSETS="${STRICT_MEETING_ECHO_ASSETS:-$REQUIRE_MEETING_ECHO_ASSETS}"
 
-LIB_PATH="$APP_PATH/Contents/Frameworks/liblocalvqe.dylib"
+FRAMEWORKS_DIR="$APP_PATH/Contents/Frameworks"
+LIB_PATH="$FRAMEWORKS_DIR/liblocalvqe.dylib"
 MODEL_DIR="$APP_PATH/Contents/Resources/MeetingEchoSuppression"
 MODEL_PATH=""
 REQUIRED_SYMBOLS=(
@@ -28,6 +30,96 @@ missing_tool() {
     exit 1
   fi
   echo "Warning: skipped ${check}; '${tool}' is not available." >&2
+}
+
+# Rejects any bundled LocalVQE dylib/architecture slice whose Mach-O minimum
+# OS version load command exceeds the app's LSMinimumSystemVersion. A dylib
+# built for a newer macOS than the app advertises support for can crash at
+# launch on older, "supported" systems. This check is a hard failure (not
+# gated by STRICT_MEETING_ECHO_ASSETS) whenever otool/lipo are available and
+# the expected minimum can be determined; only the availability of otool/lipo
+# themselves is gated by strict mode, consistent with the other checks below.
+verify_deployment_targets() {
+  local override_min="${MACPARAKEET_MEETING_ECHO_MIN_MACOS_VERSION:-}"
+  local plist="$APP_PATH/Contents/Info.plist"
+  local plist_min=""
+  if [[ -f "$plist" ]]; then
+    plist_min="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$plist" 2>/dev/null || true)"
+  fi
+
+  if [[ -n "$override_min" ]] && ! is_macos_version "$override_min"; then
+    echo "Error: MACPARAKEET_MEETING_ECHO_MIN_MACOS_VERSION must be a valid macOS version." >&2
+    exit 1
+  fi
+  if [[ -e "$plist" ]] && ! is_macos_version "$plist_min"; then
+    echo "Error: bundle Info.plist must carry a valid LSMinimumSystemVersion." >&2
+    exit 1
+  fi
+
+  # Before app assembly the override stands alone; afterward it can only
+  # tighten the minimum advertised by the bundle.
+  local expected_min="$plist_min"
+  if [[ -n "$override_min" ]]; then
+    if [[ -z "$expected_min" ]] || version_gt "$expected_min" "$override_min"; then
+      expected_min="$override_min"
+    fi
+  fi
+  if [[ -z "$expected_min" ]]; then
+    echo "Error: could not determine a valid app LSMinimumSystemVersion to verify bundled LocalVQE dylib deployment targets against." >&2
+    echo "  Set MACPARAKEET_MEETING_ECHO_MIN_MACOS_VERSION, or ensure $APP_PATH/Contents/Info.plist carries a valid LSMinimumSystemVersion." >&2
+    exit 1
+  fi
+
+  if ! command -v otool >/dev/null 2>&1; then
+    missing_tool "otool" "meeting echo runtime deployment target"
+    return 0
+  fi
+  if ! command -v lipo >/dev/null 2>&1; then
+    missing_tool "lipo" "meeting echo runtime deployment target"
+    return 0
+  fi
+
+  local failed=0
+  local dylib
+  # build_app_bundle.sh copies dependent dylibs via `find -name '*.dylib'`,
+  # which (unlike this loop's default bash glob) also matches dot-prefixed
+  # hidden files. Enable dotglob for this enumeration so a hidden dependency
+  # can't bypass the deployment-target check; restore the prior setting
+  # afterward since dotglob is process-wide, not loop-scoped.
+  local dotglob_was_set=0
+  shopt -q dotglob && dotglob_was_set=1
+  shopt -s dotglob
+  for dylib in "$FRAMEWORKS_DIR"/*.dylib; do
+    if [[ ! -f "$dylib" && ! -L "$dylib" ]]; then
+      echo "Error: could not enumerate bundled LocalVQE dylibs: $FRAMEWORKS_DIR" >&2
+      exit 1
+    fi
+    local minos_output
+    if ! minos_output="$(macho_minos "$dylib")"; then
+      echo "Error: could not determine a minimum OS version for bundled LocalVQE dylib: $dylib" >&2
+      echo "$minos_output" >&2
+      failed=1
+      continue
+    fi
+    local arch minos
+    while IFS=$'\t' read -r arch minos; do
+      [[ -z "$arch" ]] && continue
+      if version_gt "$minos" "$expected_min"; then
+        echo "Error: bundled LocalVQE dylib requires a newer macOS than the app supports." >&2
+        echo "  Dylib:        $dylib" >&2
+        echo "  Architecture: $arch" >&2
+        echo "  Dylib minos:  $minos" >&2
+        echo "  App minimum:  $expected_min" >&2
+        failed=1
+      fi
+    done <<<"$minos_output"
+  done
+  [[ "$dotglob_was_set" == "1" ]] || shopt -u dotglob
+
+  if [[ "$failed" == "1" ]]; then
+    exit 1
+  fi
+  echo "Meeting echo runtime deployment targets verified against app minimum: $expected_min"
 }
 
 if [[ ! -d "$APP_PATH" ]]; then
@@ -162,6 +254,8 @@ if command -v otool >/dev/null 2>&1; then
 else
   missing_tool "otool" "meeting echo runtime dylib references"
 fi
+
+verify_deployment_targets
 
 if [[ "$VERIFY_CODE_SIGNATURES" == "1" ]]; then
   codesign --verify --strict --verbose=2 "$LIB_PATH"

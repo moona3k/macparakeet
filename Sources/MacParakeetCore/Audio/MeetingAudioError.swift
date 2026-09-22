@@ -16,6 +16,8 @@ public enum MeetingAudioError: Error, LocalizedError, Sendable {
     case alreadyRunning
     case notRunning
     case noAudioCaptured
+    case captureStartupTimedOut
+    case microphoneCleanupPending
     case storageFailed(String)
     case mixFailed(String)
     case captureRuntimeFailure(String)
@@ -45,6 +47,10 @@ public enum MeetingAudioError: Error, LocalizedError, Sendable {
             return "Meeting recording is not running."
         case .noAudioCaptured:
             return "No meeting audio was captured."
+        case .captureStartupTimedOut:
+            return "The selected audio sources did not deliver audio in time. Check the audio input and try again."
+        case .microphoneCleanupPending:
+            return "The microphone is still finishing an earlier operation."
         case .storageFailed(let message):
             return "Failed to store meeting audio: \(message)"
         case .mixFailed(let message):

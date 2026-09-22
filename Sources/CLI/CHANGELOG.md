@@ -89,12 +89,301 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+## [4.5.0] — 2026-09-20
+
+### Added
+
+- `voice-control replay <session.json> [--goal …] [--observation N]
+  [--history op:targetID[:receipt],…] [--jev] [--json]` routes an instruction
+  against a saved Voice Control observation (`latest.json` or
+  `sessions/*.json`) without touching the screen. Reports the compiled local
+  action or the Jev request the router would have sent; with `--jev` and
+  `JEV_API_KEY`, also the per-head probability distribution. Experimental:
+  the Voice Control feature itself is a DEBUG-only app experiment, and this
+  command's JSON shape may change while it is.
+
+## [4.4.0] — 2026-09-18
+
+### Added
+
+- `parakeet-model` accepts `orukeet`. `config set parakeet-model orukeet`,
+  `transcribe` / `retranscribe --parakeet-model orukeet`, and
+  `models download|select|delete parakeet-orukeet` address that preview.
+  `models list` may include the additive `parakeet-orukeet` entry (engine
+  `parakeet`, variant `orukeet`). The default remains `v3`. Transcription
+  results from this build report `engineVariant` `orukeet`. Native streaming,
+  tail-window dictation preview, and recognition-time vocabulary boosting stay
+  off.
+- Inline `--provider` accepts `moonshot` (aliases `kimi`, `moonshotai`),
+  `deepseek`, `qwen` (aliases `alibaba`, `dashscope`), `zai` (aliases `zhipu`,
+  `z.ai`, `glm`), and `minimax`. Default env keys are `MOONSHOT_API_KEY` /
+  `KIMI_API_KEY`, `DEEPSEEK_API_KEY`, `DASHSCOPE_API_KEY` / `QWEN_API_KEY`,
+  `ZAI_API_KEY` / `ZHIPU_API_KEY`, and `MINIMAX_API_KEY`.
+- `meetings corrections rename|assign|merge-speakers` wrap the existing speaker
+  identity journal (same `--expected-revision` and JSON transcript payload as
+  timed-text corrections).
+- `history rename --title` matches the GUI gates: meetings update `fileName`
+  (and refresh artifacts best-effort); local files update `titleOverride`.
+  YouTube/podcast rows are rejected.
+- `history favorite` / `history unfavorite` accept `--json`.
+- `vocab words add` and `vocab snippets add` accept `--json` and return the
+  saved row, including its id.
+- `config get|set|list` includes `custom-vocabulary-boosting` (`on`/`off`,
+  default off). It writes the existing Parakeet TDT recognition-boosting
+  preference. Settings shows boosting status but has no toggle; the runtime
+  stays off unless this key (or a direct defaults write) turns it on.
+
+### Changed
+
+- Homebrew/standalone `cards generate` and meeting import/split auto-prompts
+  now read the shared app preference suite for LLM provider config, matching
+  the GUI.
+- `spec --json` documents `transcribe --no-diarize`.
+- Identical `history rename --title` values succeed without writing. Identical
+  `meetings corrections rename` labels succeed without inserting a journal row.
+
+## [4.3.0] — 2026-09-16
+
+### Added
+
+- `config` key `remove-um-filler` (`on|off`, default `on`). Clean processing
+  strips standalone English hesitation `um`. Portuguese and German users
+  should set this to `off`.
+- `config get|set|list` includes `preserve-discarded-dictations` (`on`/`off`,
+  default off). When on, cancelled dictations are transcribed into History
+  instead of being deleted. Nothing is pasted, including menu-bar Paste Last.
+  History JSON may now include `"status": "cancelled"`; the human-readable
+  list marks those rows `[cancelled]`. Older CLI builds that decode
+  `DictationStatus` strictly will fail on those rows until upgraded.
+- `config get|set|list` includes `start-meetings-muted` (`on`/`off`, default
+  off). While on, every microphone-capturing meeting starts muted until the
+  setting is turned off; unmute from the live meeting panel.
+  System-audio-only capture ignores it.
+
+### Changed
+
+- `vocab process` and Clean-mode dictation/file transcription now strip
+  standalone `um` by default. The previous multilingual-safe default is the
+  off value of `remove-um-filler`. Meetings stay verbatim: they do not run
+  filler removal.
+
+## [4.2.0] — 2026-09-15
+
+### Added
+
+- `calendar upcoming --json` annotates each event with additive `skipped` and
+  `skipScope` (`occurrence` | `event` | `null`). Recurrence stays internal.
+  Membership, `--filter`, and the rest of the event object are unchanged.
+
+## [4.1.0] — 2026-09-14
+
+### Added
+
+- `meetings show --json` and `meetings transcript --format json` expose
+  additive `textCorrectionsApplied` and `transcriptTextAlignment` fields.
+  Effective transcript segments may include `isTextEdited: true`; automatic
+  word text and timing remain available as original evidence.
+- `meetings corrections edit-line|merge-lines|undo|redo|reset` gives agents
+  optimistic, revision-checked access to the same reversible timed transcript
+  journal as the app. Successful JSON writes return the updated effective
+  transcript and revision.
+- Meeting list previews now use the effective corrected transcript. One-to-one
+  text edits retain the durable segment ID; structural edits include additive
+  `anchorTranscriptSegmentIDs`. Transcripts without word timestamps report
+  `transcriptTextAlignment: "untimed"`.
+- `meetings import <path>` imports one supported local audio or video file as
+  a managed meeting. It accepts optional `--title` and historical
+  `--started-at`, supports `--json` and `--envelope`, keeps progress on stderr,
+  and returns a stable `MeetingImportRecord`. Complete and transcript-saved
+  partial results exit zero; a retryable transcription prints its saved
+  meeting record before exiting one. Callers should open that saved meeting and
+  retry its transcription rather than running another import, which would
+  create a second meeting. SIGINT after publication also prints the durable
+  record before exiting `130`.
+- `meetings split preview|create|status|resume|discard` splits a saved
+  meeting recording into independent parts, each receiving its own first
+  transcription and normal enabled completion automation. `preview` is
+  read-only; `create` supports `--dry-run`, `--key`, `--expected-identity`
+  and idempotent retry (including after the original recording has been
+  deleted, once committed); `status --source` accepts an exact source UUID
+  even after that recording is gone. A completed operation with any failed
+  child still prints its full result, then exits non-zero. `create`/`resume`
+  honor Ctrl-C (SIGINT): in-flight work finishes settling before the process
+  exits `130`, per the CLI's existing exit-code contract.
+
+### Changed
+
+- Meeting JSON, prompt context, and exports use the effective timed-text
+  correction projection. Corrected lines retain segment-envelope timing and
+  are never represented as word-aligned; legacy whole-text edits remain
+  untimed.
+- `transcribe` and `retranscribe` still use the same `--speaker-count` /
+  `--speaker-min` / `--speaker-max` flags and JSON speaker fields. The engines
+  now run FluidAudio 0.15.7. Exact / max caps are held against both cluster
+  censuses (FluidAudio #891). Flags, defaults, and JSON schema are unchanged.
+  Auto speaker detection is unchanged and still not an exact count.
+
+### Fixed
+
+- `history clear-meeting-audio` now holds one meeting-media mutation lease
+  across both managed-file removal and database path detachment, so concurrent
+  split publication cannot observe a partially cleared recording library.
+- `meetings split create`/`resume` now resolve the meeting-recordings root
+  from the CLI's own shared app preferences domain instead of always
+  `.standard`, so a non-default `meetingArtifactsFolder` preference is
+  honored.
+- `meetings split preview`'s `hasRawMicrophone`/`hasRawSystem`/
+  `hasCleanedMicrophone` now describe whether that track will actually be
+  exported (file *and* usable alignment metadata), not merely whether the
+  file exists on disk.
+- `meetings split create` now rejects empty and whitespace-only part titles
+  before invoking the shared split service; the Core boundary enforces the
+  same rule for non-CLI callers.
+- `meetings split create` retrying an already-discarded idempotency key, and
+  `meetings split resume` of a discarded or still-preparing operation, now
+  surface a specific actionable message (a discarded key/operation needs a
+  fresh `--key`; a still-preparing operation should be retried with `create`)
+  instead of a generic status error.
+
+## [4.0.0] — 2026-09-07
+
+### Added
+
+- `meetings labels set` renames existing labels, chooses a color, or resets
+  to the automatic color with `--automatic-color`. Existing label IDs and
+  assignments are preserved; `--json` supports agent workflows.
+
+- `prompts collections list|add|rename|delete|reorder` manages the same local
+  prompt collections as the app. Collection mutations use full UUIDs, JSON
+  returns saved collection records, deletion unfiles prompts without deleting
+  their histories, and reorder accepts the complete current UUID order.
+- `prompts add --collection UUID` and `prompts set --collection UUID` /
+  `--no-collection` assign or clear prompt organization. Collection-only
+  changes do not create a prompt version; combined versioned settings commit
+  membership alongside one new version atomically. `prompts add --json` now
+  returns the saved prompt record.
+- Immutable prompt history, version-aware `prompts show`, source/settings diff,
+  restore-as-new-version, recoverable deletion, and optional prompt collections.
+  Built-in and custom prompts share the same mutation rights. `prompts set`
+  persists versioned inference settings with `--temperature`, `--top-p`,
+  `--top-k`, `--max-tokens`, `--thinking-mode`, `--reasoning-effort`, and
+  `--provider-default-settings`; `--model` / `--active-model` set or clear a
+  model override. Prompt JSON adds active-version metadata and model override;
+  saved results retain optional prompt/version identity and provider/model
+  receipts.
+- Meeting classification commands expose labels and legacy meeting types.
+  Labels control prompt availability across transcription sources; legacy types
+  remain compatibility metadata. See `spec/contracts/cli-json-v1.md`.
+
+### Changed
+
+- Gemini 3 prompt generation and `llm summarize` inherit provider sampling
+  defaults instead of injecting temperature 0.7. Explicit saved overrides and
+  historical execution receipts retain their values; CLI flags and JSON shapes
+  are unchanged.
+
+- Prompt availability can be updated with `prompts set --label LABEL` or
+  `--all-labels`, plus `--available`/`--unavailable`. Writes now affect the same
+  label rules used by execution and preserve existing exceptions. JSON returns
+  the saved label policy. Source auto-run remains a separate setting.
+- The obsolete fork-only `--meeting-type`/`--all-meeting-types` policy flags
+  fail with migration guidance instead of successfully writing inactive rules.
+
+### Added
+
+- Speaker-aware export and meeting JSON include additive
+  `speakerCorrectionsApplied` and `speakerCorrectionRevision` metadata.
+- Exports, meeting artifacts and CLI prompt input use effective speaker corrections.
+
+- Saved-meeting notes autosave and can be explicitly included in result-prompt
+  context. `prompts set` accepts mutually exclusive `--include-meeting-notes`
+  and `--no-include-meeting-notes`. Prompt JSON adds `includeMeetingNotes`;
+  result JSON adds `includeMeetingNotesSnapshot`, both defaulting to false.
+  Transform prompts reject the setting. `{{userNotes}}` remains available
+  independently; using both mechanisms does not duplicate notes.
+
+### Breaking
+
+- `export --stdout --format txt` now matches TXT file export, including the
+  default metadata header, timestamps, and speaker labels. Use the transcript
+  text fields in JSON when automation needs only the stored text. This also
+  affects `export <id> --stdout`, because TXT is the default format. For example,
+  use `export <id> --format json --stdout | jq -r '.cleanTranscript // .rawTranscript'`
+  to select stored transcript text.
+
+### Changed
+
+- `prompts run` uses rich timestamped, speaker-aware input when timings exist;
+  edited transcripts and recordings without timings use their text fallback.
+- TXT/Markdown paragraphs with no assigned speaker remain separate and may
+  display `Unassigned` when other speakers exist. Original word attribution in
+  JSON, subtitles, and DAPT remains unchanged when no corrections are active.
+
+### Fixed
+
+- OpenAI-compatible gateways (including Vercel AI Gateway model IDs such as
+  `openai/gpt-5.6-luna` and `openai/gpt-5.6-sol`) now use the same GPT-5.x
+  request policy as native OpenAI: omit unsupported sampling, send
+  `max_completion_tokens`, and surface parameter-compatibility 400s as provider
+  errors instead of a false context-limit failure.
+
+## [3.3.0] — 2026-09-06
+
+### Added
+
+- Prompt JSON gains additive optional inference metadata. `prompts list/show`
+  (and prompt objects returned by `prompts set`) expose `inferenceSettings`
+  with optional `temperature`, `topP`, `topK`, `maxTokens`, and a
+  `thinkingMode` value, plus optional `reasoningEffort` (`low`, `medium`,
+  `high`, or `xhigh`) when thinking is enabled. LLM result envelopes,
+  including `prompts run --json`,
+  gain optional `effectiveSettings`; when present it reports the normalized
+  settings actually sent after provider/model filtering. Existing callers may
+  ignore both fields, and unset/legacy values omit them. Meeting result
+  JSON and materialized `prompt-results.json` also preserve that receipt as
+  additive optional `inferenceSettingsSnapshot`.
+  Settings are configured in the result-prompt GUI; the CLI preserves and runs
+  them, but adds no inference-setting flags or Transform support. Receipts
+  contain effective settings only, not requested settings or omission metadata.
+
+### Fixed
+
+- Invalid inference numbers now fail at persistence and execution boundaries,
+  including native Anthropic's effective temperature limit of 1. Ollama
+  streaming error envelopes fail the run rather than becoming a successful
+  receipt after partial output; clean content-bearing EOF remains supported.
+- Provider receipt and Cards batch token totals use checked arithmetic; overflow
+  remains unknown instead of crashing or becoming a misleading partial total.
+  Missing receipt totals are derived when both component counts are available,
+  while explicit provider totals retain precedence.
+- Native OpenAI streaming requests usage metadata without adding that option to
+  compatible third-party endpoints.
+- Ollama result-prompt input budgeting shares its 8,192-token request window
+  and reserves explicit output allowances.
+- Local CLI output normalizes line endings: CRLF collapses to a single LF and
+  a bare CR is rewritten to LF instead of passing through unsanitized. This
+  closes a terminal-overwrite gap in the existing sanitizer (a wrapped CLI
+  could no longer emit a bare CR to visually overwrite prior sanitized
+  output); readable content, including intentional newlines, is preserved.
+- `meetingCaptureReport.quality` no longer reports `partial` solely because a
+  selected source is `silent`: a fully captured self-note or other one-sided
+  recording now reports `healthy`. Coverage shortfall, interruption, capture
+  failure, and unavailable media still make `quality` partial and now
+  outrank `silent` in source-status precedence. Reports stored before this
+  change normalize the same way on read. Field names, types, and JSON shape
+  are unchanged; see `spec/contracts/meeting-artifacts-v1.md`.
+
+## [3.2.0] — 2026-09-04
+
 ### Added
 
 - `meetings artifact --json` and envelope output may now include the additive
   optional `meetingCaptureReport` field with frame-derived meeting capture
   quality, elapsed/playable durations, and per-source coverage. Legacy meetings
   omit it; omission means unknown rather than healthy.
+  Reports may now use source status `silent` when a selected system-audio track
+  delivered buffers but remained at exact digital silence for an actionable
+  meeting; consumers must treat unknown future status values defensively.
 - `export --format dapt` and `transcribe --format dapt` now emit W3C DAPT 1.0
   `originalTranscript` documents through the shared exporter. File output uses
   `.dapt.xml`; stdout is supported by both commands. Aligned word timing and
@@ -108,6 +397,19 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   backend moves from FluidAudio/CoreML to pinned transcribe.cpp. Cohere now
   detects language automatically; saved or explicit Cohere language values no
   longer affect decoding.
+
+### Fixed
+
+- OpenCode Go requests now carry an opaque per-conversation session header.
+  Probe and one-shot IDs are isolated; unsupported endpoints do not receive the
+  session identity. Unapproved redirects are refused so credentials and prompt
+  content cannot be forwarded outside the allowed endpoints (#948).
+- Local CLI output strips valid two-byte terminal escapes as well as CSI/OSC
+  sequences. Failure stderr is sanitized before error classification and
+  presentation, matching successful-output handling.
+- Default `health` inspects required directories without creating them and
+  opens existing databases read-only without running migrations. Repair flags
+  remain explicit opt-ins; JSON field names and exit codes are unchanged.
 
 ## [3.1.0] — 2026-07-19
 
@@ -719,8 +1021,8 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
     [--json]` — headless install of a new Transform.
     Shortcut format: `opt+1`, `cmd+shift+P`, etc. Refuses bare-key
     bindings (must include a modifier).
-  - `transforms delete <id|name> [--json]` — deletes a custom
-    Transform. Built-ins are protected.
+  - `transforms delete <id|name> [--json]` — soft-deletes a custom or
+    built-in Transform through the same recoverable prompt lifecycle.
   - `transforms list/show/create --json` use a snake-cased `TransformDTO`
     payload (`id`, `name`, `shortcut`, `is_built_in`,
     `prompt`, `created_at`, `updated_at`). `transforms run --json`

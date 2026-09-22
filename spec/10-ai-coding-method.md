@@ -26,16 +26,15 @@ Rationale and external references for this approach live in
 
 ## Source Of Truth
 
-When artifacts conflict, use this order:
+For intended product behavior, accepted ADRs and active narrative specs govern;
+an active plan narrows the assignment when that plan is being executed. For
+what is actually implemented, use current code, feature gates, tests, and git
+history. For what users can install, use release metadata rather than the
+presence of code on a development branch.
 
-1. Accepted ADRs in `spec/adr/`
-2. Narrative specs listed in `spec/README.md`
-3. Active plans, when the task is executing that plan
-4. Current code and tests
-
-If a lower-precedence artifact is stale, update it when it matters to the
-change. If a higher-precedence artifact is wrong, update it deliberately and
-explain why in the PR/commit.
+Do not treat stale implementation notes as proof that a feature ships. Resolve
+conflicts deliberately: fix an implementation defect or amend the governing
+doc with evidence, preserving historical decisions and explaining the change.
 
 ## Retired Kernel Workflow
 
@@ -93,21 +92,11 @@ than no docs.
 
 ## Testing
 
-During development, run focused tests for the touched area. Before merge or
-completion, run broader tests proportional to risk.
-
-Default expectation for code changes:
-
-```bash
-swift test
-```
-
-Use focused filters for iteration:
-
-```bash
-swift test --filter TextProcessingPipelineTests
-scripts/dev/check.sh [TestFilter]
-```
+Use the canonical [AGENTS.md testing policy](../AGENTS.md#commands): focused
+tests during iteration, and the full suite at most once as the final gate for
+code changes unless the user scopes verification differently. Do not start
+competing builds or suites in a shared worktree. Report exactly which checks
+ran and which did not; an old green run is not proof for the current candidate.
 
 Higher-risk areas need stronger proof: audio capture, meeting recovery,
 database migrations, CLI contracts, telemetry/privacy, concurrency, and shared

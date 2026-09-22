@@ -84,6 +84,51 @@ final class MeetingCaptureReportTests: XCTestCase {
         XCTAssertEqual(report.source(for: .microphone)?.coverageRatio, 0.92)
     }
 
+    func testCoverageShortfallPrecedesSilentStatus() {
+        let report = MeetingCaptureReport(
+            sourceMode: .microphoneAndSystem,
+            sourceAlignment: MeetingSourceAlignment(
+                meetingOriginHostTime: 100,
+                microphone: track(writtenDurationMs: 100_000),
+                system: track(writtenDurationMs: 1_000)
+            ),
+            elapsedDurationMs: 100_000,
+            silentSources: [.system]
+        )
+
+        XCTAssertEqual(report.quality, .partial)
+        XCTAssertEqual(report.source(for: .microphone)?.status, .complete)
+        XCTAssertEqual(report.source(for: .system)?.status, .coverageShortfall)
+    }
+
+    func testInterruptionAndCaptureFailurePrecedeSilentStatus() {
+        let alignment = MeetingSourceAlignment(
+            meetingOriginHostTime: 100,
+            microphone: track(writtenDurationMs: 10_000),
+            system: track(writtenDurationMs: 10_000)
+        )
+
+        let interrupted = MeetingCaptureReport(
+            sourceMode: .microphoneAndSystem,
+            sourceAlignment: alignment,
+            elapsedDurationMs: 10_000,
+            interruptedSources: [.system],
+            silentSources: [.system]
+        )
+        let failed = MeetingCaptureReport(
+            sourceMode: .microphoneAndSystem,
+            sourceAlignment: alignment,
+            elapsedDurationMs: 10_000,
+            silentSources: [.system],
+            captureFailed: true
+        )
+
+        XCTAssertEqual(interrupted.quality, .partial)
+        XCTAssertEqual(failed.quality, .partial)
+        XCTAssertEqual(interrupted.source(for: .system)?.status, .interrupted)
+        XCTAssertEqual(failed.source(for: .system)?.status, .captureFailed)
+    }
+
     func testCaptureFailureIsPartialDespiteHighCoverage() {
         let alignment = MeetingSourceAlignment(
             meetingOriginHostTime: 100,
@@ -171,7 +216,8 @@ final class MeetingCaptureReportTests: XCTestCase {
                 microphone: track(writtenDurationMs: 20_000),
                 system: nil
             ),
-            elapsedDurationMs: 20_000
+            elapsedDurationMs: 20_000,
+            silentSources: [.system]
         )
 
         XCTAssertEqual(report.quality, .partial)
@@ -191,11 +237,12 @@ final class MeetingCaptureReportTests: XCTestCase {
             sourceMode: .microphoneAndSystem,
             sourceAlignment: alignment,
             elapsedDurationMs: 10_000,
+            silentSources: [.system],
             playbackFallbackSource: .system
         )
 
         XCTAssertEqual(report.quality, .partial)
-        XCTAssertEqual(report.sources.map(\.status), [.complete, .complete])
+        XCTAssertEqual(report.sources.map(\.status), [.complete, .silent])
         XCTAssertEqual(report.playbackFallbackSource, .system)
     }
 
@@ -213,6 +260,27 @@ final class MeetingCaptureReportTests: XCTestCase {
 
         XCTAssertEqual(report.quality, .healthy)
         XCTAssertNil(report.playbackFallbackSource)
+    }
+
+    func testCompleteSilentCaptureIsHealthyAndRoundTripsThroughCodable() throws {
+        let report = MeetingCaptureReport(
+            sourceMode: .microphoneAndSystem,
+            sourceAlignment: MeetingSourceAlignment(
+                meetingOriginHostTime: 100,
+                microphone: track(writtenDurationMs: 30_000),
+                system: track(writtenDurationMs: 30_000)
+            ),
+            elapsedDurationMs: 30_000,
+            silentSources: [.system]
+        )
+
+        XCTAssertEqual(report.quality, .healthy)
+        let encoded = try JSONEncoder().encode(report)
+        let decoded = try JSONDecoder().decode(MeetingCaptureReport.self, from: encoded)
+
+        XCTAssertEqual(decoded, report)
+        XCTAssertEqual(decoded.quality, .healthy)
+        XCTAssertEqual(decoded.source(for: .system)?.status, .silent)
     }
 
     func testLegacyReportWithoutPlaybackFallbackDecodesAsNil() throws {
@@ -238,6 +306,136 @@ final class MeetingCaptureReportTests: XCTestCase {
 
         XCTAssertNil(decoded.playbackFallbackSource)
         XCTAssertEqual(decoded.quality, .healthy)
+        XCTAssertEqual(decoded.source(for: .microphone)?.status, .complete)
+    }
+
+    func testLegacySilenceOnlyPartialReportDecodesHealthyWithoutChangingDiagnostics() throws {
+        let object = legacySilentReport()
+        let decoded = try JSONDecoder().decode(
+            MeetingCaptureReport.self,
+            from: JSONSerialization.data(withJSONObject: object)
+        )
+
+        XCTAssertEqual(decoded.quality, .healthy)
+        XCTAssertEqual(decoded.source(for: .system)?.status, .silent)
+        XCTAssertEqual(decoded.source(for: .system)?.writtenDurationMs, 30_000)
+        var expected = object
+        expected["quality"] = "healthy"
+        let reencoded = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(decoded)) as? [String: Any]
+        )
+        XCTAssertEqual(reencoded as NSDictionary, expected as NSDictionary)
+    }
+
+    func testLegacySilentStatusCannotHideCoverageShortfallOnDecode() throws {
+        var object = legacySilentReport()
+        var sources = try XCTUnwrap(object["sources"] as? [[String: Any]])
+        sources[1]["writtenDurationMs"] = 26_999
+        sources[1]["coverageRatio"] = Double(26_999) / 30_000
+        object["sources"] = sources
+
+        let incomplete = try JSONDecoder().decode(
+            MeetingCaptureReport.self,
+            from: JSONSerialization.data(withJSONObject: object)
+        )
+        XCTAssertEqual(incomplete.quality, .partial)
+        XCTAssertEqual(incomplete.source(for: .system)?.status, .silent)
+
+        sources[1]["writtenDurationMs"] = 27_000
+        sources[1]["coverageRatio"] = 0.9
+        object["sources"] = sources
+        let sufficientCoverage = try JSONDecoder().decode(
+            MeetingCaptureReport.self,
+            from: JSONSerialization.data(withJSONObject: object)
+        )
+        XCTAssertEqual(sufficientCoverage.quality, .healthy)
+    }
+
+    func testLegacySilentReportRetainsIndependentDegradationOnDecode() throws {
+        let legacy = legacySilentReport()
+        let originalSources = try XCTUnwrap(legacy["sources"] as? [[String: Any]])
+        var cases: [[String: Any]] = []
+        for status in ["coverage_shortfall", "interrupted", "unavailable", "capture_failed"] {
+            var object = legacy
+            var sources = originalSources
+            sources[0]["status"] = status
+            object["sources"] = sources
+            cases.append(object)
+        }
+        let independentDegradations: [(String, Any)] = [
+            ("captureFailed", true),
+            ("interruptedSources", ["system"]),
+            ("playbackFallbackSource", "microphone"),
+            ("sources", [originalSources[1]]),
+        ]
+        for (key, value) in independentDegradations {
+            var object = legacy
+            object[key] = value
+            cases.append(object)
+        }
+
+        for object in cases {
+            let decoded = try JSONDecoder().decode(
+                MeetingCaptureReport.self,
+                from: JSONSerialization.data(withJSONObject: object)
+            )
+            XCTAssertEqual(decoded.quality, .partial, "\(object)")
+        }
+    }
+
+    func testPartialReportWithoutSilenceIsNotReclassifiedOnDecode() throws {
+        var object = legacySilentReport()
+        var sources = try XCTUnwrap(object["sources"] as? [[String: Any]])
+        sources[1]["status"] = "complete"
+        object["sources"] = sources
+
+        let decoded = try JSONDecoder().decode(
+            MeetingCaptureReport.self,
+            from: JSONSerialization.data(withJSONObject: object)
+        )
+        XCTAssertEqual(decoded.quality, .partial)
+    }
+
+    func testLegacySilentReportStillRequiresNonoptionalFields() throws {
+        var object = legacySilentReport()
+        object.removeValue(forKey: "captureFailed")
+
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                MeetingCaptureReport.self,
+                from: JSONSerialization.data(withJSONObject: object)
+            )
+        ) { error in
+            guard case DecodingError.keyNotFound(let key, _) = error else {
+                return XCTFail("Expected missing captureFailed, got \(error)")
+            }
+            XCTAssertEqual(key.stringValue, "captureFailed")
+        }
+    }
+
+    private func legacySilentReport() -> [String: Any] {
+        [
+            "quality": "partial",
+            "sourceMode": "microphone_and_system",
+            "elapsedDurationMs": 30_000,
+            "capturedDurationMs": 30_000,
+            "sources": [
+                [
+                    "source": "microphone",
+                    "writtenDurationMs": 30_000,
+                    "coverageRatio": 1.0,
+                    "status": "complete",
+                ],
+                [
+                    "source": "system",
+                    "writtenDurationMs": 30_000,
+                    "coverageRatio": 1.0,
+                    "status": "silent",
+                ],
+            ],
+            "interruptedSources": [],
+            "captureFailed": false,
+        ]
     }
 
     private func track(

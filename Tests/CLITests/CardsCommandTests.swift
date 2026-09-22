@@ -126,6 +126,37 @@ final class CardsCommandTests: XCTestCase {
         XCTAssertEqual(report.exitCode, .failure)
     }
 
+    func testCardsGenerationReportKeepsOverflowUnknownAfterLaterReceipts() throws {
+        var report = CardsGenerationReport(selection: "stale", selected: 4)
+        report.add(LLMUsage(promptTokens: Int.max, completionTokens: 0, totalTokens: Int.max))
+        report.add(LLMUsage(promptTokens: 1, completionTokens: 1, totalTokens: 2))
+        report.add(nil)
+        report.add(LLMUsage(promptTokens: 5, completionTokens: 2, totalTokens: 7))
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(report)) as? [String: Any])
+        XCTAssertTrue(object["promptTokens"] is NSNull)
+        XCTAssertEqual(object["completionTokens"] as? Int, 3)
+        XCTAssertTrue(object["totalTokens"] is NSNull)
+    }
+
+    func testCardsGenerationReportDerivesMissingTotalAndPrefersExplicitTotal() throws {
+        var report = CardsGenerationReport(selection: "stale", selected: 2)
+        report.add(LLMUsage(promptTokens: 3, completionTokens: 4, totalTokens: 20))
+        report.add(LLMUsage(promptTokens: 1, completionTokens: 2))
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(report)) as? [String: Any])
+        XCTAssertEqual(object["totalTokens"] as? Int, 23)
+    }
+
+    func testCardsGenerationReportPropagatesUnrepresentableReceiptTotal() throws {
+        var report = CardsGenerationReport(selection: "stale", selected: 3)
+        report.add(LLMUsage(promptTokens: 0, completionTokens: 2, totalTokens: 2))
+        report.add(LLMUsage(promptTokens: Int.max, completionTokens: 1))
+        report.add(LLMUsage(promptTokens: 0, completionTokens: 4, totalTokens: 4))
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(report)) as? [String: Any])
+        XCTAssertEqual(object["promptTokens"] as? Int, Int.max)
+        XCTAssertEqual(object["completionTokens"] as? Int, 7)
+        XCTAssertTrue(object["totalTokens"] is NSNull)
+    }
+
     func testRootParserRoutesCardsSubcommands() throws {
         XCTAssertTrue(try CLI.parseAsRoot(["cards", "list", "--json"]) is CardsListCommand)
         XCTAssertTrue(try CLI.parseAsRoot(["cards", "generate", "--stale"]) is CardsGenerateCommand)

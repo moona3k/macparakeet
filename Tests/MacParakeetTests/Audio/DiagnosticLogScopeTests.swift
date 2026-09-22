@@ -159,18 +159,17 @@ final class DiagnosticLogScopeTests: XCTestCase {
     }
 
     func testByteCeilingHoldsForSinglePathologicallyLongLine() {
-        // One line, no newline, larger than the cap: still bounded.
+        // One line larger than the cap cannot be included as a complete record.
         let raw = String(repeating: "a", count: AudioCaptureDiagnostics.recentUploadMaxBytes * 2)
 
         let scoped = AudioCaptureDiagnostics.scopedLogForUpload(raw, scope: .recent, now: now)
 
-        XCTAssertLessThanOrEqual(scoped.utf8.count, AudioCaptureDiagnostics.recentUploadMaxBytes)
+        XCTAssertEqual(scoped, "")
     }
 
     func testByteCeilingHoldsForMultiByteSingleLine() {
-        // A single line of 3-byte characters whose byte length exceeds the cap:
-        // the boundary trim must stay within the cap AND not emit replacement
-        // characters from a mid-sequence cut.
+        // Oversized multibyte records are dropped whole, never split into
+        // invalid UTF-8 or detached from their timestamp/event name.
         let euros = String(
             repeating: "€",
             count: AudioCaptureDiagnostics.recentUploadMaxBytes / 3 + 100
@@ -178,8 +177,21 @@ final class DiagnosticLogScopeTests: XCTestCase {
 
         let scoped = AudioCaptureDiagnostics.scopedLogForUpload(euros, scope: .recent, now: now)
 
-        XCTAssertLessThanOrEqual(scoped.utf8.count, AudioCaptureDiagnostics.recentUploadMaxBytes)
-        XCTAssertFalse(scoped.contains("\u{FFFD}"), "trim must cut on a UTF-8 boundary")
+        XCTAssertEqual(scoped, "")
+    }
+
+    func testOversizedLineDoesNotHideCompleteNeighboringEvents() {
+        let older = line(hoursAgo: 2, "capture_started")
+        let newest = line(hoursAgo: 1, "capture_failed")
+        let oversized = line(
+            hoursAgo: 1,
+            String(repeating: "x", count: AudioCaptureDiagnostics.recentUploadMaxBytes)
+        )
+        let raw = joined([older, oversized, newest, oversized])
+
+        let scoped = AudioCaptureDiagnostics.scopedLogForUpload(raw, scope: .recent, now: now)
+
+        XCTAssertEqual(scoped, joined([older, newest]))
     }
 
     // MARK: - No parseable timestamps

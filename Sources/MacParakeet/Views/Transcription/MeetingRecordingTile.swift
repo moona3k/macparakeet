@@ -127,6 +127,8 @@ struct MeetingRecordingTile: View {
         switch viewModel.state {
         case .idle:
             idleContent
+        case .starting:
+            startingContent
         case .recording, .paused:
             recordingContent
         case .completing, .transcribing:
@@ -135,6 +137,23 @@ struct MeetingRecordingTile: View {
             completedContent
         case .error(let message):
             errorContent(message: message)
+        }
+    }
+
+    private var startingContent: some View {
+        HStack(spacing: DesignSystem.Spacing.md) {
+            ParakeetSpinner(.inline, tint: DesignSystem.Colors.textTertiary)
+                .frame(width: 64)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Starting…")
+                    .font(DesignSystem.Typography.sectionTitle)
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                Text("Preparing audio capture.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+            }
+            Spacer()
+            stopButton
         }
     }
 
@@ -369,6 +388,8 @@ struct MeetingRecordingTile: View {
         switch viewModel.state {
         case .idle:
             return permissionState.isReady ? "Record meeting" : "\(permissionState.title): \(permissionState.detail)"
+        case .starting:
+            return "Starting meeting audio capture"
         case .recording:
             return "Recording meeting, \(viewModel.formattedElapsed) elapsed\(sourceHealthAccessibilitySuffix)"
         case .paused:

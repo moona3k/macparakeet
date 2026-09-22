@@ -16,6 +16,52 @@ public enum TranscriptionLibraryScope: Sendable {
     case meetings
 }
 
+/// Whether a row/card's source attribution is worth drawing.
+///
+/// A source label that repeats the active filter is noise: browsing Podcasts
+/// and reading "Podcast" on every card answers a question the filter already
+/// answered. The label only earns its place when the current context leaves
+/// the source genuinely open.
+public enum LibrarySourceLabelStyle: String, Sendable, Equatable, CaseIterable {
+    /// Icon and text. The context admits more than one source, so the label
+    /// carries information the filter does not.
+    case visible
+    /// Icon alone where a source has a brand mark that identifies it on sight;
+    /// icon and text otherwise. The context has narrowed the source to one
+    /// family, so the word repeats the filter for anything already named by
+    /// its logo.
+    case brandMarkOnly
+    /// Nothing. The context admits exactly one source, so the label can only
+    /// restate the filter.
+    case hidden
+}
+
+extension TranscriptionLibraryScope {
+    /// Resolved against `(scope, filter)` rather than the filter alone: the
+    /// Meetings workspace shows only meetings whatever its filter says, so
+    /// even Favorites is fully determined there.
+    ///
+    /// Kept in step with `makeQuery(offset:)`, which maps the same pairs onto
+    /// a stored `SourceType`. A pair whose query pins one `SourceType` that
+    /// resolves to exactly one display is `.hidden`; anything that can still
+    /// resolve to more than one display keeps its label.
+    public func sourceLabelStyle(for filter: LibraryFilter) -> LibrarySourceLabelStyle {
+        switch self {
+        case .meetings:
+            return .hidden
+        case .all:
+            switch filter {
+            case .all, .favorites:
+                return .visible
+            case .youtube:
+                return .brandMarkOnly
+            case .podcast, .local, .meeting:
+                return .hidden
+            }
+        }
+    }
+}
+
 public typealias LibrarySortOrder = TranscriptionLibrarySortOrder
 
 /// Date-based bucket used to group meeting/library rows under headers like
@@ -119,9 +165,23 @@ public final class TranscriptionLibraryViewModel {
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "TranscriptionLibrary")
     public private(set) var transcriptions: [Transcription] = []
     public var filter: LibraryFilter = .all { didSet { reloadAfterStateChange() } }
+    /// The filter that produced the cards currently on screen.
+    ///
+    /// `filter` changes before its asynchronous query replaces the existing
+    /// cards. Keep their source presentation tied to the result set until the
+    /// next query publishes, so outgoing cards do not borrow the new filter's
+    /// label style.
+    private var displayedFilter: LibraryFilter = .all
+    /// SQL-backed meeting classification filters. Type and label selections
+    /// use ANY semantics; `unclassifiedMeetingsOnly` is mutually exclusive
+    /// with an explicit type selection.
+    public private(set) var selectedMeetingTypeIDs: Set<UUID> = []
+    public private(set) var unclassifiedMeetingsOnly = false
+    public private(set) var selectedMeetingLabelIDs: Set<UUID> = []
     public var searchText: String = "" { didSet { debounceSearchReload() } }
     public var sortOrder: LibrarySortOrder = .dateDescending { didSet { reloadAfterStateChange() } }
     public private(set) var filteredTranscriptions: [Transcription] = []
+    private var effectiveTranscriptTextByID: [UUID: String] = [:]
     public private(set) var groupedTranscriptions: [(group: TranscriptionDateGroup, items: [Transcription])] = []
     public private(set) var hasMore = false
     public private(set) var isLoading = false
@@ -134,28 +194,102 @@ public final class TranscriptionLibraryViewModel {
     public private(set) var pendingBulkOperation: BulkTranscriptionOperation?
     public private(set) var retryingMeetingTranscriptionIDs: Set<UUID> = []
     public var onRetryMeetingTranscription: ((Transcription) async throws -> Void)?
+    public let meetingClassificationViewModel = MeetingClassificationViewModel()
 
     /// Override for tests; production code uses `Date()`.
     public var nowProvider: @Sendable () -> Date = { Date() }
     public var calendar: Calendar = .autoupdatingCurrent
 
     private var transcriptionRepo: TranscriptionRepositoryProtocol?
+    public private(set) var speakerAttributionProjectionProvider:
+        (@Sendable (Transcription) throws -> SpeakerAttributionProjection)?
     private var loadTask: Task<Void, Never>?
     private var searchDebounceTask: Task<Void, Never>?
     private var loadGeneration = 0
+    private var requestedWindowSize = 0
     private var bulkSelectionGeneration = 0
     public let scope: TranscriptionLibraryScope
+
+    public var displayedSourceLabelStyle: LibrarySourceLabelStyle {
+        scope.sourceLabelStyle(for: displayedFilter)
+    }
+
+    public func effectiveTranscriptText(for transcription: Transcription) -> String? {
+        effectiveTranscriptTextByID[transcription.id]
+    }
 
     public init(scope: TranscriptionLibraryScope = .all) {
         self.scope = scope
     }
 
-    public func configure(transcriptionRepo: TranscriptionRepositoryProtocol) {
+    public func configure(
+        transcriptionRepo: TranscriptionRepositoryProtocol,
+        meetingTypeRepository: (any MeetingTypeRepositoryProtocol)? = nil,
+        meetingLabelRepository: (any MeetingLabelRepositoryProtocol)? = nil,
+        meetingClassificationService: (any MeetingClassificationServiceProtocol)? = nil,
+        speakerAttributionReader: SpeakerAttributionReading? = nil
+    ) {
         self.transcriptionRepo = transcriptionRepo
+        if let meetingTypeRepository, let meetingLabelRepository, let meetingClassificationService {
+            meetingClassificationViewModel.configure(
+                typeRepository: meetingTypeRepository,
+                labelRepository: meetingLabelRepository,
+                service: meetingClassificationService
+            )
+            meetingClassificationViewModel.loadOptions()
+        }
+        if let speakerAttributionReader {
+            let projectionProvider:
+                @Sendable (Transcription) throws -> SpeakerAttributionProjection = { transcription in
+                    try speakerAttributionReader.resolve(transcription: transcription)
+                }
+            speakerAttributionProjectionProvider = projectionProvider
+        } else {
+            speakerAttributionProjectionProvider = nil
+        }
     }
 
     public var selectedTranscriptionCount: Int {
         selectedTranscriptionIDs.count
+    }
+
+    public var hasMeetingClassificationFilter: Bool {
+        unclassifiedMeetingsOnly || !selectedMeetingTypeIDs.isEmpty || !selectedMeetingLabelIDs.isEmpty
+    }
+
+    public func toggleMeetingTypeFilter(_ id: UUID) {
+        unclassifiedMeetingsOnly = false
+        if selectedMeetingTypeIDs.contains(id) {
+            selectedMeetingTypeIDs.remove(id)
+        } else {
+            selectedMeetingTypeIDs.insert(id)
+        }
+        reloadAfterStateChange()
+    }
+
+    public func setUnclassifiedMeetingsFilter(_ enabled: Bool) {
+        unclassifiedMeetingsOnly = enabled
+        if enabled {
+            selectedMeetingTypeIDs = []
+        }
+        reloadAfterStateChange()
+    }
+
+    public func toggleMeetingLabelFilter(_ id: UUID) {
+        if selectedMeetingLabelIDs.contains(id) {
+            selectedMeetingLabelIDs.remove(id)
+        } else {
+            selectedMeetingLabelIDs.insert(id)
+        }
+        reloadAfterStateChange()
+    }
+
+    public func clearMeetingClassificationFilters() {
+        guard hasMeetingClassificationFilter else { return }
+        selectedMeetingTypeIDs = []
+        unclassifiedMeetingsOnly = false
+        selectedMeetingLabelIDs = []
+        reloadAfterStateChange()
     }
 
     public var hasSelectedTranscriptions: Bool {
@@ -225,7 +359,7 @@ public final class TranscriptionLibraryViewModel {
                 } else {
                     transcriptions[idx].isFavorite = newValue
                 }
-                publishLoadedItems(transcriptions, hasMore: hasMore)
+                publishLoadedItems(transcriptions, hasMore: hasMore, filter: displayedFilter)
             }
             Telemetry.send(.transcriptionFavorited(isFavorite: newValue))
         } catch {
@@ -449,12 +583,12 @@ public final class TranscriptionLibraryViewModel {
     public func deleteTranscription(_ transcription: Transcription) {
         do {
             errorMessage = nil
-            try TranscriptionDeletionCleanup.removeOwnedAssets(for: transcription)
-            let deleted = try transcriptionRepo?.delete(id: transcription.id) ?? false
+            guard let repo = transcriptionRepo else { return }
+            let deleted = try TranscriptionDeletionCoordinator.delete(transcription, repository: repo)
             guard deleted else { return }
             transcriptions.removeAll { $0.id == transcription.id }
             selectedTranscriptionIDs.remove(transcription.id)
-            publishLoadedItems(transcriptions, hasMore: hasMore)
+            publishLoadedItems(transcriptions, hasMore: hasMore, filter: displayedFilter)
             Telemetry.send(.transcriptionDeleted)
         } catch {
             logger.error("Failed to delete transcription: \(error.localizedDescription, privacy: .private)")
@@ -480,7 +614,7 @@ public final class TranscriptionLibraryViewModel {
                     transcriptions[idx].meetingArtifactFolderPath
                     ?? MeetingArtifactStore.sessionFolderURL(for: transcription)?.standardizedFileURL.path
                 transcriptions[idx].filePath = nil
-                publishLoadedItems(transcriptions, hasMore: hasMore)
+                publishLoadedItems(transcriptions, hasMore: hasMore, filter: displayedFilter)
             }
         } catch TranscriptionAssetCleanupError.meetingAudioFinalizationInProgress {
             errorMessage = TranscriptionAssetCleanup.meetingAudioFinalizationInProgressMessage
@@ -488,6 +622,39 @@ public final class TranscriptionLibraryViewModel {
             logger.error("Failed to delete meeting audio: \(error.localizedDescription, privacy: .private)")
             errorMessage = "Failed to delete meeting audio: \(error.localizedDescription)"
         }
+    }
+
+    /// Applies a persisted meeting rename, replacing any stale query snapshot before it can publish.
+    public func applyMeetingRename(_ rename: MeetingRename) {
+        guard let query = makeQuery(offset: 0),
+            query.sourceType == nil || query.sourceType == .meeting
+        else { return }
+        if isLoading || query.sortOrder == .titleAscending || query.searchText != nil {
+            // The renamed meeting may not be loaded yet, or may no longer match.
+            // Invalidate old snapshots before replacing the active query's window.
+            let windowSize = isLoading ? requestedWindowSize : max(pageSize, transcriptions.count)
+            cancelActiveLoad()
+            errorMessage = nil
+            do {
+                try reloadLoadedWindow(limit: windowSize)
+            } catch {
+                logger.error(
+                    "Renamed meeting but failed to refresh Library: \(error.localizedDescription, privacy: .private)"
+                )
+                errorMessage = "Renamed meeting, but failed to refresh Library: \(error.localizedDescription)"
+            }
+            return
+        }
+
+        guard let index = transcriptions.firstIndex(where: { $0.id == rename.id }),
+            transcriptions[index].sourceType == .meeting
+        else {
+            return
+        }
+
+        transcriptions[index].fileName = rename.title
+        transcriptions[index].derivedTitle = rename.title
+        publishLoadedItems(transcriptions, hasMore: hasMore, filter: displayedFilter)
     }
 
     @discardableResult
@@ -528,15 +695,20 @@ public final class TranscriptionLibraryViewModel {
         loadTranscriptions()
     }
 
-    private func reloadLoadedWindow() throws {
+    private func reloadLoadedWindow(limit: Int? = nil) throws {
         guard let repo = transcriptionRepo else { return }
         guard var query = makeQuery(offset: 0) else {
-            publishLoadedItems([], hasMore: false)
+            publishLoadedItems([], hasMore: false, filter: filter)
             return
         }
-        query.limit = max(pageSize, transcriptions.count)
+        query.limit = limit ?? max(pageSize, transcriptions.count)
         let page = try repo.fetchLibraryPage(query: query)
-        publishLoadedItems(page.items, hasMore: page.hasMore)
+        publishLoadedItems(
+            page.items,
+            hasMore: page.hasMore,
+            filter: filter,
+            effectiveTranscriptTextByID: page.effectiveTranscriptTextByID
+        )
     }
 
     private func refreshLoadedTranscription(id: UUID) throws {
@@ -548,12 +720,19 @@ public final class TranscriptionLibraryViewModel {
         if loadTask != nil {
             cancelActiveLoad()
         }
-        guard let refreshed = try repo.fetch(id: id) else {
+        guard let refreshed = try repo.fetchLibraryItem(id: id) else {
             removeLoadedTranscriptions(withIDs: [id])
             return
         }
-        transcriptions[index] = refreshed
-        publishLoadedItems(transcriptions, hasMore: hasMore)
+        transcriptions[index] = refreshed.transcription
+        var updatedEffectiveText = effectiveTranscriptTextByID
+        updatedEffectiveText[id] = refreshed.effectiveTranscriptText
+        publishLoadedItems(
+            transcriptions,
+            hasMore: hasMore,
+            filter: displayedFilter,
+            effectiveTranscriptTextByID: updatedEffectiveText
+        )
     }
 
     private func cancelActiveLoad() {
@@ -582,34 +761,43 @@ public final class TranscriptionLibraryViewModel {
         loadTask?.cancel()
         loadGeneration += 1
         let generation = loadGeneration
+        let requestedFilter = filter
 
         guard let repo = transcriptionRepo else {
             isLoading = false
-            publishLoadedItems([], hasMore: false)
+            publishLoadedItems([], hasMore: false, filter: requestedFilter)
             return Task {}
         }
         guard let query = makeQuery(offset: offset) else {
             isLoading = false
-            publishLoadedItems([], hasMore: false)
+            publishLoadedItems([], hasMore: false, filter: requestedFilter)
             return Task {}
         }
 
+        requestedWindowSize = query.offset + query.limit
         isLoading = true
         errorMessage = nil
 
-        let task = Task { @MainActor [weak self, repo, query] in
+        let task = Task { @MainActor [weak self, repo, query, requestedFilter] in
             do {
                 let page = try await Task.detached(priority: .userInitiated) {
                     try repo.fetchLibraryPage(query: query)
                 }.value
                 guard let self, !Task.isCancelled, self.loadGeneration == generation else { return }
                 let items = append ? self.transcriptions + page.items : page.items
-                self.publishLoadedItems(items, hasMore: page.hasMore)
+                var effectiveTranscriptTextByID = append ? self.effectiveTranscriptTextByID : [:]
+                effectiveTranscriptTextByID.merge(page.effectiveTranscriptTextByID) { _, new in new }
+                self.publishLoadedItems(
+                    items,
+                    hasMore: page.hasMore,
+                    filter: requestedFilter,
+                    effectiveTranscriptTextByID: effectiveTranscriptTextByID
+                )
                 self.isLoading = false
             } catch {
                 guard let self, !Task.isCancelled, self.loadGeneration == generation else { return }
                 self.logger.error("Failed to load transcriptions: \(error.localizedDescription, privacy: .private)")
-                self.publishLoadedItems([], hasMore: false)
+                self.publishLoadedItems([], hasMore: false, filter: requestedFilter)
                 self.isLoading = false
                 self.errorMessage = "Failed to load transcriptions: \(error.localizedDescription)"
             }
@@ -655,6 +843,9 @@ public final class TranscriptionLibraryViewModel {
         return TranscriptionLibraryQuery(
             sourceType: sourceType,
             favoritesOnly: favoritesOnly,
+            meetingTypeIDs: selectedMeetingTypeIDs,
+            unclassifiedMeetingsOnly: unclassifiedMeetingsOnly,
+            meetingLabelIDs: selectedMeetingLabelIDs,
             searchText: trimmedSearch.isEmpty ? nil : trimmedSearch,
             sortOrder: sortOrder,
             limit: pageSize,
@@ -664,11 +855,21 @@ public final class TranscriptionLibraryViewModel {
         )
     }
 
-    private func publishLoadedItems(_ items: [Transcription], hasMore: Bool) {
+    private func publishLoadedItems(
+        _ items: [Transcription],
+        hasMore: Bool,
+        filter: LibraryFilter,
+        effectiveTranscriptTextByID updatedEffectiveText: [UUID: String]? = nil
+    ) {
+        let itemIDs = Set(items.map(\.id))
+        effectiveTranscriptTextByID = (updatedEffectiveText ?? effectiveTranscriptTextByID)
+            .filter { itemIDs.contains($0.key) }
         transcriptions = items
         filteredTranscriptions = items
         groupedTranscriptions = groupByDate(items)
         self.hasMore = hasMore
+        displayedFilter = filter
+        meetingClassificationViewModel.loadClassifications(for: items)
         pruneSelectionToLoadedItems()
     }
 
@@ -691,7 +892,7 @@ public final class TranscriptionLibraryViewModel {
     private func removeLoadedTranscriptions(withIDs ids: Set<UUID>) {
         transcriptions.removeAll { ids.contains($0.id) }
         selectedTranscriptionIDs.subtract(ids)
-        publishLoadedItems(transcriptions, hasMore: hasMore)
+        publishLoadedItems(transcriptions, hasMore: hasMore, filter: displayedFilter)
     }
 
     private func clearLoadedMeetingAudio(forIDs ids: Set<UUID>) {
@@ -701,7 +902,7 @@ public final class TranscriptionLibraryViewModel {
                 ?? MeetingArtifactStore.sessionFolderURL(for: transcriptions[index])?.standardizedFileURL.path
             transcriptions[index].filePath = nil
         }
-        publishLoadedItems(transcriptions, hasMore: hasMore)
+        publishLoadedItems(transcriptions, hasMore: hasMore, filter: displayedFilter)
     }
 
     private func setLoadedStatus(
@@ -713,7 +914,7 @@ public final class TranscriptionLibraryViewModel {
         transcriptions[index].status = status
         transcriptions[index].errorMessage = errorMessage
         transcriptions[index].updatedAt = Date()
-        publishLoadedItems(transcriptions, hasMore: hasMore)
+        publishLoadedItems(transcriptions, hasMore: hasMore, filter: displayedFilter)
     }
 
     nonisolated private static func isRetryableMeetingTranscription(_ transcription: Transcription) -> Bool {
@@ -737,8 +938,7 @@ public final class TranscriptionLibraryViewModel {
 
         for target in targets {
             do {
-                try TranscriptionDeletionCleanup.removeOwnedAssets(for: target)
-                if try repo.delete(id: target.id) {
+                if try TranscriptionDeletionCoordinator.delete(target, repository: repo) {
                     succeededIDs.append(target.id)
                 } else {
                     failedIDs.append(target.id)

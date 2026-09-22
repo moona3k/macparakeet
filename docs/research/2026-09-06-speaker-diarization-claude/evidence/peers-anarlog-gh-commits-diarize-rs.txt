@@ -1,0 +1,5 @@
+129592671 2026-09-05 Harden telemetry privacy boundaries (#7351)
+c24b4b513 2026-09-03 Separate the people sharing the mic in in-person meetings (#7285)
+ed91d1b28 2026-09-03 Consolidate over-split speakers in hosted batch transcripts (#7280)
+0b0d79b0d 2026-09-02 Keep local diarization alive, repair the CoreML cache, simplify the diarizer (#7251)
+ba1bfbd09 2026-09-02 Add on-device speaker diarization for local transcription (#7244)

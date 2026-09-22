@@ -5,6 +5,30 @@ import XCTest
 
 final class HistoryCommandTests: XCTestCase {
 
+    func testDictationsListMarksCancelledRows() throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let db = try DatabaseManager(path: dbURL.path)
+        let repo = DictationRepository(dbQueue: db.dbQueue)
+        try repo.save(
+            Dictation(
+                durationMs: 2000,
+                rawTranscript: "kept after cancel",
+                status: .cancelled
+            )
+        )
+
+        let command = try DictationsSubcommand.parse([
+            "--database", dbURL.path,
+        ])
+        let output = try captureStandardOutput {
+            try command.run()
+        }
+
+        XCTAssertTrue(output.contains("[cancelled]"), output)
+        XCTAssertTrue(output.contains("kept after cancel"), output)
+    }
+
     // MARK: - Delete Dictation
 
     func testDeleteDictationRemovesRecord() throws {
@@ -368,6 +392,43 @@ final class HistoryCommandTests: XCTestCase {
         XCTAssertTrue(output.contains("Deleted all stored meeting audio"))
     }
 
+    func testClearMeetingAudioCommandLeavesFilesAndPathsIntactWhenMutationLeaseIsBusy() throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let db = try DatabaseManager(path: dbURL.path)
+        let repo = TranscriptionRepository(dbQueue: db.dbQueue)
+        let meetingRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-cli-meetings-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: meetingRoot) }
+        let folder = meetingRoot.appendingPathComponent("session", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let audioURL = folder.appendingPathComponent("meeting-playback.m4a")
+        try Data("audio".utf8).write(to: audioURL)
+        let meeting = Transcription(
+            fileName: "meeting-playback.m4a",
+            filePath: audioURL.path,
+            rawTranscript: "Keep both phases atomic",
+            status: .completed,
+            sourceType: .meeting
+        )
+        try repo.save(meeting)
+        let holder = try MeetingMediaMutationLease.acquire(roots: [meetingRoot])
+        defer { holder.release() }
+        let command = try ClearMeetingAudioSubcommand.parse([
+            "--database", dbURL.path,
+            "--meeting-recordings-directory", meetingRoot.path,
+        ])
+
+        XCTAssertThrowsError(try command.run()) { error in
+            guard case MeetingMediaMutationLease.AcquisitionError.busy(let busyRoot) = error else {
+                return XCTFail("expected a busy media mutation lease, got \(error)")
+            }
+            XCTAssertEqual(busyRoot, meetingRoot.resolvingSymlinksInPath().standardizedFileURL.path)
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: audioURL.path))
+        XCTAssertEqual(try repo.fetch(id: meeting.id)?.filePath, audioURL.path)
+    }
+
     func testClearMeetingAudioCommandJSONReportsAffectedIDs() throws {
         let dbURL = temporaryDatabaseURL()
         defer { try? FileManager.default.removeItem(at: dbURL) }
@@ -527,6 +588,172 @@ final class HistoryCommandTests: XCTestCase {
         // Verify it's gone from favorites
         let favoritesAfter = try repo.fetchFavorites()
         XCTAssertFalse(favoritesAfter.contains(where: { $0.id == t.id }))
+    }
+
+    func testFavoriteAndUnfavoriteCommandsEmitJSON() throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let db = try DatabaseManager(path: dbURL.path)
+        let repo = TranscriptionRepository(dbQueue: db.dbQueue)
+        let transcription = Transcription(fileName: "star-me.mp3", rawTranscript: "Star me", status: .completed)
+        try repo.save(transcription)
+
+        let favorite = try FavoriteSubcommand.parse([
+            transcription.id.uuidString,
+            "--database", dbURL.path,
+            "--json",
+        ])
+        let favoriteOutput = try captureStandardOutput { try favorite.run() }
+        let favoriteJSON = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(favoriteOutput.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(favoriteJSON["ok"] as? Bool, true)
+        XCTAssertEqual(favoriteJSON["id"] as? String, transcription.id.uuidString)
+        XCTAssertEqual(favoriteJSON["isFavorite"] as? Bool, true)
+        XCTAssertEqual(try repo.fetch(id: transcription.id)?.isFavorite, true)
+
+        let unfavorite = try UnfavoriteSubcommand.parse([
+            transcription.id.uuidString,
+            "--database", dbURL.path,
+            "--json",
+        ])
+        let unfavoriteOutput = try captureStandardOutput { try unfavorite.run() }
+        let unfavoriteJSON = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(unfavoriteOutput.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(unfavoriteJSON["isFavorite"] as? Bool, false)
+        XCTAssertEqual(try repo.fetch(id: transcription.id)?.isFavorite, false)
+    }
+
+    func testRenameCommandUpdatesMeetingTitleAndFileDisplayTitle() async throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let db = try DatabaseManager(path: dbURL.path)
+        let repo = TranscriptionRepository(dbQueue: db.dbQueue)
+        let meeting = Transcription(
+            fileName: "Standup",
+            rawTranscript: "hello",
+            status: .completed,
+            sourceType: .meeting
+        )
+        let file = Transcription(
+            fileName: "notes.mp3",
+            rawTranscript: "vendor notes",
+            status: .completed,
+            sourceType: .file
+        )
+        let url = Transcription(
+            fileName: "clip.mp4",
+            rawTranscript: "url row",
+            status: .completed,
+            sourceType: .youtube
+        )
+        try repo.save(meeting)
+        try repo.save(file)
+        try repo.save(url)
+
+        let meetingRename = try RenameSubcommand.parse([
+            meeting.id.uuidString,
+            "--title", "Weekly standup",
+            "--json",
+            "--database", dbURL.path,
+        ])
+        let meetingOutput = try await captureStandardOutput { try await meetingRename.run() }
+        let meetingJSON = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(meetingOutput.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(meetingJSON["kind"] as? String, "meeting")
+        XCTAssertEqual(meetingJSON["title"] as? String, "Weekly standup")
+        XCTAssertEqual(try repo.fetch(id: meeting.id)?.fileName, "Weekly standup")
+
+        let fileRename = try RenameSubcommand.parse([
+            file.id.uuidString,
+            "--title", "Q3 vendor notes",
+            "--json",
+            "--database", dbURL.path,
+        ])
+        let fileOutput = try await captureStandardOutput { try await fileRename.run() }
+        let fileJSON = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(fileOutput.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(fileJSON["kind"] as? String, "file")
+        XCTAssertEqual(fileJSON["title"] as? String, "Q3 vendor notes")
+        let renamedFile = try XCTUnwrap(try repo.fetch(id: file.id))
+        XCTAssertEqual(renamedFile.fileName, "notes.mp3")
+        XCTAssertEqual(renamedFile.titleOverride, "Q3 vendor notes")
+
+        let urlRename = try RenameSubcommand.parse([
+            url.id.uuidString,
+            "--title", "Should fail",
+            "--database", dbURL.path,
+        ])
+        do {
+            try await urlRename.run()
+            XCTFail("Expected URL rename to fail")
+        } catch {
+            XCTAssertTrue(error is ValidationError, "Expected ValidationError, got \(error)")
+        }
+    }
+
+    func testRenameCommandNoOpsIdenticalTitles() async throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let db = try DatabaseManager(path: dbURL.path)
+        let repo = TranscriptionRepository(dbQueue: db.dbQueue)
+        let meeting = Transcription(
+            fileName: "Standup",
+            rawTranscript: "hello",
+            status: .completed,
+            sourceType: .meeting
+        )
+        let file = Transcription(
+            fileName: "notes.mp3",
+            rawTranscript: "vendor notes",
+            status: .completed,
+            sourceType: .file,
+            titleOverride: "Q3 vendor notes"
+        )
+        try repo.save(meeting)
+        try repo.save(file)
+        let meetingUpdatedAt = try XCTUnwrap(try repo.fetch(id: meeting.id)?.updatedAt)
+        let fileUpdatedAt = try XCTUnwrap(try repo.fetch(id: file.id)?.updatedAt)
+
+        let meetingRename = try RenameSubcommand.parse([
+            meeting.id.uuidString,
+            "--title", "  Standup  ",
+            "--json",
+            "--database", dbURL.path,
+        ])
+        let meetingOutput = try await captureStandardOutput { try await meetingRename.run() }
+        let meetingJSON = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(meetingOutput.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(meetingJSON["kind"] as? String, "meeting")
+        XCTAssertEqual(meetingJSON["title"] as? String, "Standup")
+        let unchangedMeeting = try XCTUnwrap(try repo.fetch(id: meeting.id))
+        XCTAssertEqual(unchangedMeeting.fileName, "Standup")
+        XCTAssertEqual(unchangedMeeting.updatedAt, meetingUpdatedAt)
+
+        let fileRename = try RenameSubcommand.parse([
+            file.id.uuidString,
+            "--title", "Q3 vendor notes",
+            "--json",
+            "--database", dbURL.path,
+        ])
+        let fileOutput = try await captureStandardOutput { try await fileRename.run() }
+        let fileJSON = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(fileOutput.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(fileJSON["kind"] as? String, "file")
+        XCTAssertEqual(fileJSON["title"] as? String, "Q3 vendor notes")
+        let unchangedFile = try XCTUnwrap(try repo.fetch(id: file.id))
+        XCTAssertEqual(unchangedFile.fileName, "notes.mp3")
+        XCTAssertEqual(unchangedFile.titleOverride, "Q3 vendor notes")
+        XCTAssertEqual(unchangedFile.updatedAt, fileUpdatedAt)
+    }
+
+    func testRenameRejectsEmptyTitle() {
+        XCTAssertThrowsError(try RenameSubcommand.parse(["abcd", "--title", "   "]))
     }
 
     // MARK: - Search Transcriptions

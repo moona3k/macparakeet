@@ -1,0 +1,29 @@
+Executable=<REPO>/dist/MacParakeet.app/Contents/MacOS/MacParakeet
+Identifier=com.macparakeet.MacParakeet
+Format=app bundle with Mach-O thin (arm64)
+CodeDirectory v=20500 size=214919 flags=0x10000(runtime) hashes=6705+7 location=embedded
+VersionPlatform=1
+VersionMin=917504
+VersionSDK=1704960
+Hash type=sha256 size=32
+CandidateCDHash sha256=8620f4e0045f1cfbca4c4063aff50dd73536ff56
+CandidateCDHashFull sha256=8620f4e0045f1cfbca4c4063aff50dd73536ff56403b388d5e3f743e495a7c7d
+Hash choices=sha256
+CMSDigest=8620f4e0045f1cfbca4c4063aff50dd73536ff56403b388d5e3f743e495a7c7d
+CMSDigestType=2
+Executable Segment base=0
+Executable Segment limit=36716544
+Executable Segment flags=0x1
+Page size=16384
+CDHash=8620f4e0045f1cfbca4c4063aff50dd73536ff56
+Signature size=9043
+Authority=Developer ID Application: Daniel Moon (FYAF2ZD7RM)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+Timestamp=Sep 7, 2026 at 4:28:45 PM
+Notarization Ticket=stapled
+Info.plist entries=22
+TeamIdentifier=FYAF2ZD7RM
+Runtime Version=26.4.0
+Sealed Resources version=2 rules=13 files=86
+Internal requirements count=1 size=188

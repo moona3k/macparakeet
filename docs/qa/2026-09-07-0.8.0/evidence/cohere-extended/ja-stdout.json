@@ -1,0 +1,23 @@
+{
+  "createdAt" : "2026-09-07T23:02:25Z",
+  "derivedSnippet" : "インターネットで敵対的環境構成について検索すると、おそらく現地企業の住所が出てくるでしょう。",
+  "derivedTitle" : "インターネットで敵対的環境構成について検索すると、おそらく現地企業の住所が出てくるでしょう。",
+  "durationMs" : 10440,
+  "engine" : "cohere",
+  "engineVariant" : "ane",
+  "fileName" : "ja_jp_0000.wav",
+  "filePath" : "<PUBLIC_FLEURS>\/ja_jp\/ja_jp_0000.wav",
+  "fileSizeBytes" : 334124,
+  "id" : "1A51CBEF-C50B-4A57-9764-7754E1925994",
+  "isFavorite" : false,
+  "isTranscriptEdited" : false,
+  "language" : "ja",
+  "rawTranscript" : "インターネットで敵対的環境構成について検索すると、おそらく現地企業の住所が出てくるでしょう。",
+  "recoveredFromCrash" : false,
+  "sourceType" : "file",
+  "status" : "completed",
+  "updatedAt" : "2026-09-07T23:03:14Z",
+  "wordTimestamps" : [
+
+  ]
+}

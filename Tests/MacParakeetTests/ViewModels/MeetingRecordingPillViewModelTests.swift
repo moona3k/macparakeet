@@ -10,6 +10,9 @@ final class MeetingRecordingPillViewModelTests: XCTestCase {
         viewModel.state = .idle
         XCTAssertFalse(viewModel.canTogglePause)
 
+        viewModel.state = .starting
+        XCTAssertFalse(viewModel.canTogglePause)
+
         viewModel.state = .recording
         XCTAssertTrue(viewModel.canTogglePause)
 

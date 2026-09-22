@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 public enum ObservabilityOutcome: String, Sendable {
     case success
@@ -45,8 +46,28 @@ public struct ObservabilityOperationContext: Sendable, Equatable {
     }
 }
 
+public enum ObservabilityCaptureConsumer: String, Sendable {
+    case meeting
+    case dictation
+}
+
+public struct ObservabilityCaptureCorrelation: Sendable, Equatable {
+    public let workflowID: String
+    public let consumer: ObservabilityCaptureConsumer
+
+    public init(workflowID: String, consumer: ObservabilityCaptureConsumer) {
+        self.workflowID = workflowID
+        self.consumer = consumer
+    }
+}
+
 public enum Observability {
     @TaskLocal public static var currentOperationContext: ObservabilityOperationContext?
+    // Keep at most one workflow per consumer, ordered by their distinct begin calls.
+    // A short dictation can temporarily own attribution without losing an ongoing meeting.
+    private static let captureCorrelations = OSAllocatedUnfairLock<[ObservabilityCaptureCorrelation]>(
+        initialState: []
+    )
 
     public static func withOperationContext<T: Sendable>(
         _ context: ObservabilityOperationContext,
@@ -94,6 +115,52 @@ public enum Observability {
 
     public static func operationID() -> String {
         UUID().uuidString
+    }
+
+    public static func beginCaptureCorrelation(_ correlation: ObservabilityCaptureCorrelation) {
+        guard UUID(uuidString: correlation.workflowID) != nil else { return }
+        captureCorrelations.withLock { active in
+            guard !active.contains(correlation) else { return }
+            active.removeAll { $0.consumer == correlation.consumer }
+            active.append(correlation)
+        }
+    }
+
+    public static func endCaptureCorrelation(workflowID: String) {
+        captureCorrelations.withLock { active in
+            active.removeAll { $0.workflowID == workflowID }
+        }
+    }
+
+    public static var currentCaptureCorrelation: ObservabilityCaptureCorrelation? {
+        captureCorrelations.withLock { $0.last }
+    }
+
+    static func resetCaptureCorrelation() {
+        captureCorrelations.withLock { $0.removeAll() }
+    }
+
+    public static func sanitizedGitCommit(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed == "unknown" { return "unknown" }
+        guard trimmed.count >= 7, trimmed.count <= 40,
+            trimmed.unicodeScalars.allSatisfy({ CharacterSet(charactersIn: "0123456789abcdefABCDEF").contains($0) })
+        else {
+            return "unknown"
+        }
+        return trimmed.lowercased()
+    }
+
+    public static func sanitizedBuildNumber(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= 64,
+            trimmed.unicodeScalars.allSatisfy({
+                CharacterSet.alphanumerics.contains($0) || $0 == "." || $0 == "_" || $0 == "-"
+            })
+        else {
+            return "unknown"
+        }
+        return trimmed
     }
 
     public static func durationSeconds(since startedAt: Date) -> Double {
@@ -169,10 +236,10 @@ public enum Observability {
     }
 
     private static let audioExtensions: Set<String> = [
-        "aac", "aif", "aiff", "caf", "flac", "m4a", "mp3", "ogg", "opus", "wav", "wma"
+        "aac", "aif", "aiff", "caf", "flac", "m4a", "mp3", "ogg", "opus", "wav", "wma",
     ]
 
     private static let videoExtensions: Set<String> = [
-        "avi", "flv", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "webm", "wmv"
+        "avi", "flv", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "webm", "wmv",
     ]
 }

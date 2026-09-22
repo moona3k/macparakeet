@@ -2,6 +2,7 @@
 
 > Status: IMPLEMENTED
 > Date: 2026-04-28
+> Current routing amendment (2026-09-07): the two-engine type examples below record the original addition. `SpeechEnginePreference` now also includes Nemotron and Cohere (ADR-001 amendments, ADR-026). Meetings capture a `MeetingSpeechPlan`: Live Speech is leased for preview; a separately captured Final Transcription route governs durable finalization/recovery. Different live/final engines are deliberate when selected at start, not an accidental mid-session switch (ADR-016, spec/06).
 > Related: ADR-001 (Parakeet primary STT), ADR-007 (FluidAudio CoreML migration), ADR-014 (meeting recording), ADR-016 (centralized STT runtime + scheduler), ADR-019 (crash-resilient meeting recording)
 
 ## Context
@@ -26,7 +27,7 @@ Parakeet TDT via FluidAudio CoreML stays the default STT engine for the GUI and 
 
 WhisperKit is added as an optional second engine for broader multilingual recognition.
 
-### 2. Add `SpeechEnginePreference` and `SpeechEngineSelection`
+### 2. Add `SpeechEnginePreference` and `SpeechEngineSelection` (original API shape)
 
 The persisted GUI preference is:
 
@@ -79,7 +80,7 @@ The two-slot scheduler policy is unchanged:
 
 Whisper does not get its own third lane in this implementation.
 
-### 5. Pin meeting recordings to the engine active at start
+### 5. Pin meeting recordings to the engine active at start (original single-route design)
 
 Meeting recording is long-lived. Changing speech settings mid-call must not produce a session where early live chunks use one engine, finalization uses another, and crash recovery has to guess.
 

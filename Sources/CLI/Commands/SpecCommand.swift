@@ -152,7 +152,7 @@ private extension CLISpecCommand {
     static let llmInlineOptions: [CLISpecParameter] = [
         CLISpecParameter.option(
             "--provider", valueName: "ID", required: true,
-            summary: "LLM provider: anthropic, openai, openaiCompatible, gemini, openrouter, ollama, lmstudio, or cli."),
+            summary: "LLM provider: anthropic, openai, openaiCompatible, gemini, openrouter, moonshot, deepseek, qwen, zai, minimax, ollama, lmstudio, or cli."),
         CLISpecParameter.option(
             "--api-key", valueName: "KEY", summary: "API key literal; prefer --api-key-env for scripts."),
         CLISpecParameter.option(
@@ -169,6 +169,22 @@ private extension CLISpecCommand {
             ["spec"],
             summary: "Print this machine-readable CLI contract.",
             output: "CLISpec object."
+        ),
+        CLISpecCommand(
+            ["voice-control", "replay"],
+            summary:
+                "Experimental: route an instruction against a saved Voice Control observation offline; executes nothing.",
+            arguments: [
+                .argument("session", required: true, summary: "Path to latest.json or sessions/*.json.")
+            ],
+            options: [
+                CLISpecParameter.option("--goal", valueName: "TEXT", summary: "Instruction to route; defaults to the recorded one."),
+                CLISpecParameter.option("--observation", valueName: "N", summary: "0-based observation index; defaults to the last."),
+                CLISpecParameter.option(
+                    "--history", valueName: "LIST", summary: "Comma-separated op:targetID[:receipt] executed history."),
+                CLISpecParameter.flag("--jev", summary: "Call Jev on router fall-through; requires JEV_API_KEY."),
+            ],
+            output: "VoiceControlReplayReport object: decision, jevRequest, jevDecision."
         ),
         CLISpecCommand(
             ["health"],
@@ -220,9 +236,9 @@ private extension CLISpecCommand {
                     "--language", valueName: "CODE",
                     summary: "Language hint for Nemotron or Whisper; legacy Cohere values are accepted but ignored."),
                 CLISpecParameter.option(
-                    "--parakeet-model", valueName: "app-default|v3|v2|unified",
+                    "--parakeet-model", valueName: "app-default|v3|v2|unified|orukeet",
                     summary:
-                        "Parakeet build: v3 supported languages, v2 English timestamps, or Unified readable English timestamps."
+                        "Parakeet build: v3 supported languages, v2 English timestamps, Unified readable English timestamps, or orukeet (multilingual preview)."
                 ),
                 CLISpecParameter.option(
                     "--nemotron-model", valueName: "app-default|multilingual-1120ms|english-1120ms",
@@ -240,6 +256,7 @@ private extension CLISpecCommand {
                     "--speaker-min", valueName: "N", summary: "Minimum speaker count bound for diarization."),
                 CLISpecParameter.option(
                     "--speaker-max", valueName: "N", summary: "Maximum speaker count bound for diarization."),
+                CLISpecParameter.flag("--no-diarize", summary: "Compatibility alias for --speaker-detection off."),
                 CLISpecParameter.option(
                     "--media-audio-quality", valueName: "app-default|m4a|best-available",
                     summary: "Downloaded media audio quality."),
@@ -276,9 +293,9 @@ private extension CLISpecCommand {
                     "--language", valueName: "CODE",
                     summary: "Language hint for Nemotron or Whisper; legacy Cohere values are accepted but ignored."),
                 CLISpecParameter.option(
-                    "--parakeet-model", valueName: "app-default|v3|v2|unified",
+                    "--parakeet-model", valueName: "app-default|v3|v2|unified|orukeet",
                     summary:
-                        "Parakeet build: v3 supported languages, v2 English timestamps, or Unified readable English timestamps."
+                        "Parakeet build: v3 supported languages, v2 English timestamps, Unified readable English timestamps, or orukeet (multilingual preview)."
                 ),
                 CLISpecParameter.option(
                     "--nemotron-model", valueName: "app-default|multilingual-1120ms|english-1120ms",
@@ -548,19 +565,28 @@ private extension CLISpecCommand {
             ["history", "favorite"],
             summary: "Mark a transcription as favorite.",
             readOnly: false,
-            jsonMode: "none",
             arguments: [.argument("id", summary: "Transcription UUID or UUID prefix.")],
             options: [databaseOption],
-            output: "Human-readable favorite confirmation."
+            output: "Favorite result with id and isFavorite for --json; human-readable confirmation otherwise."
         ),
         CLISpecCommand(
             ["history", "unfavorite"],
             summary: "Remove a transcription from favorites.",
             readOnly: false,
-            jsonMode: "none",
             arguments: [.argument("id", summary: "Transcription UUID or UUID prefix.")],
             options: [databaseOption],
-            output: "Human-readable unfavorite confirmation."
+            output: "Favorite result with id and isFavorite for --json; human-readable confirmation otherwise."
+        ),
+        CLISpecCommand(
+            ["history", "rename"],
+            summary: "Rename a meeting title or a local file transcription display title.",
+            readOnly: false,
+            arguments: [.argument("id", summary: "Transcription UUID or UUID prefix.")],
+            options: [
+                CLISpecParameter.option("--title", valueName: "TITLE", required: true, summary: "New display title."),
+                databaseOption,
+            ],
+            output: "Rename result with kind, id, and title for --json; human-readable confirmation otherwise."
         ),
         CLISpecCommand(
             ["prompts", "list"],
@@ -574,28 +600,122 @@ private extension CLISpecCommand {
         ),
         CLISpecCommand(
             ["prompts", "show"],
-            summary: "Show one prompt's full content.",
+            summary: "Show one result or Transform prompt, optionally at an immutable version.",
+            arguments: [.argument("prompt", summary: "Prompt ID, UUID prefix, or exact name.")],
+            options: [
+                CLISpecParameter.option("--version", valueName: "N", summary: "Show one immutable version."),
+                databaseOption,
+            ],
+            output: "Prompt object, or PromptVersion object with --version, when --json is used."
+        ),
+        CLISpecCommand(
+            ["prompts", "collections", "list"],
+            summary: "List prompt collections in display order.",
+            options: [databaseOption],
+            output: "Array of PromptCollection objects."
+        ),
+        CLISpecCommand(
+            ["prompts", "collections", "add"],
+            summary: "Add a prompt collection.",
+            readOnly: false,
+            options: [
+                CLISpecParameter.option(
+                    "--name",
+                    valueName: "NAME",
+                    required: true,
+                    summary: "Collection display name."
+                ),
+                databaseOption,
+            ],
+            output: "Saved PromptCollection object when --json is used."
+        ),
+        CLISpecCommand(
+            ["prompts", "collections", "rename"],
+            summary: "Rename a prompt collection.",
+            readOnly: false,
+            arguments: [.argument("id", summary: "Full prompt collection UUID.")],
+            options: [
+                CLISpecParameter.option(
+                    "--name",
+                    valueName: "NAME",
+                    required: true,
+                    summary: "New collection display name."
+                ),
+                databaseOption,
+            ],
+            output: "Saved PromptCollection object when --json is used."
+        ),
+        CLISpecCommand(
+            ["prompts", "collections", "delete"],
+            summary: "Delete a prompt collection and leave its prompts unfiled.",
+            readOnly: false,
+            arguments: [.argument("id", summary: "Full prompt collection UUID.")],
+            options: [databaseOption],
+            output: "Deletion result with collection ID and name when --json is used."
+        ),
+        CLISpecCommand(
+            ["prompts", "collections", "reorder"],
+            summary: "Replace the complete prompt collection display order.",
+            readOnly: false,
+            arguments: [
+                .argument(
+                    "ids",
+                    required: false,
+                    summary:
+                        "Full collection UUIDs in final order. Include every current collection exactly once; pass none only when there are no collections."
+                )
+            ],
+            options: [databaseOption],
+            output: "PromptCollection objects in saved display order when --json is used."
+        ),
+        CLISpecCommand(
+            ["prompts", "history"],
+            summary: "List immutable versions for one prompt.",
             arguments: [.argument("prompt", summary: "Prompt ID, UUID prefix, or exact name.")],
             options: [databaseOption],
-            output: "Prompt object when --json is used."
+            output: "Array of PromptVersion objects."
+        ),
+        CLISpecCommand(
+            ["prompts", "diff"],
+            summary: "Compare Markdown, settings, and model across two prompt versions.",
+            arguments: [.argument("prompt", summary: "Prompt ID, UUID prefix, or exact name.")],
+            options: [
+                CLISpecParameter.option("--from", valueName: "N", required: true, summary: "Older version."),
+                CLISpecParameter.option("--to", valueName: "N", required: true, summary: "Newer version."),
+                databaseOption,
+            ],
+            output: "PromptDiffRecord object."
+        ),
+        CLISpecCommand(
+            ["prompts", "restore"],
+            summary: "Copy a historical version into a new active version.",
+            readOnly: false,
+            arguments: [.argument("prompt", summary: "Prompt ID, UUID prefix, or exact name.")],
+            options: [
+                CLISpecParameter.option("--version", valueName: "N", required: true, summary: "Version to restore."),
+                CLISpecParameter.option("--note", valueName: "TEXT", summary: "Optional history note."),
+                databaseOption,
+            ],
+            output: "Resolved Prompt object."
         ),
         CLISpecCommand(
             ["prompts", "add"],
             summary: "Add a custom result prompt.",
             readOnly: false,
-            jsonMode: "none",
             options: [
                 CLISpecParameter.option("--name", valueName: "NAME", required: true, summary: "Prompt display name."),
                 CLISpecParameter.option("--content", valueName: "TEXT", summary: "Prompt body text."),
                 CLISpecParameter.option("--from-file", valueName: "PATH", summary: "Read prompt body from a file."),
                 CLISpecParameter.flag("--auto-run", summary: "Mark as auto-run for completed transcriptions."),
+                CLISpecParameter.option("--collection", valueName: "UUID", summary: "Assign to a prompt collection."),
                 databaseOption,
             ],
-            output: "Human-readable add confirmation."
+            output: "Saved Prompt object when --json is used."
         ),
         CLISpecCommand(
             ["prompts", "set"],
-            summary: "Toggle a result prompt's visibility or auto-run state.",
+            summary:
+                "Update a result or Transform prompt; meeting-note context and label availability apply only to results.",
             readOnly: false,
             arguments: [.argument("prompt", summary: "Prompt ID, UUID prefix, or exact name.")],
             options: [
@@ -603,21 +723,49 @@ private extension CLISpecCommand {
                 CLISpecParameter.flag("--hidden", summary: "Hide the prompt and disable auto-run."),
                 CLISpecParameter.flag("--auto-run", summary: "Enable global auto-run."),
                 CLISpecParameter.flag("--no-auto-run", summary: "Disable auto-run."),
+                CLISpecParameter.flag(
+                    "--include-meeting-notes",
+                    summary: "Include meeting notes as additional context for this result prompt."),
+                CLISpecParameter.flag(
+                    "--no-include-meeting-notes",
+                    summary: "Disable automatic meeting-note context for this result prompt."),
                 CLISpecParameter.option(
                     "--source", valueName: "file|youtube|podcast|meeting",
                     summary: "Scope --auto-run/--no-auto-run to one source; omit for global all-source behavior."),
+                CLISpecParameter.option("--model", valueName: "MODEL", summary: "Set a versioned active-provider model override."),
+                CLISpecParameter.flag("--active-model", summary: "Clear the versioned model override."),
+                CLISpecParameter.option("--temperature", valueName: "N", summary: "Set versioned sampling temperature."),
+                CLISpecParameter.option("--top-p", valueName: "N", summary: "Set versioned nucleus sampling."),
+                CLISpecParameter.option("--top-k", valueName: "N", summary: "Set versioned top-k sampling."),
+                CLISpecParameter.option("--max-tokens", valueName: "N", summary: "Set versioned output token limit."),
+                CLISpecParameter.option("--thinking-mode", valueName: "MODE", summary: "Set versioned thinking mode."),
+                CLISpecParameter.option("--reasoning-effort", valueName: "LEVEL", summary: "Set versioned reasoning effort."),
+                CLISpecParameter.flag("--provider-default-settings", summary: "Clear all versioned inference overrides."),
+                CLISpecParameter.option("--collection", valueName: "UUID", summary: "Assign to a prompt collection without creating a version by itself."),
+                CLISpecParameter.flag("--no-collection", summary: "Remove collection membership without creating a version by itself."),
+                CLISpecParameter.option("--label", valueName: "LABEL", summary: "Target one label availability rule across transcription sources."),
+                CLISpecParameter.flag("--all-labels", summary: "Target the fallback when no explicit label rule matches."),
+                CLISpecParameter.flag("--available", summary: "Make the targeted policy manually available."),
+                CLISpecParameter.flag("--unavailable", summary: "Make the targeted label policy unavailable; source auto-run settings are unchanged."),
                 databaseOption,
             ],
-            output: "Updated Prompt object when --json is used."
+            output: "Updated Prompt or PromptLabelPolicy object when --json is used."
         ),
         CLISpecCommand(
             ["prompts", "delete"],
-            summary: "Delete a custom result prompt; built-ins are protected.",
+            summary: "Soft-delete a result or Transform prompt, including a built-in.",
             readOnly: false,
-            jsonMode: "none",
             arguments: [.argument("prompt", summary: "Prompt ID, UUID prefix, or exact name.")],
             options: [databaseOption],
-            output: "Human-readable delete confirmation."
+            output: "Affected Prompt object."
+        ),
+        CLISpecCommand(
+            ["prompts", "restore-deleted"],
+            summary: "Restore a soft-deleted result or Transform prompt.",
+            readOnly: false,
+            arguments: [.argument("prompt", summary: "Deleted prompt ID, UUID prefix, or exact name.")],
+            options: [databaseOption],
+            output: "Resolved Prompt object."
         ),
         CLISpecCommand(
             ["prompts", "restore-defaults"],
@@ -835,7 +983,7 @@ private extension CLISpecCommand {
         ),
         CLISpecCommand(
             ["transforms", "delete"],
-            summary: "Delete a custom Transform; built-ins are protected.",
+            summary: "Soft-delete a custom or built-in Transform.",
             readOnly: false,
             arguments: [.argument("transform", summary: "Transform ID, UUID prefix, or name.")],
             options: [databaseOption],
@@ -912,7 +1060,6 @@ private extension CLISpecCommand {
             ["vocab", "words", "add"],
             summary: "Add a custom word or correction.",
             readOnly: false,
-            jsonMode: "none",
             arguments: [
                 .argument("word", summary: "Word or phrase to match."),
                 .argument(
@@ -922,7 +1069,7 @@ private extension CLISpecCommand {
                 ),
             ],
             options: [databaseOption],
-            output: "Human-readable add confirmation."
+            output: "Write result with the saved CustomWord, including id, when --json is used."
         ),
         CLISpecCommand(
             ["vocab", "words", "set"],
@@ -954,13 +1101,12 @@ private extension CLISpecCommand {
             ["vocab", "snippets", "add"],
             summary: "Add a text snippet.",
             readOnly: false,
-            jsonMode: "none",
             arguments: [
                 .argument("trigger", summary: "Natural-language trigger phrase."),
                 .argument("expansion", summary: "Expansion text."),
             ],
             options: [databaseOption],
-            output: "Human-readable add confirmation."
+            output: "Write result with the saved TextSnippet, including id, when --json is used."
         ),
         CLISpecCommand(
             ["vocab", "snippets", "edit"],
@@ -1061,10 +1207,110 @@ private extension CLISpecCommand {
             summary: "List recent meeting recordings.",
             options: [
                 CLISpecParameter.option("--limit", valueName: "N", summary: "Maximum number of meetings."),
+                CLISpecParameter.option("--type", valueName: "TYPE", summary: "Filter by type; repeatable with ANY semantics."),
+                CLISpecParameter.option("--label", valueName: "LABEL", summary: "Filter by label; repeatable with ANY semantics."),
+                CLISpecParameter.flag("--unclassified", summary: "Only meetings without a primary type."),
                 CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
                 databaseOption,
             ],
             output: "Array of meeting list objects with transcript, notes, and prompt-result availability."
+        ),
+        CLISpecCommand(
+            ["meetings", "types", "list"],
+            summary: "List meeting types.",
+            options: [CLISpecParameter.flag("--include-archived", summary: "Include archived types."), databaseOption],
+            output: "Array of MeetingType objects."
+        ),
+        CLISpecCommand(
+            ["meetings", "types", "add"],
+            summary: "Create a meeting type.",
+            readOnly: false,
+            options: [
+                CLISpecParameter.option("--name", valueName: "NAME", required: true, summary: "Type name."),
+                CLISpecParameter.option("--color", valueName: "TOKEN", summary: "Optional color token."),
+                CLISpecParameter.option("--icon", valueName: "SYMBOL", summary: "Optional SF Symbol name."),
+                databaseOption,
+            ],
+            output: "MeetingType object."
+        ),
+        CLISpecCommand(
+            ["meetings", "types", "rename"],
+            summary: "Rename a meeting type.",
+            readOnly: false,
+            arguments: [.argument("type", summary: "Type UUID, prefix, or exact name.")],
+            options: [CLISpecParameter.option("--name", valueName: "NAME", required: true, summary: "New name."), databaseOption],
+            output: "MeetingType object."
+        ),
+        CLISpecCommand(
+            ["meetings", "types", "archive"],
+            summary: "Archive or restore a meeting type.",
+            readOnly: false,
+            arguments: [.argument("type", summary: "Type UUID, prefix, or exact name.")],
+            options: [CLISpecParameter.flag("--restore", summary: "Restore instead of archive."), databaseOption],
+            output: "MeetingType object."
+        ),
+        CLISpecCommand(
+            ["meetings", "labels", "list"],
+            summary: "List meeting labels.",
+            options: [CLISpecParameter.flag("--include-archived", summary: "Include archived labels."), databaseOption],
+            output: "Array of MeetingLabel objects."
+        ),
+        CLISpecCommand(
+            ["meetings", "labels", "add"],
+            summary: "Create a meeting label.",
+            readOnly: false,
+            options: [
+                CLISpecParameter.option("--name", valueName: "NAME", required: true, summary: "Label name."),
+                CLISpecParameter.option("--color", valueName: "TOKEN", summary: "Optional color token."),
+                databaseOption,
+            ],
+            output: "MeetingLabel object."
+        ),
+        CLISpecCommand(
+            ["meetings", "labels", "rename"],
+            summary: "Rename a meeting label.",
+            readOnly: false,
+            arguments: [.argument("label", summary: "Label UUID, prefix, or exact name.")],
+            options: [CLISpecParameter.option("--name", valueName: "NAME", required: true, summary: "New name."), databaseOption],
+            output: "MeetingLabel object."
+        ),
+        CLISpecCommand(
+            ["meetings", "labels", "set"],
+            summary: "Update a meeting label's name or color.",
+            readOnly: false,
+            arguments: [.argument("label", summary: "Label UUID, prefix, or exact name.")],
+            options: [
+                CLISpecParameter.option("--name", valueName: "NAME", summary: "New name."),
+                CLISpecParameter.option(
+                    "--color",
+                    valueName: "TOKEN",
+                    summary: "coral, green, amber, red, purple, or blue."
+                ),
+                CLISpecParameter.flag("--automatic-color", summary: "Clear the explicit color."),
+                databaseOption,
+            ],
+            output: "MeetingLabel object."
+        ),
+        CLISpecCommand(
+            ["meetings", "labels", "archive"],
+            summary: "Archive or restore a meeting label.",
+            readOnly: false,
+            arguments: [.argument("label", summary: "Label UUID, prefix, or exact name.")],
+            options: [CLISpecParameter.flag("--restore", summary: "Restore instead of archive."), databaseOption],
+            output: "MeetingLabel object."
+        ),
+        CLISpecCommand(
+            ["meetings", "classify"],
+            summary: "Set a meeting type and add/remove labels atomically.",
+            readOnly: false,
+            arguments: [.argument("meeting", summary: "Meeting UUID, prefix, or exact title.")],
+            options: [
+                CLISpecParameter.option("--type", valueName: "TYPE|none", summary: "Set or clear the primary type."),
+                CLISpecParameter.option("--add-label", valueName: "LABEL", summary: "Add a label; repeatable."),
+                CLISpecParameter.option("--remove-label", valueName: "LABEL", summary: "Remove a label; repeatable."),
+                databaseOption,
+            ],
+            output: "MeetingClassificationRecord object."
         ),
         CLISpecCommand(
             ["meetings", "show"],
@@ -1088,6 +1334,150 @@ private extension CLISpecCommand {
                 databaseOption,
             ],
             output: "MeetingTranscriptRecord object with transcriptSegments for --format json."
+        ),
+        CLISpecCommand(
+            ["meetings", "corrections", "edit-line"],
+            summary:
+                "Replace one timed transcript line through the reversible correction journal.",
+            readOnly: false,
+            arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
+            options: [
+                CLISpecParameter.option(
+                    "--segment", valueName: "UUID", required: true,
+                    summary: "Current segment ID from meetings transcript --format json."),
+                CLISpecParameter.option("--text", valueName: "TEXT", summary: "Replacement text."),
+                CLISpecParameter.flag("--stdin", summary: "Read replacement text from stdin."),
+                CLISpecParameter.option(
+                    "--expected-revision", valueName: "N", required: true,
+                    summary: "Optimistic speakerCorrectionRevision from the last transcript read."),
+                CLISpecParameter.flag(
+                    "--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output: "Updated MeetingTranscriptRecord object when --json or --envelope is used."
+        ),
+        CLISpecCommand(
+            ["meetings", "corrections", "merge-lines"],
+            summary: "Merge adjacent same-speaker timed transcript lines.",
+            readOnly: false,
+            arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
+            options: [
+                CLISpecParameter.option(
+                    "--segment", valueName: "UUID", required: true,
+                    summary: "Current segment ID; repeat in transcript order at least twice."),
+                CLISpecParameter.option(
+                    "--expected-revision", valueName: "N", required: true,
+                    summary: "Optimistic speakerCorrectionRevision from the last transcript read."),
+                CLISpecParameter.flag(
+                    "--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output: "Updated MeetingTranscriptRecord object when --json or --envelope is used."
+        ),
+        CLISpecCommand(
+            ["meetings", "corrections", "rename"],
+            summary: "Rename one speaker in the reversible correction journal.",
+            readOnly: false,
+            arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
+            options: [
+                CLISpecParameter.option(
+                    "--speaker", valueName: "ID", required: true,
+                    summary: "Speaker id from meetings transcript --format json."),
+                CLISpecParameter.option("--label", valueName: "TEXT", required: true, summary: "New display label."),
+                CLISpecParameter.option(
+                    "--expected-revision", valueName: "N", required: true,
+                    summary: "Optimistic speakerCorrectionRevision from the last transcript read."),
+                CLISpecParameter.flag(
+                    "--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output: "Updated MeetingTranscriptRecord object when --json or --envelope is used."
+        ),
+        CLISpecCommand(
+            ["meetings", "corrections", "assign"],
+            summary: "Assign one or more timed lines to a speaker or unassigned.",
+            readOnly: false,
+            arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
+            options: [
+                CLISpecParameter.option(
+                    "--segment", valueName: "UUID", required: true,
+                    summary: "Current segment ID from meetings transcript --format json; repeatable."),
+                CLISpecParameter.option(
+                    "--to-speaker", valueName: "ID",
+                    summary: "Existing speaker id to assign the lines to."),
+                CLISpecParameter.flag("--unassigned", summary: "Clear speaker assignment on the selected lines."),
+                CLISpecParameter.option(
+                    "--expected-revision", valueName: "N", required: true,
+                    summary: "Optimistic speakerCorrectionRevision from the last transcript read."),
+                CLISpecParameter.flag(
+                    "--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output: "Updated MeetingTranscriptRecord object when --json or --envelope is used."
+        ),
+        CLISpecCommand(
+            ["meetings", "corrections", "merge-speakers"],
+            summary: "Merge one speaker into another.",
+            readOnly: false,
+            arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
+            options: [
+                CLISpecParameter.option(
+                    "--from", valueName: "ID", required: true, summary: "Speaker id whose lines should move."),
+                CLISpecParameter.option(
+                    "--into", valueName: "ID", required: true, summary: "Speaker id that should remain."),
+                CLISpecParameter.option(
+                    "--expected-revision", valueName: "N", required: true,
+                    summary: "Optimistic speakerCorrectionRevision from the last transcript read."),
+                CLISpecParameter.flag(
+                    "--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output: "Updated MeetingTranscriptRecord object when --json or --envelope is used."
+        ),
+        CLISpecCommand(
+            ["meetings", "corrections", "undo"],
+            summary: "Undo the active transcript correction.",
+            readOnly: false,
+            arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
+            options: [
+                CLISpecParameter.option(
+                    "--expected-revision", valueName: "N", required: true,
+                    summary: "Optimistic speakerCorrectionRevision from the last transcript read."),
+                CLISpecParameter.flag(
+                    "--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output: "Updated MeetingTranscriptRecord object when --json or --envelope is used."
+        ),
+        CLISpecCommand(
+            ["meetings", "corrections", "redo"],
+            summary: "Redo the next transcript correction.",
+            readOnly: false,
+            arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
+            options: [
+                CLISpecParameter.option(
+                    "--expected-revision", valueName: "N", required: true,
+                    summary: "Optimistic speakerCorrectionRevision from the last transcript read."),
+                CLISpecParameter.flag(
+                    "--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output: "Updated MeetingTranscriptRecord object when --json or --envelope is used."
+        ),
+        CLISpecCommand(
+            ["meetings", "corrections", "reset"],
+            summary: "Reset the active transcript projection to its automatic baseline.",
+            readOnly: false,
+            arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
+            options: [
+                CLISpecParameter.option(
+                    "--expected-revision", valueName: "N", required: true,
+                    summary: "Optimistic speakerCorrectionRevision from the last transcript read."),
+                CLISpecParameter.flag(
+                    "--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output: "Updated MeetingTranscriptRecord object when --json or --envelope is used."
         ),
         CLISpecCommand(
             ["meetings", "notes", "get"],
@@ -1193,6 +1583,92 @@ private extension CLISpecCommand {
             ],
             output:
                 "Meeting Markdown in the same shape as meeting.md, or MeetingRecord JSON with prompt-result count and artifact paths when --stdout is present; otherwise writes a file and prints its path."
+        ),
+        CLISpecCommand(
+            ["meetings", "import"],
+            summary: "Import one external audio or video recording as a managed, searchable meeting.",
+            readOnly: false,
+            arguments: [.argument("path", summary: "Local audio or video file path.")],
+            options: [
+                CLISpecParameter.option("--title", valueName: "TITLE", summary: "Explicit title; defaults to the filename."),
+                CLISpecParameter.option(
+                    "--started-at", valueName: "DATE",
+                    summary: "YYYY-MM-DD at local midnight or an ISO-8601 timestamp."),
+                CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output:
+                "MeetingImportRecord with id, completion, status, title, startedAt, durationMs, managedAudioPath, and warnings. Complete and partial results exit 0; needsRetry prints its saved meeting then exits 1, or 130 after SIGINT."
+        ),
+        CLISpecCommand(
+            ["meetings", "split", "preview"],
+            summary: "Read-only preview of the parts a split would produce. Performs no writes.",
+            arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
+            options: [
+                CLISpecParameter.option(
+                    "--cut", valueName: "MS", summary: "A cut point in milliseconds; repeatable, ascending."),
+                CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output: "MeetingSplitPreview object: total duration, ranges, and which optional tracks exist."
+        ),
+        CLISpecCommand(
+            ["meetings", "split", "create"],
+            summary:
+                "Split a saved meeting and process every part sequentially: first transcription, then enabled automation.",
+            readOnly: false,
+            arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
+            options: [
+                CLISpecParameter.option(
+                    "--cut", valueName: "MS", summary: "A cut point in milliseconds; repeatable, ascending."),
+                CLISpecParameter.option(
+                    "--title", valueName: "TITLE",
+                    summary: "Title for one resulting part, in order; repeatable, must be cuts.count + 1."),
+                CLISpecParameter.option(
+                    "--key", valueName: "KEY",
+                    summary: "Explicit idempotency key; defaults to a stable key derived from the meeting id, cuts and titles."),
+                CLISpecParameter.option("--expected-identity", valueName: "IDENTITY", summary: "Opaque sourceIdentity from preview; reject changed source audio."),
+                CLISpecParameter.flag("--dry-run", summary: "Validate and print the preview only; performs no writes."),
+                CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output:
+                "MeetingSplitOperation object (or MeetingSplitPreview when --dry-run). Safe to repeat with identical arguments after an interruption; never duplicates parts."
+        ),
+        CLISpecCommand(
+            ["meetings", "split", "status"],
+            summary: "Show one split operation's progress, or discover prior operations for a source recording.",
+            arguments: [.argument("operationId", required: false, summary: "Split operation UUID; omit when using --source.")],
+            options: [
+                CLISpecParameter.option(
+                    "--source", valueName: "MEETING",
+                    summary: "List every split operation recorded for this meeting instead of one operation id."),
+                CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output: "MeetingSplitOperation object, or an array of them when --source is used."
+        ),
+        CLISpecCommand(
+            ["meetings", "split", "resume"],
+            summary: "Resume processing a committed split operation without recreating audio.",
+            readOnly: false,
+            arguments: [.argument("operationId", summary: "Split operation UUID.")],
+            options: [
+                CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output: "MeetingSplitOperation object. Retries only unfinished/failed children; completed work is never repeated."
+        ),
+        CLISpecCommand(
+            ["meetings", "split", "discard"],
+            summary: "Abandon a not-yet-published split operation and remove its unpublished output.",
+            readOnly: false,
+            arguments: [.argument("operationId", summary: "Split operation UUID.")],
+            options: [
+                CLISpecParameter.flag("--envelope", summary: "Wrap JSON output in an ok/data/meta success envelope."),
+                databaseOption,
+            ],
+            output: "MeetingSplitOperation object with status discarded. Refused once the operation has committed audio parts."
         ),
     ]
 }

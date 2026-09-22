@@ -20,8 +20,8 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         let second = makeItem(name: "B")
         try persistProcessingRows([first, second], in: transcriptionRepo)
 
-        queue.enqueue(first)
-        queue.enqueue(second)
+        await queue.enqueue(first)
+        await queue.enqueue(second)
         await queue.waitUntilIdle()
 
         let transcriptionSnapshot = await transcriptionService.snapshot()
@@ -34,10 +34,15 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
             ])
     }
 
-    func testQueueContinuesAfterFailedFinalize() async throws {
+    func testCompletionWaitsForDurableSaveBeforeRefreshingConsumers() async throws {
         let transcriptionRepo = MockTranscriptionRepository()
         let lockStore = QueueRecordingLockFileStore()
-        let transcriptionService = QueueTranscriptionServiceSpy(transcriptionRepo: transcriptionRepo)
+        let finalizationStarted = expectation(description: "Finalization reached the delayed save")
+        let transcriptionService = QueueTranscriptionServiceSpy(
+            transcriptionRepo: transcriptionRepo,
+            onFinalizationStarted: { finalizationStarted.fulfill() }
+        )
+        await transcriptionService.setHoldFinalization(true)
         let queue = MeetingTranscriptionQueue(
             transcriptionService: transcriptionService,
             transcriptionRepo: transcriptionRepo,
@@ -46,7 +51,52 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
                 transcriptionRepo: transcriptionRepo
             )
         )
-        let first = makeItem(name: "A")
+        let item = makeItem(name: "Delayed save")
+        try persistProcessingRows([item], in: transcriptionRepo)
+        var refreshedStatuses: [Transcription.TranscriptionStatus] = []
+        queue.onCompletion = { completion in
+            guard case .success(_, let transcription) = completion else {
+                XCTFail("Expected successful completion")
+                return
+            }
+            do {
+                let persisted = try XCTUnwrap(transcriptionRepo.fetch(id: transcription.id))
+                refreshedStatuses.append(persisted.status)
+                XCTAssertEqual(lockStore.deletes, [item.recording.folderURL])
+            } catch {
+                XCTFail("Completion must expose a durably saved row: \(error)")
+            }
+        }
+
+        await queue.enqueue(item)
+        await fulfillment(of: [finalizationStarted], timeout: 1)
+        XCTAssertTrue(refreshedStatuses.isEmpty)
+        XCTAssertEqual(try transcriptionRepo.fetch(id: item.transcriptionID)?.status, .processing)
+        XCTAssertTrue(lockStore.deletes.isEmpty)
+
+        await transcriptionService.releaseFinalization()
+        await queue.waitUntilIdle()
+
+        XCTAssertEqual(refreshedStatuses, [.completed])
+    }
+
+    func testQueueContinuesAfterFailedFinalize() async throws {
+        let transcriptionRepo = MockTranscriptionRepository()
+        let lockStore = QueueRecordingLockFileStore()
+        let ownershipClaimer = QueueFinalizationOwnershipClaimer()
+        let transcriptionService = QueueTranscriptionServiceSpy(transcriptionRepo: transcriptionRepo)
+        let queue = MeetingTranscriptionQueue(
+            transcriptionService: transcriptionService,
+            transcriptionRepo: transcriptionRepo,
+            meetingRecordingSettlement: MeetingRecordingSettlement(
+                lockFileStore: lockStore,
+                transcriptionRepo: transcriptionRepo
+            ),
+            finalizationOwnershipClaimer: ownershipClaimer
+        )
+        let originalFirst = makeItem(name: "A")
+        let lease = makeFinalizationOwnershipLease(for: originalFirst)
+        let first = originalFirst.withFinalizationOwnershipLease(lease)
         let second = makeItem(name: "B")
         try persistProcessingRows([first, second], in: transcriptionRepo)
         try createAudioFile(for: first)
@@ -62,8 +112,8 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
             }
         }
 
-        queue.enqueue(first)
-        queue.enqueue(second)
+        await queue.enqueue(first)
+        await queue.enqueue(second)
         await queue.waitUntilIdle()
 
         let transcriptionSnapshot = await transcriptionService.snapshot()
@@ -74,11 +124,14 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         XCTAssertEqual(failed.status, .error)
         XCTAssertNotNil(failed.errorMessage)
         XCTAssertTrue(FileManager.default.fileExists(atPath: first.recording.mixedAudioURL.path))
+        XCTAssertEqual(ownershipClaimer.releasedLeaseIDs, [lease.id])
+        XCTAssertEqual(ownershipClaimer.releaseMainThreadValues, [false])
     }
 
     func testSettlementRefusalAfterFinalizeStillReportsSuccessAndRetainsLock() async throws {
         let transcriptionRepo = MockTranscriptionRepository()
         let lockStore = QueueRecordingLockFileStore()
+        let ownershipClaimer = QueueFinalizationOwnershipClaimer()
         let transcriptionService = QueueTranscriptionServiceSpy(transcriptionRepo: transcriptionRepo)
         let queue = MeetingTranscriptionQueue(
             transcriptionService: transcriptionService,
@@ -86,9 +139,12 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
             meetingRecordingSettlement: MeetingRecordingSettlement(
                 lockFileStore: lockStore,
                 transcriptionRepo: transcriptionRepo
-            )
+            ),
+            finalizationOwnershipClaimer: ownershipClaimer
         )
-        let item = makeItem(name: "A")
+        let originalItem = makeItem(name: "A")
+        let lease = makeFinalizationOwnershipLease(for: originalItem)
+        let item = originalItem.withFinalizationOwnershipLease(lease)
         try persistProcessingRows([item], in: transcriptionRepo)
         await transcriptionService.mismatchSettlementPaths(transcriptionID: item.transcriptionID)
 
@@ -102,11 +158,12 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
             }
         }
 
-        queue.enqueue(item)
+        await queue.enqueue(item)
         await queue.waitUntilIdle()
 
         XCTAssertEqual(completions, ["success:A"])
         XCTAssertTrue(lockStore.deletes.isEmpty)
+        XCTAssertEqual(ownershipClaimer.releasedLeaseIDs, [lease.id])
     }
 
     func testSnapshotCountsActiveAndPendingItems() async throws {
@@ -126,8 +183,8 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         let second = makeItem(name: "B")
         try persistProcessingRows([first, second], in: transcriptionRepo)
 
-        queue.enqueue(first)
-        queue.enqueue(second)
+        await queue.enqueue(first)
+        await queue.enqueue(second)
         try await waitUntil {
             queue.snapshot.activeItem?.transcriptionID == first.transcriptionID
                 && queue.snapshot.pendingCount == 1
@@ -155,7 +212,7 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         )
         let item = makeItem(name: "Missing Row")
 
-        queue.enqueue(item)
+        await queue.enqueue(item)
         try await waitUntil {
             queue.snapshot.activeItem?.transcriptionID != nil
                 && queue.snapshot.activeItem?.transcriptionID != item.transcriptionID
@@ -201,7 +258,7 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         try transcriptionRepo.save(failed)
         try createAudioFile(for: item)
 
-        queue.enqueue(item)
+        await queue.enqueue(item)
         await queue.waitUntilIdle()
 
         let fetched = try XCTUnwrap(transcriptionRepo.fetch(id: item.transcriptionID))
@@ -228,7 +285,7 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         try createAudioFile(for: item)
         await transcriptionService.cancel(transcriptionID: item.transcriptionID)
 
-        queue.enqueue(item)
+        await queue.enqueue(item)
         await queue.waitUntilIdle()
 
         let cancelled = try XCTUnwrap(transcriptionRepo.fetch(id: item.transcriptionID))
@@ -237,7 +294,7 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: item.recording.mixedAudioURL.path))
 
         await transcriptionService.clearFailures(transcriptionID: item.transcriptionID)
-        queue.enqueue(item)
+        await queue.enqueue(item)
         await queue.waitUntilIdle()
 
         let retried = try XCTUnwrap(transcriptionRepo.fetch(id: item.transcriptionID))
@@ -265,8 +322,8 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         try persistRow(status: .error, item: item, in: transcriptionRepo)
         try createAudioFile(for: item)
 
-        queue.enqueue(item)
-        queue.enqueue(item)
+        await queue.enqueue(item)
+        await queue.enqueue(item)
         try await waitUntil {
             queue.snapshot.activeItem?.transcriptionID == item.transcriptionID
         }
@@ -285,6 +342,7 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
     func testQueueDoesNotRegressCompletedRowBackToProcessing() async throws {
         let transcriptionRepo = MockTranscriptionRepository()
         let lockStore = QueueRecordingLockFileStore()
+        let ownershipClaimer = QueueFinalizationOwnershipClaimer()
         let transcriptionService = QueueTranscriptionServiceSpy(transcriptionRepo: transcriptionRepo)
         let queue = MeetingTranscriptionQueue(
             transcriptionService: transcriptionService,
@@ -292,9 +350,12 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
             meetingRecordingSettlement: MeetingRecordingSettlement(
                 lockFileStore: lockStore,
                 transcriptionRepo: transcriptionRepo
-            )
+            ),
+            finalizationOwnershipClaimer: ownershipClaimer
         )
-        let item = makeItem(name: "Already Done")
+        let originalItem = makeItem(name: "Already Done")
+        let lease = makeFinalizationOwnershipLease(for: originalItem)
+        let item = originalItem.withFinalizationOwnershipLease(lease)
         try persistRow(status: .completed, item: item, in: transcriptionRepo)
 
         var completions: [MeetingTranscriptionQueue.Completion] = []
@@ -302,7 +363,7 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
             completions.append(completion)
         }
 
-        queue.enqueue(item)
+        await queue.enqueue(item)
         await queue.waitUntilIdle()
 
         XCTAssertTrue(completions.isEmpty)
@@ -311,6 +372,7 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         let fetched = try XCTUnwrap(transcriptionRepo.fetch(id: item.transcriptionID))
         XCTAssertEqual(fetched.status, .completed)
         XCTAssertNil(fetched.errorMessage)
+        XCTAssertEqual(ownershipClaimer.releasedLeaseIDs, [lease.id])
     }
 
     private func makeItem(name: String) -> MeetingTranscriptionQueue.Item {
@@ -318,10 +380,28 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
         return MeetingTranscriptionQueue.Item(
             recording: output,
             transcriptionID: UUID(),
+            recordingGeneration: 0,
             operationContext: ObservabilityOperationContext(),
             trigger: .manual,
             liveWordCount: 0,
             liveTranscriptLagged: false
+        )
+    }
+
+    private func makeFinalizationOwnershipLease(
+        for item: MeetingTranscriptionQueue.Item
+    ) -> MeetingFinalizationOwnershipLease {
+        MeetingFinalizationOwnershipLease(
+            id: UUID(),
+            folderURL: item.recording.folderURL,
+            previousLock: MeetingRecordingLockFile(
+                sessionId: item.recording.sessionID,
+                startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                pid: 42,
+                displayName: item.recording.displayName,
+                state: .awaitingTranscription,
+                folderURL: item.recording.folderURL
+            )
         )
     }
 
@@ -405,6 +485,7 @@ final class MeetingTranscriptionQueueTests: XCTestCase {
 
 private actor QueueTranscriptionServiceSpy: TranscriptionServiceProtocol {
     private let transcriptionRepo: MockTranscriptionRepository
+    private let onFinalizationStarted: @Sendable () -> Void
     private(set) var finalizedIDs: [UUID] = []
     private var failingIDs: Set<UUID> = []
     private var cancellationIDs: Set<UUID> = []
@@ -412,8 +493,12 @@ private actor QueueTranscriptionServiceSpy: TranscriptionServiceProtocol {
     var holdFinalization = false
     private var finalizationWaiters: [CheckedContinuation<Void, Never>] = []
 
-    init(transcriptionRepo: MockTranscriptionRepository) {
+    init(
+        transcriptionRepo: MockTranscriptionRepository,
+        onFinalizationStarted: @escaping @Sendable () -> Void = {}
+    ) {
         self.transcriptionRepo = transcriptionRepo
+        self.onFinalizationStarted = onFinalizationStarted
     }
 
     func snapshot() -> [UUID] {
@@ -496,6 +581,7 @@ private actor QueueTranscriptionServiceSpy: TranscriptionServiceProtocol {
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> Transcription {
         finalizedIDs.append(transcriptionID)
+        onFinalizationStarted()
         while holdFinalization {
             await withCheckedContinuation { continuation in
                 finalizationWaiters.append(continuation)
@@ -572,6 +658,38 @@ private final class QueueRecordingLockFileStore: MeetingRecordingLockFileStoring
     }
 
     func discoverOrphans(meetingsRoot: URL) throws -> [MeetingRecordingLockFile] { [] }
+}
+
+private final class QueueFinalizationOwnershipClaimer:
+    MeetingFinalizationOwnershipClaiming,
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private var releasedIDs: [UUID] = []
+    private var releaseWasOnMainThread: [Bool] = []
+
+    var releasedLeaseIDs: [UUID] {
+        lock.withLock { releasedIDs }
+    }
+
+    var releaseMainThreadValues: [Bool] {
+        lock.withLock { releaseWasOnMainThread }
+    }
+
+    func claimFinalizationOwnership(
+        folderURL: URL
+    ) throws -> MeetingFinalizationOwnershipLease {
+        throw QueueTestError.failed
+    }
+
+    func releaseFinalizationOwnership(
+        _ lease: MeetingFinalizationOwnershipLease
+    ) throws {
+        lock.withLock {
+            releasedIDs.append(lease.id)
+            releaseWasOnMainThread.append(Thread.isMainThread)
+        }
+    }
 }
 
 private enum QueueTestError: Error {

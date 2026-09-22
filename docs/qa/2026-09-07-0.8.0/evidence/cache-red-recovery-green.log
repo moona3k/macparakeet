@@ -1,0 +1,922 @@
+[0/1] Planning build
+[1/1] Compiling plugin GenerateManual
+[2/2] Compiling plugin GenerateDoccReference
+Building for debugging...
+[2/14] Write sources
+[5/13] Write swift-version--58304C5D6DBC2206.txt
+[7/14] Emitting module MacParakeetCore
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:55:27: warning: 'is' test is always true
+ 53 |             // A custom description can contain user content, even when it looks
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+    |                           `- warning: 'is' test is always true
+ 56 |                 !(error is any CustomDebugStringConvertible)
+ 57 |             else { return typeName }
+
+/Users/dmoon/code/macparakeet-qa/Sources/MacParakeetCore/Services/Telemetry/TelemetryErrorClassifier.swift:56:25: warning: 'is' test is always true
+ 54 |             // like a single identifier. Only the compiler's enum description is safe.
+ 55 |             guard !(error is any CustomStringConvertible),
+ 56 |                 !(error is any CustomDebugStringConvertible)
+    |                         `- warning: 'is' test is always true
+ 57 |             else { return typeName }
+ 58 |             let described = String(describing: error)
+[8/14] Compiling MacParakeetCore MeetingRecordingRecoveryService.swift
+[8/15] Write Objects.LinkFileList
+[9/17] Linking macparakeet-cli
+[10/17] Applying macparakeet-cli
+[12/17] Compiling MacParakeet TranscriptResultView.swift
+[13/17] Emitting module MacParakeet
+[14/152] Compiling MacParakeet ModelSelectorView.swift
+[15/152] Compiling MacParakeet ParakeetSpinner.swift
+[16/152] Compiling MacParakeet ParticleSystem.swift
+[17/152] Compiling MacParakeet PlatformGlyph.swift
+[18/152] Compiling MacParakeet PlaybackSpeedMenu.swift
+[19/152] Compiling MacParakeet PolishedTooltip.swift
+[20/152] Compiling MacParakeet RhodoneaScribeLoader.swift
+[21/152] Compiling MacParakeet SacredGeometry.swift
+[22/152] Compiling MacParakeet SonicMandalaView.swift
+[23/152] Compiling MacParakeet SoundManager.swift
+[24/152] Compiling MacParakeet SettingsCard.swift
+[25/152] Compiling MacParakeet SettingsDestructiveButton.swift
+[26/152] Compiling MacParakeet SettingsEmptyState.swift
+[27/152] Compiling MacParakeet SettingsRow.swift
+[28/152] Compiling MacParakeet SettingsSearchField.swift
+[29/152] Compiling MacParakeet SettingsSearchResultsList.swift
+[30/152] Compiling MacParakeet SettingsStatusChip.swift
+[31/152] Compiling MacParakeet SettingsTabBar.swift
+[32/152] Compiling MacParakeet HotkeyRecorderView.swift
+[33/152] Compiling MacParakeet LiveNotesPaneView.swift
+[34/152] Compiling MacParakeet MeetingAudioStateChip.swift
+[35/152] Compiling MacParakeet MeetingCountdownToastController.swift
+[36/152] Compiling MacParakeet MeetingCountdownToastView.swift
+[37/152] Compiling MacParakeet MeetingDateGroupHeader.swift
+[38/152] Compiling MacParakeet MeetingDeletionCopy.swift
+[39/152] Compiling MacParakeet MeetingPartialCapturePresentation.swift
+[40/152] Compiling MacParakeet MeetingRecordingPanelController.swift
+[41/152] Compiling MacParakeet MeetingRecordingPanelView.swift
+[42/152] Compiling MacParakeet MeetingRecordingPillController.swift
+[43/152] Compiling MacParakeet MenuBarDropView.swift
+[44/152] Compiling MacParakeet OnboardingHotkeyPreviewController.swift
+[45/152] Compiling MacParakeet OnboardingWindowController.swift
+[46/152] Compiling MacParakeet AudioScrubberBar.swift
+[47/152] Compiling MacParakeet BetaBadge.swift
+[48/152] Compiling MacParakeet BrandGlyphImage.swift
+[49/152] Compiling MacParakeet DesignSystem.swift
+[50/152] Compiling MacParakeet DesignSystemGalleryView.swift
+[51/152] Compiling MacParakeet LabsBadge.swift
+[52/152] Compiling MacParakeet MarkdownContentView.swift
+[53/152] Compiling MacParakeet MeetingAudioRetentionSweepCoordinator.swift
+[54/152] Compiling MacParakeet MeetingAutoStartCoordinator.swift
+[55/152] Compiling MacParakeet MeetingAutoStopCoordinator.swift
+[56/152] Compiling MacParakeet MeetingFinalizationReconciler.swift
+[57/152] Compiling MacParakeet MeetingRecordingFlowCoordinator.swift
+[58/152] Compiling MacParakeet MeetingRecoveryCoordinator.swift
+[59/152] Compiling MacParakeet MeetingTranscriptionQueue.swift
+[60/152] Compiling MacParakeet MenuBarCoordinator.swift
+[61/152] Compiling MacParakeet MenuPreviewFormatter.swift
+[62/152] Compiling MacParakeet OnboardingCoordinator.swift
+[63/152] Compiling MacParakeet SparkleUpdateGuard.swift
+[64/152] Compiling MacParakeet TranscriptionCompletionPresenter.swift
+[65/152] Compiling MacParakeet TransformsCoordinator.swift
+[66/152] Compiling MacParakeet AppDelegate.swift
+[67/152] Compiling MacParakeet BreathWaveIcon.swift
+[68/152] Compiling MacParakeet GlobalShortcutManager.swift
+[69/152] Compiling MacParakeet HotkeyManager.swift
+[70/152] Compiling MacParakeet ModifierKeyMatcher.swift
+[71/152] Compiling MacParakeet TransformsHotkeyRegistry.swift
+[72/152] Compiling MacParakeet MacParakeetApp.swift
+[73/152] Compiling MacParakeet TransformSigilView.swift
+[74/152] Compiling MacParakeet VideoPlayerView.swift
+[75/152] Compiling MacParakeet DictationOverlayController.swift
+[76/152] Compiling MacParakeet DictationOverlayView.swift
+[77/152] Compiling MacParakeet FormatterVisualView.swift
+[78/152] Compiling MacParakeet IdlePillController.swift
+[79/152] Compiling MacParakeet IdlePillView.swift
+[80/152] Compiling MacParakeet LoadingCaptionView.swift
+[81/152] Compiling MacParakeet WaveformView.swift
+[82/152] Compiling MacParakeet DiscoverSidebarCard.swift
+[83/152] Compiling MacParakeet TranscriptionLibraryView.swift
+[84/152] Compiling MacParakeet TranscriptionSourceDisplay.swift
+[85/152] Compiling MacParakeet TranscriptionSourceLabel.swift
+[86/152] Compiling MacParakeet TranscriptionThumbnailCard.swift
+[87/152] Compiling MacParakeet TranscriptionVideoPanel.swift
+[88/152] Compiling MacParakeet TranscriptionViewHelpers.swift
+[89/152] Compiling MacParakeet YouTubeInputPanelController.swift
+[90/152] Compiling MacParakeet YouTubeInputPanelView.swift
+[91/152] Compiling MacParakeet TransformEditorSheet.swift
+[92/152] Compiling MacParakeet PortalDropZone.swift
+[93/152] Compiling MacParakeet PromptLibraryView.swift
+[94/152] Compiling MacParakeet SpeakerRenameAccessibility.swift
+[95/152] Compiling MacParakeet TranscribeView.swift
+[96/152] Compiling MacParakeet TranscriptBodyLayout.swift
+[97/152] Compiling MacParakeet TranscriptFindBar.swift
+[98/152] Compiling MacParakeet TranscriptFindHighlight.swift
+[99/152] Compiling MacParakeet TranscriptResultActions.swift
+[100/152] Compiling MacParakeet TranscriptTimestampedContentView.swift
+[101/152] Compiling MacParakeet AppAppearanceController.swift
+[102/152] Compiling MacParakeet AppEnvironment.swift
+[103/152] Compiling MacParakeet AppEnvironmentConfigurer.swift
+[104/152] Compiling MacParakeet AppHotkeyCoordinator.swift
+[105/152] Compiling MacParakeet AppSettingsObserverCoordinator.swift
+[106/152] Compiling MacParakeet AppStartupBootstrapper.swift
+[107/152] Compiling MacParakeet AppWindowCoordinator.swift
+[108/152] Compiling MacParakeet DebugDictationPreviewQA.swift
+[109/152] Compiling MacParakeet DictationFlowCoordinator.swift
+[110/152] Compiling MacParakeet DictationMediaPauseCoordinator.swift
+[111/152] Compiling MacParakeet TransformSpikeProgressPanelController.swift
+[112/152] Compiling MacParakeet TransformsView.swift
+[113/152] Compiling MacParakeet CustomWordsView.swift
+[114/152] Compiling MacParakeet TextSnippetsView.swift
+[115/152] Compiling MacParakeet VocabularyBackupSection.swift
+[116/152] Compiling MacParakeet VocabularyComponents.swift
+[117/152] Compiling MacParakeet VocabularyImportPreviewSheet.swift
+[118/152] Compiling MacParakeet VocabularyView.swift
+[119/152] Compiling MacParakeet resource_bundle_accessor.swift
+[120/152] Compiling MacParakeet DiscoverView.swift
+[121/152] Compiling MacParakeet SacredGeometryShapes.swift
+[122/152] Compiling MacParakeet FeedbackView.swift
+[123/152] Compiling MacParakeet DictationHistoryView.swift
+[124/152] Compiling MacParakeet DictationStatsView.swift
+[125/152] Compiling MacParakeet DictationSubTabPicker.swift
+[126/152] Compiling MacParakeet MainWindowState.swift
+[127/152] Compiling MacParakeet MainWindowView.swift
+[128/152] Compiling MacParakeet AskPromptsSheet.swift
+[129/152] Compiling MacParakeet LiveAskPaneView.swift
+[130/152] Compiling MacParakeet MeetingRecordingPillView.swift
+[131/152] Compiling MacParakeet MeetingRecordingStopButton.swift
+[132/152] Compiling MacParakeet MeetingRowCard.swift
+[133/152] Compiling MacParakeet MeetingSourceHealthChips.swift
+[134/152] Compiling MacParakeet MerkabaPillIcon.swift
+[135/152] Compiling MacParakeet TranscriptTextView.swift
+[136/152] Compiling MacParakeet MeetingsView.swift
+[137/152] Compiling MacParakeet OnboardingFlowView.swift
+[138/152] Compiling MacParakeet CalendarSettingsView.swift
+[139/152] Compiling MacParakeet EngineOptionTile.swift
+[140/152] Compiling MacParakeet LLMSettingsView.swift
+[141/152] Compiling MacParakeet LanguagePickerPopover.swift
+[142/152] Compiling MacParakeet SettingsStatusRules.swift
+[143/152] Compiling MacParakeet SettingsView.swift
+[144/152] Compiling MacParakeet BulkTranscriptionSelectionBar.swift
+[145/152] Compiling MacParakeet MediaPlatformOrbitView.swift
+[146/152] Compiling MacParakeet MeetingArtifactActions.swift
+[147/152] Compiling MacParakeet MeetingAudioActions.swift
+[148/152] Compiling MacParakeet MeetingRecordingTile.swift
+[148/153] Write Objects.LinkFileList
+[149/153] Linking MacParakeet
+[150/153] Applying MacParakeet
+[152/420] Compiling MacParakeetTests TransformRunSerializerTests.swift
+[153/420] Compiling MacParakeetTests VideoStreamServiceTests.swift
+[154/420] Compiling MacParakeetTests VocabularyImportExportServiceTests.swift
+[155/420] Compiling MacParakeetTests YouTubeAudioPlaybackConverterTests.swift
+[156/420] Compiling MacParakeetTests YouTubeDownloaderTests.swift
+[157/420] Compiling MacParakeetTests TelemetryServiceTests.swift
+[158/420] Compiling MacParakeetTests StateSignal.swift
+[159/420] Compiling MacParakeetTests CustomWordReplacerTests.swift
+[160/420] Compiling MacParakeetTests TextProcessingPipelineTests.swift
+[161/420] Compiling MacParakeetTests TextRefinementServiceTests.swift
+[162/420] Compiling MacParakeetTests TranscriptAIContextFormatterTests.swift
+[163/420] Compiling MacParakeetTests TranscriptDeriversTests.swift
+[164/420] Compiling MacParakeetTests TranscriptFormatterTests.swift
+[165/420] Compiling MacParakeetTests TranscriptParagraphBuilderTests.swift
+[166/420] Compiling MacParakeetTests ChildProcessWaiterTests.swift
+[167/420] Compiling MacParakeetTests DownloadableMediaURLValidatorTests.swift
+[168/420] Compiling MacParakeetTests MediaPlatformTests.swift
+[169/420] Compiling MacParakeetTests PodcastEpisodeMatcherTests.swift
+[170/420] Compiling MacParakeetTests PodcastURLValidatorTests.swift
+[171/420] Compiling MacParakeetTests TranscriptSegmenterTests.swift
+[172/440] Compiling MacParakeetTests MeetingAutoStopCoordinatorTests.swift
+[173/440] Compiling MacParakeetTests MeetingRecordingFlowCoordinatorTests.swift
+[174/440] Compiling MacParakeetTests MeetingRecordingFlowStateMachineTests.swift
+[175/440] Compiling MacParakeetTests MeetingSystemAudioSignalVerdictTests.swift
+[176/440] Compiling MacParakeetTests MeetingTranscriptionQueueTests.swift
+[177/440] Compiling MacParakeetTests AIFormatterProfileMatcherTests.swift
+[178/440] Compiling MacParakeetTests CustomWordModelTests.swift
+[179/440] Compiling MacParakeetTests DictationModelTests.swift
+[180/440] Compiling MacParakeetTests DiscoverContentTests.swift
+[181/440] Compiling MacParakeetTests KeyActionTests.swift
+[182/440] Compiling MacParakeetTests KeyboardShortcutTests.swift
+[183/440] Compiling MacParakeetTests LLMProviderDescriptorTests.swift
+[184/440] Compiling MacParakeetTests LLMResultTests.swift
+[185/440] Compiling MacParakeetTests PromptInferenceSettingsTests.swift
+[186/440] Compiling MacParakeetTests PromptTemplateRendererTests.swift
+[187/440] Compiling MacParakeetTests TextSnippetModelTests.swift
+[188/440] Compiling MacParakeetTests TranscriptionModelTests.swift
+[189/440] Compiling MacParakeetTests OnboardingHotkeyPreviewControllerTests.swift
+[190/440] Compiling MacParakeetTests QuickPromptBundleTests.swift
+[191/440] Compiling MacParakeetTests AsyncPermitTests.swift
+[192/440] Compiling MacParakeetTests CohereTranscribeEngineTests.swift
+[193/440] Compiling MacParakeetTests AppDelegateMenuBarResolverTests.swift
+[194/440] Compiling MacParakeetTests AppEnvironmentTests.swift
+[195/440] Compiling MacParakeetTests AppHotkeyCoordinatorTests.swift
+[196/440] Compiling MacParakeetTests AppSettingsObserverCoordinatorTests.swift
+[197/440] Compiling MacParakeetTests MainWindowStateTests.swift
+[198/440] Compiling MacParakeetTests MeetingAudioRetentionSweepCoordinatorTests.swift
+[199/440] Compiling MacParakeetTests MeetingFinalizationReconcilerTests.swift
+[200/440] Compiling MacParakeetTests MeetingRecoveryCoordinatorTests.swift
+[201/440] Compiling MacParakeetTests MenuBarCoordinatorTests.swift
+[202/440] Compiling MacParakeetTests MenuPreviewFormatterTests.swift
+[203/440] Compiling MacParakeetTests SparkleUpdateGuardTests.swift
+[204/440] Compiling MacParakeetTests AppRuntimePreferencesTests.swift
+[205/440] Compiling MacParakeetTests AudioCaptureDiagnosticsTests.swift
+[206/440] Compiling MacParakeetTests AudioChunkerTests.swift
+[207/440] Compiling MacParakeetTests AudioDeviceManagerTransportTests.swift
+[208/440] Compiling MacParakeetTests AudioFileConverterTests.swift
+[209/440] Compiling MacParakeetTests AudioFileEnumeratorTests.swift
+[210/440] Compiling MacParakeetTests AudioRecorderFormatChangeTests.swift
+[211/440] Compiling MacParakeetTests DiagnosticLogScopeTests.swift
+[212/440] Compiling MacParakeetTests ExtractChannelZeroTests.swift
+[213/440] Compiling MacParakeetTests FFmpegAudioTrackProbeTests.swift
+[214/440] Compiling MacParakeetTests TransformHistoryRepositoryTests.swift
+[215/440] Compiling MacParakeetTests DictationFlowCoordinatorLoadCaptionTests.swift
+[216/440] Compiling MacParakeetTests DictationFlowCoordinatorTests.swift
+[217/440] Compiling MacParakeetTests DictationFlowStateMachineTests.swift
+[218/440] Compiling MacParakeetTests DictationMediaPauseCoordinatorTests.swift
+[219/440] Compiling MacParakeetTests DictationStatsTests.swift
+[220/440] Compiling MacParakeetTests NumberFormattingTests.swift
+[221/440] Compiling MacParakeetTests FnKeyStateMachineTests.swift
+[222/440] Compiling MacParakeetTests GlobalShortcutManagerTests.swift
+[223/440] Compiling MacParakeetTests HotkeyConflictPolicyTests.swift
+[224/440] Compiling MacParakeetTests HotkeyGestureControllerTests.swift
+[225/440] Compiling MacParakeetTests HotkeyManagerTests.swift
+[226/440] Compiling MacParakeetTests HotkeyTriggerTests.swift
+[227/440] Compiling MacParakeetTests KeyCodeNamesTests.swift
+[228/440] Compiling MacParakeetTests TransformsHotkeyRegistryTests.swift
+[229/440] Compiling MacParakeetTests CancelFlowTests.swift
+[230/440] Compiling MacParakeetTests DictationFlowTests.swift
+[231/440] Compiling MacParakeetTests TranscriptionFlowTests.swift
+[232/440] Compiling MacParakeetTests TestLicensingHelpers.swift
+[233/440] Compiling MacParakeetTests LiveTranscriptStabilizerTests.swift
+[234/440] Compiling MacParakeetTests MeetingActivityDetectorTests.swift
+[235/440] Compiling MacParakeetTests PasteShortcutKeyResolverTests.swift
+[236/440] Compiling MacParakeetTests PodcastAudioDownloaderTests.swift
+[237/440] Compiling MacParakeetTests PodcastDirectoryServiceTests.swift
+[238/440] Compiling MacParakeetTests PodcastEpisodeResolverTests.swift
+[239/440] Compiling MacParakeetTests PodcastFeedParserTests.swift
+[240/440] Compiling MacParakeetTests PodcastQueryResolverTests.swift
+[241/440] Compiling MacParakeetTests AccessibilityServiceTests.swift
+[242/440] Compiling MacParakeetTests ClipboardServiceTests.swift
+[243/440] Compiling MacParakeetTests MockClipboardService.swift
+[244/440] Compiling MacParakeetTests SelectionCaptureServiceTests.swift
+[245/440] Compiling MacParakeetTests SelectionReplacementServiceTests.swift
+[246/440] Compiling MacParakeetTests SystemInfoTests.swift
+[247/440] Compiling MacParakeetTests SystemMediaControllerTests.swift
+[248/440] Compiling MacParakeetTests CrashReporterTests.swift
+[249/440] Compiling MacParakeetTests ObservabilityTests.swift
+[250/440] Compiling MacParakeetTests TelemetryErrorClassifierTests.swift
+[251/440] Compiling MacParakeetTests ThumbnailCacheServiceTests.swift
+[252/440] Compiling MacParakeetTests TranscriptExportOptionsTests.swift
+[253/440] Compiling MacParakeetTests TranscriptionServiceTests.swift
+[254/440] Compiling MacParakeetTests TransformExecutorTests.swift
+[255/440] Compiling MacParakeetTests MarkdownContentViewTests.swift
+[256/440] Compiling MacParakeetTests MeetingDeletionCopyTests.swift
+[257/440] Compiling MacParakeetTests MeetingPartialCapturePresentationTests.swift
+[258/440] Compiling MacParakeetTests MeetingRecordingTileTests.swift
+[259/440] Compiling MacParakeetTests MeetingTimedTranscriptRecoveryBannerPresentationTests.swift
+[260/440] Compiling MacParakeetTests MeetingTranscriptProcessingPresentationTests.swift
+[261/440] Compiling MacParakeetTests MerkabaPillIconViewTests.swift
+[262/440] Compiling MacParakeetTests HotkeyRecorderViewTests.swift
+[263/440] Compiling MacParakeetTests SettingsDictationHotkeyDisplayTests.swift
+[264/440] Compiling MacParakeetTests SettingsHotkeyConflictMessageTests.swift
+[265/440] Compiling MacParakeetTests SettingsStatusRulesTests.swift
+[266/440] Compiling MacParakeetTests SpeakerRenameAccessibilityTests.swift
+[267/440] Compiling MacParakeetTests SpeakerTurnIdentityTests.swift
+[268/440] Compiling MacParakeetTests SpinnerRingViewTests.swift
+[269/440] Compiling MacParakeetTests TranscriptBodyLayoutTests.swift
+[270/440] Compiling MacParakeetTests TranscriptResultActionsTests.swift
+[271/440] Compiling MacParakeetTests TranscriptSegmentCacheTests.swift
+[272/440] Compiling MacParakeetTests TranscriptTextViewTests.swift
+[273/440] Compiling MacParakeetTests TranscriptTimestampedLayoutSmokeTests.swift
+[274/440] Compiling MacParakeetTests TranscriptionSourceDisplayTests.swift
+[275/440] Compiling MacParakeetTests MeetingMonitorTests.swift
+[276/440] Compiling MacParakeetTests MockCalendarService.swift
+[277/440] Compiling MacParakeetTests TranscriptSegmentClipboardTests.swift
+[278/440] Compiling MacParakeetTests AIFormatterProfileRepositoryTests.swift
+[279/440] Compiling MacParakeetTests CardRepositoryTests.swift
+[280/440] Compiling MacParakeetTests ChatConversationRepositoryTests.swift
+[281/440] Compiling MacParakeetTests CustomWordRepositoryTests.swift
+[282/440] Compiling MacParakeetTests DailyDictationStatsTests.swift
+[283/440] Compiling MacParakeetTests DatabaseManagerTests.swift
+[284/440] Compiling MacParakeetTests DictationRepositoryTests.swift
+[285/440] Compiling MacParakeetTests DictationStatsQueryTests.swift
+[286/440] Compiling MacParakeetTests LLMRunRepositoryTests.swift
+[287/440] Compiling MacParakeetTests LifetimeDictationStatsTests.swift
+[288/440] Compiling MacParakeetTests PrivateDictationTests.swift
+[289/440] Compiling MacParakeetTests PromptRepositoryTests.swift
+[290/440] Compiling MacParakeetTests PromptResultRepositoryTests.swift
+[291/440] Compiling MacParakeetTests QuickPromptRepositoryTests.swift
+[292/440] Compiling MacParakeetTests RepositoryEdgeCaseTests.swift
+[293/440] Compiling MacParakeetTests SegmentRepositoryTests.swift
+[294/440] Compiling MacParakeetTests TextSnippetRepositoryTests.swift
+[295/440] Compiling MacParakeetTests TranscriptionRepositoryTests.swift
+[296/440] Compiling MacParakeetTests CustomVocabularyBoostingTests.swift
+[297/440] Compiling MacParakeetTests MeetingSpeechPlanTests.swift
+[298/440] Compiling MacParakeetTests MockSTTClient.swift
+[299/440] Compiling MacParakeetTests ModelDeletionTests.swift
+[300/440] Compiling MacParakeetTests NemotronEnglishEngineLiveDictationTests.swift
+[301/440] Compiling MacParakeetTests NemotronEnglishEngineLoadGatingTests.swift
+[302/440] Compiling MacParakeetTests ParakeetUnifiedEngineDictationPadTests.swift
+[303/440] Compiling MacParakeetTests ParakeetUnifiedEngineLiveDictationTests.swift
+[304/440] Compiling MacParakeetTests STTClientTests.swift
+[305/440] Compiling MacParakeetTests STTRuntimeDictationPadTests.swift
+[306/440] Compiling MacParakeetTests STTRuntimeInferenceGatingTests.swift
+[307/440] Compiling MacParakeetTests STTSchedulerTests.swift
+[308/440] Compiling MacParakeetTests STTWordTimingBuilderTests.swift
+[309/440] Compiling MacParakeetTests SpeechEngineActivityTests.swift
+[310/440] Compiling MacParakeetTests SpeechEngineCapabilitiesTests.swift
+[311/440] Compiling MacParakeetTests SpeechEnginePreferenceTests.swift
+[312/440] Compiling MacParakeetTests WhisperLanguageCatalogTests.swift
+[313/440] Compiling MacParakeetTests ANEInferenceGateTests.swift
+[314/440] Compiling MacParakeetTests AppPathsTests.swift
+[315/440] Compiling MacParakeetTests AutoSaveServiceTests.swift
+[316/440] Compiling MacParakeetTests BinaryBootstrapTests.swift
+[317/440] Emitting module MacParakeetTests
+[318/440] Compiling MacParakeetTests CLIOperationPrivacyTests.swift
+[319/440] Compiling MacParakeetTests CaptureOrchestratorTests.swift
+[320/440] Compiling MacParakeetTests MeetingAecMeasurementHarness.swift
+[321/440] Compiling MacParakeetTests MeetingAecMeasurementTests.swift
+[322/440] Compiling MacParakeetTests MeetingAecModelScoringTests.swift
+[323/440] Compiling MacParakeetTests MeetingAecRenderThroughputTests.swift
+[324/440] Compiling MacParakeetTests MeetingEchoDelayEstimatorTests.swift
+[325/440] Compiling MacParakeetTests MeetingEchoSuppressionRuntimeTests.swift
+[326/440] Compiling MacParakeetTests MeetingEchoSuppressorTests.swift
+[327/440] Compiling MacParakeetTests DAPTExportTests.swift
+[328/440] Compiling MacParakeetTests DerivedFieldsBackfillServiceTests.swift
+[329/440] Compiling MacParakeetTests DiarizationServiceTests.swift
+[330/440] Compiling MacParakeetTests MeetingSpeakerPriorTests.swift
+[331/440] Compiling MacParakeetTests SpeakerMergerTests.swift
+[332/440] Compiling MacParakeetTests DictationServiceErrorTests.swift
+[333/440] Compiling MacParakeetTests DictationServiceSessionTests.swift
+[334/440] Compiling MacParakeetTests DictationServiceTests.swift
+[335/440] Compiling MacParakeetTests DictationStopDecisionTests.swift
+[336/440] Compiling MacParakeetTests DiscoverServiceTests.swift
+[337/440] Compiling MacParakeetTests ExportServiceTests.swift
+[338/440] Compiling MacParakeetTests FeedbackServiceTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[339/440] Compiling MacParakeetTests CardGenerationServiceTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[340/440] Compiling MacParakeetTests InProcessLLMClientTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[341/440] Compiling MacParakeetTests InProcessModelDownloaderTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[342/440] Compiling MacParakeetTests LLMClientTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[343/440] Compiling MacParakeetTests LLMConfigStoreTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[344/440] Compiling MacParakeetTests LLMExecutionContextResolverTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[345/440] Compiling MacParakeetTests LLMHTTPAdapterTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[346/440] Compiling MacParakeetTests LLMServicePromptTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[347/440] Compiling MacParakeetTests LLMServiceTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[348/440] Compiling MacParakeetTests LocalCLIExecutorTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[349/440] Compiling MacParakeetTests LocalCLILLMClientTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[350/440] Compiling MacParakeetTests MLXLocalLLMIntegrationTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[351/440] Compiling MacParakeetTests RoutingLLMClientTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[352/440] Compiling MacParakeetTests MediaMetadataExtractorTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[353/440] Compiling MacParakeetTests MeetingArtifactStoreTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[354/440] Compiling MacParakeetTests MeetingAudioPairJoinerTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[355/440] Compiling MacParakeetTests MeetingAudioRetentionPolicyTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[356/440] Compiling MacParakeetTests MeetingAudioRetentionSweeperTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[357/440] Compiling MacParakeetTests MeetingAutoStopPolicyTests.swift
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Services/LLM/LLMHTTPAdapterTests.swift:92:22: warning: consider using asynchronous alternative function
+  90 |             proposed.url = URL(string: destination)!
+  91 |             let completed = expectation(description: "redirect decision")
+  92 |             delegate.urlSession?(
+     |                      `- warning: consider using asynchronous alternative function
+  93 |                 session, task: task,
+  94 |                 willPerformHTTPRedirection: HTTPURLResponse(
+
+Foundation.URLSessionTaskDelegate.urlSession:2:15: note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+1 | protocol URLSessionTaskDelegate {
+2 | optional func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest) async -> URLRequest?}
+  |               `- note: 'urlSession(_:task:willPerformHTTPRedirection:newRequest:)' declared here
+3 | 
+[358/440] Compiling MacParakeetTests FixedMeetingLiveAudioChunkerTests.swift
+[359/440] Compiling MacParakeetTests MeetingAudioCaptureServiceTests.swift
+[360/440] Compiling MacParakeetTests MeetingAudioFileTests.swift
+[361/440] Compiling MacParakeetTests MeetingAudioStorageWriterTests.swift
+[362/440] Compiling MacParakeetTests MeetingMicHealthMonitorTests.swift
+[363/440] Compiling MacParakeetTests MeetingVADChunkingSimulatorTests.swift
+[364/440] Compiling MacParakeetTests MicrophoneCaptureTests.swift
+[365/440] Compiling MacParakeetTests MicrophoneEnginePlatformConfigChangeRecoveryTests.swift
+[366/440] Compiling MacParakeetTests MicrophoneEnginePlatformStartupReadinessTests.swift
+[367/440] Compiling MacParakeetTests MicrophoneEnginePrewarmRoutingTests.swift
+[368/440] Compiling MacParakeetTests MicrophoneEngineRealPlatformTests.swift
+[369/440] Compiling MacParakeetTests MockAudioProcessor.swift
+[370/440] Compiling MacParakeetTests MutableMicrophoneTapHandlerTests.swift
+[371/440] Compiling MacParakeetTests ObjCExceptionBridgeTests.swift
+[372/440] Compiling MacParakeetTests PCMBufferToSampleBufferTests.swift
+[373/440] Compiling MacParakeetTests ScreenCaptureLifecycleTests.swift
+[374/440] Compiling MacParakeetTests SharedMicrophoneStreamTests.swift
+[375/440] Compiling MacParakeetTests SpeechBoundaryMeetingLiveAudioChunkerTests.swift
+[376/440] Compiling MacParakeetTests LongMeetingPipelineBenchmarkTests.swift
+[377/440] Compiling MacParakeetTests MeetingAutoStartCoordinatorTests.swift
+[378/440] Compiling MacParakeetTests MeetingLinkParserTests.swift
+[379/440] Compiling MacParakeetTests YouTubeURLValidatorTests.swift
+[380/440] Compiling MacParakeetTests CustomWordsViewModelTests.swift
+[381/440] Compiling MacParakeetTests DictationHistoryViewModelTests.swift
+[382/440] Compiling MacParakeetTests DiscoverViewModelTests.swift
+[383/440] Compiling MacParakeetTests EngineSettingsViewModelTests.swift
+[384/440] Compiling MacParakeetTests FeedbackViewModelTests.swift
+[385/440] Compiling MacParakeetTests IdlePillViewModelTests.swift
+[386/440] Compiling MacParakeetTests InProcessModelManagerViewModelTests.swift
+[387/440] Compiling MacParakeetTests LLMSettingsDraftTests.swift
+[388/440] Compiling MacParakeetTests LLMSettingsViewModelTests.swift
+[389/440] Compiling MacParakeetTests LibrarySourceLabelStyleTests.swift
+[390/440] Compiling MacParakeetTests MediaPlayerViewModelTests.swift
+[391/440] Compiling MacParakeetTests MeetingCountdownToastViewModelTests.swift
+[392/440] Compiling MacParakeetTests MeetingNotesViewModelTests.swift
+[393/440] Compiling MacParakeetTests MeetingRecordingPanelViewModelTests.swift
+[394/440] Compiling MacParakeetTests MeetingRecordingPillViewModelTests.swift
+[395/440] Compiling MacParakeetTests MeetingsWorkspaceViewModelTests.swift
+[396/440] Compiling MacParakeetTests OnboardingViewModelTests.swift
+[397/440] Compiling MacParakeetTests PromptResultsViewModelTests.swift
+[398/440] Compiling MacParakeetTests PromptsViewModelTests.swift
+[399/440] Compiling MacParakeetTests MeetingAutomationHookRunnerTests.swift
+[400/440] Compiling MacParakeetTests MeetingCaptureReportTests.swift
+[401/440] Compiling MacParakeetTests MeetingChunkResultBufferTests.swift
+[402/440] Compiling MacParakeetTests MeetingCleanedMicRendererTests.swift
+[403/440] Compiling MacParakeetTests MeetingCleanedMicrophoneReadinessPolicyTests.swift
+[404/440] Compiling MacParakeetTests MeetingMarkdownRendererClipboardTests.swift
+[405/440] Compiling MacParakeetTests MeetingNotesFileTests.swift
+[406/440] Compiling MacParakeetTests MeetingPlaybackArtifactBuilderTests.swift
+[407/440] Compiling MacParakeetTests MeetingRecordingCrashRecoveryTests.swift
+[408/440] Compiling MacParakeetTests MeetingRecordingLockFileStoreTests.swift
+[409/440] Compiling MacParakeetTests MeetingRecordingOutputTests.swift
+[410/440] Compiling MacParakeetTests MeetingRecordingRecoveryServiceTests.swift
+[411/440] Compiling MacParakeetTests MeetingRecordingServiceTests.swift
+[412/440] Compiling MacParakeetTests MeetingRecordingSettlementTests.swift
+[413/440] Compiling MacParakeetTests MeetingTitleGeneratorTests.swift
+[414/440] Compiling MacParakeetTests MeetingTranscriptAssemblerTests.swift
+[415/440] Compiling MacParakeetTests MeetingTranscriptSourceReconcilerTests.swift
+[416/440] Compiling MacParakeetTests MeetingTranscriptVocabularyApplierTests.swift
+[417/440] Compiling MacParakeetTests MeetingVADLaunchPrepTests.swift
+[418/440] Compiling MacParakeetTests TranscriptionAssetCleanupCleanedMicTests.swift
+[419/440] Compiling MacParakeetTests QuickPromptsViewModelTests.swift
+[420/440] Compiling MacParakeetTests SettingsRootViewModelTests.swift
+[421/440] Compiling MacParakeetTests SettingsSearchIndexTests.swift
+[422/440] Compiling MacParakeetTests SettingsViewModelTests.swift
+[423/440] Compiling MacParakeetTests TextSnippetsEditingViewModelTests.swift
+[424/440] Compiling MacParakeetTests TextSnippetsViewModelTests.swift
+[425/440] Compiling MacParakeetTests TranscriptChatViewModelTests.swift
+[426/440] Compiling MacParakeetTests TranscriptFindModelTests.swift
+[427/440] Compiling MacParakeetTests TranscriptionCompletionNotifierTests.swift
+[428/440] Compiling MacParakeetTests TranscriptionDateGroupingTests.swift
+[429/440] Compiling MacParakeetTests TranscriptionDeletionCleanupTests.swift
+[430/440] Compiling MacParakeetTests TranscriptionLibraryViewModelTests.swift
+[431/440] Compiling MacParakeetTests TranscriptionViewModelBatchTests.swift
+[432/440] Compiling MacParakeetTests TranscriptionViewModelTests.swift
+[433/440] Compiling MacParakeetTests TransformEditorViewModelTests.swift
+[434/440] Compiling MacParakeetTests TransformsViewModelTests.swift
+[435/440] Compiling MacParakeetTests ViewModelMocks.swift
+[436/440] Compiling MacParakeetTests BrandGlyphImageTests.swift
+[437/440] Compiling MacParakeetTests DictationHistoryViewTests.swift
+[438/440] Compiling MacParakeetTests MandalaDataTests.swift
+[438/440] Write Objects.LinkFileList
+[439/440] Linking MacParakeetPackageTests
+Build complete! (232.95s)
+Test Suite 'Selected tests' started at 2026-09-07 15:18:12.046.
+Test Suite 'MacParakeetPackageTests.xctest' started at 2026-09-07 15:18:12.048.
+Test Suite 'MeetingRecordingLockFileStoreTests' started at 2026-09-07 15:18:12.048.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testConcurrentFinalizationOwnershipClaimsAdmitOneProcess]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testConcurrentFinalizationOwnershipClaimsAdmitOneProcess]' passed (0.288 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDeleteRemovesFile]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDeleteRemovesFile]' passed (0.005 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverActiveSessionsIsNotRetentionSafetyPredicate]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverActiveSessionsIsNotRetentionSafetyPredicate]' passed (0.007 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverActiveSessionsReturnsEmptyForMissingRoot]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverActiveSessionsReturnsEmptyForMissingRoot]' passed (0.002 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverActiveSessionsReturnsLiveOwners]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverActiveSessionsReturnsLiveOwners]' passed (0.006 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverActiveSessionsSkipsDeadOwners]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverActiveSessionsSkipsDeadOwners]' passed (0.007 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverAnySessionsReturnsLiveAndDeadOwners]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverAnySessionsReturnsLiveAndDeadOwners]' passed (0.012 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverOrphansHandlesUnknownSchemaVersion]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverOrphansHandlesUnknownSchemaVersion]' passed (0.007 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverOrphansReturnsDeadOwnersWithFolderURL]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverOrphansReturnsDeadOwnersWithFolderURL]' passed (0.008 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverOrphansSkipsCorruptJSON]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverOrphansSkipsCorruptJSON]' passed (0.007 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverOrphansSkipsLiveOwners]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testDiscoverOrphansSkipsLiveOwners]' passed (0.008 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFailedOwnershipReleaseCanBeReclaimedBySameProcess]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFailedOwnershipReleaseCanBeReclaimedBySameProcess]' passed (0.034 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimRefusesLiveNewerSchemaLock]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimRefusesLiveNewerSchemaLock]' passed (0.016 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimRefusesLiveOwner]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimRefusesLiveOwner]' passed (0.017 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimReplacesDeadNewerSchemaLock]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimReplacesDeadNewerSchemaLock]' passed (0.017 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimReplacesDeadProcessLease]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimReplacesDeadProcessLease]' passed (0.015 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimRewritesAndReleaseRestoresDeadOwner]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimRewritesAndReleaseRestoresDeadOwner]' passed (0.014 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimTreatsUnreadablePresentLockAsDeadEvidence]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimTreatsUnreadablePresentLockAsDeadEvidence]' passed (0.011 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimTreatsZeroByteLockAsDeadEvidence]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testFinalizationOwnershipClaimTreatsZeroByteLockAsDeadEvidence]' passed (0.011 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testHasLiveOwnerHonorsPeekedPIDOnNewerSchemaLock]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testHasLiveOwnerHonorsPeekedPIDOnNewerSchemaLock]' passed (0.010 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testHasLiveOwnerReturnsFalseForDeadOrMissingOwner]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testHasLiveOwnerReturnsFalseForDeadOrMissingOwner]' passed (0.007 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testHasLiveOwnerUsesReadableLockPID]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testHasLiveOwnerUsesReadableLockPID]' passed (0.008 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testNilNotesIsNotEncoded]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testNilNotesIsNotEncoded]' passed (0.010 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromCorruptJSONReturnsNil]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromCorruptJSONReturnsNil]' passed (0.009 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromLockFileMissingNotesKeyDecodesAsNil]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromLockFileMissingNotesKeyDecodesAsNil]' passed (0.009 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromLockFileWithMalformedCalendarSnapshotStillRecoversMetadata]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromLockFileWithMalformedCalendarSnapshotStillRecoversMetadata]' passed (0.009 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromLockFileWithMalformedNotesValueStillRecoversMetadata]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromLockFileWithMalformedNotesValueStillRecoversMetadata]' passed (0.010 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromLockFileWithMalformedStartContextStillRecoversMetadata]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromLockFileWithMalformedStartContextStillRecoversMetadata]' passed (0.010 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromMissingFolderReturnsNil]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromMissingFolderReturnsNil]' passed (0.004 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromUnknownSchemaVersionReturnsNil]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadFromUnknownSchemaVersionReturnsNil]' passed (0.009 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadReturnsAwaitingTranscriptionLockRegardlessOfPID]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadReturnsAwaitingTranscriptionLockRegardlessOfPID]' passed (0.010 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadTreatsSchemaOneSpeechEngineAsLegacyProvenance]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testReadTreatsSchemaOneSpeechEngineAsLegacyProvenance]' passed (0.009 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testUncapturedSpeechEngineRemainsAbsentAfterRewrite]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testUncapturedSpeechEngineRemainsAbsentAfterRewrite]' passed (0.008 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testWithNotesPreservesEverythingElse]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testWithNotesPreservesEverythingElse]' passed (0.002 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testWriteThenReadRoundTrip]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testWriteThenReadRoundTrip]' passed (0.007 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testWriteThenReadRoundTripsNotes]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingLockFileStoreTests testWriteThenReadRoundTripsNotes]' passed (0.007 seconds).
+Test Suite 'MeetingRecordingLockFileStoreTests' passed at 2026-09-07 15:18:12.683.
+	 Executed 36 tests, with 0 failures (0 unexpected) in 0.627 (0.635) seconds
+Test Suite 'MeetingRecordingRecoveryServiceTests' started at 2026-09-07 15:18:12.683.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testActiveWriterFinalizationIsNeitherOfferedRecoveredNorDiscarded]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testActiveWriterFinalizationIsNeitherOfferedRecoveredNorDiscarded]' passed (0.074 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testCrashPointSweepConvergesToCompletedRowDeletedLockAndPreservedAudio]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testCrashPointSweepConvergesToCompletedRowDeletedLockAndPreservedAudio]' passed (0.263 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardKeepsCompletedTranscriptAudioAndDeletesOnlyLock]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardKeepsCompletedTranscriptAudioAndDeletesOnlyLock]' passed (0.047 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardOfMissingFolderIsIdempotent]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardOfMissingFolderIsIdempotent]' passed (0.040 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardRemovesEverything]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardRemovesEverything]' passed (0.050 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardRestoresOwnershipAfterFolderRemovalFailureAndCanRetry]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardRestoresOwnershipAfterFolderRemovalFailureAndCanRetry]' passed (0.065 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardSurfacesFailedLockDeleteAndStaysRetryable]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardSurfacesFailedLockDeleteAndStaysRetryable]' passed (0.066 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardWithStaleLockRefusesActiveSameProcessFinalizationLease]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardWithStaleLockRefusesActiveSameProcessFinalizationLease]' passed (0.053 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardWithStaleLockRefusesAnotherLiveProcessFinalizationLease]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscardWithStaleLockRefusesAnotherLiveProcessFinalizationLease]' passed (0.056 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverFiltersOnlyEmptySessionsInMixedBatch]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverFiltersOnlyEmptySessionsInMixedBatch]' passed (0.061 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverFiltersSessionWithNoAudioFiles]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverFiltersSessionWithNoAudioFiles]' passed (0.013 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverFiltersStubSessionWithoutDeletingFolder]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverFiltersStubSessionWithoutDeletingFolder]' passed (0.018 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverKeepsCandidateWhenViabilityCheckFails]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverKeepsCandidateWhenViabilityCheckFails]' passed (0.019 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverKeepsCompletedMeetingWhenSourceAudioIsMissing]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverKeepsCompletedMeetingWhenSourceAudioIsMissing]' passed (0.014 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverKeepsSessionWhenOnlyOneChannelHasViableAudio]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverKeepsSessionWhenOnlyOneChannelHasViableAudio]' passed (0.031 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverKeepsSessionWithViableAudio]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testDiscoverKeepsSessionWithViableAudio]' passed (0.047 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverAppliesLockFileNotesToRecoveredTranscriptionUserNotes]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverAppliesLockFileNotesToRecoveredTranscriptionUserNotes]' passed (0.061 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverCleansAwaitingTranscriptionLockWhenTranscriptAlreadyExists]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverCleansAwaitingTranscriptionLockWhenTranscriptAlreadyExists]' passed (0.042 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverClearsStoredPlaybackFallbackWhenRemixSucceeds]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverClearsStoredPlaybackFallbackWhenRemixSucceeds]' passed (0.070 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverContinuesWhenMixFails]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverContinuesWhenMixFails]' passed (0.070 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverDeletesLockOnSuccess]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverDeletesLockOnSuccess]' passed (0.060 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverDeletesStaleCleanedMicWhenSourceMissing]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverDeletesStaleCleanedMicWhenSourceMissing]' passed (0.076 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverDoesNotSetUserNotesWhenLockHasNone]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverDoesNotSetUserNotesWhenLockHasNone]' passed (0.073 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverKeepsLockOnFailure]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverKeepsLockOnFailure]' passed (0.059 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverLegacyLockWithoutSpeechEnginePreservesUncapturedProvenance]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverLegacyLockWithoutSpeechEnginePreservesUncapturedProvenance]' passed (0.058 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverLegacySilenceOnlyPartialReportRemainsHealthy]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverLegacySilenceOnlyPartialReportRemainsHealthy]' passed (0.070 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverMissingMicrophoneMaterializesDelayedSystemTimeline]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverMissingMicrophoneMaterializesDelayedSystemTimeline]' passed (0.076 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverMissingPreviouslySilentSystemTrackBecomesUnavailable]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverMissingPreviouslySilentSystemTrackBecomesUnavailable]' passed (0.093 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverPreservesExistingTimelineAndProvenanceWhileRefreshingMediaFacts]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverPreservesExistingTimelineAndProvenanceWhileRefreshingMediaFacts]' passed (0.095 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverReadsLegacySourceNamesAndWritesCurrentPlaybackName]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverReadsLegacySourceNamesAndWritesCurrentPlaybackName]' passed (0.084 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverRetryReusesSavedTranscriptWhenLockDeletePreviouslyFailed]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverRetryReusesSavedTranscriptWhenLockDeletePreviouslyFailed]' passed (0.113 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverRetryUpdatesPreviousIncompleteRecoveryRow]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverRetryUpdatesPreviousIncompleteRecoveryRow]' passed (0.114 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverSettlesCompletedLegacyPlaybackRow]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverSettlesCompletedLegacyPlaybackRow]' passed (0.075 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverSkipsCleanedMicWhenDurationPredictsRenderTimeout]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverSkipsCleanedMicWhenDurationPredictsRenderTimeout]' passed (0.111 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverSkipsCleanedMicWhenRecoveredSystemReferenceIsSilent]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverSkipsCleanedMicWhenRecoveredSystemReferenceIsSilent]' passed (0.113 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverSkipsCorruptSourceAndUsesRemainingPlayableAudio]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverSkipsCorruptSourceAndUsesRemainingPlayableAudio]' passed (0.054 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverSynthesizesMetadataAndPersistsRecoveredTranscription]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverSynthesizesMetadataAndPersistsRecoveredTranscription]' passed (0.089 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverUpdatesExistingAwaitingTranscriptionStub]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverUpdatesExistingAwaitingTranscriptionStub]' passed (0.086 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverUsesAudioTrackSampleRateInRecoveredMetadata]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverUsesAudioTrackSampleRateInRecoveredMetadata]' passed (0.066 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverUsesEchoProbeWhenRecoveredAlignmentIsSynthetic]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverUsesEchoProbeWhenRecoveredAlignmentIsSynthetic]' passed (0.178 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverWritesRecoveredNotesSidecar]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingRecoveryServiceTests testRecoverWritesRecoveredNotesSidecar]' passed (0.087 seconds).
+Test Suite 'MeetingRecordingRecoveryServiceTests' passed at 2026-09-07 15:18:15.684.
+	 Executed 41 tests, with 0 failures (0 unexpected) in 2.990 (3.001) seconds
+Test Suite 'MeetingRecordingSettlementTests' started at 2026-09-07 15:18:15.684.
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testDeletesLockAcrossPrivateVarPathAliasBoundary]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testDeletesLockAcrossPrivateVarPathAliasBoundary]' passed (0.005 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testDeletesLockWhenOnlyMeetingFilePathMatches]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testDeletesLockWhenOnlyMeetingFilePathMatches]' passed (0.003 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testDeletesLockWhenStoredFolderPathDiffersOnlyByCase]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testDeletesLockWhenStoredFolderPathDiffersOnlyByCase]' passed (0.004 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testDeletesLockWhenTranscriptionRowIsCompleted]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testDeletesLockWhenTranscriptionRowIsCompleted]' passed (0.003 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testLockDeleteErrorIsRethrownSoCallersCanSurfaceFailedCleanup]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testLockDeleteErrorIsRethrownSoCallersCanSurfaceFailedCleanup]' passed (0.004 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testRefusesWhenCompletedRowBelongsToDifferentFolder]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testRefusesWhenCompletedRowBelongsToDifferentFolder]' passed (0.004 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testRefusesWhenTranscriptionRowIsMissing]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testRefusesWhenTranscriptionRowIsMissing]' passed (0.002 seconds).
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testRefusesWhenTranscriptionRowIsNotCompleted]' started.
+Test Case '-[MacParakeetTests.MeetingRecordingSettlementTests testRefusesWhenTranscriptionRowIsNotCompleted]' passed (0.003 seconds).
+Test Suite 'MeetingRecordingSettlementTests' passed at 2026-09-07 15:18:15.713.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.027 (0.029) seconds
+Test Suite 'TranscriptSegmentCacheTests' started at 2026-09-07 15:18:15.713.
+Test Case '-[MacParakeetTests.TranscriptSegmentCacheTests testChangingTranscriptionHidesPreviouslyPublishedRowsBeforeRebuildStarts]' started.
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Views/TranscriptSegmentCacheTests.swift:27: error: -[MacParakeetTests.TranscriptSegmentCacheTests testChangingTranscriptionHidesPreviouslyPublishedRowsBeforeRebuildStarts] : XCTAssertNil failed: "Snapshot(payload: MacParakeet.TranscriptSegmentCachePayload(segments: [MacParakeetCore.TranscriptSegment(startMs: 1000, text: "First record", speakerId: Optional("speaker-1"))], speakerTurns: [MacParakeetCore.SpeakerTurn(speakerId: "speaker-1", speakerLabel: "First speaker", segments: [MacParakeetCore.TranscriptSegment(startMs: 1000, text: "First record", speakerId: Optional("speaker-1"))])], speakerStats: ["speaker-1": MacParakeetCore.SpeakerStatistics(speakingTimeMs: 0, wordCount: 1)], rowCount: 1, hasSpeakers: true, speakerLabelMap: ["speaker-1": "First speaker"]), identifiedTurnCards: [MacParakeet.IdentifiedSpeakerTurn(turn: MacParakeetCore.SpeakerTurn(speakerId: "speaker-1", speakerLabel: "First speaker", segments: [MacParakeetCore.TranscriptSegment(startMs: 1000, text: "First record", speakerId: Optional("speaker-1"))]), identity: MacParakeet.SpeakerTurnIdentity(speakerId: "speaker-1", firstStartMs: Optional(1000), duplicateOrdinal: 0))], segmentStartMs: [1000], speakerColorMap: ["speaker-1": blue])"
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Views/TranscriptSegmentCacheTests.swift:28: error: -[MacParakeetTests.TranscriptSegmentCacheTests testChangingTranscriptionHidesPreviouslyPublishedRowsBeforeRebuildStarts] : XCTAssertNil failed: "1"
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Views/TranscriptSegmentCacheTests.swift:29: error: -[MacParakeetTests.TranscriptSegmentCacheTests testChangingTranscriptionHidesPreviouslyPublishedRowsBeforeRebuildStarts] : XCTAssertTrue failed
+Test Case '-[MacParakeetTests.TranscriptSegmentCacheTests testChangingTranscriptionHidesPreviouslyPublishedRowsBeforeRebuildStarts]' failed (8.991 seconds).
+Test Case '-[MacParakeetTests.TranscriptSegmentCacheTests testReplacementStaysEmptyWhilePendingAndRejectsPreviousRecordCompletion]' started.
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Views/TranscriptSegmentCacheTests.swift:45: error: -[MacParakeetTests.TranscriptSegmentCacheTests testReplacementStaysEmptyWhilePendingAndRejectsPreviousRecordCompletion] : XCTAssertNil failed: "Snapshot(payload: MacParakeet.TranscriptSegmentCachePayload(segments: [MacParakeetCore.TranscriptSegment(startMs: 1000, text: "First record", speakerId: Optional("speaker-1"))], speakerTurns: [MacParakeetCore.SpeakerTurn(speakerId: "speaker-1", speakerLabel: "Speaker", segments: [MacParakeetCore.TranscriptSegment(startMs: 1000, text: "First record", speakerId: Optional("speaker-1"))])], speakerStats: ["speaker-1": MacParakeetCore.SpeakerStatistics(speakingTimeMs: 0, wordCount: 1)], rowCount: 1, hasSpeakers: true, speakerLabelMap: ["speaker-1": "Speaker"]), identifiedTurnCards: [MacParakeet.IdentifiedSpeakerTurn(turn: MacParakeetCore.SpeakerTurn(speakerId: "speaker-1", speakerLabel: "Speaker", segments: [MacParakeetCore.TranscriptSegment(startMs: 1000, text: "First record", speakerId: Optional("speaker-1"))]), identity: MacParakeet.SpeakerTurnIdentity(speakerId: "speaker-1", firstStartMs: Optional(1000), duplicateOrdinal: 0))], segmentStartMs: [1000], speakerColorMap: [:])"
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Views/TranscriptSegmentCacheTests.swift:52: error: -[MacParakeetTests.TranscriptSegmentCacheTests testReplacementStaysEmptyWhilePendingAndRejectsPreviousRecordCompletion] : XCTAssertNil failed: "Snapshot(payload: MacParakeet.TranscriptSegmentCachePayload(segments: [MacParakeetCore.TranscriptSegment(startMs: 1000, text: "First record", speakerId: Optional("speaker-1"))], speakerTurns: [MacParakeetCore.SpeakerTurn(speakerId: "speaker-1", speakerLabel: "Speaker", segments: [MacParakeetCore.TranscriptSegment(startMs: 1000, text: "First record", speakerId: Optional("speaker-1"))])], speakerStats: ["speaker-1": MacParakeetCore.SpeakerStatistics(speakingTimeMs: 0, wordCount: 1)], rowCount: 1, hasSpeakers: true, speakerLabelMap: ["speaker-1": "Speaker"]), identifiedTurnCards: [MacParakeet.IdentifiedSpeakerTurn(turn: MacParakeetCore.SpeakerTurn(speakerId: "speaker-1", speakerLabel: "Speaker", segments: [MacParakeetCore.TranscriptSegment(startMs: 1000, text: "First record", speakerId: Optional("speaker-1"))]), identity: MacParakeet.SpeakerTurnIdentity(speakerId: "speaker-1", firstStartMs: Optional(1000), duplicateOrdinal: 0))], segmentStartMs: [1000], speakerColorMap: [:])"
+/Users/dmoon/code/macparakeet-qa/Tests/MacParakeetTests/Views/TranscriptSegmentCacheTests.swift:62: error: -[MacParakeetTests.TranscriptSegmentCacheTests testReplacementStaysEmptyWhilePendingAndRejectsPreviousRecordCompletion] : XCTAssertNil failed: "Snapshot(payload: MacParakeet.TranscriptSegmentCachePayload(segments: [MacParakeetCore.TranscriptSegment(startMs: 1000, text: "Second record", speakerId: Optional("speaker-1"))], speakerTurns: [MacParakeetCore.SpeakerTurn(speakerId: "speaker-1", speakerLabel: "Second speaker", segments: [MacParakeetCore.TranscriptSegment(startMs: 1000, text: "Second record", speakerId: Optional("speaker-1"))])], speakerStats: ["speaker-1": MacParakeetCore.SpeakerStatistics(speakingTimeMs: 0, wordCount: 1)], rowCount: 1, hasSpeakers: true, speakerLabelMap: ["speaker-1": "Second speaker"]), identifiedTurnCards: [MacParakeet.IdentifiedSpeakerTurn(turn: MacParakeetCore.SpeakerTurn(speakerId: "speaker-1", speakerLabel: "Second speaker", segments: [MacParakeetCore.TranscriptSegment(startMs: 1000, text: "Second record", speakerId: Optional("speaker-1"))]), identity: MacParakeet.SpeakerTurnIdentity(speakerId: "speaker-1", firstStartMs: Optional(1000), duplicateOrdinal: 0))], segmentStartMs: [1000], speakerColorMap: ["speaker-1": green])"
+Test Case '-[MacParakeetTests.TranscriptSegmentCacheTests testReplacementStaysEmptyWhilePendingAndRejectsPreviousRecordCompletion]' failed (0.002 seconds).
+Test Case '-[MacParakeetTests.TranscriptSegmentCacheTests testSameRecordRefreshKeepsItsRowsButOnlyLatestRequestCanPublish]' started.
+Test Case '-[MacParakeetTests.TranscriptSegmentCacheTests testSameRecordRefreshKeepsItsRowsButOnlyLatestRequestCanPublish]' passed (0.000 seconds).
+Test Case '-[MacParakeetTests.TranscriptSegmentCacheTests testUntimedReplacementClearsRowsAndInvalidatesPendingBuilder]' started.
+Test Case '-[MacParakeetTests.TranscriptSegmentCacheTests testUntimedReplacementClearsRowsAndInvalidatesPendingBuilder]' passed (0.000 seconds).
+Test Suite 'TranscriptSegmentCacheTests' failed at 2026-09-07 15:18:24.708.
+	 Executed 4 tests, with 6 failures (0 unexpected) in 8.994 (8.995) seconds
+Test Suite 'MacParakeetPackageTests.xctest' failed at 2026-09-07 15:18:24.708.
+	 Executed 89 tests, with 6 failures (0 unexpected) in 12.638 (12.660) seconds
+Test Suite 'Selected tests' failed at 2026-09-07 15:18:24.708.
+	 Executed 89 tests, with 6 failures (0 unexpected) in 12.638 (12.662) seconds
+◇ Test run started.
+↳ Testing Library Version: 1743
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.

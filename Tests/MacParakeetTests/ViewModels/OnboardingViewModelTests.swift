@@ -208,25 +208,23 @@ final class OnboardingViewModelTests: XCTestCase {
         )
     }
 
-    func testMicrophoneStepRequiresGrantedPermission() async throws {
+    func testMicrophoneStepAllowsContinueWithoutPermission() {
         let perms = MockPermissionService()
         perms.microphonePermission = .notDetermined
         let stt = MockSTTClient()
-        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
-        defaults.removePersistentDomain(forName: defaults.volatileDomainNames.first ?? "")
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .microphone)
 
-        // Not granted => can't continue.
-        vm.refresh()
-        try await Task.sleep(for: .milliseconds(50))
-        XCTAssertFalse(vm.canContinueFromCurrentStep())
+        XCTAssertTrue(vm.canContinueFromCurrentStep())
+        vm.goNext()
+        XCTAssertEqual(vm.step, .accessibility)
 
-        // Granted => can continue.
-        perms.microphonePermission = .granted
-        vm.refresh()
-        try await Task.sleep(for: .milliseconds(50))
+        perms.microphonePermission = .denied
+        vm.jump(to: .microphone)
         XCTAssertTrue(vm.canContinueFromCurrentStep())
     }
 
@@ -234,8 +232,9 @@ final class OnboardingViewModelTests: XCTestCase {
         let perms = MockPermissionService()
         perms.accessibilityPermission = false
         let stt = MockSTTClient()
-        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
-        defaults.removePersistentDomain(forName: defaults.volatileDomainNames.first ?? "")
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .accessibility)
@@ -259,21 +258,25 @@ final class OnboardingViewModelTests: XCTestCase {
         perms.accessibilityPermission = false
         perms.requestAccessibilityResult = false
         let stt = MockSTTClient()
-        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .accessibility)
         vm.requestAccessibilityAccess()
 
         XCTAssertFalse(vm.accessibilityGranted)
-        XCTAssertTrue(telemetry.snapshot().contains {
-            if case .permissionPrompted(let permission) = $0 { return permission == .accessibility }
-            return false
-        })
-        XCTAssertFalse(telemetry.snapshot().contains {
-            if case .permissionDenied = $0 { return true }
-            return false
-        }, "Accessibility should not emit denied immediately after prompting")
+        XCTAssertTrue(
+            telemetry.snapshot().contains {
+                if case .permissionPrompted(let permission) = $0 { return permission == .accessibility }
+                return false
+            })
+        XCTAssertFalse(
+            telemetry.snapshot().contains {
+                if case .permissionDenied = $0 { return true }
+                return false
+            }, "Accessibility should not emit denied immediately after prompting")
 
         vm.markOnboardingDismissed()
         vm.markOnboardingDismissed()
@@ -294,7 +297,9 @@ final class OnboardingViewModelTests: XCTestCase {
         perms.accessibilityPermission = false
         perms.requestAccessibilityResult = false
         let stt = MockSTTClient()
-        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .accessibility)
@@ -308,10 +313,11 @@ final class OnboardingViewModelTests: XCTestCase {
             return permission
         }
         XCTAssertEqual(grantedPermissions, [.accessibility])
-        XCTAssertFalse(telemetry.snapshot().contains {
-            if case .permissionDenied = $0 { return true }
-            return false
-        })
+        XCTAssertFalse(
+            telemetry.snapshot().contains {
+                if case .permissionDenied = $0 { return true }
+                return false
+            })
     }
 
     func testAccessibilityDismissRechecksBeforeDeniedTelemetry() {
@@ -323,7 +329,9 @@ final class OnboardingViewModelTests: XCTestCase {
         perms.accessibilityPermission = false
         perms.requestAccessibilityResult = false
         let stt = MockSTTClient()
-        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .accessibility)
@@ -337,17 +345,20 @@ final class OnboardingViewModelTests: XCTestCase {
             return permission
         }
         XCTAssertEqual(grantedPermissions, [.accessibility])
-        XCTAssertFalse(telemetry.snapshot().contains {
-            if case .permissionDenied = $0 { return true }
-            return false
-        })
+        XCTAssertFalse(
+            telemetry.snapshot().contains {
+                if case .permissionDenied = $0 { return true }
+                return false
+            })
     }
 
     func testHotkeyRefreshChecksAccessibilityBeforePendingFullRefreshCompletes() async throws {
         let perms = DelayedMicrophonePermissionService()
         perms.accessibilityPermission = false
         let stt = MockSTTClient()
-        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.refresh()
@@ -384,7 +395,7 @@ final class OnboardingViewModelTests: XCTestCase {
         let stt = MockSTTClient()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         XCTAssertEqual(vm.step, .welcome)
@@ -409,7 +420,7 @@ final class OnboardingViewModelTests: XCTestCase {
         let stt = MockSTTClient()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .done)
@@ -435,17 +446,20 @@ final class OnboardingViewModelTests: XCTestCase {
 
     func testCanContinueForEachStep() {
         let perms = MockPermissionService()
-        perms.microphonePermission = .granted
+        perms.microphonePermission = .notDetermined
         perms.accessibilityPermission = true
         let stt = MockSTTClient()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
 
         vm.jump(to: .welcome)
         XCTAssertTrue(vm.canContinueFromCurrentStep(), "welcome should always allow continue")
+
+        vm.jump(to: .microphone)
+        XCTAssertTrue(vm.canContinueFromCurrentStep(), "microphone may be skipped for file-only use")
 
         vm.jump(to: .hotkey)
         XCTAssertTrue(vm.canContinueFromCurrentStep(), "hotkey should always allow continue")
@@ -462,7 +476,7 @@ final class OnboardingViewModelTests: XCTestCase {
         let stt = MockSTTClient()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set("2026-01-01T00:00:00Z", forKey: OnboardingViewModel.onboardingCompletedKey)
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
@@ -474,7 +488,7 @@ final class OnboardingViewModelTests: XCTestCase {
         let stt = MockSTTClient()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set("2026-01-01T00:00:00Z", forKey: OnboardingViewModel.onboardingCompletedKey)
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
@@ -494,7 +508,7 @@ final class OnboardingViewModelTests: XCTestCase {
         let stt = MockSTTClient()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
         let clock = OnboardingTestClock(Date(timeIntervalSince1970: 100))
 
         let vm = makeViewModel(
@@ -556,7 +570,9 @@ final class OnboardingViewModelTests: XCTestCase {
     func testPermissionPollingLifecycleStopsAfterCancellation() async throws {
         let perms = PollingPermissionService()
         let stt = MockSTTClient()
-        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
         let vm = makeViewModel(
             permissionService: perms,
             sttClient: stt,
@@ -588,8 +604,9 @@ final class OnboardingViewModelTests: XCTestCase {
     func testEngineWarmUpTransitionsToReady() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
-        defaults.removePersistentDomain(forName: defaults.volatileDomainNames.first ?? "")
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .engine)
@@ -613,7 +630,7 @@ final class OnboardingViewModelTests: XCTestCase {
         await stt.configureWarmUpHangIndefinitely()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -631,13 +648,14 @@ final class OnboardingViewModelTests: XCTestCase {
             return false
         }
 
-        guard case .failed(let message) = vm.engineState else {
+        guard case .failed(let failure) = vm.engineState else {
             return XCTFail("expected .failed after stall, got \(vm.engineState)")
         }
         XCTAssertTrue(
-            message.contains("longer than expected"),
-            "stall message should prompt a network check + retry, got: \(message)"
+            failure.message.contains("longer than expected"),
+            "stall message should prompt a network check + retry, got: \(failure.message)"
         )
+        XCTAssertEqual(failure.recovery, .network)
         XCTAssertFalse(vm.engineBusy, "engineBusy must clear so the Retry button is actionable")
         XCTAssertFalse(vm.isBusy, "warm-up must never have touched the permission isBusy flag")
         XCTAssertFalse(vm.canContinueFromCurrentStep(), "a stalled engine must not gate open")
@@ -651,7 +669,7 @@ final class OnboardingViewModelTests: XCTestCase {
         let stt = MockSTTClient()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -684,13 +702,13 @@ final class OnboardingViewModelTests: XCTestCase {
         await stt.configureWarmUpHangIndefinitely()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         XCTAssertEqual(vm.step, .welcome, "head-start fires while still on Welcome")
 
         vm.startEngineWarmUp()
-        try await Task.sleep(for: .milliseconds(100)) // let the background warm-up churn
+        try await Task.sleep(for: .milliseconds(100))  // let the background warm-up churn
 
         XCTAssertTrue(vm.engineBusy, "warm-up should track its own engineBusy")
         XCTAssertFalse(vm.isBusy, "the head-start download must not hold the permission isBusy flag")
@@ -709,11 +727,11 @@ final class OnboardingViewModelTests: XCTestCase {
         await stt.configureWarmUpHangIndefinitely()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.startEngineWarmUp()
-        try await Task.sleep(for: .milliseconds(100)) // let the warm-up reach in-flight
+        try await Task.sleep(for: .milliseconds(100))  // let the warm-up reach in-flight
         XCTAssertTrue(vm.engineBusy, "warm-up in flight should set engineBusy")
 
         // Window close mid-download tears observation down without a terminal state.
@@ -729,7 +747,7 @@ final class OnboardingViewModelTests: XCTestCase {
         await stt.configureWarmUpHangIndefinitely()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
 
@@ -745,7 +763,7 @@ final class OnboardingViewModelTests: XCTestCase {
         // Reaching the engine step re-triggers the fallback call.
         vm.jump(to: .engine)
         vm.startEngineWarmUp()
-        try await Task.sleep(for: .milliseconds(50)) // window for an erroneous 2nd download
+        try await Task.sleep(for: .milliseconds(50))  // window for an erroneous 2nd download
 
         // Assert on backgroundWarmUp call-count, which the ViewModel uniquely
         // controls: warmUpCallCount alone is masked by the mock's own dedup
@@ -767,7 +785,7 @@ final class OnboardingViewModelTests: XCTestCase {
         await stt.configureWarmUp(error: STTError.engineStartFailed("boom"))
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .engine)
@@ -803,7 +821,7 @@ final class OnboardingViewModelTests: XCTestCase {
         await stt.configureWarmUp(error: STTError.engineStartFailed("boom"))
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         XCTAssertEqual(vm.step, .welcome)
@@ -814,12 +832,14 @@ final class OnboardingViewModelTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(10))
         }
 
-        guard case .failed(let message) = vm.engineState else {
+        guard case .failed(let failure) = vm.engineState else {
             return XCTFail("expected the head-start failure to be preserved, got \(vm.engineState)")
         }
-        XCTAssertTrue(message.contains("boom"), "preserved failure should retain the original error")
+        XCTAssertTrue(failure.message.contains("boom"), "preserved failure should retain the original error")
+        XCTAssertEqual(failure.recovery, .opaque)
         XCTAssertFalse(vm.engineBusy)
-        XCTAssertTrue(vm.canContinueFromCurrentStep(), "early-step navigation must not be blocked by hidden engine failure UI")
+        XCTAssertTrue(
+            vm.canContinueFromCurrentStep(), "early-step navigation must not be blocked by hidden engine failure UI")
         let backgroundWarmUpCount = await stt.backgroundWarmUpCallCountSnapshot()
 
         // Reaching the engine step must not silently retry over the preserved
@@ -830,7 +850,9 @@ final class OnboardingViewModelTests: XCTestCase {
 
         let backgroundWarmUpCountAfterEngineAppear = await stt.backgroundWarmUpCallCountSnapshot()
         XCTAssertEqual(backgroundWarmUpCountAfterEngineAppear, backgroundWarmUpCount)
-        guard case .failed = vm.engineState else { return XCTFail("engine step should still surface the preserved failure") }
+        guard case .failed = vm.engineState else {
+            return XCTFail("engine step should still surface the preserved failure")
+        }
     }
 
     /// Guard 2 (§5.2): the head-start must honor the Whisper fork for a CJK
@@ -841,7 +863,7 @@ final class OnboardingViewModelTests: XCTestCase {
         let stt = MockSTTClient()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -866,7 +888,7 @@ final class OnboardingViewModelTests: XCTestCase {
         let stt = MockSTTClient()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .engine)
@@ -893,7 +915,7 @@ final class OnboardingViewModelTests: XCTestCase {
         let stt = MockSTTClient()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -931,7 +953,7 @@ final class OnboardingViewModelTests: XCTestCase {
         await diarization.configureReady(false)
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -961,7 +983,7 @@ final class OnboardingViewModelTests: XCTestCase {
         let downloadSpy = WhisperDownloadSpy()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -985,24 +1007,28 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertEqual(SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults), "ja")
 
         let events = telemetry.snapshot()
-        XCTAssertTrue(events.contains {
-            if case .modelDownloadStarted(let modelKind, let speechEngine, _) = $0 {
-                return modelKind == .whisperSTT && speechEngine == .whisper
-            }
-            return false
-        })
-        XCTAssertTrue(events.contains {
-            if case .modelDownloadCompleted(_, let modelKind, let speechEngine, _) = $0 {
-                return modelKind == .whisperSTT && speechEngine == .whisper
-            }
-            return false
-        })
+        XCTAssertTrue(
+            events.contains {
+                if case .modelDownloadStarted(let modelKind, let speechEngine, _) = $0 {
+                    return modelKind == .whisperSTT && speechEngine == .whisper
+                }
+                return false
+            })
+        XCTAssertTrue(
+            events.contains {
+                if case .modelDownloadCompleted(_, let modelKind, let speechEngine, _) = $0 {
+                    return modelKind == .whisperSTT && speechEngine == .whisper
+                }
+                return false
+            })
     }
 
     func testEngineWarmUpFailsWhisperPreflightWhenCJKLocaleAndOffline() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -1017,8 +1043,9 @@ final class OnboardingViewModelTests: XCTestCase {
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(120))
 
-        if case .failed(let message) = vm.engineState {
-            XCTAssertTrue(message.lowercased().contains("whisper model"))
+        if case .failed(let failure) = vm.engineState {
+            XCTAssertTrue(failure.message.lowercased().contains("whisper model"))
+            XCTAssertEqual(failure.recovery, .network)
         } else {
             XCTFail("Expected Whisper preflight failure when offline")
         }
@@ -1030,8 +1057,9 @@ final class OnboardingViewModelTests: XCTestCase {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         let diarization = MockDiarizationService()
-        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
-        defaults.removePersistentDomain(forName: defaults.volatileDomainNames.first ?? "")
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -1049,13 +1077,15 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertTrue(prepared)
     }
 
-    func testEngineWarmUpFailsWhenDiarizationPreparationFails() async throws {
+    func testDiarizationNetworkFailurePreservesDetailAndShowsNetworkRecovery() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         let diarization = MockDiarizationService()
-        await diarization.configurePrepareModels(error: STTError.modelDownloadFailed)
-        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
-        defaults.removePersistentDomain(forName: defaults.volatileDomainNames.first ?? "")
+        let upstreamError = URLError(.notConnectedToInternet)
+        await diarization.configurePrepareModels(error: upstreamError)
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -1066,10 +1096,168 @@ final class OnboardingViewModelTests: XCTestCase {
         vm.jump(to: .engine)
 
         vm.startEngineWarmUp()
-        try await Task.sleep(for: .milliseconds(150))
+        try await waitUntil {
+            if case .failed = vm.engineState { return true }
+            return false
+        }
 
-        XCTAssertEqual(vm.engineState, .failed(message: STTError.modelDownloadFailed.localizedDescription))
+        guard case .failed(let failure) = vm.engineState else {
+            return XCTFail("Expected speaker-model network failure")
+        }
+        XCTAssertEqual(failure.recovery, .network)
+        XCTAssertTrue(failure.message.contains(upstreamError.localizedDescription))
+        XCTAssertFalse(failure.recovery.tips.contains(failure.message))
         XCTAssertFalse(vm.canContinueFromCurrentStep())
+    }
+
+    func testMissingDiarizationModelsSurfaceActionableFailureAndRetryAfterModelsBecomeAvailable() async throws {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let diarization = MockDiarizationService()
+        await diarization.configureCachedModels(false)
+        await diarization.configureReady(false)
+        await diarization.configurePrepareModels(error: STTError.modelNotLoaded)
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let vm = makeViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            diarizationService: diarization,
+            defaults: defaults,
+            isSpeechModelCached: { true }
+        )
+        vm.jump(to: .engine)
+
+        vm.startEngineWarmUp()
+        try await waitUntil {
+            if case .failed = vm.engineState { return true }
+            return false
+        }
+
+        guard case .failed(let failure) = vm.engineState else {
+            return XCTFail("Expected missing speaker-model failure")
+        }
+        XCTAssertEqual(failure.message, "Required speaker models are unavailable.")
+        XCTAssertEqual(failure.recovery, .missingModels)
+        XCTAssertFalse(failure.recovery.tips.contains(failure.message))
+        XCTAssertFalse(vm.engineBusy)
+        XCTAssertFalse(vm.canContinueFromCurrentStep())
+
+        await diarization.configurePrepareModels(error: nil)
+        await diarization.configureCachedModels(true)
+        vm.retryEngineWarmUp()
+        try await waitUntil { vm.engineState == .ready }
+
+        XCTAssertTrue(vm.canContinueFromCurrentStep())
+    }
+
+    func testDiarizationStorageFailureUsesStorageRecoveryWithoutLeakingPath() async throws {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let diarization = MockDiarizationService()
+        await diarization.configurePrepareModels(
+            error: NSError(
+                domain: NSCocoaErrorDomain,
+                code: NSFileWriteOutOfSpaceError,
+                userInfo: [
+                    NSLocalizedDescriptionKey: "Could not write /Users/private/Library/models/segmentation.mlmodelc"
+                ]
+            ))
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let vm = makeViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            diarizationService: diarization,
+            defaults: defaults
+        )
+        vm.jump(to: .engine)
+
+        vm.startEngineWarmUp()
+        try await waitUntil {
+            if case .failed = vm.engineState { return true }
+            return false
+        }
+
+        guard case .failed(let failure) = vm.engineState else {
+            return XCTFail("Expected speaker-model storage failure")
+        }
+        XCTAssertEqual(failure.recovery, .storage)
+        XCTAssertTrue(failure.message.lowercased().contains("disk space"))
+        XCTAssertFalse(failure.message.contains("/Users/"))
+        XCTAssertFalse(failure.recovery.tips.contains(failure.message))
+    }
+
+    func testDiarizationOpaqueFailurePreservesSafeDetailAndUsesGenericRecovery() async throws {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let diarization = MockDiarizationService()
+        await diarization.configurePrepareModels(
+            error: NSError(
+                domain: "FluidAudio.ModelPreparation",
+                code: 99,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "FluidAudio checksum failed at /Users/private/Library/models/embedding.mlmodelc"
+                ]
+            ))
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let vm = makeViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            diarizationService: diarization,
+            defaults: defaults
+        )
+        vm.jump(to: .engine)
+
+        vm.startEngineWarmUp()
+        try await waitUntil {
+            if case .failed = vm.engineState { return true }
+            return false
+        }
+
+        guard case .failed(let failure) = vm.engineState else {
+            return XCTFail("Expected opaque speaker-model failure")
+        }
+        XCTAssertEqual(failure.recovery, .opaque)
+        XCTAssertTrue(failure.message.contains("FluidAudio checksum failed"))
+        XCTAssertTrue(failure.message.contains("<path>"))
+        XCTAssertFalse(failure.message.contains("/Users/"))
+        XCTAssertFalse(failure.recovery.tips.contains(failure.message))
+    }
+
+    func testDiarizationCancellationRemainsNonFailureOnWhisperPath() async throws {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let diarization = MockDiarizationService()
+        await diarization.configurePrepareModels(error: CancellationError())
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let vm = makeViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            diarizationService: diarization,
+            defaults: defaults,
+            isWhisperModelDownloaded: { true },
+            preferredLanguages: { ["ko-KR"] }
+        )
+        vm.jump(to: .engine)
+
+        vm.startEngineWarmUp()
+        try await waitUntil { vm.engineBusy == false }
+
+        XCTAssertEqual(vm.engineState, .idle)
+        let prepared = await diarization.prepareModelsCalled
+        XCTAssertTrue(prepared)
     }
 
     func testMarkOnboardingCompletedPersistsToDefaults() {
@@ -1077,7 +1265,7 @@ final class OnboardingViewModelTests: XCTestCase {
         let stt = MockSTTClient()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         XCTAssertFalse(vm.hasCompletedOnboarding)
@@ -1094,7 +1282,7 @@ final class OnboardingViewModelTests: XCTestCase {
         let stt = MockSTTClient()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
         let clock = OnboardingTestClock(Date(timeIntervalSince1970: 100))
 
         let vm = makeViewModel(
@@ -1108,21 +1296,26 @@ final class OnboardingViewModelTests: XCTestCase {
         _ = vm.markOnboardingCompleted()
 
         let events = telemetry.snapshot()
-        XCTAssertTrue(events.contains {
-            guard case .onboardingStep(let step, let action, let elapsedSeconds, let stepIndex, let totalSteps, let engineState) = $0 else {
-                return false
-            }
-            return step == "ready"
-                && action == .completed
-                && elapsedSeconds == 42.5
-                && stepIndex == 6
-                && totalSteps == 6
-                && engineState == nil
-        })
-        XCTAssertTrue(events.contains {
-            guard case .onboardingCompleted(let durationSeconds) = $0 else { return false }
-            return durationSeconds == 42.5
-        })
+        XCTAssertTrue(
+            events.contains {
+                guard
+                    case .onboardingStep(
+                        let step, let action, let elapsedSeconds, let stepIndex, let totalSteps, let engineState) = $0
+                else {
+                    return false
+                }
+                return step == "ready"
+                    && action == .completed
+                    && elapsedSeconds == 42.5
+                    && stepIndex == 6
+                    && totalSteps == 6
+                    && engineState == nil
+            })
+        XCTAssertTrue(
+            events.contains {
+                guard case .onboardingCompleted(let durationSeconds) = $0 else { return false }
+                return durationSeconds == 42.5
+            })
     }
 
     func testOnboardingCompletionTelemetryIsIdempotentForCurrentRun() {
@@ -1134,7 +1327,7 @@ final class OnboardingViewModelTests: XCTestCase {
         let stt = MockSTTClient()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
         let clock = OnboardingTestClock(Date(timeIntervalSince1970: 100))
 
         let vm = makeViewModel(
@@ -1170,7 +1363,7 @@ final class OnboardingViewModelTests: XCTestCase {
         let stt = MockSTTClient()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
         let clock = OnboardingTestClock(Date(timeIntervalSince1970: 100))
 
         let vm = makeViewModel(
@@ -1191,7 +1384,7 @@ final class OnboardingViewModelTests: XCTestCase {
 
         let shownSteps = telemetry.snapshot().compactMap { event -> Double? in
             guard case .onboardingStep(_, let action, let elapsedSeconds, _, _, _) = event,
-                  action == .viewed
+                action == .viewed
             else { return nil }
             return elapsedSeconds
         }
@@ -1213,7 +1406,7 @@ final class OnboardingViewModelTests: XCTestCase {
         let stt = MockSTTClient()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
         let clock = OnboardingTestClock(Date(timeIntervalSince1970: 10))
 
         let vm = makeViewModel(
@@ -1231,8 +1424,11 @@ final class OnboardingViewModelTests: XCTestCase {
         clock.set(Date(timeIntervalSince1970: 18))
         vm.markOnboardingDismissed()
 
-        let steps = telemetry.snapshot().compactMap { event -> (String, TelemetryOnboardingAction, Double?, Int?, Int?)? in
-            guard case .onboardingStep(let step, let action, let elapsedSeconds, let stepIndex, let totalSteps, _) = event else {
+        let steps = telemetry.snapshot().compactMap {
+            event -> (String, TelemetryOnboardingAction, Double?, Int?, Int?)? in
+            guard
+                case .onboardingStep(let step, let action, let elapsedSeconds, let stepIndex, let totalSteps, _) = event
+            else {
                 return nil
             }
             return (step, action, elapsedSeconds, stepIndex, totalSteps)
@@ -1266,7 +1462,9 @@ final class OnboardingViewModelTests: XCTestCase {
             "Downloading speech model (571 MB)... 50%",
             "Loading model into memory...",
         ])
-        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .engine)
@@ -1280,10 +1478,15 @@ final class OnboardingViewModelTests: XCTestCase {
     }
 
     func testParseProgressFractionFromPercentage() {
-        XCTAssertEqual(OnboardingProgressParser.parseProgressFraction(from: "Downloading speech model (571 MB)... 45%"), 0.45)
-        XCTAssertEqual(OnboardingProgressParser.parseProgressFraction(from: "Downloading speech model (571 MB)... 0%"), 0.0)
-        XCTAssertEqual(OnboardingProgressParser.parseProgressFraction(from: "Downloading speech model (571 MB)... 100%"), 1.0)
-        XCTAssertEqual(OnboardingProgressParser.parseProgressFraction(from: "Speech model: Downloading speech model... 60% (3/5)"), 0.6)
+        XCTAssertEqual(
+            OnboardingProgressParser.parseProgressFraction(from: "Downloading speech model (571 MB)... 45%"), 0.45)
+        XCTAssertEqual(
+            OnboardingProgressParser.parseProgressFraction(from: "Downloading speech model (571 MB)... 0%"), 0.0)
+        XCTAssertEqual(
+            OnboardingProgressParser.parseProgressFraction(from: "Downloading speech model (571 MB)... 100%"), 1.0)
+        XCTAssertEqual(
+            OnboardingProgressParser.parseProgressFraction(from: "Speech model: Downloading speech model... 60% (3/5)"),
+            0.6)
     }
 
     func testParseProgressFractionReturnsNilForNonPercentage() {
@@ -1304,7 +1507,9 @@ final class OnboardingViewModelTests: XCTestCase {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         await stt.configureWarmUpFailuresBeforeSuccess(2)
-        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .engine)
@@ -1312,7 +1517,14 @@ final class OnboardingViewModelTests: XCTestCase {
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(200))
 
-        XCTAssertEqual(vm.engineState, .failed(message: STTError.engineStartFailed("warm-up failed").localizedDescription))
+        XCTAssertEqual(
+            vm.engineState,
+            .failed(
+                .init(
+                    message: STTError.engineStartFailed("warm-up failed").localizedDescription,
+                    recovery: .opaque
+                ))
+        )
         let sttCalls = await stt.warmUpCallCount
         XCTAssertEqual(sttCalls, 1)
     }
@@ -1321,7 +1533,9 @@ final class OnboardingViewModelTests: XCTestCase {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         await stt.configureWarmUp(error: STTError.modelDownloadFailed)
-        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .engine)
@@ -1329,7 +1543,14 @@ final class OnboardingViewModelTests: XCTestCase {
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(900))
 
-        XCTAssertEqual(vm.engineState, .failed(message: STTError.modelDownloadFailed.localizedDescription))
+        XCTAssertEqual(
+            vm.engineState,
+            .failed(
+                .init(
+                    message: STTError.modelDownloadFailed.localizedDescription,
+                    recovery: .network
+                ))
+        )
 
         await stt.configureWarmUp(error: nil)
         vm.retryEngineWarmUp()
@@ -1341,7 +1562,9 @@ final class OnboardingViewModelTests: XCTestCase {
     func testEngineWarmUpFailsPreflightWhenOfflineOnFirstSetup() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -1354,8 +1577,9 @@ final class OnboardingViewModelTests: XCTestCase {
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(120))
 
-        if case .failed(let message) = vm.engineState {
-            XCTAssertTrue(message.lowercased().contains("internet connection is required"))
+        if case .failed(let failure) = vm.engineState {
+            XCTAssertTrue(failure.message.lowercased().contains("internet connection is required"))
+            XCTAssertEqual(failure.recovery, .network)
         } else {
             XCTFail("Expected preflight failure when offline")
         }
@@ -1370,7 +1594,9 @@ final class OnboardingViewModelTests: XCTestCase {
         let diarization = MockDiarizationService()
         await diarization.configureCachedModels(false)
         await diarization.configureReady(false)
-        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -1384,8 +1610,9 @@ final class OnboardingViewModelTests: XCTestCase {
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(120))
 
-        if case .failed(let message) = vm.engineState {
-            XCTAssertTrue(message.lowercased().contains("speaker models"))
+        if case .failed(let failure) = vm.engineState {
+            XCTAssertTrue(failure.message.lowercased().contains("speaker models"))
+            XCTAssertEqual(failure.recovery, .network)
         } else {
             XCTFail("Expected preflight failure when speaker models are missing")
         }
@@ -1400,7 +1627,9 @@ final class OnboardingViewModelTests: XCTestCase {
         let diarization = MockDiarizationService()
         await diarization.configureCachedModels(true)
         await diarization.configureReady(false)
-        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -1422,21 +1651,24 @@ final class OnboardingViewModelTests: XCTestCase {
     func testEngineWarmUpFailsPreflightWhenDiskTooLowOnFirstSetup() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
             sttClient: stt,
             defaults: defaults,
-            availableDiskBytes: { 1_024 * 1_024 * 1_024 }, // 1 GB
+            availableDiskBytes: { 1_024 * 1_024 * 1_024 },  // 1 GB
             isSpeechModelCached: { false }
         )
         vm.jump(to: .engine)
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(120))
 
-        if case .failed(let message) = vm.engineState {
-            XCTAssertTrue(message.lowercased().contains("not enough free disk space"))
+        if case .failed(let failure) = vm.engineState {
+            XCTAssertTrue(failure.message.lowercased().contains("not enough free disk space"))
+            XCTAssertEqual(failure.recovery, .storage)
         } else {
             XCTFail("Expected preflight failure when disk is low")
         }
@@ -1448,7 +1680,9 @@ final class OnboardingViewModelTests: XCTestCase {
     func testEngineWarmUpFailsPreflightWhenRuntimeUnsupported() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
-        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
 
         let vm = makeViewModel(
             permissionService: perms,
@@ -1460,8 +1694,9 @@ final class OnboardingViewModelTests: XCTestCase {
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(120))
 
-        if case .failed(let message) = vm.engineState {
-            XCTAssertTrue(message.lowercased().contains("apple silicon"))
+        if case .failed(let failure) = vm.engineState {
+            XCTAssertTrue(failure.message.lowercased().contains("apple silicon"))
+            XCTAssertEqual(failure.recovery, .unsupportedRuntime)
         } else {
             XCTFail("Expected preflight failure when runtime unsupported")
         }

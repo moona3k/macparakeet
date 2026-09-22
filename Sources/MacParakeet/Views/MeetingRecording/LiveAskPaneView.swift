@@ -685,11 +685,9 @@ private struct AssistantTurnView: View {
                         .accessibilityElement()
                         .accessibilityLabel("Thinking")
                 } else {
-                    // Reuse the canonical NSTextView-based renderer used
-                    // elsewhere (post-meeting Chat tab, PromptResults).
-                    // Markdown, headings, code blocks, lists, and proper text
-                    // selection — for free.
-                    MarkdownContentView(content)
+                    // Reuse the canonical renderer used elsewhere
+                    // (post-meeting Chat tab and Prompt Results).
+                    MarkdownContentView(content, isStreaming: isStreaming)
                         .fixedSize(horizontal: false, vertical: true)
                         .transition(.opacity)
                 }

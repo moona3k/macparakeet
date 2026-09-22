@@ -36,6 +36,14 @@
 
 ### Progress
 
+Current-source reconciliation (2026-09-04): U1, U4, and U2 are present in the
+development source; they are not confined to the old feature branch. Bounded
+speaker-turn cards and lazy unknown-count handling address long-document
+materialization, and the release-readiness candidate adds revision-scoped rich
+AI-context preparation. The build/test claims below describe earlier heads,
+not current release QA. U3/U5 remain separate work; no new live GUI or hardware
+verification is asserted here.
+
 - **Phase 1 — DONE** (commit `e91ca2699`): U1 per-segment hover actions + U4
   reading font-size. `swift build` + full `swift test` green.
 - **U2 in-transcript find — DONE** (this branch): testable `TranscriptFindModel`

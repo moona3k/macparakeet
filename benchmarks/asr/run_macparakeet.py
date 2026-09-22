@@ -10,7 +10,8 @@ scored by the same canonical scorer (`score.py`). Pair the emitted JSONL with:
     score.py engineA.jsonl engineB.jsonl ...
 
 Engines (`--engine` value -> macparakeet-cli flags):
-    parakeet-v2 / v3 / unified   -> --engine parakeet --parakeet-model {v2,v3,unified}
+    parakeet-v2 / v3 / unified / orukeet
+                             -> --engine parakeet --parakeet-model {v2,v3,unified,orukeet}
     nemotron-en                  -> --engine nemotron --nemotron-model english-1120ms
     nemotron-multi               -> --engine nemotron --nemotron-model multilingual-1120ms
     whisper                      -> --engine whisper
@@ -36,6 +37,7 @@ ENGINES = {
     "parakeet-v2": ["--engine", "parakeet", "--parakeet-model", "v2"],
     "parakeet-v3": ["--engine", "parakeet", "--parakeet-model", "v3"],
     "parakeet-unified": ["--engine", "parakeet", "--parakeet-model", "unified"],
+    "parakeet-orukeet": ["--engine", "parakeet", "--parakeet-model", "orukeet"],
     "nemotron-en": ["--engine", "nemotron", "--nemotron-model", "english-1120ms"],
     "nemotron-multi": ["--engine", "nemotron", "--nemotron-model", "multilingual-1120ms"],
     "whisper": ["--engine", "whisper"],

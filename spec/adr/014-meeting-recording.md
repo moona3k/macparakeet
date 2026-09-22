@@ -2,6 +2,7 @@
 
 > Status: IMPLEMENTED
 > Date: 2026-04-05
+> Current echo path (2026-09-07): ADR-028 governs offline cleaned-microphone rendering and bounded finalization readiness. Section 10 records the earlier live-preview guards and transcript reconciliation that remain supporting mechanisms, not the authoritative AEC architecture. ADR-027 supersedes the original Oatmeal funnel positioning.
 > Related: ADR-001 (Parakeet STT + optional local STT amendments), ADR-007 (FluidAudio CoreML), ADR-010 (speaker diarization), ADR-021 (WhisperKit optional STT), [GitHub #57](https://github.com/moona3k/macparakeet/issues/57)
 > Amended: 2026-04-10 (historical: meeting mic echo mitigation via joined software AEC + observability hardening)
 > Amended: 2026-04-29 (replace Core Audio process taps with ScreenCaptureKit audio so optional VPIO no longer conflicts with system audio capture)
@@ -14,6 +15,8 @@
 > Amended: 2026-06-27 (Cohere Transcribe can be selected for final meeting transcription through the captured engine lease; it is batch-only, so meeting live-preview chunks stay disabled and finalized Cohere transcripts are plain text without word timestamps/speaker labels)
 > Amended: 2026-07-15 (meeting speech routing is captured as an immutable live-preview/final plan: preview follows the leased Live Speech engine when supported, while authoritative finalization and recovery use the separately captured Final Transcription route)
 > Amended: 2026-07-15 (bound ScreenCaptureKit startup/teardown waits and make Stop during partial meeting startup immediately own durable settlement)
+> Amended: 2026-09-11 ("Live transcription during recording" setting: a user-facing preference gate on top of the captured `MeetingSpeechPlan`, letting the user turn off the live STT pass to save CPU/GPU while recording; the post-stop final pass is unaffected)
+> Amended: 2026-09-16 ("Start meetings muted" setting: default-off sticky preference to silence the microphone before the first captured frame, then unmute from the live panel. [Issue #882](https://github.com/moona3k/macparakeet/issues/882) remainder.)
 
 ## Context
 
@@ -98,6 +101,17 @@ It marks the durable stop boundary: source audio, `meeting-playback.m4a`,
 `recording.lock(state=awaitingTranscription)`, and the processing Library row
 exist on disk, so the recorder returns to idle and another meeting can start.
 Final STT runs through `MeetingTranscriptionQueue` and updates that row later.
+The green completion check and "Saved to Library" copy acknowledge this
+durable boundary, not transcript completion. Opening the processing row shows
+an indeterminate transcription state that explicitly says the audio is saved
+and background work is continuing. Transcript editing and manual
+retranscription stay unavailable until that queued finalization reaches a
+terminal state. If the detail is already open, both completion and terminal
+failure refresh that same row in place without navigating or stealing focus.
+Recorder-idle queued completion may still present the finished meeting.
+Manual retry and crash recovery claim the session lock with the current PID and
+a unique lease before admission; startup reconciliation shares the same
+per-folder mutex so it cannot mark newly claimed work as interrupted.
 
 Stop is durable even in `starting`. It immediately enters `stopping` and runs
 the normal stop-and-queue effect instead of waiting for a `recordingStarted`
@@ -154,10 +168,21 @@ The meeting service first acquires the current Live Speech scheduler lease,
 unconditionally, and then captures an immutable `MeetingSpeechPlan`:
 
 - `preview` is the lease selection when its capabilities provide the word
-  timings required by the current live renderer; otherwise it is absent. No
-  unrelated fallback engine is selected.
+  timings required by the current live renderer *and* the user has not
+  turned off the "Live transcription during recording" setting
+  (`meetingLiveTranscriptionEnabled`, default on); otherwise it is absent. No
+  unrelated fallback engine is selected. This setting is a preference gate
+  layered on top of engine capability, not a capability itself — an engine
+  that can preview is simply not asked to when the user has opted out, to
+  save CPU/GPU during the meeting.
 - `final` is the resolved Final Transcription selection, which follows Live
   Speech unless the user enabled the Advanced override.
+
+The preference is read once at recording start. Changing it during a meeting
+affects the next recording; Settings states this explicitly. When preview is
+absent, the recording panel says "Live transcription is off" and confirms
+that audio will be transcribed after stop, regardless of whether the user
+disabled preview or the selected engine does not support it.
 
 Live chunks and warm-up use only `preview`. The authoritative post-stop pass
 re-reads durable source audio and uses only `final`; preview text is never
@@ -189,13 +214,13 @@ To reduce phantom "Me" fragments when users are on speakers:
 - A short-window dominant-system guard remains in place for live mic chunk enqueue when recent system energy strongly dominates mic energy. Single-source recordings bypass cross-source pairing/suppression for the missing source.
 - The guard affects live mic chunk transcription only; mic audio is still stored and included in the finalized meeting artifact.
 - Joiner queue overflow and sync-lag telemetry are logged for long-session observability.
-- `MeetingTranscriptSourceReconciler` drops mic runs of >=5 words whose tokens fuzzy-match the remote speaker's *simultaneous* system words (>=80% in-order match within a +/-600 ms window), regardless of confidence — a person cannot utter the same multi-word sequence at the same time as the far end, so such runs are acoustic echo by construction (2026-06-10, issue #480). Short runs keep the conservative confidence-gated rule.
+- `MeetingTranscriptSourceReconciler` drops mic runs of >=5 words whose tokens fuzzy-match the remote speaker's *simultaneous* system words (>=80% in-order match within a +/-600 ms window), regardless of confidence. This is a duplicate-speech heuristic, not proof of acoustic echo; simultaneous repeated speech remains a possible false positive (2026-06-10, issue #480). Short runs keep the conservative confidence-gated rule.
 - The opt-in experimental `StreamingMeetingEchoSuppressor` carries partial frames across batches (contiguous frames for stateful processors, no raw-tail leak) and supports an env-configured reference delay (`MACPARAKEET_MEETING_ECHO_REFERENCE_DELAY_MS`) approximating the echo-path latency (2026-06-10). It requires an available LocalVQE-compatible runtime/model; otherwise meeting mic conditioning remains passthrough.
 - Dictation capture remains raw and unchanged (ADR-015 isolation still applies).
 
 ## Rationale
 
-### Why not keep meeting recording in Oatmeal only?
+### Why not keep meeting recording in Oatmeal only? (historical positioning)
 
 Oatmeal adds intelligence on top of recording: AI meeting notes, entity extraction, calendar integration, cross-meeting RAG. MacParakeet's meeting recording is the simple, free version — just record and transcribe. This creates a natural funnel: MacParakeet (free) → Oatmeal (paid) for users who want the intelligence layer.
 
@@ -228,6 +253,18 @@ Dictation has complex paste/cancel/undo behavior that meeting recording doesn't 
 - **Sleep / wake during pause auto-finalizes (no data loss).** `sourceInterrupted` events from ScreenCaptureKit / mic stalls are not gated by `paused`, so a Mac going to sleep while a recording is paused routes through the existing capture-failure path: `failCapture` → polling fires `.captureFailed` on wake → state machine transitions `.recording → .transcribing` → `stopRecordingAndTranscribe` runs through the normal save path. All pre-pause audio is saved + transcribed; the in-flight pause is settled into `accumulatedPausedDuration` correctly. The limitation is purely UX: the user expecting to resume after wake gets a finalized meeting instead and has to start a new recording for post-wake content. Behavior is consistent with any other mid-recording capture interruption (USB mic unplug, Bluetooth dropout). A follow-up PR could auto-pause-stop on `NSWorkspace.willSleepNotification` or attempt a stream re-init on wake to enable true resume-after-wake.
 - **Telemetry semantic drift.** `meetingRecordingCompleted(durationSeconds:)` and `meetingRecordingCancelled(durationSeconds:)` now emit active-recording time rather than wallclock-since-start. Cohort analysis spanning the merge date will silently mix two definitions. The follow-up PR that adds pause/resume telemetry events should also add a `pausedSeconds` field on the completed event so analyses can disambiguate.
 - **Calendar / wallclock alignment unaware of pause.** Any future feature that aligns transcript timestamps to wallclock (e.g., calendar correlation) would be off by `accumulatedPausedDuration` for paused meetings. Not relevant in v0.6.
+
+### 12. Start meetings muted (2026-09-16 amendment)
+
+[Issue #882](https://github.com/moona3k/macparakeet/issues/882) remaining request: join a meeting with the microphone off, then unmute when ready to speak. Mute-during-recording already existed; this slice arms mute **before capture start** so the first tap callback is silence.
+
+- Default-off Settings → Meeting Recording toggle (`startMeetingsMuted` / CLI `start-meetings-muted`). It stays on until turned off; it is not a one-shot for the next meeting only. System-audio-only capture ignores it, and the Settings control is disabled when the selected source does not capture a microphone.
+- `MeetingRecordingService` sets `microphoneMuted` and `microphoneMutedHostTime = 0` before `audioCaptureService.start`. Host time 0 covers first tap callbacks that can arrive before `setMicrophoneMuted` would have a real host-time origin. If capture later resolves with no microphone, the armed start-mute is dropped.
+- Unmute appends the completed mute host-time range so in-flight buffers stay silent.
+- The live panel shows the muted mic control during `.starting`, disabled until the microphone is ready. `canMute` stays false until then. See [UI patterns](../04-ui-patterns.md#meeting-recording-panel-v06).
+- Calendar auto-start uses the same preference, so an opted-in start-muted user does not leak the mic on an automatic join.
+- Changing the setting during a meeting affects the next recording; Settings states this explicitly.
+- Feature behavior: [F49](../02-features.md#f49-start-meetings-muted).
 
 ## Consequences
 

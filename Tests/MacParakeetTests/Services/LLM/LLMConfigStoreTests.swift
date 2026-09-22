@@ -169,4 +169,57 @@ final class LLMConfigStoreTests: XCTestCase {
         XCTAssertEqual(try keychain.getString("llm_api_key_openai"), "sk-openai")
         XCTAssertNil(try keychain.getString("llm_api_key_anthropic"))
     }
+
+    func testFailedCredentialWritePreservesWorkingProviderAcrossReopen() throws {
+        try store.saveConfig(.openai(apiKey: "working-key", model: "working-model"))
+        keychain.setError = KeyValueStoreError.unsupported
+
+        XCTAssertThrowsError(try store.saveConfig(.anthropic(apiKey: "replacement-key")))
+
+        let reopened = LLMConfigStore(defaults: defaults, keychain: keychain)
+        XCTAssertEqual(try reopened.loadConfig()?.id, .openai)
+        XCTAssertEqual(try reopened.loadConfig()?.modelName, "working-model")
+        XCTAssertEqual(try reopened.loadAPIKey(), "working-key")
+        XCTAssertNil(try reopened.loadAPIKey(for: .anthropic))
+    }
+
+    func testFailedCredentialReplacementPreservesSameProviderConfiguration() throws {
+        try store.saveConfig(.openai(apiKey: "working-key", model: "working-model"))
+        keychain.setError = KeyValueStoreError.unsupported
+        let replacement = LLMProviderConfig(
+            id: .openai,
+            baseURL: URL(string: "https://replacement.example/v1")!,
+            apiKey: "replacement-key",
+            modelName: "replacement-model",
+            isLocal: false
+        )
+
+        XCTAssertThrowsError(try store.saveConfig(replacement))
+
+        let loaded = try XCTUnwrap(store.loadConfig())
+        XCTAssertEqual(loaded.baseURL, LLMProviderConfig.openai(apiKey: "working-key").baseURL)
+        XCTAssertEqual(loaded.modelName, "working-model")
+        XCTAssertEqual(loaded.apiKey, "working-key")
+    }
+
+    func testFailedOptionalCredentialRemovalPreservesWorkingConfiguration() throws {
+        try store.saveConfig(.lmstudio(apiKey: "working-token", model: "working-model"))
+        keychain.deleteError = KeyValueStoreError.unsupported
+
+        XCTAssertThrowsError(try store.saveConfig(.lmstudio(model: "replacement-model")))
+
+        XCTAssertEqual(try store.loadConfig()?.modelName, "working-model")
+        XCTAssertEqual(try store.loadAPIKey(), "working-token")
+    }
+
+    func testFailedClearPreservesWorkingConfiguration() throws {
+        try store.saveConfig(.openai(apiKey: "working-key", model: "working-model"))
+        keychain.deleteError = KeyValueStoreError.unsupported
+
+        XCTAssertThrowsError(try store.deleteConfig())
+
+        XCTAssertEqual(try store.loadConfig()?.id, .openai)
+        XCTAssertEqual(try store.loadConfig()?.modelName, "working-model")
+        XCTAssertEqual(try store.loadAPIKey(), "working-key")
+    }
 }

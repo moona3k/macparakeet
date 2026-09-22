@@ -78,11 +78,44 @@ final class CardRepositoryTests: XCTestCase {
         let originalSegments = try segments.fetch(transcriptionId: transcription.id)
         let expected = CardGenerationSnapshot(
             transcriptHash: CardContentFingerprint.transcriptHash(for: transcription),
-            segmentsHash: CardContentFingerprint.segmentsHash(originalSegments)
+            segmentsHash: CardContentFingerprint.segmentsHash(originalSegments),
+            attributionFingerprint: SpeakerAttributionResolver.fingerprint(for: transcription),
+            correctionRevision: 0
         )
         var changed = try XCTUnwrap(originalSegments.first)
         changed.text = "Mutated citation target."
         try manager.dbQueue.write { db in try changed.update(db) }
+
+        let saved = try cards.saveIfCurrent(
+            try makeCard(transcriptionId: transcription.id),
+            expected: expected
+        )
+
+        XCTAssertNil(saved)
+        XCTAssertNil(try cards.fetch(transcriptionId: transcription.id))
+    }
+
+    func testConditionalSaveRejectsChangedSpeakerCorrectionRevision() throws {
+        let transcription = makeTranscription(source: .meeting)
+        try transcriptions.save(transcription)
+        let segments = SegmentRepository(dbQueue: manager.dbQueue)
+        try segments.replaceSegments(for: transcription)
+        let originalSegments = try segments.fetch(transcriptionId: transcription.id)
+        let fingerprint = SpeakerAttributionResolver.fingerprint(for: transcription)
+        let expected = CardGenerationSnapshot(
+            transcriptHash: CardContentFingerprint.transcriptHash(for: transcription),
+            segmentsHash: CardContentFingerprint.segmentsHash(originalSegments),
+            attributionFingerprint: fingerprint,
+            correctionRevision: 0
+        )
+        try manager.dbQueue.write { db in
+            try SpeakerCorrectionState(
+                transcriptionId: transcription.id,
+                transcriptFingerprint: fingerprint.rawValue,
+                headId: nil,
+                revision: 1
+            ).insert(db)
+        }
 
         let saved = try cards.saveIfCurrent(
             try makeCard(transcriptionId: transcription.id),
@@ -284,6 +317,54 @@ final class CardRepositoryTests: XCTestCase {
         XCTAssertEqual(try cards.staleCompletedTranscriptionIDs(), [changed.id])
     }
 
+    func testCardListingsTrackCorrectedContentAndUndoToAutomaticContent() async throws {
+        var transcription = makeTranscription(source: .meeting)
+        let words = [
+            WordTimestamp(word: "Hello", startMs: 0, endMs: 200, confidence: 1, speakerId: "S1"),
+            WordTimestamp(word: "world.", startMs: 220, endMs: 500, confidence: 1, speakerId: "S1"),
+        ]
+        let speakers = [SpeakerInfo(id: "S1", label: "Speaker 1")]
+        transcription.wordTimestamps = words
+        transcription.speakers = speakers
+        transcription.transcriptSegments = TranscriptSegmenter.materializeSegments(words: words, speakers: speakers)
+        try transcriptions.save(transcription)
+        let automaticCard = try makeCard(transcriptionId: transcription.id)
+        let service = SpeakerCorrectionService(dbQueue: manager.dbQueue)
+        let fingerprint = SpeakerAttributionResolver.fingerprint(for: transcription)
+        let correction = try await service.apply(
+            transcriptionId: transcription.id,
+            command: .rename(speakerID: "S1", label: "Alice"),
+            expectedFingerprint: fingerprint,
+            expectedRevision: 0
+        )
+
+        // Even if an older card remains, listings must compare corrected content.
+        try cards.save(automaticCard)
+        XCTAssertTrue(try cards.list(CardListQuery(limit: 10)).isEmpty)
+        XCTAssertEqual(try cards.staleCompletedTranscriptionIDs(), [transcription.id])
+        let projection = try XCTUnwrap(
+            SpeakerAttributionReadService(dbQueue: manager.dbQueue)
+                .resolve(transcriptionId: transcription.id)
+        )
+        var correctedCard = automaticCard
+        correctedCard.transcriptHash = CardContentFingerprint.transcriptHash(for: projection.effectiveTranscription)
+        try cards.save(correctedCard)
+        XCTAssertEqual(try cards.list(CardListQuery(limit: 10)).map(\.transcriptionId), [transcription.id])
+        XCTAssertTrue(try cards.staleCompletedTranscriptionIDs().isEmpty)
+
+        _ = try await service.undo(
+            transcriptionId: transcription.id,
+            expectedFingerprint: fingerprint,
+            expectedRevision: correction.revision
+        )
+        try cards.save(correctedCard)
+        XCTAssertTrue(try cards.list(CardListQuery(limit: 10)).isEmpty)
+        XCTAssertEqual(try cards.staleCompletedTranscriptionIDs(), [transcription.id])
+        try cards.save(automaticCard)
+        XCTAssertEqual(try cards.list(CardListQuery(limit: 10)).map(\.transcriptionId), [transcription.id])
+        XCTAssertTrue(try cards.staleCompletedTranscriptionIDs().isEmpty)
+    }
+
     func testURLSourceFilterIncludesYouTubeAndPodcast() throws {
         let meeting = makeTranscription(source: .meeting)
         let youtube = makeTranscription(source: .youtube)
@@ -391,7 +472,7 @@ final class CardRepositoryTests: XCTestCase {
             transcriptionId: transcriptionId,
             cardSchemaVersion: 1,
             transcriptHash: CardContentFingerprint.transcriptHash(for: transcription),
-            segmenterVersion: 2,
+            segmenterVersion: KnowledgeSegmenter.currentVersion,
             promptVersion: "knowledge-card-v1",
             model: "stub-model",
             generatedAt: Date(timeIntervalSince1970: 1_800_000_100),

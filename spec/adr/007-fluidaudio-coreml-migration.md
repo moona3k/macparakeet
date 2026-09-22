@@ -2,6 +2,7 @@
 
 > Status: **Accepted**
 > Date: 2026-02-13
+> Current LLM scope (2026-09-07): removal of the original Qwen3-8B baseline remains historical fact. ADR-011 now governs a separate developer-gated Local MLX implementation; external providers/local CLI remain the public/default path.
 > Note: Core decision (FluidAudio CoreML for STT) is implemented and active. GPU/LLM references (Qwen3-8B, "GPU contention") are historical — the old on-device mlx-swift-lm path was removed 2026-02-23.
 > Benchmark note (2026-07-16): the `155x` / `~66 MB` figures below record the migration-era comparison. Current MacParakeet M4 Pro results are ~81–93x steady realtime and 115–131 MB peak RSS by Parakeet build; use [`benchmarks/asr/`](../../benchmarks/asr/) and `spec/06-stt-engine.md` for current comparisons.
 > Amendment (2026-05-30): The migration remains the active runtime decision. MacParakeet exposed FluidAudio's Parakeet v3 multilingual build by default and v2 English-only as an opt-in build; this did not change the Python-elimination decision.

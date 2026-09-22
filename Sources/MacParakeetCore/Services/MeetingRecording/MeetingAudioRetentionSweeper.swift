@@ -61,7 +61,7 @@ public final class MeetingAudioRetentionSweeper: @unchecked Sendable {
                 id: transcription.id,
                 hasAudioOnDisk: !(transcription.filePath?.isEmpty ?? true),
                 isCompleted: transcription.status == .completed,
-                ageReferenceDate: transcription.createdAt,
+                ageReferenceDate: transcription.audioRetentionStartedAt ?? transcription.createdAt,
                 hasRecoveryLock: hasLock
             ))
         }

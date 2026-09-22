@@ -3,6 +3,7 @@
 > Status: IMPLEMENTED (Ask half — Insights dropped per 2026-04-24 amendment; quick-prompt model unified per 2026-05-03 amendment; pin cap removed per 2026-05-03 amendment)
 > Date: 2026-04-19 (proposed) · Amended 2026-04-24, 2026-05-03, 2026-05-03 · Implemented 2026-04-24
 > Related: ADR-011 (LLM providers), ADR-013 (prompt library + multi-summary), ADR-014 (meeting recording), ADR-016 (centralized STT runtime), ADR-017 (calendar auto-start)
+> Current implementation note (2026-09-04): ADR-020 adds Notes and makes the live panel Notes/Transcript/Ask with Notes default and ⌘1/⌘2/⌘3 navigation. The older two-tab layouts below are historical. Live assistant replies now render Markdown and expose Copy plus tail-only Regenerate on hover or keyboard focus when not streaming (`LiveAskPaneView`); those are no longer future work.
 
 ## Amendment (2026-05-03, later) — Pin cap removed
 
@@ -334,6 +335,4 @@ See decision §2 for the full lists.
 
 - **Transcription-failure chat recovery.** If transcription fails after stop, the in-memory Ask thread is lost. Sketch: write `chatHistory` to `~/Library/Application Support/MacParakeet/pending-chat-{recordingId}.json` on every send; delete the sidecar on successful finalize; on next launch, surface a "Recover chat" entry if a sidecar is found. ~50 lines, no schema migration. Defer until telemetry or a user complaint says it matters.
 - **Localization** of quick-prompt copy.
-- **Markdown rendering** in assistant bubbles (bold, lists, code blocks). Currently plain text; would lift the visual quality of long responses without changing the data model.
-- **Per-message actions** (copy, regenerate) on hover in the live thread. The post-finalize Chat tab does not have these either; could be added in both surfaces together.
 - **Reopen Insights** if telemetry indicates users want passive-glance value enough to justify the LLM cost surface.

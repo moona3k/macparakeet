@@ -5,6 +5,7 @@ import SwiftUI
 public final class MeetingRecordingPillViewModel {
     public enum PillState: Equatable {
         case idle
+        case starting
         case recording
         /// Capture intentionally paused. The pill rosette dims and freezes;
         /// stop / discard remain available.
@@ -60,7 +61,7 @@ public final class MeetingRecordingPillViewModel {
         switch state {
         case .recording, .paused:
             return true
-        case .idle, .completing, .transcribing, .completed, .error:
+        case .idle, .starting, .completing, .transcribing, .completed, .error:
             return false
         }
     }
@@ -74,7 +75,7 @@ public final class MeetingRecordingPillViewModel {
         switch state {
         case .recording, .paused:
             return MeetingSourceHealthChip.primaryDegraded(for: captureHealth)
-        case .idle, .completing, .transcribing, .completed, .error:
+        case .idle, .starting, .completing, .transcribing, .completed, .error:
             return nil
         }
     }
@@ -83,7 +84,7 @@ public final class MeetingRecordingPillViewModel {
         switch state {
         case .recording, .paused:
             return MeetingSourceHealthChip.primaryActionableWarning(for: captureHealth)
-        case .idle, .completing, .transcribing, .completed, .error:
+        case .idle, .starting, .completing, .transcribing, .completed, .error:
             return nil
         }
     }

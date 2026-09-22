@@ -91,3 +91,10 @@ recup_dir*/
 
 # Phase-0 Cohere latency spike (throwaway)
 spike/
+
+# LLVM coverage artifacts dropped in the working tree by instrumented runs
+*.profraw
+*.profdata
+
+# Local third-party reference checkouts
+/references/

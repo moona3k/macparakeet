@@ -204,7 +204,8 @@ public struct MeetingCaptureHealthSummary: Sendable, Equatable, Codable {
         activeMicrophoneStall: MeetingMicHealthMonitor.StallSignature?,
         microphoneBufferDeliveryTimedOut: Bool,
         systemBufferDeliveryTimedOut: Bool,
-        captureFailed: Bool
+        captureFailed: Bool,
+        startupStates: [AudioSource: MeetingAudioCaptureSourceStartupState] = [:]
     ) -> MeetingCaptureHealthSummary {
         let microphone = sourceHealth(
             source: .microphone,
@@ -218,7 +219,8 @@ public struct MeetingCaptureHealthSummary: Sendable, Equatable, Codable {
             activeMicrophoneStall: activeMicrophoneStall,
             microphoneBufferDeliveryTimedOut: microphoneBufferDeliveryTimedOut,
             systemBufferDeliveryTimedOut: systemBufferDeliveryTimedOut,
-            captureFailed: captureFailed
+            captureFailed: captureFailed,
+            startupState: startupStates[.microphone]
         )
         let system = sourceHealth(
             source: .system,
@@ -232,7 +234,8 @@ public struct MeetingCaptureHealthSummary: Sendable, Equatable, Codable {
             activeMicrophoneStall: activeMicrophoneStall,
             microphoneBufferDeliveryTimedOut: microphoneBufferDeliveryTimedOut,
             systemBufferDeliveryTimedOut: systemBufferDeliveryTimedOut,
-            captureFailed: captureFailed
+            captureFailed: captureFailed,
+            startupState: startupStates[.system]
         )
         return MeetingCaptureHealthSummary(
             sourceMode: sourceMode,
@@ -253,9 +256,11 @@ public struct MeetingCaptureHealthSummary: Sendable, Equatable, Codable {
         activeMicrophoneStall: MeetingMicHealthMonitor.StallSignature?,
         microphoneBufferDeliveryTimedOut: Bool,
         systemBufferDeliveryTimedOut: Bool,
-        captureFailed: Bool
+        captureFailed: Bool,
+        startupState: MeetingAudioCaptureSourceStartupState?
     ) -> MeetingSourceHealth {
-        let selected = source == .microphone
+        let selected =
+            source == .microphone
             ? sourceMode.capturesMicrophone
             : sourceMode.capturesSystemAudio
         guard selected else {
@@ -268,7 +273,8 @@ public struct MeetingCaptureHealthSummary: Sendable, Equatable, Codable {
         }
 
         if captureFailed {
-            let status: MeetingSourceHealth.Status = interruptedSources.contains(source)
+            let status: MeetingSourceHealth.Status =
+                interruptedSources.contains(source)
                 ? .interrupted
                 : .unavailable
             return MeetingSourceHealth(
@@ -290,13 +296,24 @@ public struct MeetingCaptureHealthSummary: Sendable, Equatable, Codable {
             )
         }
 
-
         if recoveringSources.contains(source) {
             return MeetingSourceHealth(
                 source: MeetingSourceHealth.Source(source),
                 status: .recovering,
                 level: 0,
                 lastBufferAt: lastBufferAt
+            )
+        }
+
+        if lastBufferAt == nil, startupState == .starting || startupState == .unavailable {
+            let status: MeetingSourceHealth.Status = startupState == .starting ? .starting : .unavailable
+            return MeetingSourceHealth(
+                source: MeetingSourceHealth.Source(source),
+                status: status,
+                detail: startupState == .starting
+                    ? "This source is still starting. Other available audio is being saved."
+                    : "This source has not delivered audio. Other available audio is being saved.",
+                recoveryAction: nil
             )
         }
 
@@ -331,7 +348,7 @@ public struct MeetingCaptureHealthSummary: Sendable, Equatable, Codable {
                 )
             }
 
-            if !microphoneStarted, lastBufferAt == nil {
+            if !microphoneStarted, lastBufferAt == nil, startupState != .ready {
                 return MeetingSourceHealth(
                     source: .microphone,
                     status: .unavailable,
@@ -360,7 +377,8 @@ public struct MeetingCaptureHealthSummary: Sendable, Equatable, Codable {
         }
 
         let clampedLevel = max(0, min(1, level))
-        let status: MeetingSourceHealth.Status = clampedLevel < AudioCaptureHealth.silentInputMaximumLevel
+        let status: MeetingSourceHealth.Status =
+            clampedLevel < AudioCaptureHealth.silentInputMaximumLevel
             ? .silent
             : .live
         return MeetingSourceHealth(

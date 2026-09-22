@@ -317,6 +317,14 @@ public final class MediaPlayerViewModel {
         currentSubtitleText = nil
     }
 
+    /// Uses corrected segment envelopes when timed text was edited, while
+    /// retaining word-level cues for untouched automatic text.
+    public func loadSubtitleCues(from transcription: Transcription) {
+        subtitleCues = ExportService().buildSubtitleCues(from: transcription)
+        lastCueIndex = -1
+        currentSubtitleText = nil
+    }
+
     public func cleanup() {
         loadingTask?.cancel()
         loadingTask = nil

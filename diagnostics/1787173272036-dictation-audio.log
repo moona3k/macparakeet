@@ -1,0 +1,561 @@
+2026-08-12T21:09:00.200Z meeting_stop_stage session=5692899C-9246-4ECB-9EEB-C6AC4F5A171F stage=notes_commit duration_ms=3 outcome=success
+2026-08-12T21:09:00.202Z meeting_recording_stopping session=5692899C-9246-4ECB-9EEB-C6AC4F5A171F
+2026-08-12T21:09:00.205Z meeting_mic_capture_stopped default_input=present default_input_transport=usb
+2026-08-12T21:09:00.234Z shared_mic_engine_stopped
+2026-08-12T21:09:00.239Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-12T21:09:00.250Z system_audio_stream_stopped outcome=completed
+2026-08-12T21:09:00.252Z meeting_stop_stage session=5692899C-9246-4ECB-9EEB-C6AC4F5A171F stage=capture_stop duration_ms=47 outcome=success
+2026-08-12T21:09:00.267Z meeting_stop_stage session=5692899C-9246-4ECB-9EEB-C6AC4F5A171F stage=processing_drain duration_ms=11 outcome=success
+2026-08-12T21:09:00.289Z meeting_stop_stage session=5692899C-9246-4ECB-9EEB-C6AC4F5A171F stage=writer_finalize duration_ms=21 outcome=success
+2026-08-12T21:09:00.321Z meeting_stop_stage session=5692899C-9246-4ECB-9EEB-C6AC4F5A171F stage=source_urls duration_ms=31 outcome=success
+2026-08-12T21:09:00.322Z meeting_stop_stage session=5692899C-9246-4ECB-9EEB-C6AC4F5A171F stage=metadata_save duration_ms=1 outcome=success
+2026-08-12T21:09:00.345Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=0.005 output_format_ms=0.011 install_tap_ms=0.013 total_ms=100.800
+2026-08-12T21:09:00.346Z shared_mic_engine_input_device_prepared source=system_default device=present transport=usb vpio=false set_device_ms=0.000 prepare_engine_ms=101.632
+2026-08-12T21:09:25.479Z meeting_stop_stage session=5692899C-9246-4ECB-9EEB-C6AC4F5A171F stage=mix duration_ms=25156 outcome=success
+2026-08-12T21:09:25.482Z meeting_stop_stage session=5692899C-9246-4ECB-9EEB-C6AC4F5A171F stage=notes_write duration_ms=0 outcome=success
+2026-08-12T21:09:25.484Z meeting_stop_stage session=5692899C-9246-4ECB-9EEB-C6AC4F5A171F stage=lock_write duration_ms=1 outcome=success
+2026-08-12T21:09:25.484Z meeting_cleaned_mic session=5692899C-9246-4ECB-9EEB-C6AC4F5A171F outcome=scheduled
+2026-08-12T21:09:25.485Z meeting_stop_stage session=5692899C-9246-4ECB-9EEB-C6AC4F5A171F stage=cleaned_mic_schedule duration_ms=1 outcome=success
+2026-08-12T21:09:25.486Z meeting_stop_stage session=5692899C-9246-4ECB-9EEB-C6AC4F5A171F stage=cleanup duration_ms=0 outcome=success
+2026-08-12T21:09:25.486Z meeting_recording_stopped session=5692899C-9246-4ECB-9EEB-C6AC4F5A171F duration_s=4160.664
+2026-08-12T21:09:25.487Z meeting_recording_health session=5692899C-9246-4ECB-9EEB-C6AC4F5A171F duration_s=4160.664 source_mode=microphone_and_system mic_started=true requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=true system_first_buffer=true mic_bytes=35662399 system_bytes=17202188 mixed_bytes=67022966 mic_frames=198489600 system_frames=198480960 mic_chunks_enqueued=93 system_chunks_enqueued=218 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=0 mic_chunks_system_dominant_dropped=84 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-12T21:09:25.488Z meeting_echo_suppression_summary session=5692899C-9246-4ECB-9EEB-C6AC4F5A171F processor=localvqe loaded=true mic_frames=258438 processed_frames=258438 raw_fallback_frames=0 full_reference_frames=258438 partial_reference_frames=0 missing_reference_frames=0 processing_failures=0 current_delay_samples=993 delay_confidence=0.392 delay_estimate_count=14 rejected_delay_estimates=8256
+2026-08-12T21:09:25.489Z meeting_stop_stage session=5692899C-9246-4ECB-9EEB-C6AC4F5A171F stage=service_total duration_ms=25287 outcome=success
+2026-08-12T21:09:25.490Z meeting_stop_stage session=5692899C-9246-4ECB-9EEB-C6AC4F5A171F stage=service_stop duration_ms=25288 outcome=success
+2026-08-12T21:09:25.498Z meeting_stop_stage session=5692899C-9246-4ECB-9EEB-C6AC4F5A171F stage=prepare_row duration_ms=8 outcome=success
+2026-08-12T21:09:25.499Z meeting_stop_stage session=5692899C-9246-4ECB-9EEB-C6AC4F5A171F stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-12T21:09:25.501Z meeting_stop_stage session=5692899C-9246-4ECB-9EEB-C6AC4F5A171F stage=queued_total duration_ms=25304 outcome=success
+2026-08-12T21:13:07.368Z meeting_cleaned_mic session=5692899C-9246-4ECB-9EEB-C6AC4F5A171F outcome=rendered duration_s=4135.200 render_duration_ms=221882 realtime_factor=18.64 processed_frames=258450 raw_fallback_frames=0 failures=0 rms_ratio=0.98 probe_windows=1 probe_best_correlation=0.221
+2026-08-12T21:13:07.382Z meeting_echo_suppression_resolution session=5692899C-9246-4ECB-9EEB-C6AC4F5A171F reason_code=cleanedUsed model_version=localvqe-v1.4-aec-200K-f32.gguf render_duration_ms=221882 realtime_factor=18.64 delay_estimate_ms=0 probe_windows=1 probe_best_correlation=0.221
+2026-08-12T21:13:07.386Z meeting_cleaned_mic_source session=5692899C-9246-4ECB-9EEB-C6AC4F5A171F selected=cleaned reason=cleanedUsed timeout_s=600.000
+2026-08-13T00:00:00.798Z meeting_live_chunking_mode session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 mode=vad reason=started
+2026-08-13T00:00:00.818Z meeting_mic_capture_starting requested_mode=raw default_input=present default_input_transport=usb
+2026-08-13T00:00:00.905Z shared_mic_engine_started_from_prepared audio_engine_start_ms=81.111
+2026-08-13T00:00:00.906Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-13T00:00:00.906Z meeting_mic_processing mode=raw
+2026-08-13T00:00:00.908Z meeting_mic_capture_started requested_mode=raw effective_mode=raw sr=48000.0 ch=2 default_input=present default_input_transport=usb
+2026-08-13T00:00:00.992Z system_audio_stream_screen_output_attached mode=discard
+2026-08-13T00:00:01.011Z meeting_mic_first_buffer sr=48000.0 ch=2 interleaved=false
+2026-08-13T00:00:01.160Z system_audio_stream_started sr=48000 ch=2
+2026-08-13T00:00:01.162Z meeting_recording_started session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.microphoneAndSystem) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-13T00:00:01.885Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-08-13T01:42:30.245Z meeting_stop_stage session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 stage=notes_commit duration_ms=3 outcome=success
+2026-08-13T01:42:30.247Z meeting_recording_stopping session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959
+2026-08-13T01:42:30.248Z meeting_mic_capture_stopped default_input=present default_input_transport=usb
+2026-08-13T01:42:30.283Z shared_mic_engine_stopped
+2026-08-13T01:42:30.284Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-13T01:42:30.286Z system_audio_stream_stopped outcome=completed
+2026-08-13T01:42:30.287Z meeting_stop_stage session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 stage=capture_stop duration_ms=40 outcome=success
+2026-08-13T01:42:30.299Z meeting_stop_stage session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 stage=processing_drain duration_ms=11 outcome=success
+2026-08-13T01:42:30.317Z meeting_stop_stage session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 stage=writer_finalize duration_ms=17 outcome=success
+2026-08-13T01:42:30.368Z meeting_stop_stage session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 stage=source_urls duration_ms=49 outcome=success
+2026-08-13T01:42:30.369Z meeting_stop_stage session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 stage=metadata_save duration_ms=1 outcome=success
+2026-08-13T01:42:30.403Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=0.004 output_format_ms=0.009 install_tap_ms=0.011 total_ms=111.643
+2026-08-13T01:42:30.403Z shared_mic_engine_input_device_prepared source=system_default device=present transport=usb vpio=false set_device_ms=0.000 prepare_engine_ms=112.465
+2026-08-13T01:42:57.910Z meeting_stop_stage session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 stage=mix duration_ms=27540 outcome=success
+2026-08-13T01:42:57.911Z meeting_stop_stage session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 stage=notes_write duration_ms=1 outcome=success
+2026-08-13T01:42:57.913Z meeting_stop_stage session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 stage=lock_write duration_ms=1 outcome=success
+2026-08-13T01:42:57.914Z meeting_cleaned_mic session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 outcome=scheduled
+2026-08-13T01:42:57.915Z meeting_stop_stage session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 stage=cleaned_mic_schedule duration_ms=1 outcome=success
+2026-08-13T01:42:57.915Z meeting_stop_stage session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 stage=cleanup duration_ms=0 outcome=success
+2026-08-13T01:42:57.916Z meeting_recording_stopped session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 duration_s=6177.119
+2026-08-13T01:42:57.917Z meeting_recording_health session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 duration_s=6177.119 source_mode=microphone_and_system mic_started=true requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=true system_first_buffer=true mic_bytes=52870191 system_bytes=3165589 mixed_bytes=99537740 mic_frames=295166400 system_frames=295153920 mic_chunks_enqueued=129 system_chunks_enqueued=0 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=0 mic_chunks_system_dominant_dropped=0 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-13T01:42:57.917Z meeting_echo_suppression_summary session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 processor=localvqe loaded=true mic_frames=384326 processed_frames=384326 raw_fallback_frames=1 full_reference_frames=384270 partial_reference_frames=0 missing_reference_frames=56 processing_failures=0 current_delay_samples=957 delay_confidence=0.621 delay_estimate_count=1 rejected_delay_estimates=12297
+2026-08-13T01:42:57.918Z meeting_stop_stage session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 stage=service_total duration_ms=27672 outcome=success
+2026-08-13T01:42:57.919Z meeting_stop_stage session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 stage=service_stop duration_ms=27673 outcome=success
+2026-08-13T01:42:57.929Z meeting_stop_stage session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 stage=prepare_row duration_ms=10 outcome=success
+2026-08-13T01:42:57.931Z meeting_stop_stage session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-13T01:42:57.933Z meeting_stop_stage session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 stage=queued_total duration_ms=27692 outcome=success
+2026-08-13T01:43:00.512Z meeting_cleaned_mic session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 outcome=skipped reason=skippedNoEchoPath renderer_reason=no_echo_path probe_detail=no_reference_energy probe_windows=0 probe_best_correlation=none
+2026-08-13T01:43:00.513Z meeting_echo_suppression_resolution session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 reason_code=skippedNoEchoPath model_version=none render_duration_ms=none realtime_factor=none delay_estimate_ms=none probe_windows=0 probe_best_correlation=none
+2026-08-13T01:43:00.515Z meeting_cleaned_mic_source session=16A6DCE9-E91F-4AAA-85D6-7D6C8EAC9959 selected=raw reason=skippedNoEchoPath timeout_s=600.000
+2026-08-13T14:30:01.744Z meeting_live_chunking_mode session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 mode=vad reason=started
+2026-08-13T14:30:01.759Z meeting_mic_capture_starting requested_mode=raw default_input=present default_input_transport=usb
+2026-08-13T14:30:01.842Z shared_mic_engine_started_from_prepared audio_engine_start_ms=77.696
+2026-08-13T14:30:01.845Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-13T14:30:01.846Z meeting_mic_processing mode=raw
+2026-08-13T14:30:01.847Z meeting_mic_capture_started requested_mode=raw effective_mode=raw sr=48000.0 ch=2 default_input=present default_input_transport=usb
+2026-08-13T14:30:01.925Z system_audio_stream_screen_output_attached mode=discard
+2026-08-13T14:30:01.948Z meeting_mic_first_buffer sr=48000.0 ch=2 interleaved=false
+2026-08-13T14:30:02.118Z system_audio_stream_started sr=48000 ch=2
+2026-08-13T14:30:02.118Z meeting_recording_started session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.microphoneAndSystem) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-13T14:30:02.787Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-08-13T14:34:31.177Z meeting_stop_stage session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 stage=notes_commit duration_ms=1 outcome=success
+2026-08-13T14:34:31.178Z meeting_recording_stopping session=8EF7C335-A684-4C9C-8883-A6FF95335DD6
+2026-08-13T14:34:31.182Z meeting_mic_capture_stopped default_input=present default_input_transport=usb
+2026-08-13T14:34:31.205Z shared_mic_engine_stopped
+2026-08-13T14:34:31.206Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-13T14:34:31.222Z system_audio_stream_stopped outcome=completed
+2026-08-13T14:34:31.223Z meeting_stop_stage session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 stage=capture_stop duration_ms=41 outcome=success
+2026-08-13T14:34:31.236Z meeting_stop_stage session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 stage=processing_drain duration_ms=12 outcome=success
+2026-08-13T14:34:31.262Z meeting_stop_stage session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 stage=writer_finalize duration_ms=24 outcome=success
+2026-08-13T14:34:31.268Z meeting_stop_stage session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 stage=source_urls duration_ms=5 outcome=success
+2026-08-13T14:34:31.269Z meeting_stop_stage session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 stage=metadata_save duration_ms=1 outcome=success
+2026-08-13T14:34:31.300Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=0.006 output_format_ms=0.010 install_tap_ms=0.005 total_ms=90.607
+2026-08-13T14:34:31.301Z shared_mic_engine_input_device_prepared source=system_default device=present transport=usb vpio=false set_device_ms=0.000 prepare_engine_ms=91.458
+2026-08-13T14:34:32.956Z meeting_stop_stage session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 stage=mix duration_ms=1687 outcome=success
+2026-08-13T14:34:32.959Z meeting_stop_stage session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 stage=notes_write duration_ms=0 outcome=success
+2026-08-13T14:34:32.960Z meeting_stop_stage session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 stage=lock_write duration_ms=1 outcome=success
+2026-08-13T14:34:32.961Z meeting_cleaned_mic session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 outcome=scheduled
+2026-08-13T14:34:32.961Z meeting_stop_stage session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 stage=cleaned_mic_schedule duration_ms=1 outcome=success
+2026-08-13T14:34:32.962Z meeting_stop_stage session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 stage=cleanup duration_ms=0 outcome=success
+2026-08-13T14:34:32.962Z meeting_recording_stopped session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 duration_s=271.217
+2026-08-13T14:34:32.963Z meeting_recording_health session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 duration_s=271.217 source_mode=microphone_and_system mic_started=true requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=true system_first_buffer=true mic_bytes=2294891 system_bytes=182596 mixed_bytes=4360326 mic_frames=12926400 system_frames=12912960 mic_chunks_enqueued=0 system_chunks_enqueued=0 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=0 mic_chunks_system_dominant_dropped=0 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-13T14:34:32.964Z meeting_echo_suppression_summary session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 processor=localvqe loaded=true mic_frames=16826 processed_frames=16826 raw_fallback_frames=1 full_reference_frames=16770 partial_reference_frames=0 missing_reference_frames=56 processing_failures=0 current_delay_samples=768 delay_confidence=0.587 delay_estimate_count=11 rejected_delay_estimates=527
+2026-08-13T14:34:32.965Z meeting_stop_stage session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 stage=service_total duration_ms=1787 outcome=success
+2026-08-13T14:34:32.965Z meeting_stop_stage session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 stage=service_stop duration_ms=1787 outcome=success
+2026-08-13T14:34:32.968Z meeting_stop_stage session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 stage=prepare_row duration_ms=2 outcome=success
+2026-08-13T14:34:32.969Z meeting_stop_stage session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-13T14:34:32.970Z meeting_stop_stage session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 stage=queued_total duration_ms=1794 outcome=success
+2026-08-13T14:34:49.541Z meeting_cleaned_mic session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 outcome=rendered duration_s=269.300 render_duration_ms=16580 realtime_factor=16.24 processed_frames=16831 raw_fallback_frames=1 failures=0 rms_ratio=0.75 probe_windows=1 probe_best_correlation=0.761
+2026-08-13T14:34:49.547Z meeting_echo_suppression_resolution session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 reason_code=cleanedUsed model_version=localvqe-v1.4-aec-200K-f32.gguf render_duration_ms=16580 realtime_factor=16.24 delay_estimate_ms=1 probe_windows=1 probe_best_correlation=0.761
+2026-08-13T14:34:49.548Z meeting_cleaned_mic_source session=8EF7C335-A684-4C9C-8883-A6FF95335DD6 selected=cleaned reason=cleanedUsed timeout_s=67.804
+2026-08-13T15:30:01.951Z meeting_live_chunking_mode session=0FA82D0F-F733-4439-A94A-74535D92F989 mode=vad reason=started
+2026-08-13T15:30:01.975Z meeting_mic_capture_starting requested_mode=raw default_input=present default_input_transport=usb
+2026-08-13T15:30:02.116Z shared_mic_engine_started_from_prepared audio_engine_start_ms=133.911
+2026-08-13T15:30:02.120Z shared_mic_diagnostics transition=subscribe wants_vpio=false blocks_vpio_promotion=true subscribers=1 vpio_subs=0 passive_subs=0 engine_running=true vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-13T15:30:02.122Z meeting_mic_processing mode=raw
+2026-08-13T15:30:02.128Z meeting_mic_capture_started requested_mode=raw effective_mode=raw sr=48000.0 ch=2 default_input=present default_input_transport=usb
+2026-08-13T15:30:02.208Z system_audio_stream_screen_output_attached mode=discard
+2026-08-13T15:30:02.219Z meeting_mic_first_buffer sr=48000.0 ch=2 interleaved=false
+2026-08-13T15:30:02.408Z system_audio_stream_started sr=48000 ch=2
+2026-08-13T15:30:02.409Z meeting_recording_started session=0FA82D0F-F733-4439-A94A-74535D92F989 source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.microphoneAndSystem) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-13T15:30:02.501Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-08-13T15:49:25.312Z meeting_stop_stage session=0FA82D0F-F733-4439-A94A-74535D92F989 stage=notes_commit duration_ms=3 outcome=success
+2026-08-13T15:49:25.314Z meeting_recording_stopping session=0FA82D0F-F733-4439-A94A-74535D92F989
+2026-08-13T15:49:25.315Z meeting_mic_capture_stopped default_input=present default_input_transport=usb
+2026-08-13T15:49:25.333Z shared_mic_engine_stopped
+2026-08-13T15:49:25.335Z shared_mic_diagnostics transition=unsubscribe wants_vpio=n/a blocks_vpio_promotion=n/a subscribers=0 vpio_subs=0 passive_subs=0 engine_running=false vpio_engaged=false vpio_deferred=false vpio_deferral_count=0
+2026-08-13T15:49:25.345Z system_audio_stream_stopped outcome=completed
+2026-08-13T15:49:25.347Z meeting_stop_stage session=0FA82D0F-F733-4439-A94A-74535D92F989 stage=capture_stop duration_ms=32 outcome=success
+2026-08-13T15:49:25.360Z meeting_stop_stage session=0FA82D0F-F733-4439-A94A-74535D92F989 stage=processing_drain duration_ms=10 outcome=success
+2026-08-13T15:49:25.377Z meeting_stop_stage session=0FA82D0F-F733-4439-A94A-74535D92F989 stage=writer_finalize duration_ms=15 outcome=success
+2026-08-13T15:49:25.417Z meeting_stop_stage session=0FA82D0F-F733-4439-A94A-74535D92F989 stage=source_urls duration_ms=36 outcome=success
+2026-08-13T15:49:25.418Z meeting_stop_stage session=0FA82D0F-F733-4439-A94A-74535D92F989 stage=metadata_save duration_ms=1 outcome=success
+2026-08-13T15:49:25.448Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=0.004 output_format_ms=0.012 install_tap_ms=0.004 total_ms=109.192
+2026-08-13T15:49:25.449Z shared_mic_engine_input_device_prepared source=system_default device=present transport=usb vpio=false set_device_ms=0.000 prepare_engine_ms=110.003
+2026-08-13T15:49:31.709Z meeting_stop_stage session=0FA82D0F-F733-4439-A94A-74535D92F989 stage=mix duration_ms=6290 outcome=success
+2026-08-13T15:49:31.711Z meeting_stop_stage session=0FA82D0F-F733-4439-A94A-74535D92F989 stage=notes_write duration_ms=0 outcome=success
+2026-08-13T15:49:31.714Z meeting_stop_stage session=0FA82D0F-F733-4439-A94A-74535D92F989 stage=lock_write duration_ms=2 outcome=success
+2026-08-13T15:49:31.716Z meeting_cleaned_mic session=0FA82D0F-F733-4439-A94A-74535D92F989 outcome=scheduled
+2026-08-13T15:49:31.716Z meeting_stop_stage session=0FA82D0F-F733-4439-A94A-74535D92F989 stage=cleaned_mic_schedule duration_ms=1 outcome=success
+2026-08-13T15:49:31.717Z meeting_stop_stage session=0FA82D0F-F733-4439-A94A-74535D92F989 stage=cleanup duration_ms=0 outcome=success
+2026-08-13T15:49:31.718Z meeting_recording_stopped session=0FA82D0F-F733-4439-A94A-74535D92F989 duration_s=1169.769
+2026-08-13T15:49:31.719Z meeting_recording_health session=0FA82D0F-F733-4439-A94A-74535D92F989 duration_s=1169.769 source_mode=microphone_and_system mic_started=true requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=true system_first_buffer=true mic_bytes=10021683 system_bytes=598162 mixed_bytes=18790257 mic_frames=55828800 system_frames=55818240 mic_chunks_enqueued=4 system_chunks_enqueued=0 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=0 mic_chunks_system_dominant_dropped=0 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-13T15:49:31.719Z meeting_echo_suppression_summary session=0FA82D0F-F733-4439-A94A-74535D92F989 processor=localvqe loaded=true mic_frames=72680 processed_frames=72680 raw_fallback_frames=0 full_reference_frames=72680 partial_reference_frames=0 missing_reference_frames=0 processing_failures=0 current_delay_samples=0 delay_confidence=0.000 delay_estimate_count=0 rejected_delay_estimates=2326
+2026-08-13T15:49:31.720Z meeting_stop_stage session=0FA82D0F-F733-4439-A94A-74535D92F989 stage=service_total duration_ms=6407 outcome=success
+2026-08-13T15:49:31.721Z meeting_stop_stage session=0FA82D0F-F733-4439-A94A-74535D92F989 stage=service_stop duration_ms=6408 outcome=success
+2026-08-13T15:49:31.726Z meeting_stop_stage session=0FA82D0F-F733-4439-A94A-74535D92F989 stage=prepare_row duration_ms=4 outcome=success
+2026-08-13T15:49:31.727Z meeting_stop_stage session=0FA82D0F-F733-4439-A94A-74535D92F989 stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-13T15:49:31.732Z meeting_stop_stage session=0FA82D0F-F733-4439-A94A-74535D92F989 stage=queued_total duration_ms=6424 outcome=success
+2026-08-13T15:49:32.187Z meeting_cleaned_mic session=0FA82D0F-F733-4439-A94A-74535D92F989 outcome=skipped reason=skippedNoEchoPath renderer_reason=no_echo_path probe_detail=no_reference_energy probe_windows=0 probe_best_correlation=none
+2026-08-13T15:49:32.190Z meeting_echo_suppression_resolution session=0FA82D0F-F733-4439-A94A-74535D92F989 reason_code=skippedNoEchoPath model_version=none render_duration_ms=none realtime_factor=none delay_estimate_ms=none probe_windows=0 probe_best_correlation=none
+2026-08-13T15:49:32.192Z meeting_cleaned_mic_source session=0FA82D0F-F733-4439-A94A-74535D92F989 selected=raw reason=skippedNoEchoPath timeout_s=292.442
+2026-08-13T18:30:02.153Z meeting_live_chunking_mode session=7AFDDF40-9380-4EFE-B62A-6EC11283E4A1 mode=vad reason=started
+2026-08-13T18:30:02.241Z system_audio_stream_screen_output_attached mode=discard
+2026-08-13T18:30:02.434Z system_audio_stream_started sr=48000 ch=2
+2026-08-13T18:30:02.435Z meeting_recording_started session=7AFDDF40-9380-4EFE-B62A-6EC11283E4A1 source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.systemOnly) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-13T18:30:02.519Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-08-13T18:34:17.481Z meeting_stop_stage session=7AFDDF40-9380-4EFE-B62A-6EC11283E4A1 stage=notes_commit duration_ms=6 outcome=success
+2026-08-13T18:34:17.483Z meeting_recording_stopping session=7AFDDF40-9380-4EFE-B62A-6EC11283E4A1
+2026-08-13T18:34:17.533Z system_audio_stream_stopped outcome=completed
+2026-08-13T18:34:17.536Z meeting_stop_stage session=7AFDDF40-9380-4EFE-B62A-6EC11283E4A1 stage=capture_stop duration_ms=52 outcome=success
+2026-08-13T18:34:17.552Z meeting_stop_stage session=7AFDDF40-9380-4EFE-B62A-6EC11283E4A1 stage=processing_drain duration_ms=13 outcome=success
+2026-08-13T18:34:17.563Z meeting_stop_stage session=7AFDDF40-9380-4EFE-B62A-6EC11283E4A1 stage=writer_finalize duration_ms=10 outcome=success
+2026-08-13T18:34:17.569Z meeting_stop_stage session=7AFDDF40-9380-4EFE-B62A-6EC11283E4A1 stage=source_urls duration_ms=5 outcome=success
+2026-08-13T18:34:17.572Z meeting_stop_stage session=7AFDDF40-9380-4EFE-B62A-6EC11283E4A1 stage=metadata_save duration_ms=1 outcome=success
+2026-08-13T18:34:18.594Z meeting_stop_stage session=7AFDDF40-9380-4EFE-B62A-6EC11283E4A1 stage=mix duration_ms=1021 outcome=success
+2026-08-13T18:34:18.594Z meeting_stop_stage session=7AFDDF40-9380-4EFE-B62A-6EC11283E4A1 stage=notes_write duration_ms=0 outcome=success
+2026-08-13T18:34:18.596Z meeting_stop_stage session=7AFDDF40-9380-4EFE-B62A-6EC11283E4A1 stage=lock_write duration_ms=1 outcome=success
+2026-08-13T18:34:18.596Z meeting_cleaned_mic session=7AFDDF40-9380-4EFE-B62A-6EC11283E4A1 outcome=not_scheduled reason=rawRenderFailed
+2026-08-13T18:34:18.597Z meeting_stop_stage session=7AFDDF40-9380-4EFE-B62A-6EC11283E4A1 stage=cleaned_mic_schedule duration_ms=1 outcome=success
+2026-08-13T18:34:18.598Z meeting_stop_stage session=7AFDDF40-9380-4EFE-B62A-6EC11283E4A1 stage=cleanup duration_ms=0 outcome=success
+2026-08-13T18:34:18.598Z meeting_recording_stopped session=7AFDDF40-9380-4EFE-B62A-6EC11283E4A1 duration_s=256.445
+2026-08-13T18:34:18.599Z meeting_recording_health session=7AFDDF40-9380-4EFE-B62A-6EC11283E4A1 duration_s=256.445 source_mode=system_only mic_started=false requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=false system_first_buffer=true mic_bytes=0 system_bytes=132426 mixed_bytes=32979 mic_frames=0 system_frames=12242880 mic_chunks_enqueued=0 system_chunks_enqueued=0 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=0 mic_chunks_system_dominant_dropped=0 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-13T18:34:18.600Z meeting_echo_suppression_summary session=7AFDDF40-9380-4EFE-B62A-6EC11283E4A1 processor=localvqe loaded=true mic_frames=0 processed_frames=0 raw_fallback_frames=0 full_reference_frames=0 partial_reference_frames=0 missing_reference_frames=0 processing_failures=0 current_delay_samples=0 delay_confidence=0.000 delay_estimate_count=0 rejected_delay_estimates=0
+2026-08-13T18:34:18.601Z meeting_stop_stage session=7AFDDF40-9380-4EFE-B62A-6EC11283E4A1 stage=service_total duration_ms=1118 outcome=success
+2026-08-13T18:34:18.601Z meeting_stop_stage session=7AFDDF40-9380-4EFE-B62A-6EC11283E4A1 stage=service_stop duration_ms=1119 outcome=success
+2026-08-13T18:34:18.604Z meeting_stop_stage session=7AFDDF40-9380-4EFE-B62A-6EC11283E4A1 stage=prepare_row duration_ms=2 outcome=success
+2026-08-13T18:34:18.605Z meeting_stop_stage session=7AFDDF40-9380-4EFE-B62A-6EC11283E4A1 stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-13T18:34:18.606Z meeting_stop_stage session=7AFDDF40-9380-4EFE-B62A-6EC11283E4A1 stage=queued_total duration_ms=1131 outcome=success
+2026-08-13T19:55:45.484Z dictation_diagnostics_session_start pid=2132 version=0.7.3 build=20260717011712 source=dist-xcodebuild-release commit=d6321f87dcce
+2026-08-13T19:55:46.933Z shared_mic_engine_prepare_timing vpio=false buffer_size=4096 set_vpio_ms=0.006 output_format_ms=0.011 install_tap_ms=0.006 total_ms=265.581
+2026-08-13T19:55:46.934Z shared_mic_engine_input_device_prepared source=system_default device=present transport=usb vpio=false set_device_ms=0.000 prepare_engine_ms=267.197
+2026-08-13T20:15:01.943Z meeting_live_chunking_mode session=2610CB58-FAA8-4A42-B271-B00A0AF438BB mode=vad reason=started
+2026-08-13T20:15:02.046Z system_audio_stream_screen_output_attached mode=discard
+2026-08-13T20:15:02.210Z system_audio_stream_started sr=48000 ch=2
+2026-08-13T20:15:02.214Z meeting_recording_started session=2610CB58-FAA8-4A42-B271-B00A0AF438BB source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.systemOnly) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-13T20:15:02.352Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-08-13T20:52:54.257Z meeting_stop_stage session=2610CB58-FAA8-4A42-B271-B00A0AF438BB stage=notes_commit duration_ms=10 outcome=success
+2026-08-13T20:52:54.260Z meeting_recording_stopping session=2610CB58-FAA8-4A42-B271-B00A0AF438BB
+2026-08-13T20:52:54.302Z system_audio_stream_stopped outcome=completed
+2026-08-13T20:52:54.308Z meeting_stop_stage session=2610CB58-FAA8-4A42-B271-B00A0AF438BB stage=capture_stop duration_ms=42 outcome=success
+2026-08-13T20:52:54.321Z meeting_stop_stage session=2610CB58-FAA8-4A42-B271-B00A0AF438BB stage=processing_drain duration_ms=11 outcome=success
+2026-08-13T20:52:54.336Z meeting_stop_stage session=2610CB58-FAA8-4A42-B271-B00A0AF438BB stage=writer_finalize duration_ms=13 outcome=success
+2026-08-13T20:52:54.354Z meeting_stop_stage session=2610CB58-FAA8-4A42-B271-B00A0AF438BB stage=source_urls duration_ms=17 outcome=success
+2026-08-13T20:52:54.356Z meeting_stop_stage session=2610CB58-FAA8-4A42-B271-B00A0AF438BB stage=metadata_save duration_ms=1 outcome=success
+2026-08-13T20:53:01.919Z meeting_stop_stage session=2610CB58-FAA8-4A42-B271-B00A0AF438BB stage=mix duration_ms=7562 outcome=success
+2026-08-13T20:53:01.921Z meeting_stop_stage session=2610CB58-FAA8-4A42-B271-B00A0AF438BB stage=notes_write duration_ms=0 outcome=success
+2026-08-13T20:53:01.923Z meeting_stop_stage session=2610CB58-FAA8-4A42-B271-B00A0AF438BB stage=lock_write duration_ms=1 outcome=success
+2026-08-13T20:53:01.924Z meeting_cleaned_mic session=2610CB58-FAA8-4A42-B271-B00A0AF438BB outcome=not_scheduled reason=rawRenderFailed
+2026-08-13T20:53:01.925Z meeting_stop_stage session=2610CB58-FAA8-4A42-B271-B00A0AF438BB stage=cleaned_mic_schedule duration_ms=1 outcome=success
+2026-08-13T20:53:01.926Z meeting_stop_stage session=2610CB58-FAA8-4A42-B271-B00A0AF438BB stage=cleanup duration_ms=0 outcome=success
+2026-08-13T20:53:01.927Z meeting_recording_stopped session=2610CB58-FAA8-4A42-B271-B00A0AF438BB duration_s=2280.083
+2026-08-13T20:53:01.928Z meeting_recording_health session=2610CB58-FAA8-4A42-B271-B00A0AF438BB duration_s=2280.083 source_mode=system_only mic_started=false requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=false system_first_buffer=true mic_bytes=0 system_bytes=16690485 mixed_bytes=14803403 mic_frames=0 system_frames=109058880 mic_chunks_enqueued=0 system_chunks_enqueued=204 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=24 mic_chunks_system_dominant_dropped=0 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-13T20:53:01.929Z meeting_echo_suppression_summary session=2610CB58-FAA8-4A42-B271-B00A0AF438BB processor=localvqe loaded=true mic_frames=0 processed_frames=0 raw_fallback_frames=0 full_reference_frames=0 partial_reference_frames=0 missing_reference_frames=0 processing_failures=0 current_delay_samples=0 delay_confidence=0.000 delay_estimate_count=0 rejected_delay_estimates=0
+2026-08-13T20:53:01.930Z meeting_stop_stage session=2610CB58-FAA8-4A42-B271-B00A0AF438BB stage=service_total duration_ms=7671 outcome=success
+2026-08-13T20:53:01.931Z meeting_stop_stage session=2610CB58-FAA8-4A42-B271-B00A0AF438BB stage=service_stop duration_ms=7672 outcome=success
+2026-08-13T20:53:01.935Z meeting_stop_stage session=2610CB58-FAA8-4A42-B271-B00A0AF438BB stage=prepare_row duration_ms=2 outcome=success
+2026-08-13T20:53:01.935Z meeting_stop_stage session=2610CB58-FAA8-4A42-B271-B00A0AF438BB stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-13T20:53:01.938Z meeting_stop_stage session=2610CB58-FAA8-4A42-B271-B00A0AF438BB stage=queued_total duration_ms=7691 outcome=success
+2026-08-14T15:00:01.551Z meeting_live_chunking_mode session=4E5C1E5A-4DAD-4E80-BB24-A2B646E1A0BF mode=vad reason=started
+2026-08-14T15:00:01.618Z system_audio_stream_screen_output_attached mode=discard
+2026-08-14T15:00:01.733Z system_audio_stream_started sr=48000 ch=2
+2026-08-14T15:00:01.734Z meeting_recording_started session=4E5C1E5A-4DAD-4E80-BB24-A2B646E1A0BF source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.systemOnly) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-14T15:00:01.761Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-08-14T15:04:22.791Z meeting_stop_stage session=4E5C1E5A-4DAD-4E80-BB24-A2B646E1A0BF stage=notes_commit duration_ms=2 outcome=success
+2026-08-14T15:04:22.792Z meeting_recording_stopping session=4E5C1E5A-4DAD-4E80-BB24-A2B646E1A0BF
+2026-08-14T15:04:22.813Z system_audio_stream_stopped outcome=completed
+2026-08-14T15:04:22.816Z meeting_stop_stage session=4E5C1E5A-4DAD-4E80-BB24-A2B646E1A0BF stage=capture_stop duration_ms=22 outcome=success
+2026-08-14T15:04:22.830Z meeting_stop_stage session=4E5C1E5A-4DAD-4E80-BB24-A2B646E1A0BF stage=processing_drain duration_ms=12 outcome=success
+2026-08-14T15:04:22.840Z meeting_stop_stage session=4E5C1E5A-4DAD-4E80-BB24-A2B646E1A0BF stage=writer_finalize duration_ms=9 outcome=success
+2026-08-14T15:04:22.848Z meeting_stop_stage session=4E5C1E5A-4DAD-4E80-BB24-A2B646E1A0BF stage=source_urls duration_ms=6 outcome=success
+2026-08-14T15:04:22.850Z meeting_stop_stage session=4E5C1E5A-4DAD-4E80-BB24-A2B646E1A0BF stage=metadata_save duration_ms=1 outcome=success
+2026-08-14T15:04:23.487Z meeting_stop_stage session=4E5C1E5A-4DAD-4E80-BB24-A2B646E1A0BF stage=mix duration_ms=636 outcome=success
+2026-08-14T15:04:23.487Z meeting_stop_stage session=4E5C1E5A-4DAD-4E80-BB24-A2B646E1A0BF stage=notes_write duration_ms=0 outcome=success
+2026-08-14T15:04:23.489Z meeting_stop_stage session=4E5C1E5A-4DAD-4E80-BB24-A2B646E1A0BF stage=lock_write duration_ms=1 outcome=success
+2026-08-14T15:04:23.489Z meeting_cleaned_mic session=4E5C1E5A-4DAD-4E80-BB24-A2B646E1A0BF outcome=not_scheduled reason=rawRenderFailed
+2026-08-14T15:04:23.490Z meeting_stop_stage session=4E5C1E5A-4DAD-4E80-BB24-A2B646E1A0BF stage=cleaned_mic_schedule duration_ms=1 outcome=success
+2026-08-14T15:04:23.490Z meeting_stop_stage session=4E5C1E5A-4DAD-4E80-BB24-A2B646E1A0BF stage=cleanup duration_ms=0 outcome=success
+2026-08-14T15:04:23.491Z meeting_recording_stopped session=4E5C1E5A-4DAD-4E80-BB24-A2B646E1A0BF duration_s=261.940
+2026-08-14T15:04:23.491Z meeting_recording_health session=4E5C1E5A-4DAD-4E80-BB24-A2B646E1A0BF duration_s=261.940 source_mode=system_only mic_started=false requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=false system_first_buffer=true mic_bytes=0 system_bytes=174526 mixed_bytes=71800 mic_frames=0 system_frames=12528960 mic_chunks_enqueued=0 system_chunks_enqueued=0 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=0 mic_chunks_system_dominant_dropped=0 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-14T15:04:23.492Z meeting_echo_suppression_summary session=4E5C1E5A-4DAD-4E80-BB24-A2B646E1A0BF processor=localvqe loaded=true mic_frames=0 processed_frames=0 raw_fallback_frames=0 full_reference_frames=0 partial_reference_frames=0 missing_reference_frames=0 processing_failures=0 current_delay_samples=0 delay_confidence=0.000 delay_estimate_count=0 rejected_delay_estimates=0
+2026-08-14T15:04:23.493Z meeting_stop_stage session=4E5C1E5A-4DAD-4E80-BB24-A2B646E1A0BF stage=service_total duration_ms=701 outcome=success
+2026-08-14T15:04:23.493Z meeting_stop_stage session=4E5C1E5A-4DAD-4E80-BB24-A2B646E1A0BF stage=service_stop duration_ms=701 outcome=success
+2026-08-14T15:04:23.499Z meeting_stop_stage session=4E5C1E5A-4DAD-4E80-BB24-A2B646E1A0BF stage=prepare_row duration_ms=5 outcome=success
+2026-08-14T15:04:23.500Z meeting_stop_stage session=4E5C1E5A-4DAD-4E80-BB24-A2B646E1A0BF stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-14T15:04:23.501Z meeting_stop_stage session=4E5C1E5A-4DAD-4E80-BB24-A2B646E1A0BF stage=queued_total duration_ms=712 outcome=success
+2026-08-14T16:00:01.672Z meeting_live_chunking_mode session=3DA7C2D0-E1AE-43FE-A54A-250236C0D465 mode=vad reason=started
+2026-08-14T16:00:01.735Z system_audio_stream_screen_output_attached mode=discard
+2026-08-14T16:00:01.843Z system_audio_stream_started sr=48000 ch=2
+2026-08-14T16:00:01.844Z meeting_recording_started session=3DA7C2D0-E1AE-43FE-A54A-250236C0D465 source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.systemOnly) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-14T16:00:01.848Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-08-14T16:04:16.902Z meeting_stop_stage session=3DA7C2D0-E1AE-43FE-A54A-250236C0D465 stage=notes_commit duration_ms=2 outcome=success
+2026-08-14T16:04:16.904Z meeting_recording_stopping session=3DA7C2D0-E1AE-43FE-A54A-250236C0D465
+2026-08-14T16:04:16.948Z system_audio_stream_stopped outcome=completed
+2026-08-14T16:04:16.951Z meeting_stop_stage session=3DA7C2D0-E1AE-43FE-A54A-250236C0D465 stage=capture_stop duration_ms=46 outcome=success
+2026-08-14T16:04:16.963Z meeting_stop_stage session=3DA7C2D0-E1AE-43FE-A54A-250236C0D465 stage=processing_drain duration_ms=10 outcome=success
+2026-08-14T16:04:16.971Z meeting_stop_stage session=3DA7C2D0-E1AE-43FE-A54A-250236C0D465 stage=writer_finalize duration_ms=6 outcome=success
+2026-08-14T16:04:16.976Z meeting_stop_stage session=3DA7C2D0-E1AE-43FE-A54A-250236C0D465 stage=source_urls duration_ms=4 outcome=success
+2026-08-14T16:04:16.978Z meeting_stop_stage session=3DA7C2D0-E1AE-43FE-A54A-250236C0D465 stage=metadata_save duration_ms=1 outcome=success
+2026-08-14T16:04:17.575Z meeting_stop_stage session=3DA7C2D0-E1AE-43FE-A54A-250236C0D465 stage=mix duration_ms=596 outcome=success
+2026-08-14T16:04:17.576Z meeting_stop_stage session=3DA7C2D0-E1AE-43FE-A54A-250236C0D465 stage=notes_write duration_ms=0 outcome=success
+2026-08-14T16:04:17.578Z meeting_stop_stage session=3DA7C2D0-E1AE-43FE-A54A-250236C0D465 stage=lock_write duration_ms=1 outcome=success
+2026-08-14T16:04:17.578Z meeting_cleaned_mic session=3DA7C2D0-E1AE-43FE-A54A-250236C0D465 outcome=not_scheduled reason=rawRenderFailed
+2026-08-14T16:04:17.580Z meeting_stop_stage session=3DA7C2D0-E1AE-43FE-A54A-250236C0D465 stage=cleaned_mic_schedule duration_ms=2 outcome=success
+2026-08-14T16:04:17.581Z meeting_stop_stage session=3DA7C2D0-E1AE-43FE-A54A-250236C0D465 stage=cleanup duration_ms=0 outcome=success
+2026-08-14T16:04:17.582Z meeting_recording_stopped session=3DA7C2D0-E1AE-43FE-A54A-250236C0D465 duration_s=255.907
+2026-08-14T16:04:17.583Z meeting_recording_health session=3DA7C2D0-E1AE-43FE-A54A-250236C0D465 duration_s=255.907 source_mode=system_only mic_started=false requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=false system_first_buffer=true mic_bytes=0 system_bytes=132426 mixed_bytes=32979 mic_frames=0 system_frames=12242880 mic_chunks_enqueued=0 system_chunks_enqueued=0 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=0 mic_chunks_system_dominant_dropped=0 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-14T16:04:17.584Z meeting_echo_suppression_summary session=3DA7C2D0-E1AE-43FE-A54A-250236C0D465 processor=localvqe loaded=true mic_frames=0 processed_frames=0 raw_fallback_frames=0 full_reference_frames=0 partial_reference_frames=0 missing_reference_frames=0 processing_failures=0 current_delay_samples=0 delay_confidence=0.000 delay_estimate_count=0 rejected_delay_estimates=0
+2026-08-14T16:04:17.585Z meeting_stop_stage session=3DA7C2D0-E1AE-43FE-A54A-250236C0D465 stage=service_total duration_ms=681 outcome=success
+2026-08-14T16:04:17.585Z meeting_stop_stage session=3DA7C2D0-E1AE-43FE-A54A-250236C0D465 stage=service_stop duration_ms=682 outcome=success
+2026-08-14T16:04:17.588Z meeting_stop_stage session=3DA7C2D0-E1AE-43FE-A54A-250236C0D465 stage=prepare_row duration_ms=2 outcome=success
+2026-08-14T16:04:17.588Z meeting_stop_stage session=3DA7C2D0-E1AE-43FE-A54A-250236C0D465 stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-14T16:04:17.590Z meeting_stop_stage session=3DA7C2D0-E1AE-43FE-A54A-250236C0D465 stage=queued_total duration_ms=691 outcome=success
+2026-08-14T17:00:01.779Z meeting_live_chunking_mode session=D306B301-7FFA-4B7B-BB68-BD857C527FDF mode=vad reason=started
+2026-08-14T17:00:01.846Z system_audio_stream_screen_output_attached mode=discard
+2026-08-14T17:00:01.945Z system_audio_stream_started sr=48000 ch=2
+2026-08-14T17:00:01.946Z meeting_recording_started session=D306B301-7FFA-4B7B-BB68-BD857C527FDF source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.systemOnly) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-14T17:00:01.960Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-08-14T17:04:37.994Z meeting_stop_stage session=D306B301-7FFA-4B7B-BB68-BD857C527FDF stage=notes_commit duration_ms=1 outcome=success
+2026-08-14T17:04:37.995Z meeting_recording_stopping session=D306B301-7FFA-4B7B-BB68-BD857C527FDF
+2026-08-14T17:04:38.024Z system_audio_stream_stopped outcome=completed
+2026-08-14T17:04:38.027Z meeting_stop_stage session=D306B301-7FFA-4B7B-BB68-BD857C527FDF stage=capture_stop duration_ms=31 outcome=success
+2026-08-14T17:04:38.039Z meeting_stop_stage session=D306B301-7FFA-4B7B-BB68-BD857C527FDF stage=processing_drain duration_ms=11 outcome=success
+2026-08-14T17:04:38.048Z meeting_stop_stage session=D306B301-7FFA-4B7B-BB68-BD857C527FDF stage=writer_finalize duration_ms=8 outcome=success
+2026-08-14T17:04:38.052Z meeting_stop_stage session=D306B301-7FFA-4B7B-BB68-BD857C527FDF stage=source_urls duration_ms=2 outcome=success
+2026-08-14T17:04:38.054Z meeting_stop_stage session=D306B301-7FFA-4B7B-BB68-BD857C527FDF stage=metadata_save duration_ms=1 outcome=success
+2026-08-14T17:04:40.202Z meeting_stop_stage session=D306B301-7FFA-4B7B-BB68-BD857C527FDF stage=mix duration_ms=2147 outcome=success
+2026-08-14T17:04:40.203Z meeting_stop_stage session=D306B301-7FFA-4B7B-BB68-BD857C527FDF stage=notes_write duration_ms=0 outcome=success
+2026-08-14T17:04:40.204Z meeting_stop_stage session=D306B301-7FFA-4B7B-BB68-BD857C527FDF stage=lock_write duration_ms=1 outcome=success
+2026-08-14T17:04:40.205Z meeting_cleaned_mic session=D306B301-7FFA-4B7B-BB68-BD857C527FDF outcome=not_scheduled reason=rawRenderFailed
+2026-08-14T17:04:40.205Z meeting_stop_stage session=D306B301-7FFA-4B7B-BB68-BD857C527FDF stage=cleaned_mic_schedule duration_ms=1 outcome=success
+2026-08-14T17:04:40.206Z meeting_stop_stage session=D306B301-7FFA-4B7B-BB68-BD857C527FDF stage=cleanup duration_ms=0 outcome=success
+2026-08-14T17:04:40.206Z meeting_recording_stopped session=D306B301-7FFA-4B7B-BB68-BD857C527FDF duration_s=278.426
+2026-08-14T17:04:40.207Z meeting_recording_health session=D306B301-7FFA-4B7B-BB68-BD857C527FDF duration_s=278.426 source_mode=system_only mic_started=false requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=false system_first_buffer=true mic_bytes=0 system_bytes=2050352 mixed_bytes=1754826 mic_frames=0 system_frames=13249920 mic_chunks_enqueued=0 system_chunks_enqueued=1 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=0 mic_chunks_system_dominant_dropped=0 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-14T17:04:40.208Z meeting_echo_suppression_summary session=D306B301-7FFA-4B7B-BB68-BD857C527FDF processor=localvqe loaded=true mic_frames=0 processed_frames=0 raw_fallback_frames=0 full_reference_frames=0 partial_reference_frames=0 missing_reference_frames=0 processing_failures=0 current_delay_samples=0 delay_confidence=0.000 delay_estimate_count=0 rejected_delay_estimates=0
+2026-08-14T17:04:40.208Z meeting_stop_stage session=D306B301-7FFA-4B7B-BB68-BD857C527FDF stage=service_total duration_ms=2214 outcome=success
+2026-08-14T17:04:40.209Z meeting_stop_stage session=D306B301-7FFA-4B7B-BB68-BD857C527FDF stage=service_stop duration_ms=2214 outcome=success
+2026-08-14T17:04:40.212Z meeting_stop_stage session=D306B301-7FFA-4B7B-BB68-BD857C527FDF stage=prepare_row duration_ms=2 outcome=success
+2026-08-14T17:04:40.212Z meeting_stop_stage session=D306B301-7FFA-4B7B-BB68-BD857C527FDF stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-14T17:04:40.214Z meeting_stop_stage session=D306B301-7FFA-4B7B-BB68-BD857C527FDF stage=queued_total duration_ms=2221 outcome=success
+2026-08-14T19:45:02.152Z meeting_live_chunking_mode session=9543C146-E387-46F8-9FDA-99E29E606FC4 mode=vad reason=started
+2026-08-14T19:45:02.252Z system_audio_stream_screen_output_attached mode=discard
+2026-08-14T19:45:02.369Z system_audio_stream_started sr=48000 ch=2
+2026-08-14T19:45:02.370Z meeting_recording_started session=9543C146-E387-46F8-9FDA-99E29E606FC4 source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.systemOnly) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-14T19:45:02.374Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-08-14T20:47:26.404Z meeting_stop_stage session=9543C146-E387-46F8-9FDA-99E29E606FC4 stage=notes_commit duration_ms=2 outcome=success
+2026-08-14T20:47:26.406Z meeting_recording_stopping session=9543C146-E387-46F8-9FDA-99E29E606FC4
+2026-08-14T20:47:26.452Z system_audio_stream_stopped outcome=completed
+2026-08-14T20:47:26.456Z meeting_stop_stage session=9543C146-E387-46F8-9FDA-99E29E606FC4 stage=capture_stop duration_ms=47 outcome=success
+2026-08-14T20:47:26.473Z meeting_stop_stage session=9543C146-E387-46F8-9FDA-99E29E606FC4 stage=processing_drain duration_ms=11 outcome=success
+2026-08-14T20:47:26.483Z meeting_stop_stage session=9543C146-E387-46F8-9FDA-99E29E606FC4 stage=writer_finalize duration_ms=8 outcome=success
+2026-08-14T20:47:26.509Z meeting_stop_stage session=9543C146-E387-46F8-9FDA-99E29E606FC4 stage=source_urls duration_ms=25 outcome=success
+2026-08-14T20:47:26.511Z meeting_stop_stage session=9543C146-E387-46F8-9FDA-99E29E606FC4 stage=metadata_save duration_ms=1 outcome=success
+2026-08-14T20:47:42.989Z meeting_stop_stage session=9543C146-E387-46F8-9FDA-99E29E606FC4 stage=mix duration_ms=16478 outcome=success
+2026-08-14T20:47:42.991Z meeting_stop_stage session=9543C146-E387-46F8-9FDA-99E29E606FC4 stage=notes_write duration_ms=0 outcome=success
+2026-08-14T20:47:42.992Z meeting_stop_stage session=9543C146-E387-46F8-9FDA-99E29E606FC4 stage=lock_write duration_ms=1 outcome=success
+2026-08-14T20:47:42.993Z meeting_cleaned_mic session=9543C146-E387-46F8-9FDA-99E29E606FC4 outcome=not_scheduled reason=rawRenderFailed
+2026-08-14T20:47:42.994Z meeting_stop_stage session=9543C146-E387-46F8-9FDA-99E29E606FC4 stage=cleaned_mic_schedule duration_ms=1 outcome=success
+2026-08-14T20:47:42.995Z meeting_stop_stage session=9543C146-E387-46F8-9FDA-99E29E606FC4 stage=cleanup duration_ms=0 outcome=success
+2026-08-14T20:47:42.998Z meeting_recording_stopped session=9543C146-E387-46F8-9FDA-99E29E606FC4 duration_s=3760.844
+2026-08-14T20:47:43.004Z meeting_recording_health session=9543C146-E387-46F8-9FDA-99E29E606FC4 duration_s=3760.844 source_mode=system_only mic_started=false requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=false system_first_buffer=true mic_bytes=0 system_bytes=28968530 mixed_bytes=25716682 mic_frames=0 system_frames=179714880 mic_chunks_enqueued=0 system_chunks_enqueued=303 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=32 mic_chunks_system_dominant_dropped=0 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-14T20:47:43.005Z meeting_echo_suppression_summary session=9543C146-E387-46F8-9FDA-99E29E606FC4 processor=localvqe loaded=true mic_frames=0 processed_frames=0 raw_fallback_frames=0 full_reference_frames=0 partial_reference_frames=0 missing_reference_frames=0 processing_failures=0 current_delay_samples=0 delay_confidence=0.000 delay_estimate_count=0 rejected_delay_estimates=0
+2026-08-14T20:47:43.006Z meeting_stop_stage session=9543C146-E387-46F8-9FDA-99E29E606FC4 stage=service_total duration_ms=16600 outcome=success
+2026-08-14T20:47:43.007Z meeting_stop_stage session=9543C146-E387-46F8-9FDA-99E29E606FC4 stage=service_stop duration_ms=16601 outcome=success
+2026-08-14T20:47:43.012Z meeting_stop_stage session=9543C146-E387-46F8-9FDA-99E29E606FC4 stage=prepare_row duration_ms=5 outcome=success
+2026-08-14T20:47:43.013Z meeting_stop_stage session=9543C146-E387-46F8-9FDA-99E29E606FC4 stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-14T20:47:43.015Z meeting_stop_stage session=9543C146-E387-46F8-9FDA-99E29E606FC4 stage=queued_total duration_ms=16613 outcome=success
+2026-08-17T15:00:01.286Z meeting_live_chunking_mode session=6A1A757D-CC0D-4292-A221-534A369EB36B mode=vad reason=started
+2026-08-17T15:00:01.377Z system_audio_stream_screen_output_attached mode=discard
+2026-08-17T15:00:01.498Z system_audio_stream_started sr=48000 ch=2
+2026-08-17T15:00:01.500Z meeting_recording_started session=6A1A757D-CC0D-4292-A221-534A369EB36B source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.systemOnly) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-17T15:00:01.504Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-08-17T16:02:05.501Z meeting_stop_stage session=6A1A757D-CC0D-4292-A221-534A369EB36B stage=notes_commit duration_ms=1 outcome=success
+2026-08-17T16:02:05.503Z meeting_recording_stopping session=6A1A757D-CC0D-4292-A221-534A369EB36B
+2026-08-17T16:02:05.530Z system_audio_stream_stopped outcome=completed
+2026-08-17T16:02:05.532Z meeting_stop_stage session=6A1A757D-CC0D-4292-A221-534A369EB36B stage=capture_stop duration_ms=28 outcome=success
+2026-08-17T16:02:05.544Z meeting_stop_stage session=6A1A757D-CC0D-4292-A221-534A369EB36B stage=processing_drain duration_ms=10 outcome=success
+2026-08-17T16:02:05.558Z meeting_stop_stage session=6A1A757D-CC0D-4292-A221-534A369EB36B stage=writer_finalize duration_ms=13 outcome=success
+2026-08-17T16:02:05.576Z meeting_stop_stage session=6A1A757D-CC0D-4292-A221-534A369EB36B stage=source_urls duration_ms=17 outcome=success
+2026-08-17T16:02:05.578Z meeting_stop_stage session=6A1A757D-CC0D-4292-A221-534A369EB36B stage=metadata_save duration_ms=1 outcome=success
+2026-08-17T16:02:17.692Z meeting_stop_stage session=6A1A757D-CC0D-4292-A221-534A369EB36B stage=mix duration_ms=12112 outcome=success
+2026-08-17T16:02:17.693Z meeting_stop_stage session=6A1A757D-CC0D-4292-A221-534A369EB36B stage=notes_write duration_ms=0 outcome=success
+2026-08-17T16:02:17.696Z meeting_stop_stage session=6A1A757D-CC0D-4292-A221-534A369EB36B stage=lock_write duration_ms=2 outcome=success
+2026-08-17T16:02:17.697Z meeting_cleaned_mic session=6A1A757D-CC0D-4292-A221-534A369EB36B outcome=not_scheduled reason=rawRenderFailed
+2026-08-17T16:02:17.698Z meeting_stop_stage session=6A1A757D-CC0D-4292-A221-534A369EB36B stage=cleaned_mic_schedule duration_ms=1 outcome=success
+2026-08-17T16:02:17.699Z meeting_stop_stage session=6A1A757D-CC0D-4292-A221-534A369EB36B stage=cleanup duration_ms=0 outcome=success
+2026-08-17T16:02:17.699Z meeting_recording_stopped session=6A1A757D-CC0D-4292-A221-534A369EB36B duration_s=3736.413
+2026-08-17T16:02:17.700Z meeting_recording_health session=6A1A757D-CC0D-4292-A221-534A369EB36B duration_s=3736.413 source_mode=system_only mic_started=false requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=false system_first_buffer=true mic_bytes=0 system_bytes=29121275 mixed_bytes=26811606 mic_frames=0 system_frames=178754880 mic_chunks_enqueued=0 system_chunks_enqueued=390 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=4 mic_chunks_system_dominant_dropped=0 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-17T16:02:17.702Z meeting_echo_suppression_summary session=6A1A757D-CC0D-4292-A221-534A369EB36B processor=localvqe loaded=true mic_frames=0 processed_frames=0 raw_fallback_frames=0 full_reference_frames=0 partial_reference_frames=0 missing_reference_frames=0 processing_failures=0 current_delay_samples=0 delay_confidence=0.000 delay_estimate_count=0 rejected_delay_estimates=0
+2026-08-17T16:02:17.703Z meeting_stop_stage session=6A1A757D-CC0D-4292-A221-534A369EB36B stage=service_total duration_ms=12200 outcome=success
+2026-08-17T16:02:17.703Z meeting_stop_stage session=6A1A757D-CC0D-4292-A221-534A369EB36B stage=service_stop duration_ms=12201 outcome=success
+2026-08-17T16:02:17.707Z meeting_stop_stage session=6A1A757D-CC0D-4292-A221-534A369EB36B stage=prepare_row duration_ms=3 outcome=success
+2026-08-17T16:02:17.707Z meeting_stop_stage session=6A1A757D-CC0D-4292-A221-534A369EB36B stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-17T16:02:17.709Z meeting_stop_stage session=6A1A757D-CC0D-4292-A221-534A369EB36B stage=queued_total duration_ms=12210 outcome=success
+2026-08-18T15:00:02.236Z meeting_live_chunking_mode session=EE6C9205-3D3A-44BE-BFD1-61B66AF1B6DC mode=vad reason=started
+2026-08-18T15:00:02.305Z system_audio_stream_screen_output_attached mode=discard
+2026-08-18T15:00:02.427Z system_audio_stream_started sr=48000 ch=2
+2026-08-18T15:00:02.429Z meeting_recording_started session=EE6C9205-3D3A-44BE-BFD1-61B66AF1B6DC source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.systemOnly) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-18T15:00:02.450Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-08-18T15:26:12.522Z meeting_stop_stage session=EE6C9205-3D3A-44BE-BFD1-61B66AF1B6DC stage=notes_commit duration_ms=1 outcome=success
+2026-08-18T15:26:12.524Z meeting_recording_stopping session=EE6C9205-3D3A-44BE-BFD1-61B66AF1B6DC
+2026-08-18T15:26:12.573Z system_audio_stream_stopped outcome=completed
+2026-08-18T15:26:12.575Z meeting_stop_stage session=EE6C9205-3D3A-44BE-BFD1-61B66AF1B6DC stage=capture_stop duration_ms=50 outcome=success
+2026-08-18T15:26:12.587Z meeting_stop_stage session=EE6C9205-3D3A-44BE-BFD1-61B66AF1B6DC stage=processing_drain duration_ms=11 outcome=success
+2026-08-18T15:26:12.596Z meeting_stop_stage session=EE6C9205-3D3A-44BE-BFD1-61B66AF1B6DC stage=writer_finalize duration_ms=8 outcome=success
+2026-08-18T15:26:12.609Z meeting_stop_stage session=EE6C9205-3D3A-44BE-BFD1-61B66AF1B6DC stage=source_urls duration_ms=12 outcome=success
+2026-08-18T15:26:12.611Z meeting_stop_stage session=EE6C9205-3D3A-44BE-BFD1-61B66AF1B6DC stage=metadata_save duration_ms=1 outcome=success
+2026-08-18T15:26:17.544Z meeting_stop_stage session=EE6C9205-3D3A-44BE-BFD1-61B66AF1B6DC stage=mix duration_ms=4932 outcome=success
+2026-08-18T15:26:17.546Z meeting_stop_stage session=EE6C9205-3D3A-44BE-BFD1-61B66AF1B6DC stage=notes_write duration_ms=0 outcome=success
+2026-08-18T15:26:17.551Z meeting_stop_stage session=EE6C9205-3D3A-44BE-BFD1-61B66AF1B6DC stage=lock_write duration_ms=1 outcome=success
+2026-08-18T15:26:17.551Z meeting_cleaned_mic session=EE6C9205-3D3A-44BE-BFD1-61B66AF1B6DC outcome=not_scheduled reason=rawRenderFailed
+2026-08-18T15:26:17.552Z meeting_stop_stage session=EE6C9205-3D3A-44BE-BFD1-61B66AF1B6DC stage=cleaned_mic_schedule duration_ms=1 outcome=success
+2026-08-18T15:26:17.553Z meeting_stop_stage session=EE6C9205-3D3A-44BE-BFD1-61B66AF1B6DC stage=cleanup duration_ms=0 outcome=success
+2026-08-18T15:26:17.555Z meeting_recording_stopped session=EE6C9205-3D3A-44BE-BFD1-61B66AF1B6DC duration_s=1575.317
+2026-08-18T15:26:17.556Z meeting_recording_health session=EE6C9205-3D3A-44BE-BFD1-61B66AF1B6DC duration_s=1575.317 source_mode=system_only mic_started=false requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=false system_first_buffer=true mic_bytes=0 system_bytes=11031194 mixed_bytes=10416149 mic_frames=0 system_frames=75361920 mic_chunks_enqueued=0 system_chunks_enqueued=138 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=0 mic_chunks_system_dominant_dropped=0 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-18T15:26:17.557Z meeting_echo_suppression_summary session=EE6C9205-3D3A-44BE-BFD1-61B66AF1B6DC processor=localvqe loaded=true mic_frames=0 processed_frames=0 raw_fallback_frames=0 full_reference_frames=0 partial_reference_frames=0 missing_reference_frames=0 processing_failures=0 current_delay_samples=0 delay_confidence=0.000 delay_estimate_count=0 rejected_delay_estimates=0
+2026-08-18T15:26:17.558Z meeting_stop_stage session=EE6C9205-3D3A-44BE-BFD1-61B66AF1B6DC stage=service_total duration_ms=5035 outcome=success
+2026-08-18T15:26:17.560Z meeting_stop_stage session=EE6C9205-3D3A-44BE-BFD1-61B66AF1B6DC stage=service_stop duration_ms=5036 outcome=success
+2026-08-18T15:26:17.568Z meeting_stop_stage session=EE6C9205-3D3A-44BE-BFD1-61B66AF1B6DC stage=prepare_row duration_ms=7 outcome=success
+2026-08-18T15:26:17.568Z meeting_stop_stage session=EE6C9205-3D3A-44BE-BFD1-61B66AF1B6DC stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-18T15:26:17.571Z meeting_stop_stage session=EE6C9205-3D3A-44BE-BFD1-61B66AF1B6DC stage=queued_total duration_ms=5050 outcome=success
+2026-08-18T16:00:02.449Z meeting_live_chunking_mode session=A11E245C-DA7D-4D1C-A4CA-28F6AB2FE705 mode=vad reason=started
+2026-08-18T16:00:02.523Z system_audio_stream_screen_output_attached mode=discard
+2026-08-18T16:00:02.630Z system_audio_stream_started sr=48000 ch=2
+2026-08-18T16:00:02.636Z meeting_recording_started session=A11E245C-DA7D-4D1C-A4CA-28F6AB2FE705 source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.systemOnly) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-18T16:00:02.657Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-08-18T16:10:10.698Z meeting_stop_stage session=A11E245C-DA7D-4D1C-A4CA-28F6AB2FE705 stage=notes_commit duration_ms=3 outcome=success
+2026-08-18T16:10:10.700Z meeting_recording_stopping session=A11E245C-DA7D-4D1C-A4CA-28F6AB2FE705
+2026-08-18T16:10:10.743Z system_audio_stream_stopped outcome=completed
+2026-08-18T16:10:10.746Z meeting_stop_stage session=A11E245C-DA7D-4D1C-A4CA-28F6AB2FE705 stage=capture_stop duration_ms=43 outcome=success
+2026-08-18T16:10:10.759Z meeting_stop_stage session=A11E245C-DA7D-4D1C-A4CA-28F6AB2FE705 stage=processing_drain duration_ms=11 outcome=success
+2026-08-18T16:10:10.773Z meeting_stop_stage session=A11E245C-DA7D-4D1C-A4CA-28F6AB2FE705 stage=writer_finalize duration_ms=11 outcome=success
+2026-08-18T16:10:10.784Z meeting_stop_stage session=A11E245C-DA7D-4D1C-A4CA-28F6AB2FE705 stage=source_urls duration_ms=10 outcome=success
+2026-08-18T16:10:10.787Z meeting_stop_stage session=A11E245C-DA7D-4D1C-A4CA-28F6AB2FE705 stage=metadata_save duration_ms=1 outcome=success
+2026-08-18T16:10:12.914Z meeting_stop_stage session=A11E245C-DA7D-4D1C-A4CA-28F6AB2FE705 stage=mix duration_ms=2126 outcome=success
+2026-08-18T16:10:12.915Z meeting_stop_stage session=A11E245C-DA7D-4D1C-A4CA-28F6AB2FE705 stage=notes_write duration_ms=0 outcome=success
+2026-08-18T16:10:12.918Z meeting_stop_stage session=A11E245C-DA7D-4D1C-A4CA-28F6AB2FE705 stage=lock_write duration_ms=1 outcome=success
+2026-08-18T16:10:12.919Z meeting_cleaned_mic session=A11E245C-DA7D-4D1C-A4CA-28F6AB2FE705 outcome=not_scheduled reason=rawRenderFailed
+2026-08-18T16:10:12.920Z meeting_stop_stage session=A11E245C-DA7D-4D1C-A4CA-28F6AB2FE705 stage=cleaned_mic_schedule duration_ms=1 outcome=success
+2026-08-18T16:10:12.920Z meeting_stop_stage session=A11E245C-DA7D-4D1C-A4CA-28F6AB2FE705 stage=cleanup duration_ms=0 outcome=success
+2026-08-18T16:10:12.922Z meeting_recording_stopped session=A11E245C-DA7D-4D1C-A4CA-28F6AB2FE705 duration_s=610.470
+2026-08-18T16:10:12.923Z meeting_recording_health session=A11E245C-DA7D-4D1C-A4CA-28F6AB2FE705 duration_s=610.470 source_mode=system_only mic_started=false requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=false system_first_buffer=true mic_bytes=0 system_bytes=3113476 mixed_bytes=2502018 mic_frames=0 system_frames=29186880 mic_chunks_enqueued=0 system_chunks_enqueued=34 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=25 mic_chunks_system_dominant_dropped=0 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-18T16:10:12.925Z meeting_echo_suppression_summary session=A11E245C-DA7D-4D1C-A4CA-28F6AB2FE705 processor=localvqe loaded=true mic_frames=0 processed_frames=0 raw_fallback_frames=0 full_reference_frames=0 partial_reference_frames=0 missing_reference_frames=0 processing_failures=0 current_delay_samples=0 delay_confidence=0.000 delay_estimate_count=0 rejected_delay_estimates=0
+2026-08-18T16:10:12.926Z meeting_stop_stage session=A11E245C-DA7D-4D1C-A4CA-28F6AB2FE705 stage=service_total duration_ms=2226 outcome=success
+2026-08-18T16:10:12.928Z meeting_stop_stage session=A11E245C-DA7D-4D1C-A4CA-28F6AB2FE705 stage=service_stop duration_ms=2228 outcome=success
+2026-08-18T16:10:12.931Z meeting_stop_stage session=A11E245C-DA7D-4D1C-A4CA-28F6AB2FE705 stage=prepare_row duration_ms=2 outcome=success
+2026-08-18T16:10:12.932Z meeting_stop_stage session=A11E245C-DA7D-4D1C-A4CA-28F6AB2FE705 stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-18T16:10:12.934Z meeting_stop_stage session=A11E245C-DA7D-4D1C-A4CA-28F6AB2FE705 stage=queued_total duration_ms=2240 outcome=success
+2026-08-18T17:00:02.606Z meeting_live_chunking_mode session=7F57D67C-CB05-4D0C-87DF-3F634EB86EEB mode=vad reason=started
+2026-08-18T17:00:02.690Z system_audio_stream_screen_output_attached mode=discard
+2026-08-18T17:00:02.799Z system_audio_stream_started sr=48000 ch=2
+2026-08-18T17:00:02.802Z meeting_recording_started session=7F57D67C-CB05-4D0C-87DF-3F634EB86EEB source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.systemOnly) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-18T17:00:02.815Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-08-18T17:47:35.863Z meeting_stop_stage session=7F57D67C-CB05-4D0C-87DF-3F634EB86EEB stage=notes_commit duration_ms=2 outcome=success
+2026-08-18T17:47:35.865Z meeting_recording_stopping session=7F57D67C-CB05-4D0C-87DF-3F634EB86EEB
+2026-08-18T17:47:35.909Z system_audio_stream_stopped outcome=completed
+2026-08-18T17:47:35.913Z meeting_stop_stage session=7F57D67C-CB05-4D0C-87DF-3F634EB86EEB stage=capture_stop duration_ms=46 outcome=success
+2026-08-18T17:47:35.927Z meeting_stop_stage session=7F57D67C-CB05-4D0C-87DF-3F634EB86EEB stage=processing_drain duration_ms=10 outcome=success
+2026-08-18T17:47:35.935Z meeting_stop_stage session=7F57D67C-CB05-4D0C-87DF-3F634EB86EEB stage=writer_finalize duration_ms=7 outcome=success
+2026-08-18T17:47:35.956Z meeting_stop_stage session=7F57D67C-CB05-4D0C-87DF-3F634EB86EEB stage=source_urls duration_ms=19 outcome=success
+2026-08-18T17:47:35.958Z meeting_stop_stage session=7F57D67C-CB05-4D0C-87DF-3F634EB86EEB stage=metadata_save duration_ms=1 outcome=success
+2026-08-18T17:47:46.099Z meeting_stop_stage session=7F57D67C-CB05-4D0C-87DF-3F634EB86EEB stage=mix duration_ms=10140 outcome=success
+2026-08-18T17:47:46.100Z meeting_stop_stage session=7F57D67C-CB05-4D0C-87DF-3F634EB86EEB stage=notes_write duration_ms=0 outcome=success
+2026-08-18T17:47:46.102Z meeting_stop_stage session=7F57D67C-CB05-4D0C-87DF-3F634EB86EEB stage=lock_write duration_ms=1 outcome=success
+2026-08-18T17:47:46.104Z meeting_cleaned_mic session=7F57D67C-CB05-4D0C-87DF-3F634EB86EEB outcome=not_scheduled reason=rawRenderFailed
+2026-08-18T17:47:46.104Z meeting_stop_stage session=7F57D67C-CB05-4D0C-87DF-3F634EB86EEB stage=cleaned_mic_schedule duration_ms=1 outcome=success
+2026-08-18T17:47:46.105Z meeting_stop_stage session=7F57D67C-CB05-4D0C-87DF-3F634EB86EEB stage=cleanup duration_ms=0 outcome=success
+2026-08-18T17:47:46.106Z meeting_recording_stopped session=7F57D67C-CB05-4D0C-87DF-3F634EB86EEB duration_s=2863.500
+2026-08-18T17:47:46.107Z meeting_recording_health session=7F57D67C-CB05-4D0C-87DF-3F634EB86EEB duration_s=2863.500 source_mode=system_only mic_started=false requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=false system_first_buffer=true mic_bytes=0 system_bytes=22292964 mixed_bytes=22131175 mic_frames=0 system_frames=136946880 mic_chunks_enqueued=0 system_chunks_enqueued=275 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=0 mic_chunks_system_dominant_dropped=0 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-18T17:47:46.108Z meeting_echo_suppression_summary session=7F57D67C-CB05-4D0C-87DF-3F634EB86EEB processor=localvqe loaded=true mic_frames=0 processed_frames=0 raw_fallback_frames=0 full_reference_frames=0 partial_reference_frames=0 missing_reference_frames=0 processing_failures=0 current_delay_samples=0 delay_confidence=0.000 delay_estimate_count=0 rejected_delay_estimates=0
+2026-08-18T17:47:46.109Z meeting_stop_stage session=7F57D67C-CB05-4D0C-87DF-3F634EB86EEB stage=service_total duration_ms=10244 outcome=success
+2026-08-18T17:47:46.109Z meeting_stop_stage session=7F57D67C-CB05-4D0C-87DF-3F634EB86EEB stage=service_stop duration_ms=10244 outcome=success
+2026-08-18T17:47:46.112Z meeting_stop_stage session=7F57D67C-CB05-4D0C-87DF-3F634EB86EEB stage=prepare_row duration_ms=2 outcome=success
+2026-08-18T17:47:46.113Z meeting_stop_stage session=7F57D67C-CB05-4D0C-87DF-3F634EB86EEB stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-18T17:47:46.115Z meeting_stop_stage session=7F57D67C-CB05-4D0C-87DF-3F634EB86EEB stage=queued_total duration_ms=10255 outcome=success
+2026-08-18T19:00:01.187Z meeting_live_chunking_mode session=D39B16C2-F632-427E-9AF7-23C18F9C46A9 mode=vad reason=started
+2026-08-18T19:00:01.269Z system_audio_stream_screen_output_attached mode=discard
+2026-08-18T19:00:01.393Z system_audio_stream_started sr=48000 ch=2
+2026-08-18T19:00:01.396Z meeting_recording_started session=D39B16C2-F632-427E-9AF7-23C18F9C46A9 source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.systemOnly) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-18T19:00:01.418Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-08-18T19:04:24.458Z meeting_stop_stage session=D39B16C2-F632-427E-9AF7-23C18F9C46A9 stage=notes_commit duration_ms=1 outcome=success
+2026-08-18T19:04:24.460Z meeting_recording_stopping session=D39B16C2-F632-427E-9AF7-23C18F9C46A9
+2026-08-18T19:04:24.489Z system_audio_stream_stopped outcome=completed
+2026-08-18T19:04:24.491Z meeting_stop_stage session=D39B16C2-F632-427E-9AF7-23C18F9C46A9 stage=capture_stop duration_ms=30 outcome=success
+2026-08-18T19:04:24.505Z meeting_stop_stage session=D39B16C2-F632-427E-9AF7-23C18F9C46A9 stage=processing_drain duration_ms=12 outcome=success
+2026-08-18T19:04:24.518Z meeting_stop_stage session=D39B16C2-F632-427E-9AF7-23C18F9C46A9 stage=writer_finalize duration_ms=11 outcome=success
+2026-08-18T19:04:24.537Z meeting_stop_stage session=D39B16C2-F632-427E-9AF7-23C18F9C46A9 stage=source_urls duration_ms=16 outcome=success
+2026-08-18T19:04:24.539Z meeting_stop_stage session=D39B16C2-F632-427E-9AF7-23C18F9C46A9 stage=metadata_save duration_ms=1 outcome=success
+2026-08-18T19:04:24.779Z meeting_stop_stage session=D39B16C2-F632-427E-9AF7-23C18F9C46A9 stage=mix duration_ms=238 outcome=success
+2026-08-18T19:04:24.780Z meeting_stop_stage session=D39B16C2-F632-427E-9AF7-23C18F9C46A9 stage=notes_write duration_ms=0 outcome=success
+2026-08-18T19:04:24.783Z meeting_stop_stage session=D39B16C2-F632-427E-9AF7-23C18F9C46A9 stage=lock_write duration_ms=1 outcome=success
+2026-08-18T19:04:24.784Z meeting_cleaned_mic session=D39B16C2-F632-427E-9AF7-23C18F9C46A9 outcome=not_scheduled reason=rawRenderFailed
+2026-08-18T19:04:24.785Z meeting_stop_stage session=D39B16C2-F632-427E-9AF7-23C18F9C46A9 stage=cleaned_mic_schedule duration_ms=1 outcome=success
+2026-08-18T19:04:24.786Z meeting_stop_stage session=D39B16C2-F632-427E-9AF7-23C18F9C46A9 stage=cleanup duration_ms=0 outcome=success
+2026-08-18T19:04:24.787Z meeting_recording_stopped session=D39B16C2-F632-427E-9AF7-23C18F9C46A9 duration_s=263.598
+2026-08-18T19:04:24.789Z meeting_recording_health session=D39B16C2-F632-427E-9AF7-23C18F9C46A9 duration_s=263.598 source_mode=system_only mic_started=false requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=false system_first_buffer=true mic_bytes=0 system_bytes=191756 mixed_bytes=88159 mic_frames=0 system_frames=12624960 mic_chunks_enqueued=0 system_chunks_enqueued=0 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=0 mic_chunks_system_dominant_dropped=0 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-18T19:04:24.790Z meeting_echo_suppression_summary session=D39B16C2-F632-427E-9AF7-23C18F9C46A9 processor=localvqe loaded=true mic_frames=0 processed_frames=0 raw_fallback_frames=0 full_reference_frames=0 partial_reference_frames=0 missing_reference_frames=0 processing_failures=0 current_delay_samples=0 delay_confidence=0.000 delay_estimate_count=0 rejected_delay_estimates=0
+2026-08-18T19:04:24.791Z meeting_stop_stage session=D39B16C2-F632-427E-9AF7-23C18F9C46A9 stage=service_total duration_ms=331 outcome=success
+2026-08-18T19:04:24.792Z meeting_stop_stage session=D39B16C2-F632-427E-9AF7-23C18F9C46A9 stage=service_stop duration_ms=332 outcome=success
+2026-08-18T19:04:24.797Z meeting_stop_stage session=D39B16C2-F632-427E-9AF7-23C18F9C46A9 stage=prepare_row duration_ms=2 outcome=success
+2026-08-18T19:04:24.798Z meeting_stop_stage session=D39B16C2-F632-427E-9AF7-23C18F9C46A9 stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-18T19:04:24.800Z meeting_stop_stage session=D39B16C2-F632-427E-9AF7-23C18F9C46A9 stage=queued_total duration_ms=343 outcome=success
+2026-08-19T15:00:01.514Z meeting_live_chunking_mode session=114BF3FB-3A02-47CA-B320-7B450B6C0901 mode=vad reason=started
+2026-08-19T15:00:01.594Z system_audio_stream_screen_output_attached mode=discard
+2026-08-19T15:00:01.733Z system_audio_stream_started sr=48000 ch=2
+2026-08-19T15:00:01.736Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-08-19T15:00:01.743Z meeting_recording_started session=114BF3FB-3A02-47CA-B320-7B450B6C0901 source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.systemOnly) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-19T15:42:14.868Z meeting_stop_stage session=114BF3FB-3A02-47CA-B320-7B450B6C0901 stage=notes_commit duration_ms=2 outcome=success
+2026-08-19T15:42:14.870Z meeting_recording_stopping session=114BF3FB-3A02-47CA-B320-7B450B6C0901
+2026-08-19T15:42:14.914Z system_audio_stream_stopped outcome=completed
+2026-08-19T15:42:14.916Z meeting_stop_stage session=114BF3FB-3A02-47CA-B320-7B450B6C0901 stage=capture_stop duration_ms=44 outcome=success
+2026-08-19T15:42:14.928Z meeting_stop_stage session=114BF3FB-3A02-47CA-B320-7B450B6C0901 stage=processing_drain duration_ms=11 outcome=success
+2026-08-19T15:42:14.935Z meeting_stop_stage session=114BF3FB-3A02-47CA-B320-7B450B6C0901 stage=writer_finalize duration_ms=6 outcome=success
+2026-08-19T15:42:14.957Z meeting_stop_stage session=114BF3FB-3A02-47CA-B320-7B450B6C0901 stage=source_urls duration_ms=19 outcome=success
+2026-08-19T15:42:14.960Z meeting_stop_stage session=114BF3FB-3A02-47CA-B320-7B450B6C0901 stage=metadata_save duration_ms=2 outcome=success
+2026-08-19T15:42:24.780Z meeting_stop_stage session=114BF3FB-3A02-47CA-B320-7B450B6C0901 stage=mix duration_ms=9819 outcome=success
+2026-08-19T15:42:24.782Z meeting_stop_stage session=114BF3FB-3A02-47CA-B320-7B450B6C0901 stage=notes_write duration_ms=0 outcome=success
+2026-08-19T15:42:24.784Z meeting_stop_stage session=114BF3FB-3A02-47CA-B320-7B450B6C0901 stage=lock_write duration_ms=1 outcome=success
+2026-08-19T15:42:24.786Z meeting_cleaned_mic session=114BF3FB-3A02-47CA-B320-7B450B6C0901 outcome=not_scheduled reason=rawRenderFailed
+2026-08-19T15:42:24.788Z meeting_stop_stage session=114BF3FB-3A02-47CA-B320-7B450B6C0901 stage=cleaned_mic_schedule duration_ms=3 outcome=success
+2026-08-19T15:42:24.789Z meeting_stop_stage session=114BF3FB-3A02-47CA-B320-7B450B6C0901 stage=cleanup duration_ms=0 outcome=success
+2026-08-19T15:42:24.790Z meeting_recording_stopped session=114BF3FB-3A02-47CA-B320-7B450B6C0901 duration_s=2543.273
+2026-08-19T15:42:24.791Z meeting_recording_health session=114BF3FB-3A02-47CA-B320-7B450B6C0901 duration_s=2543.273 source_mode=system_only mic_started=false requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=false system_first_buffer=true mic_bytes=0 system_bytes=19177830 mixed_bytes=18676087 mic_frames=0 system_frames=121588800 mic_chunks_enqueued=0 system_chunks_enqueued=263 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=0 mic_chunks_system_dominant_dropped=0 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-19T15:42:24.792Z meeting_echo_suppression_summary session=114BF3FB-3A02-47CA-B320-7B450B6C0901 processor=localvqe loaded=true mic_frames=0 processed_frames=0 raw_fallback_frames=0 full_reference_frames=0 partial_reference_frames=0 missing_reference_frames=0 processing_failures=0 current_delay_samples=0 delay_confidence=0.000 delay_estimate_count=0 rejected_delay_estimates=0
+2026-08-19T15:42:24.793Z meeting_stop_stage session=114BF3FB-3A02-47CA-B320-7B450B6C0901 stage=service_total duration_ms=9924 outcome=success
+2026-08-19T15:42:24.795Z meeting_stop_stage session=114BF3FB-3A02-47CA-B320-7B450B6C0901 stage=service_stop duration_ms=9925 outcome=success
+2026-08-19T15:42:24.801Z meeting_stop_stage session=114BF3FB-3A02-47CA-B320-7B450B6C0901 stage=prepare_row duration_ms=5 outcome=success
+2026-08-19T15:42:24.802Z meeting_stop_stage session=114BF3FB-3A02-47CA-B320-7B450B6C0901 stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-19T15:42:24.805Z meeting_stop_stage session=114BF3FB-3A02-47CA-B320-7B450B6C0901 stage=queued_total duration_ms=9941 outcome=success
+2026-08-19T18:30:01.889Z meeting_live_chunking_mode session=31891F98-3B16-46BB-A088-78928C49D123 mode=vad reason=started
+2026-08-19T18:30:01.981Z system_audio_stream_screen_output_attached mode=discard
+2026-08-19T18:30:02.094Z system_audio_stream_started sr=48000 ch=2
+2026-08-19T18:30:02.097Z meeting_recording_started session=31891F98-3B16-46BB-A088-78928C49D123 source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.systemOnly) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-19T18:30:02.100Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-08-19T18:34:18.197Z meeting_stop_stage session=31891F98-3B16-46BB-A088-78928C49D123 stage=notes_commit duration_ms=3 outcome=success
+2026-08-19T18:34:18.200Z meeting_recording_stopping session=31891F98-3B16-46BB-A088-78928C49D123
+2026-08-19T18:34:18.236Z system_audio_stream_stopped outcome=completed
+2026-08-19T18:34:18.239Z meeting_stop_stage session=31891F98-3B16-46BB-A088-78928C49D123 stage=capture_stop duration_ms=36 outcome=success
+2026-08-19T18:34:18.253Z meeting_stop_stage session=31891F98-3B16-46BB-A088-78928C49D123 stage=processing_drain duration_ms=11 outcome=success
+2026-08-19T18:34:18.261Z meeting_stop_stage session=31891F98-3B16-46BB-A088-78928C49D123 stage=writer_finalize duration_ms=7 outcome=success
+2026-08-19T18:34:18.266Z meeting_stop_stage session=31891F98-3B16-46BB-A088-78928C49D123 stage=source_urls duration_ms=3 outcome=success
+2026-08-19T18:34:18.268Z meeting_stop_stage session=31891F98-3B16-46BB-A088-78928C49D123 stage=metadata_save duration_ms=1 outcome=success
+2026-08-19T18:34:18.888Z meeting_stop_stage session=31891F98-3B16-46BB-A088-78928C49D123 stage=mix duration_ms=618 outcome=success
+2026-08-19T18:34:18.889Z meeting_stop_stage session=31891F98-3B16-46BB-A088-78928C49D123 stage=notes_write duration_ms=0 outcome=success
+2026-08-19T18:34:18.891Z meeting_stop_stage session=31891F98-3B16-46BB-A088-78928C49D123 stage=lock_write duration_ms=1 outcome=success
+2026-08-19T18:34:18.892Z meeting_cleaned_mic session=31891F98-3B16-46BB-A088-78928C49D123 outcome=not_scheduled reason=rawRenderFailed
+2026-08-19T18:34:18.893Z meeting_stop_stage session=31891F98-3B16-46BB-A088-78928C49D123 stage=cleaned_mic_schedule duration_ms=1 outcome=success
+2026-08-19T18:34:18.893Z meeting_stop_stage session=31891F98-3B16-46BB-A088-78928C49D123 stage=cleanup duration_ms=0 outcome=success
+2026-08-19T18:34:18.894Z meeting_recording_stopped session=31891F98-3B16-46BB-A088-78928C49D123 duration_s=257.005
+2026-08-19T18:34:18.894Z meeting_recording_health session=31891F98-3B16-46BB-A088-78928C49D123 duration_s=257.005 source_mode=system_only mic_started=false requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=false system_first_buffer=true mic_bytes=0 system_bytes=132950 mixed_bytes=33107 mic_frames=0 system_frames=12293760 mic_chunks_enqueued=0 system_chunks_enqueued=0 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=0 mic_chunks_system_dominant_dropped=0 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-19T18:34:18.896Z meeting_echo_suppression_summary session=31891F98-3B16-46BB-A088-78928C49D123 processor=localvqe loaded=true mic_frames=0 processed_frames=0 raw_fallback_frames=0 full_reference_frames=0 partial_reference_frames=0 missing_reference_frames=0 processing_failures=0 current_delay_samples=0 delay_confidence=0.000 delay_estimate_count=0 rejected_delay_estimates=0
+2026-08-19T18:34:18.896Z meeting_stop_stage session=31891F98-3B16-46BB-A088-78928C49D123 stage=service_total duration_ms=697 outcome=success
+2026-08-19T18:34:18.897Z meeting_stop_stage session=31891F98-3B16-46BB-A088-78928C49D123 stage=service_stop duration_ms=698 outcome=success
+2026-08-19T18:34:18.900Z meeting_stop_stage session=31891F98-3B16-46BB-A088-78928C49D123 stage=prepare_row duration_ms=2 outcome=success
+2026-08-19T18:34:18.901Z meeting_stop_stage session=31891F98-3B16-46BB-A088-78928C49D123 stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-19T18:34:18.902Z meeting_stop_stage session=31891F98-3B16-46BB-A088-78928C49D123 stage=queued_total duration_ms=709 outcome=success
+2026-08-19T19:00:01.913Z meeting_live_chunking_mode session=4B940F76-30F3-446D-AE5B-C2736FCE26D8 mode=vad reason=started
+2026-08-19T19:00:01.991Z system_audio_stream_screen_output_attached mode=discard
+2026-08-19T19:00:02.108Z system_audio_stream_started sr=48000 ch=2
+2026-08-19T19:00:02.109Z meeting_recording_started session=4B940F76-30F3-446D-AE5B-C2736FCE26D8 source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.systemOnly) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-19T19:00:02.119Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-08-19T19:07:36.134Z meeting_stop_stage session=4B940F76-30F3-446D-AE5B-C2736FCE26D8 stage=notes_commit duration_ms=3 outcome=success
+2026-08-19T19:07:36.136Z meeting_recording_stopping session=4B940F76-30F3-446D-AE5B-C2736FCE26D8
+2026-08-19T19:07:36.168Z system_audio_stream_stopped outcome=completed
+2026-08-19T19:07:36.170Z meeting_stop_stage session=4B940F76-30F3-446D-AE5B-C2736FCE26D8 stage=capture_stop duration_ms=33 outcome=success
+2026-08-19T19:07:36.183Z meeting_stop_stage session=4B940F76-30F3-446D-AE5B-C2736FCE26D8 stage=processing_drain duration_ms=12 outcome=success
+2026-08-19T19:07:36.191Z meeting_stop_stage session=4B940F76-30F3-446D-AE5B-C2736FCE26D8 stage=writer_finalize duration_ms=6 outcome=success
+2026-08-19T19:07:36.196Z meeting_stop_stage session=4B940F76-30F3-446D-AE5B-C2736FCE26D8 stage=source_urls duration_ms=4 outcome=success
+2026-08-19T19:07:36.197Z meeting_stop_stage session=4B940F76-30F3-446D-AE5B-C2736FCE26D8 stage=metadata_save duration_ms=1 outcome=success
+2026-08-19T19:07:36.432Z meeting_stop_stage session=4B940F76-30F3-446D-AE5B-C2736FCE26D8 stage=mix duration_ms=234 outcome=success
+2026-08-19T19:07:36.434Z meeting_stop_stage session=4B940F76-30F3-446D-AE5B-C2736FCE26D8 stage=notes_write duration_ms=0 outcome=success
+2026-08-19T19:07:36.436Z meeting_stop_stage session=4B940F76-30F3-446D-AE5B-C2736FCE26D8 stage=lock_write duration_ms=1 outcome=success
+2026-08-19T19:07:36.437Z meeting_cleaned_mic session=4B940F76-30F3-446D-AE5B-C2736FCE26D8 outcome=not_scheduled reason=rawRenderFailed
+2026-08-19T19:07:36.437Z meeting_stop_stage session=4B940F76-30F3-446D-AE5B-C2736FCE26D8 stage=cleaned_mic_schedule duration_ms=1 outcome=success
+2026-08-19T19:07:36.438Z meeting_stop_stage session=4B940F76-30F3-446D-AE5B-C2736FCE26D8 stage=cleanup duration_ms=0 outcome=success
+2026-08-19T19:07:36.439Z meeting_recording_stopped session=4B940F76-30F3-446D-AE5B-C2736FCE26D8 duration_s=454.525
+2026-08-19T19:07:36.440Z meeting_recording_health session=4B940F76-30F3-446D-AE5B-C2736FCE26D8 duration_s=454.525 source_mode=system_only mic_started=false requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=false system_first_buffer=true mic_bytes=0 system_bytes=376267 mixed_bytes=195770 mic_frames=0 system_frames=21794880 mic_chunks_enqueued=0 system_chunks_enqueued=0 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=0 mic_chunks_system_dominant_dropped=0 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-19T19:07:36.441Z meeting_echo_suppression_summary session=4B940F76-30F3-446D-AE5B-C2736FCE26D8 processor=localvqe loaded=true mic_frames=0 processed_frames=0 raw_fallback_frames=0 full_reference_frames=0 partial_reference_frames=0 missing_reference_frames=0 processing_failures=0 current_delay_samples=0 delay_confidence=0.000 delay_estimate_count=0 rejected_delay_estimates=0
+2026-08-19T19:07:36.442Z meeting_stop_stage session=4B940F76-30F3-446D-AE5B-C2736FCE26D8 stage=service_total duration_ms=306 outcome=success
+2026-08-19T19:07:36.442Z meeting_stop_stage session=4B940F76-30F3-446D-AE5B-C2736FCE26D8 stage=service_stop duration_ms=307 outcome=success
+2026-08-19T19:07:36.445Z meeting_stop_stage session=4B940F76-30F3-446D-AE5B-C2736FCE26D8 stage=prepare_row duration_ms=2 outcome=success
+2026-08-19T19:07:36.446Z meeting_stop_stage session=4B940F76-30F3-446D-AE5B-C2736FCE26D8 stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-19T19:07:36.447Z meeting_stop_stage session=4B940F76-30F3-446D-AE5B-C2736FCE26D8 stage=queued_total duration_ms=316 outcome=success
+2026-08-19T20:30:04.181Z meeting_live_chunking_mode session=F5638DE7-8759-4E01-B8BE-198A87A1D8B5 mode=vad reason=started
+2026-08-19T20:30:04.418Z system_audio_stream_screen_output_attached mode=discard
+2026-08-19T20:30:04.550Z system_audio_stream_first_buffer sr=48000 ch=2
+2026-08-19T20:30:04.717Z system_audio_stream_started sr=48000 ch=2
+2026-08-19T20:30:04.719Z meeting_recording_started session=F5638DE7-8759-4E01-B8BE-198A87A1D8B5 source_mode=Optional(MacParakeetCore.MeetingAudioSourceMode.systemOnly) requested_mic_mode=raw effective_mic_mode=raw
+2026-08-19T20:36:29.772Z meeting_stop_stage session=F5638DE7-8759-4E01-B8BE-198A87A1D8B5 stage=notes_commit duration_ms=3 outcome=success
+2026-08-19T20:36:29.775Z meeting_recording_stopping session=F5638DE7-8759-4E01-B8BE-198A87A1D8B5
+2026-08-19T20:36:29.818Z system_audio_stream_stopped outcome=completed
+2026-08-19T20:36:29.824Z meeting_stop_stage session=F5638DE7-8759-4E01-B8BE-198A87A1D8B5 stage=capture_stop duration_ms=46 outcome=success
+2026-08-19T20:36:29.838Z meeting_stop_stage session=F5638DE7-8759-4E01-B8BE-198A87A1D8B5 stage=processing_drain duration_ms=10 outcome=success
+2026-08-19T20:36:29.848Z meeting_stop_stage session=F5638DE7-8759-4E01-B8BE-198A87A1D8B5 stage=writer_finalize duration_ms=8 outcome=success
+2026-08-19T20:36:29.855Z meeting_stop_stage session=F5638DE7-8759-4E01-B8BE-198A87A1D8B5 stage=source_urls duration_ms=6 outcome=success
+2026-08-19T20:36:29.858Z meeting_stop_stage session=F5638DE7-8759-4E01-B8BE-198A87A1D8B5 stage=metadata_save duration_ms=1 outcome=success
+2026-08-19T20:36:32.187Z meeting_stop_stage session=F5638DE7-8759-4E01-B8BE-198A87A1D8B5 stage=mix duration_ms=2327 outcome=success
+2026-08-19T20:36:32.188Z meeting_stop_stage session=F5638DE7-8759-4E01-B8BE-198A87A1D8B5 stage=notes_write duration_ms=0 outcome=success
+2026-08-19T20:36:32.189Z meeting_stop_stage session=F5638DE7-8759-4E01-B8BE-198A87A1D8B5 stage=lock_write duration_ms=1 outcome=success
+2026-08-19T20:36:32.190Z meeting_cleaned_mic session=F5638DE7-8759-4E01-B8BE-198A87A1D8B5 outcome=not_scheduled reason=rawRenderFailed
+2026-08-19T20:36:32.191Z meeting_stop_stage session=F5638DE7-8759-4E01-B8BE-198A87A1D8B5 stage=cleaned_mic_schedule duration_ms=1 outcome=success
+2026-08-19T20:36:32.191Z meeting_stop_stage session=F5638DE7-8759-4E01-B8BE-198A87A1D8B5 stage=cleanup duration_ms=0 outcome=success
+2026-08-19T20:36:32.192Z meeting_recording_stopped session=F5638DE7-8759-4E01-B8BE-198A87A1D8B5 duration_s=388.219
+2026-08-19T20:36:32.193Z meeting_recording_health session=F5638DE7-8759-4E01-B8BE-198A87A1D8B5 duration_s=388.219 source_mode=system_only mic_started=false requested_mic_mode=raw effective_mic_mode=raw mic_first_buffer=false system_first_buffer=true mic_bytes=0 system_bytes=2903457 mixed_bytes=2568121 mic_frames=0 system_frames=18492480 mic_chunks_enqueued=0 system_chunks_enqueued=12 mic_chunks_low_signal_dropped=0 system_chunks_low_signal_dropped=0 mic_chunks_system_dominant_dropped=0 backpressure_drops=0 transcription_failures=0 interrupted_sources=none capture_failed=false
+2026-08-19T20:36:32.194Z meeting_echo_suppression_summary session=F5638DE7-8759-4E01-B8BE-198A87A1D8B5 processor=localvqe loaded=true mic_frames=0 processed_frames=0 raw_fallback_frames=0 full_reference_frames=0 partial_reference_frames=0 missing_reference_frames=0 processing_failures=0 current_delay_samples=0 delay_confidence=0.000 delay_estimate_count=0 rejected_delay_estimates=0
+2026-08-19T20:36:32.195Z meeting_stop_stage session=F5638DE7-8759-4E01-B8BE-198A87A1D8B5 stage=service_total duration_ms=2420 outcome=success
+2026-08-19T20:36:32.195Z meeting_stop_stage session=F5638DE7-8759-4E01-B8BE-198A87A1D8B5 stage=service_stop duration_ms=2421 outcome=success
+2026-08-19T20:36:32.198Z meeting_stop_stage session=F5638DE7-8759-4E01-B8BE-198A87A1D8B5 stage=prepare_row duration_ms=2 outcome=success
+2026-08-19T20:36:32.199Z meeting_stop_stage session=F5638DE7-8759-4E01-B8BE-198A87A1D8B5 stage=queue_enqueue duration_ms=0 outcome=success
+2026-08-19T20:36:32.202Z meeting_stop_stage session=F5638DE7-8759-4E01-B8BE-198A87A1D8B5 stage=queued_total duration_ms=2434 outcome=success

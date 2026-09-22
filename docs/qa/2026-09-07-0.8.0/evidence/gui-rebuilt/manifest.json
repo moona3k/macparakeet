@@ -1,0 +1,104 @@
+{
+  "candidate": "3827999ddb84c8a8e0edcb3ac190e66813fc95fe",
+  "inspected": true,
+  "files": [
+    {
+      "path": "updated-markdown-preview.png",
+      "sha256": "dc958e5793aaf19c5eacc3e3611bdca6c300fe66b9799feb9d4a95bd910d509e",
+      "bytes": 972705,
+      "candidate": "3827999ddb84c8a8e0edcb3ac190e66813fc95fe"
+    },
+    {
+      "path": "updated-markdown-bottom.png",
+      "sha256": "76d1a946ce213b911b580c5920f3505d4a91b5154914385879085b362caf71d0",
+      "bytes": 1018667,
+      "candidate": "3827999ddb84c8a8e0edcb3ac190e66813fc95fe"
+    },
+    {
+      "path": "updated-chat.png",
+      "sha256": "5f54ffa8a1a2266196892b345a36e09e37ab1914fca089a7ed9d03da11d8e342",
+      "bytes": 1022097,
+      "candidate": "3827999ddb84c8a8e0edcb3ac190e66813fc95fe"
+    },
+    {
+      "path": "updated-timed-alpha.png",
+      "sha256": "b2fbf36180e3811f8e4416b88e15c6d26f663e506f35f5f339e77790548d4cb3",
+      "bytes": 858252,
+      "candidate": "3827999ddb84c8a8e0edcb3ac190e66813fc95fe"
+    },
+    {
+      "path": "updated-timed-bravo.png",
+      "sha256": "0fa1b21e29e275749a38c2c5ce73e74ca4cddd3d7b73d3eeea85b57a7d40d2e7",
+      "bytes": 855430,
+      "candidate": "3827999ddb84c8a8e0edcb3ac190e66813fc95fe"
+    },
+    {
+      "path": "updated-timed-long-top.png",
+      "sha256": "35687cc9251342360eae29b8887580037f4a8d9313531801739e7c9dcb0065ec",
+      "bytes": 802576,
+      "candidate": "3827999ddb84c8a8e0edcb3ac190e66813fc95fe"
+    },
+    {
+      "path": "updated-timed-long-bottom.png",
+      "sha256": "582c4d617865b4ee4388522982f6545e570a7df4865b70b1d1fb82697f818e84",
+      "bytes": 980821,
+      "candidate": "3827999ddb84c8a8e0edcb3ac190e66813fc95fe"
+    },
+    {
+      "path": "summary-copy.txt",
+      "sha256": "40a610ae7788cfe24bedc631e72a58f79b6ec8c6d6451d96d277a55c99bdc3d8",
+      "bytes": 1038,
+      "candidate": "3827999ddb84c8a8e0edcb3ac190e66813fc95fe"
+    },
+    {
+      "path": "table-copy.txt",
+      "sha256": "c0f8547e22c1171463b9fe2e466d8ab9da337b2b008d23d146c6a6b2f9a1c39d",
+      "bytes": 361,
+      "candidate": "3827999ddb84c8a8e0edcb3ac190e66813fc95fe"
+    },
+    {
+      "path": "results.json",
+      "sha256": "d2cc26c1613b1d2b5607b7a904e5986b42c3ee538920c4701e16fba6ec088f86",
+      "bytes": 1489,
+      "candidate": "3827999ddb84c8a8e0edcb3ac190e66813fc95fe"
+    },
+    {
+      "path": "notes-empty-current.png",
+      "sha256": "12b69ae4d3d5e5ce37f36584c51774244e96d0a04b0f7a856d39a37c699b8393",
+      "bytes": 601938,
+      "candidate": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3"
+    },
+    {
+      "path": "notes-autosaved-current.png",
+      "sha256": "10edcd318f5a34481fdeedf6725e2735ff0a0122573b0484c902dd2ebf503cb0",
+      "bytes": 899951,
+      "candidate": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3"
+    },
+    {
+      "path": "notes-reopened-current.png",
+      "sha256": "c896cc6533d46e18dd4fd04d930a608c378e3341a085347ace0c84852dff072e",
+      "bytes": 915441,
+      "candidate": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3"
+    },
+    {
+      "path": "saved-notes-gui-results.json",
+      "sha256": "0e5d7250a1b6bdffee27d7393d6b7428ffb723609a7920b9073ac80ec2ee7c50",
+      "bytes": 1426,
+      "candidate": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3"
+    },
+    {
+      "path": "copy-controls-current.json",
+      "sha256": "d25913451859ef580537482739660c48af289cfccf091c8e168524d1b0b02204",
+      "bytes": 355,
+      "candidate": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3"
+    }
+  ],
+  "excluded": [
+    "code-copy.txt: unverified clipboard content; original preserved outside repository",
+    "raw AX trees and clipboard backups",
+    "interrupted notes attempt containing unrelated user input; private originals remain outside curated evidence"
+  ],
+  "latestCandidate": "250bbe2994a4b60b4ef81ac257f0ee6bb70874d3",
+  "candidateNote": "Initial rebuilt GUI files belong to the first candidate; each file records its exact candidate. Later notes and Copy receipts belong to the combined saved-notes build.",
+  "privacy": "Screenshots contain inspected app-window synthetic/public QA content. Newly copied notes PNGs were individually inspected after root reran the interrupted attempt; JSON receipts contain synthetic notes and Boolean check results. Files are copied unchanged. No raw clipboard contents, clipboard backups, private input, private note captures, or raw AX trees were added."
+}

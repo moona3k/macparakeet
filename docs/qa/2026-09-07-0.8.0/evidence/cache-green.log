@@ -1,0 +1,84 @@
+[1/1] Compiling plugin GenerateManual
+[2/2] Compiling plugin GenerateDoccReference
+Building for debugging...
+[2/11] Write sources
+[4/11] Write swift-version--58304C5D6DBC2206.txt
+[6/10] Compiling MacParakeet TranscriptResultView.swift
+[7/10] Emitting module MacParakeet
+[8/11] Compiling MacParakeet MainWindowView.swift
+[8/12] Write Objects.LinkFileList
+[9/12] Linking MacParakeet
+[10/12] Applying MacParakeet
+[12/14] Compiling MacParakeetTests TranscriptSegmentCacheTests.swift
+[13/14] Emitting module MacParakeetTests
+[13/15] Write Objects.LinkFileList
+[14/15] Linking MacParakeetPackageTests
+Build complete! (55.93s)
+Test Suite 'Selected tests' started at 2026-09-07 15:21:28.112.
+Test Suite 'MacParakeetPackageTests.xctest' started at 2026-09-07 15:21:28.113.
+Test Suite 'TranscriptBodyLayoutTests' started at 2026-09-07 15:21:28.113.
+Test Case '-[MacParakeetTests.TranscriptBodyLayoutTests testDebugOverrideParsing]' started.
+Test Case '-[MacParakeetTests.TranscriptBodyLayoutTests testDebugOverrideParsing]' passed (0.002 seconds).
+Test Case '-[MacParakeetTests.TranscriptBodyLayoutTests testPendingRowCountStaysLazyUntilDetachedCacheFinishes]' started.
+Test Case '-[MacParakeetTests.TranscriptBodyLayoutTests testPendingRowCountStaysLazyUntilDetachedCacheFinishes]' passed (0.000 seconds).
+Test Case '-[MacParakeetTests.TranscriptBodyLayoutTests testReporterScaleTranscriptsStayLazy]' started.
+Test Case '-[MacParakeetTests.TranscriptBodyLayoutTests testReporterScaleTranscriptsStayLazy]' passed (0.000 seconds).
+Test Case '-[MacParakeetTests.TranscriptBodyLayoutTests testRowTextSelectionIsOnByDefault]' started.
+Test Case '-[MacParakeetTests.TranscriptBodyLayoutTests testRowTextSelectionIsOnByDefault]' passed (0.000 seconds).
+Test Case '-[MacParakeetTests.TranscriptBodyLayoutTests testSmallTranscriptsRenderNonLazily]' started.
+Test Case '-[MacParakeetTests.TranscriptBodyLayoutTests testSmallTranscriptsRenderNonLazily]' passed (0.000 seconds).
+Test Suite 'TranscriptBodyLayoutTests' passed at 2026-09-07 15:21:28.117.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+Test Suite 'TranscriptResultActionsTests' started at 2026-09-07 15:21:28.117.
+Test Case '-[MacParakeetTests.TranscriptResultActionsTests testBulkExportCancellationAfterFinalFileKeepsCompletedExport]' started.
+Test Case '-[MacParakeetTests.TranscriptResultActionsTests testBulkExportCancellationAfterFinalFileKeepsCompletedExport]' passed (0.012 seconds).
+Test Case '-[MacParakeetTests.TranscriptResultActionsTests testBulkExportCancellationDoesNotDeleteReplacementFile]' started.
+Test Case '-[MacParakeetTests.TranscriptResultActionsTests testBulkExportCancellationDoesNotDeleteReplacementFile]' passed (0.005 seconds).
+Test Case '-[MacParakeetTests.TranscriptResultActionsTests testBulkExportCancellationRemovesPartialFilesAndCreatedDirectory]' started.
+Test Case '-[MacParakeetTests.TranscriptResultActionsTests testBulkExportCancellationRemovesPartialFilesAndCreatedDirectory]' passed (0.003 seconds).
+Test Case '-[MacParakeetTests.TranscriptResultActionsTests testBulkExportCompleteSuccessRequiresEveryRequestedFile]' started.
+Test Case '-[MacParakeetTests.TranscriptResultActionsTests testBulkExportCompleteSuccessRequiresEveryRequestedFile]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.TranscriptResultActionsTests testBulkExportResolvesOptionsPerTranscript]' started.
+Test Case '-[MacParakeetTests.TranscriptResultActionsTests testBulkExportResolvesOptionsPerTranscript]' passed (0.004 seconds).
+Test Case '-[MacParakeetTests.TranscriptResultActionsTests testBulkExportUsesEffectiveDisplayTitleForFilenames]' started.
+Test Case '-[MacParakeetTests.TranscriptResultActionsTests testBulkExportUsesEffectiveDisplayTitleForFilenames]' passed (0.002 seconds).
+Test Case '-[MacParakeetTests.TranscriptResultActionsTests testBulkExportUsesOriginalFilenameForUnrenamedLocalFile]' started.
+Test Case '-[MacParakeetTests.TranscriptResultActionsTests testBulkExportUsesOriginalFilenameForUnrenamedLocalFile]' passed (0.002 seconds).
+Test Case '-[MacParakeetTests.TranscriptResultActionsTests testBulkExportWritesCollisionSafeFiles]' started.
+Test Case '-[MacParakeetTests.TranscriptResultActionsTests testBulkExportWritesCollisionSafeFiles]' passed (0.005 seconds).
+Test Case '-[MacParakeetTests.TranscriptResultActionsTests testBulkExportWritesDAPTWithCompoundExtension]' started.
+Test Case '-[MacParakeetTests.TranscriptResultActionsTests testBulkExportWritesDAPTWithCompoundExtension]' passed (0.003 seconds).
+Test Suite 'TranscriptResultActionsTests' passed at 2026-09-07 15:21:28.154.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.036 (0.037) seconds
+Test Suite 'TranscriptSegmentCacheTests' started at 2026-09-07 15:21:28.154.
+Test Case '-[MacParakeetTests.TranscriptSegmentCacheTests testChangingTranscriptionHidesPreviouslyPublishedRowsBeforeRebuildStarts]' started.
+Test Case '-[MacParakeetTests.TranscriptSegmentCacheTests testChangingTranscriptionHidesPreviouslyPublishedRowsBeforeRebuildStarts]' passed (0.001 seconds).
+Test Case '-[MacParakeetTests.TranscriptSegmentCacheTests testReplacementStaysEmptyWhilePendingAndRejectsPreviousRecordCompletion]' started.
+Test Case '-[MacParakeetTests.TranscriptSegmentCacheTests testReplacementStaysEmptyWhilePendingAndRejectsPreviousRecordCompletion]' passed (0.000 seconds).
+Test Case '-[MacParakeetTests.TranscriptSegmentCacheTests testSameRecordRefreshKeepsItsRowsButOnlyLatestRequestCanPublish]' started.
+Test Case '-[MacParakeetTests.TranscriptSegmentCacheTests testSameRecordRefreshKeepsItsRowsButOnlyLatestRequestCanPublish]' passed (0.000 seconds).
+Test Case '-[MacParakeetTests.TranscriptSegmentCacheTests testUntimedReplacementClearsRowsAndInvalidatesPendingBuilder]' started.
+Test Case '-[MacParakeetTests.TranscriptSegmentCacheTests testUntimedReplacementClearsRowsAndInvalidatesPendingBuilder]' passed (0.000 seconds).
+Test Suite 'TranscriptSegmentCacheTests' passed at 2026-09-07 15:21:28.156.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'TranscriptTimestampedLayoutSmokeTests' started at 2026-09-07 15:21:28.156.
+Test Case '-[MacParakeetTests.TranscriptTimestampedLayoutSmokeTests testFlatRowsSettleAfterScrolling]' started.
+Test Case '-[MacParakeetTests.TranscriptTimestampedLayoutSmokeTests testFlatRowsSettleAfterScrolling]' passed (2.411 seconds).
+Test Case '-[MacParakeetTests.TranscriptTimestampedLayoutSmokeTests testLimitSizedTranscriptRendersNonLazilyAndSettles]' started.
+Test Case '-[MacParakeetTests.TranscriptTimestampedLayoutSmokeTests testLimitSizedTranscriptRendersNonLazilyAndSettles]' passed (3.932 seconds).
+Test Case '-[MacParakeetTests.TranscriptTimestampedLayoutSmokeTests testReporterScaleSingleSpeakerUsesLazyBranchAndSettles]' started.
+Test Case '-[MacParakeetTests.TranscriptTimestampedLayoutSmokeTests testReporterScaleSingleSpeakerUsesLazyBranchAndSettles]' passed (2.800 seconds).
+Test Case '-[MacParakeetTests.TranscriptTimestampedLayoutSmokeTests testSpeakerCardsSettleAfterScrolling]' started.
+Test Case '-[MacParakeetTests.TranscriptTimestampedLayoutSmokeTests testSpeakerCardsSettleAfterScrolling]' passed (2.306 seconds).
+Test Case '-[MacParakeetTests.TranscriptTimestampedLayoutSmokeTests testTenThousandWordTranscriptRealizesOnlyLazyChildren]' started.
+Test Case '-[MacParakeetTests.TranscriptTimestampedLayoutSmokeTests testTenThousandWordTranscriptRealizesOnlyLazyChildren]' passed (0.404 seconds).
+Test Suite 'TranscriptTimestampedLayoutSmokeTests' passed at 2026-09-07 15:21:40.010.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 11.854 (11.855) seconds
+Test Suite 'MacParakeetPackageTests.xctest' passed at 2026-09-07 15:21:40.011.
+	 Executed 23 tests, with 0 failures (0 unexpected) in 11.894 (11.897) seconds
+Test Suite 'Selected tests' passed at 2026-09-07 15:21:40.011.
+	 Executed 23 tests, with 0 failures (0 unexpected) in 11.894 (11.899) seconds
+◇ Test run started.
+↳ Testing Library Version: 1743
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.

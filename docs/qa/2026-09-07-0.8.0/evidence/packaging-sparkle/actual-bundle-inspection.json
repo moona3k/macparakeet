@@ -1,0 +1,7 @@
+{
+  "candidateCommit": "afa6fb3db30685fe1fe3e374e02093ec117184f4",
+  "sparkleRootIsSymlink": true,
+  "linkTarget": "<QA_WORKTREE>/.build/xcode-dev/Build/Products/Release/Sparkle.framework",
+  "codesignVerifyExit": 1,
+  "fixtureExit": 0
+}

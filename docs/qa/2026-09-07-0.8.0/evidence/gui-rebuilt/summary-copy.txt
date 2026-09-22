@@ -1,0 +1,37 @@
+# QA rich Markdown summary
+
+## Release review
+
+This is **bold fixture text**, *italic fixture text*, and `inline_code`.
+These synthetic results were seeded locally; no model generated them.
+
+| Check | Owner | Expected result |
+| :--- | :--- | :--- |
+| Timed rows | QA ALPHA Speaker | Copper lantern appears only in ALPHA |
+| Replacement | QA BRAVO Speaker | Silver meadow appears only in BRAVO |
+| Long scroll | QA LONG Speaker One | Final sentence 1000 remains reachable |
+
+### Code sample
+
+```json
+{
+  "fixture": "release-0.8.0",
+  "localOnly": true,
+  "expectedWords": 10000
+}
+```
+
+> QA quotation: selection should remain readable across wrapped lines.
+
+1. Inspect heading hierarchy and table alignment.
+2. Select text and copy the complete result.
+3. Export Markdown and compare it with the saved source.
+
+- [x] Synthetic fixture prepared
+- [ ] GUI rendering verified
+
+[QA HTTPS link](https://example.com/qa-fixture)
+
+[QA blocked file link](file:///tmp/macparakeet-qa-fixture-never-created.txt)
+
+End marker: **QA MARKDOWN COMPLETE**.

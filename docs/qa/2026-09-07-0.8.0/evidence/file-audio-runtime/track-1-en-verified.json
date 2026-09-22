@@ -1,0 +1,156 @@
+{
+  "audioTrackOrdinal": 0,
+  "createdAt": "2026-09-07T22:29:27Z",
+  "derivedSnippet": "However, due to the slow communication channels, styles in the West could lag behind by twenty five to thirty years.",
+  "derivedTitle": "However, due to the slow communication channels, styles in the West could lag…",
+  "durationMs": 8720,
+  "engine": "nemotron",
+  "engineVariant": "multilingual-1120ms",
+  "fileName": "two-tracks.mkv",
+  "filePath": "<QA_ROOT>/audio-runtime/two-tracks.mkv",
+  "fileSizeBytes": 678303,
+  "id": "77B8C124-BC72-455E-A978-2302AC5C270B",
+  "isFavorite": false,
+  "isTranscriptEdited": false,
+  "language": "en",
+  "rawTranscript": "However, due to the slow communication channels, styles in the West could lag behind by twenty five to thirty years.",
+  "recoveredFromCrash": false,
+  "sourceType": "file",
+  "status": "completed",
+  "transcriptSegments": [
+    {
+      "endMs": 8720,
+      "id": "2A6D5D37-FB88-46DC-8772-A26A9219FD2F",
+      "speakerLabel": "Unknown Speaker",
+      "startMs": 1200,
+      "text": "However, due to the slow communication channels, styles in the West could lag behind by twenty five to thirty years",
+      "wordRange": {
+        "endIndexExclusive": 20,
+        "startIndex": 0
+      }
+    }
+  ],
+  "updatedAt": "2026-09-07T22:29:28Z",
+  "wordTimestamps": [
+    {
+      "confidence": 1,
+      "endMs": 2320,
+      "startMs": 1200,
+      "word": "However,"
+    },
+    {
+      "confidence": 1,
+      "endMs": 2320,
+      "startMs": 2240,
+      "word": "due"
+    },
+    {
+      "confidence": 1,
+      "endMs": 2480,
+      "startMs": 2400,
+      "word": "to"
+    },
+    {
+      "confidence": 1,
+      "endMs": 2640,
+      "startMs": 2560,
+      "word": "the"
+    },
+    {
+      "confidence": 1,
+      "endMs": 2720,
+      "startMs": 2640,
+      "word": "slow"
+    },
+    {
+      "confidence": 1,
+      "endMs": 3120,
+      "startMs": 2880,
+      "word": "communication"
+    },
+    {
+      "confidence": 1,
+      "endMs": 4560,
+      "startMs": 3520,
+      "word": "channels,"
+    },
+    {
+      "confidence": 1,
+      "endMs": 4960,
+      "startMs": 4720,
+      "word": "styles"
+    },
+    {
+      "confidence": 1,
+      "endMs": 5280,
+      "startMs": 5200,
+      "word": "in"
+    },
+    {
+      "confidence": 1,
+      "endMs": 5440,
+      "startMs": 5360,
+      "word": "the"
+    },
+    {
+      "confidence": 1,
+      "endMs": 5840,
+      "startMs": 5600,
+      "word": "West"
+    },
+    {
+      "confidence": 1,
+      "endMs": 6080,
+      "startMs": 6000,
+      "word": "could"
+    },
+    {
+      "confidence": 1,
+      "endMs": 6400,
+      "startMs": 6160,
+      "word": "lag"
+    },
+    {
+      "confidence": 1,
+      "endMs": 6880,
+      "startMs": 6720,
+      "word": "behind"
+    },
+    {
+      "confidence": 1,
+      "endMs": 7360,
+      "startMs": 7280,
+      "word": "by"
+    },
+    {
+      "confidence": 1,
+      "endMs": 7760,
+      "startMs": 7680,
+      "word": "twenty"
+    },
+    {
+      "confidence": 1,
+      "endMs": 8080,
+      "startMs": 8000,
+      "word": "five"
+    },
+    {
+      "confidence": 1,
+      "endMs": 8240,
+      "startMs": 8160,
+      "word": "to"
+    },
+    {
+      "confidence": 1,
+      "endMs": 8480,
+      "startMs": 8320,
+      "word": "thirty"
+    },
+    {
+      "confidence": 1,
+      "endMs": 8720,
+      "startMs": 8560,
+      "word": "years"
+    }
+  ]
+}

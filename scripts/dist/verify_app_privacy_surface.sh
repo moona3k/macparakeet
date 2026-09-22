@@ -67,7 +67,54 @@ require_entitlement_true() {
   fi
 }
 
+require_exact_ats_surface() {
+  # Allowlist, not a presence check: the intended ATS policy is
+  # NSAllowsLocalNetworking plus exactly one CGNAT exception domain
+  # carrying exactly one attribute. Anything else — an extra exception
+  # domain, an over-permissive attribute inside the approved domain (e.g.
+  # NSExceptionAllowsInsecureHTTPSLoads, NSIncludesSubdomains, a lowered
+  # TLS minimum), or NSAllowsArbitraryLoads/…InWebContent/…ForMedia set to
+  # true — must fail the gate rather than pass silently.
+  local surface
+  surface="$(plutil -extract NSAppTransportSecurity json -o - "$INFO_PLIST" 2>/dev/null || echo '{}')"
+  python3 - "$surface" <<'PY' || fail "NSAppTransportSecurity does not match the approved allowlist"
+import json
+import sys
+
+surface = json.loads(sys.argv[1])
+
+# These three may be present as an explicit false, but never true or absent-with-truthy-intent elsewhere.
+for key in (
+    "NSAllowsArbitraryLoads",
+    "NSAllowsArbitraryLoadsInWebContent",
+    "NSAllowsArbitraryLoadsForMedia",
+):
+    if surface.get(key) is False:
+        del surface[key]
+
+expected = {
+    "NSAllowsLocalNetworking": True,
+    "NSExceptionDomains": {
+        "100.64.0.0/10": {
+            "NSExceptionAllowsInsecureHTTPLoads": True,
+        },
+    },
+}
+
+if surface != expected:
+    print(
+        "got {} expected {}".format(
+            json.dumps(surface, sort_keys=True),
+            json.dumps(expected, sort_keys=True),
+        ),
+        file=sys.stderr,
+    )
+    sys.exit(1)
+PY
+}
+
 require_info_value "CFBundleIdentifier" "$EXPECTED_BUNDLE_ID"
+require_exact_ats_surface
 
 require_info_string "NSMicrophoneUsageDescription"
 require_info_string "NSAudioCaptureUsageDescription"

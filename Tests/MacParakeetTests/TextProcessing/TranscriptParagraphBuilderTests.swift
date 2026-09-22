@@ -33,7 +33,7 @@ final class TranscriptParagraphBuilderTests: XCTestCase {
     func testStartsANewParagraphWhenTheSpeakerChanges() {
         let words = [
             word("Hello", startMs: 0, endMs: 300, speakerId: "speaker-1"),
-            word("there", startMs: 350, endMs: 650),
+            word("there", startMs: 350, endMs: 650, speakerId: "speaker-1"),
             word("Hi", startMs: 700, endMs: 900, speakerId: "speaker-2"),
         ]
 
@@ -82,9 +82,9 @@ final class TranscriptParagraphBuilderTests: XCTestCase {
     func testCarriesSpeakerIdentityAcrossSentenceBoundaries() {
         let words = [
             word("First.", startMs: 0, endMs: 300, speakerId: "speaker-1"),
-            word("Second.", startMs: 350, endMs: 650),
-            word("Third.", startMs: 700, endMs: 1_000),
-            word("Fourth.", startMs: 1_050, endMs: 1_350),
+            word("Second.", startMs: 350, endMs: 650, speakerId: "speaker-1"),
+            word("Third.", startMs: 700, endMs: 1_000, speakerId: "speaker-1"),
+            word("Fourth.", startMs: 1_050, endMs: 1_350, speakerId: "speaker-1"),
         ]
 
         let paragraphs = TranscriptParagraphBuilder.build(from: words)
@@ -104,6 +104,27 @@ final class TranscriptParagraphBuilderTests: XCTestCase {
 
         XCTAssertEqual(paragraphs.count, 2)
         XCTAssertEqual(paragraphs[0].endMs, 1_000)
+    }
+
+    func testUnassignedWordsStartTheirOwnParagraphAndDoNotInheritSpeaker() {
+        let words = [
+            word("First.", startMs: 0, endMs: 100, speakerId: "speaker-1"),
+            word("Unassigned.", startMs: 150, endMs: 250),
+            word("Again.", startMs: 300, endMs: 400, speakerId: "speaker-1"),
+        ]
+        let paragraphs = TranscriptParagraphBuilder.build(from: words)
+        XCTAssertEqual(paragraphs.map(\.speakerId), ["speaker-1", nil, "speaker-1"])
+        XCTAssertEqual(paragraphs.map(\.text), ["First.", "Unassigned.", "Again."])
+    }
+
+    func testUnassignedAfterSentenceLimitDoesNotInheritSpeaker() {
+        let words = [
+            word("One.", startMs: 0, endMs: 100, speakerId: "speaker-1"),
+            word("Two.", startMs: 150, endMs: 250, speakerId: "speaker-1"),
+            word("Three.", startMs: 300, endMs: 400, speakerId: "speaker-1"),
+            word("Unassigned.", startMs: 450, endMs: 550),
+        ]
+        XCTAssertEqual(TranscriptParagraphBuilder.build(from: words).map(\.speakerId), ["speaker-1", nil])
     }
 
     private func word(

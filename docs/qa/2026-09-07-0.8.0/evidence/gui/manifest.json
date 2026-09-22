@@ -1,0 +1,143 @@
+{
+  "candidate": "8548c099af5ee2ab0ed4dd9efe757d85c498cca0",
+  "app_bundle_id": "com.macparakeet.qa.release080",
+  "observed_app_pid": 98237,
+  "scope": "Baseline GUI observations performed by root; report agent inspected files only.",
+  "privacy_review": "Each copied image was individually inspected with view_image. Only the QA app window and synthetic/public fixture content are present. No file-panel shots or raw AX trees are included.",
+  "source_directory": "/tmp/macparakeet-080-qa/evidence",
+  "files": [
+    {
+      "name": "vocabulary-1025-ordinary.png",
+      "sha256": "980b4cd748ae2d643cda35b29ce876cb830bd75d40e8c4070435c281aa7beed4",
+      "bytes": 802460,
+      "width": 2712,
+      "height": 1938,
+      "inspection": "window-only; synthetic/public content; copied unchanged"
+    },
+    {
+      "name": "vocabulary-delete-confirmation.png",
+      "sha256": "6a7f841b15b564e40f0ee1e3e8e034448a8ef5c3f7d169b73fede0d60a3dd939",
+      "bytes": 839397,
+      "width": 2712,
+      "height": 1938,
+      "inspection": "window-only; synthetic/public content; copied unchanged"
+    },
+    {
+      "name": "vocabulary-deleted-two.png",
+      "sha256": "b88f788d2bd4eb0d7a97679dde4090690c0da68e5041860f5910229bcc6e6752",
+      "bytes": 806187,
+      "width": 2712,
+      "height": 1938,
+      "inspection": "window-only; synthetic/public content; copied unchanged"
+    },
+    {
+      "name": "vocabulary-97-matching.png",
+      "sha256": "1a19343c16a204a3da49635b88c5c2f990de88da9456ee59bd4695f08045c131",
+      "bytes": 795441,
+      "width": 2712,
+      "height": 1938,
+      "inspection": "window-only; synthetic/public content; copied unchanged"
+    },
+    {
+      "name": "vocabulary-filter-deleted.png",
+      "sha256": "10047b00288255939ec911e3840dba3637cd867d87796b1cc554e7fa846bdaed",
+      "bytes": 717164,
+      "width": 2712,
+      "height": 1938,
+      "inspection": "window-only; synthetic/public content; copied unchanged"
+    },
+    {
+      "name": "vocabulary-delete-all-confirmation.png",
+      "sha256": "6597c7534c334c226427cefcd72fe6ff938514c04fe5b1839814ebe39b516556",
+      "bytes": 1076818,
+      "width": 2800,
+      "height": 2026,
+      "inspection": "window-only; synthetic/public content; copied unchanged"
+    },
+    {
+      "name": "vocabulary-empty-after-delete.png",
+      "sha256": "f9f90088b6d606b7d04e1defe1779fd801d26fe756023b576c780288debf6c4c",
+      "bytes": 953115,
+      "width": 2800,
+      "height": 2026,
+      "inspection": "window-only; synthetic/public content; copied unchanged"
+    },
+    {
+      "name": "transcribe-track-picker-ready.png",
+      "sha256": "4520fa3c2b7c81a7745d6188c7517ffad2c58464fab73504b1ff2c083a50bf15",
+      "bytes": 900149,
+      "width": 2800,
+      "height": 2026,
+      "inspection": "window-only; synthetic/public content; copied unchanged"
+    },
+    {
+      "name": "transcribe-timed-result.png",
+      "sha256": "304e17b46275332befe2ab88e3b0adc2a560c608864bab338194e51b531f51c0",
+      "bytes": 876446,
+      "width": 2800,
+      "height": 2026,
+      "inspection": "window-only; synthetic/public content; copied unchanged"
+    },
+    {
+      "name": "transcribe-export-dapt-options.png",
+      "sha256": "f3cbdec5c2154b1b5cf3138454ed400095ed64bd3b2de3823f055843c0bb679b",
+      "bytes": 988115,
+      "width": 2800,
+      "height": 2026,
+      "inspection": "window-only; synthetic/public content; copied unchanged"
+    },
+    {
+      "name": "transcribe-edit-persisted.png",
+      "sha256": "2369a99d83585e68ac34dcc5dc32d45896a7bb44c9d1812b3463192b2a55f31d",
+      "bytes": 589322,
+      "width": 2712,
+      "height": 1938,
+      "inspection": "window-only; synthetic/public content; copied unchanged"
+    },
+    {
+      "name": "library-grid.png",
+      "sha256": "e8ce71da442d45fdc3c453233b2ea8cf1cab564ce749d857019a6e3e603e4a47",
+      "bytes": 782318,
+      "width": 2800,
+      "height": 2026,
+      "inspection": "window-only; synthetic/public content; copied unchanged"
+    },
+    {
+      "name": "library-list.png",
+      "sha256": "fd86e35ab0a8f2c510e0942ff9a98efc6379f49fa085b2c29ef3a28f6f36fd2a",
+      "bytes": 541637,
+      "width": 2712,
+      "height": 1938,
+      "inspection": "window-only; synthetic/public content; copied unchanged"
+    },
+    {
+      "name": "gui-track-persistence.json",
+      "sha256": "db44990c53388947baeb0140ce5e0c0c9e48c7150705dae254df17ee01da5756",
+      "bytes": 286,
+      "inspection": "reviewed synthetic persistence or owned-file validator output; copied unchanged"
+    },
+    {
+      "name": "gui-edited-persistence.json",
+      "sha256": "6bec7e4f7255042fa5d460e7ae4a1c01e69f40f35ad3d8d95cfe3409ad6480da",
+      "bytes": 254,
+      "inspection": "reviewed synthetic persistence or owned-file validator output; copied unchanged"
+    },
+    {
+      "name": "gui-dapt-validation.log",
+      "sha256": "b32bf926d130c9d4e884d422716b855e8b703130af9e34741d3e5b5ac4a19b81",
+      "bytes": 214,
+      "inspection": "reviewed synthetic persistence or owned-file validator output; copied unchanged"
+    },
+    {
+      "name": "gui-dapt-bbc.json",
+      "sha256": "fdd2c5d72e2c7eabfeb9871923730d1a7ed10accacf54ec4c972a75af8688033",
+      "bytes": 3262,
+      "inspection": "reviewed synthetic persistence or owned-file validator output; copied unchanged"
+    }
+  ],
+  "excluded_examples": {
+    "transcribe-export-dapt-success.png": "4x4-pixel dark capture; does not substantiate the export toast",
+    "transcribe-edited-saved.png": "Earlier unsuccessful input attempt; still shows original text",
+    "file panels and raw AX JSON": "May expose real-home/sidebar/Apple Recents metadata; not copied"
+  }
+}

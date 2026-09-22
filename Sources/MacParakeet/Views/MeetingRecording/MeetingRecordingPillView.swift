@@ -72,6 +72,18 @@ struct MeetingRecordingPillView: View {
         switch viewModel.state {
         case .idle:
             EmptyView()
+        case .starting:
+            iconPill {
+                MerkabaPillIcon(isAnimating: false, audioLevel: 0)
+                    .opacity(0.45)
+            }
+            .onTapGesture { onTap?() }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Starting meeting audio capture")
+            .accessibilityAction { onTap?() }
+            .accessibilityAction(named: Text("Stop starting meeting")) {
+                viewModel.onStop?()
+            }
         case .recording, .paused:
             // Paused shares the recording pill structure (rosette + capsule
             // + hover badge) but renders the rosette dimmed with a pause
@@ -91,7 +103,8 @@ struct MeetingRecordingPillView: View {
             iconPill {
                 MeetingCompletionCheckmarkView()
             }
-            .transition(.scale(scale: 0.8).combined(with: .opacity).animation(.spring(response: 0.35, dampingFraction: 0.7)))
+            .transition(
+                .scale(scale: 0.8).combined(with: .opacity).animation(.spring(response: 0.35, dampingFraction: 0.7)))
         case .error(let message):
             statusPill(
                 icon: AnyView(
@@ -103,7 +116,7 @@ struct MeetingRecordingPillView: View {
         }
     }
 
-    /// Icon-only pill — used for transcribing (merkaba) and completed (checkmark).
+    /// Icon-only pill — used for starting, transcribing, and completed.
     private func iconPill<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
             .padding(12)
@@ -188,11 +201,15 @@ struct MeetingRecordingPillView: View {
         .padding(.vertical, 6)
         .background(
             Capsule()
-                .fill(isHovered ? DesignSystem.Colors.meetingPillBackgroundHover : DesignSystem.Colors.meetingPillBackground)
+                .fill(
+                    isHovered
+                        ? DesignSystem.Colors.meetingPillBackgroundHover : DesignSystem.Colors.meetingPillBackground
+                )
                 .overlay(
                     Capsule()
                         .stroke(
-                            isHovered ? DesignSystem.Colors.meetingPillStrokeHover : DesignSystem.Colors.meetingPillStroke,
+                            isHovered
+                                ? DesignSystem.Colors.meetingPillStrokeHover : DesignSystem.Colors.meetingPillStroke,
                             lineWidth: 0.5
                         )
                 )

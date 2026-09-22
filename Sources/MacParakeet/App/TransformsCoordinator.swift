@@ -27,6 +27,7 @@ final class TransformsCoordinator {
     private let llmServiceProvider: () -> LLMServiceProtocol?
     private let promptRepository: PromptRepositoryProtocol
     private let historyRepository: TransformHistoryRepositoryProtocol?
+    private let activeModelNameProvider: () -> String?
     private let reservedHotkeysProvider: () -> [TransformShortcutReservedHotkey]
     private let onLLMProviderRequired: () -> Void
     private let logger = Logger(subsystem: "com.macparakeet", category: "TransformsCoordinator")
@@ -52,12 +53,14 @@ final class TransformsCoordinator {
         llmServiceProvider: @escaping () -> LLMServiceProtocol?,
         promptRepository: PromptRepositoryProtocol,
         historyRepository: TransformHistoryRepositoryProtocol? = nil,
+        activeModelNameProvider: @escaping () -> String? = { nil },
         reservedHotkeysProvider: @escaping () -> [TransformShortcutReservedHotkey] = { [] },
         onLLMProviderRequired: @escaping () -> Void = {}
     ) {
         self.llmServiceProvider = llmServiceProvider
         self.promptRepository = promptRepository
         self.historyRepository = historyRepository
+        self.activeModelNameProvider = activeModelNameProvider
         self.reservedHotkeysProvider = reservedHotkeysProvider
         self.onLLMProviderRequired = onLLMProviderRequired
     }
@@ -170,6 +173,11 @@ final class TransformsCoordinator {
 
     private func handleTrigger(promptID: UUID) {
         guard AppFeatures.transformsEnabled else { return }
+        if let owner = GUIMutationArbiter.shared.current?.owner, owner != .transform {
+            panelController?.show()
+            panelController?.fail(message: "Finish the current voice task before running a Transform.")
+            return
+        }
         guard let prompt = promptIndex[promptID] else {
             logger.notice("transforms: trigger for unknown promptID, reloading bindings")
             reloadBindings()
@@ -200,6 +208,12 @@ final class TransformsCoordinator {
 
         let promptBody = prompt.content
         let runningTransformName = prompt.name
+        // Capture the concrete model before entering the serialized queue. A
+        // queued Transform must not observe a later Settings model change.
+        let modelSnapshot = Self.resolveModelSnapshot(
+            promptOverride: prompt.modelOverride,
+            activeModelName: activeModelNameProvider()
+        )
 
         // Cancel any in-flight Transform if the user re-triggers a hotkey
         // before the previous one finishes, and only start this run once the
@@ -210,10 +224,17 @@ final class TransformsCoordinator {
         // from the wrong app after a focus yank. ADR-022 §4; AUDIT-072.
         runSerializer.replace { @MainActor [weak self] in
             guard let self else { return }
+            guard let lease = GUIMutationArbiter.shared.acquire(.transform) else {
+                self.panelController?.fail(message: "Another voice action is active.")
+                return
+            }
+            defer { GUIMutationArbiter.shared.release(lease) }
             do {
                 let result = try await Observability.withOperationContext(operationContext) {
                     try await executor.run(
                         prompt: promptBody,
+                        inferenceSettings: prompt.inferenceSettings,
+                        modelOverride: modelSnapshot,
                         replacementMode: .pasteIntoCurrentFocus,
                         onProgress: { [weak self] progress in
                             if case .failed = progress {
@@ -330,6 +351,13 @@ final class TransformsCoordinator {
                 )
             }
         }
+    }
+
+    static func resolveModelSnapshot(promptOverride: String?, activeModelName: String?) -> String? {
+        let override = promptOverride?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let override, !override.isEmpty { return override }
+        let active = activeModelName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return active?.isEmpty == false ? active : nil
     }
 
     private func handleMissingLLMProvider(

@@ -5,6 +5,11 @@
 > people running them) that want to *call* `macparakeet-cli` to add local STT
 > to their stack.
 
+Examples describe the current development contract (CLI 4.4.0), not a
+promise about an older stable or Homebrew binary. Check `--version` and
+`spec --json` first; [release channels](../spec/README.md#release-channels-and-feature-flags)
+distinguish published binaries from the development source.
+
 ## Scope of the CLI
 
 The CLI is a first-class automation surface, **not a GUI mirror.** It intentionally
@@ -24,14 +29,18 @@ testing.
 - **Stable JSON / read surfaces** -- every read-only command emits JSON with
   schemas pinned to the major CLI version. Failure envelopes carry a stable
   `errorType` so agents can branch deterministically.
-- **Model and binary health** -- `health --json` probes Parakeet / Nemotron /
-  Cohere / Whisper model readiness, database accessibility, FFmpeg, and yt-dlp
-  without mutating state. Repair flags explicitly warm/download local caches.
-- **Persisted history** -- list, search, and inspect prior dictations and
-  transcriptions via the shared SQLite database.
-- **Prompt and meeting inspection** -- list and run prompt library entries
-  against transcriptions; list, show, transcript, notes append, prompt-result
-  write-back, and export meeting recordings.
+- **Model and binary health** -- `health --json` reports model readiness,
+  database accessibility, FFmpeg, and yt-dlp without mutating state. Repair
+  flags explicitly warm/download local caches; missing application directories
+  are reported rather than created by the probe.
+- **Persisted history and knowledge retrieval** -- list/search prior
+  dictations and transcriptions, retrieve cited transcript segments, and
+  inspect current knowledge cards from the shared SQLite database. Card
+  generation is a separate, provider-backed write.
+- **Prompt management and meeting inspection** -- manage versioned transcript
+  prompts, their model/inference settings and label availability; manage Live
+  Ask quick prompts and selected-text Transforms; run prompts against saved
+  transcriptions and inspect, annotate, and export meeting recordings.
 - **Headless verification hooks** -- agents can drive deterministic runs (pin
   all flags) or smoke-test GUI-default behavior with the explicit
   `app-default` flag group.
@@ -66,15 +75,16 @@ sitting at a keyboard, it lives in the .app.
   `transcribe --podcast`. The standalone Homebrew install uses Homebrew's
   `yt-dlp`; the app bundle can seed a signed helper into MacParakeet's
   Application Support folder before first media URL use.
-- **Persistent SQLite memory layer** -- everything transcribed is queryable
-  later: dictation history, transcriptions, prompt outputs.
+- **Persistent SQLite memory layer** -- saved transcriptions, dictations, and
+  prompt outputs remain queryable; private/no-history operations deliberately
+  do not retain transcript content.
 - **Shared app/CLI preferences** -- agents can set speech engine, processing
   mode, speaker detection, audio retention, YouTube audio quality, and
   telemetry without driving the GUI.
 - **Prompt library + LLM-backed summarization** -- bring your own provider
-  (OpenAI, Anthropic, Ollama, LM Studio, OpenAI-compatible local, or a
-  configured CLI subprocess), or skip the LLM entirely and consume raw
-  transcripts.
+  (OpenAI, Anthropic, Gemini, OpenRouter, Moonshot/Kimi, DeepSeek, Qwen, Z.AI,
+  MiniMax, Ollama, LM Studio, OpenAI-compatible, or a configured CLI
+  subprocess), or skip the LLM entirely and consume raw transcripts.
 - **Machine-readable output** -- read-only query commands use `--json`,
   format-selecting commands use `--format json`, and LLM/prompt commands use
   `--json` for structured envelopes (see
@@ -122,13 +132,11 @@ not replace a Homebrew-managed link with an app-managed link.
 
 ## Why Apple Silicon specifically
 
-Parakeet TDT runs on the Apple Neural Engine via CoreML. That is the entire
-performance story: fast local transcription without GPU rental, API keys, or
-per-minute charges. On VPS hosts without Apple Silicon (typical for
-cloud-deployed agent daemons), Parakeet falls back to CPU and Whisper.cpp is
-competitive. **The compelling deployment target is a Mac mini (M1+) running
-headless** as a personal AI compute box -- unified memory, ANE, ~8W idle,
-silent.
+The supported runtime is macOS 14.2+ on Apple Silicon (M1 or newer), where
+Parakeet uses CoreML/Apple Neural Engine. The CLI does not support Linux/x86
+VPS deployment or offer a CPU fallback there. A headless Apple Silicon Mac is
+the deployment target; it still needs local model setup and any selected
+external provider/helper configuration.
 
 ## Common commands (the agent vocabulary)
 
@@ -137,9 +145,12 @@ The commands below show the machine-readable flag each command expects:
 format-selecting commands. Schemas are stable per
 [`../Sources/CLI/CHANGELOG.md`](../Sources/CLI/CHANGELOG.md).
 
-Agents can discover the curated core automation surface at runtime. This spec
-is intentionally agent-facing and does not list every setup/helper command in
-this README:
+Discover the installed command catalog before constructing an invocation.
+Each entry describes its path, arguments/options, `jsonMode`, `readOnly`
+classification, and output summary. It is not a JSON Schema for every payload
+or a sandbox: a command family may be marked mutating because some options
+write, and query startup can still create directories or migrate supported
+database schemas. Use `--help` for additional setup/helper details:
 
 ```bash
 macparakeet-cli spec --json
@@ -151,17 +162,51 @@ macparakeet-cli spec --json
 macparakeet-cli health --json
 ```
 
-Reports model readiness, database accessibility, and binary deps (FFmpeg,
-yt-dlp). This is a non-mutating probe; it reports missing helper binaries but
-does not install or update them. App-bundled CLI installs include a signed
-yt-dlp helper seed for YouTube transcription; use
-`macparakeet-cli health --repair-binaries` when you explicitly want to fetch
-the latest managed helper binary.
+Reports model readiness, database accessibility, and binary dependencies
+(FFmpeg, yt-dlp). Without repair flags it does not install/update helpers,
+download models, migrate/create the database, or create application
+directories. Inspect the report's component statuses and `paths`,
+not only its exit code: an uninstalled optional model does not block a local
+database search. Repair only a prerequisite for the requested operation, with
+user authorization; `health --repair-binaries` can fetch a managed helper.
 
 `database.status` is one of `ok`, `missing`, `schema_skew`, or `error`.
 `schema_skew` means the shared database was migrated by a newer MacParakeet
 app than this CLI build understands; upgrade `macparakeet-cli` and retry
 rather than treating it as a database fault.
+
+### Safe automation and isolation
+
+- Start with `--version`, `spec --json`, then the health report and the
+  narrowest relevant read. Never repair, regenerate, clear, or delete merely
+  because a component is missing.
+- Normal CLI calls share the user's database, preferences, model caches, and
+  artifact paths with the app. `config set` and `models select` change shared
+  defaults; prefer per-invocation flags for reproducible work.
+- `--database PATH` selects a database only where advertised. It does not
+  isolate preferences, Keychain, models, downloads, or the audio/artifact paths
+  stored in copied rows. Never run destructive commands against a copied
+  production database that still points to original user files.
+- For source-build smoke work, a **DEBUG** binary with
+  `MACPARAKEET_DEBUG_APP_STATE_DIR` set to an absolute test-owned directory
+  redirects app-support/artifact paths and speech/speaker model caches.
+  Release binaries ignore this override. It does **not** redirect the shared
+  UserDefaults suite or Keychain; avoid configuration writes, or use a
+  disposable macOS account when full user-state isolation is required.
+- `--no-history` avoids completed transcript retention, not all I/O. Transcribe
+  can still initialize a database, use models/helpers, and emit telemetry.
+  `MACPARAKEET_TELEMETRY=0` disables telemetry for one invocation without
+  changing shared preferences; it is not a network sandbox.
+- `search-reindex` writes derived indexes; `cards generate` additionally calls
+  the configured LLM. `meetings artifact` refreshes files from SQLite, while
+  notes/results commands modify user-visible records. Treat these as writes,
+  not read-only inspection. Do not manually edit generated sidecars as though
+  they were canonical database records.
+- Query classification does not guarantee zero writes: database startup can
+  initialize/migrate supported storage, and `cards list` can refresh outdated
+  derived transcript segments before checking card freshness. It does not
+  generate cards or call an LLM. Use the non-mutating default health probe
+  when deciding whether it is safe to open a database.
 
 ### Transcribe a file
 
@@ -201,9 +246,11 @@ macparakeet-cli transcribe /path/to/interview.mp3 --format dapt --output-dir .
 A single input without `--output-dir` prints the selected document to stdout,
 so you can also redirect it:
 `macparakeet-cli transcribe interview.mp3 --format dapt > interview.dapt.xml`.
-DAPT preserves word timing and speaker attribution when they are aligned with
-the transcript. Current display labels become character aliases; if the
-optional label roster is incomplete, stored anonymous IDs such as `S2` remain
+DAPT preserves automatic word timing and speaker attribution when they are
+aligned with the transcript. A corrected or merged timed line is emitted once
+for its preserved segment envelope; its rewritten words are not assigned the
+automatic per-word timestamps. Current display labels become character aliases.
+If the optional label roster is incomplete, stored anonymous IDs such as `S2` remain
 anonymous aliases. If diarization is off or unavailable, DAPT omits character
 agents; if word timing is unavailable, it emits a valid untimed original
 transcript rather than inventing timing or attribution.
@@ -240,7 +287,12 @@ temporary when `--no-history` is set.
 
 Parakeet is the default local engine for compatibility with existing scripts:
 use v3 for English plus supported European languages, v2 for English timestamped
-transcripts, or Unified for readable English with word timestamps. Use Nemotron
+transcripts, or Unified for readable English with word timestamps. Orukeet is
+an optional Parakeet preview, not a separate engine. Download it with
+`models download parakeet-orukeet`, then use `models select parakeet-orukeet`
+or `transcribe --parakeet-model orukeet`. The default stays v3, and results
+from that build report `engineVariant` `orukeet`. It has no native streaming,
+tail-window preview, or recognition-time vocabulary boosting. Use Nemotron
 Beta when streaming preview matters, Whisper for broad-language
 files/media/retranscription, and Cohere only for local batch plain text with an
 explicit language.
@@ -313,8 +365,11 @@ macparakeet-cli config set nemotron-language auto
 macparakeet-cli config set whisper-language ko
 macparakeet-cli config set cohere-language ja
 macparakeet-cli config set processing-mode raw
+macparakeet-cli config set remove-um-filler off
 macparakeet-cli config set speaker-detection off
 macparakeet-cli config set meeting-speaker-detection off
+macparakeet-cli config set custom-vocabulary-boosting on
+macparakeet-cli config set start-meetings-muted on
 macparakeet-cli config set save-transcription-audio off
 macparakeet-cli config set youtube-audio-quality m4a
 ```
@@ -342,7 +397,13 @@ macparakeet-cli transcribe --podcast "Lex Fridman episode 400" --format json
 ```bash
 macparakeet-cli history transcriptions --json
 macparakeet-cli history search-transcriptions "design review" --json
+macparakeet-cli history rename <id> --title "Q3 vendor notes" --json
+macparakeet-cli history favorite <id> --json
 ```
+
+`history rename` matches the GUI: meeting rows change the meeting title;
+local file rows set a display `titleOverride` without renaming the source
+file. URL/podcast rows are rejected.
 
 ### Search the transcript knowledge layer
 
@@ -360,7 +421,8 @@ Bare `yyyy-MM-dd` values use the user's local day (`--since` at its start,
 `--until` through its end); timestamps with `Z` or an explicit offset retain
 that zone.
 
-Existing libraries need one deterministic local rebuild after upgrading:
+If an upgraded library lacks the segment index, explicitly authorize one
+deterministic local rebuild (a database write, not a provider call):
 
 ```bash
 macparakeet-cli search-reindex --json
@@ -398,6 +460,11 @@ arrays. Stale cards are suppressed rather than returned with obsolete citation
 ranges. Treat extracted decisions/actions as routing hints and verify them with
 `transcript --around-seq` before asserting them as facts.
 
+Use `cards list` to route across recordings, `search` for concrete phrases, and
+`transcript` for evidence. Include the recording ID/title and segment sequence
+(plus timestamp when available) in citations. Dictations use the separate
+`history search` path; segment/card retrieval is not a cross-mode Ask endpoint.
+
 Card generation uses the provider already opted into in MacParakeet Settings.
 Progress and per-recording token counts go to stderr. JSON stdout reports
 aggregate prompt/completion/total tokens; `estimatedCostUSD` is explicitly
@@ -419,6 +486,10 @@ macparakeet-cli history search "what did I say about" --json
 
 ```bash
 macparakeet-cli prompts list --json
+macparakeet-cli prompts history "Action items" --json
+macparakeet-cli prompts show "Action items" --version 2 --json
+macparakeet-cli prompts diff "Action items" --from 1 --to 2 --json
+macparakeet-cli prompts restore "Action items" --version 1 --json
 macparakeet-cli prompts run "Action items" \
   --transcription <id-or-prefix> \
   --provider anthropic \
@@ -427,9 +498,92 @@ macparakeet-cli prompts run "Action items" \
   --json
 ```
 
+Prompt objects returned by `prompts list/show --json` include additive optional
+`inferenceSettings` (`temperature`, `topP`, `topK`, `maxTokens`, and
+`thinkingMode`, plus optional `reasoningEffort`: `low`, `medium`, `high`, or
+`xhigh`). Reasoning effort applies only when thinking is enabled. A blank value
+means the prompt inherits MacParakeet's current
+prompt-result defaults. `prompts run --json` includes additive optional
+`effectiveSettings` in its LLM result envelope. When present, it is the
+provider/model-filtered receipt of settings actually sent, not a copy of the
+unfiltered prompt request. Automations should treat either field as optional
+and must not infer provider support from `inferenceSettings` alone.
+
+The prompt editor derives available controls from the effective provider/model,
+including a prompt's model override. Inherited values stay unset until explicitly
+customized; custom endpoint capabilities are not assumed to match native vendor
+APIs. For Gemini 3, inherited prompt sampling omits temperature instead of sending
+the app's legacy default. Explicit overrides and historical execution receipts
+retain their values. The same resolver serves `prompts run` and `llm summarize`;
+this changes no command flags or JSON field names.
+
+`prompts set` configures these settings through `--temperature`, `--top-p`,
+`--top-k`, `--max-tokens`, `--thinking-mode`, and `--reasoning-effort`. Use
+`--model` for a model override, `--active-model` to clear that override, or
+`--provider-default-settings` to clear all inference overrides. Changed
+content, model, or inference settings create an immutable version; omitted
+settings are preserved. `prompts add` creates the prompt, then `prompts set`
+can configure its generation settings. Transforms use their active version
+settings as well. The CLI does not emit per-result requested-settings or
+unsupported-field metadata.
+
+```bash
+macparakeet-cli prompts set "Summary" --temperature 0.3 --max-tokens 2048 --json
+macparakeet-cli prompts set "Summary" --thinking-mode enabled --reasoning-effort high --json
+macparakeet-cli prompts set "Summary" --active-model --provider-default-settings --json
+```
+
+Prompt history is immutable. Restoring an old version creates and activates a
+new version; it never rewrites history. `prompts delete` is recoverable with
+`prompts restore-deleted`, including for built-ins. Built-in status is
+provenance rather than a mutation restriction. A restored version's `createdAt`
+and the prompt's `updatedAt` record the restoration time.
+
+`prompts run` uses the app's label availability rules for every transcription
+source. With no policies a prompt is available everywhere. Matching explicit
+label rules take precedence (any available match wins); otherwise the all-label
+fallback applies, or availability is denied. Legacy meeting-type policies do
+not override these rules. Manual runs do not require auto-run to be enabled.
+
+Model discovery is advisory: providers validate requested model names and
+aliases when generation runs. Local CLI cannot apply a different prompt model
+override to its configured command and rejects it before executing the command.
+
 `<id-or-prefix>` accepts a full UUID, a UUID prefix (>= 4 chars), or the
 case-insensitive name. Ambiguous prefixes return a `.ambiguous` error so the
 agent can re-prompt the user.
+
+### Organize prompts with collections
+
+Collections group saved transcript prompts and Transforms. Each prompt can
+belong to one collection. They do not change prompt execution, availability,
+or version history. Recording labels are separate: they classify recordings
+and can control which transcript prompts are available.
+
+```bash
+macparakeet-cli prompts collections list --json
+macparakeet-cli prompts collections add --name "Customer meetings" --json
+macparakeet-cli prompts set "Summary" --collection <collection-uuid> --json
+macparakeet-cli prompts collections rename <collection-uuid> --name "Customer calls" --json
+macparakeet-cli prompts collections reorder <first-uuid> <second-uuid> --json
+macparakeet-cli prompts set "Summary" --no-collection --json
+macparakeet-cli prompts collections delete <collection-uuid> --json
+```
+
+Use the full collection UUID returned by `list` or `add`. Reordering requires
+every existing collection exactly once, in the desired order. Deleting a
+collection removes its assignments while retaining all prompts and versions.
+`prompts add --collection <collection-uuid>` assigns a new prompt immediately;
+omitting collection flags when editing preserves its current assignment.
+These commands accept `--database <path>` for an isolated automation database.
+Set source-specific auto-run (`--source`) in a separate command from collection
+assignment; the CLI rejects combining those mutations.
+
+The GUI's Prompts destination contains Transcript prompts and Live Ask.
+Meetings provides contextual access to the same managers. Transforms remains
+its own selected-text rewrite destination. This navigation does not change
+CLI categories or storage: Live Ask uses the separate quick-prompt commands
+below, and existing prompt/version commands continue to support Transforms.
 
 ### Manage live Ask quick prompts
 
@@ -459,6 +613,8 @@ require an LLM provider.
 
 ```bash
 macparakeet-cli meetings list --json
+macparakeet-cli meetings list --type "Customer" --label "QBR" --json
+macparakeet-cli meetings list --unclassified --json
 macparakeet-cli meetings show <id-or-prefix-or-title> --json
 macparakeet-cli meetings transcript <id> --format text
 macparakeet-cli meetings transcript <id> --format json
@@ -472,12 +628,122 @@ macparakeet-cli meetings results add <id> \
   --content "Decision: ship the parser" \
   --json
 macparakeet-cli meetings export <id> --format md --stdout
+
+# Timed transcript corrections use the revision from the last JSON read.
+macparakeet-cli meetings corrections edit-line <id> \
+  --segment <segment-uuid> --text "Corrected line." --expected-revision 0 --json
+macparakeet-cli meetings corrections merge-lines <id> \
+  --segment <first-uuid> --segment <second-uuid> --expected-revision 1 --json
+macparakeet-cli meetings corrections rename <id> \
+  --speaker S1 --label "Alice" --expected-revision 2 --json
+macparakeet-cli meetings corrections assign <id> \
+  --segment <segment-uuid> --to-speaker S2 --expected-revision 3 --json
+macparakeet-cli meetings corrections merge-speakers <id> \
+  --from S2 --into S1 --expected-revision 4 --json
+macparakeet-cli meetings corrections undo <id> --expected-revision 5 --json
 ```
+
+The two meeting transcript JSON views expose the effective corrected text and
+segments. `transcriptTextAlignment` is `automatic`, `segment`, or `untimed`;
+rows without automatic word timestamps are `untimed`. `textCorrectionsApplied`
+tells an agent whether timed text/boundary corrections
+are active. A segment may include `isTextEdited: true`. Keep treating the
+separate `wordTimestamps` array as automatic recognition evidence: under
+`segment` alignment it is not a word-by-word timing map for corrected text.
+One-to-one text edits retain the durable segment UUID. Structural edits include
+`anchorTranscriptSegmentIDs` so an agent can trace the effective line to its
+automatic sources. Correction writes require the latest
+`speakerCorrectionRevision`; stale writes fail instead of overwriting another
+app or agent's work.
+
+Import one historical audio or video file as a normal managed meeting. The
+source remains unchanged; progress goes to stderr and the final record goes to
+stdout. A `partial` result is usable and exits zero. A `needsRetry` result has
+already saved its meeting and audio, so open that meeting and retry
+transcription rather than importing again:
+
+```bash
+macparakeet-cli meetings import ~/Downloads/partnership.m4a \
+  --title "Partnership discussion" \
+  --started-at 2026-05-14 \
+  --json
+```
+
+Split a saved recording that spans multiple meetings. Every resulting part,
+including the first, is a brand-new saved meeting that receives its own first
+transcription and normal enabled completion automation, including summaries
+and best-effort knowledge-card generation; the
+original recording is never modified, retranscribed, or deleted:
+
+```bash
+macparakeet-cli meetings split preview <meeting> --cut 1800000 --json
+macparakeet-cli meetings split create <meeting> \
+  --cut 1800000 \
+  --title "Standup: Part 1" \
+  --title "Standup: Part 2" \
+  --json
+macparakeet-cli meetings split status <operation-id> --json
+macparakeet-cli meetings split status --source <meeting> --json
+macparakeet-cli meetings split resume <operation-id> --json
+macparakeet-cli meetings split discard <operation-id> --json
+```
+
+`preview` performs no writes. `create` publishes the audio parts and
+processes them sequentially in one call; it is safe to repeat with identical
+arguments after an interruption at any point — the same parts and progress
+are reused, never duplicated — and accepts `--dry-run` to print the preview
+instead. Every `--title` must contain non-whitespace text. Both `create` and
+`status --source` accept an exact source UUID even
+after that recording has been deleted, for retrying/discovering a committed
+split. `status --source` finds every split operation recorded for a meeting,
+which matters if a process died before returning an operation id. `resume`
+retries only unfinished/failed parts without recreating audio and only
+accepts a committed operation; if it never finished creating, rerun `create`
+with the original arguments instead. `discard` abandons a not-yet-published
+operation and is refused once audio has committed; a discarded operation's
+`--key` is a permanent tombstone, so retrying needs a fresh `--key`. A
+completed operation with any failed part still prints its full result, then
+exits non-zero. Ctrl-C during `create`/`resume` finishes settling in-flight
+work (completed stages are kept) before exiting `130`. Preview's
+`hasRawMicrophone`/`hasRawSystem`/`hasCleanedMicrophone` describe whether
+that track will actually be exported — both the file and usable alignment
+metadata are required — not merely whether the file exists; missing or
+corrupt metadata never blocks splitting, every part still gets full
+canonical playback audio. This CLI slice follows the shared saved
+speech-engine and meeting speaker-detection preferences rather than exposing
+per-invocation engine/model override flags.
+
+Manage local meeting classification and assign it atomically:
+
+```bash
+macparakeet-cli meetings types list --json
+macparakeet-cli meetings types add --name "Customer" --json
+macparakeet-cli meetings labels add --name "QBR" --json
+macparakeet-cli meetings labels set "QBR" --color blue --json
+macparakeet-cli meetings labels set "QBR" --automatic-color --json
+macparakeet-cli meetings classify <meeting> --type "Customer" --add-label "QBR" --json
+macparakeet-cli meetings classify <meeting> --type none --remove-label "QBR" --json
+```
+
+The compatibility surface retains zero or one primary type and any number of
+labels per meeting. Labels drive prompt availability and support search;
+legacy types no longer control prompt selection. Names remain local user data.
+Changing a completed meeting's classification does not rerun prompts retroactively.
+Use `meetings labels set` to rename a label or choose one of the explicit
+`coral`, `green`, `amber`, `red`, `purple`, or `blue` colors. Pass
+`--automatic-color` to clear an explicit color and return to the stable
+identity-based color.
 
 Use `meetings notes` for user-authored notes. Use `meetings results add` for
 externally generated summaries, decisions, action items, or other agent output;
 those rows are stored as `PromptResult` records rather than overwriting
-`userNotes`.
+`userNotes`. Meeting result JSON and `prompt-results.json` include additive
+optional `inferenceSettingsSnapshot` when MacParakeet recorded an effective
+provider/model-filtered inference receipt for that result.
+Library-generated results also carry optional `promptId`, `promptVersionId`,
+`providerSnapshot`, and `modelSnapshot` receipts. Older or externally added
+results can omit them; never substitute current configuration for a missing
+historical receipt.
 
 `meetings artifact` is the stable folder contract for local meeting sessions.
 It refreshes the session folder from SQLite and returns paths to:
@@ -488,6 +754,18 @@ It refreshes the session folder from SQLite and returns paths to:
 - `transcript.json` — transcript text, timestamps, speakers, diarization
 - `notes.md` — user-authored notes when present
 - `prompt-results.json` and `prompt-results/*.md` — saved generated outputs
+
+The snapshot, `manifest.meeting`, and `transcript.json` can carry
+`meetingCaptureReport`. `quality: "partial"` describes retained audio, not a
+failed transcription: partial audio can have `status: "completed"`. An absent
+legacy report means unknown, not healthy. The candidate's `silent` system
+status survives recovery when coverage stays sufficient and means exact-zero
+written system signal under the qualified conditions in the
+[artifact contract](../spec/contracts/meeting-artifacts-v1.md); it is not a
+quiet-audio threshold or evidence that no remote speaker spoke. A `silent`
+status alone does not make `quality` partial — a fully captured self-note or
+other one-sided recording reports `quality: "healthy"`; coverage shortfall,
+interruption, capture failure, or unavailable media still do.
 
 `meetings export <id> --format md --stdout` uses the same Markdown shape as
 `meeting.md` without refreshing unrelated files. For machine-readable paths,
@@ -549,11 +827,13 @@ structured failure envelope instead of the success shape:
 }
 ```
 
-`errorType` is a stable low-cardinality string; `fix` and `meta` are optional
-fields. Branch on the exit code, then use `errorType` to differentiate
-retryable failures (`rate_limit`, `connection`, `streaming`) from permanent
-ones (`auth`, `model`, `input_empty`, `lookup`, `validation`). Full taxonomy in
-`Sources/CLI/CHANGELOG.md`.
+`errorType` is a stable low-cardinality string; `fix` and `meta` are optional.
+Branch on the exit code, then classify the error with
+`Sources/CLI/CHANGELOG.md`. A potentially transient provider error
+(`rate_limit`, `connection`, `streaming`) does not by itself authorize replaying
+a mutating command. Check whether partial output or saved results already
+exist before retrying; fix `auth`, `model`, input, lookup, and validation
+problems rather than retrying them unchanged.
 
 Parse-time failures (unknown flags, missing required flags,
 mutually-exclusive combos like `--json` with `--stream`) surface through
@@ -608,12 +888,20 @@ OpenClaw, Hermes, or another local agent framework.
 - **Lookups:** records that take an `<id-or-name>` argument accept full UUID,
   UUID prefix (>= 4 chars), or case-insensitive name. Ambiguous prefixes
   produce a `.ambiguous` error; missing records produce `.notFound`.
-- **Privacy:** STT and database access never touch the network. Network
-  egress paths are: explicit helper repair (`health --repair-binaries`),
-  media URL downloads (yt-dlp), optional LLM provider calls (only when
-  `prompts run` or `llm` targets a hosted provider, or when a configured
-  Local CLI command contacts its own service), Sparkle update checks (app,
-  not CLI), and a single privacy-safe
+- **Privacy:** speech inference and database queries run locally, but an entire
+  CLI invocation is not necessarily network-free. Network paths include model
+  downloads/warm-up/repair, helper repair, media URL and podcast directory/RSS/
+  enclosure downloads, explicitly configured LLM calls (including
+  `cards generate`, prompt/Transform execution, and cloud-backed Local CLI
+  commands), explicit feedback submission, and CLI telemetry below.
+  The app also checks Sparkle updates and refreshes Discover's public feed
+  at launch when **Show Discover in the sidebar** is enabled (the default),
+  independently of telemetry. Turning that preference off cancels pending
+  feed requests and prevents new loads; the CLI does not launch the feed refresh. No captured audio is sent to an LLM by MacParakeet.
+  Legacy activation validation can also contact LemonSqueezy during app setup
+  or CLI `transcribe --enforce-entitlements` when stored activation state needs
+  refresh; current free builds remain unlocked regardless of that result.
+  CLI telemetry emits a single privacy-safe
   `cli_operation` event per successfully parsed CLI invocation, posted to the
   self-hosted endpoint at `https://macparakeet.com/api/telemetry`. The telemetry event
   ships only allowlisted invocation metadata (`operation_id`, `workflow_id`,
@@ -631,12 +919,16 @@ OpenClaw, Hermes, or another local agent framework.
   Auto-disabled in CI environments (`CI`, `GITHUB_ACTIONS`, `GITLAB_CI`,
   `BUILDKITE`, `CIRCLECI`, `TRAVIS`, `JENKINS_URL`, `TF_BUILD`,
   `TEAMCITY_VERSION` — any one set to a truthy value). Override CI auto-
-  disable with `MACPARAKEET_TELEMETRY=1`. See `docs/telemetry.md` for the
-  full event catalog and the Worker-side PII redaction policy.
-- **Concurrency:** the STT scheduler reserves one slot for dictation and
-  shares a second slot for meeting / batch work (ADR-016). Multiple
-  concurrent CLI calls share the background slot; expect serial transcription
-  of multi-file batches.
+  disable with `MACPARAKEET_TELEMETRY=1`. This explicit force-on also overrides
+  `DO_NOT_TRACK=1` and the saved off preference. See `docs/telemetry.md` for the
+  full event catalog and the structured-error privacy contract. For read-only
+  local audio-log JSON queries from a source checkout, see
+  [the diagnostic query guide](../docs/local-audio-diagnostics-query.md).
+- **Concurrency:** the STT scheduler reserves one slot for dictation and shares
+  a second slot for meeting/batch work **within a process** (ADR-016).
+  Multi-file batches are sequential. Separate CLI processes do not share that
+  in-memory scheduler or a cross-process model lock; callers must bound their
+  own concurrency rather than assuming the app serializes separate binaries.
 
 ## Per-ecosystem entry points
 
@@ -652,3 +944,19 @@ OpenClaw, Hermes, or another local agent framework.
 Open an issue at <https://github.com/moona3k/macparakeet/issues> with the
 `integration` label. Include the agent platform, the CLI version
 (`macparakeet-cli --version`), and a minimal repro.
+
+### Updating prompt label availability
+
+Use `prompts set PROMPT --label LABEL --available` (or `--unavailable`) to
+change one label rule. Use `--all-labels --available|--unavailable` to change
+only the fallback when no explicit label rule matches, for every source.
+Existing label exceptions are preserved. A first label rule preserves the
+previous available fallback; set `--all-labels --unavailable` to restrict
+unmatched transcriptions. `--json` returns the saved policy.
+
+The former fork flags `--meeting-type` and `--all-meeting-types` now fail with
+migration guidance: meeting types no longer determine prompt execution.
+Configure source auto-run separately, for example
+`prompts set PROMPT --source meeting --auto-run`. Label availability still
+limits which transcriptions qualify. Editing prompt text or inference settings
+in the app preserves existing policies unless the label selection is changed.

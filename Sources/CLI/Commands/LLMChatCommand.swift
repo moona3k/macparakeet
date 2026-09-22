@@ -19,12 +19,18 @@ struct LLMChatCommand: AsyncParsableCommand {
     @Flag(name: .long, help: "Stream the response token by token.")
     var stream: Bool = false
 
-    @Flag(name: .long, help: "Emit a structured JSON envelope (output, provider, model, usage, stopReason, latencyMs) instead of plain text.")
+    @Flag(
+        name: .long,
+        help:
+            "Emit a structured JSON envelope (output, provider, model, usage, stopReason, latencyMs) instead of plain text."
+    )
     var json: Bool = false
 
     func validate() throws {
         if json && stream {
-            throw ValidationError("--json with --stream is not yet supported. Run without --stream for the envelope, or omit --json for token streaming.")
+            throw ValidationError(
+                "--json with --stream is not yet supported. Run without --stream for the envelope, or omit --json for token streaming."
+            )
         }
     }
 
@@ -48,17 +54,25 @@ struct LLMChatCommand: AsyncParsableCommand {
             // right bucket — the CLI passes an already-transcribed payload
             // through `--text` / `--from-file`, mirroring the post-recording
             // GUI chat surface, not the live in-meeting Ask flow.
+            let conversationID = UUID()
             if json {
-                let result = try await service.chatDetailed(question: question, transcript: text, userNotes: nil, history: [], source: .transcriptChat)
+                let result = try await service.chatDetailed(
+                    question: question, transcript: text, userNotes: nil, history: [], source: .transcriptChat,
+                    conversationID: conversationID)
                 try printJSON(result)
             } else if stream {
-                let tokenStream = service.chatStream(question: question, transcript: text, userNotes: nil, history: [], source: .transcriptChat)
+                let tokenStream = service.chatStream(
+                    question: question, transcript: text, userNotes: nil, history: [], source: .transcriptChat,
+                    conversationID: conversationID)
                 for try await token in tokenStream {
                     print(token, terminator: "")
                 }
                 print()
             } else {
-                print(try await service.chat(question: question, transcript: text, userNotes: nil, history: [], source: .transcriptChat))
+                print(
+                    try await service.chat(
+                        question: question, transcript: text, userNotes: nil, history: [], source: .transcriptChat,
+                        conversationID: conversationID))
             }
         }
     }
