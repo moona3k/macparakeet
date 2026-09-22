@@ -60,6 +60,7 @@ public final class HotkeyGestureController {
             return false
         }
     }
+
     private var suppressedUntilReset = false
 
     public init(

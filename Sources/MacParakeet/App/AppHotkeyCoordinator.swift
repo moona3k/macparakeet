@@ -278,6 +278,9 @@ final class AppHotkeyCoordinator {
         manager.onEscapeWhileIdle = { [weak self] in
             self?.onEscapeWhileIdle()
         }
+        manager.shouldCancelOnEscape = {
+            UserDefaultsAppRuntimePreferences.escapeCancelsDictation()
+        }
         if let resumeMode {
             manager.resumeRecording(mode: resumeMode)
         }
