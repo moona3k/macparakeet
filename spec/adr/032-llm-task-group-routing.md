@@ -121,8 +121,9 @@ context stay independent configs.
 ### 4. Enablement stays independent of routing
 
 "Use for dictation" and "Use for transcripts" remain on/off gates. They
-do not select models. Users who only needed to keep LLM off the dictation
-hot path are already served.
+do not select models. Each surface has its own formatter prompt; both
+still share the cleanup task-group route. Users who only needed to keep
+LLM off the dictation hot path are already served.
 
 ### 5. Specialists are recipes bound to a task
 

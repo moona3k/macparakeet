@@ -253,7 +253,8 @@ the UI. Setup **step views** remain a separate 24h funnel (`onboarding`).
 | `dictation_cancelled` | `duration_seconds`, `reason` (escape, hotkey, ui), `device_*` | Are people cancelling often? Why? |
 | `dictation_empty` | `duration_seconds`, `device_*` | Are people getting empty results? (quality signal) |
 | `dictation_failed` | `error_type`, `device_*` | Core feature failures — blind spot without this |
-| `dictation_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `trigger`, `mode`, `duration_seconds`, `word_count`, `speech_engine`, `engine_variant`, `language`, `app_category`, `error_type`, `cancel_reason`, `device_*` | One wide outcome event per dictation attempt; engine/language attribution is attached on success, empty, cancelled, unavailable, and failure outcomes when the active engine is known |
+| `dictation_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `trigger`, `mode`, `duration_seconds`, `word_count`, `speech_engine`, `engine_variant`, `language`, `app_category`, `error_type`, `cancel_reason`, `capture_ms`, `transcribe_ms`, `device_*` | One wide outcome event per dictation attempt; `capture_ms` / `transcribe_ms` are success-only stop→WAV and WAV→pasteable-text, excluding the overlay pause |
+| `dictation_insert` | `operation_id`, `capture_ms`, `transcribe_ms`, `paste_ms`, `e2e_ms` | Latency breadcrumb after a successful Cmd+V post. `e2e_ms` is the phase sum. Empty skip, action-only Voice Return (no text pasted), and paste failure omit it. Not a second outcome. |
 | `dictation_first_load_caption_shown` | `first_install` | How often the first model-load caption is shown |
 | `dictation_first_load_caption_duration` | `duration_ms`, `outcome` | How long the first model-load caption stays visible, and whether it resolves, extends, or fails |
 
@@ -342,7 +343,7 @@ events remain useful for diarization-specific timing and failure analysis.
 | `llm_formatter_used` | `provider`, `source`, `duration_seconds`, `input_chars`, `output_chars`, `default_prompt_used`, `input_truncated` | Is transcript/dictation formatting useful, and how expensive is it? |
 | `llm_formatter_failed` | `provider`, `source`, `duration_seconds`, `error_type`, `default_prompt_used`, `input_truncated` | Formatter failure rates and prompt-shape correlations |
 | `llm_provider_unavailable` | `provider`, `error_type`, `feature`, `source` | Provider setup/config drift distinct from true LLM request failures |
-| `llm_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `feature`, `provider`, `streaming`, `outcome`, `duration_seconds`, `input_chars`, `output_chars`, `input_truncated`, `prompt_default_used`, `message_count`, `error_type` | One safe outcome event per LLM call, without prompts, responses, or provider error bodies |
+| `llm_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `feature`, `provider`, `streaming`, `outcome`, `duration_seconds`, `input_chars`, `output_chars`, `input_truncated`, `prompt_default_used`, `message_count`, `error_type` | One safe outcome event per LLM call, without prompts, responses, or provider error bodies. `feature` is `chat`, `formatter`, `knowledge_card`, `prompt_result`, or `transform`. Formatter dictation vs transcription stays on `llm_formatter_*` `source`, not a `formatter_dictation` feature label. |
 | `history_searched` | `result_count` (`0`, `1`, `2_5`, `6_20`, `21_50`, `51_plus`) | Is search useful? Emitted once per debounced executed search, never per keystroke, and never includes the query text. |
 | `history_replayed` | — | Do people re-listen to audio? |
 | `copy_to_clipboard` | `source` (dictation, transcription, history, meeting, discover) | How do people get text out? |
@@ -417,7 +418,7 @@ zero frames remains distinct from a Stop whose start never completed.
 | `prompt_created` | — | Are custom prompt templates used? |
 | `prompt_updated` | — | Are custom prompts actively maintained? |
 | `prompt_deleted` | — | Are custom prompts abandoned or cleaned up? |
-| `setting_changed` | `setting` (save_history, audio_retention, app_appearance, menu_bar_only, menu_bar_icon, hide_pill, save_transcription_audio, save_meeting_audio, meeting_audio_retention, youtube_audio_quality, speaker_diarization, parakeet_model_variant, nemotron_model_variant, transcription_speech_engine, whisper_default_language, cohere_language, cohere_compute_policy, auto_save, meeting_auto_save, microphone_selection, meeting_audio_source_mode, meeting_recording_pill, meeting_auto_stop, pause_media_during_dictation, dictation_insertion_style, dictation_undo_countdown, keep_dictation_on_clipboard, launch_at_login, silence_auto_stop, voice_return, calendar_auto_start_mode, calendar_reminder_minutes, calendar_trigger_filter, calendar_included_calendars), optional `value` | Which non-hotkey settings get toggled and, for safe closed sets, which value they changed to. `value` is limited to boolean `true`/`false` and enum raw values such as `app_appearance`, `meeting_audio_source_mode`, `meeting_audio_retention` mode, the final-transcription engine (`same_as_live` when its Advanced override is disabled), engine model variants, Cohere compute policy, dictation insertion style, undo countdown, YouTube audio quality, and calendar mode/filter. It is omitted for open/user-authored values such as microphone/device IDs, hotkey chords, calendar IDs, reminder minutes, folders/paths, prompts, vocab, URLs, and language strings. Media pause still does not log source app, title, URL, artist, or Now Playing metadata. |
+| `setting_changed` | `setting` (save_history, audio_retention, app_appearance, menu_bar_only, menu_bar_icon, hide_pill, save_transcription_audio, save_meeting_audio, meeting_audio_retention, youtube_audio_quality, speaker_diarization, parakeet_model_variant, nemotron_model_variant, transcription_speech_engine, whisper_default_language, cohere_language, cohere_compute_policy, auto_save, meeting_auto_save, microphone_selection, meeting_audio_source_mode, start_meetings_muted, meeting_recording_pill, meeting_auto_stop, pause_media_during_dictation, preserve_discarded_dictations, dictation_insertion_style, remove_um_filler, dictation_undo_countdown, keep_dictation_on_clipboard, streaming_cursor, launch_at_login, silence_auto_stop, voice_return, calendar_auto_start_mode, calendar_reminder_minutes, calendar_trigger_filter, calendar_included_calendars), optional `value` | Which non-hotkey settings get toggled and, for safe closed sets, which value they changed to. `value` is limited to boolean `true`/`false` and enum raw values such as `app_appearance`, `meeting_audio_source_mode`, `meeting_audio_retention` mode, the final-transcription engine (`same_as_live` when its Advanced override is disabled), engine model variants, Cohere compute policy, dictation insertion style, undo countdown, YouTube audio quality, and calendar mode/filter. It is omitted for open/user-authored values such as microphone/device IDs, hotkey chords, calendar IDs, reminder minutes, folders/paths, prompts, vocab, URLs, and language strings. Media pause still does not log source app, title, URL, artist, or Now Playing metadata. |
 | `telemetry_opted_out` | — | How many opt out? (send this one last event, then stop) |
 
 ### 5b. Calendar Auto-Start — "Do calendar-driven meetings work?"
@@ -437,8 +438,9 @@ zero frames remains distinct from a Stop whose start never completed.
 ### 5c. Meeting Auto-Stop — "Does conservative meeting-end detection work?"
 
 > ADR-023 auto-stop is implemented behind `AppFeatures.meetingAutoStopEnabled
-> = false`. These events should remain low/no-volume until a validation build
-> flips the compile-time flag and users opt in through Settings.
+> = true`. The compile-time flag shipped in the v0.7 train; the per-user
+> setting still defaults off, so volume reflects only users who opt in through
+> Settings.
 
 | Event | Props | Question It Answers |
 |---|---|---|
@@ -449,8 +451,11 @@ zero frames remains distinct from a Stop whose start never completed.
 ### 5d. Meeting Capture Reliability — "Does the mic-health watchdog catch silent stalls?"
 
 > ADR-025 Phase A is implemented behind
-> `AppFeatures.meetingCaptureReliabilityEnabled = true`. It is detection-only:
-> no audio/transcript content, no UI yet, and no recording behavior change.
+> `AppFeatures.meetingCaptureReliabilityEnabled = true`. `mic_stall_detected`
+> is a detection/telemetry event: no audio or transcript content. Routine
+> source-health chips stay behind `meetingSourceHealthUIEnabled = false`;
+> actionable recovering, stalled, interrupted, or unavailable warnings still
+> surface. Direct source-lifecycle recovery is independent of this event.
 
 | Event | Props | Question It Answers |
 |---|---|---|
@@ -458,10 +463,10 @@ zero frames remains distinct from a Stop whose start never completed.
 
 ### 5e. Microphone engine lifecycle
 
-Implemented in the development source; availability in the stable app requires
-a release after the paired website allowlist deployment. This event observes
-the shared microphone used by dictation and meetings, including idle preparation.
-It does not observe ScreenCaptureKit's separate system-audio lifecycle.
+Shipped in 0.8.1 and later after the paired website allowlist deployed.
+This event observes the shared microphone used by dictation and meetings,
+including idle preparation. It does not observe ScreenCaptureKit's separate
+system-audio lifecycle.
 
 | Event | Props | Question It Answers |
 |---|---|---|
@@ -874,6 +879,13 @@ to do raw counting ad hoc. Its job is code correlation and product judgment:
 whether a signal is real user impact, which release or code path is implicated,
 and whether the right follow-up is an issue, PR, dashboard taxonomy fix, or
 continued monitoring.
+
+The reviewer is the **health** plane (thresholds, crashes, watchlists). The
+proposed **product** plane — daily HTML briefing for reach, activation, mix,
+and “what changed,” with yesterday plus 7d/28d comparisons — is specified in
+[`docs/design/2026-09-18-daily-telemetry-observability.md`](design/2026-09-18-daily-telemetry-observability.md).
+It consumes this JSON; it does not recompute failure rates. It is not
+implemented yet.
 
 ---
 

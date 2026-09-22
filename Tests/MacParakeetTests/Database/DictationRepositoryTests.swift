@@ -189,14 +189,38 @@ final class DictationRepositoryTests: XCTestCase {
 
     func testFetchAllWithLimit() throws {
         for i in 0..<5 {
-            try repo.save(Dictation(
-                durationMs: i * 1000,
-                rawTranscript: "Dictation \(i)"
-            ))
+            try repo.save(
+                Dictation(
+                    durationMs: i * 1000,
+                    rawTranscript: "Dictation \(i)"
+                ))
         }
 
         let limited = try repo.fetchAll(limit: 3)
         XCTAssertEqual(limited.count, 3)
+    }
+
+    func testFetchCompletedSkipsCancelledRows() throws {
+        let cancelled = Dictation(
+            createdAt: Date().addingTimeInterval(1),
+            durationMs: 1000,
+            rawTranscript: "cancelled take",
+            status: .cancelled
+        )
+        let completed = Dictation(
+            createdAt: Date(),
+            durationMs: 2000,
+            rawTranscript: "completed take",
+            status: .completed
+        )
+        try repo.save(cancelled)
+        try repo.save(completed)
+
+        let history = try repo.fetchAll(limit: nil)
+        XCTAssertEqual(history.map(\.rawTranscript), ["cancelled take", "completed take"])
+
+        let pasteTargets = try repo.fetchCompleted(limit: nil)
+        XCTAssertEqual(pasteTargets.map(\.rawTranscript), ["completed take"])
     }
 
     func testDelete() throws {
@@ -325,7 +349,8 @@ final class DictationRepositoryTests: XCTestCase {
         let afterUndo = try XCTUnwrap(repo.fetch(id: dictation.id))
         XCTAssertEqual(afterUndo.displayRawTranscript, true)
         XCTAssertEqual(afterUndo.displayText, "um hello world", "Once raw is forced, displayText returns rawTranscript")
-        XCTAssertEqual(afterUndo.cleanTranscript, "Hello, world.", "Cleaned text is preserved so the undo is reversible")
+        XCTAssertEqual(
+            afterUndo.cleanTranscript, "Hello, world.", "Cleaned text is preserved so the undo is reversible")
         XCTAssertEqual(afterUndo.hasAIEdit, true, "hasAIEdit stays true so the affordance keeps reading 'Re-apply'")
 
         let noOpUpdated = try repo.setDisplayRawTranscript(id: dictation.id, value: true)

@@ -107,21 +107,28 @@ struct VocabWordsCommand: AsyncParsableCommand {
         @Argument(help: "The replacement text (omit for vocabulary anchor).")
         var replacement: String?
 
+        @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+        var json: Bool = false
+
         @Option(help: "Path to SQLite database file (defaults to the app database).")
         var database: String?
 
         func run() async throws {
-            try AppPaths.ensureDirectories()
-            let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
-            let repo = CustomWordRepository(dbQueue: dbManager.dbQueue)
+            try emitJSONOrRethrow(json: json) {
+                try AppPaths.ensureDirectories()
+                let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
+                let repo = CustomWordRepository(dbQueue: dbManager.dbQueue)
 
-            let customWord = CustomWord(word: word, replacement: replacement)
-            try repo.save(customWord)
+                let customWord = CustomWord(word: word, replacement: replacement)
+                try repo.save(customWord)
 
-            if let replacement {
-                print("Added: \(word) -> \(replacement)")
-            } else {
-                print("Added vocabulary anchor: \(word)")
+                if json {
+                    try printJSON(VocabWordWriteResult(ok: true, word: customWord))
+                } else if let replacement {
+                    print("Added: \(word) -> \(replacement)")
+                } else {
+                    print("Added vocabulary anchor: \(word)")
+                }
             }
         }
     }

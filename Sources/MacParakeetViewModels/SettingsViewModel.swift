@@ -231,6 +231,18 @@ public final class SettingsViewModel {
             ))
         }
     }
+    public var dictationStreamingCursorEnabled: Bool {
+        didSet {
+            defaults.set(
+                dictationStreamingCursorEnabled,
+                forKey: UserDefaultsAppRuntimePreferences.dictationStreamingCursorEnabledKey
+            )
+            Telemetry.send(.settingChanged(
+                setting: .streamingCursor,
+                value: Self.settingValue(dictationStreamingCursorEnabled)
+            ))
+        }
+    }
     public var selectedMicrophoneDeviceUID: String {
         didSet {
             let normalized = Self.normalizedMicrophoneSelection(selectedMicrophoneDeviceUID)
@@ -258,6 +270,18 @@ public final class SettingsViewModel {
                 forKey: UserDefaultsAppRuntimePreferences.meetingAudioSourceModeKey
             )
             Telemetry.send(.settingChanged(setting: .meetingAudioSourceMode, value: meetingAudioSourceMode.rawValue))
+        }
+    }
+    public var startMeetingsMuted: Bool {
+        didSet {
+            defaults.set(
+                startMeetingsMuted,
+                forKey: UserDefaultsAppRuntimePreferences.startMeetingsMutedKey
+            )
+            Telemetry.send(.settingChanged(
+                setting: .startMeetingsMuted,
+                value: Self.settingValue(startMeetingsMuted)
+            ))
         }
     }
     public var showMeetingRecordingPill: Bool {
@@ -316,6 +340,18 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(
                 setting: .pauseMediaDuringDictation,
                 value: Self.settingValue(pauseMediaDuringDictation)
+            ))
+        }
+    }
+    public var preserveDiscardedDictations: Bool {
+        didSet {
+            defaults.set(
+                preserveDiscardedDictations,
+                forKey: UserDefaultsAppRuntimePreferences.preserveDiscardedDictationsKey
+            )
+            Telemetry.send(.settingChanged(
+                setting: .preserveDiscardedDictations,
+                value: Self.settingValue(preserveDiscardedDictations)
             ))
         }
     }
@@ -477,6 +513,12 @@ public final class SettingsViewModel {
                 forKey: UserDefaultsAppRuntimePreferences.dictationInsertionStyleKey
             )
             Telemetry.send(.settingChanged(setting: .dictationInsertionStyle, value: dictationInsertionStyle.rawValue))
+        }
+    }
+    public var removeUmFiller: Bool {
+        didSet {
+            defaults.set(removeUmFiller, forKey: UserDefaultsAppRuntimePreferences.removeUmFillerKey)
+            Telemetry.send(.settingChanged(setting: .removeUmFiller, value: Self.settingValue(removeUmFiller)))
         }
     }
     public var customWordCount: Int = 0
@@ -795,7 +837,11 @@ public final class SettingsViewModel {
     public var calendarNotificationsAuthorized: Bool = true
 
     // Permission status
-    public var microphoneGranted = false
+    /// Three-state microphone permission. Settings needs `.denied` vs
+    /// `.notDetermined` because macOS only shows the TCC prompt once — after
+    /// denial the recovery path is System Settings, matching Calendar.
+    public private(set) var microphoneStatus: PermissionStatus = .notDetermined
+    public var microphoneGranted: Bool { microphoneStatus == .granted }
     public var accessibilityGranted = false
     public var screenRecordingGranted = false
     /// Reinstall shortcuts after macOS grants access to a running app.
@@ -876,6 +922,7 @@ public final class SettingsViewModel {
         parakeetModelVariantCached: @escaping @Sendable (ParakeetModelVariant) -> Bool = {
             // Unified is a separate FluidAudio runtime with no `AsrModelVersion`;
             // dispatch it to its own engine's cache check.
+            if $0 == .orukeet { return OrukeetModelStore.isInstalled }
             if $0.usesUnifiedEngine { return ParakeetUnifiedEngine.isModelCached() }
             guard let version = $0.asrModelVersion else { return false }
             return STTRuntime.isModelCached(version: version)
@@ -887,6 +934,7 @@ public final class SettingsViewModel {
             CohereTranscribeEngine.isModelCached()
         },
         deleteParakeetModelOnDisk: @escaping @Sendable (ParakeetModelVariant) -> Bool = {
+            if $0 == .orukeet { return OrukeetModelStore.delete() }
             if $0.usesUnifiedEngine { return ParakeetUnifiedEngine.deleteModel() }
             guard let version = $0.asrModelVersion else { return false }
             return STTRuntime.deleteParakeetModel(version: version)
@@ -967,10 +1015,14 @@ public final class SettingsViewModel {
         keepDictationOnClipboard = defaults.bool(
             forKey: UserDefaultsAppRuntimePreferences.keepDictationOnClipboardKey
         )
+        dictationStreamingCursorEnabled = defaults.object(
+            forKey: UserDefaultsAppRuntimePreferences.dictationStreamingCursorEnabledKey
+        ) as? Bool ?? false
         selectedMicrophoneDeviceUID = Self.normalizedMicrophoneSelection(
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)
         )
         meetingAudioSourceMode = MeetingAudioSourceMode.current(defaults: defaults)
+        startMeetingsMuted = UserDefaultsAppRuntimePreferences.startMeetingsMuted(defaults: defaults)
         showMeetingRecordingPill = UserDefaultsAppRuntimePreferences.showMeetingRecordingPill(defaults: defaults)
         openAppAfterMeetingEnd = UserDefaultsAppRuntimePreferences.openAppAfterMeetingEnd(defaults: defaults)
         notifyOnMeetingEnd = UserDefaultsAppRuntimePreferences.notifyOnMeetingEnd(defaults: defaults)
@@ -980,6 +1032,7 @@ public final class SettingsViewModel {
         pauseMediaDuringDictation = defaults.object(
             forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey
         ) as? Bool ?? false
+        preserveDiscardedDictations = UserDefaultsAppRuntimePreferences.preserveDiscardedDictations(defaults: defaults)
         instantDictationEnabled = defaults.object(
             forKey: UserDefaultsAppRuntimePreferences.instantDictationEnabledKey
         ) as? Bool ?? false
@@ -992,6 +1045,7 @@ public final class SettingsViewModel {
         voiceReturnTriggers = UserDefaultsAppRuntimePreferences.voiceReturnTriggerList(defaults: defaults)
         processingMode = Self.normalizedProcessingMode(defaults.string(forKey: UserDefaultsAppRuntimePreferences.processingModeKey))
         dictationInsertionStyle = DictationInsertionStyle.current(defaults: defaults)
+        removeUmFiller = UserDefaultsAppRuntimePreferences.removeUmFiller(defaults: defaults)
         saveDictationHistory = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveDictationHistoryKey) as? Bool ?? true
         saveAudioRecordings = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveAudioRecordingsKey) as? Bool ?? true
         saveTranscriptionAudio = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey) as? Bool ?? true
@@ -1423,7 +1477,7 @@ public final class SettingsViewModel {
                 let micStatus = await service.checkMicrophonePermission()
                 let accStatus = service.checkAccessibilityPermission()
                 let screenRecordingStatus = service.checkScreenRecordingPermission()
-                microphoneGranted = micStatus == .granted
+                microphoneStatus = micStatus
                 screenRecordingGranted = screenRecordingStatus
                 applyAccessibilityStatus(accStatus)
             }
@@ -1542,6 +1596,27 @@ public final class SettingsViewModel {
         microphoneTestTask = nil
         microphoneTestLevel = 0
         microphoneTestState = .idle
+    }
+
+    public func requestMicrophoneAccess() {
+        guard let permissionService else { return }
+        Telemetry.send(.permissionPrompted(permission: .microphone))
+        Task {
+            let granted = await permissionService.requestMicrophonePermission()
+            if granted {
+                microphoneStatus = .granted
+                Telemetry.send(.permissionGranted(permission: .microphone))
+                sharedMicStream?.prewarmDictation()
+            } else {
+                microphoneStatus = .denied
+                Telemetry.send(.permissionDenied(permission: .microphone))
+            }
+            refreshPermissions()
+        }
+    }
+
+    public func openMicrophoneSystemSettings() {
+        permissionService?.openMicrophoneSettings()
     }
 
     public func requestScreenRecordingAccess() {

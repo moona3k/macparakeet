@@ -255,6 +255,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     /// `isVadLiveChunkingEnabled`. Final transcription is unaffected — it
     /// always re-reads the saved audio after the meeting ends.
     private let isLiveTranscriptionEnabled: @Sendable () -> Bool
+    private let startMicrophoneMuted: @Sendable () -> Bool
     private let requestedMicProcessingMode: MeetingMicProcessingMode
     private let liveChunkTranscriber: LiveChunkTranscriber
     private let lockFileStore: MeetingRecordingLockFileStoring
@@ -370,6 +371,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         finalSpeechEngineSelection: @escaping @Sendable () -> SpeechEngineSelection? = { nil },
         isVadLiveChunkingEnabled: @escaping @Sendable () -> Bool = { false },
         isLiveTranscriptionEnabled: @escaping @Sendable () -> Bool = { true },
+        startMicrophoneMuted: @escaping @Sendable () -> Bool = { false },
         echoSuppressionConfiguration: MeetingEchoSuppressionConfiguration = .fromEnvironment()
     ) {
         self.init(
@@ -382,6 +384,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             finalSpeechEngineSelection: finalSpeechEngineSelection,
             isVadLiveChunkingEnabled: isVadLiveChunkingEnabled,
             isLiveTranscriptionEnabled: isLiveTranscriptionEnabled,
+            startMicrophoneMuted: startMicrophoneMuted,
             micConditionerFactory: {
                 MeetingEchoSuppressionFactory.makeConditioner(
                     configuration: echoSuppressionConfiguration
@@ -400,6 +403,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         finalSpeechEngineSelection: @escaping @Sendable () -> SpeechEngineSelection? = { nil },
         isVadLiveChunkingEnabled: @escaping @Sendable () -> Bool = { false },
         isLiveTranscriptionEnabled: @escaping @Sendable () -> Bool = { true },
+        startMicrophoneMuted: @escaping @Sendable () -> Bool = { false },
         micConditionerFactory: @escaping @Sendable () -> any MicConditioning,
         cleanedMicConditionerFactory: (@Sendable () -> any MicConditioning)? = nil,
         wallClockNow: @escaping @Sendable () -> Date = { Date() },
@@ -433,6 +437,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         self.finalSpeechEngineSelection = finalSpeechEngineSelection
         self.isVadLiveChunkingEnabled = isVadLiveChunkingEnabled
         self.isLiveTranscriptionEnabled = isLiveTranscriptionEnabled
+        self.startMicrophoneMuted = startMicrophoneMuted
         self.micConditionerFactory = micConditionerFactory
         self.cleanedMicConditionerFactory = cleanedMicConditionerFactory ?? micConditionerFactory
         self.wallClockNow = wallClockNow
@@ -497,7 +502,11 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
 
     public var microphoneMuteState: MeetingMicrophoneMuteState {
         let canMute = canMuteMicrophone
-        return MeetingMicrophoneMuteState(isMuted: canMute && microphoneMuted, canMute: canMute)
+        let capturesMic = captureHealthMetrics.sourceMode?.capturesMicrophone == true
+        return MeetingMicrophoneMuteState(
+            isMuted: capturesMic && microphoneMuted,
+            canMute: canMute
+        )
     }
 
     public var captureHealth: MeetingCaptureHealthSummary {
@@ -715,7 +724,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             recoveringSources = []
             sourceCaptureMetrics = [:]
             captureHealthMetrics = CaptureHealthMetrics()
-            captureHealthMetrics.sourceMode = sourceMode
+            let resolvedSourceMode = sourceMode ?? .microphoneAndSystem
+            captureHealthMetrics.sourceMode = resolvedSourceMode
             sourceStartupStates = [:]
             sourceHealthLastBufferAt = [:]
             sourceHealthLastBufferActiveSeconds = [:]
@@ -727,6 +737,22 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             syncLagEmaMs = nil
             syncLagWarningActive = false
             lastLoggedSyncLagBucketMs = nil
+
+            microphoneMuted = false
+            microphoneMutedHostTime = nil
+            completedMicrophoneMuteHostTimeRanges = []
+            if resolvedSourceMode.capturesMicrophone, startMicrophoneMuted() {
+                microphoneMuted = true
+                // Host time 0 covers the first tap callbacks, which can arrive
+                // before `setMicrophoneMuted` would have a real host-time origin.
+                microphoneMutedHostTime = 0
+                latestLevels.microphone = 0
+                recentMicrophoneRms = 0
+                recentProcessedMicRms = 0
+                AudioCaptureDiagnostics.append(
+                    "meeting_microphone_start_muted session=\(session.id.uuidString)"
+                )
+            }
 
             if let previewSpeechEngine = session.speechPlan.preview {
                 await liveChunkTranscriber.startSession(
@@ -753,6 +779,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             let captureStartReport = try await audioCaptureService.start(sourceMode: sourceMode)
             try await validateStartStillCurrent(session)
             captureHealthMetrics.sourceMode = captureStartReport.sourceMode
+            clearStartMicrophoneMuteIfNeeded(for: captureStartReport.sourceMode)
             captureHealthMetrics.captureStartCompleted = true
             if captureHealthMetrics.captureStartedAt == nil {
                 captureHealthMetrics.captureStartedAt = wallClockNow()
@@ -1469,6 +1496,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         switch event {
         case .captureStarting(let sourceMode):
             captureHealthMetrics.sourceMode = sourceMode
+            clearStartMicrophoneMuteIfNeeded(for: sourceMode)
             sourceStartupStates = [
                 .microphone: sourceMode.capturesMicrophone ? .starting : .notSelected,
                 .system: sourceMode.capturesSystemAudio ? .starting : .notSelected,
@@ -1959,6 +1987,13 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             end: end,
             to: &completedMicrophoneMuteHostTimeRanges
         )
+    }
+
+    private func clearStartMicrophoneMuteIfNeeded(for sourceMode: MeetingAudioSourceMode) {
+        guard !sourceMode.capturesMicrophone else { return }
+        microphoneMuted = false
+        microphoneMutedHostTime = nil
+        completedMicrophoneMuteHostTimeRanges = []
     }
 
     private func appendBoundedCompletedHostTimeRange(

@@ -868,7 +868,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         let inputChars = transcript.count
         let context = try loadContextForLLMOperation(
             operationID: operationID,
-            feature: "formatter_\(source.rawValue)",
+            feature: TelemetryLLMFeature.formatter.rawValue,
             streaming: false,
             startedAt: startedAt,
             inputChars: inputChars,
@@ -941,7 +941,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                 ))
             sendLLMOperation(
                 operationID: operationID,
-                feature: "formatter_\(source.rawValue)",
+                feature: TelemetryLLMFeature.formatter.rawValue,
                 provider: config.id.rawValue,
                 streaming: false,
                 outcome: .success,
@@ -973,7 +973,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
             if error is CancellationError {
                 sendLLMOperation(
                     operationID: operationID,
-                    feature: "formatter_\(source.rawValue)",
+                    feature: TelemetryLLMFeature.formatter.rawValue,
                     provider: config.id.rawValue,
                     streaming: false,
                     outcome: .cancelled,
@@ -1007,7 +1007,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                 }
                 sendLLMOperation(
                     operationID: operationID,
-                    feature: "formatter_\(source.rawValue)",
+                    feature: TelemetryLLMFeature.formatter.rawValue,
                     provider: config.id.rawValue,
                     streaming: false,
                     outcome: Self.outcomeForLLMError(error),
