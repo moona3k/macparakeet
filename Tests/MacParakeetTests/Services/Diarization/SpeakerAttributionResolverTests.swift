@@ -60,6 +60,75 @@ final class SpeakerAttributionResolverTests: XCTestCase {
         XCTAssertEqual(restored.editableSegments.map(\.text), baseline.editableSegments.map(\.text))
     }
 
+    func testOmitOnlyReviseTextDoesNotReturnThePassageThroughExportShareOrAI() throws {
+        let transcription = twoSegmentFixture()
+        let baseline = SpeakerAttributionResolver.resolve(transcription: transcription)
+        let untouched = projected(transcription, attribution: baseline, correctionsApplied: false)
+        XCTAssertEqual(untouched.transcriptTextAlignment, .automatic)
+
+        let fingerprint = SpeakerAttributionResolver.fingerprint(for: transcription)
+        let kept = baseline.editableSegments[0]
+        let omitted = baseline.editableSegments[1]
+        let edit = correction(
+            id: UUID(), parentID: nil, sequence: 1,
+            fingerprint: fingerprint, transcription: transcription,
+            command: .reviseText(changes: [
+                .omit(target: target(omitted.wordRange, transcription: transcription))
+            ])
+        )
+        let effective = projected(
+            transcription,
+            attribution: resolve(transcription, correction: edit, fingerprint: fingerprint),
+            correctionsApplied: true
+        )
+
+        XCTAssertEqual(effective.transcriptTextAlignment, .segment)
+        XCTAssertEqual(effective.wordTimestamps?.map(\.word), transcription.wordTimestamps?.map(\.word))
+        XCTAssertFalse(publishedText(effective).localizedCaseInsensitiveContains(omitted.text))
+        XCTAssertTrue(publishedText(effective).localizedCaseInsensitiveContains(kept.text))
+
+        let bundle = try ShareProjection.project(
+            transcription: effective,
+            selection: ShareSelection(includeSummary: false, includeNotes: false, includeTranscript: true)
+        )
+        let shared = shareTranscriptText(bundle)
+        XCTAssertFalse(shared.localizedCaseInsensitiveContains(omitted.text))
+        XCTAssertTrue(shared.localizedCaseInsensitiveContains(kept.text))
+    }
+
+    func testOmittingEveryPassagePublishesAnEmptyTranscript() throws {
+        let transcription = twoSegmentFixture()
+        let baseline = SpeakerAttributionResolver.resolve(transcription: transcription)
+        let fingerprint = SpeakerAttributionResolver.fingerprint(for: transcription)
+        let edit = correction(
+            id: UUID(), parentID: nil, sequence: 1,
+            fingerprint: fingerprint, transcription: transcription,
+            command: .reviseText(changes: baseline.editableSegments.map { segment in
+                .omit(target: target(segment.wordRange, transcription: transcription))
+            })
+        )
+        let effective = projected(
+            transcription,
+            attribution: resolve(transcription, correction: edit, fingerprint: fingerprint),
+            correctionsApplied: true
+        )
+
+        XCTAssertEqual(effective.transcriptTextAlignment, .segment)
+        XCTAssertEqual(effective.cleanTranscript?.trimmingCharacters(in: .whitespacesAndNewlines), "")
+        let published = publishedText(effective)
+        for segment in baseline.editableSegments {
+            XCTAssertFalse(published.localizedCaseInsensitiveContains(segment.text))
+        }
+        XCTAssertThrowsError(
+            try ShareProjection.project(
+                transcription: effective,
+                selection: ShareSelection(includeSummary: false, includeNotes: false, includeTranscript: true)
+            )
+        ) { error in
+            XCTAssertEqual(error as? ShareProjectionError, .nothingSelected)
+        }
+    }
+
     func testReviseTextRejectsAnEmptySessionBlankReplacementAndDuplicatePassage() {
         let transcription = twoSegmentFixture()
         let baseline = SpeakerAttributionResolver.resolve(transcription: transcription)
@@ -1041,6 +1110,34 @@ final class SpeakerAttributionResolverTests: XCTestCase {
             payload: command,
             createdAt: Date(timeIntervalSince1970: TimeInterval(sequence))
         )
+    }
+
+    private func projected(
+        _ transcription: Transcription,
+        attribution: EffectiveSpeakerAttribution,
+        correctionsApplied: Bool
+    ) -> Transcription {
+        SpeakerAttributionProjection(
+            automaticTranscription: transcription,
+            attribution: attribution,
+            correctionsApplied: correctionsApplied
+        ).effectiveTranscription
+    }
+
+    private func publishedText(_ transcription: Transcription) -> String {
+        [
+            TranscriptAIContextFormatter.format(transcription: transcription),
+            ExportService().formatSRT(transcription: transcription),
+            ExportService().formatMarkdown(transcription: transcription),
+            MeetingMarkdownRenderer().renderForClipboard(transcription: transcription),
+        ].joined(separator: "\n")
+    }
+
+    private func shareTranscriptText(_ bundle: ShareBundle) -> String {
+        bundle.sections.compactMap { section in
+            guard case .transcript(_, let segments) = section else { return nil }
+            return segments.map(\.text).joined(separator: " ")
+        }.joined(separator: "\n")
     }
 
     private func resolve(
