@@ -91,6 +91,9 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Added
 
+- `config spoken-punctuation` (`on`/`off`, default on) controls whether Clean
+  dictation and file transcription convert spoken question/exclamation marks.
+  Meetings never convert. `vocab process` honors the same app-defaults key.
 - `config get|set|list` includes `escape-cancels-dictation` (`on`/`off`,
   default on). When off, Escape is left for other apps and does not cancel
   a live dictation.

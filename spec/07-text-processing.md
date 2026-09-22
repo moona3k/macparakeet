@@ -68,6 +68,12 @@ Trigger phrases are replaced with their full expansion text.
 - Matching is **case-insensitive** with **whole-phrase boundaries**
 - Expanded snippet IDs are tracked so use counts can be updated after processing
 - Example: `"my signature"` → `"Best regards, David"`
+- After user snippets, Clean mode optionally converts spoken punctuation
+  commands (`question mark` → `?`, `exclamation mark` / `exclamation point` → `!`,
+  plus DE/ES/FR/PT/PL aliases). Prefix `literal` (or `wörtlich` / `littéral` /
+  `dosłownie`) keeps the words. User snippets of the same trigger still win.
+  Default on; Vocabulary and `config set spoken-punctuation` can opt out.
+  This does **not** run on meeting transcripts.
 
 ### Step 5: Whitespace Cleanup + Insertion Style
 

@@ -988,6 +988,7 @@ CREATE TABLE text_snippets (
 - [x] Custom word replacements applied (case-insensitive matching)
 - [x] Trailing action snippets are extracted before text snippet expansion
 - [x] Snippet triggers expanded to full text
+- [x] Spoken punctuation commands (`question mark` / `exclamation mark`) convert in Clean mode, with a literal-phrase escape
 - [x] Whitespace normalized and punctuation fixed
 - [x] Processing completes in sub-millisecond
 - [x] Raw mode bypasses full cleanup but still supports terminal action extraction

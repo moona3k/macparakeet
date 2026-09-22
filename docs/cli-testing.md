@@ -272,7 +272,7 @@ swift run macparakeet-cli config set voice-return-enabled on
 swift run macparakeet-cli config set voice-return-triggers "hey parakeet|okay parakeet"
 ```
 
-Supported keys: `telemetry`, `processing-mode`, `remove-um-filler`, `speech-engine`,
+Supported keys: `telemetry`, `processing-mode`, `spoken-punctuation`, `remove-um-filler`, `speech-engine`,
 `parakeet-model`, `nemotron-model`, `nemotron-language`, `whisper-language`,
 `cohere-language`, `speaker-detection`, `meeting-speaker-detection`,
 `auto-meeting-titles`, `save-transcription-audio`, `meeting-audio-retention`,
