@@ -17,6 +17,11 @@ public final class HotkeyManager {
     public var onDiscardRecording: ((Bool) -> Void)?
     public var onReadyForSecondTap: (() -> Void)?
     public var onEscapeWhileIdle: (() -> Void)?
+    /// When false, a live take ignores Escape so the key reaches other apps.
+    /// Pending gestures that have not started a take still clear, and an idle
+    /// overlay still dismisses. Read from the event tap, so this must not hop
+    /// to the main actor.
+    public var shouldCancelOnEscape: () -> Bool = { true }
 
     private let gestureController: HotkeyGestureController
     private let trigger: HotkeyTrigger
@@ -432,7 +437,7 @@ public final class HotkeyManager {
         }
 
         if keyCode == 53 { // Escape
-            return gestureController.escapePressed()
+            return escapeOutputs()
         } else if !HotkeyTrigger.isFnKeyCode(physicalKeyCode) {
             // Skip Fn/Globe key (63/179) — macOS generates a synthetic keyDown
             // with keyCode 179 when Fn is released (for "Change Input Source" or
@@ -639,7 +644,7 @@ public final class HotkeyManager {
 
                 return (gestureController.triggerPressed(timestampMs: timestampMs), true)
             } else if keyCode == 53 { // Escape
-                return (gestureController.escapePressed(), false)
+                return (escapeOutputs(), false)
             } else {
                 // Gesture interruption: a regular key press means the user is typing,
                 // not performing a bare hotkey gesture.
@@ -701,7 +706,7 @@ public final class HotkeyManager {
 
                 return (gestureController.triggerPressed(timestampMs: timestampMs), true)
             } else if keyCode == 53 { // Escape
-                return (gestureController.escapePressed(), false)
+                return (escapeOutputs(), false)
             } else {
                 // Gesture interruption
                 return (gestureController.interrupted(), false)
@@ -815,7 +820,7 @@ public final class HotkeyManager {
         timestampMs _: UInt64
     ) -> [HotkeyGestureController.Output] {
         if keyCode == 53 {
-            return gestureController.escapePressed()
+            return escapeOutputs()
         } else if !HotkeyTrigger.isFnKeyCode(UInt16(keyCode)) {
             if modifierChordGestureIsActive {
                 bareTap = false
@@ -824,6 +829,16 @@ public final class HotkeyManager {
                 return []
             }
             return gestureController.interrupted()
+        }
+        return []
+    }
+
+    private func escapeOutputs() -> [HotkeyGestureController.Output] {
+        // A pending hold or second-tap window has not started a take, so Escape
+        // still clears it. A live take keeps `activeRecordingMode` set, so
+        // Escape stays ignored when the setting is off.
+        if shouldCancelOnEscape() || activeRecordingMode == nil {
+            return gestureController.escapePressed()
         }
         return []
     }
