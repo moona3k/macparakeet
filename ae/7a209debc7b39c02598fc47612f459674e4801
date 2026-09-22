@@ -1,0 +1,62 @@
+Sources/MacParakeetCore/Services/VoiceControl/ScreenTextSource.swift
+  s_22ec5587c2905e::t_f5ba2212dcddc3 90,96-102
+  s_08070a5469009d::t_f78835e9680d1e 103
+Sources/MacParakeetCore/Services/VoiceControl/NativeVoiceControlAdapter.swift
+  s_22ec5587c2905e::t_f38c88634f8077 23-33
+  s_22ec5587c2905e::t_16a14a4e200f20 317-319
+  s_22ec5587c2905e::t_b2e534f3370a3e 736-737,739-748
+spec/contracts/voice-control.md
+  s_22ec5587c2905e::t_4b9a442dfbe23a 236-237
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTurnRunner.swift
+  s_22ec5587c2905e::t_cdec37aea7f025 162
+  s_22ec5587c2905e::t_dad077e3f1c3e6 235
+  s_22ec5587c2905e::t_422d2ee4d0af44 233-234,236-237
+  s_22ec5587c2905e::t_4e4f25f7294227 133
+  s_22ec5587c2905e::t_52945df16b6847 154
+  s_22ec5587c2905e::t_e9141575c9bd9f 3-14
+  s_22ec5587c2905e::t_735f41c9bde9f3 99,194,221,241,593
+  s_22ec5587c2905e::t_e913b4ca0513bc 189
+  s_22ec5587c2905e::t_2211b70ac8a977 38-39
+  s_22ec5587c2905e::t_7873ca00966399 36-37
+Tests/MacParakeetTests/VoiceControl/VoiceControlObservabilityTests.swift
+  s_22ec5587c2905e::t_b5a68e38605905 253-273,276-277,280-285
+  s_22ec5587c2905e::t_66d316d2c29f3d 274-275
+  s_22ec5587c2905e::t_330cc3be19c025 299,302,306-307,312-322
+  s_22ec5587c2905e::t_b26d3be290edc1 300-301,303-305,308-311
+  s_22ec5587c2905e::t_991adefb852ee5 278-279
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTraceStore.swift
+  s_22ec5587c2905e::t_a643095dc80a2e 1
+  s_22ec5587c2905e::t_8c35eb75572009 232-245,247
+Sources/MacParakeet/App/VoiceControlCoordinator.swift
+  s_22ec5587c2905e::t_9b4acd5b94a3f4 576
+  s_22ec5587c2905e::t_5d13accd96ae64 473-477
+  s_22ec5587c2905e::t_f93abb2a704d16 564
+Tests/MacParakeetTests/VoiceControl/NativeVoiceControlAdapterTests.swift
+  s_22ec5587c2905e::t_8427d3dca99645 6-18
+Tests/MacParakeetTests/VoiceControl/VoiceControlTraceStoreTests.swift
+  s_22ec5587c2905e::t_3e95519f16c0c8 52-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ae7a209debc7b39c02598fc47612f459674e4801",
+  "prompts": {},
+  "sessions": {
+    "s_08070a5469009d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e4ef9f5a-7c8e-42b5-8c32-482153280e11",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_22ec5587c2905e": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d63dd1ea-9d2b-4826-93ac-75f15495da8c",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
