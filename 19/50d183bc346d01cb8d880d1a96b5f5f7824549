@@ -1,0 +1,30 @@
+Sources/MacParakeetCore/Services/LLM/AppleIntelligenceAvailability.swift
+  s_08070a5469009d::t_c05caa53dbbfbb 48,50,52
+spec/11-llm-integration.md
+  s_08070a5469009d::t_37aa222fdb7a7d 75
+Sources/MacParakeet/Views/Settings/LLMSettingsView.swift
+  s_08070a5469009d::t_afffba468763b9 289-309
+Sources/MacParakeetViewModels/LLMSettingsViewModel.swift
+  s_08070a5469009d::t_1ffc2db79d3b7c 5-9
+  s_08070a5469009d::t_79e0092133e50f 398-429
+Tests/MacParakeetTests/Services/LLM/AppleIntelligenceLLMClientTests.swift
+  s_08070a5469009d::t_c2bc1b30760e7d 325,327,330-331
+Tests/MacParakeetTests/ViewModels/LLMSettingsViewModelTests.swift
+  s_08070a5469009d::t_e41ffea4913b02 50-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1950d183bc346d01cb8d880d1a96b5f5f7824549",
+  "prompts": {},
+  "sessions": {
+    "s_08070a5469009d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e4ef9f5a-7c8e-42b5-8c32-482153280e11",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
