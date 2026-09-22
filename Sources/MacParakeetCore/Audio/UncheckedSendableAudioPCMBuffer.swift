@@ -52,6 +52,13 @@ final class UncheckedSendableAudioEngine: @unchecked Sendable {
         (try? catchingObjCException { engine.isRunning }) ?? false
     }
 
+    /// Running state via an optional injected probe (deterministic tests),
+    /// falling back to the real engine when no probe is supplied.
+    func isEngineRunning(using probe: (@Sendable (AVAudioEngine) -> Bool)?) -> Bool {
+        if let probe { return probe(engine) }
+        return isEngineRunning()
+    }
+
     /// Returns true if this box wraps the given engine instance (identity check).
     func wraps(_ other: AVAudioEngine) -> Bool {
         engine === other

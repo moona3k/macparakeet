@@ -247,6 +247,11 @@ final class TransformsCoordinator {
         menuBarCapture: Task<SelectionCaptureResult, Never>? = nil
     ) {
         guard AppFeatures.transformsEnabled else { return }
+        if let owner = GUIMutationArbiter.shared.current?.owner, owner != .transform {
+            panelController?.show()
+            panelController?.fail(message: "Finish the current voice task before running a Transform.")
+            return
+        }
         guard let prompt = promptIndex[promptID] else {
             logger.notice("transforms: trigger for unknown promptID, reloading bindings")
             reloadBindings()
@@ -293,6 +298,11 @@ final class TransformsCoordinator {
         // from the wrong app after a focus yank. ADR-022 §4; AUDIT-072.
         runSerializer.replace { @MainActor [weak self] in
             guard let self else { return }
+            guard let lease = GUIMutationArbiter.shared.acquire(.transform) else {
+                self.panelController?.fail(message: "Another voice action is active.")
+                return
+            }
+            defer { GUIMutationArbiter.shared.release(lease) }
             do {
                 var preCaptured: SelectionCaptureResult?
                 if let menuBarCapture {

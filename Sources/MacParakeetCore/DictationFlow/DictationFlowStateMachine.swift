@@ -206,6 +206,11 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
             state = .startingService(mode: mode)
             return [.showRecordingOverlay(mode: mode), .startRecording(mode: mode), .updateMenuBar(.recording)]
 
+        case (.checkingEntitlements, .startFailed(let gen, let message)):
+            guard gen == generation else { return [] }
+            state = .finishing(outcome: .error(message))
+            return [.showError(message), .resetHotkeyStateMachine, .updateMenuBar(.idle), .startDisplayDismissTimer(seconds: 5)]
+
         case (.checkingEntitlements, .entitlementsDenied(let gen)):
             guard gen == generation else { return [] }
             state = .idle

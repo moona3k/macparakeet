@@ -57,6 +57,8 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     var onPrepareMenuBarTransforms: (() -> Void)?
     var onRunMenuBarTransform: ((UUID) -> Void)?
     var menuBarTransformsProvider: (() -> [MenuBarTransformListing])?
+    var onVoiceControl: (() -> Void)?
+    var onInteractionBusy: (() -> Void)?
 
     private var statusItem: NSStatusItem?
     private var statusItemState = MenuBarStatusItemState()
@@ -250,6 +252,9 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         )
         captureMenu.addItem(startDictationItem)
         startDictationMenuItem = startDictationItem
+        if AppFeatures.isVoiceControlAvailable() {
+            captureMenu.addItem(makeMenuItem(title: "Voice Control…", action: #selector(openVoiceControl), key: ""))
+        }
         captureMenu.addItem(NSMenuItem.separator())
         let fileTranscriptionItem = makeMenuItem(
             title: "Transcribe File...",
@@ -417,6 +422,9 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
+        if AppFeatures.isVoiceControlAvailable() {
+            menu.addItem(makeMenuItem(title: "Voice Control…", action: #selector(openVoiceControl), key: ""))
+        }
         let pasteItem = NSMenuItem(
             title: "Paste Last Dictation",
             action: #selector(pasteLastDictation),
@@ -723,10 +731,12 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         NSWorkspace.shared.open(url)
     }
 
+    @objc private func openVoiceControl() { onVoiceControl?() }
+
     @objc private func pasteLastDictation() {
         guard let env = environmentProvider() else { return }
         Task {
-            guard let dictation = (try? env.dictationRepo.fetchAll(limit: 1))?.first else { return }
+            guard let dictation = (try? env.dictationRepo.fetchCompleted(limit: 1))?.first else { return }
             // displayText honors the per-row "Undo AI edit" override.
             let text = dictation.displayText
             await pasteFromMenu(text: text, clipboardService: env.clipboardService)
@@ -737,7 +747,8 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         guard let env = environmentProvider(),
               let id = sender.representedObject as? UUID else { return }
         Task {
-            guard let dictation = try? env.dictationRepo.fetch(id: id) else { return }
+            guard let dictation = try? env.dictationRepo.fetch(id: id),
+                  dictation.status == .completed else { return }
             let text = dictation.displayText
             await pasteFromMenu(text: text, clipboardService: env.clipboardService)
         }
@@ -830,7 +841,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
             return
         }
 
-        let dictations = (try? env.dictationRepo.fetchAll(limit: 5)) ?? []
+        let dictations = (try? env.dictationRepo.fetchCompleted(limit: 5)) ?? []
         pasteLastMenuItem?.isEnabled = !dictations.isEmpty
         rebuildRecentDictationsSubmenu(with: dictations)
 
@@ -858,6 +869,8 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
 
     /// Resign menu-bar focus, wait for the target app to regain focus, then paste.
     private func pasteFromMenu(text: String, clipboardService: ClipboardServiceProtocol) async {
+        guard let lease = GUIMutationArbiter.shared.acquire(.historyPaste) else { onInteractionBusy?(); return }
+        defer { GUIMutationArbiter.shared.release(lease) }
         NSApp.deactivate()
         try? await Task.sleep(for: .milliseconds(200))
         do {

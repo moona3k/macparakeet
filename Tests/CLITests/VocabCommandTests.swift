@@ -151,6 +151,44 @@ final class VocabCommandTests: XCTestCase {
         XCTAssertFalse(output.contains("MacParakeet ->"))
     }
 
+    func testVocabWordsAddJSONReturnsSavedID() async throws {
+        let cmd = try VocabWordsCommand.AddWord.parse([
+            "MacParakeet",
+            "--database", dbPath,
+            "--json",
+        ])
+        let output = try await capturingStdout {
+            try await cmd.run()
+        }
+
+        let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(decoded["ok"] as? Bool, true)
+        let word = try XCTUnwrap(decoded["word"] as? [String: Any])
+        XCTAssertEqual(word["word"] as? String, "MacParakeet")
+        XCTAssertNotNil(word["id"] as? String)
+        let manager = try DatabaseManager(path: dbPath)
+        let saved = try CustomWordRepository(dbQueue: manager.dbQueue).fetchAll()
+        XCTAssertEqual(saved.map(\.word), ["MacParakeet"])
+    }
+
+    func testVocabSnippetsAddJSONReturnsSavedID() async throws {
+        let cmd = try VocabSnippetsCommand.AddSnippet.parse([
+            "my signature",
+            "Best,\nDana",
+            "--database", dbPath,
+            "--json",
+        ])
+        let output = try await capturingStdout {
+            try await cmd.run()
+        }
+
+        let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(decoded["ok"] as? Bool, true)
+        let snippet = try XCTUnwrap(decoded["snippet"] as? [String: Any])
+        XCTAssertEqual(snippet["trigger"] as? String, "my signature")
+        XCTAssertNotNil(snippet["id"] as? String)
+    }
+
     func testVocabWordsSetTogglesEnabledState() async throws {
         let manager = try DatabaseManager(path: dbPath)
         let repo = CustomWordRepository(dbQueue: manager.dbQueue)

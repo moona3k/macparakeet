@@ -283,6 +283,21 @@ FLEURS via `FluidInference/fleurs-full` (HF); Cohere model
 `FluidInference/cohere-transcribe-03-2026-coreml` (q8); Apple M4 Pro / 48 GB /
 macOS 15.
 
+## Orukeet preview, measured 2026-09-21
+
+Orukeet is an optional Parakeet variant, not a fifth engine. A same-machine
+rerun of full LibriSpeech `test-clean` and `test-other`, sixteen FLEURS
+languages at n=150, and the speed micro-bench is written up in
+[`docs/research/2026-09-21-orukeet-asr-benchmark.md`](../../docs/research/2026-09-21-orukeet-asr-benchmark.md).
+
+That run used this branch's `macparakeet-cli` on an Apple M4 Pro / 48 GB /
+macOS 26.6.2. It does not replace the macOS 15 table above, and it does not
+re-rank Cohere, Unified, v2, WhisperKit, or Nemotron. Against a fresh Parakeet
+v3 run on the same CLI, Orukeet was significantly better on both English
+subsets (macro WER 2.74% vs 3.06%) and in the same speed and memory band.
+Nine of the 25 claimed languages were not in the FLEURS mirror used here.
+CJK remains a failure for both models.
+
 ## Status & limitations
 
 - **English: full sets, final-grade.** Multilingual: **capped** FLEURS (150/lang),

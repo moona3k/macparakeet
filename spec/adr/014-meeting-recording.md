@@ -16,6 +16,7 @@
 > Amended: 2026-07-15 (meeting speech routing is captured as an immutable live-preview/final plan: preview follows the leased Live Speech engine when supported, while authoritative finalization and recovery use the separately captured Final Transcription route)
 > Amended: 2026-07-15 (bound ScreenCaptureKit startup/teardown waits and make Stop during partial meeting startup immediately own durable settlement)
 > Amended: 2026-09-11 ("Live transcription during recording" setting: a user-facing preference gate on top of the captured `MeetingSpeechPlan`, letting the user turn off the live STT pass to save CPU/GPU while recording; the post-stop final pass is unaffected)
+> Amended: 2026-09-16 ("Start meetings muted" setting: default-off sticky preference to silence the microphone before the first captured frame, then unmute from the live panel. [Issue #882](https://github.com/moona3k/macparakeet/issues/882) remainder.)
 
 ## Context
 
@@ -252,6 +253,18 @@ Dictation has complex paste/cancel/undo behavior that meeting recording doesn't 
 - **Sleep / wake during pause auto-finalizes (no data loss).** `sourceInterrupted` events from ScreenCaptureKit / mic stalls are not gated by `paused`, so a Mac going to sleep while a recording is paused routes through the existing capture-failure path: `failCapture` → polling fires `.captureFailed` on wake → state machine transitions `.recording → .transcribing` → `stopRecordingAndTranscribe` runs through the normal save path. All pre-pause audio is saved + transcribed; the in-flight pause is settled into `accumulatedPausedDuration` correctly. The limitation is purely UX: the user expecting to resume after wake gets a finalized meeting instead and has to start a new recording for post-wake content. Behavior is consistent with any other mid-recording capture interruption (USB mic unplug, Bluetooth dropout). A follow-up PR could auto-pause-stop on `NSWorkspace.willSleepNotification` or attempt a stream re-init on wake to enable true resume-after-wake.
 - **Telemetry semantic drift.** `meetingRecordingCompleted(durationSeconds:)` and `meetingRecordingCancelled(durationSeconds:)` now emit active-recording time rather than wallclock-since-start. Cohort analysis spanning the merge date will silently mix two definitions. The follow-up PR that adds pause/resume telemetry events should also add a `pausedSeconds` field on the completed event so analyses can disambiguate.
 - **Calendar / wallclock alignment unaware of pause.** Any future feature that aligns transcript timestamps to wallclock (e.g., calendar correlation) would be off by `accumulatedPausedDuration` for paused meetings. Not relevant in v0.6.
+
+### 12. Start meetings muted (2026-09-16 amendment)
+
+[Issue #882](https://github.com/moona3k/macparakeet/issues/882) remaining request: join a meeting with the microphone off, then unmute when ready to speak. Mute-during-recording already existed; this slice arms mute **before capture start** so the first tap callback is silence.
+
+- Default-off Settings → Meeting Recording toggle (`startMeetingsMuted` / CLI `start-meetings-muted`). It stays on until turned off; it is not a one-shot for the next meeting only. System-audio-only capture ignores it, and the Settings control is disabled when the selected source does not capture a microphone.
+- `MeetingRecordingService` sets `microphoneMuted` and `microphoneMutedHostTime = 0` before `audioCaptureService.start`. Host time 0 covers first tap callbacks that can arrive before `setMicrophoneMuted` would have a real host-time origin. If capture later resolves with no microphone, the armed start-mute is dropped.
+- Unmute appends the completed mute host-time range so in-flight buffers stay silent.
+- The live panel shows the muted mic control during `.starting`, disabled until the microphone is ready. `canMute` stays false until then. See [UI patterns](../04-ui-patterns.md#meeting-recording-panel-v06).
+- Calendar auto-start uses the same preference, so an opted-in start-muted user does not leak the mic on an automatic join.
+- Changing the setting during a meeting affects the next recording; Settings states this explicitly.
+- Feature behavior: [F49](../02-features.md#f49-start-meetings-muted).
 
 ## Consequences
 

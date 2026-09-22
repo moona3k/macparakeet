@@ -132,13 +132,24 @@ final class DictationFlowCoordinator {
         return "Paste failed and the clipboard could not be updated."
     }
 
+    static func streamingPartialInsertMessage(copiedToClipboard copied: Bool) -> String {
+        if copied {
+            return "Some text was inserted. The full transcript is on the clipboard."
+        }
+        return "Some text was inserted, but the clipboard could not be updated."
+    }
+
     /// Set after init; updated when dictation hotkey managers are recreated.
     var hotkeyManagers: [HotkeyManager] = []
+    var onInteractionBusy: (() -> Void)?
 
     // MARK: - Dependencies
 
     private let serviceSession: DictationServiceSession
     private let clipboardService: ClipboardServiceProtocol
+    private let streamingInserter: any StreamingCursorInserting
+    private let shouldReduceMotion: () -> Bool
+    private let inputSourceAllowsStreaming: () -> Bool
     private let entitlementsService: EntitlementsService
     private let dictationRepo: DictationRepository
     private let settingsViewModel: SettingsViewModel
@@ -183,17 +194,24 @@ final class DictationFlowCoordinator {
     private var captionShownAt: Date?
     private var captionGeneration = 0
     var testHook_onProcessingLoadCaptionChange: ((DictationOverlayViewModel.ProcessingLoadCaption?) -> Void)?
+    /// Skip the recovery NSAlert so denied-mic starts can be asserted in XCTest
+    /// without `runModal` in a headless process.
+    var testHook_skipMicPermissionAlert = false
 
     // MARK: - Flow Context (not state machine concerns)
 
     /// Telemetry trigger for the current dictation flow.
     private var currentTrigger: TelemetryDictationTrigger = .hotkey
+    private let mutationArbiter: GUIMutationArbiter
+    private var interactionLease: GUIMutationArbiter.Lease?
+    private var foregroundInsertions = 0
     /// The Dictation object from the most recent transcription, used for paste + DB save.
     private var currentDictation: Dictation?
     /// Insertion style used to shape the most recent dictation result, used for paste spacing.
     private var currentDictationInsertionStyle: DictationInsertionStyle = .sentence
     /// Ephemeral post-paste action from the text processing pipeline (e.g., simulate Return key).
     private var pendingPostPasteAction: KeyAction?
+    private var pendingInsertTimings: (operationID: String?, captureMs: Int?, transcribeMs: Int?)?
     /// Error from the most recent entitlements check failure, consumed by presentEntitlementsAlert effect.
     private var lastEntitlementsError: Error?
     /// Suppresses repeat mic-permission alerts within a session once the user has been shown the recovery prompt.
@@ -206,7 +224,15 @@ final class DictationFlowCoordinator {
 
     init(
         dictationService: DictationService,
+        mutationArbiter: GUIMutationArbiter? = nil,
         clipboardService: ClipboardServiceProtocol,
+        streamingInserter: any StreamingCursorInserting = StreamingCursorInserter(),
+        shouldReduceMotion: @escaping () -> Bool = {
+            NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        },
+        inputSourceAllowsStreaming: @escaping () -> Bool = {
+            StreamingCursorInputSource.allowsStreaming()
+        },
         entitlementsService: EntitlementsService,
         dictationRepo: DictationRepository,
         settingsViewModel: SettingsViewModel,
@@ -228,6 +254,9 @@ final class DictationFlowCoordinator {
     ) {
         self.serviceSession = DictationServiceSession(service: dictationService)
         self.clipboardService = clipboardService
+        self.streamingInserter = streamingInserter
+        self.shouldReduceMotion = shouldReduceMotion
+        self.inputSourceAllowsStreaming = inputSourceAllowsStreaming
         self.entitlementsService = entitlementsService
         self.dictationRepo = dictationRepo
         self.settingsViewModel = settingsViewModel
@@ -240,6 +269,7 @@ final class DictationFlowCoordinator {
         self.mediaPauseCoordinator = mediaPauseCoordinator ?? NoOpDictationMediaPauseCoordinator()
         self.overlayControllerFactory = overlayControllerFactory
         self.shouldSuppressIdlePill = shouldSuppressIdlePill
+        self.mutationArbiter = mutationArbiter ?? GUIMutationArbiter()
         self.isStartSuppressed = isStartSuppressed
         self.onMenuBarIconUpdate = onMenuBarIconUpdate
         self.onHistoryReload = onHistoryReload
@@ -348,6 +378,10 @@ final class DictationFlowCoordinator {
         // Suppressed while onboarding is up — the speech model isn't ready and
         // the hotkey step runs its own no-STT rehearsal. Covers hotkey + pill.
         guard !isStartSuppressed() else { return }
+        if interactionLease == nil {
+            guard let lease = mutationArbiter.acquire(.dictation) else { onInteractionBusy?(); return }
+            interactionLease = lease
+        }
         currentTrigger = trigger
         sendEvent(.startRequested(mode: mode))
     }
@@ -398,6 +432,15 @@ final class DictationFlowCoordinator {
         }
 
         executeEffects(effects)
+
+        switch stateMachine.state {
+        case .idle, .ready, .finishing:
+            if foregroundInsertions == 0, let interactionLease {
+                mutationArbiter.release(interactionLease)
+                self.interactionLease = nil
+            }
+        default: break
+        }
 
         if Self.mediaPauseCaptureActive(for: oldState),
            !Self.mediaPauseCaptureActive(for: stateMachine.state) {
@@ -533,7 +576,32 @@ final class DictationFlowCoordinator {
                 do {
                     try await self.entitlementsService.assertCanTranscribe(now: Date())
                     guard !Task.isCancelled else { return }
-                    self.sendEvent(.entitlementsGranted(generation: gen))
+                    let microphonePermission = await self.ensureMicrophonePermissionForStart()
+                    guard !Task.isCancelled else { return }
+                    switch microphonePermission {
+                    case .alreadyGranted:
+                        self.sendEvent(.entitlementsGranted(generation: gen))
+                    case .grantedAfterPrompt:
+                        if case .checkingEntitlements(mode: .holdToTalk) = self.stateMachine.state {
+                            // The TCC sheet interrupts the hold. Starting capture
+                            // here orphans a hold-to-talk session if the key-up
+                            // was delivered to the sheet. Keep the grant; the
+                            // next hold starts immediately. An already-granted
+                            // mic never shows that sheet, so that path must
+                            // continue into this same press.
+                            self.sendEvent(.stopRequested)
+                            return
+                        }
+                        self.sendEvent(.entitlementsGranted(generation: gen))
+                    case .denied:
+                        self.sendEvent(
+                            .startFailed(
+                                generation: gen,
+                                message: Self.microphoneAccessRequiredMessage
+                            )
+                        )
+                        self.maybePresentMicPermissionAlert()
+                    }
                 } catch {
                     guard !Task.isCancelled else { return }
                     self.lastEntitlementsError = error
@@ -593,45 +661,66 @@ final class DictationFlowCoordinator {
             }
             let transcript = dictation.cleanTranscript ?? dictation.rawTranscript
             let insertionStyle = currentDictationInsertionStyle
-            Task { @MainActor in
+            let action = pendingPostPasteAction
+            pendingPostPasteAction = nil
+            let transcriptHasText = !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            let appendsTrailingSpace = !(
+                dictation.processingMode.usesDeterministicPipeline
+                && insertionStyle == .inline
+            )
+            let normalPasteText = appendsTrailingSpace ? transcript + " " : transcript
+            let insertText = action == nil ? normalPasteText : transcript
+            // IME/Reduce Motion are sampled once at dispatch. A layout switch
+            // during the short stream is accepted risk; paste remains the fallback
+            // when capability is unknown.
+            let shouldStream = self.runtimePreferences.dictationStreamingCursorEnabled
+                && !self.shouldReduceMotion()
+                && self.inputSourceAllowsStreaming()
+                && transcriptHasText
+                && StreamingCursorPolicy.isStreamable(insertText)
+
+            foregroundInsertions += 1
+            let work = { @MainActor in
+                defer {
+                    self.foregroundInsertions -= 1
+                    switch self.stateMachine.state {
+                    case .idle, .ready, .finishing:
+                        if self.foregroundInsertions == 0, let lease = self.interactionLease {
+                            self.mutationArbiter.release(lease)
+                            self.interactionLease = nil
+                        }
+                    default: break
+                    }
+                }
                 var completedDictation = dictation
-                let action = self.pendingPostPasteAction
-                self.pendingPostPasteAction = nil
                 let pastedToAppAtDispatch = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
                 let keepDictationOnClipboard = self.runtimePreferences.shouldKeepDictationOnClipboard
-                let transcriptHasText = !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                let appendsTrailingSpace = !(
-                    dictation.processingMode.usesDeterministicPipeline
-                    && insertionStyle == .inline
-                )
-                let normalPasteText = appendsTrailingSpace ? transcript + " " : transcript
 
                 do {
                     if action == nil && !transcriptHasText {
                         self.dictationLog.notice("dictation_paste_skipped gen=\(gen) reason=empty_transcript")
+                        self.pendingInsertTimings = nil
                         guard self.stateMachine.generation == gen else { return }
                         self.dismissCaption(outcome: .success)
                         self.sendEvent(.pasteSucceeded(generation: gen))
                         return
                     }
 
-                    if let action {
-                        // Action mode: no trailing space, action replaces the space role
-                        let keystrokeFired = try await self.clipboardService.pasteTextWithAction(
-                            transcript,
-                            postPasteAction: action,
-                            restoresClipboard: !keepDictationOnClipboard
-                        )
-                        if keystrokeFired {
-                            Telemetry.send(.keystrokeSnippetFired(action: action.rawValue))
-                        }
-                    } else {
-                        // Normal paste path: spacing follows the style used to shape this dictation.
-                        try await self.clipboardService.pasteText(
-                            normalPasteText,
-                            restoresClipboard: !keepDictationOnClipboard
-                        )
+                    let pasteStartedAt = Date()
+                    try await self.performDictationInsert(
+                        insertText: insertText,
+                        transcript: transcript,
+                        action: action,
+                        keepDictationOnClipboard: keepDictationOnClipboard,
+                        shouldStream: shouldStream
+                    )
+
+                    // Cmd+V-posted breadcrumb. Action-only Voice Return (empty text +
+                    // Return keystroke) is not a paste and must not enter e2e_ms.
+                    if transcriptHasText {
+                        self.emitDictationInsertIfPossible(pasteStartedAt: pasteStartedAt)
                     }
+                    self.pendingInsertTimings = nil
 
                     // Save pastedToApp metadata
                     if let pastedToApp = pastedToAppAtDispatch {
@@ -658,11 +747,20 @@ final class DictationFlowCoordinator {
                 } catch {
                     let bucket = Self.commandFailureBucket(for: error)
                     self.dictationLog.error("dictation_paste_failed gen=\(gen) bucket=\(bucket, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+                    self.pendingInsertTimings = nil
                     guard self.stateMachine.generation == gen else { return }
                     self.dismissCaption(outcome: .failure)
                     if !transcriptHasText {
                         // Pure action-only dictation (e.g., "press return") — nothing to paste
                         self.sendEvent(.pasteFailed(generation: gen, message: "Keystroke failed. Check Accessibility permissions."))
+                    } else if error as? StreamingCursorError == .partialInsert {
+                        let copied = await self.clipboardService.copyToClipboard(insertText)
+                        self.sendEvent(
+                            .pasteFailed(
+                                generation: gen,
+                                message: Self.streamingPartialInsertMessage(copiedToClipboard: copied)
+                            )
+                        )
                     } else {
                         let fallbackText = keepDictationOnClipboard && action == nil ? normalPasteText : transcript
                         let copied = await self.clipboardService.copyToClipboard(fallbackText)
@@ -678,6 +776,16 @@ final class DictationFlowCoordinator {
                 }
             }
 
+            if shouldStream {
+                actionTask = Task { @MainActor in
+                    await work()
+                }
+            } else {
+                Task { @MainActor in
+                    await work()
+                }
+            }
+
         // MARK: History
 
         case .reloadHistory:
@@ -685,6 +793,7 @@ final class DictationFlowCoordinator {
             currentDictation = nil
             currentDictationInsertionStyle = .sentence
             pendingPostPasteAction = nil
+            pendingInsertTimings = nil
 
         // MARK: App integration
 
@@ -773,6 +882,7 @@ final class DictationFlowCoordinator {
             actionTask?.cancel()
             actionTask = nil
             pendingPostPasteAction = nil
+            pendingInsertTimings = nil
         }
     }
 
@@ -911,8 +1021,23 @@ final class DictationFlowCoordinator {
             }
         default:
             dismissCaption(outcome: .failure)
-            overlayViewModel?.state = .error(message)
+            presentErrorOverlay(message: message)
         }
+    }
+
+    private func presentErrorOverlay(message: String) {
+        if overlayViewModel == nil {
+            let vm = DictationOverlayViewModel()
+            vm.onCancel = { [weak self] in self?.sendEvent(.dismissRequested) }
+            vm.onStop = { [weak self] in self?.stopDictation() }
+            vm.onUndo = { [weak self] in self?.sendEvent(.undoRequested) }
+            vm.onDismiss = { [weak self] in self?.sendEvent(.dismissRequested) }
+            overlayViewModel = vm
+            let controller = overlayControllerFactory(vm)
+            controller.show()
+            overlayController = controller
+        }
+        overlayViewModel?.state = .error(message)
     }
 
     /// Whether the error represents "no speech" (empty transcript or recording too short).
@@ -1017,6 +1142,38 @@ final class DictationFlowCoordinator {
         }
     }
 
+    private enum MicrophoneStartPermission {
+        case alreadyGranted
+        case grantedAfterPrompt
+        case denied
+    }
+
+    /// Ask for the microphone before capture starts so a skipped onboarding
+    /// grant can continue into the same dictation press. Meetings already do
+    /// this in their permission gate; dictation previously failed first, then
+    /// prompted, then required a second press.
+    ///
+    /// Distinguish an already-granted mic from a grant after the system sheet.
+    /// Hold-to-talk can only wait for the next hold when that sheet actually
+    /// appeared; an already-granted mic must continue into this same press.
+    private func ensureMicrophonePermissionForStart() async -> MicrophoneStartPermission {
+        switch await permissionService.checkMicrophonePermission() {
+        case .granted:
+            return .alreadyGranted
+        case .notDetermined:
+            Telemetry.send(.permissionPrompted(permission: .microphone))
+            let granted = await permissionService.requestMicrophonePermission()
+            Telemetry.send(
+                granted
+                    ? .permissionGranted(permission: .microphone)
+                    : .permissionDenied(permission: .microphone)
+            )
+            return granted ? .grantedAfterPrompt : .denied
+        case .denied:
+            return .denied
+        }
+    }
+
     private static func isMicrophonePermissionDenied(_ error: Error) -> Bool {
         if let audioError = error as? AudioProcessorError,
            case .microphonePermissionDenied = audioError {
@@ -1031,6 +1188,7 @@ final class DictationFlowCoordinator {
     private func maybePresentMicPermissionAlert() {
         guard !micPermissionAlertShown else { return }
         micPermissionAlertShown = true
+        if testHook_skipMicPermissionAlert { return }
         Task { @MainActor in
             await self.presentMicPermissionAlert()
         }
@@ -1151,6 +1309,84 @@ final class DictationFlowCoordinator {
         currentDictation = result.dictation
         currentDictationInsertionStyle = result.insertionStyle
         pendingPostPasteAction = result.postPasteAction
+        pendingInsertTimings = (
+            operationID: result.operationID,
+            captureMs: result.captureMs,
+            transcribeMs: result.transcribeMs
+        )
+    }
+
+    private func performDictationInsert(
+        insertText: String,
+        transcript: String,
+        action: KeyAction?,
+        keepDictationOnClipboard: Bool,
+        shouldStream: Bool
+    ) async throws {
+        if shouldStream {
+            do {
+                try await streamingInserter.insert(insertText)
+                if Task.isCancelled { return }
+                if keepDictationOnClipboard {
+                    _ = await clipboardService.copyToClipboard(insertText)
+                }
+                if let action {
+                    try? await Task.sleep(for: .milliseconds(200))
+                    if Task.isCancelled { return }
+                    do {
+                        let keystrokeFired = try await clipboardService.pasteTextWithAction(
+                            "",
+                            postPasteAction: action,
+                            restoresClipboard: true
+                        )
+                        if keystrokeFired {
+                            Telemetry.send(.keystrokeSnippetFired(action: action.rawValue))
+                        }
+                    } catch {
+                        // Text already landed via Unicode events. Do not fall through
+                        // to Cmd+V of the full transcript.
+                        throw StreamingCursorError.partialInsert
+                    }
+                }
+                return
+            } catch let error as StreamingCursorError
+                where error == .eventSourceUnavailable || error == .eventCreationFailed
+            {
+                dictationLog.notice("streaming_cursor_fell_back_to_paste")
+            }
+        }
+
+        if let action {
+            let keystrokeFired = try await clipboardService.pasteTextWithAction(
+                transcript,
+                postPasteAction: action,
+                restoresClipboard: !keepDictationOnClipboard
+            )
+            if keystrokeFired {
+                Telemetry.send(.keystrokeSnippetFired(action: action.rawValue))
+            }
+        } else {
+            try await clipboardService.pasteText(
+                insertText,
+                restoresClipboard: !keepDictationOnClipboard
+            )
+        }
+    }
+
+    private func emitDictationInsertIfPossible(pasteStartedAt: Date) {
+        guard let timings = pendingInsertTimings,
+            let captureMs = timings.captureMs,
+            let transcribeMs = timings.transcribeMs
+        else { return }
+        let pasteMs = DictationService.elapsedMilliseconds(since: pasteStartedAt)
+        Telemetry.send(
+            .dictationInsert(
+                operationID: timings.operationID,
+                captureMs: captureMs,
+                transcribeMs: transcribeMs,
+                pasteMs: pasteMs,
+                e2eMs: captureMs + transcribeMs + pasteMs
+            ))
     }
 
     private func handleTranscriptionFailure(_ error: Error, generation: Int, phase: String) {
@@ -1214,6 +1450,13 @@ final class DictationFlowCoordinator {
             case .eventSourceUnavailable: return "paste_event_source_unavailable"
             case .eventCreationFailed: return "paste_event_creation_failed"
             case .pasteboardWriteFailed: return "pasteboard_write_failed"
+            }
+        }
+        if let streamingError = error as? StreamingCursorError {
+            switch streamingError {
+            case .eventSourceUnavailable: return "streaming_event_source_unavailable"
+            case .eventCreationFailed: return "streaming_event_creation_failed"
+            case .partialInsert: return "streaming_partial_insert"
             }
         }
         return "unknown"

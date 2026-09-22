@@ -218,6 +218,7 @@ final class SpecCommandTests: XCTestCase {
                 "transcript",
                 "transforms",
                 "vocab",
+                "voice-control",
             ],
             "The spec catalog is a curated agent-facing surface; update this expectation when that surface changes."
         )
@@ -281,6 +282,7 @@ final class SpecCommandTests: XCTestCase {
             ["vocab", "snippets", "edit"],
             ["vocab", "import"],
             ["history", "favorite"],
+            ["history", "rename"],
             ["history", "delete-meeting-audio"],
             ["retranscribe"],
             ["search"],
@@ -290,6 +292,9 @@ final class SpecCommandTests: XCTestCase {
             ["export"],
             ["calendar", "upcoming"],
             ["feedback"],
+            ["meetings", "corrections", "rename"],
+            ["meetings", "corrections", "assign"],
+            ["meetings", "corrections", "merge-speakers"],
         ] {
             XCTAssertTrue(paths.contains(path), "\(path.joined(separator: " ")) missing from spec catalog")
         }
@@ -377,6 +382,10 @@ final class SpecCommandTests: XCTestCase {
             configKeys.first { ($0["key"] as? String) == "meeting-speaker-detection" })
         XCTAssertEqual(meetingSpeakerDetection["allowedValues"] as? [String], ["on", "off"])
 
+        let customVocabularyBoosting = try XCTUnwrap(
+            configKeys.first { ($0["key"] as? String) == "custom-vocabulary-boosting" })
+        XCTAssertEqual(customVocabularyBoosting["allowedValues"] as? [String], ["on", "off"])
+
         let timeout = try XCTUnwrap(configKeys.first { ($0["key"] as? String) == "meeting-hook-timeout" })
         XCTAssertEqual(timeout["valueSyntax"] as? String, "seconds 1-300")
     }
@@ -416,6 +425,7 @@ final class SpecCommandTests: XCTestCase {
         XCTAssertTrue(optionNames.contains("--speaker-min"))
         XCTAssertTrue(optionNames.contains("--speaker-max"))
         XCTAssertTrue(optionNames.contains("--media-audio-quality"))
+        XCTAssertTrue(optionNames.contains("--no-diarize"))
         XCTAssertTrue(optionNames.contains("--database"))
 
         let engine = try XCTUnwrap(options.first { ($0["name"] as? String) == "--engine" })
@@ -431,7 +441,7 @@ final class SpecCommandTests: XCTestCase {
         let parakeetModel = try XCTUnwrap(options.first { ($0["name"] as? String) == "--parakeet-model" })
         XCTAssertEqual(
             parakeetModel["summary"] as? String,
-            "Parakeet build: v3 supported languages, v2 English timestamps, or Unified readable English timestamps."
+            "Parakeet build: v3 supported languages, v2 English timestamps, Unified readable English timestamps, or orukeet (multilingual preview)."
         )
         let nemotronModel = try XCTUnwrap(options.first { ($0["name"] as? String) == "--nemotron-model" })
         XCTAssertEqual(nemotronModel["valueName"] as? String, "app-default|multilingual-1120ms|english-1120ms")
@@ -478,6 +488,12 @@ final class SpecCommandTests: XCTestCase {
         XCTAssertTrue(optionNames.contains("--speaker-max"))
         XCTAssertTrue(optionNames.contains("--no-diarize"))
         XCTAssertTrue(optionNames.contains("--database"))
+
+        let parakeetModel = try XCTUnwrap(options.first { ($0["name"] as? String) == "--parakeet-model" })
+        XCTAssertEqual(
+            parakeetModel["summary"] as? String,
+            "Parakeet build: v3 supported languages, v2 English timestamps, Unified readable English timestamps, or orukeet (multilingual preview)."
+        )
 
         let speakerDetection = try XCTUnwrap(options.first { ($0["name"] as? String) == "--speaker-detection" })
         XCTAssertEqual(speakerDetection["valueName"] as? String, "app-default|on|off")

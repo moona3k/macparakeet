@@ -70,18 +70,27 @@ struct VocabSnippetsCommand: AsyncParsableCommand {
         @Argument(help: "The expansion text.")
         var expansion: String
 
+        @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+        var json: Bool = false
+
         @Option(help: "Path to SQLite database file (defaults to the app database).")
         var database: String?
 
         func run() async throws {
-            try AppPaths.ensureDirectories()
-            let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
-            let repo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
+            try emitJSONOrRethrow(json: json) {
+                try AppPaths.ensureDirectories()
+                let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
+                let repo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
 
-            let snippet = TextSnippet(trigger: trigger, expansion: expansion)
-            try repo.save(snippet)
+                let snippet = TextSnippet(trigger: trigger, expansion: expansion)
+                try repo.save(snippet)
 
-            print("Added: Say \"\(trigger)\" -> \(expansion)")
+                if json {
+                    try printJSON(VocabSnippetWriteResult(ok: true, snippet: snippet))
+                } else {
+                    print("Added: Say \"\(trigger)\" -> \(expansion)")
+                }
+            }
         }
     }
 
