@@ -42,7 +42,9 @@ the [research plan](../../plans/active/2026-09-19-jev-voice-control.md).
   observation and `latest.md` prints a `walk:` line.
 - Screen text is an optional second observation source (`ScreenTextReading`),
   enabled per user (`voiceControl.screenText.v1`) because it needs Screen
-  Recording. Recognised lines that no Accessibility control explains, that lie
+  Recording. The reader captures the frontmost app's own window id. It does
+  not capture the screen rectangle, so overlapping windows are not read, and
+  an ambiguous window match returns no text. Recognised lines that no Accessibility control explains, that lie
   outside secure fields' frames and that contain no secure word become
   `role: "text"` press targets with a private pixel centre; a press posts a
   marked click and is received as `unknown` unless transition evidence
@@ -228,7 +230,11 @@ client. It never observes or acts on the live screen. The inbox accepts
 `dispatch/dry_run` trace naming the consequence, reports "would <operation>
 <control>", and ends the task without executing or asking for confirmation.
 Retention is the last 20 sessions. A pointer copy is also written to
-`/tmp/macparakeet-voice-control/latest.md`. The experimental panel exposes the
+`/tmp/macparakeet-voice-control/latest.md` with owner-only permissions. That
+pointer is not a command inbox. `command.json` is read only from the Voice
+Control log directory. A dry run is a fresh proposal: it cannot activate an
+app, confirm, stop, enter literal mode, or replace an in-progress turn, a
+pending confirmation, or an unanswered clarification. The experimental panel exposes the
 log path with Refresh, Open folder, Copy log path, and Copy diagnostics. Copy
 diagnostics still omits the instruction and labels.
 
@@ -262,9 +268,12 @@ to its exact action, snapshot and authority.
 
 Confirmation is consequence-based. Ordinary navigation, selection, form edits,
 scrolling and search proceed within the requested task. Payment commitments,
-destructive actions and external commitments require confirmation; uncertain
-consequences ask rather than assume. Generated replacements remain previewed for
-confirmation. Clarifying a target is distinct from consequence authorization.
+destructive actions and external commitments require confirmation. Known target
+metadata for those risks cannot be downgraded by a model's ordinary label. An
+unknown model label does not by itself confirm an ordinary press. An explicitly
+unknown consequence on a non-navigation press does ask. Generated replacements
+remain previewed for confirmation. Clarifying a target is distinct from
+consequence authorization.
 Repeated actions against the same observed state are rejected to avoid duplicate
 effects; correcting a goal must not erase unknown-effect or execution history.
 
@@ -291,7 +300,7 @@ many were dropped; the turn does not fail. Consequence confidence never blocks
 or prompts; local policy decides pay/delete/send. Calendar days are matched by
 a deterministic spoken-date parser, not token overlap. Literal mode treats utterances as text; isolated
 `command mode` / `stop typing` exits and `command stop` pauses. Isolated utterances `typing mode`, `start typing`, `activate type`, `type mode`, `literal mode`, and `dictation mode` enter. `type literally command mode`
-enters those words. While a pay, delete, or send confirmation is pending, only isolated `yes` / `confirm` / `confirm this action` authorize; `ok` and `okay` do not. Isolated `no` / `cancel` / `cancel task` decline. Consecutive typed insertions join with a space when appending at the caret. Ambiguous visible names become a numbered local pick (`1` / `two` / `the second one`); `the other one` is not option 1. A unique visible name on a plain window is itself a press (`Save` or `the Save button`); `press return` sends a key, while `click Return` presses a control. A focused field that already holds the requested type payload is left unchanged. Numbered picks rematch by id and label after the next observation. Confirmation reobserves if the pending snapshot expired. Prefix handling must preserve the payload rather than
+enters those words. While a pay, delete, or send confirmation is pending, only isolated `yes` / `confirm` / `confirm this action` authorize; `ok` and `okay` do not. Isolated `no` / `cancel` / `cancel task` decline. Consecutive typed insertions join with a space when appending at the caret. Ambiguous visible names become a numbered local pick (`1` / `two` / `the second one`); `the other one` is not option 1. A unique visible name on a plain window is itself a press (`Save` or `the Save button`); `press return` sends a key, while `click Return` presses a control. A focused field that already holds the requested type payload is left unchanged. Numbered picks rematch by id and label after the next observation. A confirmation whose snapshot is stale does not dispatch a rebound control; the person repeats the request. Prefix handling must preserve the payload rather than
 shortening or stripping arbitrary fillers. Selected-text rewriting uses the
 explicitly enabled writing provider and previews the generated action for
 confirmation.

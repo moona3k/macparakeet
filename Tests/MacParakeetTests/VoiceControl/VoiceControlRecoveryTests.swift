@@ -239,7 +239,7 @@ final class VoiceControlRecoveryTests: XCTestCase {
         XCTAssertTrue(ingress.isValid)
     }
 
-    func testExpiredConfirmationReobservesAndCompletesTheAuthorizedAction() async {
+    func testStaleConfirmationDoesNotDispatchAReboundControl() async {
         let adapter = RecoveryAdapter()
         await adapter.expireNextExecute()
         let engine = RecoveryEngine([.action(.init(operation: .press, targetID: "alpha", targetLabel: "Alpha", consequence: .payment)), .finished])
@@ -247,7 +247,9 @@ final class VoiceControlRecoveryTests: XCTestCase {
         await runner.submit("Commit this payment")
         await runner.confirm()
         let effects = await adapter.effects
-        XCTAssertEqual(effects.map(\.targetID), ["alpha"])
+        XCTAssertTrue(effects.isEmpty)
+        let records = await runner.traceSnapshot()
+        XCTAssertTrue(records.contains { $0.outcome == "confirmation_stale" })
     }
 
     func testConsequencePolicyAllowsOrdinaryTaskStepsAndProtectsCommitments() {
@@ -265,6 +267,18 @@ final class VoiceControlRecoveryTests: XCTestCase {
         XCTAssertEqual(policy("Address book"), .ordinary)
         XCTAssertEqual(policy("Delete file"), .destructive)
         XCTAssertEqual(policy("Send message"), .externalCommitment)
+        let continued = VoiceControlTarget(
+            id: "t", label: "Continue", role: "button", operations: [.press], consequence: .payment)
+        XCTAssertEqual(
+            VoiceControlConsequencePolicy.consequence(
+                of: .init(operation: .press, targetID: "t", consequence: .ordinary), target: continued),
+            .payment)
+        let unmarked = VoiceControlTarget(
+            id: "t", label: "Continue", role: "button", operations: [.press], consequence: .unknown)
+        XCTAssertEqual(
+            VoiceControlConsequencePolicy.consequence(
+                of: .init(operation: .press, targetID: "t", consequence: .ordinary), target: unmarked),
+            .unknown)
         XCTAssertEqual(policy("Payment amount", operation: .setValue), .ordinary)
         let returnKey = VoiceControlAction(operation: .key, targetID: "t", value: "return")
         let body = VoiceControlTarget(

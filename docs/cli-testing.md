@@ -279,7 +279,7 @@ Supported keys: `telemetry`, `processing-mode`, `remove-um-filler`, `speech-engi
 `meeting-audio-source`, `start-meetings-muted`, `save-meeting-audio`, `youtube-audio-quality`,
 `meeting-artifacts-folder`, `meeting-hook-enabled`, `meeting-hook-path`,
 `meeting-hook-timeout`, `voice-return-enabled`, `voice-return-triggers`,
-`preserve-discarded-dictations`.
+`escape-cancels-dictation`, `preserve-discarded-dictations`.
 Underscore aliases such as `youtube_audio_quality` are accepted on input; JSON
 output uses canonical hyphenated keys.
 

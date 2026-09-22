@@ -93,3 +93,7 @@ Settings polling. While Accessibility is denied, the app additionally re-checks
 only that permission on the Settings polling interval, so granting access while
 MacParakeet stays in the background with Settings closed still restores the
 shortcuts. The watch stops once access is granted and restarts if it is revoked.
+
+## Amendment: Optional Escape cancel (2026-09-21)
+
+Escape stays blocked as a dictation hotkey. Cancel-on-Escape remains the default (`escapeCancelsDictation`). Turning it off leaves Escape for the front app during a live take and does not cancel that take. A pending hold or second-tap window that has not started a take still clears. Idle overlay dismiss, the meeting countdown toast, and the Settings hotkey recorder are unchanged.
