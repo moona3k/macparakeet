@@ -97,6 +97,9 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   skip and replace keep those fields empty. Apply JSON adds `wordsRemoved`
   and `snippetsRemoved` for the writes that actually ran. Skip remains the
   default; unmatched learned recognition terms are kept.
+- `config get|set|list` includes `escape-cancels-dictation` (`on`/`off`,
+  default on). When off, Escape is left for other apps and does not cancel
+  a live dictation.
 
 ## [4.5.0] — 2026-09-20
 

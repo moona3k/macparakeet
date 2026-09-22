@@ -58,6 +58,16 @@ final class AXTreeWalkTests: XCTestCase {
         XCTAssertEqual(result.visited, 3)
     }
 
+    func testInfiniteFrameDoesNotTrapOrBecomeATarget() {
+        let result = walk(
+            app(
+                node("AXButton", "Ghost", frame: .infinite, press: true),
+                node("AXButton", "Share", press: true)))
+        XCTAssertEqual(labels(result), ["Share"])
+        XCTAssertTrue(result.offscreen.isEmpty)
+        XCTAssertNil(VoiceControlTarget.region(of: .infinite, in: window))
+    }
+
     func testFramelessRootDoesNotPruneTheTree() {
         let root = node("AXApplication", "Finder", frame: nil, children: [node("AXButton", "Share", press: true)])
         XCTAssertEqual(labels(walk(root)), ["Share"])
@@ -199,7 +209,9 @@ final class AXTreeWalkTests: XCTestCase {
         let first = node("AXGroup", "", frame: frame, children: [node("AXButton", "Ask Gemini", press: true)])
         let second = node(
             "AXGroup", "", frame: frame,
-            children: [node("AXLink", "Pull requests", frame: CGRect(x: 200, y: 140, width: 100, height: 20), press: true)])
+            children: [
+                node("AXLink", "Pull requests", frame: CGRect(x: 200, y: 140, width: 100, height: 20), press: true)
+            ])
         let nested = node("AXGroup", "", frame: frame, children: [first, second])
         XCTAssertEqual(labels(walk(app(nested))), ["Ask Gemini", "Pull requests"])
     }

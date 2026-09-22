@@ -3,6 +3,19 @@ import ApplicationServices
 @testable import MacParakeetCore
 
 final class NativeVoiceControlAdapterTests: XCTestCase {
+    func testAwaitingReturnsBeforeASlowTaskFinishes() async {
+        let task = Task {
+            try? await Task.sleep(for: .seconds(2))
+            return "late"
+        }
+        let started = ContinuousClock.now
+        let value = await NativeVoiceControlAdapter.awaiting(task, budget: .milliseconds(40))
+        let elapsed = started.duration(to: .now)
+        XCTAssertNil(value)
+        XCTAssertLessThan(elapsed, .milliseconds(500))
+        task.cancel()
+    }
+
     func testPressableStaticTextUsesVisibleValueAsItsName() {
         XCTAssertEqual(NativeVoiceControlAdapter.actionLabel("", value: "One way", role: kAXStaticTextRole, pressable: true), "One way")
         XCTAssertEqual(NativeVoiceControlAdapter.actionLabel("Ticket type", value: "One way", role: kAXStaticTextRole, pressable: true), "Ticket type")
