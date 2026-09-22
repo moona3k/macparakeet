@@ -4,6 +4,11 @@ import XCTest
 @testable import MacParakeet
 
 final class VoiceControlSpeechTests: XCTestCase {
+    func testDryRunDoesNotAdmitLiveGrammar() {
+        XCTAssertFalse(VoiceControlCoordinator.admitsLiveGrammar(dryRun: true))
+        XCTAssertTrue(VoiceControlCoordinator.admitsLiveGrammar(dryRun: false))
+    }
+
     func testSilenceNeverCommitsAnUtterance() {
         var endpoint = VoiceControlEndpointer()
         for _ in 0..<1000 {
@@ -217,7 +222,6 @@ extension VoiceControlSpeechTests {
     }
 }
 
-
 extension VoiceControlSpeechTests {
     func testContextualCorrectionPhrasesDoNotTreatUnrelatedGoalsAsRevisions() {
         for phrase in ["Actually London", "No, the other one", "Change that to tomorrow", "Undo that"] {
@@ -238,7 +242,6 @@ extension VoiceControlSpeechTests {
         XCTAssertEqual(model.steps.count, 100)
     }
 }
-
 
 extension VoiceControlSpeechTests {
     @MainActor func testStoppedTypedSubmissionCannotResumeAfterSnapshotCompletes() async {
@@ -277,7 +280,6 @@ extension VoiceControlSpeechTests {
         XCTAssertFalse(submissions.currentOrBegin() === pending)
     }
 }
-
 
 extension VoiceControlSpeechTests {
     @MainActor func testCancelledTaskClearsGoalAndActivityBeforeLaterCorrection() {
