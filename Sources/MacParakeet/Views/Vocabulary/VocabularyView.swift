@@ -124,13 +124,7 @@ struct VocabularyView: View {
 
                 dividerLine
 
-                pipelineStep(
-                    number: 1,
-                    title: "Remove fillers",
-                    detail: "uh, umm, uhh",
-                    actionTitle: nil,
-                    action: nil
-                )
+                fillerRemovalRow
 
                 dividerLine
 
@@ -174,6 +168,40 @@ struct VocabularyView: View {
 
     private var customWordCountLabel: String {
         "\(settingsViewModel.customWordCount) custom correction\(settingsViewModel.customWordCount == 1 ? "" : "s")"
+    }
+
+    private var fillerRemovalRow: some View {
+        HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+            Text("1")
+                .font(DesignSystem.Typography.caption.weight(.semibold))
+                .foregroundStyle(DesignSystem.Colors.accent)
+                .frame(width: 24, height: 24)
+                .background(
+                    Circle()
+                        .fill(DesignSystem.Colors.accent.opacity(0.12))
+                )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Remove fillers")
+                    .font(DesignSystem.Typography.body)
+                Text(settingsViewModel.removeUmFiller ? "uh, um, umm, uhh" : "uh, umm, uhh")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                Text("Turn off if you dictate Portuguese or German, where um is a real word.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: DesignSystem.Spacing.md)
+
+            Toggle("Also remove “um”", isOn: $settingsViewModel.removeUmFiller)
+                .parakeetSwitch()
+                .fixedSize()
+        }
+        .padding(.horizontal, DesignSystem.Spacing.lg)
+        .padding(.vertical, DesignSystem.Spacing.md)
+        .accessibilityElement(children: .contain)
     }
 
     private var insertionStyleRow: some View {

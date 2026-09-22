@@ -18,6 +18,12 @@ set -euo pipefail
 #   NOTARY_POLL_INTERVAL_SECONDS (default: 15)
 #   MACPARAKEET_ALLOW_DEV_VERSION_SIGNING (default: 0; set 1 only for diagnostic signing)
 #
+# notarytool submit on this Mac SIGBUS-crashes (exit 138) with the default
+# --progress / S3-acceleration path. A crashed submit can still appear in
+# `notarytool history` as In Progress forever because the upload never
+# finished. Always submit with --no-wait --no-progress --no-s3-acceleration
+# and JSON output. Never use --wait. See docs/distribution.md gotcha #1.
+#
 # Outputs:
 #   dist/MacParakeet.app (signed + stapled)
 #   dist/MacParakeet.dmg (signed + stapled) if CREATE_DMG=1
@@ -69,6 +75,9 @@ poll_notarization() {
     if [[ "$elapsed" -ge "$NOTARY_TIMEOUT_SECONDS" ]]; then
       echo "${artifact_label} notarization timed out after ${elapsed}s:"
       echo "$status"
+      echo "If this submit crashed locally (SIGBUS / exit 138) before" >&2
+      echo "'Successfully uploaded file', this ID is an incomplete upload." >&2
+      echo "Resubmit the same artifact; do not keep polling. See docs/distribution.md gotcha #1." >&2
       exit 1
     fi
 
@@ -78,6 +87,69 @@ poll_notarization() {
     fi
     sleep "$NOTARY_POLL_INTERVAL_SECONDS"
   done
+}
+
+extract_notary_id() {
+  python3 -c '
+import json, re, sys
+raw = sys.stdin.read()
+for candidate in [raw] + list(reversed(raw.splitlines())):
+    text = candidate.strip()
+    if not text.startswith("{") or not text.endswith("}"):
+        continue
+    try:
+        ident = json.loads(text).get("id")
+    except json.JSONDecodeError:
+        continue
+    if ident:
+        print(ident)
+        raise SystemExit(0)
+match = re.search(
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+    raw,
+)
+if match:
+    print(match.group(0))
+'
+}
+
+submit_notarization() {
+  local artifact="$1"
+  local label="$2"
+  local submit_out rc=0 submission_id=""
+
+  echo "Submitting ${label} with --no-wait --no-progress --no-s3-acceleration..."
+  set +e
+  submit_out="$(
+    xcrun notarytool submit "$artifact" \
+      --keychain-profile "$NOTARYTOOL_PROFILE" \
+      --no-wait --no-progress --no-s3-acceleration \
+      --output-format json 2>&1
+  )"
+  rc=$?
+  set -e
+  echo "$submit_out"
+
+  if [[ "$rc" -ne 0 ]]; then
+    echo "Error: ${label} notarytool submit exited ${rc}." >&2
+    echo "A history row that stays In Progress after a crash is an incomplete upload, not a slow Apple job." >&2
+    echo "Resubmit this same artifact with --no-wait --no-progress --no-s3-acceleration --output-format json." >&2
+    echo "Do not rebuild dist/. See docs/distribution.md gotcha #1." >&2
+    exit 1
+  fi
+
+  submission_id="$(printf '%s' "$submit_out" | extract_notary_id)"
+  if [[ -z "$submission_id" ]]; then
+    echo "Error: Failed to extract ${label} submission ID from JSON output" >&2
+    exit 1
+  fi
+  if ! printf '%s' "$submit_out" | grep -q 'Successfully uploaded file'; then
+    echo "Error: ${label} submit returned an ID without 'Successfully uploaded file'." >&2
+    echo "Do not poll this ID as if the upload finished." >&2
+    exit 1
+  fi
+
+  poll_notarization "$submission_id" "$label"
 }
 
 if [[ ! -d "$APP_PATH" ]]; then
@@ -181,15 +253,7 @@ if [[ "${SKIP_NOTARIZE:-0}" == "1" ]]; then
 fi
 
 echo "[6/8] Submitting to notarization service…"
-# Submit without --wait (crashes with bus error on macOS 15+), then poll.
-SUBMIT_OUT=$(xcrun notarytool submit "$ZIP_PATH" --keychain-profile "$NOTARYTOOL_PROFILE" 2>&1)
-echo "$SUBMIT_OUT"
-SUBMISSION_ID=$(echo "$SUBMIT_OUT" | grep '  id:' | head -1 | awk '{print $2}')
-if [[ -z "$SUBMISSION_ID" ]]; then
-  echo "Error: Failed to extract submission ID"
-  exit 1
-fi
-poll_notarization "$SUBMISSION_ID" "App"
+submit_notarization "$ZIP_PATH" "App"
 
 echo "[7/8] Stapling app…"
 xcrun stapler staple "$APP_PATH"
@@ -289,15 +353,7 @@ APPLESCRIPT
   codesign --force --sign "$SIGN_IDENTITY" --timestamp "$DMG_PATH"
 
   echo "Notarizing DMG…"
-  # Submit without --wait (crashes with bus error on macOS 15+), then poll.
-  DMG_SUBMIT_OUT=$(xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARYTOOL_PROFILE" 2>&1)
-  echo "$DMG_SUBMIT_OUT"
-  DMG_SUBMISSION_ID=$(echo "$DMG_SUBMIT_OUT" | grep '  id:' | head -1 | awk '{print $2}')
-  if [[ -z "$DMG_SUBMISSION_ID" ]]; then
-    echo "Error: Failed to extract DMG submission ID"
-    exit 1
-  fi
-  poll_notarization "$DMG_SUBMISSION_ID" "DMG"
+  submit_notarization "$DMG_PATH" "DMG"
 
   echo "Stapling DMG…"
   xcrun stapler staple "$DMG_PATH"

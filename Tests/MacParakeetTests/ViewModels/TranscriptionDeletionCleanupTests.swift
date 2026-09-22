@@ -345,7 +345,7 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
     }
 
     func testMeetingDeletionOutsideAppSupportIsIgnored() throws {
-        let folderURL = try makeOutsideCurrentRootMeetingFolder()
+        let folderURL = try makeTemporaryUnmanagedMeetingFolder()
 
         let mixedURL = folderURL.appendingPathComponent("meeting-playback.m4a")
         FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mix".utf8))
@@ -364,7 +364,7 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
     }
 
     func testMeetingDeletionRemovesSessionFolderWithMetadataMarkerOutsideCurrentRoot() throws {
-        let folderURL = try makeOutsideCurrentRootMeetingFolder()
+        let folderURL = try makeTemporaryUnmanagedMeetingFolder()
 
         let mixedURL = folderURL.appendingPathComponent("meeting-playback.m4a")
         FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mix".utf8))
@@ -390,7 +390,7 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
     }
 
     func testMeetingDeletionRemovesSessionFolderWithArtifactManifestOutsideCurrentRoot() throws {
-        let folderURL = try makeOutsideCurrentRootMeetingFolder()
+        let folderURL = try makeTemporaryUnmanagedMeetingFolder()
 
         let mixedURL = folderURL.appendingPathComponent("meeting-playback.m4a")
         FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mix".utf8))
@@ -457,18 +457,6 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
         try TranscriptionAssetCleanup.removeOwnedAssets(for: transcription)
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: currentDirectory.path))
-    }
-
-    /// Session folder under a unique fake recordings root. Mutation leases are
-    /// per parent, so a session sitting directly in `FileManager.temporaryDirectory`
-    /// races every parallel test that also leases `/var/folders/.../T`.
-    private func makeOutsideCurrentRootMeetingFolder() throws -> URL {
-        let rootURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("outside-root-\(UUID().uuidString)", isDirectory: true)
-        let folderURL = rootURL.appendingPathComponent("session", isDirectory: true)
-        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-        addTeardownBlock { try? FileManager.default.removeItem(at: rootURL) }
-        return folderURL
     }
 
 }

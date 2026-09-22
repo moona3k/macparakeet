@@ -16,6 +16,7 @@ struct LLMSettingsView: View {
 
     @State private var showAdvanced = false
     @State private var showAIFormatterPrompt = false
+    @State private var showAIFormatterDictationPrompt = false
     @State private var showAIFormatterCustomProfiles = false
     @State private var showAIFormatterAppPicker = false
     @State private var showAIFormatterBundleFields = false
@@ -996,56 +997,89 @@ struct LLMSettingsView: View {
 
     @ViewBuilder
     private var aiFormatterPromptDisclosure: some View {
-        DisclosureGroup("Customize fallback prompt", isExpanded: $showAIFormatterPrompt) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 7) {
-                        Text("Prompt")
-                            .font(DesignSystem.Typography.body)
-                        Text(viewModel.aiFormatterPromptModeText)
-                            .font(DesignSystem.Typography.micro.weight(.semibold))
-                            .foregroundStyle(DesignSystem.Colors.textSecondary)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 3)
-                            .background(
-                                Capsule()
-                                    .fill(DesignSystem.Colors.surfaceElevated)
-                            )
-                    }
-                    Text("Uses `{{TRANSCRIPT}}` as the transcript placeholder and runs as the last output step.")
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: DesignSystem.Spacing.md)
-                VStack(alignment: .trailing, spacing: 6) {
-                    ZStack(alignment: .topLeading) {
-                        TextEditor(text: $viewModel.aiFormatterPrompt)
-                            .font(.system(.body, design: .monospaced))
-                            .scrollContentBackground(.hidden)
-                            .padding(6)
-                            .disabled(!viewModel.isAIFormatterAvailable)
-                    }
-                    .frame(width: 380)
-                    .frame(minHeight: 220)
-                    .background(DesignSystem.Colors.background)
-                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                            .strokeBorder(DesignSystem.Colors.border, lineWidth: 1)
-                    )
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            DisclosureGroup("Customize transcript prompt", isExpanded: $showAIFormatterPrompt) {
+                aiFormatterPromptEditor(
+                    title: "Transcript prompt",
+                    modeText: viewModel.aiFormatterPromptModeText,
+                    caption: "Files, URLs, and meetings. Uses `{{TRANSCRIPT}}` and runs as the last output step.",
+                    text: $viewModel.aiFormatterPrompt,
+                    canReset: viewModel.canResetAIFormatterPrompt,
+                    reset: viewModel.resetAIFormatterPrompt
+                )
+                .padding(.top, DesignSystem.Spacing.sm)
+            }
+            .font(DesignSystem.Typography.caption)
 
-                    Button("Reset Prompt") {
-                        viewModel.resetAIFormatterPrompt()
-                    }
-                    .buttonStyle(.plain)
+            DisclosureGroup("Customize dictation prompt", isExpanded: $showAIFormatterDictationPrompt) {
+                aiFormatterPromptEditor(
+                    title: "Dictation prompt",
+                    modeText: viewModel.aiFormatterDictationPromptModeText,
+                    caption: "Live dictation paste. Uses `{{TRANSCRIPT}}` and runs as the last output step.",
+                    text: $viewModel.aiFormatterDictationPrompt,
+                    canReset: viewModel.canResetAIFormatterDictationPrompt,
+                    reset: viewModel.resetAIFormatterDictationPrompt
+                )
+                .padding(.top, DesignSystem.Spacing.sm)
+            }
+            .font(DesignSystem.Typography.caption)
+        }
+    }
+
+    private func aiFormatterPromptEditor(
+        title: String,
+        modeText: String,
+        caption: String,
+        text: Binding<String>,
+        canReset: Bool,
+        reset: @escaping () -> Void
+    ) -> some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 7) {
+                    Text(title)
+                        .font(DesignSystem.Typography.body)
+                    Text(modeText)
+                        .font(DesignSystem.Typography.micro.weight(.semibold))
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule()
+                                .fill(DesignSystem.Colors.surfaceElevated)
+                        )
+                }
+                Text(caption)
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.secondary)
-                    .disabled(!viewModel.canResetAIFormatterPrompt)
-                }
             }
-            .padding(.top, DesignSystem.Spacing.sm)
+            Spacer(minLength: DesignSystem.Spacing.md)
+            VStack(alignment: .trailing, spacing: 6) {
+                ZStack(alignment: .topLeading) {
+                    TextEditor(text: text)
+                        .font(.system(.body, design: .monospaced))
+                        .scrollContentBackground(.hidden)
+                        .padding(6)
+                        .disabled(!viewModel.isAIFormatterAvailable)
+                }
+                .frame(width: 380)
+                .frame(minHeight: 220)
+                .background(DesignSystem.Colors.background)
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                        .strokeBorder(DesignSystem.Colors.border, lineWidth: 1)
+                )
+
+                Button("Reset Prompt") {
+                    reset()
+                }
+                .buttonStyle(.plain)
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(.secondary)
+                .disabled(!canReset)
+            }
         }
-        .font(DesignSystem.Typography.caption)
     }
 
     @ViewBuilder
@@ -1268,7 +1302,7 @@ struct LLMSettingsView: View {
                     Button("Use Fallback Prompt") {
                         viewModel.updateAIFormatterProfileDraft(
                             \.promptTemplate,
-                            to: viewModel.aiFormatterPrompt
+                            to: viewModel.aiFormatterDictationPrompt
                         )
                     }
                     .buttonStyle(.plain)
@@ -1276,10 +1310,13 @@ struct LLMSettingsView: View {
                     .foregroundStyle(.secondary)
                 }
                 ZStack(alignment: .topLeading) {
-                    TextEditor(text: profileDraftBinding(\.promptTemplate, fallback: AIFormatter.defaultPromptTemplate))
-                        .font(.system(.body, design: .monospaced))
-                        .scrollContentBackground(.hidden)
-                        .padding(6)
+                    TextEditor(
+                        text: profileDraftBinding(
+                            \.promptTemplate, fallback: AIFormatter.defaultDictationPromptTemplate)
+                    )
+                    .font(.system(.body, design: .monospaced))
+                    .scrollContentBackground(.hidden)
+                    .padding(6)
                 }
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 150)

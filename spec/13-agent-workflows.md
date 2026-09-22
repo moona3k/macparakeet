@@ -261,3 +261,7 @@ Until those are answered, this document should guide discussion only.
 | Agent-assisted builder | Explore natural-language workflow creation |
 | Agent handoff | Add safe autonomous tool execution if justified |
 | Apple Shortcuts | Can progress independently if App Intents are the better first automation surface |
+
+## Voice Control implementation authority (2026-09-19)
+
+[ADR-033](adr/033-explicit-voice-control.md) and the [Jev Voice Control plan](../plans/active/2026-09-19-jev-voice-control.md) govern the current implementation. Earlier explorations in this document are background, not evidence that command control has shipped.

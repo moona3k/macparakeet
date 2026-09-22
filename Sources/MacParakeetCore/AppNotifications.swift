@@ -54,4 +54,6 @@ public extension Notification.Name {
     /// one. Not posted on cancel/discard, an unusable capture, or a stop that
     /// was superseded by a newer session.
     static let macParakeetDictationCaptureDidStop = Notification.Name("macparakeet.dictationCaptureDidStop")
+    /// Posted after a cancelled dictation is transcribed and saved to History.
+    static let macParakeetDictationHistoryDidChange = Notification.Name("macparakeet.dictationHistoryDidChange")
 }

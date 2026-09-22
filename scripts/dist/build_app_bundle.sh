@@ -84,16 +84,17 @@ if [[ "$VERSION" == "0.0.0" ]]; then
   echo "Set VERSION=X.Y.Z for release builds so Sparkle and release metadata are correct." >&2
 fi
 
-build_cli_swiftpm() {
+build_swiftpm_helper() {
+  local product="$1"
   if [[ "$SKIP_BUILD" == "1" ]]; then
     return 0
   fi
 
   pushd "$ROOT_DIR" >/dev/null
   if [[ "$UNIVERSAL" == "1" ]]; then
-    swift build -c release --arch arm64 --arch x86_64 --product macparakeet-cli
+    swift build -c release --arch arm64 --arch x86_64 --product "$product"
   else
-    swift build -c release --product macparakeet-cli
+    swift build -c release --product "$product"
   fi
   popd >/dev/null
 }
@@ -206,7 +207,7 @@ swiftpm_release_bin_dir() {
 }
 
 copy_cli_binary() {
-  build_cli_swiftpm
+  build_swiftpm_helper macparakeet-cli
 
   local cli_bin_dir
   cli_bin_dir="$(swiftpm_release_bin_dir macparakeet-cli)"

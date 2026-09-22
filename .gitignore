@@ -95,3 +95,6 @@ spike/
 # LLVM coverage artifacts dropped in the working tree by instrumented runs
 *.profraw
 *.profdata
+
+# Local third-party reference checkouts
+/references/
