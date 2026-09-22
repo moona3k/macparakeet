@@ -72,7 +72,7 @@ The current implementation does not flatten every provider into one wire protoco
 - **OpenAI, Gemini, OpenRouter, Moonshot, DeepSeek, Qwen, Z.AI, MiniMax, and LM Studio** use the OpenAI-compatible chat completions API (`POST /chat/completions` off each provider's configured base URL).
 - **Local CLI** is not HTTP at all; prompts are passed to a subprocess via stdin/environment.
 - **Local MLX** is in-process through `InProcessLLMClient` and `LocalLLMRuntime`; the concrete MLX target is compiled only for gated app builds.
-- **Apple Intelligence** is on-device through `AppleIntelligenceLLMClient` and `FoundationModels` on macOS 26+. It is user-selected, never auto-defaulted, and uses a dedicated ~12k-character budget for short answers (~6k when the reply is about as long as the input). The option is hidden on ineligible Macs and older OS versions.
+- **Apple Intelligence** is on-device through `AppleIntelligenceLLMClient` and `FoundationModels` on macOS 26+. It is user-selected, never auto-defaulted, and uses a dedicated ~12k-character budget for short answers (~6k when the reply is about as long as the input). The option is hidden on ineligible Macs and older OS versions. When the Mac is eligible and Apple Intelligence is off, Settings mentions it and can open System Settings without selecting the provider.
 
 Streaming is provider-specific under the hood:
 

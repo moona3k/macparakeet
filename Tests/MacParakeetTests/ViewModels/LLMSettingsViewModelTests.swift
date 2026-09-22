@@ -47,6 +47,57 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.transcriptAIContextMode, .richTranscript)
     }
 
+    func testAppleIntelligenceOfferAppearsOnlyBeforeAChoiceOnAnEligibleMac() {
+        let turnOn = LLMSettingsViewModel.appleIntelligenceOffer(
+            availability: .appleIntelligenceNotEnabled,
+            selectedProviderID: nil
+        )
+        XCTAssertEqual(
+            turnOn?.message,
+            "This Mac can run Apple Intelligence on device. Turn it on in System Settings, then choose it here."
+        )
+        XCTAssertEqual(
+            turnOn?.settingsURL,
+            AppleIntelligenceAvailability.appleIntelligenceNotEnabled.settingsURL
+        )
+
+        let preparing = LLMSettingsViewModel.appleIntelligenceOffer(
+            availability: .modelNotReady,
+            selectedProviderID: nil
+        )
+        XCTAssertEqual(
+            preparing?.message,
+            "Apple Intelligence is downloading on this Mac. Choose it here when it's ready."
+        )
+        XCTAssertNil(preparing?.settingsURL)
+
+        for availability in [
+            AppleIntelligenceAvailability.unsupported,
+            .deviceNotEligible,
+            .available,
+            .localeLimited,
+        ] {
+            XCTAssertNil(
+                LLMSettingsViewModel.appleIntelligenceOffer(
+                    availability: availability,
+                    selectedProviderID: nil
+                )
+            )
+        }
+        XCTAssertNil(
+            LLMSettingsViewModel.appleIntelligenceOffer(
+                availability: .appleIntelligenceNotEnabled,
+                selectedProviderID: .appleIntelligence
+            )
+        )
+        XCTAssertNil(
+            LLMSettingsViewModel.appleIntelligenceOffer(
+                availability: .appleIntelligenceNotEnabled,
+                selectedProviderID: .ollama
+            )
+        )
+    }
+
     func testInProcessLocalSetupHiddenWithoutProductVisibility() {
         mockClient.supportsInProcessLocalLLM = true
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)

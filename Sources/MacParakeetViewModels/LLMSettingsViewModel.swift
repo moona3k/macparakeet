@@ -2,6 +2,11 @@ import Foundation
 import MacParakeetCore
 import OSLog
 
+public struct AppleIntelligenceOffer: Equatable, Sendable {
+    public let message: String
+    public let settingsURL: URL?
+}
+
 @MainActor
 @Observable
 public final class LLMSettingsViewModel {
@@ -388,6 +393,38 @@ public final class LLMSettingsViewModel {
 
     public var appleIntelligenceSettingsURL: URL? {
         appleIntelligenceAvailability.settingsURL
+    }
+
+    /// Quiet prompt on the AI page when this Mac can use Apple Intelligence and
+    /// the user has not already chosen it. Older systems and ineligible Macs
+    /// stay silent.
+    public var appleIntelligenceOffer: AppleIntelligenceOffer? {
+        Self.appleIntelligenceOffer(
+            availability: appleIntelligenceAvailability,
+            selectedProviderID: selectedProviderID
+        )
+    }
+
+    public static func appleIntelligenceOffer(
+        availability: AppleIntelligenceAvailability,
+        selectedProviderID: LLMProviderID?
+    ) -> AppleIntelligenceOffer? {
+        guard selectedProviderID == nil else { return nil }
+        switch availability {
+        case .appleIntelligenceNotEnabled:
+            return AppleIntelligenceOffer(
+                message:
+                    "This Mac can run Apple Intelligence on device. Turn it on in System Settings, then choose it here.",
+                settingsURL: availability.settingsURL
+            )
+        case .modelNotReady:
+            return AppleIntelligenceOffer(
+                message: "Apple Intelligence is downloading on this Mac. Choose it here when it's ready.",
+                settingsURL: nil
+            )
+        case .unsupported, .deviceNotEligible, .available, .localeLimited:
+            return nil
+        }
     }
 
     public func refreshAppleIntelligenceAvailability() {

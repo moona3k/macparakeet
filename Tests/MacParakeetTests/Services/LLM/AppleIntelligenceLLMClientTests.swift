@@ -322,10 +322,13 @@ final class AppleIntelligenceLLMClientTests: XCTestCase {
     }
 
     func testNotEnabledSettingsURLOpensTheSiriPane() {
+        let availability = AppleIntelligenceAvailability.appleIntelligenceNotEnabled
         XCTAssertEqual(
-            AppleIntelligenceAvailability.appleIntelligenceNotEnabled.settingsURL?.absoluteString,
+            availability.settingsURL?.absoluteString,
             "x-apple.systempreferences:com.apple.Siri-Settings.extension"
         )
+        XCTAssertEqual(availability.userMessage, "Turn it on in System Settings to use it on this Mac.")
+        XCTAssertFalse(availability.userMessage.localizedCaseInsensitiveContains("try again"))
     }
 
     func testAvailabilityCurrentDoesNotCrash() {

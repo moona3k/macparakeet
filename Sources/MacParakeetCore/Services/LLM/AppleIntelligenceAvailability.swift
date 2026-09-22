@@ -45,11 +45,11 @@ public enum AppleIntelligenceAvailability: String, Sendable, Equatable {
         case .deviceNotEligible:
             return "Apple Intelligence is not available on this Mac."
         case .appleIntelligenceNotEnabled:
-            return "Turn on Apple Intelligence in System Settings, then try again."
+            return "Turn it on in System Settings to use it on this Mac."
         case .modelNotReady:
-            return "Apple Intelligence is still downloading. Try again in a few minutes."
+            return "Apple Intelligence is downloading. Check again in a few minutes."
         case .available:
-            return "Apple Intelligence is ready on this Mac."
+            return "Ready on this Mac."
         case .localeLimited:
             return
                 "Apple Intelligence is on. English prompts can run; this Mac's language is outside the on-device set, so other languages may be declined."

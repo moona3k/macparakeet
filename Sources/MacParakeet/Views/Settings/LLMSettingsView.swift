@@ -286,13 +286,27 @@ struct LLMSettingsView: View {
             }
 
             if viewModel.selectedProviderID == nil {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Local providers, API keys, and command-line tools are available from this menu.")
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(.secondary)
-                    Text("Dictation, transcription, and meeting recording work without AI setup.")
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Local providers, API keys, and command-line tools are available from this menu.")
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(.secondary)
+                        Text("Dictation, transcription, and meeting recording work without AI setup.")
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let offer = viewModel.appleIntelligenceOffer {
+                        Text(offer.message)
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if let url = offer.settingsURL {
+                            Button("Open System Settings") {
+                                openAppleIntelligenceSettings(url)
+                            }
+                            .parakeetAction(.secondary)
+                        }
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
