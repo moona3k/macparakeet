@@ -208,7 +208,7 @@ final class OnboardingViewModelTests: XCTestCase {
         )
     }
 
-    func testMicrophoneStepRequiresGrantedPermission() async throws {
+    func testMicrophoneStepAllowsContinueWithoutPermission() {
         let perms = MockPermissionService()
         perms.microphonePermission = .notDetermined
         let stt = MockSTTClient()
@@ -219,15 +219,12 @@ final class OnboardingViewModelTests: XCTestCase {
         let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
         vm.jump(to: .microphone)
 
-        // Not granted => can't continue.
-        vm.refresh()
-        try await Task.sleep(for: .milliseconds(50))
-        XCTAssertFalse(vm.canContinueFromCurrentStep())
+        XCTAssertTrue(vm.canContinueFromCurrentStep())
+        vm.goNext()
+        XCTAssertEqual(vm.step, .accessibility)
 
-        // Granted => can continue.
-        perms.microphonePermission = .granted
-        vm.refresh()
-        try await Task.sleep(for: .milliseconds(50))
+        perms.microphonePermission = .denied
+        vm.jump(to: .microphone)
         XCTAssertTrue(vm.canContinueFromCurrentStep())
     }
 
@@ -449,7 +446,7 @@ final class OnboardingViewModelTests: XCTestCase {
 
     func testCanContinueForEachStep() {
         let perms = MockPermissionService()
-        perms.microphonePermission = .granted
+        perms.microphonePermission = .notDetermined
         perms.accessibilityPermission = true
         let stt = MockSTTClient()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
@@ -460,6 +457,9 @@ final class OnboardingViewModelTests: XCTestCase {
 
         vm.jump(to: .welcome)
         XCTAssertTrue(vm.canContinueFromCurrentStep(), "welcome should always allow continue")
+
+        vm.jump(to: .microphone)
+        XCTAssertTrue(vm.canContinueFromCurrentStep(), "microphone may be skipped for file-only use")
 
         vm.jump(to: .hotkey)
         XCTAssertTrue(vm.canContinueFromCurrentStep(), "hotkey should always allow continue")

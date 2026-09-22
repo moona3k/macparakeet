@@ -170,6 +170,18 @@ final class SettingsStatusRulesTests: XCTestCase {
         XCTAssertEqual(status, SettingsCardStatus(.ok, label: "Ready"))
     }
 
+    func testPermissionsRequiresActionWhenMicrophoneMissing() {
+        let status = SettingsStatusRules.permissionsCardStatus(
+            meetingRecordingEnabled: true,
+            microphoneGranted: false,
+            accessibilityGranted: true,
+            screenRecordingGranted: true,
+            meetingAudioSourceMode: .microphoneAndSystem
+        )
+
+        XCTAssertEqual(status, SettingsCardStatus(.required, label: "Action required"))
+    }
+
     func testPermissionsRequiresActionWhenScreenRecordingMissingForSystemAudioModes() {
         let status = SettingsStatusRules.permissionsCardStatus(
             meetingRecordingEnabled: true,

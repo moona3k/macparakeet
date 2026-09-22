@@ -138,7 +138,7 @@ struct CardsGenerateCommand: AsyncParsableCommand {
                 segmentRepository: segmentRepository,
                 cardRepository: cardRepository,
                 speakerAttributionReader: SpeakerAttributionReadService(dbQueue: db.dbQueue),
-                completionProvider: LLMService()
+                completionProvider: makeSharedLLMService()
             )
             var report = CardsGenerationReport(selection: selection, selected: selectedIDs.count)
             for (index, transcriptionID) in selectedIDs.enumerated() {

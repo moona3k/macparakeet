@@ -53,6 +53,10 @@ public final class HotkeyManager {
     /// Passive ledger for ordinary virtual key codes. The canonical macOS
     /// keyboard range is 0...127; Fn's synthetic 179 is deliberately excluded.
     private static let ordinaryKeyCodeRange: ClosedRange<UInt16> = 0...127
+    /// Caps Lock latch is reported as key 57 still down by
+    /// `CGEventSource.keyState`. That is not a held key. Transitions are
+    /// observed via flagsChanged keyCode 57 + alphaShift delta.
+    private static let capsLockKeyCode: UInt16 = 57
     private var pressedNonFnKeyCodes: Set<UInt16> = []
     private var physicalKeyStateProvider: (UInt16) -> Bool
 
@@ -208,6 +212,10 @@ public final class HotkeyManager {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let tap = eventTap { CGEvent.tapEnable(tap: tap, enable: true) }
             recoverFromDisabledTap()
+            return Unmanaged.passUnretained(event)
+        }
+
+        if StreamingCursorEventMarker.isMarked(event) {
             return Unmanaged.passUnretained(event)
         }
 
@@ -1102,14 +1110,16 @@ public final class HotkeyManager {
     }
 
     private static func isTrackableNonFnKeyCode(_ keyCode: UInt16) -> Bool {
-        ordinaryKeyCodeRange.contains(keyCode) && !HotkeyTrigger.isFnKeyCode(keyCode)
+        ordinaryKeyCodeRange.contains(keyCode)
+            && !HotkeyTrigger.isFnKeyCode(keyCode)
+            && keyCode != capsLockKeyCode
     }
 
     private func reconcilePassiveFnKeyState() {
         guard trigger == .fn else { return }
         pressedNonFnKeyCodes = Set(
             Self.ordinaryKeyCodeRange.filter { keyCode in
-                !HotkeyTrigger.isFnKeyCode(keyCode) && physicalKeyStateProvider(keyCode)
+                Self.isTrackableNonFnKeyCode(keyCode) && physicalKeyStateProvider(keyCode)
             }
         )
     }

@@ -45,6 +45,23 @@ final class SettingsSearchIndexTests: XCTestCase {
         )
     }
 
+    func testStreamingCursorQueryFindsDictationToggle() {
+        let results = SettingsSearchIndex.matches("typewriter")
+        XCTAssertTrue(
+            results.contains(where: { $0.id == "dictation.streaming.cursor" }),
+            "Streaming cursor should match typewriter keyword"
+        )
+    }
+
+    func testPreserveDiscardedQueryFindsDictationToggle() {
+        let results = SettingsSearchIndex.matches("accidental cancel")
+
+        XCTAssertTrue(
+            results.contains(where: { $0.id == "dictation.preserve.discarded" }),
+            "Accidental cancel recovery should find the preserve discarded setting"
+        )
+    }
+
     func testLivePreviewQueryFindsDictationPreviewSetting() {
         let results = SettingsSearchIndex.matches("live preview")
 
@@ -235,6 +252,18 @@ final class SettingsSearchIndexTests: XCTestCase {
         }
     }
 
+    func testStartMeetingsMutedQueriesFindMeetingToggle() {
+        for query in ["start muted", "join muted", "mic off"] {
+            let entry = SettingsSearchIndex.matches(query).first { $0.id == "meeting.startMuted" }
+            if AppFeatures.meetingRecordingEnabled {
+                XCTAssertEqual(entry?.tab, .capture, "Query \(query) should find start meetings muted")
+                XCTAssertEqual(entry?.cardAnchor, "meeting")
+            } else {
+                XCTAssertNil(entry)
+            }
+        }
+    }
+
     func testMeetingSpeakerDetectionQueriesFindMeetingSetting() {
         let queries = ["system audio", "participants", "others", "speaker labels"]
 
@@ -358,6 +387,7 @@ final class SettingsSearchIndexTests: XCTestCase {
             "meeting.notifyOnEnd",
             "meeting.speakerDetection",
             "meeting.liveTranscription",
+            "meeting.startMuted",
             "meeting.autoStop",
             "meeting.calendar",
             "system.permissions.screen"

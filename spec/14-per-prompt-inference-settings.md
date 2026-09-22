@@ -1,6 +1,6 @@
 # Per-Prompt LLM Inference Settings
 
-> Status: **IMPLEMENTED ON MAIN; UNRELEASED** — merged through
+> Status: **IMPLEMENTED** — shipped in 0.8.0 through
 > [PR #968](https://github.com/moona3k/macparakeet/pull/968), integrating the work
 > from [PR #956](https://github.com/moona3k/macparakeet/pull/956).
 > Default semantics and the conditional reasoning-effort extension are recorded in
@@ -221,11 +221,12 @@ configured value when a model rejects it.
 
 | Provider path | Mapping |
 | --- | --- |
-| Custom OpenAI-compatible, including llama.cpp | `temperature`, `top_p`, `top_k`, `max_tokens`; thinking and optional effort map to `chat_template_kwargs.enable_thinking` and `chat_template_kwargs.reasoning_effort`. OpenAI-family IDs on the same path (`gpt-5.x`, `gpt-5.6-luna`/`sol`, and gateway prefixes such as `openai/gpt-5.6-luna`) follow the native OpenAI mapping instead: omit llama.cpp kwargs, omit sampling when the model rejects it, and send `max_completion_tokens`. |
+| Custom OpenAI-compatible, including llama.cpp | `temperature`, `top_p`, `top_k`, `max_tokens`; thinking and optional effort map to `chat_template_kwargs.enable_thinking` and `chat_template_kwargs.reasoning_effort`. OpenAI-family IDs on the same path (`gpt-5.x`, `gpt-5.6-luna`/`sol`, and gateway prefixes such as `openai/gpt-5.6-luna`) follow the native OpenAI mapping instead: omit llama.cpp kwargs, omit sampling when the model rejects it, and send `max_completion_tokens`. Kimi IDs omit fixed sampling on every host. Lab thinking objects (`thinking.type` / Qwen `enable_thinking`) are used only on first-class lab providers; custom OpenAI-compatible URLs keep llama.cpp `chat_template_kwargs`. |
 | Native Ollama | `temperature`, `top_p`, `top_k`, `num_predict` inside `options`; thinking maps to top-level `think`; reasoning effort is initially unsupported |
 | Native OpenAI | `temperature` and `top_p` when model-compatible; output budget uses the adapter's existing `max_tokens` / `max_completion_tokens` policy; omit `top_k` and thinking |
 | Native Anthropic | `temperature` in `0...1` or `top_p` in `0...1`, and `max_tokens` when model-compatible; Top P takes precedence over explicit or inherited temperature; omit `top_k` and thinking |
-| OpenRouter | Output budget uses the adapter's `max_tokens` / `max_completion_tokens` policy; `temperature` when the model accepts sampling; omit `top_p`, `top_k`, and thinking. Prefixed OpenAI-family IDs such as `openai/gpt-5.6-sol` follow the same GPT-5 / o-series sampling omit as native OpenAI. |
+| OpenRouter | Output budget uses the adapter's `max_tokens` / `max_completion_tokens` policy; `temperature` when the model accepts sampling; omit `top_p`, `top_k`, and thinking. Prefixed OpenAI-family IDs such as `openai/gpt-5.6-sol` follow the same GPT-5 / o-series sampling omit as native OpenAI. Prefixed Kimi IDs omit illegal sampling. |
+| Moonshot / DeepSeek / Qwen / Z.AI / MiniMax | Output budget uses `max_tokens`; `temperature` when the model accepts sampling; thinking maps to `thinking: {type}` except Qwen (`enable_thinking`) and Kimi K2.7-code / K3 (thinking field omitted). DeepSeek Chat Completions and Qwen DashScope use prompt-embedded JSON for knowledge cards (`json_schema` is not in their Chat Completions contract). |
 | Gemini / LM Studio | Map fields explicitly supported by the existing endpoint contract; omit the rest |
 | In-process MLX / local CLI | Apply only fields supported by the runtime/CLI contract; report the rest as unsupported |
 

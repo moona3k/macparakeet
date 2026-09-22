@@ -147,7 +147,7 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
     @Option(help: "Language hint for Nemotron, Whisper, or Cohere, such as ko, en, or en-US. Cohere requires a supported language; Parakeet and the English-only Nemotron build ignore this flag.")
     var language: String?
 
-    @Option(name: .long, help: "Parakeet build: app-default, v3 (English + supported European languages), v2 (English word timestamps), unified (readable English with word timestamps). Ignored for Nemotron, Cohere, and Whisper.")
+    @Option(name: .long, help: "Parakeet build: app-default, v3 (English + supported European languages), v2 (English word timestamps), unified (readable English with word timestamps), orukeet (multilingual preview). Ignored for Nemotron, Cohere, and Whisper.")
     var parakeetModel: TranscribeParakeetModel = .appDefault
 
     @Option(name: .long, help: "Nemotron Beta build: app-default, multilingual-1120ms, english-1120ms. Ignored for Parakeet, Cohere, and Whisper.")
@@ -391,7 +391,8 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
             mode: processingMode,
             customWords: customWords,
             snippets: snippets,
-            spokenPunctuationEnabled: UserDefaultsAppRuntimePreferences.spokenPunctuationEnabled(defaults: defaults)
+            spokenPunctuationEnabled: UserDefaultsAppRuntimePreferences.spokenPunctuationEnabled(defaults: defaults),
+            removeUmFiller: UserDefaultsAppRuntimePreferences.removeUmFiller(defaults: defaults)
         )
         let finalText = refinement.text ?? sttResult.text
         var updated = Self.clearingDictationFormatterMetadata(original)
@@ -399,7 +400,9 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
         updated.rawTranscript = sttResult.text
         updated.cleanTranscript = refinement.text
         updated.processingMode = processingMode
-        updated.status = .completed
+        if original.status != .cancelled {
+            updated.status = .completed
+        }
         updated.errorMessage = nil
         updated.updatedAt = Date()
         updated.wordCount = Observability.wordCount(finalText)
@@ -546,6 +549,9 @@ struct RetranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding 
             processingMode: { processingMode },
             spokenPunctuationEnabled: {
                 UserDefaultsAppRuntimePreferences.spokenPunctuationEnabled(defaults: defaults)
+            },
+            removeUmFiller: {
+                UserDefaultsAppRuntimePreferences.removeUmFiller(defaults: defaults)
             },
             shouldDiarize: { resolvedSpeakerDetection.enabled },
             shouldDiarizeMeetings: { resolvedSpeakerDetection.enabled },

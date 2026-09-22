@@ -853,7 +853,7 @@ final class LLMClientTests: XCTestCase {
     }
 
     func testValidateStreamCompletionAcceptsSentinelForStrictProvider() throws {
-        for provider in [LLMProviderID.openai, .openrouter, .anthropic] {
+        for provider in [LLMProviderID.openai, .openrouter, .anthropic, .deepseek, .qwen] {
             XCTAssertNoThrow(
                 try llmClient.validateStreamCompletion(
                     providerID: provider,
@@ -866,10 +866,10 @@ final class LLMClientTests: XCTestCase {
     }
 
     func testValidateStreamCompletionThrowsOnMissingSentinelForStrictProvider() {
-        // OpenAI / OpenRouter / Anthropic contractually emit a stream terminator.
+        // OpenAI / OpenRouter / Anthropic / DeepSeek / Qwen contractually emit a stream terminator.
         // EOF without it means the connection dropped mid-response; treat as
         // truncated rather than silently look successful (AUDIT-036 P0).
-        for provider in [LLMProviderID.openai, .openrouter, .anthropic] {
+        for provider in [LLMProviderID.openai, .openrouter, .anthropic, .deepseek, .qwen] {
             XCTAssertThrowsError(
                 try llmClient.validateStreamCompletion(
                     providerID: provider,

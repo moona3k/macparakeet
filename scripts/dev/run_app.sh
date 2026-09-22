@@ -242,7 +242,7 @@ echo "[4/5] Launching ${CONFIG} app…"
 open -n "$APP_BUNDLE" --env MACPARAKEET_DEBUG_APP_STATE_DIR="$APP_STATE_DIR" \
   --env MACPARAKEET_GIT_COMMIT="$GIT_COMMIT" \
   --env MACPARAKEET_BUILD_DATE_UTC="$BUILD_DATE_UTC" \
-  --env MACPARAKEET_BUILD_SOURCE="$BUILD_SOURCE" >"$LOG_FILE" 2>&1
+  --env MACPARAKEET_BUILD_SOURCE="$BUILD_SOURCE" --args "$@" >"$LOG_FILE" 2>&1
 
 echo "[5/5] Launch requested"
 echo "  bundle: $APP_BUNDLE"

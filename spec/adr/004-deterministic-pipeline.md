@@ -27,7 +27,7 @@ Use a **deterministic 5-step pipeline** for Clean processing rather than an impl
 
 | Step | What It Does | Example |
 |------|-------------|---------|
-| 1. Filler removal | Strip only always-safe hesitation sounds | "uh the API" -> "the API" |
+| 1. Filler removal | Strip always-safe hesitation sounds; standalone `um` on by default, opt-out for Portuguese/German | "I um think" -> "I think" |
 | 2. Custom word replacement | User-defined replacement corrections | "kube" -> "Kubernetes", "mac parakeet" -> "MacParakeet" |
 | 3. Trailing action extraction | Strip terminal action-snippet triggers and surface a post-paste action | "send this press return" -> text plus Return action |
 | 4. Snippet expansion | Trigger phrase text expansion, then optional spoken punctuation | "my address" -> "123 Main St"; "question mark" -> "?" |

@@ -14,7 +14,7 @@ struct SavedMeetingProcessingContext {
         let dbQueue = dbManager.dbQueue
         let defaults = AppPaths.appDefaults()
         let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
-        let llmService = LLMService()
+        let llmService = makeSharedLLMService(defaults: defaults)
         let promptRepo = PromptRepository(dbQueue: dbQueue)
         let promptResultRepo = PromptResultRepository(dbQueue: dbQueue)
         let promptLabelPolicyRepository = PromptLabelPolicyRepository(dbQueue: dbQueue)
@@ -46,6 +46,7 @@ struct SavedMeetingProcessingContext {
             snippetRepo: snippetRepo,
             processingMode: { preferences.processingMode },
             spokenPunctuationEnabled: { preferences.spokenPunctuationEnabled },
+            removeUmFiller: { preferences.removeUmFiller },
             llmService: llmService,
             llmRunRepo: LLMRunRepository(dbQueue: dbQueue),
             shouldUseAIFormatter: { preferences.aiFormatterEnabled && preferences.aiFormatterEnabledForTranscriptions },

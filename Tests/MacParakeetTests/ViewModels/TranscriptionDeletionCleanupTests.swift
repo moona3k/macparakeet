@@ -345,9 +345,7 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
     }
 
     func testMeetingDeletionOutsideAppSupportIsIgnored() throws {
-        let folderURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let folderURL = try makeTemporaryUnmanagedMeetingFolder()
 
         let mixedURL = folderURL.appendingPathComponent("meeting-playback.m4a")
         FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mix".utf8))
@@ -366,9 +364,7 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
     }
 
     func testMeetingDeletionRemovesSessionFolderWithMetadataMarkerOutsideCurrentRoot() throws {
-        let folderURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let folderURL = try makeTemporaryUnmanagedMeetingFolder()
 
         let mixedURL = folderURL.appendingPathComponent("meeting-playback.m4a")
         FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mix".utf8))
@@ -394,9 +390,7 @@ final class TranscriptionDeletionCleanupTests: XCTestCase {
     }
 
     func testMeetingDeletionRemovesSessionFolderWithArtifactManifestOutsideCurrentRoot() throws {
-        let folderURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let folderURL = try makeTemporaryUnmanagedMeetingFolder()
 
         let mixedURL = folderURL.appendingPathComponent("meeting-playback.m4a")
         FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mix".utf8))

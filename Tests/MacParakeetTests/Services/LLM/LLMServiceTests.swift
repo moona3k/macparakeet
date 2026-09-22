@@ -928,6 +928,8 @@ final class LLMServiceTests: XCTestCase {
     }
 
     func testFormatTranscriptDetailedReturnsEnvelopeAndFormatterMetadata() async throws {
+        let telemetry = LLMTelemetrySpy()
+        Telemetry.configure(telemetry)
         mockClient.responseContent = "Hello, world."
         mockClient.responseModel = "formatter-model"
         mockClient.responseFinishReason = "stop"
@@ -953,6 +955,8 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertFalse(result.inputTruncated)
         XCTAssertTrue(result.defaultPromptUsed)
         XCTAssertEqual(result.messageCount, 2)
+        let operations = llmOperationProps(in: telemetry.snapshot())
+        XCTAssertEqual(operations.first?["feature"], TelemetryLLMFeature.formatter.rawValue)
     }
 
     func testFormatTranscriptDetailedSubtractsPromptOverheadFromTranscriptBudget() async throws {

@@ -233,7 +233,8 @@ final class AppEnvironment {
             // Wire the real feature flag here (the service defaults to fixed
             // chunking so tests stay deterministic regardless of the flag).
             isVadLiveChunkingEnabled: { AppFeatures.meetingVadLiveChunkingEnabled },
-            isLiveTranscriptionEnabled: { [runtimePreferences] in runtimePreferences.meetingLiveTranscriptionEnabled }
+            isLiveTranscriptionEnabled: { [runtimePreferences] in runtimePreferences.meetingLiveTranscriptionEnabled },
+            startMicrophoneMuted: { [runtimePreferences] in runtimePreferences.startMeetingsMuted }
         )
         meetingRecordingSettlement = MeetingRecordingSettlement(
             lockFileStore: meetingRecordingLockFileStore,
@@ -294,6 +295,10 @@ final class AppEnvironment {
             runtimePreferences.dictationInsertionStyle
         }
 
+        let removeUmFillerClosure: @Sendable () -> Bool = { [runtimePreferences] in
+            runtimePreferences.removeUmFiller
+        }
+
         let binaryBootstrap = BinaryBootstrap()
         youtubeDownloader = YouTubeDownloader(
             binaryBootstrap: binaryBootstrap,
@@ -325,8 +330,11 @@ final class AppEnvironment {
             runtimePreferences.aiFormatterEnabled && runtimePreferences.aiFormatterEnabledForDictation
         }
 
-        let aiFormatterPromptClosure: @Sendable () -> String = { [runtimePreferences] in
+        let aiFormatterTranscriptPromptClosure: @Sendable () -> String = { [runtimePreferences] in
             runtimePreferences.aiFormatterPrompt
+        }
+        let aiFormatterDictationPromptClosure: @Sendable () -> String = { [runtimePreferences] in
+            runtimePreferences.aiFormatterDictationPrompt
         }
         let meetingTitleGenerationEnabledClosure: @Sendable () -> Bool = { [runtimePreferences, llmConfigStore] in
             guard runtimePreferences.shouldAutoGenerateMeetingTitles else { return false }
@@ -336,7 +344,7 @@ final class AppEnvironment {
         if AppFeatures.aiFormatterProfilesEnabled {
             aiFormatterPromptResolver = AIFormatterProfilePromptResolver(
                 profileRepository: aiFormatterProfileRepo,
-                globalPromptTemplate: aiFormatterPromptClosure,
+                globalPromptTemplate: aiFormatterDictationPromptClosure,
                 smartDefaultsPolicy: { AIFormatterSmartDefaultsPolicy.current() },
                 onFetchError: { error in
                     // A failed profile fetch degrades to the fallback prompt by
@@ -350,7 +358,7 @@ final class AppEnvironment {
             )
         } else {
             aiFormatterPromptResolver = AIFormatterGlobalPromptResolver(
-                promptTemplate: aiFormatterPromptClosure
+                promptTemplate: aiFormatterDictationPromptClosure
             )
         }
 
@@ -383,6 +391,9 @@ final class AppEnvironment {
             dictationRepo: dictationRepo,
             shouldSaveAudio: { [runtimePreferences] in runtimePreferences.shouldSaveAudioRecordings },
             shouldSaveDictationHistory: { [runtimePreferences] in runtimePreferences.shouldSaveDictationHistory },
+            shouldPreserveDiscardedDictations: { [runtimePreferences] in
+                runtimePreferences.preserveDiscardedDictations
+            },
             entitlements: entitlementsService,
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
@@ -390,6 +401,7 @@ final class AppEnvironment {
             processingMode: processingModeClosure,
             spokenPunctuationEnabled: spokenPunctuationEnabledClosure,
             dictationInsertionStyle: dictationInsertionStyleClosure,
+            removeUmFiller: removeUmFillerClosure,
             llmService: llmService,
             llmRunRepo: llmRunRepo,
             shouldUseAIFormatter: dictationAIFormatterEnabledClosure,
@@ -439,10 +451,11 @@ final class AppEnvironment {
             snippetRepo: snippetRepo,
             processingMode: processingModeClosure,
             spokenPunctuationEnabled: spokenPunctuationEnabledClosure,
+            removeUmFiller: removeUmFillerClosure,
             llmService: llmService,
             llmRunRepo: llmRunRepo,
             shouldUseAIFormatter: transcriptionAIFormatterEnabledClosure,
-            aiFormatterPromptTemplate: aiFormatterPromptClosure,
+            aiFormatterPromptTemplate: aiFormatterTranscriptPromptClosure,
             shouldAutoGenerateMeetingTitles: meetingTitleGenerationEnabledClosure,
             shouldKeepDownloadedAudio: { [runtimePreferences] in runtimePreferences.shouldSaveTranscriptionAudio },
             shouldDiarize: { [runtimePreferences] in runtimePreferences.shouldDiarize },

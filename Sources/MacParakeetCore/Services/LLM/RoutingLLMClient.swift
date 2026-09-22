@@ -74,7 +74,8 @@ public final class RoutingLLMClient: LLMClientProtocol, Sendable {
             return cliClient
         case .inProcessLocal:
             return inProcessClient
-        case .anthropic, .openai, .openaiCompatible, .gemini, .openrouter, .ollama, .lmstudio:
+        case .anthropic, .openai, .openaiCompatible, .gemini, .openrouter, .moonshot, .deepseek, .qwen, .zai, .minimax,
+            .ollama, .lmstudio:
             return httpClient
         }
     }

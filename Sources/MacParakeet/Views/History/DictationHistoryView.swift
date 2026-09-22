@@ -414,6 +414,16 @@ struct DictationCardRow: View {
                             .font(DesignSystem.Typography.duration)
                             .foregroundStyle(.tertiary)
 
+                        if dictation.status == .cancelled {
+                            Text("\u{2009}\u{00B7}\u{2009}")
+                                .font(DesignSystem.Typography.caption)
+                                .foregroundStyle(.quaternary)
+
+                            Text("Cancelled")
+                                .font(DesignSystem.Typography.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+
                         if dictation.audioPath != nil {
                             Text("\u{2009}\u{00B7}\u{2009}")
                                 .font(DesignSystem.Typography.caption)

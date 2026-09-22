@@ -893,6 +893,34 @@ final class STTSchedulerTests: XCTestCase {
         XCTAssertEqual(count, 2)
     }
 
+    func testCancelledSpeechEngineSwitchDoesNotCommitLateSuccess() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.holdNextSpeechEngineSwitchUntilReleased()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let switchTask = Task {
+            try await scheduler.setSpeechEngine(.whisper)
+        }
+        try await waitForSpeechEngineSwitch(runtime: runtime, count: 1)
+
+        switchTask.cancel()
+        try await Task.sleep(for: .milliseconds(20))
+        await runtime.releaseSpeechEngineSwitch()
+        do {
+            try await value(switchTask)
+            XCTFail("Expected cancelled engine switch to throw")
+        } catch is CancellationError {
+            // Expected: prepare resumed successfully, then checkCancellation threw.
+        }
+
+        let selection = await runtime.currentSpeechEngineSelection()
+        XCTAssertEqual(selection.engine, .parakeet)
+
+        try await scheduler.setSpeechEngine(.whisper)
+        let committed = await runtime.currentSpeechEngineSelection()
+        XCTAssertEqual(committed.engine, .whisper)
+    }
+
     func testSpeechEngineSessionLeaseUsesRuntimeSelection() async {
         let runtime = MockSTTRuntime()
         await runtime.setCurrentSelection(SpeechEngineSelection(engine: .whisper, language: "KO"))
@@ -1434,6 +1462,9 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     private var capabilities = SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(.v3))
     private var ready = false
     private var shouldBlockNextSpeechEngineSwitch = false
+    /// When true, a blocked engine switch stays suspended after `Task.cancel()`
+    /// until `releaseSpeechEngineSwitch()` — models uncancellable Core ML.
+    private var holdSpeechEngineSwitchUntilReleased = false
     private var shouldBlockNextClearModelCache = false
     private var ignoreCancellation = false
     private var speechEngineSwitchContinuation: CheckedContinuation<Void, Never>?
@@ -1688,13 +1719,21 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
         setSpeechEngineCallCount += 1
         if shouldBlockNextSpeechEngineSwitch {
             shouldBlockNextSpeechEngineSwitch = false
-            await withTaskCancellationHandler {
+            let holdUntilReleased = holdSpeechEngineSwitchUntilReleased
+            holdSpeechEngineSwitchUntilReleased = false
+            if holdUntilReleased {
                 await withCheckedContinuation { continuation in
                     speechEngineSwitchContinuation = continuation
                 }
-            } onCancel: {
-                Task {
-                    await self.releaseSpeechEngineSwitch()
+            } else {
+                await withTaskCancellationHandler {
+                    await withCheckedContinuation { continuation in
+                        speechEngineSwitchContinuation = continuation
+                    }
+                } onCancel: {
+                    Task {
+                        await self.releaseSpeechEngineSwitch()
+                    }
                 }
             }
             try Task.checkCancellation()
@@ -1833,6 +1872,14 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
 
     func blockNextSpeechEngineSwitch() {
         shouldBlockNextSpeechEngineSwitch = true
+        holdSpeechEngineSwitchUntilReleased = false
+    }
+
+    /// Block the next engine switch without auto-resuming on cancel. Models
+    /// Core ML: cancel is observed only after `releaseSpeechEngineSwitch()`.
+    func holdNextSpeechEngineSwitchUntilReleased() {
+        shouldBlockNextSpeechEngineSwitch = true
+        holdSpeechEngineSwitchUntilReleased = true
     }
 
     func releaseSpeechEngineSwitch() {

@@ -44,6 +44,12 @@ struct PromptLibraryView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var viewModel: PromptsViewModel
     var showsDismissButton = true
+    /// Drops the sheet minimum size so this manager can sit in the Prompts
+    /// workspace detail column. The main window minimum is 860pt with a ~200pt
+    /// sidebar, leaving ~660pt — below `sheetMinWidth`, which otherwise clips
+    /// the library (issue #1105). Meetings and completed-transcript sheets
+    /// keep the default `false`.
+    var isEmbedded = false
     var presentation: PromptLibraryPresentation = .library
     @State private var editName: String = ""
     @State private var editContent: String = ""
@@ -91,7 +97,7 @@ struct PromptLibraryView: View {
                     }
                     .parakeetAction(.primaryProminent)
                     .controlSize(.large)
-                    if showsDismissButton {
+                    if showsDismissButton, !isEmbedded {
                         Button("Done") { dismiss() }
                             .parakeetAction(.secondary)
                             .controlSize(.large)
@@ -169,7 +175,10 @@ struct PromptLibraryView: View {
             }
             .ignoresSafeArea()
         }
-        .frame(minWidth: 720, minHeight: 560)
+        .frame(
+            minWidth: Self.minimumWidth(isEmbedded: isEmbedded),
+            minHeight: Self.minimumHeight(isEmbedded: isEmbedded)
+        )
         .onAppear { viewModel.refresh() }
         .onChange(of: viewModel.collections.map(\.id)) { _, ids in
             if let collectionFilterID, !ids.contains(collectionFilterID) {
@@ -1407,6 +1416,21 @@ struct PromptLibraryView: View {
         case .added: return DesignSystem.Colors.successGreen.opacity(0.08)
         case .modified: return DesignSystem.Colors.accent.opacity(0.08)
         }
+    }
+}
+
+extension PromptLibraryView {
+    /// Comfortable size for sheet presentations. Embedded workspace use must
+    /// not apply these; see `isEmbedded`.
+    static let sheetMinWidth: CGFloat = 720
+    static let sheetMinHeight: CGFloat = 560
+
+    static func minimumWidth(isEmbedded: Bool) -> CGFloat? {
+        isEmbedded ? nil : sheetMinWidth
+    }
+
+    static func minimumHeight(isEmbedded: Bool) -> CGFloat? {
+        isEmbedded ? nil : sheetMinHeight
     }
 }
 

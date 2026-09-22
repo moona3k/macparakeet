@@ -43,6 +43,19 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertTrue(preferences.shouldKeepDictationOnClipboard)
     }
 
+    func testStreamingCursorDefaultsToFalse() {
+        let preferences = makePreferences()
+        XCTAssertFalse(preferences.dictationStreamingCursorEnabled)
+    }
+
+    func testStreamingCursorReadsStoredValue() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.dictationStreamingCursorEnabledKey)
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences(defaults: defaults).dictationStreamingCursorEnabled)
+    }
+
     func testCustomVocabularyRecognitionBoostingDefaultsOffAndReadsStoredValue() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
@@ -103,6 +116,21 @@ final class AppRuntimePreferencesTests: XCTestCase {
     func testMeetingLiveTranscriptionEnabledDefaultsToTrueWhenUnset() {
         let preferences = makePreferences()
         XCTAssertTrue(preferences.meetingLiveTranscriptionEnabled)
+    }
+
+    func testStartMeetingsMutedDefaultsToFalseWhenUnset() {
+        let preferences = makePreferences()
+        XCTAssertFalse(preferences.startMeetingsMuted)
+    }
+
+    func testStartMeetingsMutedRespectsExplicitTrue() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.startMeetingsMutedKey)
+
+        let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
+        XCTAssertTrue(preferences.startMeetingsMuted)
     }
 
     func testMeetingLiveTranscriptionEnabledRespectsExplicitFalse() {
@@ -348,7 +376,8 @@ final class AppRuntimePreferencesTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
 
-        XCTAssertEqual(UserDefaultsAppRuntimePreferences(defaults: defaults).meetingAudioSourceMode, .microphoneAndSystem)
+        XCTAssertEqual(
+            UserDefaultsAppRuntimePreferences(defaults: defaults).meetingAudioSourceMode, .microphoneAndSystem)
 
         defaults.set(
             MeetingAudioSourceMode.microphoneOnly.rawValue,
@@ -359,7 +388,8 @@ final class AppRuntimePreferencesTests: XCTestCase {
 
         defaults.set("not-a-source-mode", forKey: UserDefaultsAppRuntimePreferences.meetingAudioSourceModeKey)
 
-        XCTAssertEqual(UserDefaultsAppRuntimePreferences(defaults: defaults).meetingAudioSourceMode, .microphoneAndSystem)
+        XCTAssertEqual(
+            UserDefaultsAppRuntimePreferences(defaults: defaults).meetingAudioSourceMode, .microphoneAndSystem)
     }
 
     func testMeetingAudioSourceModeCaptureBooleansAndConfigurationParsing() {
@@ -400,6 +430,20 @@ final class AppRuntimePreferencesTests: XCTestCase {
         defaults.set("not-a-style", forKey: UserDefaultsAppRuntimePreferences.dictationInsertionStyleKey)
 
         XCTAssertEqual(UserDefaultsAppRuntimePreferences(defaults: defaults).dictationInsertionStyle, .sentence)
+    }
+
+    func testRemoveUmFillerDefaultsToTrueAndReadsPersistedValue() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences(defaults: defaults).removeUmFiller)
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences.removeUmFiller(defaults: defaults))
+
+        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.removeUmFillerKey)
+
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences(defaults: defaults).removeUmFiller)
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences.removeUmFiller(defaults: defaults))
     }
 
     func testAppAppearanceModeDefaultsToSystemAndIgnoresInvalidValues() {
@@ -463,6 +507,18 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertTrue(UserDefaultsAppRuntimePreferences(defaults: defaults).pauseMediaDuringDictation)
     }
 
+    func testPreserveDiscardedDictationsDefaultsToFalseAndReadsPersistedValue() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences(defaults: defaults).preserveDiscardedDictations)
+
+        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.preserveDiscardedDictationsKey)
+
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences(defaults: defaults).preserveDiscardedDictations)
+    }
+
     func testInstantDictationDefaultsToFalseAndReadsPersistedValue() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
@@ -524,16 +580,74 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertTrue(UserDefaultsAppRuntimePreferences(defaults: defaults).aiFormatterEnabledForDictation)
     }
 
-    func testAIFormatterEnabledForTranscriptionsDefaultsToTrueAndReadsPersistedValue() {
+    func testAIFormatterEnabledForTranscriptionsDefaultsToFalseAndReadsPersistedValue() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
 
-        XCTAssertTrue(UserDefaultsAppRuntimePreferences(defaults: defaults).aiFormatterEnabledForTranscriptions)
-
-        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey)
-
         XCTAssertFalse(UserDefaultsAppRuntimePreferences(defaults: defaults).aiFormatterEnabledForTranscriptions)
+
+        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey)
+
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences(defaults: defaults).aiFormatterEnabledForTranscriptions)
+    }
+
+    func testAIFormatterDictationPromptDefaultsIndependentlyAndMigratesCustomSharedPrompt() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertEqual(
+            UserDefaultsAppRuntimePreferences(defaults: defaults).aiFormatterDictationPrompt,
+            AIFormatter.defaultDictationPromptTemplate
+        )
+        XCTAssertNil(defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterDictationPromptKey))
+
+        defaults.set(AIFormatter.defaultPromptTemplate, forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey)
+        XCTAssertEqual(
+            UserDefaultsAppRuntimePreferences(defaults: defaults).aiFormatterDictationPrompt,
+            AIFormatter.defaultDictationPromptTemplate
+        )
+        XCTAssertNil(defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterDictationPromptKey))
+
+        let custom = "Rewrite:\n\(AIFormatter.transcriptPlaceholder)"
+        defaults.set(custom, forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey)
+        XCTAssertEqual(
+            UserDefaultsAppRuntimePreferences(defaults: defaults).aiFormatterDictationPrompt,
+            custom
+        )
+        XCTAssertEqual(
+            defaults.string(forKey: UserDefaultsAppRuntimePreferences.aiFormatterDictationPromptKey),
+            custom
+        )
+
+        defaults.set(
+            AIFormatter.defaultPromptTemplate,
+            forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey
+        )
+        XCTAssertEqual(
+            UserDefaultsAppRuntimePreferences(defaults: defaults).aiFormatterDictationPrompt,
+            custom
+        )
+    }
+
+    func testAIFormatterDictationPromptReadsPersistedValueWithoutCopyingTranscriptPrompt() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        defaults.set(
+            "Transcript:\n\(AIFormatter.transcriptPlaceholder)",
+            forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey
+        )
+        defaults.set(
+            "Dictation:\n\(AIFormatter.transcriptPlaceholder)",
+            forKey: UserDefaultsAppRuntimePreferences.aiFormatterDictationPromptKey
+        )
+
+        let prefs = UserDefaultsAppRuntimePreferences(defaults: defaults)
+        XCTAssertEqual(prefs.aiFormatterPrompt, "Transcript:\n\(AIFormatter.transcriptPlaceholder)")
+        XCTAssertEqual(prefs.aiFormatterDictationPrompt, "Dictation:\n\(AIFormatter.transcriptPlaceholder)")
     }
 
     func testTranscriptAIContextModeDefaultsToRichAndReadsPersistedValue() {
@@ -578,7 +692,7 @@ final class AppRuntimePreferencesTests: XCTestCase {
     /// Models the gate the composition root installs on the file/meeting
     /// transcription path: the AI Formatter runs only when the global switch
     /// AND the transcripts-specific switch are both on. With the transcripts
-    /// key unset the gate follows the global switch alone (pre-#493 behavior).
+    /// key unset the gate stays off, matching dictation.
     func testTranscriptionFormatterGateIsConjunctionOfGlobalAndTranscriptsFlags() {
         func transcriptionGate(global: Bool, transcripts: Bool?) -> Bool {
             let suite = "app-runtime-prefs-\(UUID().uuidString)"
@@ -586,17 +700,19 @@ final class AppRuntimePreferencesTests: XCTestCase {
             defer { defaults.removePersistentDomain(forName: suite) }
             defaults.set(global, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
             if let transcripts {
-                defaults.set(transcripts, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey)
+                defaults.set(
+                    transcripts, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledForTranscriptionsKey)
             }
             let prefs = UserDefaultsAppRuntimePreferences(defaults: defaults)
             return prefs.aiFormatterEnabled && prefs.aiFormatterEnabledForTranscriptions
         }
 
-        XCTAssertTrue(transcriptionGate(global: true, transcripts: nil))
+        XCTAssertFalse(transcriptionGate(global: true, transcripts: nil))
         XCTAssertTrue(transcriptionGate(global: true, transcripts: true))
         XCTAssertFalse(transcriptionGate(global: true, transcripts: false))
         XCTAssertFalse(transcriptionGate(global: false, transcripts: nil))
         XCTAssertFalse(transcriptionGate(global: false, transcripts: true))
+        XCTAssertFalse(transcriptionGate(global: false, transcripts: false))
     }
 
     /// Three conditions, and consent is one of them: the feature stores a voice

@@ -1265,6 +1265,36 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertEqual(props["outcome"], "cancelled")
         XCTAssertEqual(props["cancel_reason"], "escape")
         XCTAssertNil(props["error_type"])
+        XCTAssertNil(props["capture_ms"])
+        XCTAssertNil(props["transcribe_ms"])
+    }
+
+    func testDictationInsertSerializesPhaseMilliseconds() throws {
+        let event = TelemetryEvent(
+            spec: .dictationInsert(
+                operationID: "op-dict",
+                captureMs: 40,
+                transcribeMs: 80,
+                pasteMs: 20,
+                e2eMs: 140
+            ),
+            appVer: "0.8.3",
+            osVer: "15.5",
+            locale: "en-US",
+            chip: "Apple M4",
+            session: "test-session"
+        )
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let data = try encoder.encode(event)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let props = try XCTUnwrap(json["props"] as? [String: String])
+        XCTAssertEqual(json["event"] as? String, "dictation_insert")
+        XCTAssertEqual(props["operation_id"], "op-dict")
+        XCTAssertEqual(props["capture_ms"], "40")
+        XCTAssertEqual(props["transcribe_ms"], "80")
+        XCTAssertEqual(props["paste_ms"], "20")
+        XCTAssertEqual(props["e2e_ms"], "140")
     }
 
     func testModelOperationSerializesSafeLifecycleDimensions() throws {
@@ -2059,7 +2089,16 @@ final class TelemetryServiceTests: XCTestCase {
                 mode: .persistent,
                 durationSeconds: 12.5,
                 wordCount: 84,
-                errorType: nil
+                errorType: nil,
+                captureMs: 40,
+                transcribeMs: 80
+            ),
+            .dictationInsert(
+                operationID: "op-dict",
+                captureMs: 40,
+                transcribeMs: 80,
+                pasteMs: 20,
+                e2eMs: 140
             ),
             .dictationFirstLoadCaptionShown(firstInstall: true),
             .dictationFirstLoadCaptionDuration(durationMs: 8200, outcome: "success"),
