@@ -1,0 +1,35 @@
+Sources/MacParakeetCore/Services/VoiceControl/NativeVoiceControlAdapter.swift
+  s_22ec5587c2905e::t_7c81b3a0318ff9 183,187
+  s_22ec5587c2905e::t_173606d3642e1e 41-43
+  s_22ec5587c2905e::t_23a14fc6631ab5 128
+  s_22ec5587c2905e::t_cb77f3c94bec02 97
+  s_22ec5587c2905e::t_3ff3f63b9947e0 184-186,188-191
+  s_22ec5587c2905e::t_884f223f93d907 67,73,76-78
+  s_22ec5587c2905e::t_0326e37e42fce0 710-721
+  s_22ec5587c2905e::t_d99d089622588c 79
+Tests/MacParakeetTests/VoiceControl/NativeVoiceControlE2ETests.swift
+  s_22ec5587c2905e::t_1481b439f9e318 190
+  s_22ec5587c2905e::t_8e6341cc97e601 1-27,29-86,100,102-103,105-147,158-189,191-210
+  s_22ec5587c2905e::t_5cb320df01a694 28
+  s_22ec5587c2905e::t_d1efa90999aaa3 148-157
+  s_22ec5587c2905e::t_b34f578d893953 87-99,101,104
+Sources/MacParakeetCore/Services/VoiceControl/ScreenTextSource.swift
+  s_22ec5587c2905e::t_0abbd26d231cd2 57-76,78-86,89-93,96,99,101-141
+  s_22ec5587c2905e::t_5ad3aaceede343 97-98,100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fb031fd953a9802208e3c993bf1c78b062462ae9",
+  "prompts": {},
+  "sessions": {
+    "s_22ec5587c2905e": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d63dd1ea-9d2b-4826-93ac-75f15495da8c",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
