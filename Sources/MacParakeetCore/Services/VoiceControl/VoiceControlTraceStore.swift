@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 public struct VoiceControlPersistedTarget: Codable, Sendable, Equatable {
@@ -183,10 +184,19 @@ public actor VoiceControlTraceStore: VoiceControlTraceSink {
         guard !prepared else { return }
         prepared = true
         try? fileManager.createDirectory(at: sessionsDirectory, withIntermediateDirectories: true)
+        protect(directory, directory: true)
+        protect(sessionsDirectory, directory: true)
         let readme = directory.appendingPathComponent("README.txt")
         if !fileManager.fileExists(atPath: readme.path) {
             try? Self.readme.data(using: .utf8)?.write(to: readme, options: .atomic)
+            protect(readme, directory: false)
         }
+    }
+
+    /// Other accounts cannot read session text. Same-user agents still can.
+    private func protect(_ url: URL, directory: Bool) {
+        let mode = directory ? 0o700 : 0o600
+        try? fileManager.setAttributes([.posixPermissions: mode], ofItemAtPath: url.path)
     }
 
     private func persist() {
@@ -198,25 +208,49 @@ public actor VoiceControlTraceStore: VoiceControlTraceSink {
             updatedAt: session.updatedAt)
         self.session = session
         guard let data = try? Self.encoder.encode(session) else { return }
-        if let sessionURL { try? data.write(to: sessionURL) }
+        if let sessionURL {
+            try? data.write(to: sessionURL)
+            protect(sessionURL, directory: false)
+        }
         try? data.write(to: latestURL, options: .atomic)
+        protect(latestURL, directory: false)
         var markdown = session.summary?.markdown(instruction: session.instruction, taskID: session.taskID)
         if let metrics = session.observations.last?.metrics {
-            markdown = (markdown ?? "") + "walk: visited=\(metrics.nodesVisited) capped=\(metrics.capped) \(metrics.walkMilliseconds)ms\n"
+            markdown =
+                (markdown ?? "")
+                + "walk: visited=\(metrics.nodesVisited) capped=\(metrics.capped) \(metrics.walkMilliseconds)ms\n"
         }
         let decisionLines = Self.decisionLines(session.decisions, observations: session.observations)
         if !decisionLines.isEmpty { markdown = (markdown ?? "") + decisionLines.joined(separator: "\n") + "\n" }
         try? markdown?.data(using: .utf8)?.write(to: latestMarkdownURL, options: .atomic)
+        protect(latestMarkdownURL, directory: false)
+        protect(eventsURL, directory: false)
         publishPointer(data, markdown: markdown)
         pruneSessions()
     }
 
+    /// A pre-created symlink or another account's directory is not a place to write labels.
+    private func acceptsPointerDirectory(_ url: URL) -> Bool {
+        var info = stat()
+        let path = url.path
+        if lstat(path, &info) != 0 {
+            guard errno == ENOENT else { return false }
+            guard (try? fileManager.createDirectory(at: url, withIntermediateDirectories: true)) != nil else { return false }
+            guard lstat(path, &info) == 0 else { return false }
+        }
+        guard info.st_uid == getuid(), (info.st_mode & S_IFMT) == S_IFDIR else { return false }
+        protect(url, directory: true)
+        return true
+    }
+
     private func publishPointer(_ data: Data, markdown: String?) {
-        guard let pointerDirectory else { return }
-        try? fileManager.createDirectory(at: pointerDirectory, withIntermediateDirectories: true)
-        try? data.write(to: pointerDirectory.appendingPathComponent("latest.json"), options: .atomic)
-        try? markdown?.data(using: .utf8)?.write(
-            to: pointerDirectory.appendingPathComponent("latest.md"), options: .atomic)
+        guard let pointerDirectory, acceptsPointerDirectory(pointerDirectory) else { return }
+        let pointerJSON = pointerDirectory.appendingPathComponent("latest.json")
+        let pointerMarkdown = pointerDirectory.appendingPathComponent("latest.md")
+        try? data.write(to: pointerJSON, options: .atomic)
+        protect(pointerJSON, directory: false)
+        try? markdown?.data(using: .utf8)?.write(to: pointerMarkdown, options: .atomic)
+        protect(pointerMarkdown, directory: false)
         let whereText = """
             canonical=\(directory.path)
             latest=\(latestURL.path)
@@ -225,11 +259,13 @@ public actor VoiceControlTraceStore: VoiceControlTraceSink {
             command=\(directory.appendingPathComponent("command.json").path)
 
             """
-        try? whereText.data(using: .utf8)?.write(
-            to: pointerDirectory.appendingPathComponent("WHERE"), options: .atomic)
+        let pointerWhere = pointerDirectory.appendingPathComponent("WHERE")
+        try? whereText.data(using: .utf8)?.write(to: pointerWhere, options: .atomic)
+        protect(pointerWhere, directory: false)
         let pointerReadme = pointerDirectory.appendingPathComponent("README.txt")
         if !fileManager.fileExists(atPath: pointerReadme.path) {
             try? Self.readme.data(using: .utf8)?.write(to: pointerReadme, options: .atomic)
+            protect(pointerReadme, directory: false)
         }
     }
 
@@ -246,12 +282,14 @@ public actor VoiceControlTraceStore: VoiceControlTraceSink {
         guard let payload = line.data(using: .utf8) else { return }
         if !fileManager.fileExists(atPath: eventsURL.path) {
             try? payload.write(to: eventsURL, options: .atomic)
+            protect(eventsURL, directory: false)
             return
         }
         guard let handle = try? FileHandle(forWritingTo: eventsURL) else { return }
         defer { try? handle.close() }
         _ = try? handle.seekToEnd()
         try? handle.write(contentsOf: payload)
+        protect(eventsURL, directory: false)
     }
 
     private func stepEvent(_ record: VoiceControlTraceRecord) -> [String: Any] {
@@ -305,7 +343,9 @@ public actor VoiceControlTraceStore: VoiceControlTraceSink {
 
     /// Lines for `latest.md`: the last model request, one line per head with its
     /// top options. Reads as "why did Jev pick that" without opening the JSON.
-    static func decisionLines(_ decisions: [VoiceControlDecisionTrace]?, observations: [VoiceControlPersistedObservation]) -> [String] {
+    static func decisionLines(
+        _ decisions: [VoiceControlDecisionTrace]?, observations: [VoiceControlPersistedObservation]
+    ) -> [String] {
         guard let decision = decisions?.last else { return [] }
         let labels = Dictionary(
             observations.last?.targets.map { ($0.id, $0.label) } ?? [], uniquingKeysWith: { first, _ in first })
@@ -319,7 +359,9 @@ public actor VoiceControlTraceStore: VoiceControlTraceSink {
                 let label = labels[option.option].map { " \"\(String($0.prefix(40)))\"" } ?? ""
                 return "\(option.option)\(label)=\(String(format: "%.2f", option.probability))"
             }
-            lines.append("  \(name): \(head.choice) (\(String(format: "%.2f", head.confidence))) " + options.joined(separator: " "))
+            lines.append(
+                "  \(name): \(head.choice) (\(String(format: "%.2f", head.confidence))) "
+                    + options.joined(separator: " "))
         }
         return lines
     }

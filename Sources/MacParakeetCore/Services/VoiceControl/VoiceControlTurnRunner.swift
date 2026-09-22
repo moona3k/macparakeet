@@ -1,5 +1,17 @@
 import Foundation
 
+private final class LiveWorkFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+    var isSet: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return value
+    }
+    func set(_ next: Bool) {
+        lock.lock(); value = next; lock.unlock()
+    }
+}
+
 public actor VoiceControlTurnRunner {
     public nonisolated let events: AsyncStream<VoiceControlEvent>
     private let continuation: AsyncStream<VoiceControlEvent>.Continuation
@@ -21,6 +33,10 @@ public actor VoiceControlTurnRunner {
     private var pending: Pending?
     private var expiryTask: Task<Void, Never>?
     private var running = false
+    /// In-flight work or a pending confirmation. A dry run reads this without
+    /// hopping to the actor, and must not stop either one.
+    private nonisolated let liveWork = LiveWorkFlag()
+    public nonisolated var hasLiveWork: Bool { liveWork.isSet }
     private var cancelled = false
     private var dryRun = false
     private var submissionID = UUID()
@@ -80,6 +96,7 @@ public actor VoiceControlTurnRunner {
     public func cancel(submissionAuthority: ActionAuthority? = nil) {
         guard submissionAuthority?.isValid != false else { return }
         stop(); submissionID = UUID(); pending = nil; expiryTask?.cancel(); cancelled = true
+        liveWork.set(false)
         goal = ""; amendments = []; history = []; referenceSnapshot = nil; referenceAction = nil
         lastSnapshot = nil; manualOverrides = [:]; otherRequested = false; alternativeLabels = []; alternativeIDs = []; alternativeRawLabels = []; chosenAlternative = nil; chosenTargetID = nil
         record("task", outcome: "cancelled")
@@ -113,6 +130,7 @@ public actor VoiceControlTurnRunner {
         await run()
     }
     public func revise(_ correction: String, submissionAuthority: ActionAuthority? = nil) async {
+        dryRun = false
         guard submissionAuthority?.isValid != false else { return }
         guard hasTask else { await submit(correction, submissionAuthority: submissionAuthority); return }
         stop()
@@ -133,6 +151,7 @@ public actor VoiceControlTurnRunner {
     }
     public func continueTask(submissionAuthority: ActionAuthority? = nil) async { await resume(submissionAuthority: submissionAuthority) }
     public func resume(submissionAuthority: ActionAuthority? = nil) async {
+        dryRun = false
         guard hasTask, !running, submissionAuthority?.isValid != false else { return }
         ingressAuthority = submissionAuthority
         pending = nil; expiryTask?.cancel()
@@ -140,6 +159,7 @@ public actor VoiceControlTurnRunner {
         await run()
     }
     public func clarify(_ answer: String, submissionAuthority: ActionAuthority? = nil) async {
+        dryRun = false
         guard hasTask, !running, submissionAuthority?.isValid != false else { return }
         ingressAuthority = submissionAuthority
         if !alternativeLabels.isEmpty || !alternativeIDs.isEmpty {
@@ -166,10 +186,12 @@ public actor VoiceControlTurnRunner {
         await run()
     }
     public func confirm(submissionAuthority: ActionAuthority? = nil) async {
+        dryRun = false
         guard !running, let pending, submissionAuthority?.isValid != false else { return }
         self.pending = nil; expiryTask?.cancel()
         guard pending.authority.isValid, Date().timeIntervalSince(pending.created) < limits.confirmationSeconds,
               withinBudget else {
+            liveWork.set(false)
             record("policy", outcome: "confirmation_expired")
             continuation.yield(.paused("Confirmation expired. Repeat or revise the request.")); return
         }
@@ -188,20 +210,15 @@ public actor VoiceControlTurnRunner {
             record(
                 "dispatch", operation: action.operation, outcome: "stale_reobserve",
                 observation: snapshot, action: action)
-            do {
-                let fresh = try await adapter.observe()
-                lastSnapshot = fresh
-                guard let bound = bind(action, to: fresh) else {
-                    record("policy", outcome: "unoffered_target", observation: fresh, action: action)
-                    continuation.yield(.failed("The requested control is no longer available."))
-                    finishSegment()
-                    return
-                }
-                continueGoal = try await perform(bound, snapshot: fresh, authority: authority)
-            } catch { report(error) }
+            // Confirmation authorizes this observation. Target ids are walk
+            // positions, so a fresh snapshot can reuse n:4 for a different control.
+            record("policy", outcome: "confirmation_stale", observation: snapshot, action: action)
+            continuation.yield(
+                .paused("The confirmed interface changed. Repeat or revise the request to review the current action."))
         } catch { report(error) }
         finishSegment()
         if continueGoal, authority.isValid, !cancelled { await run() }
+        else { liveWork.set(false) }
     }
 
     private var withinBudget: Bool {
@@ -213,10 +230,15 @@ public actor VoiceControlTurnRunner {
     private static func seconds(_ duration: Duration) -> Double {
         Double(duration.components.seconds) + Double(duration.components.attoseconds) / 1e18
     }
-    private func beginSegment() { running = true; segmentStarted = .now }
+    private func beginSegment() {
+        running = true
+        liveWork.set(true)
+        segmentStarted = .now
+    }
     private func finishSegment() {
         if let segmentStarted { activeSeconds += Self.seconds(segmentStarted.duration(to: .now)) }
         segmentStarted = nil; running = false; gate.clearCancellation()
+        if pending == nil { liveWork.set(false) }
         let waiters = stoppedWaiters; stoppedWaiters = []
         for waiter in waiters { waiter.resume() }
     }
@@ -568,6 +590,7 @@ public actor VoiceControlTurnRunner {
     private func expireConfirmation(_ id: UUID) {
         guard pending?.id == id else { return }
         pending?.authority.revoke(); pending = nil
+        liveWork.set(false)
         record("policy", outcome: "confirmation_expired")
         continuation.yield(.paused("Confirmation expired. Repeat or revise the request."))
     }
