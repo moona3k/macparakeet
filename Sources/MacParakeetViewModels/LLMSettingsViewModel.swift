@@ -265,6 +265,12 @@ public final class LLMSettingsViewModel {
         }
         if isConfigured {
             let displayName = savedAIOptionDisplayName ?? draftAIOptionDisplayName ?? "AI"
+            if savedProviderID == .appleIntelligence, !appleIntelligenceAvailability.canGenerate {
+                return .cannotConnect(
+                    displayName: displayName,
+                    message: appleIntelligenceAvailability.userMessage
+                )
+            }
             return .ready(displayName: displayName)
         }
         return .setUpNeeded

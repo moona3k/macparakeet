@@ -317,7 +317,11 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     internal static let lmStudioContextBudget = 8_000  // ≈2K tokens; LM Studio defaults vary by loaded model
     /// Apple's on-device window is 4096 tokens including instructions and output.
     /// ~3.5 chars/token with a 512-token output reserve ≈ 12k input characters.
+    /// Short answers (summary, Ask) use this ceiling.
     internal static let appleIntelligenceContextBudget = 12_000
+    /// Transforms and dictation cleanup answer at about the length of the source.
+    /// Half the window, in the same character unit, leaves room for that rewrite.
+    internal static let appleIntelligenceRoundTripBudget = 6_000
 
     public init(
         client: LLMClientProtocol = RoutingLLMClient(),
@@ -391,10 +395,12 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                 """,
             systemPrompt: systemPrompt,
             config: context.providerConfig,
-            inputBudget: try promptResultInputBudget(
-                for: context.providerConfig,
-                maxOutputTokens: 700
-            )
+            inputBudget: context.providerConfig.id == .appleIntelligence
+                ? try promptResultInputBudget(
+                    for: context.providerConfig,
+                    maxOutputTokens: 700
+                )
+                : nil
         )
         let responseFormat: ChatResponseFormat? =
             capability == .nativeJSONSchema ? Self.knowledgeCardResponseFormat : nil
@@ -886,7 +892,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
             messageCount: 2
         )
         let config = context.providerConfig
-        let budget = contextBudget(for: config)
+        let budget = contextBudget(for: config, roundTrip: true)
         let promptOverhead =
             Prompts.formatter.count
             + AIFormatter.renderPrompt(template: promptTemplate, transcript: "").count
@@ -1496,9 +1502,9 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         }
     }
 
-    private func contextBudget(for config: LLMProviderConfig) -> Int {
+    private func contextBudget(for config: LLMProviderConfig, roundTrip: Bool = false) -> Int {
         if config.id == .appleIntelligence {
-            return Self.appleIntelligenceContextBudget
+            return roundTrip ? Self.appleIntelligenceRoundTripBudget : Self.appleIntelligenceContextBudget
         }
         if config.id == .lmstudio {
             return Self.lmStudioContextBudget
@@ -1571,7 +1577,8 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         let separator = "\n\n---\n\n"
         let available = max(
             0,
-            contextBudget(for: config) - systemPrompt.count - instructionPrefix.count - separator.count
+            contextBudget(for: config, roundTrip: true) - systemPrompt.count - instructionPrefix.count
+                - separator.count
         )
         let promptBudget = prompt.count <= available ? prompt.count : available / 2
         let boundedPrompt = Self.truncateMiddle(prompt, limit: promptBudget)

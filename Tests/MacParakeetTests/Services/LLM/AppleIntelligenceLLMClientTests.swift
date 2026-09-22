@@ -193,11 +193,103 @@ final class AppleIntelligenceLLMClientTests: XCTestCase {
         }
     }
 
+    func testBlankGenerationIsInvalidResponse() async {
+        let client = AppleIntelligenceLLMClient(
+            generator: StubAppleIntelligenceGenerator(availability: .available, chunks: [" \n"])
+        )
+        do {
+            _ = try await client.chatCompletion(
+                messages: [ChatMessage(role: .user, content: "Hi")],
+                context: LLMExecutionContext(providerConfig: .appleIntelligence()),
+                options: .default
+            )
+            XCTFail("Expected invalid response")
+        } catch let error as LLMError {
+            guard case .invalidResponse = error else {
+                return XCTFail("Unexpected error \(error)")
+            }
+        } catch {
+            XCTFail("Unexpected error \(error)")
+        }
+    }
+
+    func testGenerationPreservesEdgeWhitespace() async throws {
+        let client = AppleIntelligenceLLMClient(
+            generator: StubAppleIntelligenceGenerator(availability: .available, chunks: ["  Hello\n"])
+        )
+        let response = try await client.chatCompletion(
+            messages: [ChatMessage(role: .user, content: "Hi")],
+            context: LLMExecutionContext(providerConfig: .appleIntelligence()),
+            options: .default
+        )
+        XCTAssertEqual(response.content, "  Hello\n")
+    }
+
+    func testTemperatureAboveOneIsRejectedBeforeGeneration() async {
+        let client = AppleIntelligenceLLMClient(
+            generator: StubAppleIntelligenceGenerator(availability: .available, chunks: ["should not run"])
+        )
+        do {
+            _ = try await client.chatCompletion(
+                messages: [ChatMessage(role: .user, content: "Hi")],
+                context: LLMExecutionContext(providerConfig: .appleIntelligence()),
+                options: ChatCompletionOptions(temperature: 1.5)
+            )
+            XCTFail("Expected temperature validation failure")
+        } catch let error as PromptInferenceSettings.ValidationError {
+            XCTAssertEqual(error, .outOfRange(field: .temperature, minimum: 0, maximum: 1))
+        } catch {
+            XCTFail("Unexpected error \(error)")
+        }
+    }
+
+    func testStreamReducerThrowsWhenASnapshotDiverges() throws {
+        var reducer = AppleIntelligenceStreamReducer()
+        XCTAssertEqual(try reducer.consume("Hel"), "Hel")
+        XCTAssertThrowsError(try reducer.consume("Other")) { error in
+            guard case LLMError.streamingError = error else {
+                return XCTFail("Unexpected error \(error)")
+            }
+        }
+        XCTAssertEqual(reducer.emitted, "Hel")
+    }
+
+    func testFailureMapperSurfacesOverflowAndGuardrails() {
+        guard case .contextTooLong = AppleIntelligenceFailureMapper.llmError(for: .exceededContextWindow) else {
+            return XCTFail("Expected contextTooLong")
+        }
+        guard case .rateLimited = AppleIntelligenceFailureMapper.llmError(for: .rateLimited) else {
+            return XCTFail("Expected rateLimited")
+        }
+        let filtered = AppleIntelligenceFailureMapper.llmError(for: .guardrailOrRefusal)
+        guard case .contentFiltered(let message) = filtered else {
+            return XCTFail("Expected contentFiltered, got \(filtered)")
+        }
+        XCTAssertTrue(message.contains("declined"))
+        let busy = AppleIntelligenceFailureMapper.llmError(for: .concurrentRequests)
+        guard case .providerError(let busyMessage) = busy else {
+            return XCTFail("Expected providerError, got \(busy)")
+        }
+        XCTAssertTrue(busyMessage.contains("busy"))
+        let language = AppleIntelligenceFailureMapper.llmError(for: .unsupportedLanguageOrLocale)
+        guard case .providerError(let languageMessage) = language else {
+            return XCTFail("Expected providerError, got \(language)")
+        }
+        XCTAssertTrue(languageMessage.contains("language"))
+    }
+
     func testContentFilteredErrorCopy() {
         let error = LLMError.contentFiltered(
             "Apple Intelligence declined this request. Try rephrasing, or use a different AI provider."
         )
         XCTAssertTrue(error.localizedDescription.contains("declined"))
+    }
+
+    func testNotEnabledSettingsURLOpensTheSiriPane() {
+        XCTAssertEqual(
+            AppleIntelligenceAvailability.appleIntelligenceNotEnabled.settingsURL?.absoluteString,
+            "x-apple.systempreferences:com.apple.Siri-Settings.extension"
+        )
     }
 
     func testAvailabilityCurrentDoesNotCrash() {
@@ -206,8 +298,9 @@ final class AppleIntelligenceLLMClientTests: XCTestCase {
         switch availability {
         case .unsupported, .deviceNotEligible:
             XCTAssertFalse(availability.isUserSelectable)
-        case .appleIntelligenceNotEnabled, .modelNotReady, .available:
+        case .appleIntelligenceNotEnabled, .modelNotReady, .available, .localeLimited:
             XCTAssertTrue(availability.isUserSelectable)
+            XCTAssertEqual(availability.canGenerate, availability == .available || availability == .localeLimited)
         }
     }
 }
@@ -225,18 +318,15 @@ private struct StubAppleIntelligenceGenerator: AppleIntelligenceGenerating {
         onPartial: (@Sendable (String) -> Void)?
     ) async throws -> String {
         _ = request
-        var previous = ""
-        for chunk in chunks {
-            if let onPartial {
-                let delta = AppleIntelligencePromptBuilder.delta(
-                    fromCumulative: chunk,
-                    previous: previous
-                )
+        if let onPartial {
+            var reducer = AppleIntelligenceStreamReducer()
+            for chunk in chunks {
+                let delta = try reducer.consume(chunk)
                 if !delta.isEmpty {
                     onPartial(delta)
                 }
             }
-            previous = chunk
+            return reducer.emitted
         }
         return chunks.last ?? ""
     }

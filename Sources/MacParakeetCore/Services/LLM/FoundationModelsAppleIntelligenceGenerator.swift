@@ -7,7 +7,10 @@ struct FoundationModelsAppleIntelligenceGenerator: AppleIntelligenceGenerating {
     func currentAvailability() -> AppleIntelligenceAvailability {
         switch SystemLanguageModel.default.availability {
         case .available:
-            return .available
+            if SystemLanguageModel.default.supportsLocale() {
+                return .available
+            }
+            return .localeLimited
         case .unavailable(let reason):
             switch reason {
             case .deviceNotEligible:
@@ -29,7 +32,7 @@ struct FoundationModelsAppleIntelligenceGenerator: AppleIntelligenceGenerating {
         onPartial: (@Sendable (String) -> Void)?
     ) async throws -> String {
         let availability = currentAvailability()
-        guard availability == .available else {
+        guard availability.canGenerate else {
             throw LLMError.connectionFailed(availability.userMessage)
         }
 
@@ -45,23 +48,16 @@ struct FoundationModelsAppleIntelligenceGenerator: AppleIntelligenceGenerating {
         do {
             if let onPartial {
                 let stream = session.streamResponse(to: request.prompt, options: options)
-                var previous = ""
+                var reducer = AppleIntelligenceStreamReducer()
                 for try await snapshot in stream {
                     try Task.checkCancellation()
-                    let current = snapshot.content
-                    let delta = AppleIntelligencePromptBuilder.delta(
-                        fromCumulative: current,
-                        previous: previous
-                    )
+                    let delta = try reducer.consume(snapshot.content)
                     if !delta.isEmpty {
                         onPartial(delta)
                     }
-                    if AppleIntelligencePromptBuilder.isCumulativeContinuation(current, of: previous) {
-                        previous = current
-                    }
                 }
                 // Last prefix-valid snapshot, not a rewritten final frame the UI never saw.
-                return previous
+                return reducer.emitted
             }
 
             let response = try await session.respond(to: request.prompt, options: options)
@@ -82,35 +78,29 @@ enum AppleIntelligenceErrorMapper {
             return llmError
         }
         guard let generationError = error as? LanguageModelSession.GenerationError else {
-            return LLMError.providerError(error.localizedDescription)
+            return AppleIntelligenceFailureMapper.llmError(for: .message(error.localizedDescription))
         }
 
+        let failure: AppleIntelligenceGenerationFailure
         switch generationError {
         case .exceededContextWindowSize(_):
-            return LLMError.contextTooLong
+            failure = .exceededContextWindow
         case .assetsUnavailable(_):
-            return LLMError.connectionFailed(
-                AppleIntelligenceAvailability.modelNotReady.userMessage
-            )
+            failure = .assetsUnavailable
         case .guardrailViolation(_), .refusal(_, _):
-            return LLMError.contentFiltered(
-                "Apple Intelligence declined this request. Try rephrasing, or use a different AI provider."
-            )
+            failure = .guardrailOrRefusal
         case .rateLimited(_):
-            return LLMError.rateLimited
+            failure = .rateLimited
         case .concurrentRequests(_):
-            return LLMError.providerError(
-                "Apple Intelligence is busy with another request. Try again."
-            )
+            failure = .concurrentRequests
         case .unsupportedLanguageOrLocale(_):
-            return LLMError.providerError(
-                "Apple Intelligence does not support this language on this Mac."
-            )
+            failure = .unsupportedLanguageOrLocale
         case .unsupportedGuide(_), .decodingFailure(_):
-            return LLMError.providerError(generationError.localizedDescription)
+            failure = .message(generationError.localizedDescription)
         @unknown default:
-            return LLMError.providerError(generationError.localizedDescription)
+            failure = .message(generationError.localizedDescription)
         }
+        return AppleIntelligenceFailureMapper.llmError(for: failure)
     }
 }
 #endif

@@ -94,3 +94,58 @@ enum AppleIntelligencePromptBuilder {
         current.utf8.starts(with: previous.utf8)
     }
 }
+
+/// Folds cumulative Foundation Models snapshots into deltas.
+///
+/// A snapshot that is not a UTF-8 prefix of text already emitted is a rewrite.
+/// Continuing would drop the rest of the answer and still report success, so
+/// the reducer throws instead of splicing replacement text onto characters the
+/// UI has already shown.
+struct AppleIntelligenceStreamReducer {
+    private(set) var emitted = ""
+
+    mutating func consume(_ current: String) throws -> String {
+        guard emitted.isEmpty || AppleIntelligencePromptBuilder.isCumulativeContinuation(current, of: emitted)
+        else {
+            throw LLMError.streamingError(
+                "Apple Intelligence revised a response that was already shown. Try again."
+            )
+        }
+        let delta = AppleIntelligencePromptBuilder.delta(fromCumulative: current, previous: emitted)
+        emitted = current
+        return delta
+    }
+}
+
+enum AppleIntelligenceGenerationFailure: Equatable {
+    case exceededContextWindow
+    case assetsUnavailable
+    case guardrailOrRefusal
+    case rateLimited
+    case concurrentRequests
+    case unsupportedLanguageOrLocale
+    case message(String)
+}
+
+enum AppleIntelligenceFailureMapper {
+    static func llmError(for failure: AppleIntelligenceGenerationFailure) -> LLMError {
+        switch failure {
+        case .exceededContextWindow:
+            return .contextTooLong
+        case .assetsUnavailable:
+            return .connectionFailed(AppleIntelligenceAvailability.modelNotReady.userMessage)
+        case .guardrailOrRefusal:
+            return .contentFiltered(
+                "Apple Intelligence declined this request. Try rephrasing, or use a different AI provider."
+            )
+        case .rateLimited:
+            return .rateLimited
+        case .concurrentRequests:
+            return .providerError("Apple Intelligence is busy with another request. Try again.")
+        case .unsupportedLanguageOrLocale:
+            return .providerError("Apple Intelligence does not support this language on this Mac.")
+        case .message(let message):
+            return .providerError(message)
+        }
+    }
+}

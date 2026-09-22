@@ -479,7 +479,9 @@ public enum PromptInferenceCapabilityResolver {
         let isGemini3Temperature =
             field == .temperature && config.id == .gemini && isGemini3(config.modelName)
         let knownRange: PromptInferenceFieldCapability.KnownRange?
-        if field == .temperature,
+        if field == .temperature, config.id == .appleIntelligence {
+            knownRange = .init(minimum: 0, maximum: 1)
+        } else if field == .temperature,
             config.id == .anthropic,
             AnthropicModelPolicy.acceptsSampling(model: config.modelName)
         {

@@ -19,7 +19,12 @@ final class AppleIntelligenceLiveAPITests: XCTestCase {
 
         switch SystemLanguageModel.default.availability {
         case .available:
-            XCTAssertEqual(mapped, .available)
+            if SystemLanguageModel.default.supportsLocale() {
+                XCTAssertEqual(mapped, .available)
+            } else {
+                XCTAssertEqual(mapped, .localeLimited)
+                XCTAssertTrue(mapped.canGenerate)
+            }
         case .unavailable(let reason):
             switch reason {
             case .deviceNotEligible:
@@ -36,9 +41,6 @@ final class AppleIntelligenceLiveAPITests: XCTestCase {
         }
 
         XCTAssertGreaterThan(SystemLanguageModel.default.contextSize, 0)
-        if mapped == .available {
-            XCTAssertTrue(SystemLanguageModel.default.supportsLocale())
-        }
         #else
         XCTAssertEqual(mapped, .unsupported)
         #endif
@@ -75,10 +77,13 @@ final class AppleIntelligenceLiveAPITests: XCTestCase {
             throw XCTSkip("Requires macOS 26")
         }
         let availability = AppleIntelligenceAvailability.current()
-        guard availability == .available else {
+        guard availability.canGenerate else {
             throw XCTSkip(
                 "Apple Intelligence generation A/B skipped: \(availability.rawValue) — \(availability.userMessage)"
             )
+        }
+        guard SystemLanguageModel.default.supportsLocale() else {
+            throw XCTSkip("Apple Intelligence does not support the current app locale")
         }
 
         let prompt = "Reply with the single word PING and nothing else."
@@ -89,18 +94,11 @@ final class AppleIntelligenceLiveAPITests: XCTestCase {
 
         let streamSession = LanguageModelSession(instructions: "Be terse.")
         var streamed = ""
-        var previous = ""
+        var reducer = AppleIntelligenceStreamReducer()
         for try await snapshot in streamSession.streamResponse(to: prompt, options: options) {
-            let current = snapshot.content
-            let delta = AppleIntelligencePromptBuilder.delta(
-                fromCumulative: current,
-                previous: previous
-            )
+            let delta = try reducer.consume(snapshot.content)
             if !delta.isEmpty {
                 streamed += delta
-            }
-            if AppleIntelligencePromptBuilder.isCumulativeContinuation(current, of: previous) {
-                previous = current
             }
         }
 
@@ -115,18 +113,18 @@ final class AppleIntelligenceLiveAPITests: XCTestCase {
         )
 
         XCTAssertFalse(respondText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-        XCTAssertFalse(previous.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-        XCTAssertEqual(previous, streamed)
+        XCTAssertFalse(reducer.emitted.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        XCTAssertEqual(reducer.emitted, streamed)
         XCTAssertFalse(clientResponse.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         XCTAssertEqual(clientResponse.model, "apple-intelligence")
 
         print("LIVE_AB availability=available")
         print("LIVE_AB respond=\(respondText)")
-        print("LIVE_AB stream=\(previous)")
+        print("LIVE_AB stream=\(reducer.emitted)")
         print("LIVE_AB client=\(clientResponse.content)")
 
         let normalizedRespond = respondText.lowercased()
-        let normalizedStream = previous.lowercased()
+        let normalizedStream = reducer.emitted.lowercased()
         let normalizedClient = clientResponse.content.lowercased()
         XCTAssertTrue(normalizedRespond.contains("ping") || normalizedRespond.count < 80)
         XCTAssertTrue(normalizedStream.contains("ping") || normalizedStream.count < 80)

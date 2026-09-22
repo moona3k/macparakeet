@@ -73,7 +73,7 @@ public final class AppleIntelligenceLLMClient: LLMClientProtocol, Sendable {
     public func listModels(context: LLMExecutionContext) async throws -> [String] {
         try ensureProvider(context)
         let availability = generator.currentAvailability()
-        guard availability == .available else {
+        guard availability.canGenerate else {
             throw LLMError.connectionFailed(availability.userMessage)
         }
         return [context.providerConfig.modelName]
@@ -90,7 +90,7 @@ public final class AppleIntelligenceLLMClient: LLMClientProtocol, Sendable {
         try Task.checkCancellation()
 
         let availability = generator.currentAvailability()
-        guard availability == .available else {
+        guard availability.canGenerate else {
             throw LLMError.connectionFailed(availability.userMessage)
         }
 
@@ -108,11 +108,10 @@ public final class AppleIntelligenceLLMClient: LLMClientProtocol, Sendable {
             ),
             onPartial: onPartial
         )
-        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
+        guard !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw LLMError.invalidResponse
         }
-        return trimmed
+        return content
     }
 
     private func ensureProvider(_ context: LLMExecutionContext) throws {

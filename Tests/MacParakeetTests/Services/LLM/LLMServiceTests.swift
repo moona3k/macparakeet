@@ -1240,6 +1240,32 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertTrue(mockClient.capturedMessages.last?.content.contains("[... content truncated ...]") == true)
     }
 
+    func testAppleIntelligenceTransformUsesRoundTripBudget() async throws {
+        mockConfigStore.config = .appleIntelligence()
+        XCTAssertEqual(LLMService.appleIntelligenceRoundTripBudget, 6_000)
+
+        let text = String(repeating: "word ", count: 2_000)  // 10_000 chars > 6_000 rewrite budget
+        _ = try await service.transformDetailed(text: text, prompt: "Polish")
+
+        let userMessage = try XCTUnwrap(mockClient.capturedMessages.last)
+        XCTAssertTrue(userMessage.content.contains("[... content truncated ...]"))
+        XCTAssertLessThanOrEqual(userMessage.content.count, LLMService.appleIntelligenceRoundTripBudget)
+    }
+
+    func testOllamaKnowledgeCardKeepsTheLocalBudget() async throws {
+        mockConfigStore.config = .ollama(model: "llama3.2")
+        mockClient.responseContent = """
+            {"synopsis":"Short card.","topics":[],"decisions":[],"actions":[]}
+            """
+
+        let text = String(repeating: "word ", count: 8_000)  // 40_000 chars, inside 80k local budget
+        _ = try await service.generateKnowledgeCard(transcript: text, source: .file)
+
+        XCTAssertFalse(
+            mockClient.capturedMessages.contains { $0.content.contains("[... content truncated ...]") }
+        )
+    }
+
     func testLocalProviderUsesLocalBudget() async throws {
         mockConfigStore.config = .ollama(model: "llama3.2")
 

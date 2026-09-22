@@ -14,14 +14,26 @@ public enum AppleIntelligenceAvailability: String, Sendable, Equatable {
     case appleIntelligenceNotEnabled
     /// The OS model is still downloading or preparing.
     case modelNotReady
-    /// Ready to generate.
+    /// Ready to generate, including for this Mac's current language.
     case available
+    /// Apple Intelligence is on, but the current app locale is outside the
+    /// on-device language set. English prompts can still run.
+    case localeLimited
+
+    public var canGenerate: Bool {
+        switch self {
+        case .available, .localeLimited:
+            return true
+        case .unsupported, .deviceNotEligible, .appleIntelligenceNotEnabled, .modelNotReady:
+            return false
+        }
+    }
 
     public var isUserSelectable: Bool {
         switch self {
         case .unsupported, .deviceNotEligible:
             return false
-        case .appleIntelligenceNotEnabled, .modelNotReady, .available:
+        case .appleIntelligenceNotEnabled, .modelNotReady, .available, .localeLimited:
             return true
         }
     }
@@ -38,13 +50,16 @@ public enum AppleIntelligenceAvailability: String, Sendable, Equatable {
             return "Apple Intelligence is still downloading. Try again in a few minutes."
         case .available:
             return "Apple Intelligence is ready on this Mac."
+        case .localeLimited:
+            return
+                "Apple Intelligence is on. English prompts can run; this Mac's language is outside the on-device set, so other languages may be declined."
         }
     }
 
     public var settingsURL: URL? {
         switch self {
         case .appleIntelligenceNotEnabled:
-            return URL(string: "x-apple.systempreferences:com.apple.preference.appleintelligence")
+            return URL(string: "x-apple.systempreferences:com.apple.Siri-Settings.extension")
         default:
             return nil
         }

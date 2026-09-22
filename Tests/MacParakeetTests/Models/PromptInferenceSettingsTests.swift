@@ -132,6 +132,32 @@ final class PromptInferenceSettingsTests: XCTestCase {
         }
     }
 
+    func testAppleIntelligenceTemperatureRangeIsZeroToOne() throws {
+        let config = LLMProviderConfig.appleIntelligence()
+        XCTAssertThrowsError(
+            try PromptInferenceCapabilityResolver.resolve(
+                config: config, requested: PromptInferenceSettings(temperature: 1.5)
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? PromptInferenceSettings.ValidationError,
+                .outOfRange(field: .temperature, minimum: 0, maximum: 1)
+            )
+        }
+        let boundary = try PromptInferenceCapabilityResolver.resolve(
+            config: config, requested: PromptInferenceSettings(temperature: 1)
+        )
+        XCTAssertEqual(boundary.effectiveSettings?.temperature, 1)
+        XCTAssertEqual(
+            PromptInferenceCapabilityResolver.presentation(
+                config: config,
+                modelOverride: nil,
+                requested: nil
+            ).fieldCapabilities[.temperature]?.knownRange,
+            .init(minimum: 0, maximum: 1)
+        )
+    }
+
     func testAnthropicTemperatureRangeAppliesAfterTopPPrecedence() throws {
         let config = LLMProviderConfig.anthropic(apiKey: "key", model: "claude-haiku-4-5")
         XCTAssertThrowsError(

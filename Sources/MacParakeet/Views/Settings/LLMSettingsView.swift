@@ -326,7 +326,7 @@ struct LLMSettingsView: View {
             HStack(spacing: DesignSystem.Spacing.sm) {
                 if let url = viewModel.appleIntelligenceSettingsURL {
                     Button("Open System Settings") {
-                        NSWorkspace.shared.open(url)
+                        openAppleIntelligenceSettings(url)
                     }
                     .parakeetAction(.secondary)
                 }
@@ -335,6 +335,14 @@ struct LLMSettingsView: View {
                 }
                 .parakeetAction(.secondary)
             }
+        }
+    }
+
+    private func openAppleIntelligenceSettings(_ url: URL) {
+        let fallback = URL(string: "x-apple.systempreferences:")!
+        if NSWorkspace.shared.open(url) { return }
+        if url != fallback {
+            NSWorkspace.shared.open(fallback)
         }
     }
 
