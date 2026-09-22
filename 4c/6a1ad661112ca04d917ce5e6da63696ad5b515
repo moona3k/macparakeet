@@ -1,0 +1,121 @@
+Sources/MacParakeetCore/Services/SavedAudioAutoPromptCompletionService.swift
+  s_a5c5adb13167fb::t_beaca4530f4aec 237-238
+  s_a5c5adb13167fb::t_559319f3ba0df2 244-250
+Sources/MacParakeetViewModels/PromptResultsViewModel.swift
+  s_a5c5adb13167fb::t_62eb0b46779adb 496-500
+  s_a5c5adb13167fb::t_37ea8788b4b168 91
+  s_a5c5adb13167fb::t_0fb9aa043d2730 526-527
+  s_a5c5adb13167fb::t_354cd960a1acb1 641-642
+  s_a5c5adb13167fb::t_a82294647b3651 73
+  s_a5c5adb13167fb::t_2cbeeafc141f98 585-586
+  s_a5c5adb13167fb::t_ec637241c6e081 675
+  s_a5c5adb13167fb::t_3122e1d4aaa4dc 769
+  s_a5c5adb13167fb::t_3204d01991f070 479-483,490-491
+  s_a5c5adb13167fb::t_076d1e1f676425 537-538
+  s_a5c5adb13167fb::t_62f5a266e8e37c 53
+Sources/MacParakeetCore/Models/SpeakerCorrection.swift
+  s_a5c5adb13167fb::t_cdf07ef93a4d2a 89
+  s_a5c5adb13167fb::t_4f42cd0ac733cc 176,226-229
+  s_a5c5adb13167fb::t_a33c48005d6d11 237-240
+  s_a5c5adb13167fb::t_9a5525b44cc4f4 143,147,151
+  s_a5c5adb13167fb::t_fa57467c58b8ec 90-100,111-112,126,133,177,241,243,290
+  s_a5c5adb13167fb::t_d3effbae2ff0a8 156,164,171-175
+  s_a5c5adb13167fb::t_073ff7e853eb15 242,280-282
+Sources/MacParakeetCore/TextProcessing/TranscriptReadingEdit.swift
+  s_a5c5adb13167fb::t_cdea88a392dc02 5,15-16,18
+  s_a5c5adb13167fb::t_431758a03e8356 1-4,6-14,17,19-45
+Tests/MacParakeetTests/TextProcessing/TranscriptReadingEditTests.swift
+  s_a5c5adb13167fb::t_d376536b173203 1-40
+Sources/MacParakeetCore/Database/TranscriptionRepository.swift
+  s_a5c5adb13167fb::t_19a97dfea0d39e 916
+  s_a5c5adb13167fb::t_044c569e7d080c 899
+  s_a5c5adb13167fb::t_23544f308baa0a 934-939
+Sources/MacParakeet/Views/Transcription/TranscriptResultView.swift
+  s_a5c5adb13167fb::t_214e88edf2df5f 3519-3520
+  s_a5c5adb13167fb::t_e6158b9cecbdf1 2528-2538
+  s_a5c5adb13167fb::t_a69c3c6fd8f768 2297
+  s_a5c5adb13167fb::t_bc03ba10c5b3ef 2659
+  s_a5c5adb13167fb::t_7614c2d365891c 2120-2122
+  s_a5c5adb13167fb::t_ceea7b1cb1cf89 1082-1085
+  s_a5c5adb13167fb::t_54aa5c7f5e4155 563-565
+  s_a5c5adb13167fb::t_998890f378013d 2337
+  s_a5c5adb13167fb::t_66bcf20b9e09e8 2463,2467-2483
+  s_a5c5adb13167fb::t_f2354b59702814 5349-5388
+  s_a5c5adb13167fb::t_33f68f176a89ad 3190-3198,3206-3207
+  s_a5c5adb13167fb::t_5ad410b2225e27 2660-2682
+  s_a5c5adb13167fb::t_43e6cdf5998de1 3219
+  s_a5c5adb13167fb::t_7c70c2aef9f1f7 3215
+  s_a5c5adb13167fb::t_79f4338d775593 841-843
+  s_a5c5adb13167fb::t_4a4649b4d7978e 2452
+  s_a5c5adb13167fb::t_3f6adb329d0e1d 2044
+  s_a5c5adb13167fb::t_c736481252e7f9 2050
+  s_a5c5adb13167fb::t_d3fdee357b3d57 2567-2581
+spec/01-data-model.md
+  s_a5c5adb13167fb::t_23ab2e692fd0d1 388
+  s_a5c5adb13167fb::t_f07bcb429ab0b8 444-446
+  s_a5c5adb13167fb::t_a4f12e74f72c4a 424-427
+  s_a5c5adb13167fb::t_61eab63561edad 715-718
+docs/plans/2026-09-21-issue-1069-reading-transcript-edit.md
+  s_a5c5adb13167fb::t_12b3291f7d774e 1-24
+Tests/MacParakeetTests/Services/Diarization/SpeakerAttributionResolverTests.swift
+  s_a5c5adb13167fb::t_64b0f6b945a461 36-101
+Sources/MacParakeetCore/Services/Diarization/SpeakerAttributionResolver.swift
+  s_a5c5adb13167fb::t_e61b85174818cc 736,744-746
+  s_a5c5adb13167fb::t_2ce02eab03a8e1 204-206
+  s_a5c5adb13167fb::t_51dd51d6c5fd15 179
+  s_a5c5adb13167fb::t_e30d18eb53d4ee 531-575
+  s_a5c5adb13167fb::t_e8f5aa31e2e96c 951
+Tests/MacParakeetTests/Services/SpeakerCorrectionServiceTests.swift
+  s_a5c5adb13167fb::t_febcb26e97ff08 48-84
+  s_08070a5469009d::t_598d03b7bdfde5 85-86
+Sources/MacParakeet/Views/Transcription/TranscriptReadingEditor.swift
+  s_a5c5adb13167fb::t_37376c14091755 1
+  s_a5c5adb13167fb::t_bb9dd04bd43763 2-59
+Sources/MacParakeetCore/Models/PromptResultFreshness.swift
+  s_a5c5adb13167fb::t_655a713ccebf69 1-15
+spec/adr/031-timed-transcript-corrections.md
+  s_a5c5adb13167fb::t_bcc928715e86a5 158-174
+Sources/MacParakeetCore/Database/DatabaseManager.swift
+  s_a5c5adb13167fb::t_8ff00d72d54a96 2320-2403
+Tests/MacParakeetTests/Database/DatabaseManagerTests.swift
+  s_a5c5adb13167fb::t_abb8ea1424c594 293
+Tests/MacParakeetTests/Models/SpeakerCorrectionTests.swift
+  s_a5c5adb13167fb::t_c53392093c2597 51-69
+  s_a5c5adb13167fb::t_65db85e13a1662 47
+Sources/MacParakeetCore/Models/PromptResult.swift
+  s_a5c5adb13167fb::t_b657a7dce6df2a 77
+  s_a5c5adb13167fb::t_e9dc37f6f4fb86 107
+  s_a5c5adb13167fb::t_fde90a88c6fe1a 32-34
+  s_a5c5adb13167fb::t_1e95cc15bf8137 94
+  s_a5c5adb13167fb::t_631d2ea2013844 58
+spec/02-features.md
+  s_a5c5adb13167fb::t_9238c7eb1b4765 1545-1550
+Sources/MacParakeetViewModels/TranscriptionViewModel.swift
+  s_a5c5adb13167fb::t_a1026b1db8094b 1461-1464,1470-1471
+Tests/MacParakeetTests/Models/PromptResultFreshnessTests.swift
+  s_a5c5adb13167fb::t_340c3013ef435c 1-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4c6a1ad661112ca04d917ce5e6da63696ad5b515",
+  "prompts": {},
+  "sessions": {
+    "s_08070a5469009d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e4ef9f5a-7c8e-42b5-8c32-482153280e11",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    },
+    "s_a5c5adb13167fb": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "780dd43a-7aac-4de5-a206-7e6112e487dd",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
