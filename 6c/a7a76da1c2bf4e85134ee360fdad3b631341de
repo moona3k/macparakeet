@@ -1,0 +1,33 @@
+Tests/MacParakeetTests/Services/LLM/LLMServiceTests.swift
+  s_08070a5469009d::t_a87814fa9d0f3a 1255-1291
+Sources/MacParakeetCore/Models/PromptInferenceSettings.swift
+  s_08070a5469009d::t_e25a109819d1f7 214-216
+  s_08070a5469009d::t_3ff3dfe3cb1733 485-493
+Sources/MacParakeetCore/Models/LLMTypes.swift
+  s_08070a5469009d::t_0c9d0c2adfdbd8 223-232
+Sources/MacParakeetCore/Services/LLM/LLMService.swift
+  s_08070a5469009d::t_88d151d7d309fb 326-332
+spec/11-llm-integration.md
+  s_08070a5469009d::t_c51791dddd52fb 127
+  s_08070a5469009d::t_f0c4fe8a53f8e8 561
+spec/14-per-prompt-inference-settings.md
+  s_08070a5469009d::t_96b8ca1df42245 230
+Tests/MacParakeetTests/Models/PromptInferenceSettingsTests.swift
+  s_08070a5469009d::t_90a169543ac99d 161-191
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6ca7a76da1c2bf4e85134ee360fdad3b631341de",
+  "prompts": {},
+  "sessions": {
+    "s_08070a5469009d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e4ef9f5a-7c8e-42b5-8c32-482153280e11",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
