@@ -85,6 +85,7 @@ tmp/
 
 # Local media artifacts
 Assets/local-videos/
+fixtures/private/
 
 # Data recovery
 recup_dir*/

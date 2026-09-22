@@ -40,11 +40,13 @@ public struct SpeakerSegment: Sendable {
     public let speakerId: String
     public let startMs: Int
     public let endMs: Int
+    public let qualityScore: Double
 
-    public init(speakerId: String, startMs: Int, endMs: Int) {
+    public init(speakerId: String, startMs: Int, endMs: Int, qualityScore: Double = 1.0) {
         self.speakerId = speakerId
         self.startMs = startMs
         self.endMs = endMs
+        self.qualityScore = qualityScore
     }
 }
 
@@ -265,14 +267,24 @@ public actor DiarizationService: DiarizationServiceProtocol {
             let mappedId = idMapping[seg.speakerId] ?? seg.speakerId
             let startMs = max(0, Int((seg.startTimeSeconds * 1000).rounded()))
             let endMs = max(0, Int((seg.endTimeSeconds * 1000).rounded()))
-            return SpeakerSegment(speakerId: mappedId, startMs: startMs, endMs: endMs)
+            return SpeakerSegment(
+                speakerId: mappedId,
+                startMs: startMs,
+                endMs: endMs,
+                qualityScore: Double(seg.qualityScore)
+            )
         }
 
         let speakers: [SpeakerInfo] = idMapping
             .sorted { Int($0.value.dropFirst()) ?? 0 < Int($1.value.dropFirst()) ?? 0 }
-            .map { _, stableId in
+            .map { rawProviderSpeakerId, stableId in
                 let number = String(stableId.dropFirst())
-                return SpeakerInfo(id: stableId, label: "Speaker \(number)")
+                return SpeakerInfo(
+                    id: stableId,
+                    label: "Speaker \(number)",
+                    rawProviderSpeakerId: rawProviderSpeakerId,
+                    labelSource: .modelDefault
+                )
             }
 
         var speechMsBySpeaker: [String: Int] = [:]

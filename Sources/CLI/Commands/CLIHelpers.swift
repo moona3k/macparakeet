@@ -525,6 +525,8 @@ enum CLIErrorType {
                 return inputMissing
             case .unsupportedFormat:
                 return validation
+            case .diarizationReportUnavailable:
+                return runtime
             }
         }
         if let retranscribe = error as? CLIRetranscribeError {

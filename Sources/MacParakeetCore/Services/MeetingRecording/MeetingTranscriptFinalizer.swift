@@ -101,6 +101,52 @@ struct MeetingTranscriptFinalizer {
         )
     }
 
+    /// Remaps diarizer ids onto the system track without dropping embeddings
+    /// or speech durations. Provenance fields stay optional diagnostics.
+    static func systemDiarization(
+        from result: MacParakeetDiarizationResult,
+        startOffsetMs: Int = 0
+    ) -> SystemDiarization {
+        let mappedSpeakers = result.speakers.enumerated().map { index, speaker in
+            SpeakerInfo(
+                id: SpeakerID.systemSpeaker(speaker.id),
+                label: "\(AudioSource.system.displayLabel) \(index + 1)",
+                source: .system,
+                rawProviderSpeakerId: speaker.rawProviderSpeakerId ?? speaker.id,
+                labelSource: speaker.labelSource ?? .modelDefault
+            )
+        }
+        let speakerIDMap = Dictionary(uniqueKeysWithValues: zip(
+            result.speakers.map(\.id),
+            mappedSpeakers.map(\.id)
+        ))
+        let mappedSegments = result.segments.map { segment in
+            SpeakerSegment(
+                speakerId: speakerIDMap[segment.speakerId] ?? SpeakerID.systemSpeaker(segment.speakerId),
+                startMs: segment.startMs + startOffsetMs,
+                endMs: segment.endMs + startOffsetMs,
+                qualityScore: segment.qualityScore
+            )
+        }
+        let mappedEmbeddings = Dictionary(
+            uniqueKeysWithValues: result.speakerEmbeddings.compactMap { id, embedding in
+                speakerIDMap[id].map { ($0, embedding) }
+            }
+        )
+        let mappedSpeechMs = Dictionary(
+            uniqueKeysWithValues: result.speechMsBySpeaker.compactMap { id, milliseconds in
+                speakerIDMap[id].map { ($0, milliseconds) }
+            }
+        )
+
+        return SystemDiarization(
+            speakers: mappedSpeakers,
+            segments: mappedSegments,
+            speakerEmbeddings: mappedEmbeddings,
+            speechMsBySpeaker: mappedSpeechMs
+        )
+    }
+
     private static func shiftedWords(
         for result: STTResult,
         source: AudioSource,

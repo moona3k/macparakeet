@@ -200,6 +200,7 @@ final class SpecCommandTests: XCTestCase {
                 "calendar",
                 "cards",
                 "config",
+                "diarization-eval",
                 "export",
                 "feedback",
                 "health",

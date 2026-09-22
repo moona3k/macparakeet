@@ -1454,6 +1454,7 @@ This extension is not implemented; the checked criteria below describe the exist
 - Speaker colors in transcript view (visual differentiation)
 - Per-speaker analytics: speaking time, word count
 - On by default where supported for file/URL transcription and meeting finalization with a system-audio track; the Settings toggle remains available, and the CLI follows the saved preference — `--speaker-detection off` / `--no-diarize` forces it off, while speaker-count constraints keep forcing it on for that run
+- CLI `--diarization-report PATH` writes a content-free JSON quality report for a single fresh transcription, including requested speaker hints, detected speaker count, segment counts, speaking-time totals, word-assignment method counts, and warning flags
 
 **Transcript with speakers:**
 
@@ -1487,7 +1488,7 @@ This extension is not implemented; the checked criteria below describe the exist
 - SRT/VTT: speaker name prefix per subtitle
 - TXT/Markdown: speaker label before each turn
 - DOCX/PDF: speaker name in bold before each turn
-- JSON: `speakerId` field per word in `wordTimestamps`
+- JSON: `speakerId` field per word in `wordTimestamps`; speaker rows may also include optional `source`, `rawProviderSpeakerId`, and `labelSource` provenance fields
 - DAPT: character agents and event references only for aligned speaker-attributed words
 
 TXT and Markdown are reading surfaces rather than subtitle surfaces. When word
@@ -1505,6 +1506,7 @@ are unaffected.
 - Runs after ASR completes and merges speaker segments with word-level timestamps by time overlap. Isolated one-word flips and unlabeled gaps inherit a speaker only when both neighboring runs agree (ADR-010 2026-09-15).
 - Diarization is non-fatal — if it fails, ASR result is still persisted without speaker data
 - Automatic IDs (`"S1"`, `"S2"`) belong to one transcript version. User corrections are stored separately and resolved into effective attribution for display, search, exports, artifacts and AI; IDs are not cross-file or retranscription identity.
+- A requested quality report scores word assignment with unambiguous direct overlap and a bounded, quality-gated nearest-segment fallback. The report exposes assignment counters without transcript text. Ordinary transcription keeps the neighbor-agreement merger.
 - Overlapping speech regions are trimmed (exclusive output) — words in overlap zones may lack speaker assignment
 - No cross-file speaker identity (Speaker 1 in file A is not linked to Speaker 1 in file B)
 - Single-speaker files can resolve to one label, but still incur diarization work.
@@ -1523,7 +1525,7 @@ are unaffected.
 - [x] Diarization failure is non-fatal (ASR result preserved)
 - [x] Progress shows "Identifying speakers..." headline
 - [x] Settings toggles for file/URL and meeting speaker detection (on by default where supported; explicit off is preserved)
-- [x] CLI: `macparakeet-cli transcribe` follows the saved file/URL speaker-detection preference; meeting retranscription follows the saved meeting speaker-detection preference when app-default; `--speaker-detection off` / `--no-diarize` force off per run, and speaker-count constraints force on
+- [x] CLI: `macparakeet-cli transcribe` follows the saved file/URL speaker-detection preference; meeting retranscription follows the saved meeting speaker-detection preference when app-default; `--speaker-detection off` / `--no-diarize` force off per run, and speaker-count constraints force on. `--diarization-report PATH` writes a content-free quality report for one fresh run
 
 **Timed transcript corrections (development source):**
 

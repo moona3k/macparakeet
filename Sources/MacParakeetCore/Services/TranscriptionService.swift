@@ -490,6 +490,23 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
             source: source,
             audioTrackOrdinal: nil,
             persistResult: true,
+            options: .default,
+            onProgress: onProgress
+        ).transcription
+    }
+
+    public func transcribe(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource = .file,
+        options: TranscriptionRunOptions,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> TranscriptionRunResult {
+        try await transcribe(
+            fileURL: fileURL,
+            source: source,
+            audioTrackOrdinal: nil,
+            persistResult: true,
+            options: options,
             onProgress: onProgress
         )
     }
@@ -504,7 +521,24 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
             fileURL: fileURL,
             source: source,
             audioTrackOrdinal: audioTrackOrdinal,
+            options: .default,
+            onProgress: onProgress
+        ).transcription
+    }
+
+    public func transcribe(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource = .file,
+        audioTrackOrdinal: Int,
+        options: TranscriptionRunOptions,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> TranscriptionRunResult {
+        try await transcribe(
+            fileURL: fileURL,
+            source: source,
+            audioTrackOrdinal: audioTrackOrdinal,
             persistResult: true,
+            options: options,
             onProgress: onProgress
         )
     }
@@ -519,6 +553,23 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
             source: source,
             audioTrackOrdinal: nil,
             persistResult: false,
+            options: .default,
+            onProgress: onProgress
+        ).transcription
+    }
+
+    public func transcribeTransient(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource = .file,
+        options: TranscriptionRunOptions,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> TranscriptionRunResult {
+        try await transcribe(
+            fileURL: fileURL,
+            source: source,
+            audioTrackOrdinal: nil,
+            persistResult: false,
+            options: options,
             onProgress: onProgress
         )
     }
@@ -533,7 +584,24 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
             fileURL: fileURL,
             source: source,
             audioTrackOrdinal: audioTrackOrdinal,
+            options: .default,
+            onProgress: onProgress
+        ).transcription
+    }
+
+    public func transcribeTransient(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource = .file,
+        audioTrackOrdinal: Int,
+        options: TranscriptionRunOptions,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> TranscriptionRunResult {
+        try await transcribe(
+            fileURL: fileURL,
+            source: source,
+            audioTrackOrdinal: audioTrackOrdinal,
             persistResult: false,
+            options: options,
             onProgress: onProgress
         )
     }
@@ -547,8 +615,9 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         source: TelemetryTranscriptionSource,
         audioTrackOrdinal: Int?,
         persistResult: Bool,
+        options: TranscriptionRunOptions,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
-    ) async throws -> Transcription {
+    ) async throws -> TranscriptionRunResult {
         let sourceType: Transcription.SourceType = switch source {
         case .youtube:
             .youtube
@@ -568,6 +637,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
             sourceType: sourceType,
             audioTrackOrdinal: audioTrackOrdinal,
             persistResult: persistResult,
+            options: options,
             onProgress: onProgress
         )
     }
@@ -762,7 +832,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
                 speechEngine: speechEngine,
                 diarizationServiceOverride: runDiarizationService,
                 onProgress: onProgress
-            )
+            ).transcription
         }
     }
 
@@ -877,8 +947,9 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         sourceType: Transcription.SourceType,
         audioTrackOrdinal: Int? = nil,
         persistResult: Bool = true,
+        options: TranscriptionRunOptions = .default,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
-    ) async throws -> Transcription {
+    ) async throws -> TranscriptionRunResult {
         let speechEngine = fileSpeechEngineSelection()
         let embeddedMetadata = sourceType == .file
             ? await mediaMetadataExtractor.metadata(for: fileURL)
@@ -953,6 +1024,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
                 operation: operation,
                 tempFiles: [],
                 persistResult: persistResult,
+                options: options,
                 speechEngine: speechEngine,
                 onProgress: onProgress
             )
@@ -963,6 +1035,20 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         try await transcribeURL(
             urlString: urlString,
             persistResult: true,
+            options: .default,
+            onProgress: onProgress
+        ).transcription
+    }
+
+    public func transcribeURL(
+        urlString: String,
+        options: TranscriptionRunOptions,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> TranscriptionRunResult {
+        try await transcribeURL(
+            urlString: urlString,
+            persistResult: true,
+            options: options,
             onProgress: onProgress
         )
     }
@@ -971,6 +1057,20 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         try await transcribeURL(
             urlString: urlString,
             persistResult: false,
+            options: .default,
+            onProgress: onProgress
+        ).transcription
+    }
+
+    public func transcribeURLTransient(
+        urlString: String,
+        options: TranscriptionRunOptions,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> TranscriptionRunResult {
+        try await transcribeURL(
+            urlString: urlString,
+            persistResult: false,
+            options: options,
             onProgress: onProgress
         )
     }
@@ -978,8 +1078,9 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
     private func transcribeURL(
         urlString: String,
         persistResult: Bool,
+        options: TranscriptionRunOptions,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
-    ) async throws -> Transcription {
+    ) async throws -> TranscriptionRunResult {
         let speechEngine = fileSpeechEngineSelection()
         let inputURL = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -991,6 +1092,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
             return try await transcribePodcastURL(
                 inputURL,
                 persistResult: persistResult,
+                options: options,
                 speechEngine: speechEngine,
                 onProgress: onProgress
             )
@@ -1023,6 +1125,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
                 isPodcast: false,
                 operation: operation,
                 persistResult: persistResult,
+                options: options,
                 speechEngine: speechEngine,
                 onProgress: onProgress
             )
@@ -1034,9 +1137,10 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
     private func transcribePodcastURL(
         _ inputURL: String,
         persistResult: Bool,
+        options: TranscriptionRunOptions,
         speechEngine: SpeechEngineSelection?,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
-    ) async throws -> Transcription {
+    ) async throws -> TranscriptionRunResult {
         let operation = Self.podcastOperationContext()
         return try await Observability.withOperationContext(operation.operationContext) {
             guard let resolver = podcastResolver else {
@@ -1067,6 +1171,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
                 isPodcast: true,
                 operation: operation,
                 persistResult: persistResult,
+                options: options,
                 speechEngine: speechEngine,
                 onProgress: onProgress
             )
@@ -1077,14 +1182,50 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         query: String,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
-        try await transcribePodcastQuery(query: query, persistResult: true, onProgress: onProgress)
+        try await transcribePodcastQuery(
+            query: query,
+            persistResult: true,
+            options: .default,
+            onProgress: onProgress
+        ).transcription
+    }
+
+    public func transcribePodcastQuery(
+        query: String,
+        options: TranscriptionRunOptions,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> TranscriptionRunResult {
+        try await transcribePodcastQuery(
+            query: query,
+            persistResult: true,
+            options: options,
+            onProgress: onProgress
+        )
     }
 
     public func transcribePodcastQueryTransient(
         query: String,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
-        try await transcribePodcastQuery(query: query, persistResult: false, onProgress: onProgress)
+        try await transcribePodcastQuery(
+            query: query,
+            persistResult: false,
+            options: .default,
+            onProgress: onProgress
+        ).transcription
+    }
+
+    public func transcribePodcastQueryTransient(
+        query: String,
+        options: TranscriptionRunOptions,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> TranscriptionRunResult {
+        try await transcribePodcastQuery(
+            query: query,
+            persistResult: false,
+            options: options,
+            onProgress: onProgress
+        )
     }
 
     /// Transcribe a freetext podcast query ("Lex Fridman episode 400"): iTunes
@@ -1092,8 +1233,9 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
     private func transcribePodcastQuery(
         query: String,
         persistResult: Bool,
+        options: TranscriptionRunOptions,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
-    ) async throws -> Transcription {
+    ) async throws -> TranscriptionRunResult {
         let speechEngine = fileSpeechEngineSelection()
         let operation = Self.podcastOperationContext()
         return try await Observability.withOperationContext(operation.operationContext) {
@@ -1125,6 +1267,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
                 isPodcast: true,
                 operation: operation,
                 persistResult: persistResult,
+                options: options,
                 speechEngine: speechEngine,
                 onProgress: onProgress
             )
@@ -1172,9 +1315,10 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         isPodcast: Bool,
         operation: TranscriptionOperationContext,
         persistResult: Bool,
+        options: TranscriptionRunOptions,
         speechEngine: SpeechEngineSelection?,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
-    ) async throws -> Transcription {
+    ) async throws -> TranscriptionRunResult {
         var unownedDownloadedAudioURL: URL?
         defer {
             if let unownedDownloadedAudioURL {
@@ -1315,6 +1459,7 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
             tempFiles: [downloadResult.audioFileURL],
             cleanUpDownloadedFiles: !keepDownloadedAudio,
             persistResult: persistResult,
+            options: options,
             speechEngine: speechEngine,
             onProgress: onProgress
         )
@@ -1326,10 +1471,10 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         // Podcast enclosures are normally already playable, so this is a no-op
         // for them, but harmless.
         if keepDownloadedAudio,
-           let storedPath = completed.filePath,
+           let storedPath = completed.transcription.filePath,
            YouTubeAudioPlaybackConverter.needsConversion(forPath: storedPath) {
             schedulePlaybackConversion(
-                transcriptionId: completed.id,
+                transcriptionId: completed.transcription.id,
                 inputPath: storedPath,
                 metadata: artifactMetadata
             )
@@ -1776,43 +1921,9 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
 
             guard !diarResult.segments.isEmpty else { return nil }
 
-            let mappedSpeakers = diarResult.speakers.enumerated().map { index, speaker in
-                SpeakerInfo(
-                    id: "\(AudioSource.system.rawValue):\(speaker.id)",
-                    label: "\(AudioSource.system.displayLabel) \(index + 1)"
-                )
-            }
-            let speakerIDMap = Dictionary(uniqueKeysWithValues: zip(
-                diarResult.speakers.map(\.id),
-                mappedSpeakers.map(\.id)
-            ))
-            let mappedSegments = diarResult.segments.map { segment in
-                SpeakerSegment(
-                    speakerId: speakerIDMap[segment.speakerId] ?? "\(AudioSource.system.rawValue):\(segment.speakerId)",
-                    startMs: segment.startMs + systemTrack.startOffsetMs,
-                    endMs: segment.endMs + systemTrack.startOffsetMs
-                )
-            }
-
-            // Embeddings and durations follow the same remap as the segments:
-            // the diarizer's "S1" becomes "system:S1", and carrying the raw
-            // keys over would attach one speaker's voice to another's label.
-            let mappedEmbeddings = Dictionary(
-                uniqueKeysWithValues: diarResult.speakerEmbeddings.compactMap { id, embedding in
-                    speakerIDMap[id].map { ($0, embedding) }
-                }
-            )
-            let mappedSpeechMs = Dictionary(
-                uniqueKeysWithValues: diarResult.speechMsBySpeaker.compactMap { id, ms in
-                    speakerIDMap[id].map { ($0, ms) }
-                }
-            )
-
-            return MeetingTranscriptFinalizer.SystemDiarization(
-                speakers: mappedSpeakers,
-                segments: mappedSegments,
-                speakerEmbeddings: mappedEmbeddings,
-                speechMsBySpeaker: mappedSpeechMs
+            return MeetingTranscriptFinalizer.systemDiarization(
+                from: diarResult,
+                startOffsetMs: systemTrack.startOffsetMs
             )
         } catch is CancellationError {
             throw CancellationError()
@@ -1914,13 +2025,15 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
         cleanUpDownloadedFiles: Bool = true,
         persistResult: Bool = true,
         persistFailureStatus: Bool = true,
+        options: TranscriptionRunOptions = .default,
         speechEngine: SpeechEngineSelection? = nil,
         diarizationServiceOverride: (any DiarizationServiceProtocol)? = nil,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
-    ) async throws -> Transcription {
+    ) async throws -> TranscriptionRunResult {
         var wavURL: URL?
         let processingStartedAt = Date()
         var lifecycleStage: TelemetryTranscriptionStage = .audioConversion
+        var diarizationQualityReport: DiarizationQualityReport?
         let activeDiarizationService = diarizationServiceOverride ?? diarizationService
         let diarizationRequested = activeDiarizationService != nil
             && (diarizationServiceOverride != nil || (source == .meeting ? shouldDiarizeMeetings() : shouldDiarize()))
@@ -1976,13 +2089,32 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
                     onProgress?(.identifyingSpeakers)
                     Telemetry.send(.diarizationStarted(source: source))
                     let diarStartedAt = Date()
-                    let diarResult = try await diarizationService.diarize(audioURL: wavURL)
+                    let diarResult = try await diarizationService.diarize(
+                        audioURL: wavURL,
+                        speakerConstraint: options.diarizationOptions.speakerConstraint
+                    )
                     let diarDuration = Date().timeIntervalSince(diarStartedAt)
                     if !diarResult.segments.isEmpty {
-                        let mergedWords = SpeakerMerger.mergeWordTimestampsWithSpeakers(
-                            words: words,
-                            segments: diarResult.segments
-                        )
+                        let mergedWords: [WordTimestamp]
+                        if options.includeDiarizationReport {
+                            let assignmentResult = SpeakerWordAssigner().assign(
+                                words: words,
+                                segments: diarResult.segments
+                            )
+                            mergedWords = assignmentResult.words
+                            diarizationQualityReport = DiarizationQualityReport(
+                                transcriptionSourceType: transcription.sourceType,
+                                diarizedAudioSource: nil,
+                                requestedSpeakerHint: options.diarizationOptions.speakerCountHint,
+                                diarizationResult: diarResult,
+                                assignmentSummary: assignmentResult.summary
+                            )
+                        } else {
+                            mergedWords = SpeakerMerger.mergeWordTimestampsWithSpeakers(
+                                words: words,
+                                segments: diarResult.segments
+                            )
+                        }
                         transcription.wordTimestamps = mergedWords
                         transcription.speakerCount = diarResult.speakerCount
                         transcription.speakers = diarResult.speakers
@@ -2030,7 +2162,10 @@ public actor TranscriptionService: SpeakerConfiguredRetranscriptionService, Audi
                 }
             }
 
-            return completed
+            return TranscriptionRunResult(
+                transcription: completed,
+                diarizationQualityReport: diarizationQualityReport
+            )
         } catch {
             if let wavURL { try? FileManager.default.removeItem(at: wavURL) }
             if cleanUpDownloadedFiles {

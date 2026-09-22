@@ -219,6 +219,42 @@ final class MeetingTranscriptSourceReconcilerTests: XCTestCase {
     /// Short verbatim system speech can still be high-confidence acoustic echo.
     /// Three or four exact simultaneous words are specific enough to remove,
     /// unlike one-word backchannels that may be genuine overlapping speech.
+    func testSystemDiarizationAdapterPrefixesIDsAndPreservesProviderID() {
+        let adapted = MeetingTranscriptFinalizer.systemDiarization(
+            from: MacParakeetDiarizationResult(
+                segments: [
+                    SpeakerSegment(speakerId: "S1", startMs: 100, endMs: 400, qualityScore: 0.72),
+                ],
+                speakerCount: 1,
+                speakers: [
+                    SpeakerInfo(
+                        id: "S1",
+                        label: "Speaker 1",
+                        rawProviderSpeakerId: "speaker_0",
+                        labelSource: .modelDefault
+                    ),
+                ]
+            ),
+            startOffsetMs: 900
+        )
+
+        XCTAssertEqual(adapted.speakers, [
+            SpeakerInfo(
+                id: SpeakerID.systemSpeaker("S1"),
+                label: "Others 1",
+                source: .system,
+                rawProviderSpeakerId: "speaker_0",
+                labelSource: .modelDefault
+            ),
+        ])
+        XCTAssertEqual(adapted.segments.map(\.speakerId), [SpeakerID.systemSpeaker("S1")])
+        XCTAssertEqual(adapted.segments.map(\.startMs), [1_000])
+        XCTAssertEqual(adapted.segments.map(\.endMs), [1_300])
+        XCTAssertEqual(adapted.segments.first?.qualityScore ?? 0, 0.72, accuracy: 0.0001)
+        XCTAssertTrue(adapted.speakerEmbeddings.isEmpty)
+        XCTAssertTrue(adapted.speechMsBySpeaker.isEmpty)
+    }
+
     func testFinalizeDropsShortHighConfidenceExactSimultaneousEcho() {
         let finalized = MeetingTranscriptFinalizer.finalize(sourceTranscripts: [
             .init(
