@@ -323,6 +323,13 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     /// Half the window, in the same character unit, leaves room for that rewrite.
     internal static let appleIntelligenceRoundTripBudget = 6_000
 
+    /// Largest output-token request that still leaves input under the
+    /// ceil(3.5 characters per token) reservation used by prompt results.
+    static func maximumOutputTokensLeavingInputRoom(in contextBudget: Int) -> Int {
+        guard contextBudget > 1 else { return 0 }
+        return (contextBudget * 2 - 1) / 7
+    }
+
     public init(
         client: LLMClientProtocol = RoutingLLMClient(),
         contextResolver: any LLMExecutionContextResolving = StoredLLMExecutionContextResolver()

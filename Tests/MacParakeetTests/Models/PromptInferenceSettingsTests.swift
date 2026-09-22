@@ -158,6 +158,37 @@ final class PromptInferenceSettingsTests: XCTestCase {
         )
     }
 
+    func testAppleIntelligenceMaxTokensStopWhereInputBudgetRunsOut() throws {
+        let config = LLMProviderConfig.appleIntelligence()
+        let maximum = LLMService.maximumOutputTokensLeavingInputRoom(
+            in: LLMService.appleIntelligenceContextBudget
+        )
+        XCTAssertEqual(maximum, 3_428)
+
+        XCTAssertThrowsError(
+            try PromptInferenceCapabilityResolver.resolve(
+                config: config, requested: PromptInferenceSettings(maxTokens: maximum + 1)
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? PromptInferenceSettings.ValidationError,
+                .outOfRange(field: .maxTokens, minimum: 1, maximum: Double(maximum))
+            )
+        }
+        let boundary = try PromptInferenceCapabilityResolver.resolve(
+            config: config, requested: PromptInferenceSettings(maxTokens: maximum)
+        )
+        XCTAssertEqual(boundary.effectiveSettings?.maxTokens, maximum)
+        XCTAssertEqual(
+            PromptInferenceCapabilityResolver.presentation(
+                config: config,
+                modelOverride: nil,
+                requested: nil
+            ).fieldCapabilities[.maxTokens]?.knownRange,
+            .init(minimum: 1, maximum: Double(maximum))
+        )
+    }
+
     func testAnthropicTemperatureRangeAppliesAfterTopPPrecedence() throws {
         let config = LLMProviderConfig.anthropic(apiKey: "key", model: "claude-haiku-4-5")
         XCTAssertThrowsError(

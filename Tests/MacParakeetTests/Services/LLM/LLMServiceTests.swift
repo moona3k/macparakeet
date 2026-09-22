@@ -1252,6 +1252,43 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertLessThanOrEqual(userMessage.content.count, LLMService.appleIntelligenceRoundTripBudget)
     }
 
+    func testAppleIntelligencePromptResultRejectsMaxTokensThatConsumeTheInputBudget() async {
+        mockConfigStore.config = .appleIntelligence()
+        let maximum = LLMService.maximumOutputTokensLeavingInputRoom(
+            in: LLMService.appleIntelligenceContextBudget
+        )
+        do {
+            _ = try await service.generatePromptResultDetailed(
+                transcript: "input",
+                systemPrompt: "S",
+                inferenceSettings: PromptInferenceSettings(maxTokens: maximum + 1)
+            )
+            XCTFail("Expected max tokens past the input budget to fail")
+        } catch let error as PromptInferenceSettings.ValidationError {
+            XCTAssertEqual(error, .outOfRange(field: .maxTokens, minimum: 1, maximum: Double(maximum)))
+        } catch {
+            XCTFail("Unexpected error \(error)")
+        }
+        XCTAssertEqual(mockClient.chatCompletionCallCount, 0)
+    }
+
+    func testAppleIntelligenceFormatterUsesRoundTripBudget() async throws {
+        mockConfigStore.config = .appleIntelligence()
+        mockClient.responseContent = "Clean."
+
+        let text = String(repeating: "word ", count: 2_000)
+        _ = try await service.formatTranscriptDetailed(
+            transcript: text,
+            promptTemplate: AIFormatter.defaultPromptTemplate,
+            source: .transcription,
+            defaultPromptUsed: true
+        )
+
+        let totalMessageChars = mockClient.capturedMessages.reduce(0) { $0 + $1.content.count }
+        XCTAssertLessThanOrEqual(totalMessageChars, LLMService.appleIntelligenceRoundTripBudget)
+        XCTAssertTrue(mockClient.capturedMessages.contains { $0.content.contains("[... content truncated ...]") })
+    }
+
     func testOllamaKnowledgeCardKeepsTheLocalBudget() async throws {
         mockConfigStore.config = .ollama(model: "llama3.2")
         mockClient.responseContent = """

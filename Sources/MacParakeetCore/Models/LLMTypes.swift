@@ -220,6 +220,16 @@ public struct ChatCompletionOptions: Sendable, Equatable {
                 )
             }
         }
+        if config.id == .appleIntelligence, let maxTokens {
+            let maximum = LLMService.maximumOutputTokensLeavingInputRoom(
+                in: LLMService.appleIntelligenceContextBudget
+            )
+            if maxTokens > maximum {
+                throw PromptInferenceSettings.ValidationError.outOfRange(
+                    field: .maxTokens, minimum: 1, maximum: Double(maximum)
+                )
+            }
+        }
     }
 }
 
