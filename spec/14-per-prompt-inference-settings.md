@@ -83,7 +83,9 @@ throw `PromptInferenceSettings.ValidationError`; they are not clamped or
 silently discarded even when a provider would omit that field. Blank means
 unset; blank is not converted into zero. Native Anthropic additionally requires
 effective temperature in `0...1`; the compatibility message explains this
-constraint and generation fails before dispatch when it is violated.
+constraint and generation fails before dispatch when it is violated. Apple
+Intelligence uses the same `0...1` temperature limit, and generation fails
+before dispatch when a higher value would be sent.
 
 Built-in provenance does not restrict these controls. Built-in and user-created
 prompts use the same validation, version creation, reset, and execution paths.
@@ -225,6 +227,7 @@ configured value when a model rejects it.
 | Native Ollama | `temperature`, `top_p`, `top_k`, `num_predict` inside `options`; thinking maps to top-level `think`; reasoning effort is initially unsupported |
 | Native OpenAI | `temperature` and `top_p` when model-compatible; output budget uses the adapter's existing `max_tokens` / `max_completion_tokens` policy; omit `top_k` and thinking |
 | Native Anthropic | `temperature` in `0...1` or `top_p` in `0...1`, and `max_tokens` when model-compatible; Top P takes precedence over explicit or inherited temperature; omit `top_k` and thinking |
+| Apple Intelligence | `temperature` in `0...1` and `max_tokens` up to the value that still leaves prompt input (3428 on the 12k-character budget); omit `top_p`, `top_k`, and thinking. Temperature above 1, or max tokens past that ceiling, fail before dispatch |
 | OpenRouter | Output budget uses the adapter's `max_tokens` / `max_completion_tokens` policy; `temperature` when the model accepts sampling; omit `top_p`, `top_k`, and thinking. Prefixed OpenAI-family IDs such as `openai/gpt-5.6-sol` follow the same GPT-5 / o-series sampling omit as native OpenAI. Prefixed Kimi IDs omit illegal sampling. |
 | Moonshot / DeepSeek / Qwen / Z.AI / MiniMax | Output budget uses `max_tokens`; `temperature` when the model accepts sampling; thinking maps to `thinking: {type}` except Qwen (`enable_thinking`) and Kimi K2.7-code / K3 (thinking field omitted). DeepSeek Chat Completions and Qwen DashScope use prompt-embedded JSON for knowledge cards (`json_schema` is not in their Chat Completions contract). |
 | Gemini / LM Studio | Map fields explicitly supported by the existing endpoint contract; omit the rest |

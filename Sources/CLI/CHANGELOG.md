@@ -165,6 +165,10 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   off). While on, every microphone-capturing meeting starts muted until the
   setting is turned off; unmute from the live meeting panel.
   System-audio-only capture ignores it.
+- Inline LLM commands accept `--provider appleIntelligence` (aliases `apple`,
+  `apple-intelligence`) to use macOS 26 Apple Intelligence on-device. No API
+  key. The on-device window is small; long transcripts still need a cloud or
+  Ollama provider.
 
 ### Changed
 

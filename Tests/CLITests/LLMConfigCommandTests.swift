@@ -327,4 +327,37 @@ final class LLMConfigCommandTests: XCTestCase {
         }
     }
 
+    func testAppleIntelligenceAliasesBuildOnDeviceConfig() throws {
+        for alias in ["appleIntelligence", "apple-intelligence", "apple"] {
+            let options = try LLMInlineOptions.parse(["--provider", alias])
+            let config = try options.buildConfig()
+            XCTAssertEqual(config.id, .appleIntelligence, alias)
+            XCTAssertEqual(config.modelName, "apple-intelligence", alias)
+            XCTAssertEqual(config.baseURL.absoluteString, "appleintelligence://system", alias)
+            XCTAssertNil(config.apiKey, alias)
+            XCTAssertTrue(config.isLocal, alias)
+        }
+    }
+
+    func testAppleIntelligenceRejectsModelBaseURLAndAPIKey() throws {
+        XCTAssertThrowsError(
+            try LLMInlineOptions.parse(["--provider", "apple", "--model", "gpt-5.5"]).buildConfig()
+        ) { error in
+            XCTAssertTrue("\(error)".contains("on-device system model"))
+        }
+        XCTAssertThrowsError(
+            try LLMInlineOptions.parse([
+                "--provider", "apple",
+                "--base-url", "https://example.com/v1",
+            ]).buildConfig()
+        ) { error in
+            XCTAssertTrue("\(error)".contains("--base-url"))
+        }
+        XCTAssertThrowsError(
+            try LLMInlineOptions.parse(["--provider", "apple", "--api-key", "sk-test"]).buildConfig()
+        ) { error in
+            XCTAssertTrue("\(error)".contains("API key"))
+        }
+    }
+
 }

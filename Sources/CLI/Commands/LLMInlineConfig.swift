@@ -71,7 +71,7 @@ struct LLMInlineOptions: ParsableArguments {
     @Option(
         name: .long,
         help:
-            "Provider: anthropic, openai, openaiCompatible, gemini, openrouter, moonshot, deepseek, qwen, zai, minimax, ollama, lmstudio, cli."
+            "Provider: anthropic, openai, openaiCompatible, gemini, openrouter, moonshot, deepseek, qwen, zai, minimax, ollama, lmstudio, appleIntelligence, cli."
     )
     var provider: String
 
@@ -112,6 +112,8 @@ struct LLMInlineOptions: ParsableArguments {
             normalized = "localCLI"
         case "openaicompatible", "openai-compatible":
             normalized = "openaiCompatible"
+        case "apple", "apple-intelligence", "appleintelligence":
+            normalized = "appleIntelligence"
         case "kimi", "moonshotai":
             normalized = "moonshot"
         case "zhipu", "z.ai", "glm":
@@ -123,7 +125,7 @@ struct LLMInlineOptions: ParsableArguments {
         }
         guard let providerID = LLMProviderID(rawValue: normalized) else {
             throw ValidationError(
-                "Unknown provider '\(provider)'. Options: anthropic, openai, openaiCompatible, gemini, openrouter, moonshot, deepseek, qwen, zai, minimax, ollama, lmstudio, cli"
+                "Unknown provider '\(provider)'. Options: anthropic, openai, openaiCompatible, gemini, openrouter, moonshot, deepseek, qwen, zai, minimax, ollama, lmstudio, appleIntelligence, cli"
             )
         }
         if providerID == .inProcessLocal {
@@ -137,6 +139,9 @@ struct LLMInlineOptions: ParsableArguments {
         emitWarnings: Bool = true
     ) throws -> InlineLLMExecutionContext {
         let providerID = try providerID()
+        if providerID == .appleIntelligence {
+            try validateAppleIntelligenceFlags()
+        }
 
         let overrideURL: URL? =
             if let urlStr = baseURL {
@@ -264,6 +269,8 @@ struct LLMInlineOptions: ParsableArguments {
             )
         case .inProcessLocal:
             throw ValidationError("The in-process local provider is not exposed through inline CLI configuration yet.")
+        case .appleIntelligence:
+            providerConfig = .appleIntelligence()
         }
 
         if local && !providerConfig.isLocal {
@@ -291,6 +298,23 @@ struct LLMInlineOptions: ParsableArguments {
             ),
             client: client
         )
+    }
+
+    private func validateAppleIntelligenceFlags() throws {
+        if let model {
+            let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty, trimmed != LLMProviderID.appleIntelligence.defaultModelName {
+                throw ValidationError(
+                    "Apple Intelligence uses the on-device system model. Omit --model."
+                )
+            }
+        }
+        if baseURL != nil {
+            throw ValidationError("--base-url is not supported for Apple Intelligence.")
+        }
+        if apiKey != nil || apiKeyEnv != nil {
+            throw ValidationError("Apple Intelligence does not use an API key.")
+        }
     }
 
     private func requiredAPIKey(
