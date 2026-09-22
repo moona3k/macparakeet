@@ -15,7 +15,8 @@ replace them with mocks.
 
 - `PermissionService.swift` -- microphone, screen recording, and Accessibility
   checks/prompts/settings links.
-- `ClipboardService.swift` -- pasteboard writes and restore behavior.
+- `ClipboardService.swift` -- pasteboard writes, restore behavior, post-paste
+  keystrokes, and optional fail-closed frontmost-application guarding.
 - `StreamingCursorScheduler.swift` / `StreamingCursorInserter.swift` -- optional default-off dictation caret stream (#449); paste remains the default path.
 - `AccessibilityService.swift` -- selected-text reads through Accessibility
   attributes, parameterized strings, or a selected range in the full value.

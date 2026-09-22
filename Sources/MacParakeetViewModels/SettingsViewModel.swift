@@ -231,6 +231,18 @@ public final class SettingsViewModel {
             ))
         }
     }
+    public var autoSubmitCodexDictation: Bool {
+        didSet {
+            defaults.set(
+                autoSubmitCodexDictation,
+                forKey: UserDefaultsAppRuntimePreferences.autoSubmitCodexDictationKey
+            )
+            Telemetry.send(.settingChanged(
+                setting: .codexAutoSubmit,
+                value: Self.settingValue(autoSubmitCodexDictation)
+            ))
+        }
+    }
     public var dictationStreamingCursorEnabled: Bool {
         didSet {
             defaults.set(
@@ -1026,6 +1038,9 @@ public final class SettingsViewModel {
         silenceDelay = delay == 0 ? 2.0 : delay
         keepDictationOnClipboard = defaults.bool(
             forKey: UserDefaultsAppRuntimePreferences.keepDictationOnClipboardKey
+        )
+        autoSubmitCodexDictation = defaults.bool(
+            forKey: UserDefaultsAppRuntimePreferences.autoSubmitCodexDictationKey
         )
         dictationStreamingCursorEnabled = defaults.object(
             forKey: UserDefaultsAppRuntimePreferences.dictationStreamingCursorEnabledKey
