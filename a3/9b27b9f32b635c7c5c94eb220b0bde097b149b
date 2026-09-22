@@ -1,0 +1,33 @@
+Sources/MacParakeet/Hotkey/HotkeyManager.swift
+  s_427e61505bb015::t_000ddfb690be3f 20-23
+  s_427e61505bb015::t_be3aefc2787354 840
+  s_427e61505bb015::t_3f70a0919a6e9f 837-839
+spec/02-features.md
+  s_427e61505bb015::t_b82d2fa288e440 189-191
+  s_427e61505bb015::t_04effc89c0765f 213
+  s_427e61505bb015::t_ec779afb047f6c 2227
+  s_427e61505bb015::t_caede60c182201 292-293
+  s_427e61505bb015::t_b7105f1dcce61b 237
+spec/adr/009-custom-hotkey.md
+  s_427e61505bb015::t_46422081603fa1 96-99
+Tests/MacParakeetTests/Hotkey/HotkeyManagerTests.swift
+  s_427e61505bb015::t_061f0fe3d7ce90 263-323
+Tests/MacParakeetTests/Services/MeetingSplit/MeetingSplitAudioExporterTests.swift
+  s_427e61505bb015::t_35d3bad052be14 660
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a39b27b9f32b635c7c5c94eb220b0bde097b149b",
+  "prompts": {},
+  "sessions": {
+    "s_427e61505bb015": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e7214f22-0965-4664-bcc7-b89cc7476a87",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
