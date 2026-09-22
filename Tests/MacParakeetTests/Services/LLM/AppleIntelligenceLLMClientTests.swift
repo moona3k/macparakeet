@@ -247,19 +247,13 @@ final class AppleIntelligenceLLMClientTests: XCTestCase {
     }
 
     func testStreamThatReturnsAfterCancelIsNotFinished() async {
-        let generator = CancelThenReturnGenerator()
-        let client = AppleIntelligenceLLMClient(generator: generator)
-        let task = Task {
+        let client = AppleIntelligenceLLMClient(generator: CancelInsideGenerateThenReturnGenerator())
+        do {
             for try await _ in client.chatCompletionStream(
                 messages: [ChatMessage(role: .user, content: "Hi")],
                 context: LLMExecutionContext(providerConfig: .appleIntelligence()),
                 options: .default
             ) {}
-        }
-        await generator.waitUntilStarted()
-        task.cancel()
-        do {
-            try await task.value
             XCTFail("Expected cancellation")
         } catch is CancellationError {
         } catch {
@@ -344,6 +338,22 @@ final class AppleIntelligenceLLMClientTests: XCTestCase {
             XCTAssertTrue(availability.isUserSelectable)
             XCTAssertEqual(availability.canGenerate, availability == .available || availability == .localeLimited)
         }
+    }
+}
+
+private final class CancelInsideGenerateThenReturnGenerator: AppleIntelligenceGenerating, @unchecked Sendable {
+    func currentAvailability() -> AppleIntelligenceAvailability {
+        .available
+    }
+
+    func generate(
+        request: AppleIntelligenceGenerationRequest,
+        onPartial: (@Sendable (String) -> Void)?
+    ) async throws -> String {
+        _ = request
+        onPartial?("partial")
+        withUnsafeCurrentTask { $0?.cancel() }
+        return "partial"
     }
 }
 
