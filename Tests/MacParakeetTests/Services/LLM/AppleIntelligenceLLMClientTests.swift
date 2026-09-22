@@ -246,6 +246,27 @@ final class AppleIntelligenceLLMClientTests: XCTestCase {
         }
     }
 
+    func testStreamThatReturnsAfterCancelIsNotFinished() async {
+        let generator = CancelThenReturnGenerator()
+        let client = AppleIntelligenceLLMClient(generator: generator)
+        let task = Task {
+            for try await _ in client.chatCompletionStream(
+                messages: [ChatMessage(role: .user, content: "Hi")],
+                context: LLMExecutionContext(providerConfig: .appleIntelligence()),
+                options: .default
+            ) {}
+        }
+        await generator.waitUntilStarted()
+        task.cancel()
+        do {
+            try await task.value
+            XCTFail("Expected cancellation")
+        } catch is CancellationError {
+        } catch {
+            XCTFail("Unexpected error \(error)")
+        }
+    }
+
     func testTemperatureAboveOneIsRejectedBeforeGeneration() async {
         let client = AppleIntelligenceLLMClient(
             generator: StubAppleIntelligenceGenerator(availability: .available, chunks: ["should not run"])

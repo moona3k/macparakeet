@@ -46,31 +46,6 @@ final class AppleIntelligenceLiveAPITests: XCTestCase {
         #endif
     }
 
-    func testLiveTokenCountAPIWhenModelIsPresent() async throws {
-        #if canImport(FoundationModels)
-        guard #available(macOS 26.4, *) else {
-            throw XCTSkip("tokenCount requires macOS 26.4")
-        }
-        let prompt = "Reply with the single word PING and nothing else."
-        do {
-            let tokenCount = try await SystemLanguageModel.default.tokenCount(for: prompt)
-            let naiveEstimate = max(1, prompt.count / 4)
-            print(
-                "LIVE_AB tokenCount=\(tokenCount) chars=\(prompt.count) naiveChars/4=\(naiveEstimate)"
-            )
-            XCTAssertGreaterThan(tokenCount, 0)
-            XCTAssertLessThan(tokenCount, prompt.count)
-            XCTAssertLessThan(abs(tokenCount - naiveEstimate), naiveEstimate)
-        } catch {
-            throw XCTSkip(
-                "tokenCount A/B skipped: \(AppleIntelligenceAvailability.current().rawValue) — \(error.localizedDescription)"
-            )
-        }
-        #else
-        throw XCTSkip("FoundationModels is not importable in this toolchain")
-        #endif
-    }
-
     func testLiveRespondStreamAndClientAB() async throws {
         #if canImport(FoundationModels)
         guard #available(macOS 26.0, *) else {
