@@ -36,7 +36,8 @@ public struct VoiceControlTarget: Codable, Sendable, Equatable, Identifiable {
         self.consequence = consequence; self.isOffscreen = isOffscreen; self.region = region
     }
     private enum CodingKeys: String, CodingKey {
-        case id, label, role, value, operations, isNavigation, isFocused, selectedText, valueIsComplete, consequence, isOffscreen
+        case id, label, role, value, operations, isNavigation, isFocused, selectedText, valueIsComplete, consequence,
+            isOffscreen
         case region
     }
     public init(from decoder: Decoder) throws {
@@ -57,10 +58,20 @@ public struct VoiceControlTarget: Codable, Sendable, Equatable, Identifiable {
 
     /// Nine-cell grid position of `frame` inside `window`; nil without both.
     public static func region(of frame: CGRect?, in window: CGRect?) -> String? {
-        guard let frame, let window, window.width > 0, window.height > 0 else { return nil }
-        let column = min(2, max(0, Int(3 * (frame.midX - window.minX) / window.width)))
-        let row = min(2, max(0, Int(3 * (frame.midY - window.minY) / window.height)))
-        return ["top", "middle", "bottom"][row] + "-" + ["left", "center", "right"][column]
+        guard let frame, let window, !frame.isInfinite, !frame.isNull, !window.isInfinite, !window.isNull,
+            frame.width > 0, frame.height > 0, window.width > 0, window.height > 0,
+            [
+                frame.origin.x, frame.origin.y, frame.width, frame.height, window.origin.x, window.origin.y,
+                window.width, window.height,
+            ]
+            .allSatisfy(\.isFinite)
+        else { return nil }
+        let x = (frame.midX - window.minX) / window.width
+        let y = (frame.midY - window.minY) / window.height
+        guard x.isFinite, y.isFinite else { return nil }
+        // Compare thirds directly. Int() of a non-finite AX coordinate traps.
+        func cell(_ value: CGFloat) -> Int { value < 1.0 / 3.0 ? 0 : (value < 2.0 / 3.0 ? 1 : 2) }
+        return ["top", "middle", "bottom"][cell(y)] + "-" + ["left", "center", "right"][cell(x)]
     }
 }
 
@@ -107,11 +118,13 @@ public struct VoiceControlAction: Codable, Sendable, Equatable {
     public let postcondition: VoiceControlPostcondition
     public init(
         operation: VoiceControlOperation, targetID: String, value: String? = nil, targetLabel: String? = nil,
-        requiresConfirmation: Bool = false, receiptStatus: VoiceControlReceipt.Status? = nil, consequence: VoiceControlConsequence? = nil, modelID: String? = nil, decisionConfidence: Double? = nil,
+        requiresConfirmation: Bool = false, receiptStatus: VoiceControlReceipt.Status? = nil,
+        consequence: VoiceControlConsequence? = nil, modelID: String? = nil, decisionConfidence: Double? = nil,
         postcondition: VoiceControlPostcondition = .unknown
     ) {
         self.operation = operation; self.targetID = targetID; self.value = value; self.targetLabel = targetLabel;
-        self.requiresConfirmation = requiresConfirmation; self.receiptStatus = receiptStatus; self.consequence = consequence; self.modelID = modelID; self.decisionConfidence = decisionConfidence
+        self.requiresConfirmation = requiresConfirmation; self.receiptStatus = receiptStatus;
+        self.consequence = consequence; self.modelID = modelID; self.decisionConfidence = decisionConfidence
         self.postcondition = postcondition
     }
 

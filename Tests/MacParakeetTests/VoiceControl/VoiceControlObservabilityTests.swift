@@ -46,7 +46,8 @@ final class VoiceControlObservabilityTests: XCTestCase {
                     id: "c0", label: "London, United Kingdom", role: "AXStaticText", operations: [.press]),
                 VoiceControlTarget(
                     id: "c1", label: "London, Ontario", role: "AXStaticText", operations: [.press], isFocused: true),
-                VoiceControlTarget(id: "else", label: "Where else?", role: "AXComboBox", operations: [.setValue, .press]),
+                VoiceControlTarget(
+                    id: "else", label: "Where else?", role: "AXComboBox", operations: [.setValue, .press]),
             ])
         _ = try await client.decide(goal: "fly to London", snapshot: snapshot, history: [], events: events)
         let traces = await observed.traces
@@ -243,6 +244,43 @@ final class VoiceControlObservabilityTests: XCTestCase {
             VoiceControlInboxCommand.parse(#"{"action":"submit","text":"click Save","dryRun":true}"#),
             VoiceControlInboxCommand(action: .submit, text: "click Save", dryRun: true))
         XCTAssertEqual(VoiceControlInboxCommand.parse("click Save")?.dryRun, false)
+        XCTAssertNil(
+            VoiceControlInboxCommand.parse(
+                #"{"action":"submit","text":"click Save","dryRun":true,"activate":"com.apple.finder"}"#))
+        XCTAssertNil(VoiceControlInboxCommand.parse(#"{"action":"confirm","dryRun":true}"#))
+    }
+
+    func testRevisionAfterADryRunStillExecutes() async throws {
+        let adapter = CountingAdapter()
+        let engine = FixedEngine(.action(VoiceControlAction(operation: .press, targetID: "save")))
+        let runner = VoiceControlTurnRunner(adapter: adapter, engine: engine)
+        let collector = Task {
+            for await event in runner.events {
+                if case .completed(let message) = event, message.hasPrefix("Dry run") { break }
+            }
+        }
+        await runner.submit("click Save", dryRun: true)
+        await collector.value
+        await runner.revise("no, press Save")
+        let executions = await adapter.executions
+        XCTAssertEqual(executions, 1)
+    }
+
+    func testLiveTurnBlocksAProposal() async throws {
+        let adapter = HoldAdapter()
+        let engine = FixedEngine(.information("done"))
+        let runner = VoiceControlTurnRunner(adapter: adapter, engine: engine)
+        let task = Task { await runner.submit("click Save") }
+        for _ in 0..<50 {
+            if await adapter.isWaiting { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        let waiting = await adapter.isWaiting
+        XCTAssertTrue(waiting)
+        XCTAssertTrue(runner.hasLiveWork)
+        await adapter.release()
+        await task.value
+        XCTAssertFalse(runner.hasLiveWork)
     }
 
     func testDecisionTraceTopOrdersByProbabilityThenKey() {
@@ -256,6 +294,30 @@ final class VoiceControlObservabilityTests: XCTestCase {
 private actor DecisionCapture {
     private(set) var traces: [VoiceControlDecisionTrace] = []
     func append(_ trace: VoiceControlDecisionTrace) { traces.append(trace) }
+}
+
+private actor HoldAdapter: VoiceControlAdapter {
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+    private(set) var isWaiting = false
+    func release() {
+        isWaiting = false
+        waiters.forEach { $0.resume() }
+        waiters.removeAll()
+    }
+    func observe() async throws -> VoiceControlSnapshot {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            waiters.append(continuation)
+            isWaiting = true
+        }
+        return VoiceControlSnapshot(
+            contextID: "app", applicationName: "TextEdit",
+            targets: [VoiceControlTarget(id: "save", label: "Save", role: "AXButton", operations: [.press])])
+    }
+    func execute(
+        action: VoiceControlAction, snapshot: VoiceControlSnapshot, authority: ActionAuthority
+    ) async throws -> VoiceControlReceipt {
+        VoiceControlReceipt(status: .verified)
+    }
 }
 
 private actor CountingAdapter: VoiceControlAdapter {

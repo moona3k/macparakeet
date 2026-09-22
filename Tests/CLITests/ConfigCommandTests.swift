@@ -42,6 +42,7 @@ final class ConfigCommandTests: XCTestCase {
             "auto-meeting-titles",
             "voice-return-enabled",
             "voice-return-triggers",
+            "escape-cancels-dictation",
             "preserve-discarded-dictations",
             "save-transcription-audio",
             "meeting-audio-retention",
@@ -231,6 +232,11 @@ final class ConfigCommandTests: XCTestCase {
         )
         XCTAssertEqual(defaults.string(forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey), "press return")
 
+        XCTAssertEqual(try ConfigCommand.write(key: "escape-cancels-dictation", value: "off", defaults: defaults), "off")
+        XCTAssertEqual(
+            defaults.object(forKey: UserDefaultsAppRuntimePreferences.escapeCancelsDictationKey) as? Bool,
+            false
+        )
         XCTAssertEqual(try ConfigCommand.write(key: "preserve-discarded-dictations", value: "on", defaults: defaults), "on")
         XCTAssertEqual(
             defaults.object(forKey: UserDefaultsAppRuntimePreferences.preserveDiscardedDictationsKey) as? Bool,

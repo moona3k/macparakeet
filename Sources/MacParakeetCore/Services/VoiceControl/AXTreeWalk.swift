@@ -183,7 +183,7 @@ public enum AXTreeWalk {
                             result.staticText.append(clipped); textLength += clipped.count
                         }
                     }
-                } else if facts.pressable, !facts.label.isEmpty, facts.frame != nil,
+                } else if Self.validFrame(facts.frame), facts.pressable, !facts.label.isEmpty,
                     result.offscreen.count < caps.offscreenCap
                 {
                     result.offscreen.append(
@@ -212,15 +212,29 @@ public enum AXTreeWalk {
         return result
     }
 
+    static func validFrame(_ frame: CGRect?) -> Bool {
+        guard let frame, !frame.isInfinite, !frame.isNull else { return false }
+        return frame.origin.x.isFinite && frame.origin.y.isFinite
+            && frame.width.isFinite && frame.height.isFinite && frame.width > 0 && frame.height > 0
+    }
+
+    /// Screen points only. `Int` of a non-finite or huge Accessibility frame traps.
+    private static func finitePoint(_ value: CGFloat) -> Int? {
+        guard value.isFinite else { return nil }
+        let rounded = value.rounded()
+        guard rounded >= -1_000_000_000, rounded <= 1_000_000_000 else { return nil }
+        return Int(rounded)
+    }
+
     static func isOffDisplay(_ frame: CGRect?, display: CGRect) -> Bool {
-        guard let frame, frame.width > 0, frame.height > 0 else { return false }
+        guard let frame, validFrame(frame) else { return false }
         return !frame.intersects(display)
     }
 
     static func isVisible(_ facts: AXWalkFacts, role: String, display: CGRect, window: CGRect?, minSide: CGFloat)
         -> Bool
     {
-        guard let frame = facts.frame, frame.width > 0, frame.height > 0 else { return false }
+        guard let frame = facts.frame, validFrame(frame) else { return false }
         guard min(frame.width, frame.height) >= minSide else { return false }
         guard frame.intersects(display) else { return false }
         if let window, !menuRoles.contains(role) { return frame.intersects(window) }
@@ -232,11 +246,13 @@ public enum AXTreeWalk {
     /// deep) must never collapse into each other, or the second one's subtree is
     /// lost.
     static func subtreeKey(_ facts: AXWalkFacts) -> String? {
-        guard let frame = facts.frame, frame.width > 0, frame.height > 0 else { return nil }
+        guard let frame = facts.frame, validFrame(frame) else { return nil }
         let name = facts.label.isEmpty ? (facts.text ?? "") : facts.label
         guard !name.isEmpty else { return nil }
-        return
-            "\(facts.role)|\(name)|\(Int(frame.minX.rounded()))|\(Int(frame.minY.rounded()))|\(Int(frame.width.rounded()))|\(Int(frame.height.rounded()))"
+        guard let x = finitePoint(frame.minX), let y = finitePoint(frame.minY),
+            let width = finitePoint(frame.width), let height = finitePoint(frame.height)
+        else { return nil }
+        return "\(facts.role)|\(name)|\(x)|\(y)|\(width)|\(height)"
     }
 
     static func descendantLabel<S: AXTreeSource>(_ kids: [S.Node], source: S) -> String {
