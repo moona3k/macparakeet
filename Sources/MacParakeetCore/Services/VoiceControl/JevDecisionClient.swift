@@ -45,7 +45,8 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
         guard let onDecision else { return }
         let elapsed = started.duration(to: .now)
         let heads = answers.mapValues {
-            VoiceControlDecisionTrace.Head(choice: $0.choice, confidence: $0.confidence, probabilities: $0.probabilities)
+            VoiceControlDecisionTrace.Head(
+                choice: $0.choice, confidence: $0.confidence, probabilities: $0.probabilities)
         }
         await onDecision(
             VoiceControlDecisionTrace(
@@ -71,11 +72,12 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
         guard goal.utf8.count <= 8_000, snapshot.summary.utf8.count <= 16_000 else {
             throw JevDecisionError.contextTooLarge
         }
-        let offered = Self.prioritised(VoiceControlLegality.offeredTargets(in: snapshot), limit: Self.maxTargets)
+        let legal = VoiceControlLegality.offeredTargets(in: snapshot)
+        guard Set(legal.map(\.id)).count == legal.count, !legal.contains(where: { $0.id == "none" }) else {
+            throw JevDecisionError.invalidResponse
+        }
+        let offered = Self.prioritised(legal, limit: Self.maxTargets)
         let available = offered.targets
-        guard Set(available.map(\.id)).count == available.count,
-            !available.contains(where: { $0.id == "none" })
-        else { throw JevDecisionError.invalidResponse }
         guard !available.isEmpty else {
             return .clarify("Nothing on this screen can be operated. Focus the window you want to control.")
         }
@@ -85,13 +87,19 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
         // heads are cheap; overlapping ones read as doubt (typesafe-computer-use).
         var kinds: [String: String] = [
             "finished": "The user's entire goal is already satisfied by the observed state. Nothing more to do.",
-            "none": "Nothing offered can progress the goal; the user must be asked. Do not choose this merely because several ordinary fields remain.",
+            "none":
+                "Nothing offered can progress the goal; the user must be asked. Do not choose this merely because several ordinary fields remain.",
         ]
         let canPress = available.contains { $0.operations.contains(.press) || $0.operations.contains(.select) }
         let canFill = available.contains { $0.operations.contains(.setValue) || $0.operations.contains(.insertText) }
         let canScroll = available.contains { $0.operations.contains(.scroll) }
-        if canPress { kinds["press"] = "Click, press or select one offered control: a button, link, menu, row, option or tab." }
-        if canFill { kinds["fill"] = "Enter text into one offered field: a city, date, search query or other form value. Prefer this over clicking when the goal supplies a value the field still lacks." }
+        if canPress {
+            kinds["press"] = "Click, press or select one offered control: a button, link, menu, row, option or tab."
+        }
+        if canFill {
+            kinds["fill"] =
+                "Enter text into one offered field: a city, date, search query or other form value. Prefer this over clicking when the goal supplies a value the field still lacks."
+        }
         if canScroll { kinds["scroll"] = "Scroll an offered area to reveal more controls or content." }
         var questions: [String: Question] = [
             "kind": Question(
@@ -115,7 +123,8 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
         ]
         if canScroll {
             questions["direction"] = Question(
-                instructions: "If the next action scrolls, which direction did the user ask for? Default down when continuing a goal.",
+                instructions:
+                    "If the next action scrolls, which direction did the user ask for? Default down when continuing a goal.",
                 criteria: ["up": "Scroll upward", "down": "Scroll downward"])
         }
         let spans = Self.sourceSpans(goal)
@@ -131,14 +140,25 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
         let wireSnapshot = Self.wireSnapshot(snapshot, targets: available)
         let state = State(goal: goal, observation: wireSnapshot, executed: history)
         let started = ContinuousClock.now
-        let (answers, requestBytes) = try await send(Request(model: Self.model, state: state, questions: questions), questions: questions)
+        let (answers, requestBytes) = try await send(
+            Request(model: Self.model, state: state, questions: questions), questions: questions)
         var decision = Self.resolveLean(answers, targets: available, focusedEditable: focusedEditable, values: values)
+        if let selected = Self.selectedTarget(decision, in: legal),
+            legal.contains(where: { $0.id != selected.id && Self.sameDecisionEvidence($0, selected) })
+        {
+            decision = .decided(
+                .clarify(
+                    "Several controls named \(selected.label) have indistinguishable context. Focus the intended control or make its context visible, then try again."
+                ))
+        }
 
         // A fill into a field that was not focused needs its own value head. One
         // more small request beats a payload with a value head per field.
         var followUp: (answers: [String: Answer], bytes: Int)?
         if case .fillNeedsValue(let target, let confidence, let consequence) = decision {
-            let valueQuestions = ["value": Question(instructions: Self.valueInstructions(for: target), criteria: values)]
+            let valueQuestions = [
+                "value": Question(instructions: Self.valueInstructions(for: target), criteria: values)
+            ]
             let (valueAnswers, bytes) = try await send(
                 Request(model: Self.model, state: state, questions: valueQuestions), questions: valueQuestions)
             followUp = (valueAnswers, bytes)
@@ -148,7 +168,8 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
                 decision = .decided(
                     .action(
                         VoiceControlAction(
-                            operation: target.operations.contains(.setValue) ? .setValue : .insertText, targetID: target.id,
+                            operation: target.operations.contains(.setValue) ? .setValue : .insertText,
+                            targetID: target.id,
                             value: span, targetLabel: target.label, consequence: consequence, modelID: Self.model,
                             decisionConfidence: confidence)))
             } else {
@@ -171,7 +192,9 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
     /// Keep the controls most likely to matter when a page offers more than the
     /// ceiling: focused, then editable, then everything else in traversal order.
     /// Never fail the turn for having too many controls.
-    static func prioritised(_ targets: [VoiceControlTarget], limit: Int) -> (targets: [VoiceControlTarget], dropped: Int) {
+    static func prioritised(_ targets: [VoiceControlTarget], limit: Int) -> (
+        targets: [VoiceControlTarget], dropped: Int
+    ) {
         guard targets.count > limit else { return (targets, 0) }
         var kept: [VoiceControlTarget] = []
         var seen = Set<String>()
@@ -183,9 +206,31 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
         take { $0.isFocused }
         take { $0.operations.contains(.setValue) || $0.operations.contains(.insertText) }
         take { _ in true }
-        let order = Dictionary(uniqueKeysWithValues: targets.enumerated().map { ($0.element.id, $0.offset) })
+        var order: [String: Int] = [:]
+        for (index, target) in targets.enumerated() where order[target.id] == nil {
+            order[target.id] = index
+        }
         kept.sort { (order[$0.id] ?? 0) < (order[$1.id] ?? 0) }
         return (kept, targets.count - kept.count)
+    }
+
+    /// Two controls the model cannot tell apart. Region and focus count; the id does not.
+    static func sameDecisionEvidence(_ lhs: VoiceControlTarget, _ rhs: VoiceControlTarget) -> Bool {
+        lhs.label == rhs.label && lhs.role == rhs.role && lhs.value == rhs.value
+            && lhs.operations.subtracting([.key]) == rhs.operations.subtracting([.key])
+            && lhs.isNavigation == rhs.isNavigation && lhs.isFocused == rhs.isFocused
+            && lhs.valueIsComplete == rhs.valueIsComplete && lhs.consequence == rhs.consequence
+            && lhs.region == rhs.region
+    }
+
+    private static func selectedTarget(_ resolution: LeanResolution, in targets: [VoiceControlTarget])
+        -> VoiceControlTarget?
+    {
+        switch resolution {
+        case .fillNeedsValue(let target, _, _): return target
+        case .decided(.action(let action)): return targets.first { $0.id == action.targetID }
+        case .decided: return nil
+        }
     }
 
     static func roleWord(_ role: String) -> String {
@@ -250,7 +295,8 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
         var decision: VoiceControlDecision {
             switch self {
             case .decided(let decision): return decision
-            case .fillNeedsValue(let target, _, _): return .clarify("What exact text should I enter into \(target.label)?")
+            case .fillNeedsValue(let target, _, _):
+                return .clarify("What exact text should I enter into \(target.label)?")
             }
         }
     }
@@ -263,17 +309,26 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
         _ answers: [String: Answer], targets: [VoiceControlTarget], focusedEditable: VoiceControlTarget?,
         values: [String: String]
     ) -> LeanResolution {
-        guard let kind = answers["kind"] else { return .decided(.clarify("Please describe the next step more specifically.")) }
+        guard let kind = answers["kind"] else {
+            return .decided(.clarify("Please describe the next step more specifically."))
+        }
         let consequence = answers["consequence"].flatMap { VoiceControlConsequence(rawValue: $0.choice) } ?? .unknown
         if kind.choice == "finished" || kind.choice == "none" {
-            guard kind.confidence >= gate else { return .decided(.clarify("Please describe the next step more specifically.")) }
-            return .decided(kind.choice == "finished" ? .finished : .clarify("I need more detail about the next step or requested outcome. What should happen next?"))
+            guard kind.confidence >= gate else {
+                return .decided(.clarify("Please describe the next step more specifically."))
+            }
+            return .decided(
+                kind.choice == "finished"
+                    ? .finished
+                    : .clarify("I need more detail about the next step or requested outcome. What should happen next?"))
         }
         guard let targetAnswer = answers["target"], targetAnswer.choice != "none",
             let target = targets.first(where: { $0.id == targetAnswer.choice })
         else { return .decided(.clarify("Which control should I use? Please say its full label.")) }
         let confidence = min(kind.confidence, targetAnswer.confidence)
-        guard confidence >= gate else { return .decided(.clarify("Which control should I use? Please say its full label.")) }
+        guard confidence >= gate else {
+            return .decided(.clarify("Which control should I use? Please say its full label."))
+        }
         switch kind.choice {
         case "press":
             let operation: VoiceControlOperation = target.operations.contains(.press) ? .press : .select
@@ -287,7 +342,8 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
                         modelID: model, decisionConfidence: confidence)))
         case "fill":
             let operation: VoiceControlOperation? =
-                target.operations.contains(.setValue) ? .setValue : target.operations.contains(.insertText) ? .insertText : nil
+                target.operations.contains(.setValue)
+                ? .setValue : target.operations.contains(.insertText) ? .insertText : nil
             guard let operation else {
                 return .decided(.clarify("\(target.label) does not take text. Which field should I fill?"))
             }
@@ -310,7 +366,8 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
                 .action(
                     VoiceControlAction(
                         operation: .scroll, targetID: target.id, value: answers["direction"]?.choice ?? "down",
-                        targetLabel: target.label, consequence: .ordinary, modelID: model, decisionConfidence: confidence)))
+                        targetLabel: target.label, consequence: .ordinary, modelID: model,
+                        decisionConfidence: confidence)))
         default:
             return .decided(.clarify("Please describe the next step more specifically."))
         }
@@ -329,7 +386,9 @@ public actor JevDecisionClient: VoiceControlDecisionEngine {
 
     /// One HTTPS round trip: encode, size-check, post, consent re-check, decode,
     /// strict validation of every head against the criteria it was offered.
-    private func send<Body: Encodable>(_ body: Body, questions: [String: Question]) async throws -> ([String: Answer], Int) {
+    private func send<Body: Encodable>(_ body: Body, questions: [String: Question]) async throws -> (
+        [String: Answer], Int
+    ) {
         var request = URLRequest(url: URL(string: "https://api.typesafe.ai/v1/systemone")!)
         request.httpMethod = "POST"; request.timeoutInterval = 15
         request.setValue("Bearer " + apiKey, forHTTPHeaderField: "Authorization")

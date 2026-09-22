@@ -507,6 +507,18 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertTrue(UserDefaultsAppRuntimePreferences(defaults: defaults).pauseMediaDuringDictation)
     }
 
+    func testEscapeCancelsDictationDefaultsToTrueAndReadsPersistedValue() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences(defaults: defaults).escapeCancelsDictation)
+
+        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.escapeCancelsDictationKey)
+
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences(defaults: defaults).escapeCancelsDictation)
+    }
+
     func testPreserveDiscardedDictationsDefaultsToFalseAndReadsPersistedValue() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

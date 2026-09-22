@@ -98,6 +98,9 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   suite as `config set`.
 - Saved prompt-result JSON includes additive nullable
   `outputLanguagePolicySnapshot`.
+- `config get|set|list` includes `escape-cancels-dictation` (`on`/`off`,
+  default on). When off, Escape is left for other apps and does not cancel
+  a live dictation.
 
 ## [4.5.0] — 2026-09-20
 

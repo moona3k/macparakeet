@@ -401,13 +401,16 @@ final class VoiceControlCoordinator {
         }
     }
     private func startInboxMonitor() {
+        // Commands come only from the user log directory. The /tmp pointer is a
+        // read-only copy of traces; a world-writable command file must not act.
         let urls = [
-            VoiceControlTraceStore.defaultDirectory.appendingPathComponent("command.json"),
-            VoiceControlTraceStore.agentPointerDirectory.appendingPathComponent("command.json"),
+            VoiceControlTraceStore.defaultDirectory.appendingPathComponent("command.json")
         ]
         for url in urls {
             try? FileManager.default.createDirectory(
                 at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o700], ofItemAtPath: url.deletingLastPathComponent().path)
         }
         Task { [weak self] in
             while !Task.isCancelled {
@@ -446,10 +449,13 @@ final class VoiceControlCoordinator {
         var app = VoiceControlAppActivation.runningApplication(matching: name)
         if app == nil {
             let bundleID: String? =
-                name.lowercased().contains("chrome") ? "com.google.Chrome"
-                : name.lowercased().contains("safari") ? "com.apple.Safari"
-                : name.lowercased().contains("firefox") ? "org.mozilla.firefox"
-                : name.contains(".") ? name : nil
+                name.lowercased().contains("chrome")
+                ? "com.google.Chrome"
+                : name.lowercased().contains("safari")
+                    ? "com.apple.Safari"
+                    : name.lowercased().contains("firefox")
+                        ? "org.mozilla.firefox"
+                        : name.contains(".") ? name : nil
             if let bundleID {
                 app = await VoiceControlAppActivation.launch(bundleIdentifier: bundleID)
             }
@@ -457,9 +463,21 @@ final class VoiceControlCoordinator {
         guard let app else { return false }
         return await VoiceControlAppActivation.bringForward(app)
     }
+    /// A dry run is a fresh proposal. It must not confirm, stop, or enter literal mode.
+    nonisolated static func admitsLiveGrammar(dryRun: Bool) -> Bool { !dryRun }
+
     private func submit(_ text: String, dryRun: Bool = false) {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, ensureSession() else { return }
+        if !Self.admitsLiveGrammar(dryRun: dryRun) {
+            // A proposal must not stop the turn, answer a pending question, or
+            // revise the live goal. Those entry points ignore the dry-run flag.
+            if runner?.hasLiveWork == true || model.conversation.expectedResponse != nil {
+                return
+            }
+            dispatch(text, dryRun: true)
+            return
+        }
         let command = text.lowercased().trimmingCharacters(in: .punctuationCharacters)
         if literalMode {
             switch VoiceControlSessionGrammar.phrase(text, literalMode: true) {
@@ -510,7 +528,8 @@ final class VoiceControlCoordinator {
     }
     private func releaseFinishedSessionIfMicOff() {
         guard !wantsCapture, !model.microphoneOn, admissionRelease == nil,
-            let lease = interactionLease, let runner else { return }
+            let lease = interactionLease, let runner
+        else { return }
         switch model.phase {
         case .done, .failed, .idle, .paused: break
         default: return
@@ -537,19 +556,24 @@ final class VoiceControlCoordinator {
             break
         }
     }
-    private func dispatch(_ text: String, asRevision: Bool = false, asLiteralPayload: Bool = false, dryRun: Bool = false) {
+    private func dispatch(
+        _ text: String, asRevision: Bool = false, asLiteralPayload: Bool = false, dryRun: Bool = false
+    ) {
         let submission = submissions.begin()
-        let correction = !asLiteralPayload && (asRevision || (!model.goal.isEmpty && VoiceControlConversationState.isCorrection(text)))
+        let correction =
+            !dryRun && !asLiteralPayload
+            && (asRevision || (!model.goal.isEmpty && VoiceControlConversationState.isCorrection(text)))
         if !correction && model.conversation.expectedResponse != .clarification {
             model.goal = text; model.steps = []
         }
         model.transcript = text
         if !correction {
-            model.appendActivity((model.conversation.expectedResponse == .clarification ? "Clarification: " : "Request: ") + text)
+            model.appendActivity(
+                (model.conversation.expectedResponse == .clarification ? "Clarification: " : "Request: ") + text)
         }
         runner?.stop()
         guard let runner else { return }
-        let clarification = !asLiteralPayload && model.conversation.takeClarification()
+        let clarification = !dryRun && !asLiteralPayload && model.conversation.takeClarification()
         let needsSnapshot = !speechSubmission && !skipInvocationSnapshot
         skipInvocationSnapshot = false
         let snapshotTask = invocationSnapshotTask
@@ -563,10 +587,15 @@ final class VoiceControlCoordinator {
                 self.invocationSnapshot = await snapshotTask.value
             }
             if !needsSnapshot, self.currentUtteranceID != speechUtterance { return }
-            guard self.sessionGeneration == generation, self.acceptingEvents, self.submissions.accepts(submission) else { return }
-            if clarification { await runner.clarify(text, submissionAuthority: submission) }
-            else if correction { await runner.revise(text, submissionAuthority: submission) }
-            else { await runner.submit(text, submissionAuthority: submission, dryRun: dryRun) }
+            guard self.sessionGeneration == generation, self.acceptingEvents, self.submissions.accepts(submission)
+            else { return }
+            if clarification {
+                await runner.clarify(text, submissionAuthority: submission)
+            } else if correction {
+                await runner.revise(text, submissionAuthority: submission)
+            } else {
+                await runner.submit(text, submissionAuthority: submission, dryRun: dryRun)
+            }
         }
     }
     private func stop() {
@@ -740,7 +769,6 @@ struct VoiceControlWritingConsentRequired: LocalizedError {
         "Enable selected-text sharing with your writing provider in Voice Control setup first."
     }
 }
-
 
 /// Main-actor submission identity plus a thread-safe fence carried across the
 /// runner actor hop. Stop invalidates preparation, not only existing effects.
