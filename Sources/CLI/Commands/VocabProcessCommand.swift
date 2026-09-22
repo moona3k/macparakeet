@@ -26,9 +26,17 @@ struct VocabProcessCommand: AsyncParsableCommand {
 
         let words = try wordRepo.fetchEnabled()
         let snippets = try snippetRepo.fetchEnabled()
+        let removeUmFiller = UserDefaultsAppRuntimePreferences.removeUmFiller(
+            defaults: macParakeetAppDefaults()
+        )
 
         let pipeline = TextProcessingPipeline()
-        let result = pipeline.process(text: text, customWords: words, snippets: snippets)
+        let result = pipeline.process(
+            text: text,
+            customWords: words,
+            snippets: snippets,
+            removeUmFiller: removeUmFiller
+        )
 
         print(result.text)
 

@@ -117,6 +117,11 @@ final class AppPathsTests: XCTestCase {
         XCTAssertTrue(AppPaths.logsDir.hasSuffix("MacParakeet"))
     }
 
+    func testVoiceControlLogsDirIsInsideLogsDir() {
+        XCTAssertTrue(AppPaths.voiceControlLogsDir.hasPrefix(AppPaths.logsDir))
+        XCTAssertTrue(AppPaths.voiceControlLogsDir.hasSuffix("voice-control"))
+    }
+
     func testTempDirContainsMacParakeet() {
         XCTAssertTrue(AppPaths.tempDir.contains("macparakeet"))
     }

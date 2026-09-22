@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jev, computer use, and what MacParakeet is proposing — developer walkthrough</title>
+<style>
+  :root{--bg:#0f1115;--panel:#171a21;--ink:#e6e8ee;--muted:#9aa3b2;--line:#2a2f3a;--acc:#f28c6b;--blue:#6ea8fe;--green:#5ed3a0;--yellow:#f3d26b;--red:#ff7b7b;--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,sans-serif}
+  main{max-width:1040px;margin:0 auto;padding:40px 24px 96px}
+  h1{font-size:34px;line-height:1.15;margin:0 0 8px}
+  h2{font-size:24px;margin:56px 0 12px;padding-top:24px;border-top:1px solid var(--line)}
+  h3{font-size:18px;margin:28px 0 8px;color:var(--ink)}
+  p,li{color:var(--ink)}
+  .sub{color:var(--muted);margin:0 0 24px}
+  .muted{color:var(--muted)}
+  code{font-family:var(--mono);font-size:.92em;background:#1d212b;padding:1px 5px;border-radius:4px}
+  pre{font-family:var(--mono);font-size:13px;line-height:1.5;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;overflow:auto;margin:12px 0}
+  pre code{background:none;padding:0}
+  .c{color:#7f8aa3}.k{color:var(--blue)}.s{color:var(--green)}.n{color:var(--yellow)}.hl{color:var(--acc)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:14px 0}
+  .tldr{border-left:4px solid var(--acc)}
+  .grid{display:grid;gap:14px}
+  .g2{grid-template-columns:1fr 1fr}
+  .g3{grid-template-columns:1fr 1fr 1fr}
+  @media (max-width:820px){.g2,.g3{grid-template-columns:1fr}}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:15px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.04em}
+  .tag{display:inline-block;font:600 12px/1 var(--mono);padding:4px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+  .tag.code{color:var(--green);border-color:#2b5c47}
+  .tag.jev{color:var(--acc);border-color:#6b3d31}
+  .tag.llm{color:var(--yellow);border-color:#5f5230}
+  .tag.no{color:var(--red);border-color:#5f3030}
+  /* flow diagrams */
+  .flow{display:flex;flex-wrap:wrap;gap:10px;align-items:stretch;margin:14px 0}
+  .node{flex:1 1 150px;min-width:150px;background:#1d212b;border:1px solid var(--line);border-radius:10px;padding:12px 14px;position:relative}
+  .node b{display:block;font-size:14px;margin-bottom:4px}
+  .node small{color:var(--muted);display:block;font-size:12.5px;line-height:1.4}
+  .node.code{border-color:#2b5c47}.node.jev{border-color:#6b3d31;background:#221a19}.node.llm{border-color:#5f5230}.node.user{border-color:#31466b}
+  .arrow{align-self:center;color:var(--muted);font-size:20px;padding:0 2px}
+  .lane{border:1px dashed var(--line);border-radius:12px;padding:12px 14px;margin:12px 0}
+  .lane h4{margin:0 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  .q{border-left:4px solid var(--blue)}
+  .rec{margin-top:8px;padding:10px 12px;background:#152018;border:1px solid #2b5c47;border-radius:8px}
+  .rec b{color:var(--green)}
+  .toc a{color:var(--blue);text-decoration:none}
+  .toc li{margin:3px 0}
+  .callout{background:#1a1d27;border:1px solid #31466b;border-radius:10px;padding:12px 16px;margin:12px 0}
+  .callout b{color:var(--blue)}
+  .warn{border-color:#5f3030;background:#211717}.warn b{color:var(--red)}
+  .ok{border-color:#2b5c47;background:#152018}.ok b{color:var(--green)}
+  .steps{counter-reset:s}
+  .steps .card{position:relative;padding-left:56px}
+  .steps .card::before{counter-increment:s;content:counter(s);position:absolute;left:16px;top:16px;width:28px;height:28px;border-radius:50%;background:var(--acc);color:#111;font:700 14px/28px var(--mono);text-align:center}
+</style>
+</head>
+<body>
+<main>
+
+<h1>Jev, computer use, and what MacParakeet is proposing</h1>
+<p class="sub">Developer walkthrough · 2026-09-20 · companion to <code>docs/research/2026-09-20-typesafe-computer-use/README.md</code></p>
+
+<div class="card tldr">
+  <b>TL;DR</b>
+  <ul>
+    <li><b>Jev is a chooser, not a doer.</b> Code observes the screen, code writes the option list, Jev picks one option (with a probability per option), code executes and verifies. In both <code>typesafe-computer-use</code> and PR #1104, <em>no LLM ever generates the options</em>. They are built deterministically from the accessibility tree.</li>
+    <li><b>The two systems share the same loop</b> (observe → options → Jev → act → verify). They differ in what surrounds the decision: how the screen is read, how the option list is shaped, how the result is verified, and how you debug it.</li>
+    <li><b>PR #1104 is stronger where it matters for a product:</b> revocable authority, receipts, no-replay of uncertain effects, pay/delete/send confirmation, consent. Keep all of it.</li>
+    <li><b><code>typesafe-computer-use</code> is stronger around the decision:</b> a testable AX walk with off-screen controls, local OCR as a second source, a lean mutually-exclusive question set, and replay/timing/probability logging.</li>
+    <li><b>Proposal: no rewrite. Four transplants,</b> in this order: (1) observability + replay, (2) pure AX walk, (3) leaner unconstrained request, (4) local OCR as a flagged secondary source. Six open questions at the end, each with a recommendation.</li>
+  </ul>
+</div>
+
+<div class="card toc">
+  <b>Contents</b>
+  <ol>
+    <li><a href="#jev">Jev in five minutes: your mental model, corrected</a></li>
+    <li><a href="#loop">The one loop both systems run</a></li>
+    <li><a href="#tcu">How typesafe-computer-use asks Jev</a></li>
+    <li><a href="#ours">How PR #1104 asks Jev (three tiers)</a></li>
+    <li><a href="#space">The real work: mapping the action space</a></li>
+    <li><a href="#compare">Side by side</a></li>
+    <li><a href="#proposal">What we propose to change</a></li>
+    <li><a href="#questions">Open questions, with recommendations</a></li>
+  </ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="jev">1. Jev in five minutes: your mental model, corrected</h2>
+
+<p>Your summary is right: one request carries <b>state</b> (any JSON: text, objects, arrays) and one or more <b>questions</b>. Each question has <b>instructions</b> (the judgment you want) and, for Choice and Score, <b>criteria</b> (the allowed answers, each with a description). Three primitives:</p>
+
+<table>
+  <tr><th>Primitive</th><th>Returns</th><th>Use when</th><th>Gotcha</th></tr>
+  <tr><td><b>Choice</b></td><td><code>choice</code>, <code>probabilities{option: p}</code>, <code>confidence</code></td><td>One of a closed set. Up to 255 options.</td><td><code>confidence</code> is <em>concentration of the distribution</em>, not "probability the workflow is correct" and not permission to act.</td></tr>
+  <tr><td><b>Noul</b></td><td><code>noul</code> (probability of yes)</td><td>Does a condition hold?</td><td>No separate confidence. 0.5 means "as likely yes as no", not "medium".</td></tr>
+  <tr><td><b>Score</b></td><td>probability-weighted position on ordered levels</td><td>Degree along a dimension; graded ranking with one Score per item.</td><td>Levels must describe concrete situations.</td></tr>
+</table>
+
+<div class="callout"><b>Three corrections to the mental model that matter for computer use:</b>
+<ol>
+  <li><b>Options come from code, not from an LLM.</b> Both systems build the Choice criteria deterministically from the observed accessibility tree (button labels, field names, running apps). There is no generative step in front of the click. The moment you let a model invent the option list, you lose the guarantee that every option is something the host knows how to execute.</li>
+  <li><b>Questions in one request are independent.</b> They run in parallel over the same state and cannot read each other's answers. So you cannot say "if the operation is <em>fill</em>, which field?" as a dependent chain. You either (a) ask speculative questions with the premise stated in the instructions ("<em>Assuming</em> the next operation is fill, which field?") and let code consume only the applicable answer, or (b) make a second request. This one fact shapes both systems' payloads.</li>
+  <li><b>Jev does not observe, plan, or verify.</b> It never sees pixels or the live tree; it sees the text you send. It cannot simulate a multi-step transition. "Predict where the piece lands", not "play Tetris". And a Jev answer of <code>finished</code> is a judgment over the text you sent, not evidence the task succeeded.</li>
+</ol></div>
+
+<h3>Wire format (System One, as both systems call it)</h3>
+<pre><code><span class="c">// POST https://api.typesafe.ai/v1/systemone   Authorization: Bearer &lt;key&gt;</span>
+{
+  <span class="k">"model"</span>: <span class="s">"jev-1.13.0"</span>,
+  <span class="k">"state"</span>: { <span class="c">/* any JSON the questions may reference */</span> },
+  <span class="k">"questions"</span>: {
+    <span class="k">"&lt;id&gt;"</span>: { <span class="k">"type"</span>: <span class="s">"choice"</span>, <span class="k">"instructions"</span>: <span class="s">"…"</span>, <span class="k">"criteria"</span>: { <span class="k">"opt_a"</span>: <span class="s">"what a means"</span>, <span class="k">"opt_b"</span>: <span class="s">"…"</span> } },
+    <span class="k">"&lt;id&gt;"</span>: { <span class="k">"type"</span>: <span class="s">"noul"</span>,   <span class="k">"instructions"</span>: <span class="s">"Is X true?"</span> },
+    <span class="k">"&lt;id&gt;"</span>: { <span class="k">"type"</span>: <span class="s">"score"</span>,  <span class="k">"instructions"</span>: <span class="s">"…"</span>, <span class="k">"criteria"</span>: { <span class="k">"low"</span>: <span class="s">"…"</span>, <span class="k">"mid"</span>: <span class="s">"…"</span>, <span class="k">"high"</span>: <span class="s">"…"</span> } }
+  }
+}
+
+<span class="c">// 200 OK</span>
+{
+  <span class="k">"model"</span>: <span class="s">"jev-1.13.0"</span>,
+  <span class="k">"answers"</span>: {
+    <span class="k">"&lt;id&gt;"</span>: { <span class="k">"type"</span>: <span class="s">"choice"</span>, <span class="k">"choice"</span>: <span class="s">"opt_a"</span>, <span class="k">"probabilities"</span>: { <span class="k">"opt_a"</span>: <span class="n">0.81</span>, <span class="k">"opt_b"</span>: <span class="n">0.19</span> }, <span class="k">"confidence"</span>: <span class="n">0.74</span> },
+    <span class="k">"&lt;id&gt;"</span>: { <span class="k">"type"</span>: <span class="s">"noul"</span>,   <span class="k">"noul"</span>: <span class="n">0.92</span> }
+  }
+}</code></pre>
+<p class="muted">Question ids are for your code; the model never sees them, so the instructions must carry the full meaning. Both projects validate the response strictly: every offered key present, probabilities sum ≈ 1, <code>choice</code> is the argmax, model string matches. Anything else executes nothing.</p>
+
+<!-- ============================================================ -->
+<h2 id="loop">2. The one loop both systems run</h2>
+
+<div class="flow">
+  <div class="node code"><b>Observe</b><small>Read the screen into structured facts. AX tree; TCU also OCR.</small></div>
+  <div class="arrow">→</div>
+  <div class="node code"><b>Build options</b><small>Deterministic. Each option = something the host can execute.</small></div>
+  <div class="arrow">→</div>
+  <div class="node jev"><b>Jev picks</b><small>Choice over the options. Returns distribution + confidence.</small></div>
+  <div class="arrow">→</div>
+  <div class="node code"><b>Gate</b><small>Thresholds, policy, budget, confirmation.</small></div>
+  <div class="arrow">→</div>
+  <div class="node code"><b>Act once</b><small>AXPress / set value / key / click.</small></div>
+  <div class="arrow">→</div>
+  <div class="node code"><b>Verify</b><small>Re-observe. Postcondition or "changed" or unknown.</small></div>
+</div>
+<p>Everything in green is host code. The single orange box is Jev. The design question for any computer-use system on Jev is therefore not "how smart is the model" but: <b>how good is the observation, how well-shaped is the option list, how strict is the gate, and how honest is the verification.</b> That is exactly where the two systems diverge.</p>
+
+<div class="grid g3">
+  <div class="card"><span class="tag code">CODE</span><br><b>Owns</b><br><span class="muted">observation, legality, URLs, values, arithmetic, dates, execution, receipts, budgets, confirmation, stop.</span></div>
+  <div class="card"><span class="tag jev">JEV</span><br><b>Owns</b><br><span class="muted">choosing among named options when code cannot compile a unique answer. Nothing else.</span></div>
+  <div class="card"><span class="tag llm">GENERATIVE LLM</span><br><b>Owns</b><br><span class="muted">TCU: field text, unknown URLs, final answer. Ours: only spoken rewrites of selected text, via the consented Transforms provider, with preview.</span></div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="tcu">3. How <code>typesafe-computer-use</code> asks Jev</h2>
+
+<p>An autonomous CLI: <code>clicker "go to techcrunch and find the cheapest ticket" --act</code>. Up to 100 steps. Every step is <b>one request with three or four Choices</b>, all speculative, all consumed by code according to <code>kind</code>.</p>
+
+<div class="lane"><h4>Per step</h4>
+<div class="flow">
+  <div class="node code"><b>screencapture</b><small>Frontmost window + menu strip only.</small></div>
+  <div class="node code"><b>Vision OCR</b><small>On-device. Re-reads only changed 256 px tiles.</small></div>
+  <div class="node code"><b>AX walk</b><small>BFS, 4000 nodes / 0.6 s. Labelled on-screen controls + off-screen pressables.</small></div>
+  <div class="node code"><b>Merge</b><small>Same box + same text → one item, tagged <code>ax+ocr</code>. Numbered in reading order. ≤255.</small></div>
+  <div class="arrow">→</div>
+  <div class="node jev"><b>kind · item · site · offscreen</b></div>
+  <div class="arrow">→</div>
+  <div class="node code"><b>handler</b><small>AXPress → pixel click fallback; set value → keystrokes fallback.</small></div>
+</div></div>
+
+<h3>The request, abridged from <code>decide.py</code></h3>
+<pre><code>{
+  <span class="k">"state"</span>: {
+    <span class="k">"goal"</span>: <span class="s">"open the Playground"</span>,
+    <span class="k">"now"</span>: { <span class="k">"local_time"</span>: <span class="s">"2026-09-18 14:02 Thursday"</span>, <span class="k">"today"</span>: <span class="s">"2026-09-18"</span> },
+    <span class="k">"frontmost_app"</span>: <span class="s">"Google Chrome"</span>,
+    <span class="k">"browser_active_tab_url"</span>: <span class="s">"https://console.typesafe.ai/"</span>,
+    <span class="k">"focused_field"</span>: <span class="n">null</span>,
+    <span class="k">"previous_actions"</span>: [<span class="s">"opened https://console.typesafe.ai/"</span>],
+    <span class="k">"screen_items_in_reading_order"</span>: [
+      { <span class="k">"i"</span>: <span class="n">0</span>, <span class="k">"text"</span>: <span class="s">"Playground"</span>, <span class="k">"where"</span>: <span class="s">"top-left"</span>, <span class="k">"role"</span>: <span class="s">"link"</span> },
+      { <span class="k">"i"</span>: <span class="n">1</span>, <span class="k">"text"</span>: <span class="s">"Billing"</span>,    <span class="k">"where"</span>: <span class="s">"top-left"</span>, <span class="k">"role"</span>: <span class="s">"link"</span> },
+      { <span class="k">"i"</span>: <span class="n">2</span>, <span class="k">"text"</span>: <span class="s">"Next event · Oct 13"</span>, <span class="k">"where"</span>: <span class="s">"middle-center"</span>, <span class="hl">"when"</span>: <span class="s">"dated 2026-10-13 (in 25 days)"</span> }
+    ]
+  },
+  <span class="k">"questions"</span>: {
+    <span class="k">"kind"</span>: { <span class="k">"type"</span>: <span class="s">"choice"</span>,
+      <span class="k">"instructions"</span>: <span class="s">"Which kind of action makes the most progress toward the goal right now?"</span>,
+      <span class="k">"criteria"</span>: { <span class="k">"click_item"</span>: <span class="s">"Click one of the on-screen items (chosen in the item question)."</span>,
+                    <span class="k">"use_browser"</span>: <span class="s">"Bring the browser forward / open a site named in the site question."</span>,
+                    <span class="k">"type_text"</span>: <span class="s">"…only valid when a text field is focused"</span>,
+                    <span class="k">"press_enter"</span>: <span class="s">"…"</span>, <span class="k">"press_escape"</span>: <span class="s">"…"</span>, <span class="k">"scroll_down"</span>: <span class="s">"…"</span>, <span class="k">"scroll_up"</span>: <span class="s">"…"</span>,
+                    <span class="k">"wait"</span>: <span class="s">"…"</span>, <span class="k">"done"</span>: <span class="s">"The goal is already achieved."</span>, <span class="k">"none"</span>: <span class="s">"Nothing here helps."</span> } },
+    <span class="k">"item"</span>: { <span class="k">"type"</span>: <span class="s">"choice"</span>,
+      <span class="k">"instructions"</span>: <span class="s">"If clicking is the right move, which item? Items with a role are real controls."</span>,
+      <span class="k">"criteria"</span>: { <span class="k">"0"</span>: <span class="s">"link 'Playground' (top-left)"</span>, <span class="k">"1"</span>: <span class="s">"link 'Billing' (top-left)"</span>,
+                    <span class="k">"2"</span>: <span class="s">"'Next event · Oct 13' (middle-center; dated 2026-10-13 (in 25 days))"</span> } },
+    <span class="k">"site"</span>: { <span class="k">"type"</span>: <span class="s">"choice"</span>, <span class="k">"instructions"</span>: <span class="s">"If the browser is used this step, which site?"</span>,
+      <span class="k">"criteria"</span>: { <span class="k">"github"</span>: <span class="s">"https://github.com/"</span>, <span class="s">"…"</span>: <span class="s">"…"</span>, <span class="k">"other"</span>: <span class="s">"…"</span>, <span class="k">"none"</span>: <span class="s">"stay on the open page"</span> } }
+  }
+}</code></pre>
+
+<div class="grid g2">
+<div class="card"><b>How code consumes the answers</b>
+<pre><code><span class="c"># decide.py</span>
+chosen = item.choice      <span class="c"># if kind == click_item</span>
+       | f"offscreen:{k}" <span class="c"># if kind == press_offscreen</span>
+       | kind.choice      <span class="c"># otherwise</span>
+
+confidence =
+  min(kind.conf, item.conf)      <span class="c"># click names a target</span>
+  min(kind.conf, offscreen.conf) <span class="c"># press names a target</span>
+  kind.conf                      <span class="c"># else; a split on `site` never stops the run,</span>
+                                 <span class="c"># every page is recoverable</span>
+stop if kind in {done, none} or confidence &lt; 0.4</code></pre></div>
+<div class="card"><b>Design principle stated in its README</b>
+<p class="muted">"Every stall found while building this came from two options that meant the same thing. Confidence measures concentration, so overlapping options always read as doubt. <b>Keep the action set mutually exclusive.</b>"</p>
+<p class="muted">Also: only heads that name a target lower the gate confidence. If the outcome is recoverable (which website), a split does not stop the run.</p></div>
+</div>
+
+<div class="callout warn"><b>What it does not have.</b> No confirmation before "Buy". No receipt for a press (a click is a history line). No way to stop mid-action except Ctrl-C or slamming the mouse into the corner. A writer LLM composes field text from the goal and nearby screen text, proposes URLs for unknown sites, and reads the <em>final screenshot</em> to produce an answer. Great research harness; not a shippable safety model.</div>
+
+<!-- ============================================================ -->
+<h2 id="ours">4. How PR #1104 asks Jev (three tiers)</h2>
+
+<p>Speech-first and native. Local STT gives a committed transcript. Then the router tries, in order, to avoid the model entirely.</p>
+
+<div class="steps">
+  <div class="card"><b>Tier 1 — compile locally, no model.</b> <span class="tag code">CODE</span><br>
+  Exact grammar (<code>type…</code>, <code>replace X with Y</code>, <code>click Save</code>, <code>press return</code>, <code>scroll down</code>, <code>undo</code>), allowlisted sites (<code>open gmail</code>), running apps (<code>switch to Slack</code>), the Google Flights domain plan (fill origin/destination/date, unique city, Escape an overlay, press Search), web search boxes, unique Gmail Compose. If exactly one action compiles, execute it. Jev never sees these.</div>
+
+  <div class="card"><b>Tier 2 — several legal events, one <code>outcome</code> Choice.</b> <span class="tag jev">JEV</span><br>
+  Code computes the <code>VoiceControlSituation</code> (<code>plain</code> / <code>suggestionPicker</code> / <code>datePicker</code>) and lists <b>enabled events</b>, each already bound to one executable action and a postcondition. When more than one is plausible, Jev picks among <em>those ids only</em>, plus <code>insufficient_evidence</code> and <code>clarify</code>. The option is phrased as a <b>landing</b> ("after the host acts, <em>London, United Kingdom</em> is the selected result"), not a keystroke.
+<pre><code>{
+  <span class="k">"state"</span>: { <span class="k">"goal"</span>: <span class="s">"Find one-way flights from Zurich to London on September 20 2026."</span>,
+             <span class="k">"situation"</span>: <span class="s">"suggestionPicker"</span>, <span class="k">"kind"</span>: <span class="s">"outcome"</span>,
+             <span class="k">"events"</span>: [ { <span class="k">"id"</span>: <span class="s">"n:14"</span>, <span class="k">"criteria"</span>: <span class="s">"After the host acts, London, United Kingdom is the selected result."</span> },
+                         { <span class="k">"id"</span>: <span class="s">"n:15"</span>, <span class="k">"criteria"</span>: <span class="s">"After the host acts, London, Ontario is the selected result."</span> } ],
+             <span class="k">"executed"</span>: [<span class="s">"setValue:n:3"</span>, <span class="s">"press:n:9"</span>] },
+  <span class="k">"questions"</span>: { <span class="k">"outcome"</span>: { <span class="k">"type"</span>: <span class="s">"choice"</span>,
+      <span class="k">"instructions"</span>: <span class="s">"Choose which offered outcome should hold after the next host-compiled action…"</span>,
+      <span class="k">"criteria"</span>: { <span class="k">"n:14"</span>: <span class="s">"…"</span>, <span class="k">"n:15"</span>: <span class="s">"…"</span>,
+                    <span class="k">"insufficient_evidence"</span>: <span class="s">"None is a clear match. Do not guess."</span>,
+                    <span class="k">"clarify"</span>: <span class="s">"A required detail is missing."</span> } } }
+}</code></pre>
+  Gate: confidence ≥ 0.5, else clarify. The chosen event's pre-bound action executes; the next snapshot checks the postcondition (<code>.selectedLabel</code>).</div>
+
+  <div class="card"><b>Tier 3 — nothing compiles: unconstrained Jev over legality-filtered controls.</b> <span class="tag jev">JEV</span><br>
+  Generic pages with no domain machine. Because questions are independent, the request asks <b>every speculative branch at once</b>:
+<pre><code>questions = {
+  <span class="k">"operation"</span>:       Choice{ setValue | insertText | press | select | scroll | key | activateApp | finished | clarify }
+  <span class="k">"target_press"</span>:    Choice{ every pressable target id + none }      <span class="c">// "Assuming the next operation is press…"</span>
+  <span class="k">"target_setValue"</span>: Choice{ every editable target id + none }
+  <span class="k">"target_scroll"</span>:   Choice{ … }   <span class="c">// one head per operation present</span>
+  <span class="k">"value_n:3"</span>:       Choice{ up to 250 substrings of the utterance + none }  <span class="c">// one head PER editable target (≤24)</span>
+  <span class="k">"value_n:7"</span>:       Choice{ … }
+  <span class="k">"consequence"</span>:     Choice{ ordinary | payment | destructive | externalCommitment | unknown }
+  <span class="k">"direction"</span>:       Choice{ up | down }
+  <span class="k">"key"</span>:             Choice{ return | escape | tab | none }   <span class="c">// Return omitted while a picker is open</span>
+}</code></pre>
+  Code reads <code>operation</code>, then <code>target_&lt;operation&gt;</code>, then <code>value_&lt;target&gt;</code> if filling. Each head gated at 0.5; <code>consequence</code> at 0.8. Payload capped at 120 KB or the turn fails with <code>contextTooLarge</code>.</div>
+</div>
+
+<h3>After Jev: the part TCU does not have</h3>
+<div class="flow">
+  <div class="node code"><b>Runner policy</b><small>budget 40 effects / 100 decisions / 180 s · duplicate identity over semantic pre-state · uncertain effects never replayed · consequence → confirmation (pay / delete / send only, 20 s expiry)</small></div>
+  <div class="arrow">→</div>
+  <div class="node code"><b>Adapter revalidates</b><small>snapshot id (20 s) · same window · same foreground pid · node fingerprint · not a secure field</small></div>
+  <div class="arrow">→</div>
+  <div class="node code"><b>Act once</b><small>inside <code>ActionAuthority.perform</code> — synchronous, revocable by Stop, manual takeover, or a new utterance</small></div>
+  <div class="arrow">→</div>
+  <div class="node code"><b>Receipt</b><small><code>verified</code> (readback / toggled / postcondition) · <code>transitionObserved</code> (tree changed) · <code>unknown</code> (pause; never retry) · <code>failed</code></small></div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="space">4½. The real work: mapping the action space</h2>
+
+<p>Your guess is correct. Jev can only pick from options it is handed, and it can only pick well if every option (a) is something the host can execute in one step, (b) is distinct from every other option, and (c) is legal right now. So the bulk of the code in both systems is a <b>compiler from screen facts to a closed, legal, executable option set</b>. The Jev call is a few lines. Below is how MacParakeet does it, stage by stage.</p>
+
+<div class="flow">
+  <div class="node code"><b>① AX facts</b><small>role, label, frame, actions, settable, focused, value, enabled, secure</small></div>
+  <div class="arrow">→</div>
+  <div class="node code"><b>② Targets</b><small>one <code>VoiceControlTarget</code> per element, with the <b>operations</b> it supports</small></div>
+  <div class="arrow">→</div>
+  <div class="node code"><b>③ Situation + legality</b><small>filter the set by what is legal right now</small></div>
+  <div class="arrow">→</div>
+  <div class="node code"><b>④ Enabled events</b><small>bind (operation, target, value) → action + postcondition + criteria text</small></div>
+  <div class="arrow">→</div>
+  <div class="node jev"><b>⑤ Choice criteria</b><small>event id → landing sentence</small></div>
+</div>
+
+<h3>① → ② Facts become targets with an operation set</h3>
+<p>The adapter walks the focused window (plus menu bar and focused element) and, for each node, derives which of seven operations it supports. This is the action space at the element level. Nothing here involves a model.</p>
+<pre><code><span class="k">enum</span> VoiceControlOperation { press, setValue, insertText, select, scroll, key, activateApp }
+
+<span class="k">struct</span> VoiceControlTarget {
+  id: String              <span class="c">// "n:14" — valid for ONE snapshot only; the AXUIElement handle stays inside the adapter actor</span>
+  label: String           <span class="c">// AXTitle ?? AXDescription ?? AXHelp ?? (AXValue for pressable static text / menu items)</span>
+  role: String            <span class="c">// "AXButton", "AXTextField", "AXStaticText", "application", "url", "undo"</span>
+  value: String?          <span class="c">// current field text (≤500 chars), only if visible</span>
+  operations: Set&lt;VoiceControlOperation&gt;
+  isFocused: Bool
+  selectedText: String?   <span class="c">// stripped before the Jev wire</span>
+  valueIsComplete: Bool
+  isNavigation: Bool      <span class="c">// input to consequence policy</span>
+}</code></pre>
+<table>
+  <tr><th>AX evidence (deterministic)</th><th>Operation granted</th><th>Source</th></tr>
+  <tr><td>visible ∧ enabled ∧ <code>AXPress</code> in action names</td><td><code>press</code></td><td><code>NativeVoiceControlAdapter.observe</code></td></tr>
+  <tr><td>role ∈ {TextField, ComboBox} ∧ <code>AXValue</code> settable</td><td><code>setValue</code>, <code>insertText</code></td><td><code>textOperations(...)</code></td></tr>
+  <tr><td>role ∈ {TextField, ComboBox, TextArea} ∧ <code>AXSelectedText</code> settable</td><td><code>insertText</code></td><td><code>textOperations(...)</code></td></tr>
+  <tr><td>role == <code>AXScrollArea</code></td><td><code>scroll</code></td><td>observe</td></tr>
+  <tr><td>node is the app's <code>AXFocusedUIElement</code> ∧ enabled</td><td><code>key</code></td><td>observe</td></tr>
+  <tr><td>each other running regular app (≤15)</td><td><code>activateApp</code> (synthetic target <code>app:&lt;pid&gt;</code>)</td><td>observe</td></tr>
+  <tr><td>frontmost is a browser → each allowlisted site</td><td><code>press</code> on synthetic <code>role: "url"</code> target</td><td><code>VoiceControlWebDestination.all</code></td></tr>
+  <tr><td>a text edit we made &lt; 30 s ago is still intact</td><td><code>press</code> on synthetic <code>undo</code> target</td><td>observe</td></tr>
+  <tr><td>secure subrole, or label contains password / api key / one-time …</td><td><span class="tag no">excluded</span> before the target exists</td><td><code>isSecure</code></td></tr>
+  <tr><td>browser shell chrome when page content exists (tab search, memory usage, address bar)</td><td><span class="tag no">excluded</span></td><td><code>keepOfferedControl</code></td></tr>
+</table>
+<p class="muted">Result on the recorded Flights overlay snapshot: 73 targets. That is the raw action space for one observation: roughly 73 × |operations| candidate actions, most of them wrong.</p>
+
+<h3>② → ③ Situation and legality shrink the space</h3>
+<p>Code classifies the snapshot and removes options that are <em>legal in general but wrong right now</em>. This is where the recorded stalls were made impossible rather than unlikely.</p>
+<pre><code><span class="k">enum</span> VoiceControlSituation { plain, suggestionPicker, datePicker }   <span class="c">// recomputed from AX facts every snapshot</span>
+
+<span class="c">// suggestionPicker: a focused city row, or city rows + "Where else?" chrome</span>
+<span class="c">// datePicker:       any pressable target labelled "… departure date …"</span>
+
+VoiceControlLegality.offeredTargets(in: snapshot)
+  .plain            → all page targets (never activateApp, never role=url — those are host-only)
+  .suggestionPicker → only city rows + overlay chrome + the focused element (for Escape)
+  .datePicker       → only calendar days + overlay chrome + the focused element
+
+VoiceControlLegality.offeredKeys(in: snapshot)
+  .plain                        → [return, escape, tab]
+  .suggestionPicker/.datePicker → [escape]          <span class="c">// Return is NOT a landing while a picker is open</span></code></pre>
+<div class="callout"><b>Why this matters for a classifier:</b> if Return and "Search flights" are in the list while the overlay is up, Jev can pick them, and the recorded session shows it did. Removing them from the criteria is a stronger guarantee than any instruction text. Legality is the host's job, not the model's.</div>
+
+<h3>③ → ④ Domain machines turn goals into enabled events</h3>
+<p>For a goal the host understands (today: Google Flights, web search boxes, Gmail Compose, allowlisted sites, app activation, exact commands), code computes the <b>next legal transitions</b> as events. Each event is already bound to the exact action and, where possible, a postcondition to check on the next snapshot.</p>
+<pre><code><span class="k">struct</span> VoiceControlEnabledEvent {
+  id: String                          <span class="c">// usually the target id</span>
+  criteria: String                    <span class="c">// the sentence Jev sees</span>
+  action: VoiceControlAction          <span class="c">// (operation, targetID, value, consequence) — fully compiled</span>
+  postcondition: VoiceControlPostcondition   <span class="c">// .selectedLabel("Zürich, Switzerland") | .unknown</span>
+}
+
+<span class="k">struct</span> VoiceControlMachineFrame { machine: "flights"; situation; state: "choose_suggestion"; events: [Event] }</code></pre>
+<pre><code><span class="c">// VoiceControlFlightPlan.frame(in: snapshot, history:) — obligations → events, in priority order</span>
+plan = parse("Find one-way flights from Zurich to London on September 20 2026")
+     = { origin: "Zurich", destination: "London", date: "September 20 2026", oneWay: true }
+
+nextAction:
+  "One way" control visible ∧ not yet pressed          → press it
+  a suggestion row uniquely matches the last typed value → press it
+  origin slot not satisfied ∧ "Where from" field exists   → setValue(origin)
+  overlay open                                             → key Escape   (or press "Where else?" if Escape already ran)
+  destination slot …                                       → setValue(destination)
+  a calendar day uniquely matches the date tokens          → press it
+  "Search flights" visible ∧ not yet transitioned          → press it
+  else                                                     → nil  (frame.state = "blocked")
+
+competingCitySuggestions:
+  after a verified setValue, ≥2 unfocused rows contain the typed value
+     → one event per row, criteria "After the host acts, &lt;label&gt; is the selected result."
+       postcondition .selectedLabel(label)</code></pre>
+<div class="grid g3">
+  <div class="card"><b>|events| = 1</b><br><span class="tag code">execute locally</span><br><span class="muted">No model call. This is most Flights steps.</span></div>
+  <div class="card"><b>|events| &gt; 1</b><br><span class="tag jev">one <code>outcome</code> Choice</span><br><span class="muted">Criteria = the events + <code>insufficient_evidence</code> + <code>clarify</code>. Nothing else is pickable.</span></div>
+  <div class="card"><b>|events| = 0</b><br><span class="tag jev">unconstrained Tier 3</span><br><span class="muted">Legality-filtered targets become the option list; keys are still host-owned.</span></div>
+</div>
+
+<h3>Worked example: the origin overlay, end to end</h3>
+<pre><code><span class="c">── ① AX facts (abridged)</span>
+AXStaticText "Zürich, Switzerland"        pressable  focused
+AXStaticText "Zurich Airport (ZRH)"       pressable
+AXStaticText "Zürich HB"                  pressable
+AXStaticText "Lake Zurich, Illinois"      pressable
+AXStaticText "Where else?"                pressable
+AXComboBox   "Where from?"  value "Zurich" settable
+AXButton     "Search flights"             pressable        <span class="c">← visible, but illegal in this situation</span>
+
+<span class="c">── ② targets</span>
+n:14 press          "Zürich, Switzerland"   isFocused
+n:15 press          "Zurich Airport (ZRH)"
+n:16 press          "Zürich HB"
+n:17 press          "Lake Zurich, Illinois"
+n:18 press          "Where else?"
+n:3  setValue,key   "Where from?"  value="Zurich"
+n:40 press          "Search flights"
+app:812 activateApp "Slack"          web:youtube press "YouTube"  …
+
+<span class="c">── ③ situation = suggestionPicker  (focused city row present)</span>
+offeredTargets = { n:14, n:15, n:16, n:17, n:18, focused }     <span class="c">n:40 Search, app:*, web:* removed</span>
+offeredKeys    = [ escape ]                                    <span class="c">return removed</span>
+
+<span class="c">── ④ events from FlightPlan</span>
+bestCitySuggestion("Zurich") → n:14 is focused and unique among city rows → |events| = 1
+   → <span class="hl">execute locally: press n:14</span>, postcondition .selectedLabel("Zürich, Switzerland")
+
+<span class="c">── ⑤ (only if n:14 had NOT been focused and 2+ rows matched) the Jev request would be:</span>
+criteria = { n:14: "After the host acts, Zürich, Switzerland is the selected result.",
+             n:16: "After the host acts, Zürich HB is the selected result.",
+             insufficient_evidence: "…", clarify: "…" }
+answer   = { choice: "n:14", probabilities: { n:14: .83, n:16: .11, insufficient_evidence: .04, clarify: .02 }, confidence: .78 }
+   → gate ≥ 0.5 → execute event n:14's pre-bound action → next snapshot checks postcondition</code></pre>
+
+<h3>Where the engineering goes</h3>
+<table>
+  <tr><th>Layer</th><th>PR #1104 files</th><th>Approx. share of the ~4,600 source lines</th></tr>
+  <tr><td>Perception → targets (①②)</td><td><code>NativeVoiceControlAdapter.observe</code>, helpers</td><td>~15%</td></tr>
+  <tr><td>Situation, legality, events, domain machines (③④)</td><td><code>VoiceControlMachine</code>, <code>VoiceControlFlightPlan</code>, <code>VoiceControlWebQuery</code>, <code>VoiceControlNamedPageAction</code>, <code>VoiceControlWebDestination</code>, <code>VoiceControlCommandRouter</code></td><td>~25%</td></tr>
+  <tr><td>Jev request/response shaping (⑤)</td><td><code>JevDecisionClient</code></td><td>~7% (of which the HTTP call is ~20 lines)</td></tr>
+  <tr><td>Policy, authority, budgets, correction, confirmation</td><td><code>VoiceControlTurnRunner</code>, consequence policy</td><td>~15%</td></tr>
+  <tr><td>Execution + verification + receipts</td><td><code>NativeVoiceControlAdapter.execute</code></td><td>~10%</td></tr>
+  <tr><td>Speech, panel, coordinator, traces, consent</td><td><code>VoiceControlCoordinator</code>, <code>VoiceControlSpeechSession</code>, <code>VoiceControlTraceStore</code>, …</td><td>~28%</td></tr>
+</table>
+<p>Roughly <b>half the code exists to build and constrain the option set and to verify what happened after picking from it</b>. The same is true of <code>typesafe-computer-use</code>: <code>perception.py</code> + <code>macos.py</code> + <code>actions.py</code> are ~70% of it; <code>decide.py</code> is 200 lines. This is the correct ratio for a System One design: the model is cheap and fast because the host did the work of making the question small and closed.</p>
+
+<div class="callout ok"><b>How the transplants fit this picture.</b> Items 1–2 improve stage ① (more and better facts, testable) and the loop's feedback (replay). Item 3 improves stage ⑤ for the case where no domain machine exists (fewer, disjoint heads). Item 4 adds a second fact source to stage ①. None of them change the doctrine that stages ②–④ are host code.</div>
+
+<!-- ============================================================ -->
+<h2 id="compare">5. Side by side</h2>
+<table>
+  <tr><th>Dimension</th><th>typesafe-computer-use</th><th>PR #1104</th><th>Better</th></tr>
+  <tr><td>Observation sources</td><td>Vision OCR + AX, merged; off-screen pressables</td><td>AX only, visible only</td><td>TCU</td></tr>
+  <tr><td>AX walk</td><td>Pure BFS over injected callables; 297 lines of fake-tree tests; 4,000 nodes / 0.6 s</td><td>DFS inlined in a 160-line <code>observe()</code>; untestable; 600–800 nodes / 2.0 s; ~15 IPC reads per node</td><td>TCU</td></tr>
+  <tr><td>Option list shape</td><td><code>kind</code> + one <code>item</code> head; region/role/date hints per option; mutually exclusive</td><td>Tier 2: one <code>outcome</code> head (good). Tier 3: <code>operation</code> + per-op target heads + per-target value heads (can be 30+ heads)</td><td>Tier 2 ours; Tier 3 TCU</td></tr>
+  <tr><td>Confidence gate</td><td><code>min(kind, item)</code> only when a target is named; recoverable heads excluded; 0.4</td><td>0.5 per head independently; 0.8 for consequence</td><td>TCU (principle)</td></tr>
+  <tr><td>Free text into fields</td><td>Writer LLM composes; Noul verifies; clear if &lt; 0.5</td><td>Exact spans of what the user said; rewrites only via consented Transforms with preview</td><td>Ours</td></tr>
+  <tr><td>URLs</td><td>Catalog + LLM-proposed https</td><td>Allowlist; Jev never sees <code>role=url</code></td><td>Ours</td></tr>
+  <tr><td>Verification</td><td>Text readback only; presses unverified</td><td>Fingerprint, window, foreground, readback, postconditions, transition evidence, 4 receipt states</td><td>Ours</td></tr>
+  <tr><td>Authority / stop</td><td>Ctrl-C, mouse corner, dry-run default</td><td>Revocable authority, consume-once, manual takeover, GUI mutation lease</td><td>Ours</td></tr>
+  <tr><td>Consequential actions</td><td>None (writer refuses passwords)</td><td>Pay / delete / send confirm; model cannot lower local evidence</td><td>Ours</td></tr>
+  <tr><td>Observability</td><td>Exact payload, every probability, per-phase timing mean/max, annotated capture, <code>--image</code> replay, dry-run</td><td>Wide event + per-stage durations; winning confidence only; no replay; no dry-run</td><td>TCU</td></tr>
+  <tr><td>Dates</td><td>Deterministic parser; "in N days" hints on items</td><td>Token match against calendar labels</td><td>TCU</td></tr>
+  <tr><td>Privacy</td><td>Screenshots saved to disk; final capture sent to Anthropic</td><td>No audio/screenshots/values leave the Mac or enter shareable traces; consent; Keychain</td><td>Ours</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="proposal">6. What we propose to change</h2>
+<p>Keep the doctrine (<em>code lists legal events; Jev chooses only when several are enabled; the host executes and verifies</em>). Keep every safety mechanism. Transplant four subsystems, in this order.</p>
+
+<div class="steps">
+<div class="card"><b>Observability and replay first</b> <span class="tag code">S</span><br>
+Record the full probability map per head and the offered keys in the local session log. Persist a <b>redacted snapshot fixture</b> per observation (ids, roles, labels, operations, focus; <em>no values</em>). Add <code>macparakeet-cli voice-control replay &lt;snapshot.json&gt; --goal "…"</code> that runs router + Jev and prints the compiled action or distribution without touching the screen. Add <code>--dry-run</code> ("would do: press 'Search flights' · actor local · route flight_plan"). Emit a per-turn timing line: <code>observe 0.41s  route 0.00s  jev 0.24s  execute 0.13s  verify 0.36s</code>.
+<div class="rec"><b>Why first:</b> every later change becomes measurable on saved snapshots instead of live Google Flights runs. The recorded overlay stall becomes a fixture.</div></div>
+
+<div class="card"><b>Pure AX walk over an injectable source</b> <span class="tag code">M</span><br>
+<pre><code><span class="k">struct</span> AXNodeFacts { role: String; label: String; frame: CGRect?; actions: Set&lt;String&gt; }
+<span class="k">protocol</span> AXTreeSource { <span class="k">func</span> children(of: Node) -&gt; [Node]; <span class="k">func</span> facts(of: Node) -&gt; AXNodeFacts }
+<span class="k">struct</span> AXTreeWalk { <span class="k">static func</span> run(root, source, display, caps) -&gt; (visible: [AXNode], offscreen: [AXNode], capped: Bool) }</code></pre>
+Port TCU's eight pruning rules and their tests (off-display subtrees, &lt; 4 pt slivers, closed <code>AXMenu</code>, nameless <code>AXGroup</code>, label inheritance from parent control / shallow <code>AXStaticText</code>, dedupe by role+label+frame, off-screen pressables collected separately, node/time caps reported). Read display bounds and the window frame once per observe, not per node. Read expensive attributes only for roles that use them. <code>NativeVoiceControlAdapter.observe()</code> becomes acquire → walk → <code>TargetBuilder</code> (our existing role/operation/secure/browser rules) → inject apps and destinations.
+<div class="rec"><b>Payoff:</b> the walk becomes unit-tested, faster, and gains off-screen controls ("click Note 900" without scrolling; AXPress does not need visibility).</div></div>
+
+<div class="card"><b>Lean, mutually exclusive Tier-3 request</b> <span class="tag code">M</span><br>
+<div class="grid g2">
+<div><b class="muted">Before</b>
+<pre><code>operation
+target_press · target_setValue · target_scroll · …
+value_n:3 · value_n:7 · … (one per editable, ≤24 × ≤250)
+consequence · direction · key</code></pre></div>
+<div><b class="muted">After</b>
+<pre><code>kind    { press | fill | scroll | key | activate | finished | none }
+target  { every legal target id + none }
+        <span class="c">// criteria: "button 'Search flights' (bottom-right, focused)"</span>
+value   { spans + none }  <span class="c">// only for the focused editable target;</span>
+                          <span class="c">// else a 2nd small request after kind == fill</span>
+key · direction</code></pre></div>
+</div>
+Gate on <code>min(kind, target)</code> when <code>kind</code> names a target. Drop the consequence-confidence prompt: local policy already decides pay/delete/send; the model head is advisory. Merge <code>select</code>→<code>press</code> and <code>insertText</code>→<code>fill</code> on the wire; the adapter picks the concrete operation from the target's capabilities. Factor one <code>send(state:questions:)</code> out of the two duplicated request blocks.
+<div class="rec"><b>Measure on the replay corpus:</b> payload bytes, latency, <code>contextTooLarge</code>/<code>invalidResponse</code> rate, clarify rate, before and after. Tier 2 (<code>outcome</code>) does not change.</div></div>
+
+<div class="card"><b>Local Vision OCR as a second source of targets <em>and state</em></b> <span class="tag code">L</span> <span class="tag ok" style="color:var(--green);border-color:#2b5c47">DECIDED</span><br>
+Frontmost-window crop, tile-diff cache, merge with AX by box overlap + text match (TCU's <code>merge_with_origins</code>). Two outputs: (a) OCR-only blocks become <code>role: "text"</code> targets with an adapter-private pixel centre; a press posts a marked click and is received as <code>unknown</code> unless transition evidence changes; AX-first press always. (b) Window-scoped OCR text, in reading order with date hints, feeds the snapshot <code>summary</code> so Jev and local matchers see prices, dates, status lines and result rows the app never labelled. Pixels never leave the Mac; no image persisted by default; OCR text is subject to the same consent and redaction as AX labels (see Q7).
+<div class="rec"><b>Why after item 2:</b> the merge needs clean AX items to merge into. Extends scope (terminals, Spotify, canvases, weak-AX apps, and richer state everywhere), so it carries the ADR-033 amendment.</div></div>
+</div>
+
+<p>Smaller items alongside: a deterministic <code>SpokenDateParser</code> (<code>NSDataDetector</code> + relative phrases) producing <code>dated 2026-09-20 (in 0 days)</code> hints on calendar targets; prioritised truncation instead of failing at 200 targets.</p>
+
+<div class="callout ok"><b>Not taking:</b> the writer LLM for field values or URLs; screenshot persistence or upload; the final-answer phase; classifier <code>done</code> as a stop signal; Python/pyobjc runtime.</div>
+
+<!-- ============================================================ -->
+<h2 id="questions">7. Open questions, with recommendations</h2>
+
+<div class="card q"><b>Q1. Land these on PR #1104 before merge, or merge and follow up?</b>
+<p class="muted">The PR is green on the pushed head. The worktree is two behavioural commits ahead plus an uncommitted docs consolidation (−4,600 lines).</p>
+<div class="rec"><b>Recommendation:</b> push the worktree commits and the consolidation, re-run CI, merge as the DEBUG experiment it claims to be. Land transplants as three follow-up PRs: (1) observability + replay, (2) AX walk, (3) Tier-3 request. Reason: each is independently reviewable and measurable, and #1104 is already 142 files.</div></div>
+
+<div class="card q"><b>Q2. Tier-3 <code>value</code>: one request with focused-only value, or always two requests when filling?</b>
+<p class="muted">Independent questions force speculation. Per-target value heads are exact but explode payload; a second request adds ~250 ms only when filling an unfocused field.</p>
+<div class="rec"><b>Recommendation:</b> one request with a <code>value</code> head only for the focused editable target (the common case after the router or a previous step focused it). If <code>kind == fill</code> and the target is not focused, one second request with a single <code>value</code> head. Never more than two round trips per step.</div></div>
+
+<div class="card q"><b>Q3. Do we adopt local OCR at all, given the "no OCR as primary grounder" stance?</b>
+<div class="rec"><b>Decided 2026-09-20 (owner): yes.</b> On-device OCR is in, and not only as a way to find clickable text. It is a second source of <em>state</em>: prices, dates, counts, status lines, list contents and result rows that AX often omits, truncates, or exposes as unlabeled static text. Two roles, both local:
+<ol style="margin:6px 0 0">
+  <li><b>Targets:</b> OCR blocks with no AX match become <code>role:"text"</code> pressable targets with a pixel centre; AX-first press, pixel click only as fallback; received as <code>unknown</code> unless transition evidence changes.</li>
+  <li><b>State:</b> OCR text within the frontmost window feeds the snapshot <code>summary</code> (bounded, reading order, TCU's date hints applied) so Tier 2/3 Jev questions and local matchers see what the user sees, not only what the app declared.</li>
+</ol>
+Sequence: after the walk refactor (item 2) so the box-overlap merge has clean AX items. Behind a DEBUG flag first. ADR-033 amendment: "AX first; on-device Vision OCR may add text-only targets and window-scoped screen text to the observation; pixel click only as fallback; OCR text goes to Jev only under the existing cloud-context consent; no image is persisted or transmitted by default." Open sub-question moved to Q7.</div></div>
+
+<div class="card q"><b>Q7. How much OCR text goes on the Jev wire, and how is it redacted?</b>
+<p class="muted">Follows from Q3. AX labels are already sent under consent; OCR widens that to everything visible in the window, including email bodies or document text the user did not mention.</p>
+<div class="rec"><b>Recommendation:</b> same rule as AX today, tightened for volume: cap OCR-derived <code>summary</code> at the existing 4,000 chars, crop to the frontmost window, drop lines inside secure or excluded elements' frames, run the existing secure-label word filter over OCR lines, and never include OCR text in shareable diagnostics (local session log only, values-class). Consider a per-app opt-out list (password managers already excluded). Measure Jev latency and clarify rate with and without OCR state on the replay corpus before making it default-on.</div></div>
+
+<div class="card q"><b>Q4. Should <code>Score</code> appear anywhere in the loop?</b>
+<p class="muted">Neither system uses Score for action selection; both use Choice over landings/items and TCU uses one Noul to verify a typed value.</p>
+<div class="rec"><b>Recommendation:</b> not for action selection. Choice over enabled events is the right primitive because options are mutually exclusive landings. Score becomes useful later for <em>ranking</em> (e.g., "which of these five flight results best matches 'cheapest nonstop morning'") where one Score per item on a shared rubric is what the primitive is for. Keep it out of the click loop.</div></div>
+
+<div class="card q"><b>Q5. Persist redacted snapshot fixtures with control labels on disk?</b>
+<p class="muted">Labels can be personal (email subjects, document titles). <code>latest.json</code> already stores labels locally; Copy diagnostics strips them.</p>
+<div class="rec"><b>Recommendation:</b> yes, local-only, same folder and 20-session retention as the existing session log, values omitted, never referenced by the shareable copy. Add a "Delete Voice Control logs" action in the panel so the user controls the retention explicitly. Replay from a fixture needs labels; without them the fixture is useless for the stalls we actually hit.</div></div>
+
+<div class="card q"><b>Q6. Off-screen presses: allow the host to press a control the user cannot see?</b>
+<p class="muted">TCU shows Notes rows, Dock items and scrolled-out links accept AXPress while invisible. It is powerful and slightly spooky.</p>
+<div class="rec"><b>Recommendation:</b> allow only for <em>explicitly named</em> local commands ("click Note 900", "open Downloads in the Dock") where the user said the label, with receipts postcondition-only (the pressed element becomes focused/selected, or transition evidence changes). Do not offer off-screen controls to Tier-3 Jev initially. Revisit once the timing line shows how often "scroll to find it" is the stall.</div></div>
+
+<p class="muted" style="margin-top:40px">Method: read every module of <code>typesafe-computer-use</code> at commit <code>cc7b506</code> and PR #1104's core Swift at pushed head <code>1ebe572b</code>, plus ADR-033, the contract, and the branch's in-progress architecture notes. No models, apps, or accessibility APIs were invoked. Latency and cost figures are quoted from each project's own notes. Jev was not used for any step of this review.</p>
+
+</main>
+</body>
+</html>

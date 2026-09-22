@@ -183,6 +183,32 @@ final class PromptInferenceSettingsTests: XCTestCase {
             ),
             requested: nil)
         XCTAssertNil(gatewayLuna.effectiveSettings)
+
+        let kimi = try PromptInferenceCapabilityResolver.resolve(
+            config: .moonshot(apiKey: "key"),
+            requested: nil)
+        XCTAssertNil(kimi.options.temperature)
+        XCTAssertNil(kimi.effectiveSettings)
+
+        let openRouterKimi = try PromptInferenceCapabilityResolver.resolve(
+            config: .openrouter(apiKey: "key", model: "moonshotai/kimi-k2.6"),
+            requested: PromptInferenceSettings(temperature: 0.7)
+        )
+        XCTAssertNil(openRouterKimi.options.temperature)
+        XCTAssertEqual(openRouterKimi.unsupportedSettings, [.temperature])
+
+        let deepSeek = try PromptInferenceCapabilityResolver.resolve(
+            config: .deepseek(apiKey: "key"),
+            requested: PromptInferenceSettings(temperature: 0.4, thinkingMode: .enabled)
+        )
+        XCTAssertEqual(deepSeek.options.temperature, 0.4)
+        XCTAssertEqual(deepSeek.options.thinkingMode, .enabled)
+        XCTAssertTrue(deepSeek.unsupportedSettings.isEmpty)
+
+        let deepSeekDefault = try PromptInferenceCapabilityResolver.resolve(
+            config: .deepseek(apiKey: "key"),
+            requested: nil)
+        XCTAssertEqual(deepSeekDefault.options.temperature, 0.7)
     }
 
     func testGemini3AutomaticSamplingOmitsOnlyTheInheritedApplicationBaseline() throws {

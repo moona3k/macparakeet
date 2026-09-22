@@ -80,6 +80,17 @@ public final class EngineSettingsViewModel {
     public var speechEngineSwitching = false
     public var speechEngineSwitchTarget: SpeechEnginePreference?
     public var speechEngineSwitchDetail: String?
+    /// True when the in-flight engine/model switch has outlived
+    /// `speechEngineSwitchStallTimeout`. The underlying Core ML compile is
+    /// still running; this flag only changes what Settings shows.
+    public var speechEngineSwitchStalled = false
+    /// True after **Use previous engine** while Core ML is still compiling.
+    public var speechEngineSwitchFinishingInBackground = false
+    public var abandonedSpeechEngineSwitchTarget: SpeechEnginePreference?
+    /// Injected so tests can prove the stalled UI with a loader that has not
+    /// returned yet. Production default matches Whisper's last prepare-watchdog
+    /// milestone (issue #952).
+    public var speechEngineSwitchStallTimeout: Duration = .seconds(300)
     public var pendingSpeechEngineSwitchConfirmation: SpeechEnginePreference?
     /// True while a Parakeet *build* swap is in flight, as opposed to
     /// an engine switch. Both set `speechEngineSwitchTarget = .parakeet`, so the
@@ -215,10 +226,22 @@ public final class EngineSettingsViewModel {
     private var isApplyingParakeetVariantState = false
     private var isApplyingNemotronVariantState = false
     private var modelStatusRefreshGeneration = 0
+    private var speechEngineSwitchGeneration = 0
+    private var speechEngineSwitchStallWatchdogTask: Task<Void, Never>?
+    private var speechEngineSwitchTask: Task<Void, Never>?
+    private var inFlightSpeechEngineSwitch: InFlightSpeechEngineSwitch?
+
+    private struct InFlightSpeechEngineSwitch {
+        let fromEngine: SpeechEnginePreference
+        let toEngine: SpeechEnginePreference
+        let wasCold: Bool
+        let operationContext: ObservabilityOperationContext
+    }
 
     public init(
         defaults: UserDefaults = .standard,
         parakeetModelVariantCached: @escaping @Sendable (ParakeetModelVariant) -> Bool = {
+            if $0 == .orukeet { return OrukeetModelStore.isInstalled }
             if $0.usesUnifiedEngine { return ParakeetUnifiedEngine.isModelCached() }
             guard let version = $0.asrModelVersion else { return false }
             return STTRuntime.isModelCached(version: version)
@@ -233,6 +256,7 @@ public final class EngineSettingsViewModel {
             CohereTranscribeEngine.hasModelCacheDirectory()
         },
         deleteParakeetModelOnDisk: @escaping @Sendable (ParakeetModelVariant) -> Bool = {
+            if $0 == .orukeet { return OrukeetModelStore.delete() }
             if $0.usesUnifiedEngine { return ParakeetUnifiedEngine.deleteModel() }
             guard let version = $0.asrModelVersion else { return false }
             return STTRuntime.deleteParakeetModel(version: version)
@@ -919,11 +943,72 @@ public final class EngineSettingsViewModel {
         transcriptionSpeechEnginePreference = speechEnginePreference
     }
 
+    /// Leaves a stalled engine switch without interrupting Core ML. Settings
+    /// returns to the previous engine immediately; the in-flight compile may
+    /// still run. Cooperative cancellation is marked so a late success cannot
+    /// persist the abandoned engine (issue #952).
+    public func leaveStalledSpeechEngineSwitch() {
+        guard speechEngineSwitching, speechEngineSwitchStalled else { return }
+        let inFlight = inFlightSpeechEngineSwitch
+        abandonedSpeechEngineSwitchTarget = inFlight?.toEngine ?? speechEngineSwitchTarget
+        speechEngineSwitchFinishingInBackground = true
+        speechEngineSwitchGeneration += 1
+        speechEngineSwitchStallWatchdogTask?.cancel()
+        speechEngineSwitchStallWatchdogTask = nil
+        inFlightSpeechEngineSwitch = nil
+        speechEngineSwitchTask?.cancel()
+        speechEngineSwitchTask = nil
+
+        if let inFlight {
+            Telemetry.send(.speechEngineSwitchOperation(
+                operationID: inFlight.operationContext.operationID,
+                operationContext: inFlight.operationContext,
+                fromEngine: inFlight.fromEngine,
+                toEngine: inFlight.toEngine,
+                outcome: .cancelled,
+                durationSeconds: Observability.durationSeconds(since: inFlight.operationContext.startedAt),
+                blockedReason: nil,
+                errorType: "stalled_load_left",
+                wasCold: inFlight.wasCold
+            ))
+        }
+
+        isApplyingSpeechEngineState = true
+        speechEnginePreference = SpeechEnginePreference.current(defaults: defaults)
+        isApplyingSpeechEngineState = false
+        syncInheritedFinalTranscriptionPreference()
+
+        speechEngineSwitching = false
+        speechEngineSwitchStalled = false
+        speechEngineSwitchTarget = nil
+        speechEngineSwitchDetail = nil
+        speechEngineSwitchAvailability = .switchInProgress
+    }
+
     private func applySpeechEngineChange(_ preference: SpeechEnginePreference) {
         speechEngineError = nil
         let previousPreference = SpeechEnginePreference.current(defaults: defaults)
         let operationContext = Observability.childOperationContext()
         let switchWasCold = SpeechEnginePreference.isColdSwitch(to: preference, defaults: defaults)
+
+        if speechEngineSwitchFinishingInBackground {
+            speechEngineError = Self.speechEngineSwitchUnavailableMessage(for: .switchInProgress)
+            Telemetry.send(.speechEngineSwitchOperation(
+                operationID: operationContext.operationID,
+                operationContext: operationContext,
+                fromEngine: previousPreference,
+                toEngine: preference,
+                outcome: .unavailable,
+                durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
+                blockedReason: .switchInProgress,
+                errorType: "switch_in_progress",
+                wasCold: switchWasCold
+            ))
+            isApplyingSpeechEngineState = true
+            speechEnginePreference = previousPreference
+            isApplyingSpeechEngineState = false
+            return
+        }
 
         if preference == .nemotron && !isNemotronModelAvailable {
             speechEngineError = "Download the Nemotron model before switching engines."
@@ -1021,25 +1106,31 @@ public final class EngineSettingsViewModel {
             return
         }
 
-        speechEngineSwitching = true
-        speechEngineSwitchTarget = preference
-        speechEngineSwitchDetail = Self.initialSpeechEngineSwitchDetail(
-            for: preference,
-            nemotronVariant: nemotronModelVariant
+        let generation = beginSpeechEngineSwitch(
+            target: preference,
+            detail: Self.initialSpeechEngineSwitchDetail(
+                for: preference,
+                nemotronVariant: nemotronModelVariant
+            ),
+            fromEngine: previousPreference,
+            toEngine: preference,
+            wasCold: switchWasCold,
+            operationContext: operationContext
         )
-        Task { @MainActor [weak self] in
+        speechEngineSwitchTask = Task { @MainActor [weak self] in
             guard let self else { return }
             // `defer` fires even on cancellation or unexpected early exit, so
-            // the segmented Picker can never get pinned in the disabled
-            // "Switching..." state.
+            // the picker cannot stay pinned in "Switching...". Generation
+            // ignores a late Core ML completion after leave (issue #952).
+            // Model status still refreshes so a finished compile can mark
+            // Whisper optimized even if the user already left.
             defer {
-                self.speechEngineSwitching = false
-                self.speechEngineSwitchTarget = nil
-                self.speechEngineSwitchDetail = nil
                 self.refreshModelStatus()
+                self.finishSpeechEngineSwitchUI(generation: generation)
             }
             let availability = await self.refreshSpeechEngineSwitchAvailabilityNow()
             guard availability == .available else {
+                guard self.isCurrentSpeechEngineSwitch(generation) else { return }
                 let blockedReason = Self.telemetrySpeechEngineSwitchBlockedReason(for: availability)
                 self.speechEngineError = Self.speechEngineSwitchUnavailableMessage(for: availability)
                 Telemetry.send(.speechEngineSwitchOperation(
@@ -1063,10 +1154,13 @@ public final class EngineSettingsViewModel {
                 try await Observability.withOperationContext(operationContext) {
                     try await speechEngineSwitcher.setSpeechEngine(preference) { [weak self] message in
                         Task { @MainActor [weak self] in
-                            self?.speechEngineSwitchDetail = message
+                            guard let self, self.isCurrentSpeechEngineSwitch(generation) else { return }
+                            guard !self.speechEngineSwitchStalled else { return }
+                            self.speechEngineSwitchDetail = message
                         }
                     }
                 }
+                guard self.isCurrentSpeechEngineSwitch(generation) else { return }
                 preference.save(to: self.defaults)
                 self.syncInheritedFinalTranscriptionPreference()
                 self.transcriptionSpeechEngineError = nil
@@ -1082,6 +1176,7 @@ public final class EngineSettingsViewModel {
                     wasCold: switchWasCold
                 ))
             } catch is CancellationError {
+                guard self.isCurrentSpeechEngineSwitch(generation) else { return }
                 Telemetry.send(.speechEngineSwitchOperation(
                     operationID: operationContext.operationID,
                     operationContext: operationContext,
@@ -1098,8 +1193,13 @@ public final class EngineSettingsViewModel {
                 self.isApplyingSpeechEngineState = false
                 self.syncInheritedFinalTranscriptionPreference()
             } catch {
+                guard self.isCurrentSpeechEngineSwitch(generation) else { return }
                 let errorType = TelemetryErrorClassifier.classify(error)
-                self.speechEngineError = error.localizedDescription
+                if Self.telemetrySpeechEngineSwitchBlockedReason(for: error) == .engineBusy {
+                    self.speechEngineError = Self.speechEngineSwitchUnavailableMessage(for: .switchInProgress)
+                } else {
+                    self.speechEngineError = error.localizedDescription
+                }
                 Telemetry.send(.speechEngineSwitchOperation(
                     operationID: operationContext.operationID,
                     operationContext: operationContext,
@@ -1117,6 +1217,84 @@ public final class EngineSettingsViewModel {
                 self.syncInheritedFinalTranscriptionPreference()
             }
         }
+    }
+
+    @discardableResult
+    private func beginSpeechEngineSwitch(
+        target: SpeechEnginePreference,
+        detail: String,
+        fromEngine: SpeechEnginePreference,
+        toEngine: SpeechEnginePreference,
+        wasCold: Bool,
+        operationContext: ObservabilityOperationContext
+    ) -> Int {
+        speechEngineSwitchGeneration += 1
+        let generation = speechEngineSwitchGeneration
+        speechEngineSwitching = true
+        speechEngineSwitchStalled = false
+        speechEngineSwitchTarget = target
+        speechEngineSwitchDetail = detail
+        inFlightSpeechEngineSwitch = InFlightSpeechEngineSwitch(
+            fromEngine: fromEngine,
+            toEngine: toEngine,
+            wasCold: wasCold,
+            operationContext: operationContext
+        )
+        startSpeechEngineSwitchStallWatchdog(generation: generation)
+        return generation
+    }
+
+    private func isCurrentSpeechEngineSwitch(_ generation: Int) -> Bool {
+        generation == speechEngineSwitchGeneration
+    }
+
+    private func finishSpeechEngineSwitchUI(generation: Int) {
+        guard isCurrentSpeechEngineSwitch(generation) else {
+            clearAbandonedSpeechEngineSwitchIfNeeded()
+            return
+        }
+        speechEngineSwitchStallWatchdogTask?.cancel()
+        speechEngineSwitchStallWatchdogTask = nil
+        speechEngineSwitchTask = nil
+        inFlightSpeechEngineSwitch = nil
+        speechEngineSwitching = false
+        speechEngineSwitchStalled = false
+        speechEngineSwitchFinishingInBackground = false
+        abandonedSpeechEngineSwitchTarget = nil
+        speechEngineSwitchTarget = nil
+        speechEngineSwitchDetail = nil
+    }
+
+    private func clearAbandonedSpeechEngineSwitchIfNeeded() {
+        guard speechEngineSwitchFinishingInBackground else { return }
+        speechEngineSwitchFinishingInBackground = false
+        abandonedSpeechEngineSwitchTarget = nil
+        Task { @MainActor [weak self] in
+            _ = await self?.refreshSpeechEngineSwitchAvailabilityNow()
+        }
+    }
+
+    private func startSpeechEngineSwitchStallWatchdog(generation: Int) {
+        speechEngineSwitchStallWatchdogTask?.cancel()
+        let stallTimeout = speechEngineSwitchStallTimeout
+        speechEngineSwitchStallWatchdogTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: stallTimeout)
+            guard !Task.isCancelled, let self else { return }
+            guard self.isCurrentSpeechEngineSwitch(generation), self.speechEngineSwitching else { return }
+            self.speechEngineSwitchStalled = true
+            let target = self.speechEngineSwitchTarget ?? self.speechEnginePreference
+            self.speechEngineSwitchDetail = Self.stalledSpeechEngineSwitchDetail(for: target)
+        }
+    }
+
+    public static func stalledSpeechEngineSwitchDetail(for engine: SpeechEnginePreference) -> String {
+        "\(engine.displayName) has been preparing for several minutes and cannot be interrupted. You can keep waiting, or return to your previous engine. Speech stays paused until this finishes. Relaunching MacParakeet does not always recover a stuck compiler."
+    }
+
+    public static func finishingAbandonedSpeechEngineSwitchDetail(
+        for engine: SpeechEnginePreference
+    ) -> String {
+        "\(engine.displayName) is still compiling in the background and cannot be interrupted. Speech stays paused until that finishes. Settings is back on your previous engine. Relaunching MacParakeet does not always recover a stuck compiler."
     }
 
     /// Applies a Parakeet variant toggle (`v3`, `v2`, or `unified`). Mirrors

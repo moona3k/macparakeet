@@ -16,11 +16,13 @@ Raw STT Text → Filler Removal → Custom Words → Trailing Action Extraction 
 
 ### Step 1: Filler Removal
 
-Removes only always-safe hesitation sounds:
+Removes hesitation sounds that are safe for English Clean processing:
 
-- "uh", "umm", "uhh"
+- Always: "uh", "umm", "uhh"
+- By default: "um" (English hesitation). Turn **Also remove “um”** off in
+  Vocabulary if you dictate Portuguese or German, where `um` is a real word.
 
-Implementation uses `NSRegularExpression` with word boundaries (`\b`) to avoid partial matches. Portuguese and German `um`, words like "like", "so", "right", and phrases like "you know" are intentionally not stripped by default because they can carry meaning.
+Implementation uses `NSRegularExpression` with word boundaries (`\b`) to avoid partial matches. Words like "like", "so", "right", and phrases like "you know" are intentionally not stripped because they can carry meaning.
 
 ### Step 2: Custom Word Replacements
 
@@ -97,6 +99,10 @@ Clean dictation also has an insertion-style preference. Sentence style keeps
 the historical sentence-shaped output. Inline style keeps the same deterministic
 pipeline but shapes the final output for selected-text replacement, search
 fields, forms, terminal commands, and hybrid typing.
+
+Clean filler removal includes standalone `um` by default (English hesitation).
+Portuguese and German speakers can turn **Also remove “um”** off in Vocabulary
+so counting words and prepositions stay in the transcript.
 
 ---
 

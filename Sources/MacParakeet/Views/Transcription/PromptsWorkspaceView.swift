@@ -40,7 +40,8 @@ struct PromptsWorkspaceView: View {
             case .transcriptPrompts:
                 PromptLibraryView(
                     viewModel: promptsViewModel,
-                    showsDismissButton: false
+                    showsDismissButton: false,
+                    isEmbedded: true
                 )
             case .liveAsk:
                 AskPromptsSheet(

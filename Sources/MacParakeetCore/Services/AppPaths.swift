@@ -126,6 +126,11 @@ public enum AppPaths {
         return path + "/Logs/MacParakeet"
     }
 
+    /// Voice Control session traces. Stays on this Mac; never uploaded.
+    public static var voiceControlLogsDir: String {
+        "\(logsDir)/voice-control"
+    }
+
     /// Directory for managed helper binaries (e.g. yt-dlp).
     public static var binDir: String {
         "\(appSupportDir)/bin"
