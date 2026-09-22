@@ -1167,6 +1167,14 @@ struct SettingsView: View {
                 Divider()
 
                 settingsToggleRow(
+                    title: "Escape cancels dictation",
+                    detail: "Press Escape to cancel a live dictation. Turn off if other apps need Escape while you dictate. On by default.",
+                    isOn: $viewModel.escapeCancelsDictation
+                )
+
+                Divider()
+
+                settingsToggleRow(
                     title: "Preserve discarded dictations",
                     detail: "When you cancel or the undo window expires, keep the transcript in History instead of deleting it. Audio follows Save audio recordings. Off by default. Requires Save dictation history. Nothing is pasted.",
                     isOn: $viewModel.preserveDiscardedDictations

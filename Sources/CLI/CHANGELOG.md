@@ -95,6 +95,9 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   default off). When on, dictation plays short cues after capture is live and
   after the microphone closes. Cancel, failed starts, and stops that never
   closed a usable capture stay silent.
+- `config get|set|list` includes `escape-cancels-dictation` (`on`/`off`,
+  default on). When off, Escape is left for other apps and does not cancel
+  a live dictation.
 
 ## [4.5.0] — 2026-09-20
 

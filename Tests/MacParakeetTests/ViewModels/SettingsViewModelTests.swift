@@ -217,6 +217,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.silenceDelay, 2.0, "silenceDelay should default to 2.0")
         XCTAssertFalse(viewModel.pauseMediaDuringDictation, "pauseMediaDuringDictation should default to false")
         XCTAssertFalse(viewModel.playDictationCaptureSounds, "dictation capture sounds should default to false")
+        XCTAssertTrue(viewModel.escapeCancelsDictation, "escapeCancelsDictation should default to true")
         XCTAssertFalse(viewModel.preserveDiscardedDictations, "preserve discarded dictations should default to false")
         XCTAssertFalse(viewModel.instantDictationEnabled, "instantDictationEnabled should default to false")
         XCTAssertTrue(viewModel.showLiveDictationPreview, "showLiveDictationPreview should default to true")
@@ -287,6 +288,7 @@ final class SettingsViewModelTests: XCTestCase {
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.meetingAutoStopEnabledKey)
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey)
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.playDictationCaptureSoundsKey)
+        testDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.escapeCancelsDictationKey)
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.preserveDiscardedDictationsKey)
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.instantDictationEnabledKey)
         testDefaults.set(false, forKey: UserDefaultsAppRuntimePreferences.showLiveDictationPreviewKey)
@@ -321,6 +323,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(vm.meetingAutoStopEnabled)
         XCTAssertTrue(vm.pauseMediaDuringDictation)
         XCTAssertTrue(vm.playDictationCaptureSounds)
+        XCTAssertFalse(vm.escapeCancelsDictation)
         XCTAssertTrue(vm.preserveDiscardedDictations)
         XCTAssertTrue(vm.instantDictationEnabled)
         XCTAssertFalse(vm.showLiveDictationPreview)
@@ -475,6 +478,25 @@ final class SettingsViewModelTests: XCTestCase {
             return setting
         }
         XCTAssertEqual(settings, [.playDictationCaptureSounds, .playDictationCaptureSounds])
+    }
+
+    func testEscapeCancelsDictationPersistsAndEmitsTelemetry() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        viewModel.escapeCancelsDictation = false
+
+        XCTAssertFalse(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.escapeCancelsDictationKey))
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences.escapeCancelsDictation(defaults: testDefaults))
+
+        viewModel.escapeCancelsDictation = true
+
+        XCTAssertTrue(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.escapeCancelsDictationKey))
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting, _) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.escapeCancelsDictation, .escapeCancelsDictation])
     }
 
     func testPreserveDiscardedDictationsPersistsAndEmitsTelemetry() {

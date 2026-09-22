@@ -195,6 +195,66 @@ final class JevLeanRequestTests: XCTestCase {
         XCTAssertEqual(JevDecisionClient.prioritised(targets, limit: 10).dropped, 0)
     }
 
+    func testPrioritisedDuplicateIDsDoNotTrap() {
+        var targets = (0..<200).map {
+            VoiceControlTarget(id: "n:\($0)", label: "L\($0)", role: "AXButton", operations: [.press])
+        }
+        targets.append(VoiceControlTarget(id: "n:0", label: "dup", role: "AXButton", operations: [.press]))
+        let kept = JevDecisionClient.prioritised(targets, limit: 200)
+        XCTAssertEqual(kept.targets.count, 200)
+        XCTAssertEqual(Set(kept.targets.map(\.id)).count, 200)
+    }
+
+    func testDuplicateTargetIDsFailBeforeARequest() async {
+        let requests = Requests()
+        let snapshot = VoiceControlSnapshot(
+            contextID: "ax:dup", applicationName: "Fixture",
+            targets: [
+                VoiceControlTarget(id: "same", label: "One", role: "AXButton", operations: [.press]),
+                VoiceControlTarget(id: "same", label: "Two", role: "AXButton", operations: [.press]),
+            ])
+        do {
+            _ = try await client(choices: ["kind": "press", "target": "same"], requests: requests).decide(
+                goal: "open it", snapshot: snapshot, history: [])
+            XCTFail("duplicate ids must not reach Jev")
+        } catch is JevDecisionError {
+        } catch {
+            XCTFail("unexpected \(error)")
+        }
+        let requestCount = await requests.bodies.count
+        XCTAssertEqual(requestCount, 0)
+    }
+
+    func testIndistinguishableControlsClarify() async throws {
+        let twins = VoiceControlSnapshot(
+            contextID: "ax:twins", applicationName: "Fixture",
+            targets: [
+                VoiceControlTarget(
+                    id: "a", label: "Details", role: "AXButton", operations: [.press], region: "top-left"),
+                VoiceControlTarget(
+                    id: "b", label: "Details", role: "AXButton", operations: [.press], region: "top-left"),
+            ])
+        let decision = try await client(choices: ["kind": "press", "target": "a", "consequence": "ordinary"]).decide(
+            goal: "open details", snapshot: twins, history: [])
+        guard case .clarify(let question) = decision else { return XCTFail("\(decision)") }
+        XCTAssertTrue(question.contains("indistinguishable"))
+    }
+
+    func testDistinctRegionsStillSelectATwin() async throws {
+        let twins = VoiceControlSnapshot(
+            contextID: "ax:twins", applicationName: "Fixture",
+            targets: [
+                VoiceControlTarget(
+                    id: "a", label: "Details", role: "AXButton", operations: [.press], region: "top-left"),
+                VoiceControlTarget(
+                    id: "b", label: "Details", role: "AXButton", operations: [.press], region: "bottom-right"),
+            ])
+        let decision = try await client(choices: ["kind": "press", "target": "b", "consequence": "ordinary"]).decide(
+            goal: "open details", snapshot: twins, history: [])
+        guard case .action(let action) = decision else { return XCTFail("\(decision)") }
+        XCTAssertEqual(action.targetID, "b")
+    }
+
     func testNoOperableTargetsClarifiesWithoutARequest() async throws {
         let requests = Requests()
         let empty = VoiceControlSnapshot(
@@ -209,24 +269,33 @@ final class JevLeanRequestTests: XCTestCase {
 
     func testRegionHintsNameTheGridCellAndTellTwinsApart() async throws {
         let window = CGRect(x: 100, y: 50, width: 900, height: 600)
-        XCTAssertEqual(VoiceControlTarget.region(of: CGRect(x: 110, y: 60, width: 40, height: 20), in: window), "top-left")
-        XCTAssertEqual(VoiceControlTarget.region(of: CGRect(x: 530, y: 330, width: 40, height: 20), in: window), "middle-center")
-        XCTAssertEqual(VoiceControlTarget.region(of: CGRect(x: 950, y: 620, width: 40, height: 20), in: window), "bottom-right")
+        XCTAssertEqual(
+            VoiceControlTarget.region(of: CGRect(x: 110, y: 60, width: 40, height: 20), in: window), "top-left")
+        XCTAssertEqual(
+            VoiceControlTarget.region(of: CGRect(x: 530, y: 330, width: 40, height: 20), in: window), "middle-center")
+        XCTAssertEqual(
+            VoiceControlTarget.region(of: CGRect(x: 950, y: 620, width: 40, height: 20), in: window), "bottom-right")
         XCTAssertNil(VoiceControlTarget.region(of: nil, in: window))
         XCTAssertNil(VoiceControlTarget.region(of: .zero, in: nil))
         let twins = VoiceControlSnapshot(
             contextID: "ax:9", applicationName: "Mail",
             targets: [
-                VoiceControlTarget(id: "n:1", label: "Delete", role: "AXButton", operations: [.press], region: "top-left"),
-                VoiceControlTarget(id: "n:2", label: "Delete", role: "AXButton", operations: [.press], region: "bottom-right"),
+                VoiceControlTarget(
+                    id: "n:1", label: "Delete", role: "AXButton", operations: [.press], region: "top-left"),
+                VoiceControlTarget(
+                    id: "n:2", label: "Delete", role: "AXButton", operations: [.press], region: "bottom-right"),
             ])
         let requests = Requests()
-        _ = try await client(choices: ["kind": "finished"], requests: requests).decide(goal: "delete", snapshot: twins, history: [])
+        _ = try await client(choices: ["kind": "finished"], requests: requests).decide(
+            goal: "delete", snapshot: twins, history: [])
         let bodies = await requests.bodies
-        let criteria = try XCTUnwrap((bodies.first?["questions"] as? [String: [String: Any]])?["target"]?["criteria"] as? [String: String])
+        let criteria = try XCTUnwrap(
+            (bodies.first?["questions"] as? [String: [String: Any]])?["target"]?["criteria"] as? [String: String])
         XCTAssertEqual(criteria["n:1"], "button 'Delete' (top-left)")
         XCTAssertEqual(criteria["n:2"], "button 'Delete' (bottom-right)")
-        let wire = try XCTUnwrap(((bodies.first?["state"] as? [String: Any])?["observation"] as? [String: Any])?["targets"] as? [[String: Any]])
+        let wire = try XCTUnwrap(
+            ((bodies.first?["state"] as? [String: Any])?["observation"] as? [String: Any])?["targets"]
+                as? [[String: Any]])
         XCTAssertEqual(wire.first?["region"] as? String, "top-left")
     }
 
