@@ -1,0 +1,39 @@
+integrations/README.md
+  s_a5c5adb13167fb::t_fd49edd62e289c 288-293
+docs/cli-testing.md
+  s_a5c5adb13167fb::t_f18969d2a344d3 535
+  s_a5c5adb13167fb::t_6cb8ae6b231589 133-142
+  s_a5c5adb13167fb::t_aacc616ebfb51e 340-341
+  s_a5c5adb13167fb::t_b4f82d6140c57c 352-354
+spec/06-stt-engine.md
+  s_a5c5adb13167fb::t_144c5ebfaf81dc 37,39-42
+  s_a5c5adb13167fb::t_a6f217c4ad7ceb 60
+  s_a5c5adb13167fb::t_320f9e950499e2 26,29-30
+  s_a5c5adb13167fb::t_1fb96b114da652 5
+Sources/CLI/CHANGELOG.md
+  s_a5c5adb13167fb::t_ca71e4afe0b67e 94-101
+spec/adr/001-parakeet-stt.md
+  s_a5c5adb13167fb::t_17a4e991bfab96 17
+  s_a5c5adb13167fb::t_eea44c854d2fe5 267-278
+  s_a5c5adb13167fb::t_f6c57dfd53cf7c 282
+spec/contracts/cli-json-v1.md
+  s_a5c5adb13167fb::t_85f1521228165c 438-441
+spec/README.md
+  s_a5c5adb13167fb::t_011d592069ee4a 328-329
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4c30fd1a0bed2c775c01a6eb30b1adcfd208b526",
+  "prompts": {},
+  "sessions": {
+    "s_a5c5adb13167fb": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "780dd43a-7aac-4de5-a206-7e6112e487dd",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
