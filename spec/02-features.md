@@ -186,8 +186,9 @@ Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migra
   pre-held non-Fn modifier or ordinary physical key. A latched Caps Lock state
   alone is allowed because it does not prove the physical key remains held;
   an observed Caps Lock transition still cancels. While Fn is held, every
-  non-Fn key-down/key-up (including Escape) or modifier transition cancels the
-  gesture. Those transitions also invalidate an outstanding second-tap window,
+  non-Fn key-down/key-up or modifier transition cancels the gesture. Escape
+  does the same unless Escape cancels dictation is off and a take is already
+  live. Those transitions also invalidate an outstanding second-tap window,
   including a rejected contaminated Fn admission. Tap-disable recovery
   detects non-Fn keys and modifiers that remain held, plus a Caps Lock latch
   delta from the last delivered modifier snapshot. A stable pre-latched Caps
@@ -209,7 +210,7 @@ Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migra
 - Dedicated push-to-talk key-down: schedule only the startup debounce, then start hold-to-talk.
 - Duplicate or overlapping dictation shortcuts: exact duplicate triggers are allowed and use the shared hold/double-tap gesture model; overlapping but non-identical assignments are rejected in Settings and reported at runtime instead of creating a hidden combined gesture.
 - On key-up: dedicated push-to-talk releases after startup debounce stop and process.
-- Escape is permanently reserved for cancel-dictation and cannot be assigned as hotkey
+- Escape cannot be assigned as a hotkey. It cancels a live dictation by default (`escapeCancelsDictation`). Off leaves Escape for the front app during a live take. A pending gesture that has not started a take still clears.
 - Requires Accessibility permission (prompted on first activation).
 - Stop orchestration is state-driven (proceed, defer-until-recording, reject-not-recording) to avoid first-start races when stop arrives before `startRecording()` fully transitions to `.recording`.
 - Duplicate stop requests are ignored while a stop/cancel/undo overlay action is already in-flight (idempotent stop behavior).
@@ -233,7 +234,7 @@ Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migra
 │ 4. User stops recording:                                         │
 │    - Release the push-to-talk shortcut, OR                       │
 │    - Tap the hands-free shortcut again, OR                       │
-│    - Press Escape (soft cancel with undo window), OR             │
+│    - Press Escape (soft cancel with undo window, default on), OR │
 │    - Silence auto-stop (2s default, if enabled in settings)      │
 │    - If stop is requested while startup is in-flight, stop is     │
 │      deferred and executed immediately once recording is active    │
@@ -288,7 +289,8 @@ paste. A user key or click flushes remainder before the user event is
 delivered. ⌘Z may undo in pieces. See issue #449.
 
 **Soft cancel (Esc):**
-- Pressing Escape during recording triggers soft cancel
+- With Escape cancels dictation on (the default), pressing Escape during recording triggers soft cancel
+- Turning it off leaves Escape for other apps during a live take. Pending gestures that have not started a take still clear, and Escape still dismisses an idle overlay.
 - 5-second undo window: overlay shows countdown ring + Undo button
 - During undo window, dictation shortcuts are blocked (prevents accidental re-activation)
 - Audio buffer preserved until countdown expires or user confirms discard
@@ -382,7 +384,7 @@ Space is always reserved for the tooltip (opacity toggle, not conditional render
 - [x] Hover tooltips display correctly on non-activating panel
 - [ ] Parakeet transcribes with <500ms end-to-end latency for short dictations
 - [x] Text auto-pastes into active app, clipboard restored afterward
-- [x] Esc triggers soft cancel with 5-second undo window
+- [x] Esc triggers soft cancel with 5-second undo window (optional via `escapeCancelsDictation`, default on)
 - [x] Undo during cancel window resumes processing
 - [x] Accessibility permission prompted gracefully on first use
 - [x] Audio saved to disk (if storage enabled in settings)
@@ -2223,6 +2225,7 @@ surface against the [canonical status table](README.md#release-channels-and-feat
 | Split and transcribe | User-approved cuts create independently owned saved meetings while preserving the original; sequential transcription and enabled completion can continue or resume from durable receipts in the app and public CLI. | [Split contract](contracts/meeting-splitting.md) |
 | Live transcription toggle | "Live transcription during recording" in Meeting Recording settings (`meetingLiveTranscriptionEnabled`, default on). Off skips the live STT pass entirely — recording is unaffected, and the final transcript still runs a full post-stop STT pass over the saved audio, same as when an engine can't support live preview at all. The Transcript empty-state seed-of-life sits still and faded while preview is off; it does not spin. | [ADR-014 §9](adr/014-meeting-recording.md), [UI patterns](04-ui-patterns.md#meeting-recording-panel-v06) |
 | Start meetings muted | Default-off Meeting Recording setting (`startMeetingsMuted`). While on, every microphone-capturing meeting starts with the mic off until the setting is turned off; unmute from the live panel. System-audio-only capture ignores it. | [F49](02-features.md#f49-start-meetings-muted), [ADR-014 §12](adr/014-meeting-recording.md) |
+| Escape cancels dictation | Default-on Dictation setting (`escapeCancelsDictation`). Off leaves Escape for other apps and does not cancel a live dictation. Pending gestures that have not started a take still clear. | [F1](02-features.md#f1-system-wide-dictation) |
 | Preserve discarded dictations | Default-off Dictation setting (`preserveDiscardedDictations`). Cancel and undo-window expiry transcribe into History as `cancelled` instead of deleting. Requires Save dictation history. Nothing is pasted, and menu-bar Paste Last / Recent Dictations stay completed-only. Voice stats still count only completed takes. | [F1](02-features.md#f1-system-wide-dictation) |
 | Skip-microphone onboarding | First-run Microphone step stays visible, but Continue is not gated on grant. File-only users can skip it. Dictation and mic-backed meetings still request access on first use. | [ADR-005](adr/005-onboarding-first-run.md) |
 | AI Formatter routing | New installs leave “Use for transcripts” and “Use for dictation” off. Each surface has its own prompt. Inherited transcript-on stays on. | [F8](02-features.md#f8-ai-formatter) |

@@ -22,9 +22,12 @@ public struct VoiceControlInboxCommand: Equatable, Sendable {
             let text = (json["text"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             if (action == .submit || action == .revise) && text.isEmpty { return nil }
             let activate = (json["activate"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let dryRun = json["dryRun"] as? Bool ?? false
+            // A dry run cannot also activate an app or consume a live confirmation.
+            guard !dryRun || (action == .submit && (activate?.isEmpty != false)) else { return nil }
             return VoiceControlInboxCommand(
                 action: action, text: text, activate: activate?.isEmpty == false ? activate : nil,
-                dryRun: json["dryRun"] as? Bool ?? false)
+                dryRun: dryRun)
         }
         return VoiceControlInboxCommand(action: .submit, text: trimmed, activate: nil)
     }
