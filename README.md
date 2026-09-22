@@ -55,7 +55,7 @@
 
 ---
 
-MacParakeet combines system-wide dictation, file/media transcription, and meeting recording in one local-first app, with optional selected-text Transforms and agent automation through `macparakeet-cli`. Parakeet v3 is the standard-path local speech engine; locale-aware first-run setup selects WhisperKit instead when the Mac has no preferred English language and prefers Korean, Japanese, Chinese, or Cantonese. Parakeet v2/Unified, Nemotron Beta, Cohere Transcribe, and WhisperKit remain selectable local choices for different language, latency, timestamp, and accuracy needs. Version 0.8.3 is the current stable DMG: meeting import and split, timed transcript corrections, live transcription during recording, independent capture-source startup, Seed of Life library covers when a recording has no thumbnail, and bundled CLI 4.2.0. All speech recognition happens on your Mac; networked AI features are separate and opt-in.
+MacParakeet combines system-wide dictation, file/media transcription, and meeting recording in one local-first app, with optional selected-text Transforms and agent automation through `macparakeet-cli`. Parakeet v3 is the standard-path local speech engine; locale-aware first-run setup selects WhisperKit instead when the Mac has no preferred English language and prefers Korean, Japanese, Chinese, or Cantonese. Parakeet v2/Unified, Nemotron Beta, Cohere Transcribe, and WhisperKit remain selectable local choices for different language, latency, timestamp, and accuracy needs. Version 0.8.7 is the current stable DMG: hold-to-talk works again, Fn works with Caps Lock on, skip the microphone during first-run if you only transcribe files, keep AI Formatter off unless you turn it on (separate dictation and transcript prompts), optionally type finished dictation at the caret, and connect Moonshot, DeepSeek, Qwen, Z.AI, or MiniMax. Bundled CLI is 4.4.0. All speech recognition happens on your Mac; networked AI features are separate and opt-in.
 
 ## Release status
 
@@ -63,8 +63,8 @@ The [notarized DMG](https://downloads.macparakeet.com/MacParakeet.dmg) is the st
 
 | Channel | Status | Includes |
 |---------|--------|----------|
-| Stable DMG `0.8.3` | Recommended for normal use | Dictation, file/video/media URL and podcast transcription, meeting recording with selectable mic/system capture, cleaned-mic finalization, independent source startup, and audio-retention controls, meeting calendar reminders and opt-in auto-start/auto-stop, per-event calendar skip, Microsoft 365/Exchange calendar setup, meeting import and split, live transcription during recording (default on), timed transcript corrections, isolated speaker-assignment smoothing, Seed of Life library covers when a recording has no thumbnail, System Default microphone routing, separate live/final speech-engine routes, bounded meeting-capture lifecycle handling, Transforms, VAD-guided meeting live-preview chunking, Parakeet v3/v2/Unified model selection, optional Nemotron Beta, Cohere, and WhisperKit, bundled CLI 4.2.0, exports, vocabulary, AI features |
-| Development source (this revision) | Unreleased; not the stable download | Dictation e2e paste timing telemetry (`capture_ms` / `transcribe_ms` / `dictation_insert`) and formatter `llm_operation.feature=formatter` from [#1059](https://github.com/moona3k/macparakeet/pull/1059); that instrumentation is not in the 0.8.3 DMG. See [Sources/CLI/CHANGELOG.md](Sources/CLI/CHANGELOG.md) for CLI version history, including the 4.0.0 major bump because `export --stdout --format txt` now matches TXT file export |
+| Stable DMG `0.8.7` | Recommended for normal use | Hold-to-talk restored when the microphone is already granted, Fn admitted with Caps Lock latched, hold-to-talk overlay keeps 16pt while cancelled/Undo is 7pt, dictation, file/video/media URL and podcast transcription, meeting recording with selectable mic/system capture, cleaned-mic finalization, independent source startup, and audio-retention controls, meeting calendar reminders and opt-in auto-start/auto-stop, per-event calendar skip, start-meetings-muted (default off), Microsoft 365/Exchange calendar setup, meeting import and split, live transcription during recording (default on), timed transcript corrections, isolated speaker-assignment smoothing, Seed of Life library covers when a recording has no thumbnail, Clean English “um” stripping (Portuguese/German opt-out), optional preserved discarded dictations, Transcribe tile no longer sticks on Wrapping up after stop (status label only), skip-microphone onboarding for file-only users, AI Formatter off by default with separate dictation and transcript prompts, optional streaming-cursor dictation insert (default off), China-lab LLM providers, Sonoma Parakeet encoder off ANE, System Default microphone routing, separate live/final speech-engine routes, bounded meeting-capture lifecycle handling, Transforms, VAD-guided meeting live-preview chunking, Parakeet v3/v2/Unified model selection, optional Nemotron Beta, Cohere, and WhisperKit, bundled CLI 4.4.0, exports, vocabulary, AI features |
+| Development source (this revision) | Unreleased; not the stable download | Currently matches the 0.8.7 DMG. See [Sources/CLI/CHANGELOG.md](Sources/CLI/CHANGELOG.md) for CLI version history, including the 4.0.0 major bump because `export --stdout --format txt` now matches TXT file export |
 
 See the [canonical release and feature-gate status](spec/README.md#release-channels-and-feature-flags). App-aware AI Formatter profiles, activity-based meeting detection, and the in-process MLX LLM remain gated; source presence does not mean they are available in the stable app.
 
@@ -85,7 +85,7 @@ surfaces are called out in the [canonical status table](spec/README.md#release-c
 
 **Text cleanup** — Filler word removal, custom word replacements, text snippets with triggers. Deterministic pipeline, no LLM needed.
 
-**AI features** — Optional summaries, chat, AI formatter, and Transforms for rewriting selected text through your configured provider. Connect any cloud provider (OpenAI, Anthropic, Gemini, OpenRouter), local runtime (Ollama, LM Studio), OpenAI-compatible endpoint, or CLI tool (Claude Code, Codex). Entirely opt-in.
+**AI features** — Optional summaries, chat, AI formatter, and Transforms for rewriting selected text through your configured provider. Connect a cloud provider (OpenAI, Anthropic, Gemini, OpenRouter, Moonshot/Kimi, DeepSeek, Qwen, Z.AI, MiniMax), local runtime (Ollama, LM Studio), OpenAI-compatible endpoint, or CLI tool (Claude Code, Codex). Entirely opt-in.
 
 ### Limitations
 
@@ -290,7 +290,7 @@ AI features are entirely **opt-in** and separate from speech recognition — tra
 
 | Type | Options |
 |------|---------|
-| Cloud | Anthropic (Claude), OpenAI, Google Gemini, OpenRouter |
+| Cloud | Anthropic (Claude), OpenAI, Google Gemini, OpenRouter, Moonshot (Kimi), DeepSeek, Qwen, Z.AI, MiniMax |
 | Local | Ollama, LM Studio |
 | Custom | OpenAI-Compatible (any API-shaped endpoint — vLLM, LocalAI, LiteLLM, llama.cpp server, third-party hosts) |
 | CLI subprocess | Claude Code, Codex, or another configured command |
@@ -325,3 +325,9 @@ MacParakeet is free and open source. If it's useful to you, consider [sponsoring
 ## License
 
 GPL-3.0. Free software. [Full license](LICENSE).
+
+### Optional Orukeet Core ML preview
+
+Settings → Speech Engines offers **Orukeet (preview)** among the Parakeet variants. This local adaptation of Parakeet v3 supports 25 languages and leaves the default model unchanged. The 445 MiB download comes directly from [Hugging Face](https://huggingface.co/oruk/orukeet), is verified against a pinned integrity manifest and SHA-256, and is compiled for your Mac. Cached transcription needs no network connection. Weights are licensed [CC BY-SA 4.0](https://huggingface.co/oruk/orukeet/blob/main/LICENSE). Preview quality should be evaluated on your own recordings.
+
+The CLI can download it with `macparakeet-cli models download parakeet-orukeet`, then use it for one recording with `macparakeet-cli transcribe --parakeet-model orukeet recording.wav`. Native streaming, tail-window dictation preview, and recognition-time vocabulary boosting are disabled for this preview.

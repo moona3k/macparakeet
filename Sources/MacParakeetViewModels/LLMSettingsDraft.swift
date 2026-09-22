@@ -42,6 +42,7 @@ public struct LLMSettingsDraft: Equatable, Sendable {
     public var selectedCLITemplate: LocalCLITemplate?
     public var cliTimeoutSeconds: Double
     public var aiFormatterPrompt: String
+    public var aiFormatterDictationPrompt: String
 
     public init(
         providerID: LLMProviderID? = nil,
@@ -54,7 +55,8 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         commandTemplate: String = "",
         selectedCLITemplate: LocalCLITemplate? = nil,
         cliTimeoutSeconds: Double = LocalCLIConfig.defaultTimeout,
-        aiFormatterPrompt: String = AIFormatter.defaultPromptTemplate
+        aiFormatterPrompt: String = AIFormatter.defaultPromptTemplate,
+        aiFormatterDictationPrompt: String = AIFormatter.defaultDictationPromptTemplate
     ) {
         self.providerID = providerID
         self.apiKeyInput = apiKeyInput
@@ -67,6 +69,10 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         self.selectedCLITemplate = selectedCLITemplate
         self.cliTimeoutSeconds = max(LocalCLIConfig.minimumTimeout, cliTimeoutSeconds)
         self.aiFormatterPrompt = AIFormatter.normalizedPromptTemplate(aiFormatterPrompt)
+        self.aiFormatterDictationPrompt = AIFormatter.normalizedPromptTemplate(
+            aiFormatterDictationPrompt,
+            default: AIFormatter.defaultDictationPromptTemplate
+        )
     }
 
     public var requiresAPIKey: Bool {
@@ -99,6 +105,13 @@ public struct LLMSettingsDraft: Equatable, Sendable {
 
     public var normalizedAIFormatterPrompt: String {
         AIFormatter.normalizedPromptTemplate(aiFormatterPrompt)
+    }
+
+    public var normalizedAIFormatterDictationPrompt: String {
+        AIFormatter.normalizedPromptTemplate(
+            aiFormatterDictationPrompt,
+            default: AIFormatter.defaultDictationPromptTemplate
+        )
     }
 
     public var validationError: ValidationError? {
@@ -236,7 +249,8 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         apiKey: String = "",
         defaultModelName: String = "",
         cliConfig: LocalCLIConfig? = nil,
-        aiFormatterPrompt: String = AIFormatter.defaultPromptTemplate
+        aiFormatterPrompt: String = AIFormatter.defaultPromptTemplate,
+        aiFormatterDictationPrompt: String = AIFormatter.defaultDictationPromptTemplate
     ) -> Self {
         let selectedCLITemplate = cliConfig.map { LocalCLITemplate.inferredTemplate(for: $0.commandTemplate) } ?? nil
         return LLMSettingsDraft(
@@ -250,7 +264,8 @@ public struct LLMSettingsDraft: Equatable, Sendable {
             commandTemplate: cliConfig?.commandTemplate ?? "",
             selectedCLITemplate: selectedCLITemplate,
             cliTimeoutSeconds: cliConfig?.timeoutSeconds ?? LocalCLIConfig.defaultTimeout,
-            aiFormatterPrompt: aiFormatterPrompt
+            aiFormatterPrompt: aiFormatterPrompt,
+            aiFormatterDictationPrompt: aiFormatterDictationPrompt
         )
     }
 
@@ -260,7 +275,8 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         defaultModelName: String,
         defaultBaseURL: String,
         cliConfig: LocalCLIConfig? = nil,
-        aiFormatterPrompt: String = AIFormatter.defaultPromptTemplate
+        aiFormatterPrompt: String = AIFormatter.defaultPromptTemplate,
+        aiFormatterDictationPrompt: String = AIFormatter.defaultDictationPromptTemplate
     ) -> Self {
         let isSuggestedModel = suggestedModels.contains(config.modelName)
         let selectedCLITemplate = cliConfig.map { LocalCLITemplate.inferredTemplate(for: $0.commandTemplate) } ?? nil
@@ -275,7 +291,8 @@ public struct LLMSettingsDraft: Equatable, Sendable {
             commandTemplate: cliConfig?.commandTemplate ?? "",
             selectedCLITemplate: selectedCLITemplate,
             cliTimeoutSeconds: cliConfig?.timeoutSeconds ?? LocalCLIConfig.defaultTimeout,
-            aiFormatterPrompt: aiFormatterPrompt
+            aiFormatterPrompt: aiFormatterPrompt,
+            aiFormatterDictationPrompt: aiFormatterDictationPrompt
         )
     }
 

@@ -47,7 +47,7 @@ private extension MeetingAudioCaptureService {
     }
 
     private func waitForSystemStartupForTesting() async throws {
-        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+        let deadline = ContinuousClock.now.advanced(by: .seconds(8))
         while isSystemAudioStartPending {
             guard ContinuousClock.now < deadline else {
                 throw MeetingAudioError.captureStartupTimedOut
@@ -172,7 +172,7 @@ private final class MicrophoneStartReportBox: @unchecked Sendable {
     }
 
     func wait() async throws -> MeetingMicrophoneCaptureStartReport {
-        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+        let deadline = ContinuousClock.now.advanced(by: .seconds(8))
         while ContinuousClock.now < deadline {
             if let report = lock.withLock({ report }) { return report }
             try await Task.sleep(for: .milliseconds(5))
@@ -191,15 +191,51 @@ private final class MeetingCaptureEventBox: @unchecked Sendable {
         lock.withLock { events.append(event) }
     }
 
-    func waitForFirst(timeout: Duration = .seconds(2)) async throws -> MeetingAudioCaptureEvent {
+    func waitForFirst(timeout: Duration = .seconds(8)) async throws -> MeetingAudioCaptureEvent {
+        try await wait(timeout: timeout) { _ in true }
+    }
+
+    func wait(
+        timeout: Duration = .seconds(8),
+        where predicate: (MeetingAudioCaptureEvent) -> Bool
+    ) async throws -> MeetingAudioCaptureEvent {
         let deadline = ContinuousClock.now.advanced(by: timeout)
         while ContinuousClock.now < deadline {
-            if let event = lock.withLock({ events.first }) {
+            if let event = lock.withLock({ events.first(where: predicate) }) {
                 return event
             }
             try await Task.sleep(for: .milliseconds(5))
         }
         throw MeetingAudioError.captureStartupTimedOut
+    }
+}
+
+private func waitUntil(
+    timeout: Duration = .seconds(8),
+    _ condition: @escaping () -> Bool
+) async throws {
+    let deadline = ContinuousClock.now.advanced(by: timeout)
+    while ContinuousClock.now < deadline {
+        if condition() { return }
+        try await Task.sleep(for: .milliseconds(5))
+    }
+    throw MeetingAudioError.captureStartupTimedOut
+}
+
+/// Stall interruption is only emitted after the microphone has delivered at
+/// least one buffer. CI can return from system-audio startup before the
+/// async microphone start has installed its stall observer.
+private func establishMicrophoneDelivery(
+    _ microphone: MockMeetingMicrophoneCapture,
+    events: MeetingCaptureEventBox
+) async throws {
+    try await waitUntil { microphone.isStallObserverInstalled }
+    microphone.emit(buffer: startupFixtureBuffer(), time: AVAudioTime(hostTime: 42))
+    _ = try await events.wait {
+        if case .microphoneBuffer(_, let time) = $0 {
+            return time.hostTime == 42
+        }
+        return false
     }
 }
 
@@ -829,10 +865,14 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         _ = try await service.startForTesting { events.append($0) }
         defer { Task { await service.stop() } }
 
+        try await establishMicrophoneDelivery(microphone, events: events)
         microphone.emitStall(
             .captureRuntimeFailure("microphone capture started but delivered no buffers within 2 seconds"))
 
-        let emitted = try await events.waitForFirst()
+        let emitted = try await events.wait {
+            if case .sourceInterrupted = $0 { return true }
+            return false
+        }
         guard case let .sourceInterrupted(source, error) = emitted else {
             XCTFail("Expected .sourceInterrupted event, got \(String(describing: emitted))")
             return
@@ -857,11 +897,15 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         _ = try await service.startForTesting { events.append($0) }
         defer { Task { await service.stop() } }
 
+        try await establishMicrophoneDelivery(microphone, events: events)
         microphone.emitStall(
             .captureRuntimeFailure("microphone capture started but delivered no buffers within 2 seconds")
         )
 
-        let emitted = try await events.waitForFirst()
+        let emitted = try await events.wait {
+            if case .error = $0 { return true }
+            return false
+        }
         guard case let .error(error) = emitted else {
             XCTFail("Expected .error event, got \(String(describing: emitted))")
             return
@@ -1775,6 +1819,8 @@ private final class MockMeetingMicrophoneCapture: MeetingMicrophoneCapturing, @u
     func emit(buffer: AVAudioPCMBuffer, time: AVAudioTime) {
         handler?(buffer, time)
     }
+
+    var isStallObserverInstalled: Bool { stallObserver != nil }
 
     func emitStall(_ error: MeetingAudioError) {
         stallObserver?(error)

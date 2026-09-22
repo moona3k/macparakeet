@@ -71,7 +71,7 @@ struct LLMInlineOptions: ParsableArguments {
     @Option(
         name: .long,
         help:
-            "Provider: anthropic, openai, openaiCompatible, gemini, openrouter, ollama, lmstudio, appleIntelligence, cli."
+            "Provider: anthropic, openai, openaiCompatible, gemini, openrouter, moonshot, deepseek, qwen, zai, minimax, ollama, lmstudio, appleIntelligence, cli."
     )
     var provider: String
 
@@ -114,12 +114,18 @@ struct LLMInlineOptions: ParsableArguments {
             normalized = "openaiCompatible"
         case "apple", "apple-intelligence", "appleintelligence":
             normalized = "appleIntelligence"
+        case "kimi", "moonshotai":
+            normalized = "moonshot"
+        case "zhipu", "z.ai", "glm":
+            normalized = "zai"
+        case "alibaba", "dashscope":
+            normalized = "qwen"
         default:
             normalized = provider
         }
         guard let providerID = LLMProviderID(rawValue: normalized) else {
             throw ValidationError(
-                "Unknown provider '\(provider)'. Options: anthropic, openai, openaiCompatible, gemini, openrouter, ollama, lmstudio, appleIntelligence, cli"
+                "Unknown provider '\(provider)'. Options: anthropic, openai, openaiCompatible, gemini, openrouter, moonshot, deepseek, qwen, zai, minimax, ollama, lmstudio, appleIntelligence, cli"
             )
         }
         if providerID == .inProcessLocal {
@@ -203,6 +209,41 @@ struct LLMInlineOptions: ParsableArguments {
                 model: model ?? InlineLLMCompatibilityDefaults.openRouterModel,
                 baseURL: overrideURL
             )
+        case .moonshot:
+            let key = try requiredAPIKey(
+                providerName: providerID.displayName,
+                defaultEnvNames: ["MOONSHOT_API_KEY", "KIMI_API_KEY"],
+                environment: environment
+            )
+            providerConfig = .moonshot(apiKey: key, model: model ?? providerID.defaultModelName, baseURL: overrideURL)
+        case .deepseek:
+            let key = try requiredAPIKey(
+                providerName: providerID.displayName,
+                defaultEnvNames: ["DEEPSEEK_API_KEY"],
+                environment: environment
+            )
+            providerConfig = .deepseek(apiKey: key, model: model ?? providerID.defaultModelName, baseURL: overrideURL)
+        case .qwen:
+            let key = try requiredAPIKey(
+                providerName: providerID.displayName,
+                defaultEnvNames: ["DASHSCOPE_API_KEY", "QWEN_API_KEY"],
+                environment: environment
+            )
+            providerConfig = .qwen(apiKey: key, model: model ?? providerID.defaultModelName, baseURL: overrideURL)
+        case .zai:
+            let key = try requiredAPIKey(
+                providerName: providerID.displayName,
+                defaultEnvNames: ["ZAI_API_KEY", "ZHIPU_API_KEY"],
+                environment: environment
+            )
+            providerConfig = .zai(apiKey: key, model: model ?? providerID.defaultModelName, baseURL: overrideURL)
+        case .minimax:
+            let key = try requiredAPIKey(
+                providerName: providerID.displayName,
+                defaultEnvNames: ["MINIMAX_API_KEY"],
+                environment: environment
+            )
+            providerConfig = .minimax(apiKey: key, model: model ?? providerID.defaultModelName, baseURL: overrideURL)
         case .ollama:
             providerConfig = .ollama(model: model ?? providerID.defaultModelName, baseURL: overrideURL)
         case .lmstudio:

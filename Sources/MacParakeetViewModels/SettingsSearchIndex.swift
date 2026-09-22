@@ -170,6 +170,14 @@ public enum SettingsSearchIndex {
             cardAnchor: "dictation"
         ),
         SettingsSearchEntry(
+            id: "dictation.streaming.cursor",
+            tab: .capture,
+            title: "Streaming cursor",
+            subtitle: "in Dictation",
+            keywords: ["streaming", "cursor", "typewriter", "caret", "character", "superwhisper", "insert"],
+            cardAnchor: "dictation"
+        ),
+        SettingsSearchEntry(
             id: "dictation.live.preview",
             tab: .capture,
             title: "Live transcript preview",
@@ -459,7 +467,9 @@ public enum SettingsSearchIndex {
             keywords: [
                 "ai", "llm", "openai", "anthropic", "claude", "gpt", "lm studio", "ollama",
                 "openai compatible", "summary", "summaries", "chat", "ask", "api key",
-                "provider", "local ai", "local app", "command line", "cli"
+                "provider", "local ai", "local app", "command line", "cli",
+                "kimi", "moonshot", "deepseek", "qwen", "dashscope", "z.ai", "zai", "z ai", "glm", "minimax",
+                "openrouter",
             ],
             cardAnchor: "ai.provider"
         ),

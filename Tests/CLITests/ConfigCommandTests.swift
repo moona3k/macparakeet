@@ -38,6 +38,7 @@ final class ConfigCommandTests: XCTestCase {
             "cohere-language",
             "speaker-detection",
             "meeting-speaker-detection",
+            "custom-vocabulary-boosting",
             "auto-meeting-titles",
             "voice-return-enabled",
             "voice-return-triggers",
@@ -92,6 +93,7 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(try ConfigCommand.read(key: "cohere-language", defaults: defaults), "en")
         XCTAssertEqual(try ConfigCommand.read(key: "speaker-detection", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "meeting-speaker-detection", defaults: defaults), "on")
+        XCTAssertEqual(try ConfigCommand.read(key: "custom-vocabulary-boosting", defaults: defaults), "off")
         XCTAssertEqual(try ConfigCommand.read(key: "auto-meeting-titles", defaults: defaults), "on")
         XCTAssertEqual(try ConfigCommand.read(key: "voice-return-enabled", defaults: defaults), "off")
         XCTAssertEqual(try ConfigCommand.read(key: "voice-return-triggers", defaults: defaults), "press return")
@@ -203,6 +205,14 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(
             defaults.object(forKey: UserDefaultsAppRuntimePreferences.meetingSpeakerDiarizationKey) as? Bool,
             false
+        )
+
+        XCTAssertEqual(try ConfigCommand.write(key: "custom-vocabulary-boosting", value: "on", defaults: defaults), "on")
+        XCTAssertEqual(
+            defaults.object(
+                forKey: UserDefaultsAppRuntimePreferences.customVocabularyRecognitionBoostingEnabledKey
+            ) as? Bool,
+            true
         )
 
         XCTAssertEqual(try ConfigCommand.write(key: "auto-meeting-titles", value: "off", defaults: defaults), "off")

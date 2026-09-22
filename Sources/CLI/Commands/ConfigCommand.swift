@@ -34,9 +34,10 @@ struct ConfigCommand: ParsableCommand {
                                     (Clean processing; off keeps
                                     Portuguese/German um)
           speech-engine             parakeet|nemotron|whisper|cohere default: parakeet
-          parakeet-model            v3|v2|unified                   default: v3
+          parakeet-model            v3|v2|unified|orukeet                   default: v3
                                     (v3=supported languages, v2=English
-                                    timestamps, unified=readable English timestamps)
+                                    timestamps, unified=readable English timestamps,
+                                    orukeet=multilingual preview)
           nemotron-model            multilingual-1120ms|            default: multilingual-1120ms
                                     english-1120ms (Beta streaming)
           nemotron-language         auto|<Nemotron language code>   default: auto
@@ -45,6 +46,7 @@ struct ConfigCommand: ParsableCommand {
           cohere-language           <Cohere language code>          default: en (no auto)
           speaker-detection         on|off                          default: on
           meeting-speaker-detection on|off                          default: on
+          custom-vocabulary-boosting on|off                         default: off
           auto-meeting-titles       on|off                          default: on
           voice-return-enabled      on|off                          default: off
           voice-return-triggers     phrase[|phrase...]              default: press return
@@ -105,9 +107,9 @@ struct ConfigCommand: ParsableCommand {
         ),
         CLIConfigKeySpec(
             key: "parakeet-model",
-            valueSyntax: "v3|v2|unified",
-            allowedValues: ["v3", "v2", "unified"],
-            summary: "Default Parakeet build: v3 supported languages, v2 English timestamps, or Unified readable English timestamps."
+            valueSyntax: "v3|v2|unified|orukeet",
+            allowedValues: ["v3", "v2", "unified", "orukeet"],
+            summary: "Default Parakeet build: v3 supported languages, v2 English timestamps, Unified readable English timestamps, or orukeet (multilingual preview)."
         ),
         CLIConfigKeySpec(
             key: "nemotron-model",
@@ -144,6 +146,12 @@ struct ConfigCommand: ParsableCommand {
             valueSyntax: "on|off",
             allowedValues: ["on", "off"],
             summary: "Default meeting recording speaker detection."
+        ),
+        CLIConfigKeySpec(
+            key: "custom-vocabulary-boosting",
+            valueSyntax: "on|off",
+            allowedValues: ["on", "off"],
+            summary: "Enable Parakeet TDT recognition-time boosting for enabled custom words without replacement text. Default off; Settings shows status but has no toggle."
         ),
         CLIConfigKeySpec(
             key: "auto-meeting-titles",
@@ -357,6 +365,9 @@ struct ConfigCommand: ParsableCommand {
         case "meeting-speaker-detection":
             let on = UserDefaultsAppRuntimePreferences.meetingSpeakerDiarizationEnabled(defaults: store)
             return on ? "on" : "off"
+        case "custom-vocabulary-boosting":
+            return UserDefaultsAppRuntimePreferences(defaults: store)
+                .customVocabularyRecognitionBoostingEnabled ? "on" : "off"
         case "auto-meeting-titles":
             let on = store.object(forKey: UserDefaultsAppRuntimePreferences.autoGenerateMeetingTitlesKey) as? Bool ?? true
             return on ? "on" : "off"
@@ -465,6 +476,13 @@ struct ConfigCommand: ParsableCommand {
         case "meeting-speaker-detection":
             let parsed = try parseBool(value, key: key)
             store.set(parsed, forKey: UserDefaultsAppRuntimePreferences.meetingSpeakerDiarizationKey)
+            return parsed ? "on" : "off"
+        case "custom-vocabulary-boosting":
+            let parsed = try parseBool(value, key: key)
+            store.set(
+                parsed,
+                forKey: UserDefaultsAppRuntimePreferences.customVocabularyRecognitionBoostingEnabledKey
+            )
             return parsed ? "on" : "off"
         case "auto-meeting-titles":
             let parsed = try parseBool(value, key: key)
@@ -597,8 +615,10 @@ struct ConfigCommand: ParsableCommand {
             return .v2
         case "unified", "english-unified", "unified-offline":
             return .unified
+        case "orukeet":
+            return .orukeet
         default:
-            throw ValidationError("Invalid value for parakeet-model: '\(value)'. Use v3 (multilingual), v2 (English-only), or unified (English-only with punctuation/capitalization).")
+            throw ValidationError("Invalid value for parakeet-model: '\(value)'. Use v3 (multilingual), v2 (English-only), unified (English-only with punctuation/capitalization), or orukeet (multilingual preview).")
         }
     }
 

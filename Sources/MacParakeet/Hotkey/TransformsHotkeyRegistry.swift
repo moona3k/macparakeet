@@ -168,6 +168,10 @@ public final class TransformsHotkeyRegistry {
             return Unmanaged.passUnretained(event)
         }
 
+        if StreamingCursorEventMarker.isMarked(event) {
+            return Unmanaged.passUnretained(event)
+        }
+
         let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
         let modifierBits = event.flags.rawValue & HotkeyTrigger.relevantModifierBits
 

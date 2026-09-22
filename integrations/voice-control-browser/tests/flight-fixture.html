@@ -1,0 +1,21 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>MacParakeet synthetic flight search</title>
+<style>body{font:18px system-ui;max-width:840px;margin:64px auto;background:#f4f6f9;color:#1d2940}main{background:white;padding:36px;border-radius:18px}h1{font-size:32px}label{display:block;margin:20px 0}input,select,button{font:inherit;padding:10px;border:1px solid #b8c3d6;border-radius:8px}input{display:block;width:90%;margin-top:8px}button{background:#253f77;color:white}#calendar{padding:16px;background:#e8effc;border-radius:10px;margin:16px 0}#results{padding:20px;background:#e0f3e8;border-radius:10px;margin-top:24px}[hidden]{display:none}</style>
+<main><h1>Find a flight by voice</h1><p>Synthetic local fixture. No real booking, account, or payment.</p><p data-private style="font-size:14px;color:#52617b">Live Jev + production browser adapter. Typed goal; speech is not included. Fixture-only confirmations are automatic.</p><p data-private style="font-weight:600">“Find one way flights from Zürich to London on 20 September.”</p>
+<label>Trip type <select id="trip"><option>Round trip</option><option>One way</option></select></label>
+<label>Origin <input id="origin" placeholder="Departure city"></label>
+<label>Destination <input id="destination" placeholder="Arrival city"></label>
+<button id="dateButton" aria-expanded="false" aria-controls="calendar">Choose departure date</button>
+<div id="calendar" role="dialog" aria-label="Departure date" hidden><button id="date20">20 September</button></div>
+<p id="dateValue">Departure date: not selected</p>
+<button id="search">Search flights</button><div id="results" role="status" hidden></div></main>
+<script>
+const calendar=document.getElementById('calendar'),dateButton=document.getElementById('dateButton');
+dateButton.onclick=()=>{calendar.hidden=false;dateButton.setAttribute('aria-expanded','true')};
+document.getElementById('date20').onclick=()=>{document.getElementById('dateValue').textContent='Departure date: 20 September';calendar.hidden=true;dateButton.setAttribute('aria-expanded','false')};
+document.getElementById('search').onclick=()=>{
+ const origin=document.getElementById('origin').value,destination=document.getElementById('destination').value;
+ const trip=document.getElementById('trip').value,date=document.getElementById('dateValue').textContent;
+ const results=document.getElementById('results');results.hidden=false;
+ results.textContent=origin&&destination&&date.includes('20 September')?'Flights found: '+trip+', '+origin+' → '+destination+', 20 September. Route and date verified.':'Complete origin, destination, and departure date first.';
+};
+</script></html>

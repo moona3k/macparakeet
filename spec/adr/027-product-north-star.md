@@ -117,3 +117,7 @@ cross-mode search and corpus QA land in MacParakeet. Deeper intelligence
 (entity extraction, knowledge graphs, team features) remains out of
 MacParakeet's scope. Whether Oatmeal continues as a distinct product is
 deliberately left open here.
+
+## 2026-09-19 amendment: explicit voice actions
+
+[ADR-033](033-explicit-voice-control.md) deliberately adds user-invoked Voice Control to the decision filter. Commands can act on the Mac without becoming permanent library entries. Session-based local speech and explicit cloud context remain required. This amendment authorizes implementation, not a claim of release qualification.

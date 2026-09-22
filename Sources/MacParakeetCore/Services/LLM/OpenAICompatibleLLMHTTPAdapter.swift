@@ -315,20 +315,28 @@ struct OpenAICompatibleLLMHTTPAdapter: LLMHTTPAdapter {
         // require max_completion_tokens instead of max_tokens. LM Studio's
         // documented chat-completions contract still uses max_tokens and
         // temperature even when a loaded model ID happens to look like GPT-5.
-        let appliesOpenAIFamilyWirePolicy = config.id != .lmstudio
+        // Kimi K2.5+ / K3 also omit sampling: those models fix temperature.
+        let appliesLabWirePolicy = config.id != .lmstudio
         let shouldOmitSampling =
-            appliesOpenAIFamilyWirePolicy && Self.openAIShouldOmitTemperature(config.modelName)
+            appliesLabWirePolicy && ChatCompletionsModelPolicy.shouldOmitSampling(model: config.modelName)
         let needsNewTokenParam =
-            appliesOpenAIFamilyWirePolicy && Self.openAIRequiresMaxCompletionTokens(config.modelName)
+            appliesLabWirePolicy && Self.openAIRequiresMaxCompletionTokens(config.modelName)
         let temperature = shouldOmitSampling ? nil : options.temperature
         let topP: Double?
         switch config.id {
         case .openai, .openaiCompatible:
             topP = shouldOmitSampling ? nil : options.topP
-        case .anthropic, .gemini, .openrouter, .ollama, .lmstudio, .localCLI, .inProcessLocal,
-            .appleIntelligence:
+        case .anthropic, .gemini, .openrouter, .moonshot, .deepseek, .qwen, .zai, .minimax, .ollama, .lmstudio,
+            .localCLI, .inProcessLocal, .appleIntelligence:
             topP = nil
         }
+        let thinkingEncoding = ChatCompletionsModelPolicy.thinkingEncoding(
+            provider: config.id,
+            model: config.modelName,
+            thinkingMode: options.thinkingMode,
+            reasoningEffort: options.reasoningEffort,
+            usesPromptInferenceSettings: options.usesPromptInferenceSettings
+        )
         let supportsCustomOpenAICompatibleOptions =
             config.id == .openaiCompatible
             && options.usesPromptInferenceSettings
@@ -345,6 +353,28 @@ struct OpenAICompatibleLLMHTTPAdapter: LLMHTTPAdapter {
             ollamaOptions = nil
         }
 
+        let thinking: OpenAIThinkingOptions?
+        let enableThinking: Bool?
+        let chatTemplateKwargs: OpenAIChatTemplateKwargs?
+        switch thinkingEncoding {
+        case .omit:
+            thinking = nil
+            enableThinking = nil
+            chatTemplateKwargs = nil
+        case .thinkingType(let type):
+            thinking = OpenAIThinkingOptions(type: type)
+            enableThinking = nil
+            chatTemplateKwargs = nil
+        case .enableThinking(let enabled):
+            thinking = nil
+            enableThinking = enabled
+            chatTemplateKwargs = nil
+        case .llamaCpp(let enable, let effort):
+            thinking = nil
+            enableThinking = nil
+            chatTemplateKwargs = OpenAIChatTemplateKwargs(enable_thinking: enable, reasoning_effort: effort)
+        }
+
         let body = OpenAIRequestBody(
             model: config.modelName,
             messages: messages.map { OpenAIMessage(role: $0.role.rawValue, content: $0.content) },
@@ -355,12 +385,9 @@ struct OpenAICompatibleLLMHTTPAdapter: LLMHTTPAdapter {
             top_k: supportsCustomOpenAICompatibleOptions ? options.topK : nil,
             max_tokens: maxTokens,
             max_completion_tokens: maxCompletionTokens,
-            chat_template_kwargs: supportsCustomOpenAICompatibleOptions
-                ? Self.chatTemplateKwargs(
-                    for: options.thinkingMode,
-                    reasoningEffort: options.reasoningEffort
-                )
-                : nil,
+            thinking: thinking,
+            enable_thinking: enableThinking,
+            chat_template_kwargs: chatTemplateKwargs,
             response_format: Self.responseFormat(from: options.responseFormat),
             options: ollamaOptions
         )
@@ -375,11 +402,12 @@ struct OpenAICompatibleLLMHTTPAdapter: LLMHTTPAdapter {
     }
 
     /// OpenAI models for which MacParakeet omits explicit `temperature`: the
-    /// o-series and GPT-5.x+ reasoning tier. Chat-tier variants
-    /// (gpt-5.3-chat-latest) and pre-5.x models keep the caller's value.
-    /// Provider prefixes (`openai/gpt-5.6-luna`) are stripped first.
+    /// o-series and GPT-5.x+ reasoning tier, plus Kimi K2.5+ / K3. Chat-tier
+    /// variants (gpt-5.3-chat-latest) and pre-5.x models keep the caller's
+    /// value. Provider prefixes (`openai/gpt-5.6-luna`, `moonshotai/kimi-k2.6`)
+    /// are stripped first.
     static func openAIShouldOmitTemperature(_ model: String) -> Bool {
-        OpenAIModelPolicy.shouldOmitSampling(model: model)
+        ChatCompletionsModelPolicy.shouldOmitSampling(model: model)
     }
 
     /// Major version of a "gpt-<n>..." model ID ("gpt-5.5" → 5, "gpt-10" → 10),
@@ -413,23 +441,6 @@ struct OpenAICompatibleLLMHTTPAdapter: LLMHTTPAdapter {
                     schema: schema
                 )
             )
-        }
-    }
-
-    private static func chatTemplateKwargs(
-        for thinkingMode: PromptInferenceSettings.ThinkingMode,
-        reasoningEffort: PromptInferenceSettings.ReasoningEffort?
-    ) -> OpenAIChatTemplateKwargs? {
-        switch thinkingMode {
-        case .providerDefault:
-            return nil
-        case .enabled:
-            return OpenAIChatTemplateKwargs(
-                enable_thinking: true,
-                reasoning_effort: reasoningEffort?.rawValue
-            )
-        case .disabled:
-            return OpenAIChatTemplateKwargs(enable_thinking: false, reasoning_effort: nil)
         }
     }
 
@@ -533,9 +544,15 @@ struct OpenAIRequestBody: Encodable {
     let top_k: Int?
     let max_tokens: Int?
     let max_completion_tokens: Int?
+    let thinking: OpenAIThinkingOptions?
+    let enable_thinking: Bool?
     let chat_template_kwargs: OpenAIChatTemplateKwargs?
     let response_format: OpenAIResponseFormat?
     let options: OllamaRequestOptions?  // Ollama-specific: num_ctx etc.
+}
+
+struct OpenAIThinkingOptions: Encodable {
+    let type: String
 }
 
 struct OpenAIStreamOptions: Encodable {

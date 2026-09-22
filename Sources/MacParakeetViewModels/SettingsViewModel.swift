@@ -231,6 +231,18 @@ public final class SettingsViewModel {
             ))
         }
     }
+    public var dictationStreamingCursorEnabled: Bool {
+        didSet {
+            defaults.set(
+                dictationStreamingCursorEnabled,
+                forKey: UserDefaultsAppRuntimePreferences.dictationStreamingCursorEnabledKey
+            )
+            Telemetry.send(.settingChanged(
+                setting: .streamingCursor,
+                value: Self.settingValue(dictationStreamingCursorEnabled)
+            ))
+        }
+    }
     public var selectedMicrophoneDeviceUID: String {
         didSet {
             let normalized = Self.normalizedMicrophoneSelection(selectedMicrophoneDeviceUID)
@@ -825,7 +837,11 @@ public final class SettingsViewModel {
     public var calendarNotificationsAuthorized: Bool = true
 
     // Permission status
-    public var microphoneGranted = false
+    /// Three-state microphone permission. Settings needs `.denied` vs
+    /// `.notDetermined` because macOS only shows the TCC prompt once — after
+    /// denial the recovery path is System Settings, matching Calendar.
+    public private(set) var microphoneStatus: PermissionStatus = .notDetermined
+    public var microphoneGranted: Bool { microphoneStatus == .granted }
     public var accessibilityGranted = false
     public var screenRecordingGranted = false
     /// Reinstall shortcuts after macOS grants access to a running app.
@@ -906,6 +922,7 @@ public final class SettingsViewModel {
         parakeetModelVariantCached: @escaping @Sendable (ParakeetModelVariant) -> Bool = {
             // Unified is a separate FluidAudio runtime with no `AsrModelVersion`;
             // dispatch it to its own engine's cache check.
+            if $0 == .orukeet { return OrukeetModelStore.isInstalled }
             if $0.usesUnifiedEngine { return ParakeetUnifiedEngine.isModelCached() }
             guard let version = $0.asrModelVersion else { return false }
             return STTRuntime.isModelCached(version: version)
@@ -917,6 +934,7 @@ public final class SettingsViewModel {
             CohereTranscribeEngine.isModelCached()
         },
         deleteParakeetModelOnDisk: @escaping @Sendable (ParakeetModelVariant) -> Bool = {
+            if $0 == .orukeet { return OrukeetModelStore.delete() }
             if $0.usesUnifiedEngine { return ParakeetUnifiedEngine.deleteModel() }
             guard let version = $0.asrModelVersion else { return false }
             return STTRuntime.deleteParakeetModel(version: version)
@@ -997,6 +1015,9 @@ public final class SettingsViewModel {
         keepDictationOnClipboard = defaults.bool(
             forKey: UserDefaultsAppRuntimePreferences.keepDictationOnClipboardKey
         )
+        dictationStreamingCursorEnabled = defaults.object(
+            forKey: UserDefaultsAppRuntimePreferences.dictationStreamingCursorEnabledKey
+        ) as? Bool ?? false
         selectedMicrophoneDeviceUID = Self.normalizedMicrophoneSelection(
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)
         )
@@ -1456,7 +1477,7 @@ public final class SettingsViewModel {
                 let micStatus = await service.checkMicrophonePermission()
                 let accStatus = service.checkAccessibilityPermission()
                 let screenRecordingStatus = service.checkScreenRecordingPermission()
-                microphoneGranted = micStatus == .granted
+                microphoneStatus = micStatus
                 screenRecordingGranted = screenRecordingStatus
                 applyAccessibilityStatus(accStatus)
             }
@@ -1575,6 +1596,27 @@ public final class SettingsViewModel {
         microphoneTestTask = nil
         microphoneTestLevel = 0
         microphoneTestState = .idle
+    }
+
+    public func requestMicrophoneAccess() {
+        guard let permissionService else { return }
+        Telemetry.send(.permissionPrompted(permission: .microphone))
+        Task {
+            let granted = await permissionService.requestMicrophonePermission()
+            if granted {
+                microphoneStatus = .granted
+                Telemetry.send(.permissionGranted(permission: .microphone))
+                sharedMicStream?.prewarmDictation()
+            } else {
+                microphoneStatus = .denied
+                Telemetry.send(.permissionDenied(permission: .microphone))
+            }
+            refreshPermissions()
+        }
+    }
+
+    public func openMicrophoneSystemSettings() {
+        permissionService?.openMicrophoneSettings()
     }
 
     public func requestScreenRecordingAccess() {

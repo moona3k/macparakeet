@@ -14,7 +14,7 @@ model option.
 ## Goals
 
 1. Deliver transcript summarization, chat, AI formatting, and Transforms via user-configured LLM providers.
-2. Support cloud APIs (Anthropic, OpenAI, Gemini, OpenRouter), local runtimes (Ollama), and CLI tools (Claude Code, Codex) through one shared service layer.
+2. Support cloud APIs (Anthropic, OpenAI, Gemini, OpenRouter, Moonshot/Kimi, DeepSeek, Qwen, Z.AI, MiniMax), local runtimes (Ollama), and CLI tools (Claude Code, Codex) through one shared service layer.
 3. Keep core speech processing local and preserve a fully local setup when users stick to local providers/features. LLM requests can include transcript text, user notes, questions, conversation history, and prompts, but never audio. Provider-specific request metadata is described below.
 4. LLM features are optional — the app is fully functional without any provider configured.
 
@@ -43,7 +43,7 @@ User triggers LLM action (Summary / Chat / Formatter / Transform)
         → .other:    LLMClient (URLSession)
             → .anthropic: POST /v1/messages
             → .ollama:    POST /api/chat
-            → .openai/.gemini/.openrouter: POST /chat/completions
+            → .openai/.gemini/.openrouter/.moonshot/.deepseek/.qwen/.zai/.minimax: POST /chat/completions
     → Response streamed back to UI
 ```
 
@@ -69,7 +69,7 @@ The current implementation does not flatten every provider into one wire protoco
 
 - **Anthropic** uses the native Messages API (`POST /v1/messages`).
 - **Ollama** uses the native chat API (`POST /api/chat`) so thinking can be disabled.
-- **OpenAI, Gemini, OpenRouter, and LM Studio** use the OpenAI-compatible chat completions API (`POST /chat/completions` off each provider's configured base URL).
+- **OpenAI, Gemini, OpenRouter, Moonshot, DeepSeek, Qwen, Z.AI, MiniMax, and LM Studio** use the OpenAI-compatible chat completions API (`POST /chat/completions` off each provider's configured base URL).
 - **Local CLI** is not HTTP at all; prompts are passed to a subprocess via stdin/environment.
 - **Local MLX** is in-process through `InProcessLLMClient` and `LocalLLMRuntime`; the concrete MLX target is compiled only for gated app builds.
 - **Apple Intelligence** is on-device through `AppleIntelligenceLLMClient` and `FoundationModels` on macOS 26+. It is user-selected, never auto-defaulted, and uses a dedicated ~12k-character budget. The option is hidden on ineligible Macs and older OS versions.
@@ -95,6 +95,11 @@ The service boundary stays stable even though the transport is mixed.
 | Ollama | Local | `http://localhost:11434/v1` | `apiKey: nil` in config; client injects `Bearer ollama` |
 | LM Studio | Local | `http://localhost:1234/v1` | Optional API token (`Authorization: Bearer`) |
 | OpenRouter | Cloud | `https://openrouter.ai/api/v1` | `Authorization: Bearer` |
+| Moonshot (Kimi) | Cloud | `https://api.moonshot.ai/v1` | `Authorization: Bearer` |
+| DeepSeek | Cloud | `https://api.deepseek.com/v1` | `Authorization: Bearer` |
+| Qwen | Cloud | `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` | `Authorization: Bearer` |
+| Z.AI | Cloud | `https://api.z.ai/api/paas/v4` | `Authorization: Bearer` |
+| MiniMax | Cloud | `https://api.minimax.io/v1` | `Authorization: Bearer` |
 | Local CLI | CLI | N/A (subprocess) | N/A (tool manages its own auth) |
 | Local MLX | In-process local, developer-gated | `inprocess://local` | N/A |
 | Apple Intelligence | On-device OS model, macOS 26+ | `appleintelligence://system` | N/A |
@@ -103,9 +108,19 @@ The service boundary stays stable even though the transport is mixed.
 OpenAI-family model IDs (`gpt-5.x`, `o3`, and prefixed forms such as
 `openai/gpt-5.6-luna`) use the native OpenAI chat-completions parameter policy
 on that path: omit sampling the model rejects, send `max_completion_tokens`,
-and do not attach llama.cpp `chat_template_kwargs`. Generic local model IDs
-keep the broader compatible mapping. OpenRouter shares this adapter, so the
-same model-ID policy applies there.
+and do not attach llama.cpp `chat_template_kwargs`. Kimi K2.5+ / K3 IDs
+(`kimi-k2.6`, OpenRouter `moonshotai/kimi-k2.6`, and the same IDs on a custom
+OpenAI-compatible URL) omit temperature and `top_p` because those values are
+fixed and any other value 400s. Lab thinking objects (`thinking.type` / Qwen
+`enable_thinking`) are sent only on the first-class Moonshot, DeepSeek, Qwen,
+Z.AI, and MiniMax providers. Generic local model IDs keep the broader
+compatible mapping, including llama.cpp `chat_template_kwargs`.
+
+Mainland China regional endpoints (`api.moonshot.cn`, `dashscope.aliyuncs.com`,
+`open.bigmodel.cn`, `api.minimaxi.com`) are reachable by overriding the base
+URL; keys are region-specific. ByteDance Doubao / Volcengine Ark and Tencent
+Hunyuan remain custom OpenAI-Compatible endpoints because they use
+account-specific model IDs rather than a public catalog.
 
 **Local CLI:** Users with Claude Code or Codex subscriptions can use their CLI tools directly. The app runs the configured command as a subprocess via `posix_spawn`, delivering prompts via stdin and `MACPARAKEET_*` environment variables. No API key needed — the CLI tool manages its own authentication. Built-in presets for Claude Code (`claude -p --model haiku`) and Codex (`codex exec --model gpt-5.4-mini`), or any custom command. See PR #47.
 
@@ -173,6 +188,11 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     case openaiCompatible
     case gemini
     case openrouter
+    case moonshot
+    case deepseek
+    case qwen
+    case zai
+    case minimax
     case ollama
     case lmstudio
     case localCLI    // CLI tools (claude -p, codex exec) — no HTTP, no API key
@@ -292,7 +312,8 @@ capability contract is:
 | Native Anthropic | `temperature` in `0...1` or `topP` in `0...1` when model-compatible (Top P wins); `maxTokens` |
 | Native Ollama | Temperature, top-p, top-k, output tokens, and thinking; numeric values use Ollama `options`, thinking uses top-level `think`; reasoning effort is unsupported |
 | Custom OpenAI-compatible | All six settings for generic local IDs; thinking uses `chat_template_kwargs.enable_thinking`, and optional effort uses `chat_template_kwargs.reasoning_effort` only while thinking is enabled. OpenAI-family IDs follow the native OpenAI token-key and sampling policy instead of the llama.cpp mapping |
-| OpenRouter | `maxTokens` through the existing token-key policy; `temperature` when model policy permits it |
+| OpenRouter | `maxTokens` through the existing token-key policy; `temperature` when model policy permits it. Prefixed Kimi IDs omit illegal sampling. |
+| Moonshot, DeepSeek, Qwen, Z.AI, MiniMax | `maxTokens`; `temperature` when the model accepts sampling; `thinkingMode` when the model accepts an explicit thinking toggle (`thinking.type` or Qwen `enable_thinking`) |
 | Gemini, LM Studio | `temperature` and `maxTokens` initially |
 | In-process local | `temperature` and `maxTokens` |
 | Local CLI | None in the initial contract |
@@ -641,12 +662,13 @@ context and falling back to the start-time context when the finish context is
 missing or points at MacParakeet itself.
 
 Profiles apply only to Dictation AI Formatter in V1. File/URL and meeting
-transcription formatting continues to use the fallback formatter prompt
+transcription formatting continues to use the transcript formatter prompt
 (all transcription finalization paths share `completeTranscription`, which
-invokes the formatter). The transcripts-side formatter has its own
-"Use for transcripts" toggle (default on) and an input-length cap that
-skips formatting for transcripts too long to rewrite inside realistic
-provider timeouts (#493).
+invokes the formatter). Dictation uses the dictation formatter prompt as
+its fallback after profiles/smart defaults. The transcripts-side formatter
+has its own "Use for transcripts" toggle (default off) and an input-length
+cap that skips formatting for transcripts too long to rewrite inside
+realistic provider timeouts (#493).
 
 Browser hostname/domain matching is intentionally deferred. In V1, Gmail in
 Chrome can match an exact Chrome profile or the coarse `browser` category, but
@@ -719,8 +741,10 @@ routes summary/transform prompting through the Prompt Library architecture in
 
 All CLI LLM commands require `--provider`; `--api-key` is required only for
 cloud providers that need one. Supported providers: `anthropic`, `openai`,
-`openaiCompatible`/`openai-compatible`, `gemini`, `openrouter`, `ollama`,
-`lmstudio`, and `cli`.
+`openaiCompatible`/`openai-compatible`, `gemini`, `openrouter`, `moonshot`
+(`kimi`, `moonshotai`), `deepseek`, `qwen` (`alibaba`, `dashscope`), `zai`
+(`zhipu`, `z.ai`, `glm`), `minimax`, `ollama`, `lmstudio`, and
+`cli`.
 
 ```bash
 # Test provider connectivity

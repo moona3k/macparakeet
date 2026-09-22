@@ -383,4 +383,21 @@ final class CLIHelpersTests: XCTestCase {
         XCTAssertFalse(output.contains("native runtime diagnostic"))
         XCTAssertTrue(output.contains(#""result" : "payload""#), output)
     }
+
+    func testMakeSharedLLMContextResolverReadsInjectedSuiteNotStandard() throws {
+        let suiteName = "cli.shared-llm.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        try LLMConfigStore(defaults: defaults).saveConfig(.localCLI())
+        let commandTemplate = "echo macparakeet-cli-parity-\(UUID().uuidString)"
+        try LocalCLIConfigStore(defaults: defaults).save(
+            LocalCLIConfig(commandTemplate: commandTemplate, timeoutSeconds: 90)
+        )
+
+        let context = try XCTUnwrap(try makeSharedLLMContextResolver(defaults: defaults).resolveContext())
+        XCTAssertEqual(context.providerConfig.id, .localCLI)
+        XCTAssertEqual(context.localCLIConfig?.commandTemplate, commandTemplate)
+        XCTAssertEqual(context.localCLIConfig?.timeoutSeconds, 90)
+    }
 }

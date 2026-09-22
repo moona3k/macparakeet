@@ -327,6 +327,7 @@ final class AppEnvironmentConfigurer {
 
         let dictationCoordinator = DictationFlowCoordinator(
             dictationService: env.dictationService,
+            mutationArbiter: .shared,
             clipboardService: env.clipboardService,
             entitlementsService: env.entitlementsService,
             dictationRepo: env.dictationRepo,

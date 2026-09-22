@@ -241,6 +241,7 @@ public final class EngineSettingsViewModel {
     public init(
         defaults: UserDefaults = .standard,
         parakeetModelVariantCached: @escaping @Sendable (ParakeetModelVariant) -> Bool = {
+            if $0 == .orukeet { return OrukeetModelStore.isInstalled }
             if $0.usesUnifiedEngine { return ParakeetUnifiedEngine.isModelCached() }
             guard let version = $0.asrModelVersion else { return false }
             return STTRuntime.isModelCached(version: version)
@@ -255,6 +256,7 @@ public final class EngineSettingsViewModel {
             CohereTranscribeEngine.hasModelCacheDirectory()
         },
         deleteParakeetModelOnDisk: @escaping @Sendable (ParakeetModelVariant) -> Bool = {
+            if $0 == .orukeet { return OrukeetModelStore.delete() }
             if $0.usesUnifiedEngine { return ParakeetUnifiedEngine.deleteModel() }
             guard let version = $0.asrModelVersion else { return false }
             return STTRuntime.deleteParakeetModel(version: version)

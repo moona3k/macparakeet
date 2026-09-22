@@ -20,6 +20,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var aiFormatterEnabledForDictation: Bool { get }
     var aiFormatterEnabledForTranscriptions: Bool { get }
     var aiFormatterPrompt: String { get }
+    var aiFormatterDictationPrompt: String { get }
     var transcriptAIContextMode: TranscriptAIContextMode { get }
     var selectedMicrophoneDeviceUID: String? { get }
     var meetingAudioSourceMode: MeetingAudioSourceMode { get }
@@ -35,6 +36,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var dictationPreviewTextSize: DictationPreviewTextSize { get }
     var dictationUndoCountdown: DictationUndoCountdown { get }
     var shouldKeepDictationOnClipboard: Bool { get }
+    var dictationStreamingCursorEnabled: Bool { get }
     var hasCompletedFirstDictation: Bool { get }
     /// Flip the one-shot "first dictation completed" flag. Returns `true` only
     /// the first time it transitions (so callers can fire a one-shot side
@@ -540,6 +542,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let aiFormatterEnabledForDictationKey = "aiFormatterEnabledForDictation"
     public static let aiFormatterEnabledForTranscriptionsKey = "aiFormatterEnabledForTranscriptions"
     public static let aiFormatterPromptKey = "aiFormatterPrompt"
+    public static let aiFormatterDictationPromptKey = "aiFormatterDictationPrompt"
     /// Master switch for the built-in smart-default formatter prompts
     /// (default on). Off means the resolution chain skips the smart-default
     /// tier entirely — custom profiles, then the fallback prompt.
@@ -564,6 +567,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let dictationPreviewTextSizeKey = "dictationPreviewTextSize"
     public static let dictationUndoCountdownKey = "dictationUndoCountdown"
     public static let keepDictationOnClipboardKey = "keepDictationOnClipboard"
+    public static let dictationStreamingCursorEnabledKey = "dictationStreamingCursorEnabled"
     public static let hasCompletedFirstDictationKey = "hasCompletedFirstDictation"
     /// Play a chime (and, when backgrounded, post a banner) when a file/URL
     /// transcription or a batch finishes. Default on; opt-out in Settings.
@@ -735,16 +739,43 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     }
 
     /// Whether the AI Formatter runs on file/meeting transcripts. Defaults to
-    /// `true` to preserve the pre-#493 behavior where transcripts followed the
-    /// saved provider config alone; the transcription gate is the logical AND
-    /// of `aiFormatterEnabled` and this flag.
+    /// `false`, matching dictation: configuring a provider is not consent to
+    /// rewrite every finalized transcript. The transcription gate is the
+    /// logical AND of `aiFormatterEnabled` and this flag.
     public var aiFormatterEnabledForTranscriptions: Bool {
-        defaults.object(forKey: Self.aiFormatterEnabledForTranscriptionsKey) as? Bool ?? true
+        defaults.object(forKey: Self.aiFormatterEnabledForTranscriptionsKey) as? Bool ?? false
     }
 
     public var aiFormatterPrompt: String {
         let prompt = defaults.string(forKey: Self.aiFormatterPromptKey) ?? ""
         return AIFormatter.normalizedPromptTemplate(prompt)
+    }
+
+    /// Dictation formatter prompt. Independent of the transcript prompt after
+    /// the split; a customized pre-split shared prompt is copied once.
+    public var aiFormatterDictationPrompt: String {
+        Self.migrateAIFormatterDictationPromptIfNeeded(defaults: defaults)
+        return Self.resolvedAIFormatterDictationPrompt(from: defaults)
+    }
+
+    public static func resolvedAIFormatterDictationPrompt(from defaults: UserDefaults) -> String {
+        AIFormatter.resolvedDictationPrompt(
+            storedDictationPrompt: defaults.string(forKey: aiFormatterDictationPromptKey),
+            storedSharedPrompt: defaults.string(forKey: aiFormatterPromptKey)
+        )
+    }
+
+    public static func migrateAIFormatterDictationPromptIfNeeded(defaults: UserDefaults) {
+        let stored = defaults.string(forKey: aiFormatterDictationPromptKey)
+        if let stored, !stored.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return
+        }
+        let shared = defaults.string(forKey: aiFormatterPromptKey) ?? ""
+        guard !AIFormatter.isBuiltInSharedPrompt(shared) else { return }
+        defaults.set(
+            resolvedAIFormatterDictationPrompt(from: defaults),
+            forKey: aiFormatterDictationPromptKey
+        )
     }
 
     public var transcriptAIContextMode: TranscriptAIContextMode {
@@ -805,6 +836,10 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public var shouldKeepDictationOnClipboard: Bool {
         defaults.bool(forKey: Self.keepDictationOnClipboardKey)
+    }
+
+    public var dictationStreamingCursorEnabled: Bool {
+        defaults.object(forKey: Self.dictationStreamingCursorEnabledKey) as? Bool ?? false
     }
 
     public var hasCompletedFirstDictation: Bool {

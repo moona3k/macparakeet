@@ -326,8 +326,11 @@ final class AppEnvironment {
             runtimePreferences.aiFormatterEnabled && runtimePreferences.aiFormatterEnabledForDictation
         }
 
-        let aiFormatterPromptClosure: @Sendable () -> String = { [runtimePreferences] in
+        let aiFormatterTranscriptPromptClosure: @Sendable () -> String = { [runtimePreferences] in
             runtimePreferences.aiFormatterPrompt
+        }
+        let aiFormatterDictationPromptClosure: @Sendable () -> String = { [runtimePreferences] in
+            runtimePreferences.aiFormatterDictationPrompt
         }
         let meetingTitleGenerationEnabledClosure: @Sendable () -> Bool = { [runtimePreferences, llmConfigStore] in
             guard runtimePreferences.shouldAutoGenerateMeetingTitles else { return false }
@@ -337,7 +340,7 @@ final class AppEnvironment {
         if AppFeatures.aiFormatterProfilesEnabled {
             aiFormatterPromptResolver = AIFormatterProfilePromptResolver(
                 profileRepository: aiFormatterProfileRepo,
-                globalPromptTemplate: aiFormatterPromptClosure,
+                globalPromptTemplate: aiFormatterDictationPromptClosure,
                 smartDefaultsPolicy: { AIFormatterSmartDefaultsPolicy.current() },
                 onFetchError: { error in
                     // A failed profile fetch degrades to the fallback prompt by
@@ -351,7 +354,7 @@ final class AppEnvironment {
             )
         } else {
             aiFormatterPromptResolver = AIFormatterGlobalPromptResolver(
-                promptTemplate: aiFormatterPromptClosure
+                promptTemplate: aiFormatterDictationPromptClosure
             )
         }
 
@@ -446,7 +449,7 @@ final class AppEnvironment {
             llmService: llmService,
             llmRunRepo: llmRunRepo,
             shouldUseAIFormatter: transcriptionAIFormatterEnabledClosure,
-            aiFormatterPromptTemplate: aiFormatterPromptClosure,
+            aiFormatterPromptTemplate: aiFormatterTranscriptPromptClosure,
             shouldAutoGenerateMeetingTitles: meetingTitleGenerationEnabledClosure,
             shouldKeepDownloadedAudio: { [runtimePreferences] in runtimePreferences.shouldSaveTranscriptionAudio },
             shouldDiarize: { [runtimePreferences] in runtimePreferences.shouldDiarize },

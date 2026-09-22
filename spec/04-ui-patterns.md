@@ -129,7 +129,7 @@ States, all bound to the long-lived `MeetingRecordingPillViewModel` shared with 
 - **Idle**: green rosette + stem (subtle 4s glow breathing), "Record Meeting" + subtitle, red "Start" capsule on the right.
 - **Starting**: capture is requested; pause/elapsed stay inactive until the first usable buffer is accepted. Mute stays non-toggleable until the microphone is ready. When **Start meetings muted** is on and the source captures a microphone, the live panel shows the muted mic control disabled during this state. Stop remains available and saves any audio already written. A selected source may still be pending.
 - **Recording**: rosette rotates (12s/turn — matches the floating pill exactly), audio halo grows with mic level, breathing red dot + monospaced MM:SS timer, white-on-red Stop button. Border picks up `recordingRed` opacity.
-- **Completing / Transcribing**: spinner replaces rosette; "Wrapping up..." then "Transcribing..." labels.
+- **Completing / Transcribing**: spinner replaces rosette; "Wrapping up..." then "Transcribing..." labels. Completing is the floating pill's ~1 s collapse flourish. If that pill is hidden (Settings, quit-time dismiss, or no window), the shared view model skips completing so the tile cannot stick on "Wrapping up...". Transcribing then completed still run for the saved-celebration and auto-revert to idle.
 - **Completed**: green checkmark + "Saved to Library"; auto-reverts to idle.
 - **Error**: amber triangle + recovery message; auto-dismisses through the recording flow coordinator.
 
@@ -494,7 +494,7 @@ Compact dark pill overlay, always-on-top, bottom-center of screen. This is the p
 
 - **Height:** 36px
 - **Corner radius:** 18px (fully rounded)
-- **Width:** Dynamic, fits content + 16px horizontal padding
+- **Width:** Dynamic, fits content. Persistent dictation recording and cancelled/Undo use 7pt horizontal padding, matching the 7pt vertical inset, so cancel/stop and the countdown/Undo controls sit in the capsule hemispheres. Hold-to-talk recording keeps 16pt — it has no end circles and the compact dot+timer+waveform cluster already looked right at the wider inset. Command recording and processing-with-copy keep 16pt.
 - **Position:** Bottom-center of main screen, 48px from bottom edge
 - **Background:** `#1C1C1E` (system dark) at 95% opacity
 - **Shadow:** 0 4px 12px rgba(0,0,0,0.3)

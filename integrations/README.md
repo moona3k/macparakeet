@@ -5,7 +5,7 @@
 > people running them) that want to *call* `macparakeet-cli` to add local STT
 > to their stack.
 
-Examples describe the current development contract (CLI 4.2.0), not a
+Examples describe the current development contract (CLI 4.4.0), not a
 promise about an older stable or Homebrew binary. Check `--version` and
 `spec --json` first; [release channels](../spec/README.md#release-channels-and-feature-flags)
 distinguish published binaries from the development source.
@@ -81,10 +81,10 @@ sitting at a keyboard, it lives in the .app.
   mode, speaker detection, audio retention, YouTube audio quality, and
   telemetry without driving the GUI.
 - **Prompt library + LLM-backed summarization** -- bring your own provider
-  (OpenAI, Anthropic, Ollama, LM Studio, Apple Intelligence on macOS 26+,
-  OpenAI-compatible local, or a
-  configured CLI subprocess), or skip the LLM entirely and consume raw
-  transcripts.
+  (OpenAI, Anthropic, Gemini, OpenRouter, Moonshot/Kimi, DeepSeek, Qwen, Z.AI,
+  MiniMax, Ollama, LM Studio, Apple Intelligence on macOS 26+,
+  OpenAI-compatible, or a configured CLI subprocess), or skip the LLM entirely
+  and consume raw transcripts.
 - **Machine-readable output** -- read-only query commands use `--json`,
   format-selecting commands use `--format json`, and LLM/prompt commands use
   `--json` for structured envelopes (see
@@ -286,7 +286,12 @@ temporary when `--no-history` is set.
 
 Parakeet is the default local engine for compatibility with existing scripts:
 use v3 for English plus supported European languages, v2 for English timestamped
-transcripts, or Unified for readable English with word timestamps. Use Nemotron
+transcripts, or Unified for readable English with word timestamps. Orukeet is
+an optional Parakeet preview, not a separate engine. Download it with
+`models download parakeet-orukeet`, then use `models select parakeet-orukeet`
+or `transcribe --parakeet-model orukeet`. The default stays v3, and results
+from that build report `engineVariant` `orukeet`. It has no native streaming,
+tail-window preview, or recognition-time vocabulary boosting. Use Nemotron
 Beta when streaming preview matters, Whisper for broad-language
 files/media/retranscription, and Cohere only for local batch plain text with an
 explicit language.
@@ -362,6 +367,7 @@ macparakeet-cli config set processing-mode raw
 macparakeet-cli config set remove-um-filler off
 macparakeet-cli config set speaker-detection off
 macparakeet-cli config set meeting-speaker-detection off
+macparakeet-cli config set custom-vocabulary-boosting on
 macparakeet-cli config set start-meetings-muted on
 macparakeet-cli config set save-transcription-audio off
 macparakeet-cli config set youtube-audio-quality m4a
@@ -390,7 +396,13 @@ macparakeet-cli transcribe --podcast "Lex Fridman episode 400" --format json
 ```bash
 macparakeet-cli history transcriptions --json
 macparakeet-cli history search-transcriptions "design review" --json
+macparakeet-cli history rename <id> --title "Q3 vendor notes" --json
+macparakeet-cli history favorite <id> --json
 ```
+
+`history rename` matches the GUI: meeting rows change the meeting title;
+local file rows set a display `titleOverride` without renaming the source
+file. URL/podcast rows are rejected.
 
 ### Search the transcript knowledge layer
 
@@ -621,7 +633,13 @@ macparakeet-cli meetings corrections edit-line <id> \
   --segment <segment-uuid> --text "Corrected line." --expected-revision 0 --json
 macparakeet-cli meetings corrections merge-lines <id> \
   --segment <first-uuid> --segment <second-uuid> --expected-revision 1 --json
-macparakeet-cli meetings corrections undo <id> --expected-revision 2 --json
+macparakeet-cli meetings corrections rename <id> \
+  --speaker S1 --label "Alice" --expected-revision 2 --json
+macparakeet-cli meetings corrections assign <id> \
+  --segment <segment-uuid> --to-speaker S2 --expected-revision 3 --json
+macparakeet-cli meetings corrections merge-speakers <id> \
+  --from S2 --into S1 --expected-revision 4 --json
+macparakeet-cli meetings corrections undo <id> --expected-revision 5 --json
 ```
 
 The two meeting transcript JSON views expose the effective corrected text and

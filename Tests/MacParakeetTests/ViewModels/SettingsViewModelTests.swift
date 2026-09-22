@@ -1071,6 +1071,23 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(settings, [.keepDictationOnClipboard])
     }
 
+    func testSettingStreamingCursorPersistsAndEmitsTelemetry() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        XCTAssertFalse(viewModel.dictationStreamingCursorEnabled)
+        viewModel.dictationStreamingCursorEnabled = true
+
+        XCTAssertTrue(
+            testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.dictationStreamingCursorEnabledKey)
+        )
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting, _) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.streamingCursor])
+    }
+
     func testSettingDictationInsertionStylePersistsAndEmitsTelemetry() {
         let telemetry = SettingsTelemetrySpy()
         Telemetry.configure(telemetry)
@@ -1673,6 +1690,41 @@ final class SettingsViewModelTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(100))
 
         XCTAssertFalse(viewModel.microphoneGranted, "notDetermined should not be treated as granted")
+        XCTAssertEqual(viewModel.microphoneStatus, .notDetermined)
+    }
+
+    func testRequestMicrophoneAccessGrantsAndRefreshesStatus() async throws {
+        mockPermissions.microphonePermission = .notDetermined
+        mockPermissions.requestMicResult = true
+
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(viewModel.microphoneStatus, .notDetermined)
+
+        viewModel.requestMicrophoneAccess()
+        try await waitUntil { self.viewModel.microphoneGranted }
+
+        XCTAssertEqual(mockPermissions.requestMicrophonePermissionCallCount, 1)
+        XCTAssertTrue(viewModel.microphoneGranted)
+        XCTAssertEqual(mockPermissions.openMicrophoneSettingsCallCount, 0)
+    }
+
+    func testOpenMicrophoneSystemSettingsForwardsToPermissionService() {
+        mockPermissions.microphonePermission = .denied
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
+
+        viewModel.openMicrophoneSystemSettings()
+        XCTAssertEqual(mockPermissions.openMicrophoneSettingsCallCount, 1)
     }
 
     // MARK: - Stats

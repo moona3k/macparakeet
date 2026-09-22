@@ -1371,6 +1371,52 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
         XCTAssertFalse(coordinator.testHook_isFloatingPillVisible)
     }
 
+    /// #1079: the Transcribe tile shows "Wrapping up…" while the shared pill VM
+    /// is `.completing`. That state used to advance only from the floating
+    /// pill's collapse callback, which `refreshState()` does not run once the
+    /// pill is hidden. Stop with the pill hidden must still leave completing
+    /// and return the tile to idle after the saved celebration.
+    func testStopWithFloatingPillHiddenDoesNotStickOnWrappingUp() async throws {
+        let recordingService = MeetingRecordingServiceSpy(output: makeRecordingOutput())
+        let pillViewModel = MeetingRecordingPillViewModel()
+        let coordinator = makeQuitTeardownCoordinator(
+            recordingService: recordingService,
+            shouldShowFloatingMeetingPill: { false },
+            pillViewModel: pillViewModel
+        )
+
+        XCTAssertNotNil(coordinator.startRecording())
+        try await waitForPillState(pillViewModel, .recording)
+        XCTAssertFalse(coordinator.testHook_isFloatingPillVisible)
+
+        XCTAssertTrue(coordinator.stopRecording(operationTrigger: .manual))
+        await coordinator.testHook_waitForActionTask()
+
+        XCTAssertEqual(coordinator.testHook_state, .idle)
+        XCTAssertNotEqual(pillViewModel.state, .completing)
+        XCTAssertEqual(pillViewModel.state, .transcribing)
+
+        try await waitForPillState(pillViewModel, .idle, timeout: .seconds(5))
+    }
+
+    /// The same deadlock as #1079 if stop runs without a pill window (quit-time
+    /// dismiss, or tests that enter recording without `.showRecordingPill`).
+    /// Completing must not be a terminal tile state just because no animation
+    /// surface exists.
+    func testStopWithoutPillWindowDoesNotStickOnWrappingUp() async throws {
+        let pillViewModel = MeetingRecordingPillViewModel()
+        pillViewModel.state = .recording
+        let coordinator = makeQuitTeardownCoordinator(pillViewModel: pillViewModel)
+        coordinator.testHook_enterRecording()
+
+        XCTAssertTrue(coordinator.stopRecording(operationTrigger: .manual))
+        await coordinator.testHook_waitForActionTask()
+
+        XCTAssertEqual(coordinator.testHook_state, .idle)
+        XCTAssertNotEqual(pillViewModel.state, .completing)
+        try await waitForPillState(pillViewModel, .idle, timeout: .seconds(5))
+    }
+
     private func makeQuitTeardownCoordinator(
         recordingService: MeetingRecordingServiceSpy? = nil,
         shouldShowFloatingMeetingPill: @escaping @MainActor @Sendable () -> Bool = { true },
@@ -1482,11 +1528,12 @@ final class MeetingRecordingFlowCoordinatorTests: XCTestCase {
 
     private func waitForPillState(
         _ pillViewModel: MeetingRecordingPillViewModel,
-        _ expectedState: MeetingRecordingPillViewModel.PillState
+        _ expectedState: MeetingRecordingPillViewModel.PillState,
+        timeout: Duration = .seconds(1)
     ) async throws {
         let startedAt = ContinuousClock.now
         while pillViewModel.state != expectedState {
-            if startedAt.duration(to: .now) > .seconds(1) {
+            if startedAt.duration(to: .now) > timeout {
                 XCTFail("Timed out waiting for pill state \(expectedState); latest state: \(pillViewModel.state)")
                 return
             }

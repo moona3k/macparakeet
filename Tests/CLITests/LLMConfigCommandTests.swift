@@ -84,6 +84,30 @@ final class LLMConfigCommandTests: XCTestCase {
         XCTAssertNil(config.apiKey)
     }
 
+    func testInlineOptionsBuildMoonshotConfigFromKimiAlias() throws {
+        let options = try LLMInlineOptions.parse([
+            "--provider", "kimi",
+            "--api-key", "sk-kimi",
+        ])
+
+        let config = try options.buildConfig()
+        XCTAssertEqual(config.id, .moonshot)
+        XCTAssertEqual(config.apiKey, "sk-kimi")
+        XCTAssertEqual(config.modelName, "kimi-k2.6")
+        XCTAssertEqual(config.baseURL.absoluteString, "https://api.moonshot.ai/v1")
+    }
+
+    func testInlineOptionsBuildDeepSeekConfigFromEnvironment() throws {
+        let options = try LLMInlineOptions.parse([
+            "--provider", "deepseek",
+        ])
+
+        let config = try options.buildConfig(environment: ["DEEPSEEK_API_KEY": "ds-key"])
+        XCTAssertEqual(config.id, .deepseek)
+        XCTAssertEqual(config.apiKey, "ds-key")
+        XCTAssertEqual(config.modelName, "deepseek-v4-flash")
+    }
+
     func testInlineOptionsBuildLMStudioConfigWithOptionalAPIKeyEnvironment() throws {
         let options = try LLMInlineOptions.parse([
             "--provider", "lmstudio",

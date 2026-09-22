@@ -43,6 +43,11 @@ The current implementation supports these provider/runtime types through one sha
 | OpenAI (GPT) | Cloud | `https://api.openai.com/v1` | API key (`Authorization: Bearer`) |
 | Google (Gemini) | Cloud | `https://generativelanguage.googleapis.com/v1beta/openai` | API key (`Authorization: Bearer`) |
 | OpenRouter | Cloud | `https://openrouter.ai/api/v1` | API key (`Authorization: Bearer`) |
+| Moonshot (Kimi) | Cloud | `https://api.moonshot.ai/v1` | API key (`Authorization: Bearer`) |
+| DeepSeek | Cloud | `https://api.deepseek.com/v1` | API key (`Authorization: Bearer`) |
+| Qwen | Cloud | `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` | API key (`Authorization: Bearer`) |
+| Z.AI | Cloud | `https://api.z.ai/api/paas/v4` | API key (`Authorization: Bearer`) |
+| MiniMax | Cloud | `https://api.minimax.io/v1` | API key (`Authorization: Bearer`) |
 | OpenAI-Compatible | Custom | User-configured `/v1` endpoint | Provider-specific API token or none |
 | Ollama | Local | `http://localhost:11434/v1` | `apiKey: nil` in config; client injects `Bearer ollama` |
 | LM Studio | Local | `http://localhost:1234/v1` | Optional API token (`Authorization: Bearer`) |
@@ -53,6 +58,8 @@ The current implementation supports these provider/runtime types through one sha
 **Amendment (2026-04-03): Local CLI provider.** Users with Claude Code or Codex subscriptions can use their CLI tools (`claude -p`, `codex exec`, or any custom command) for summaries, chat, and transforms — no separate API key needed. The CLI tool runs as a subprocess via `posix_spawn` with process group management. Prompts are delivered via stdin and `MACPARAKEET_*` environment variables. This extends the provider model without changing the `LLMClientProtocol` — a `RoutingLLMClient` dispatches `.localCLI` contexts to `LocalCLILLMClient` and everything else to the HTTP `LLMClient`. See PR #47.
 
 **Implementation note (2026-04-04):** Anthropic now uses the native Messages API and Ollama uses its native `/api/chat` endpoint. OpenAI, Gemini, OpenRouter, and LM Studio use OpenAI-compatible chat completions. The shared abstraction is the service/client interface, not a single wire protocol.
+
+**Amendment (2026-09-17): China-lab first-class providers.** Moonshot (Kimi), DeepSeek, Qwen, Z.AI, and MiniMax are first-class cloud providers that reuse the OpenAI-compatible adapter. Kimi temperature omit is keyed by canonical model ID, so OpenRouter prefixes and custom OpenAI-compatible endpoints get the same omit as native Moonshot. Lab thinking objects stay on the first-class lab providers. International base URLs are the defaults; regional China endpoints remain a base-URL override. Doubao and Hunyuan stay custom OpenAI-Compatible. This does not add a hosted proxy or change the BYO-key privacy posture.
 
 ### Locked Decisions
 
@@ -80,7 +87,7 @@ The current implementation supports these provider/runtime types through one sha
 | **Transforms** | System-wide selected-text rewrites through saved prompts/hotkeys | User-selected text in other apps |
 | **Custom Prompts** | User-defined transcript prompt outputs | File, URL, and meeting transcriptions |
 
-LLM features stay explicit and provider-backed. The app still ships no bundled/default LLM and no voice Command Mode. AI Formatter runs only after local STT has produced text; it is optional, can be disabled, and never changes the fact that audio stays local.
+LLM features stay explicit and provider-backed. The app still ships no bundled/default LLM. The separately enabled Voice Control surface is authorized for implementation by [ADR-033](033-explicit-voice-control.md); its Jev decision context and consent are distinct from writing-provider configuration. AI Formatter runs only after local STT has produced text; it is optional, can be disabled, and never changes the fact that audio stays local.
 
 ## Rationale
 
@@ -189,7 +196,10 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
 }
 
 public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
-    case anthropic, openai, openaiCompatible, gemini, openrouter, ollama, lmstudio, localCLI, inProcessLocal, appleIntelligence
+    case anthropic, openai, openaiCompatible, gemini, openrouter
+    case moonshot, deepseek, qwen, zai, minimax
+    case ollama, lmstudio, localCLI, inProcessLocal, appleIntelligence
+    // moonshot/deepseek/qwen/zai/minimax are OpenAI-compatible lab endpoints.
     // localCLI runs CLI tools (claude -p, codex exec) as subprocesses — no HTTP, no API key.
     // inProcessLocal is developer-gated Local MLX — no HTTP, no API key.
     // appleIntelligence is macOS 26+ on-device Foundation Models — no HTTP, no API key.

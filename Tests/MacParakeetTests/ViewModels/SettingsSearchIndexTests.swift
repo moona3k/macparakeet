@@ -45,6 +45,14 @@ final class SettingsSearchIndexTests: XCTestCase {
         )
     }
 
+    func testStreamingCursorQueryFindsDictationToggle() {
+        let results = SettingsSearchIndex.matches("typewriter")
+        XCTAssertTrue(
+            results.contains(where: { $0.id == "dictation.streaming.cursor" }),
+            "Streaming cursor should match typewriter keyword"
+        )
+    }
+
     func testPreserveDiscardedQueryFindsDictationToggle() {
         let results = SettingsSearchIndex.matches("accidental cancel")
 

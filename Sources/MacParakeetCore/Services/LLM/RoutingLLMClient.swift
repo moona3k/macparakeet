@@ -80,7 +80,8 @@ public final class RoutingLLMClient: LLMClientProtocol, Sendable {
             return inProcessClient
         case .appleIntelligence:
             return appleIntelligenceClient
-        case .anthropic, .openai, .openaiCompatible, .gemini, .openrouter, .ollama, .lmstudio:
+        case .anthropic, .openai, .openaiCompatible, .gemini, .openrouter, .moonshot, .deepseek, .qwen, .zai, .minimax,
+            .ollama, .lmstudio:
             return httpClient
         }
     }

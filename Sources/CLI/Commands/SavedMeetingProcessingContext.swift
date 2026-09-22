@@ -14,7 +14,7 @@ struct SavedMeetingProcessingContext {
         let dbQueue = dbManager.dbQueue
         let defaults = AppPaths.appDefaults()
         let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
-        let llmService = LLMService()
+        let llmService = makeSharedLLMService(defaults: defaults)
         let promptRepo = PromptRepository(dbQueue: dbQueue)
         let promptResultRepo = PromptResultRepository(dbQueue: dbQueue)
         let promptLabelPolicyRepository = PromptLabelPolicyRepository(dbQueue: dbQueue)
