@@ -385,7 +385,7 @@ CREATE TABLE speaker_corrections (
     operation TEXT NOT NULL CHECK (
         operation IN (
             'rename', 'add', 'assign', 'split', 'unsplit', 'merge', 'remove',
-            'editText', 'mergeSegments', 'reset'
+            'editText', 'mergeSegments', 'reviseText', 'reset'
         )
     ),
     payload TEXT NOT NULL,
@@ -421,7 +421,10 @@ marks the retained redo branch `abandoned` rather than deleting history.
 version so retranscription cannot silently replay stale ranges.
 
 `editText` replaces one current non-empty displayed line while retaining its
-segment time envelope. `mergeSegments` suppresses boundaries between adjacent
+segment time envelope. `reviseText` (v0.46) is one reading-view save: each
+change replaces a current passage with non-empty text or omits that passage
+from the effective transcript. Omitted passages keep their automatic words.
+Undo restores the whole save. `mergeSegments` suppresses boundaries between adjacent
 current ranges with one effective speaker assignment. Both commands use the
 same cursor as speaker changes. Their effective projection derives
 `transcriptTextAlignment` as `segment`; an unchanged projection with automatic
@@ -438,7 +441,9 @@ to their durable automatic segments.
 
 Migration `v0.44-timed-transcript-corrections` rebuilds both tables to widen
 the SQLite operation constraint, then copies all correction rows, parent links,
-and durable cursors before recreating the replay index.
+and durable cursors before recreating the replay index. Migration
+`v0.46-reading-transcript-corrections` rebuilds them again to admit
+`reviseText`.
 
 The state is deliberately not stored on `transcriptions`: whole-row saves of
 older `Transcription` values must not be able to overwrite correction history.
@@ -707,6 +712,10 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
   existed yet. Retry reuses its queued snapshot; regenerate reuses this Boolean
   receipt with the meeting's current committed notes. The column defaults false
   for historical results and is installed by migration v0.33.
+- `sourceCorrectionRevision` (v0.45) records the transcript correction
+  revision used for that result. `NULL` means the result predates the receipt.
+  A later transcript edit can then offer an update without regenerating on
+  its own.
 - `inferenceSettingsSnapshot` (v0.31) stores the normalized effective settings
   actually sent after provider/model capability filtering, not merely the
   settings requested on the prompt. `NULL` preserves historical rows and means

@@ -45,6 +45,45 @@ final class SpeakerCorrectionServiceTests: XCTestCase {
         XCTAssertTrue(try fixture.transcriptions.search(query: "hello world", limit: nil).isEmpty)
     }
 
+    func testReviseTextOmitsAPassageFromSearchAndUndoRestoresIt() async throws {
+        let fixture = try Fixture()
+        let target = SpeakerCorrectionTarget(
+            anchorTranscriptSegmentIDs: [try XCTUnwrap(fixture.transcription.transcriptSegments?.first?.id)],
+            wordRange: .init(startIndex: 0, endIndexExclusive: 2)
+        )
+
+        let omitted = try await fixture.service.apply(
+            transcriptionId: fixture.transcription.id,
+            command: .reviseText(changes: [.omit(target: target)]),
+            expectedFingerprint: fixture.fingerprint,
+            expectedRevision: 0
+        )
+
+        XCTAssertTrue(omitted.attribution.editableSegments.isEmpty)
+        XCTAssertEqual(
+            try XCTUnwrap(fixture.transcriptions.fetch(id: fixture.transcription.id)).wordTimestamps?.map(\.word),
+            ["Hello", "world."]
+        )
+        XCTAssertTrue(
+            try fixture.transcriptions.fetchLibraryPage(
+                query: .init(searchText: "hello", limit: 10)
+            ).items.isEmpty
+        )
+
+        let undone = try await fixture.service.undo(
+            transcriptionId: fixture.transcription.id,
+            expectedFingerprint: fixture.fingerprint,
+            expectedRevision: omitted.revision
+        )
+        XCTAssertEqual(undone.attribution.editableSegments.map(\.text), ["Hello world."])
+        XCTAssertEqual(
+            try fixture.transcriptions.fetchLibraryPage(
+                query: .init(searchText: "hello", limit: 10)
+            ).items.map(\.id),
+            [fixture.transcription.id]
+        )
+    }
+
     func testLibraryProjectionOnlyResolvesActiveTimedTextHistory() async throws {
         let fixture = try Fixture()
         let target = SpeakerCorrectionTarget(

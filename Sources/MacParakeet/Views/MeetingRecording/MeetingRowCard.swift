@@ -335,13 +335,15 @@ struct MeetingRowCard<MenuContent: View>: View {
     }
 
     private var displayedSnippet: String? {
-        if let effectiveTranscriptText,
-            let effectiveSnippet = SnippetDeriver.derive(
-                from: effectiveTranscriptText,
+        if let effectiveTranscriptText {
+            // Empty means the effective transcript was cleared. The stored
+            // snippet still has the pre-edit text and must not fill the gap.
+            let trimmed = effectiveTranscriptText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+            return SnippetDeriver.derive(
+                from: trimmed,
                 excluding: transcription.derivedTitle
-            ) ?? snippet(from: effectiveTranscriptText)
-        {
-            return effectiveSnippet
+            ) ?? snippet(from: trimmed)
         }
         if let derived = transcription.derivedSnippet?.trimmingCharacters(in: .whitespacesAndNewlines), !derived.isEmpty
         {

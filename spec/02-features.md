@@ -1544,6 +1544,12 @@ are unaffected.
 - The older whole-transcript editor remains the fallback for transcripts without
   usable timing. Its replacement is explicitly untimed and is never silently
   aligned to automatic words.
+- The Text view of a timed transcript has **Edit**. It opens the same passages
+  for rewriting or removal, then **Done** saves them as one `reviseText`
+  correction. Removed passages stay out of the effective transcript. **Cancel**
+  discards the session. Undo restores it.
+- A prompt result generated from an older correction revision shows **Update
+  summary**. Regenerating records the revision it used.
 
 The governing behavior is [ADR-031](adr/031-timed-transcript-corrections.md).
 
