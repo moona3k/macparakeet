@@ -1,0 +1,21 @@
+Tests/MacParakeetTests/Services/LLM/AppleIntelligenceLLMClientTests.swift
+  s_08070a5469009d::t_f5d9f3fbfe81f7 246,249-263
+  s_08070a5469009d::t_9bab0a0304f791 243-245
+  s_08070a5469009d::t_f8b8bcf745686b 247-248
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "dd5f3b8a9896ebb7539e666097da01dd74a854a4",
+  "prompts": {},
+  "sessions": {
+    "s_08070a5469009d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e4ef9f5a-7c8e-42b5-8c32-482153280e11",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
