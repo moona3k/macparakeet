@@ -1,0 +1,99 @@
+Sources/CLI/CHANGELOG.md
+  s_08070a5469009d::t_758e03cb82c32f 97-99
+Sources/CLI/Commands/ConfigCommand.swift
+  s_08070a5469009d::t_d58750cf80874b 55,183-188,399-400,524-527
+Sources/MacParakeet/App/AppHotkeyCoordinator.swift
+  s_08070a5469009d::t_a4cc7dec946f46 281-283
+Sources/MacParakeet/App/VoiceControlCoordinator.swift
+  s_08070a5469009d::t_f083f09b86c3c4 404-405,407,412-413,452-458,466-468,472-480,531-532,559-561,563-565,571-572,576,590-598
+Sources/MacParakeet/Hotkey/HotkeyManager.swift
+  s_08070a5469009d::t_087d30ed006b2e 20-24,440,647,709,823,836-845
+Sources/MacParakeet/Views/Settings/SettingsView.swift
+  s_08070a5469009d::t_46d68fad592336 1169-1176
+Sources/MacParakeetCore/AppRuntimePreferences.swift
+  s_08070a5469009d::t_465f5e70727362 33,566,821-829
+Sources/MacParakeetCore/STT/HotkeyGestureController.swift
+  s_08070a5469009d::t_56c65add7fd57c 63
+Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift
+  s_08070a5469009d::t_307167b36713e5 576
+Sources/MacParakeetCore/Services/VoiceControl/AXTreeWalk.swift
+  s_08070a5469009d::t_5f1f74891a4cef 186,215-228,230,237,249,252-255
+Sources/MacParakeetCore/Services/VoiceControl/JevDecisionClient.swift
+  s_08070a5469009d::t_a86092b48e95da 48-49,75-79,90-91,96-102,126-127,143-144,146-153,159-161,171-172,195-197,209-212,217-235,298-299,312-314,317-323,329-331,345-346,369-370,389-391
+Sources/MacParakeetCore/Services/VoiceControl/NativeVoiceControlAdapter.swift
+  s_08070a5469009d::t_c7a756b9830413 23-33,52-54,78,84,87-90,108,139,194-202,317-319,724-737,739-748
+Sources/MacParakeetCore/Services/VoiceControl/README.md
+  s_08070a5469009d::t_1eb4e55e0d5f98 8,13,41
+Sources/MacParakeetCore/Services/VoiceControl/ScreenTextSource.swift
+  s_08070a5469009d::t_b4a224c0529a8b 1,17,19-20,23-45,47-50,56-109,113-206,215-217,222-225,234-240
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlDiagnostics.swift
+  s_08070a5469009d::t_1a039a49967244 236-240,306-307,318-319,331-333,340,342-343
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlInbox.swift
+  s_08070a5469009d::t_be3cfe0109fa50 25-27,30
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTraceStore.swift
+  s_08070a5469009d::t_53366a8ff36cf6 1,187-188,192,196-201,211-214,216,219-221,226-227,232-245,247-253,262-264,268,285,292,346-348,362-364
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTurnRunner.swift
+  s_08070a5469009d::t_c9155464be1a67 3-14,36-39,99,133,154,162,189,194,213-217,221,233-237,241,593
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTypes.swift
+  s_08070a5469009d::t_cdc93b666a6d5c 39-40,61-74,121-122,126-127
+Sources/MacParakeetViewModels/SettingsSearchIndex.swift
+  s_08070a5469009d::t_3940a4bdb8a489 196-206
+Sources/MacParakeetViewModels/SettingsViewModel.swift
+  s_08070a5469009d::t_4912b24a079ec3 346-357,1059
+Tests/CLITests/ConfigCommandTests.swift
+  s_08070a5469009d::t_f3102c96c4b4fb 46,243-247
+Tests/MacParakeetTests/AppRuntimePreferencesTests.swift
+  s_08070a5469009d::t_b10b392f6c2176 510-521
+Tests/MacParakeetTests/Hotkey/HotkeyManagerTests.swift
+  s_08070a5469009d::t_ff8856069e2fa9 209-323
+Tests/MacParakeetTests/Services/VoiceControl/VoiceControlSpeechTests.swift
+  s_08070a5469009d::t_476cdda8b3c3cc 7-11
+Tests/MacParakeetTests/ViewModels/SettingsSearchIndexTests.swift
+  s_08070a5469009d::t_c01335f7fd1617 56-64
+Tests/MacParakeetTests/ViewModels/SettingsViewModelTests.swift
+  s_08070a5469009d::t_85e97acdcae5b0 219,289,323,461-479
+Tests/MacParakeetTests/VoiceControl/AXTreeWalkTests.swift
+  s_08070a5469009d::t_6661fa8d7c323d 61-70,212-214
+Tests/MacParakeetTests/VoiceControl/JevLeanRequestTests.swift
+  s_08070a5469009d::t_812ad5c00b8c16 198-257,272-277,283-286,289-290,292-293,296-298
+Tests/MacParakeetTests/VoiceControl/NativeVoiceControlAdapterTests.swift
+  s_08070a5469009d::t_cd48a591b93c60 6-18
+Tests/MacParakeetTests/VoiceControl/NativeVoiceControlE2ETests.swift
+  s_08070a5469009d::t_588e24ad9a1b7b 1-210
+Tests/MacParakeetTests/VoiceControl/ScreenTextSourceTests.swift
+  s_08070a5469009d::t_dbb25e38fc4b9d 83-84,113-125
+Tests/MacParakeetTests/VoiceControl/VoiceControlObservabilityTests.swift
+  s_08070a5469009d::t_ca750ca839dda1 49-50,247-283,299-322
+Tests/MacParakeetTests/VoiceControl/VoiceControlRecoveryTests.swift
+  s_08070a5469009d::t_a19e5c0955228b 242,250-252,270-281
+Tests/MacParakeetTests/VoiceControl/VoiceControlTraceStoreTests.swift
+  s_08070a5469009d::t_e1998661ecc494 41-63,94-95,117-118,142-143
+docs/cli-testing.md
+  s_08070a5469009d::t_4d219a45b98a65 282
+docs/telemetry.md
+  s_08070a5469009d::t_fb413c066fe91c 421
+spec/02-features.md
+  s_08070a5469009d::t_7e2ec4dcc5a8d4 189-191,213,237,292-293,387,2228
+spec/adr/009-custom-hotkey.md
+  s_08070a5469009d::t_cf57dc577b2dae 96-99
+spec/adr/033-explicit-voice-control.md
+  s_08070a5469009d::t_7777070f1d6398 94-96
+spec/contracts/voice-control.md
+  s_08070a5469009d::t_269cc83df2ce42 45-47,233-237,271-276,303
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4f929ce49d5960198621828bb8aa5860103ce3ea",
+  "prompts": {},
+  "sessions": {
+    "s_08070a5469009d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e4ef9f5a-7c8e-42b5-8c32-482153280e11",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
