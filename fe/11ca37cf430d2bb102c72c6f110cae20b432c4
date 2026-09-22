@@ -1,0 +1,88 @@
+Sources/MacParakeetCore/Services/VoiceControl/NativeVoiceControlAdapter.swift
+  s_22ec5587c2905e::t_050d7afac0c0fb 121
+Sources/MacParakeet/App/VoiceControlCoordinator.swift
+  s_22ec5587c2905e::t_8af444f5cc868f 412-413
+  s_22ec5587c2905e::t_9f2f0622ee3f7e 467
+  s_22ec5587c2905e::t_11bbec4305bc92 404-405
+  s_22ec5587c2905e::t_afd91626e919f0 466,468,472-475,527,555,559
+  s_22ec5587c2905e::t_170ead65ac3751 407,452-458,526,554,556,558,560,566-567,585-593
+spec/contracts/voice-control.md
+  s_22ec5587c2905e::t_81cc369454eb81 45-47
+  s_22ec5587c2905e::t_d7a23ab20434c2 233-236
+  s_22ec5587c2905e::t_de0eda2570fb84 270-275
+  s_22ec5587c2905e::t_877c5281d65398 302
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTurnRunner.swift
+  s_22ec5587c2905e::t_509585048e2a9e 191-195
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlDiagnostics.swift
+  s_22ec5587c2905e::t_a30fe5d5c2d37c 340,342-343
+  s_22ec5587c2905e::t_53140673c8275d 236-240,306-307,318-319,331-333
+Tests/MacParakeetTests/VoiceControl/AXTreeWalkTests.swift
+  s_22ec5587c2905e::t_299035ccad122e 61-70
+  s_22ec5587c2905e::t_012e8f63895f8f 212-214
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTypes.swift
+  s_22ec5587c2905e::t_5daba4ba83332a 61-71
+  s_22ec5587c2905e::t_318a2d306bd4b4 39-40,72-74,121-122,126-127
+Sources/MacParakeetCore/Services/VoiceControl/ScreenTextSource.swift
+  s_22ec5587c2905e::t_c0fc9b03b4a589 1,17,19-20,23-45,47-50,56-59,61-64,66-97,100-126
+  s_22ec5587c2905e::t_81532a9e739c2a 156-162
+  s_22ec5587c2905e::t_d5bc2eb059f1c9 98-99
+  s_22ec5587c2905e::t_5df55c8262649f 137-139,144-147
+Tests/MacParakeetTests/VoiceControl/JevLeanRequestTests.swift
+  s_22ec5587c2905e::t_b61996bf71d602 198-257,277,283,296
+  s_22ec5587c2905e::t_9c2e513bf06285 272-276,284-286,289-290,292-293,297-298
+Sources/MacParakeetCore/Services/VoiceControl/README.md
+  s_22ec5587c2905e::t_2cc995abe4a538 13
+  s_22ec5587c2905e::t_2d09a4071badb9 8
+  s_22ec5587c2905e::t_ad803d479efff7 41
+Tests/MacParakeetTests/Services/VoiceControl/VoiceControlSpeechTests.swift
+  s_22ec5587c2905e::t_76aaf6300930bc 7-11
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlTraceStore.swift
+  s_22ec5587c2905e::t_d985d8573f2639 191,195-198
+  s_22ec5587c2905e::t_2fe06b24d4026c 225-226
+  s_22ec5587c2905e::t_05862438094807 234-240
+  s_22ec5587c2905e::t_e308059115f60f 186-187
+  s_22ec5587c2905e::t_b129188efb339a 249-251
+  s_22ec5587c2905e::t_99e882d7dda6ed 199,255
+  s_22ec5587c2905e::t_fa67bf47a5b1df 210-213,215
+  s_22ec5587c2905e::t_354cf46d83e4e8 219,272,279
+  s_22ec5587c2905e::t_862fa36befc486 200,218,220,333-335,349-351
+Sources/MacParakeetCore/Services/VoiceControl/JevDecisionClient.swift
+  s_22ec5587c2905e::t_bf402a94f0cd66 49,127,144,209-212,217-233,345-346,390
+  s_22ec5587c2905e::t_e21c29e2cd5b3f 146-153
+  s_22ec5587c2905e::t_7c7a1da08ddb2c 75-79
+  s_22ec5587c2905e::t_534f1005810500 48,90-91,96-102,126,143,159-161,171-172,195-197,234-235,298-299,312-314,317-323,329-331,369-370,389,391
+Sources/MacParakeetCore/Services/VoiceControl/VoiceControlInbox.swift
+  s_22ec5587c2905e::t_b4dce4eaa019bc 25-27,30
+Tests/MacParakeetTests/VoiceControl/VoiceControlObservabilityTests.swift
+  s_22ec5587c2905e::t_824bd77a78feec 247-250
+  s_22ec5587c2905e::t_75fb76bfd66e11 49-50
+Tests/MacParakeetTests/VoiceControl/VoiceControlTraceStoreTests.swift
+  s_22ec5587c2905e::t_7d0de58e32e49d 41-46
+  s_22ec5587c2905e::t_5088f6b55cbc5b 47-49,80-81,103-104,128-129
+spec/adr/033-explicit-voice-control.md
+  s_22ec5587c2905e::t_188d716392df76 94-96
+Sources/MacParakeetCore/Services/VoiceControl/AXTreeWalk.swift
+  s_22ec5587c2905e::t_2457ab20ef3a6f 186
+  s_22ec5587c2905e::t_87cd1a3b8d06c0 215-228,230,237,249,252-255
+Tests/MacParakeetTests/VoiceControl/VoiceControlRecoveryTests.swift
+  s_22ec5587c2905e::t_1cedde2454228e 242,250-252
+  s_22ec5587c2905e::t_d758d9490823b9 270-281
+Tests/MacParakeetTests/VoiceControl/ScreenTextSourceTests.swift
+  s_22ec5587c2905e::t_8e42beed0c6e19 83-84,113-125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fe11ca37cf430d2bb102c72c6f110cae20b432c4",
+  "prompts": {},
+  "sessions": {
+    "s_22ec5587c2905e": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d63dd1ea-9d2b-4826-93ac-75f15495da8c",
+        "model": "grok-4.6"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
