@@ -1,0 +1,32 @@
+benchmarks/asr/run_macparakeet.py
+  s_a5c5adb13167fb::t_ef4c5224623189 40
+  s_a5c5adb13167fb::t_c3a1e196527742 13-14
+docs/research/2026-09-21-orukeet-asr-benchmark.md
+  s_a5c5adb13167fb::t_74d8fff9010e60 1-172
+benchmarks/asr/manifest.json
+  s_a5c5adb13167fb::t_85e2d4925478c1 84-102
+  s_a5c5adb13167fb::t_3f51330fb666c2 83
+benchmarks/asr/speed_bench.py
+  s_a5c5adb13167fb::t_3ae676498bf3f2 48
+benchmarks/asr/run_macparakeet_fleurs.py
+  s_a5c5adb13167fb::t_a91392bb8fdd29 38
+  s_a5c5adb13167fb::t_1a42d1f8aad2f6 14
+benchmarks/asr/README.md
+  s_a5c5adb13167fb::t_34667a0c90b5cf 286-300
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "94440238ada0df723ed22e247c3db763d7614f6e",
+  "prompts": {},
+  "sessions": {
+    "s_a5c5adb13167fb": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "780dd43a-7aac-4de5-a206-7e6112e487dd",
+        "model": "grok-4.7"
+      },
+      "human_author": "Daniel Moon <32221114+moona3k@users.noreply.github.com>"
+    }
+  }
+}
