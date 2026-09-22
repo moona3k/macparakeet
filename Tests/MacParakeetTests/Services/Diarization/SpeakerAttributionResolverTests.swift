@@ -33,6 +33,72 @@ final class SpeakerAttributionResolverTests: XCTestCase {
         XCTAssertTrue(resolved.unresolvedCorrections.isEmpty)
     }
 
+    func testReviseTextReplacesOnePassageAndOmitsAnotherWithoutMutatingWords() {
+        let transcription = twoSegmentFixture()
+        let baseline = SpeakerAttributionResolver.resolve(transcription: transcription)
+        XCTAssertEqual(baseline.editableSegments.count, 2)
+        let fingerprint = SpeakerAttributionResolver.fingerprint(for: transcription)
+        let kept = baseline.editableSegments[0].wordRange
+        let omitted = baseline.editableSegments[1].wordRange
+        let edit = correction(
+            id: UUID(), parentID: nil, sequence: 1,
+            fingerprint: fingerprint, transcription: transcription,
+            command: .reviseText(changes: [
+                .replace(target: target(kept, transcription: transcription), text: "Kept."),
+                .omit(target: target(omitted, transcription: transcription)),
+            ])
+        )
+
+        let resolved = resolve(transcription, correction: edit, fingerprint: fingerprint)
+
+        XCTAssertEqual(resolved.editableSegments.map(\.text), ["Kept."])
+        XCTAssertEqual(resolved.words.map(\.word), transcription.wordTimestamps?.map(\.word))
+        XCTAssertTrue(resolved.hasTextCorrections)
+        XCTAssertTrue(resolved.unresolvedCorrections.isEmpty)
+
+        let restored = SpeakerAttributionResolver.resolve(transcription: transcription)
+        XCTAssertEqual(restored.editableSegments.map(\.text), baseline.editableSegments.map(\.text))
+    }
+
+    func testReviseTextRejectsAnEmptySessionBlankReplacementAndDuplicatePassage() {
+        let transcription = twoSegmentFixture()
+        let baseline = SpeakerAttributionResolver.resolve(transcription: transcription)
+        let fingerprint = SpeakerAttributionResolver.fingerprint(for: transcription)
+        let first = target(baseline.editableSegments[0].wordRange, transcription: transcription)
+
+        let empty = correction(
+            id: UUID(), parentID: nil, sequence: 1,
+            fingerprint: fingerprint, transcription: transcription,
+            command: .reviseText(changes: [])
+        )
+        XCTAssertEqual(
+            resolve(transcription, correction: empty, fingerprint: fingerprint).unresolvedCorrections.map(\.reason),
+            [.invalidText]
+        )
+
+        let blank = correction(
+            id: UUID(), parentID: nil, sequence: 1,
+            fingerprint: fingerprint, transcription: transcription,
+            command: .reviseText(changes: [.replace(target: first, text: "  ")])
+        )
+        XCTAssertEqual(
+            resolve(transcription, correction: blank, fingerprint: fingerprint).unresolvedCorrections.map(\.reason),
+            [.invalidText]
+        )
+
+        let duplicate = correction(
+            id: UUID(), parentID: nil, sequence: 1,
+            fingerprint: fingerprint, transcription: transcription,
+            command: .reviseText(changes: [
+                .replace(target: first, text: "One."),
+                .omit(target: first),
+            ])
+        )
+        let rejected = resolve(transcription, correction: duplicate, fingerprint: fingerprint)
+        XCTAssertEqual(rejected.unresolvedCorrections.map(\.reason), [.overlappingTargets])
+        XCTAssertEqual(rejected.editableSegments.map(\.text), baseline.editableSegments.map(\.text))
+    }
+
     func testPartialTextEditNormalizesUntouchedTokenizerWordSlices() {
         let words = [
             WordTimestamp(word: "That's", startMs: 0, endMs: 150, confidence: 0.9, speakerId: "S1"),
