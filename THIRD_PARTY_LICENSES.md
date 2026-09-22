@@ -205,3 +205,7 @@ does not claim their compiler executables are redistributed in the app.
 - Pinned revision: `88033de44951ebedb96e0adb68cc037443aab93a`
 - Bundling status: Not bundled in the app; downloaded from Hugging Face at setup time by the developer-gated Local MLX setup flow, verified against MacParakeet's SHA-256 manifest, and run locally afterward
 - Used for: Default model for the developer-gated in-process Local MLX provider
+
+## Orukeet optional model weights
+
+Orukeet is an optional download from [oruk/orukeet](https://huggingface.co/oruk/orukeet), an Oruk adaptation of NVIDIA Parakeet v3. The model weights are licensed under [Creative Commons Attribution-ShareAlike 4.0](https://huggingface.co/oruk/orukeet/blob/main/LICENSE). They are not bundled with this application.

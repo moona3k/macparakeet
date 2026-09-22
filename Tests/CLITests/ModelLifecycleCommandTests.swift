@@ -6,6 +6,12 @@ import XCTest
 @testable import CLI
 
 final class ModelLifecycleCommandTests: XCTestCase {
+    func testOrukeetSelectorsResolveWithoutStockVersionFallback() throws {
+        XCTAssertEqual(parakeetDownloadVariant(from: "parakeet-orukeet"), .orukeet)
+        XCTAssertEqual(try ConfigCommand.parseParakeetModelVariant("orukeet"), .orukeet)
+        XCTAssertEqual(TranscribeCommand.resolveParakeetModelVariant(.orukeet, storedVariant: .v2), .orukeet)
+    }
+
     func testValidatedAttemptsRejectsZero() {
         XCTAssertThrowsError(try validatedAttempts(0)) { error in
             XCTAssertTrue(error is ValidationError)
@@ -124,7 +130,7 @@ final class ModelLifecycleCommandTests: XCTestCase {
             isCohereModelDownloaded: { false }
         )
 
-        XCTAssertEqual(models.count, 7)
+        XCTAssertEqual(models.count, 8)
         XCTAssertEqual(
             models[0],
             SelectableSpeechModel(
@@ -152,6 +158,18 @@ final class ModelLifecycleCommandTests: XCTestCase {
         XCTAssertEqual(
             models[2],
             SelectableSpeechModel(
+                id: "parakeet-orukeet",
+                name: "Orukeet (preview)",
+                engine: "parakeet",
+                variant: "orukeet",
+                size: "445 MiB",
+                installed: false,
+                selected: false,
+                language: nil
+            ))
+        XCTAssertEqual(
+            models[3],
+            SelectableSpeechModel(
                 id: "parakeet-unified",
                 name: "Parakeet Unified 0.6B (English (Unified))",
                 engine: "parakeet",
@@ -162,7 +180,7 @@ final class ModelLifecycleCommandTests: XCTestCase {
                 language: "en"
             ))
         XCTAssertEqual(
-            models[3],
+            models[4],
             SelectableSpeechModel(
                 id: "nemotron-multilingual-1120ms",
                 name: "Nemotron 3.5 ASR Streaming 0.6B (Multilingual Beta)",
@@ -174,7 +192,7 @@ final class ModelLifecycleCommandTests: XCTestCase {
                 language: "auto"
             ))
         XCTAssertEqual(
-            models[4],
+            models[5],
             SelectableSpeechModel(
                 id: "nemotron-english-1120ms",
                 name: "Nemotron Speech Streaming EN 0.6B (English Beta)",
@@ -186,7 +204,7 @@ final class ModelLifecycleCommandTests: XCTestCase {
                 language: "en"
             ))
         XCTAssertEqual(
-            models[5],
+            models[6],
             SelectableSpeechModel(
                 id: "cohere-transcribe",
                 name: "Cohere Transcribe",
@@ -198,7 +216,7 @@ final class ModelLifecycleCommandTests: XCTestCase {
                 language: "en"
             ))
         XCTAssertEqual(
-            models[6],
+            models[7],
             SelectableSpeechModel(
                 id: "whisper-large-v3-v20240930-turbo-632MB",
                 name: "Whisper Large v3 Turbo",
@@ -223,7 +241,7 @@ final class ModelLifecycleCommandTests: XCTestCase {
         for variant in ParakeetModelVariant.allCases {
             let lifecycle = SpeechEngineCapabilityRegistry.capabilities(for: .parakeet(variant)).modelLifecycle
             let model = try XCTUnwrap(modelsByID[parakeetModelID(for: variant)])
-            XCTAssertEqual(model.name, "\(lifecycle.modelName) (\(variant.displayName))")
+            XCTAssertEqual(model.name, variant == .orukeet ? variant.displayName : "\(lifecycle.modelName) (\(variant.displayName))")
             XCTAssertEqual(model.variant, lifecycle.variantID)
             XCTAssertEqual(model.size, lifecycle.approximateDownloadSize)
         }

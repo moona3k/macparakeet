@@ -1081,6 +1081,65 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(runs.first?.messageCount, 2)
     }
 
+    func testTranscribeFileStripsUmByDefaultInCleanMode() async throws {
+        await mockSTT.configure(result: STTResult(text: "I um think we should ship it"))
+
+        let cleanService = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            processingMode: { .clean }
+        )
+
+        let result = try await cleanService.transcribe(fileURL: URL(fileURLWithPath: "/tmp/test.mp3"))
+
+        XCTAssertEqual(result.rawTranscript, "I um think we should ship it")
+        XCTAssertEqual(result.cleanTranscript, "I think we should ship it")
+    }
+
+    func testTranscribeFilePreservesUmWhenFillerToggleIsOff() async throws {
+        await mockSTT.configure(result: STTResult(text: "um, dois, três"))
+
+        let cleanService = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            processingMode: { .clean },
+            removeUmFiller: { false }
+        )
+
+        let result = try await cleanService.transcribe(fileURL: URL(fileURLWithPath: "/tmp/test.mp3"))
+
+        XCTAssertEqual(result.rawTranscript, "um, dois, três")
+        XCTAssertEqual(result.cleanTranscript, "Um, dois, três")
+    }
+
+    func testTranscribeMeetingDoesNotStripFillersInCleanMode() async throws {
+        let transcript = "Treffe dich um drei uh"
+        await mockSTT.configure(result: STTResult(
+            text: transcript,
+            words: timestampedWords(from: transcript)
+        ))
+        let recording = try makeOneSourceMeetingRecording(displayName: "Um Meeting")
+        defer { try? FileManager.default.removeItem(at: recording.folderURL) }
+
+        let cleanService = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            segmentRepo: segmentRepo,
+            knowledgeLayerMutator: KnowledgeLayerMutationService(dbQueue: dbManager.dbQueue),
+            processingMode: { .clean },
+            meetingArtifactStore: nil,
+            meetingAutomationHookRunner: nil
+        )
+
+        let result = try await cleanService.transcribeMeeting(recording: recording)
+
+        XCTAssertEqual(result.rawTranscript, transcript)
+        XCTAssertNil(result.cleanTranscript)
+    }
+
     func testTranscribeSkipsAIFormatterWhenCleanTranscriptExceedsInputCap() async throws {
         // The formatter must reproduce the full text, so past the cap it
         // can stall finalization until timeout before falling back. Clean mode

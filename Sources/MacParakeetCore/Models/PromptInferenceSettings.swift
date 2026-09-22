@@ -366,7 +366,7 @@ public enum PromptInferenceCapabilityResolver {
         switch config.id {
         case .openai:
             var fields: Set<PromptInferenceSettings.Field> = [.maxTokens]
-            if !OpenAIModelPolicy.shouldOmitSampling(model: config.modelName) {
+            if !ChatCompletionsModelPolicy.shouldOmitSampling(model: config.modelName) {
                 fields.formUnion([.temperature, .topP])
             }
             return fields
@@ -381,16 +381,32 @@ public enum PromptInferenceCapabilityResolver {
         case .openaiCompatible:
             if OpenAIModelPolicy.requiresMaxCompletionTokens(model: config.modelName) {
                 var fields: Set<PromptInferenceSettings.Field> = [.maxTokens]
-                if !OpenAIModelPolicy.shouldOmitSampling(model: config.modelName) {
+                if !ChatCompletionsModelPolicy.shouldOmitSampling(model: config.modelName) {
                     fields.formUnion([.temperature, .topP])
+                }
+                return fields
+            }
+            if ChatCompletionsModelPolicy.shouldOmitSampling(model: config.modelName) {
+                var fields: Set<PromptInferenceSettings.Field> = [.maxTokens]
+                if ChatCompletionsModelPolicy.supportsThinkingToggle(model: config.modelName) {
+                    fields.insert(.thinkingMode)
                 }
                 return fields
             }
             return [.temperature, .topP, .topK, .maxTokens, .thinkingMode, .reasoningEffort]
         case .openrouter:
             var fields: Set<PromptInferenceSettings.Field> = [.maxTokens]
-            if !OpenAIModelPolicy.shouldOmitSampling(model: config.modelName) {
+            if !ChatCompletionsModelPolicy.shouldOmitSampling(model: config.modelName) {
                 fields.insert(.temperature)
+            }
+            return fields
+        case .moonshot, .deepseek, .qwen, .zai, .minimax:
+            var fields: Set<PromptInferenceSettings.Field> = [.maxTokens]
+            if !ChatCompletionsModelPolicy.shouldOmitSampling(model: config.modelName) {
+                fields.insert(.temperature)
+            }
+            if ChatCompletionsModelPolicy.supportsThinkingToggle(model: config.modelName) {
+                fields.insert(.thinkingMode)
             }
             return fields
         case .gemini, .lmstudio:
@@ -474,7 +490,7 @@ public enum PromptInferenceCapabilityResolver {
 
         let allowedThinkingModes: [PromptInferenceSettings.ThinkingMode]
         if field == .thinkingMode && availability != .unsupported,
-            config.id == .ollama || config.id == .openaiCompatible
+            config.id == .ollama || config.id == .openaiCompatible || config.id.isChinaLabCloud
         {
             allowedThinkingModes = PromptInferenceSettings.ThinkingMode.allCases
         } else {
@@ -491,15 +507,18 @@ public enum PromptInferenceCapabilityResolver {
         let reason: String?
         switch availability {
         case .supported:
-            reason = isGemini3Temperature
+            reason =
+                isGemini3Temperature
                 ? "Gemini 3 recommends automatic sampling for this setting."
                 : nil
         case .unsupported:
-            reason = field == .thinkingMode || field == .reasoningEffort
+            reason =
+                field == .thinkingMode || field == .reasoningEffort
                 ? "Not available with this provider or model."
                 : "This provider or model does not support this setting."
         case .unverified:
-            reason = config.id == .ollama
+            reason =
+                config.id == .ollama
                 ? "Thinking support depends on the selected Ollama model; sent as requested."
                 : "Custom endpoint support is unverified; sent as requested."
         }

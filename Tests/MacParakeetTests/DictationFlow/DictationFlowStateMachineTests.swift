@@ -286,6 +286,20 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertTrue(effects.contains(.startDisplayDismissTimer(seconds: 5)))
     }
 
+    func testCheckingEntitlementsStartFailedShowsError() {
+        var m = makeMachine()
+        _ = m.handle(.startRequested(mode: .persistent))
+        let gen = m.generation
+
+        let effects = m.handle(.startFailed(generation: gen, message: "Microphone access required"))
+        XCTAssertEqual(m.state, .finishing(outcome: .error("Microphone access required")))
+        XCTAssertTrue(effects.contains(.showError("Microphone access required")))
+        XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
+        XCTAssertTrue(effects.contains(.updateMenuBar(.idle)))
+        XCTAssertTrue(effects.contains(.startDisplayDismissTimer(seconds: 5)))
+        XCTAssertFalse(effects.contains(.startRecording(mode: .persistent)))
+    }
+
     func testStartingServiceStopRequested() {
         var m = makeMachine()
         _ = m.handle(.startRequested(mode: .persistent))

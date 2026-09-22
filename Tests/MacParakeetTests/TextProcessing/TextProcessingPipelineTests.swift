@@ -36,8 +36,69 @@ final class TextProcessingPipelineTests: XCTestCase {
     }
 
     func testPipelinePreservesPortugueseUmWhenCounting() {
-        let result = pipeline.process(text: "um, dois, três", customWords: [], snippets: [])
+        let result = pipeline.process(
+            text: "um, dois, três",
+            customWords: [],
+            snippets: [],
+            removeUmFiller: false
+        )
         XCTAssertEqual(result.text, "Um, dois, três")
+    }
+
+    func testPipelineStripsEnglishUmByDefault() {
+        let result = pipeline.process(text: "I um think we should ship it", customWords: [], snippets: [])
+        XCTAssertEqual(result.text, "I think we should ship it")
+    }
+
+    func testPipelineStripsSentenceInitialUmWithComma() {
+        let result = pipeline.process(
+            text: "Um, I think we should ship it",
+            customWords: [],
+            snippets: []
+        )
+        XCTAssertEqual(result.text, "I think we should ship it")
+    }
+
+    func testPipelineStripsUmBetweenCommas() {
+        let result = pipeline.process(
+            text: "I think, um, we should ship it",
+            customWords: [],
+            snippets: []
+        )
+        XCTAssertEqual(result.text, "I think, we should ship it")
+    }
+
+    func testPipelineStripsSentenceMedialUmAfterPeriod() {
+        let result = pipeline.process(
+            text: "Hello. Um, we should ship it",
+            customWords: [],
+            snippets: []
+        )
+        XCTAssertEqual(result.text, "Hello. we should ship it")
+    }
+
+    func testPipelineStripsLineInitialUmAfterNewline() {
+        let result = pipeline.process(
+            text: "Hello.\nUm, we should ship it",
+            customWords: [],
+            snippets: []
+        )
+        XCTAssertEqual(result.text, "Hello.\nwe should ship it")
+    }
+
+    func testPipelineStripsSentenceInitialUhWithComma() {
+        let result = pipeline.process(text: "Uh, I think we should ship it", customWords: [], snippets: [])
+        XCTAssertEqual(result.text, "I think we should ship it")
+    }
+
+    func testPipelinePreservesGermanUmWhenUmFillerIsOff() {
+        let result = pipeline.process(
+            text: "treffe dich um drei",
+            customWords: [],
+            snippets: [],
+            removeUmFiller: false
+        )
+        XCTAssertEqual(result.text, "Treffe dich um drei")
     }
 
     // MARK: - Step 1: Filler Removal
@@ -65,6 +126,22 @@ final class TextProcessingPipelineTests: XCTestCase {
         let result = pipeline.removeFillers(from: "umm this is uhh interesting")
         XCTAssertFalse(result.contains("umm"))
         XCTAssertFalse(result.contains("uhh"))
+    }
+
+    func testEnglishUmFillerRemovalIsOptOut() {
+        XCTAssertEqual(pipeline.removeFillers(from: "I um think"), "I  think")
+        XCTAssertEqual(
+            pipeline.removeFillers(from: "I um think", removeUmFiller: false),
+            "I um think"
+        )
+    }
+
+    func testAlwaysSafeFillersStillStripWhenUmIsOff() {
+        let result = pipeline.removeFillers(from: "uh um umm uhh hello", removeUmFiller: false)
+        XCTAssertFalse(result.contains("uh"))
+        XCTAssertFalse(result.contains("umm"))
+        XCTAssertFalse(result.contains("uhh"))
+        XCTAssertTrue(result.contains("um"))
     }
 
     // MARK: - Step 2: Custom Words
@@ -258,7 +335,7 @@ final class TextProcessingPipelineTests: XCTestCase {
             ("I'm ready.", "I'm ready"),
             ("I've got this.", "I've got this"),
             ("I'll go.", "I'll go"),
-            ("I'd agree.", "I'd agree")
+            ("I'd agree.", "I'd agree"),
         ]
         for (input, expected) in examples {
             let result = pipeline.process(
@@ -301,7 +378,7 @@ final class TextProcessingPipelineTests: XCTestCase {
         let examples = [
             ("kubernetes-based deployment.", "Kubernetes-based deployment"),
             ("kubernetes/helm setup.", "Kubernetes/helm setup"),
-            ("kubernetes(cluster) setup.", "Kubernetes(cluster) setup")
+            ("kubernetes(cluster) setup.", "Kubernetes(cluster) setup"),
         ]
 
         for (input, expected) in examples {
@@ -390,7 +467,8 @@ final class TextProcessingPipelineTests: XCTestCase {
             customWords: [],
             snippets: snippets
         )
-        XCTAssertTrue(result.text.contains("\n\n"), "Newlines must survive when followed by punctuation, got: \(result.text)")
+        XCTAssertTrue(
+            result.text.contains("\n\n"), "Newlines must survive when followed by punctuation, got: \(result.text)")
         XCTAssertFalse(result.text.contains(".."), "Must not collapse newlines into double period")
     }
 
@@ -518,7 +596,7 @@ final class TextProcessingPipelineTests: XCTestCase {
     func testTextAndActionSnippetsTogether() {
         let snippets = [
             TextSnippet(trigger: "my sig", expansion: "Best regards"),
-            TextSnippet(trigger: "return", expansion: "return", action: .returnKey)
+            TextSnippet(trigger: "return", expansion: "return", action: .returnKey),
         ]
         let result = pipeline.process(text: "my sig return", customWords: [], snippets: snippets)
         XCTAssertEqual(result.text, "Best regards")

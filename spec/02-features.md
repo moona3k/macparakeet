@@ -12,6 +12,33 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 
 ---
 
+## Explicit Voice Control (development)
+
+Voice Control is an opt-in surface separate from ordinary dictation. Hold its
+configurable shortcut (Control–Option–Space by default), or explicitly start a
+hands-free session from the menu. Speech uses the existing local microphone and
+STT scheduler; command audio and instructions do not enter dictation history.
+
+After separate cloud consent, Jev selects typed actions over current native
+Accessibility controls, including browser webpage content. Unique next steps
+are handled locally: allowlisted site opens, Google Flights form filling,
+ordinary web-search boxes, Gmail Compose, exact clicks, and app activation.
+Jev is not offered `role=url` destinations. The runner can retain a goal
+across changing controls, enter literal text, replace an exact phrase, scroll,
+activate an app, and request confirmation for pay/delete/send. Selected-text
+rewrites use the configured writing provider with separate consent. Stop
+revokes queued actions; unknown outcomes pause and are not replayed.
+Model-inferred completion is labeled as such. After a turn, local
+`latest.md` is the wide event; Copy diagnostics omits instruction and labels.
+
+This branch's feature remains development-only, enabled with
+`--enable-voice-control` in a Debug app. It is not part of the stable DMG.
+See the [boundary contract](contracts/voice-control.md),
+[decision](adr/033-explicit-voice-control.md), and
+[capability and evidence matrix](../docs/research/2026-09-19-jev-voice-control/release-scope.md)
+for the implemented routes and unqualified surfaces. The wider research plan is
+not a claim that every proposed command is available.
+
 ## Feature Tiers
 
 ```
@@ -117,7 +144,7 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 
 **Flow (6 steps, dictation-first):**
 1. Welcome
-2. Microphone permission
+2. Microphone permission (skippable; dictation and mic-backed meetings request it on first use; persistent dictation continues that same press, hold-to-talk waits for the next hold after the system sheet)
 3. Accessibility permission
 4. Hotkey instructions (configurable trigger + Esc)
 5. Speech stack setup (Parakeet; speaker detection defaults on where supported and remains user-controllable in Settings; locale-aware Whisper setup for CJK macOS languages; Nemotron remains an explicit Beta choice after setup; Cohere remains an explicit batch-only choice after setup)
@@ -219,6 +246,9 @@ Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migra
 ├─────────────────────────────────────────────────────────────────┤
 │ 6. Result                                                        │
 │    - Auto-paste into target app (NSPasteboard + simulated Cmd+V) │
+│    - Optional Streaming cursor (default off) types the finished  │
+│      transcript with a short Unicode caret race; Reduce Motion,  │
+│      IMEs, and newline/tab results still paste                   │
 │    - Previous clipboard restored by default; opt-in retain mode  │
 │      leaves the exact pasted text available for manual Cmd+V      │
 │    - Save to dictation history (database)                        │
@@ -228,6 +258,8 @@ Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migra
 ```
 
 **Text insertion:**
+
+Default insertion is a single clipboard paste (one ⌘Z in most apps):
 
 ```swift
 // 1. Save current clipboard
@@ -248,6 +280,12 @@ if restoresClipboard {
     }
 }
 ```
+
+Optional **Streaming cursor** (Settings → Dictation, default off) types the finished
+transcript into the focused app with a duration-capped Unicode HID stream.
+Reduce Motion, non-ASCII-capable IMEs, and text containing newline/tab still
+paste. A user key or click flushes remainder before the user event is
+delivered. ⌘Z may undo in pieces. See issue #449.
 
 **Soft cancel (Esc):**
 - Pressing Escape during recording triggers soft cancel
@@ -297,7 +335,7 @@ Space is always reserved for the tooltip (opacity toggle, not conditional render
    - Recording timer displayed (e.g., "0:03") -- hover tooltips provide additional guidance
    - **Live transcript preview (opt-in, `AppFeatures.liveDictationStreamingEnabled`, #517):** when enabled, a display-only stable rolling readout of in-progress text renders in a sibling panel *above* the pill (pill geometry unchanged): newest line pinned to the bottom, older lines rising and fading out at the top edge, with no mid-word truncation. The raw preview stream is stabilized into a monotonic append-only readout so shown words don't jump or disappear. It is decoupled from the paste — the final inserted text always comes from the stop-time transcription path. Per engine: Parakeet single-flight tail-window batch preview, both Nemotron builds native live partials, Whisper default-off, Cohere off because it is batch-only. Toggle and preview text size live in Settings → Capture → Dictation (`showLiveDictationPreview`, default on). See `spec/05-audio-pipeline.md` → "Dictation Live Preview".
 
-2. **Cancelled** -- `[countdown ring] [Undo button]` (~140px)
+2. **Cancelled** -- `[countdown ring] [Undo button]` (~122px; 7pt side inset)
    - Countdown ring: circular progress indicator (accent color, depletes over 5 seconds) with remaining seconds number in center
    - Tap ring to dismiss immediately (confirms discard)
    - Undo button: "Undo" text on subtle white background (0.15 opacity), rounded rect
@@ -348,6 +386,7 @@ Space is always reserved for the tooltip (opacity toggle, not conditional render
 - [x] Undo during cancel window resumes processing
 - [x] Accessibility permission prompted gracefully on first use
 - [x] Audio saved to disk (if storage enabled in settings)
+- [x] Optional default-off preserve of cancelled dictations (`preserveDiscardedDictations`) saves the transcript to History without pasting. Requires Save dictation history. Menu-bar Paste Last stays completed-only.
 
 ---
 
@@ -854,7 +893,7 @@ Audio → local STT → raw transcript → clean pipeline → paste
 
 **Step 1: Filler removal**
 
-Conservative defaults: only hesitation spellings that do not conflict with supported languages (`uh`, `umm`, `uhh`) are removed. False negatives are better than false positives, so semantic words such as Portuguese and German `um`, along with words like `like`, `so`, `right`, and phrases like `you know`, are not stripped by default.
+Always-safe hesitation spellings (`uh`, `umm`, `uhh`) are removed. Standalone `um` is also stripped by default because English speakers are the primary Clean audience. Portuguese and German speakers can turn **Also remove “um”** off in Vocabulary — `um` is a real word in those languages. False negatives are still better than false positives for longer tokens, so words like `like`, `so`, `right`, and phrases like `you know` are not stripped.
 
 **Step 2: Custom word replacements**
 
@@ -941,7 +980,8 @@ CREATE TABLE text_snippets (
 
 **Acceptance criteria:**
 - [x] Filler words removed from raw STT output
-- [x] Only always-safe hesitation sounds are removed by default
+- [x] Always-safe hesitation sounds (`uh`, `umm`, `uhh`) are removed
+- [x] Standalone `um` is stripped by default, with an opt-out for Portuguese/German
 - [x] Meaningful words such as "like", "so", and "right" are preserved
 - [x] Custom word replacements applied (case-insensitive matching)
 - [x] Trailing action snippets are extracted before text snippet expansion
@@ -973,14 +1013,14 @@ Important constraints:
 - formatter uses the shared `LLMService`
 - formatter runs for dictation, file/URL, and meeting transcription flows — every transcription finalization path shares `completeTranscription`, which invokes the formatter (`TelemetryFormatterSource` emits `.dictation` and `.transcription`; meetings report as `.transcription`)
 - formatter skips empty or whitespace-only input before prompt resolution or any provider call, so a model response can never become transcript content when STT produces no transcript text (#855)
-- formatter routing is per-surface: "Use for transcripts" (file/URL/meeting, default on) and "Use for dictation" (default off) toggles in AI settings, each ANDed with provider availability (#408, #493). Those toggles are enablement, not model selection. If a later change lets cleanup and meeting AI use different models, follow [ADR-032](adr/032-llm-task-group-routing.md): per-task inherit / general route / specialist recipe, not a picker per feature.
+- formatter routing is per-surface: "Use for transcripts" (file/URL/meeting, default off) and "Use for dictation" (default off) toggles in AI settings, each ANDed with provider availability (#408, #493). Those toggles are enablement, not model selection. If a later change lets cleanup and meeting AI use different models, follow [ADR-032](adr/032-llm-task-group-routing.md): per-task inherit / general route / specialist recipe, not a picker per feature.
 - transcription formatter input is capped at `AIFormatter.maxTranscriptionInputChars` (20k chars); longer transcripts (hour-long meetings) skip straight to deterministic cleanup because a full-rewrite response can stall slow providers until timeout (#493)
-- dictation formatter prompts route through local exact-app profiles, local coarse-category profiles, built-in coarse-category smart defaults, and then the fallback formatter prompt
-- built-in smart defaults are user-controllable: a master switch plus per-category switches (UserDefaults-backed `AIFormatterSmartDefaultsPolicy`), and every built-in prompt is readable in Settings even when the master switch is off; with the tier off, zero-profile prompt selection is byte-for-byte the legacy fallback-prompt behavior
-- file/YouTube transcription formatter prompts continue to use the fallback formatter prompt in V1
+- dictation formatter prompts route through local exact-app profiles, local coarse-category profiles, built-in coarse-category smart defaults, and then the dictation formatter prompt
+- built-in smart defaults are user-controllable: a master switch plus per-category switches (UserDefaults-backed `AIFormatterSmartDefaultsPolicy`), and every built-in prompt is readable in Settings even when the master switch is off; with the tier off, zero-profile prompt selection is byte-for-byte the dictation fallback-prompt behavior
+- file/URL/meeting transcription uses a separate transcript formatter prompt (paragraph-oriented built-in default). A customized pre-split shared prompt is copied into both; new installs get two different built-ins. Both remain opt-in via the routing toggles and share the cleanup model route ([ADR-032](adr/032-llm-task-group-routing.md))
 - browser hostname/domain matching is not attempted in V1; browser apps can match exact browser profiles or the coarse `browser` category only
 - formatter falls back to deterministic cleanup if the provider errors or times out
-- formatter prompt is user-editable in AI settings
+- formatter prompts are user-editable in AI settings (transcript vs dictation)
 - formatter profiles are managed in AI settings with built-in smart defaults, app selection, manual bundle ID entry, and category selection
 - persisted formatter runs record metadata in `llm_runs` (source row, feature, status, provider/model, latency, token usage when available, character counts, and error type); transcript text, prompts, and formatter output are not duplicated into the ledger
 - saved dictation rows can record local formatter routing provenance (`aiFormatterProfileID`, `aiFormatterProfileName`, `aiFormatterProfileMatchKind`); this data is local history/debug metadata, not telemetry, and History rows surface it as a small provenance chip for profile/smart-default-routed dictations
@@ -995,6 +1035,7 @@ Important constraints:
 - [x] Transcription formatter skips inputs over the length cap instead of stalling finalization for the full provider timeout (#493)
 - [x] Formatter uses the configured provider or local CLI through shared LLM infrastructure
 - [x] Formatter prompt is editable and resettable from settings
+- [x] Transcripts and dictation have independent formatter prompts in AI settings
 - [x] Dictation formatter profiles support exact-app and category prompt routing
 - [x] Dictation profile routing preserves smart defaults and fallback prompt routing
 - [x] Smart defaults are inspectable and toggleable (master + per-category); disabling them restores legacy fallback-prompt selection
@@ -1738,7 +1779,7 @@ Embedded video/audio playback, split-pane detail view, synced transcript highlig
 - [x] Multi-select cleanup with `Select Many...`, `Select All`, clear/cancel, and contextual destructive confirmations
 - [x] Meeting cleanup supports both full deletion and `Remove Audio Only...`; optional notes, AI results, and chats are removed only by full meeting deletion
 
-Visible transcription titles are source-aware. Meeting rows use their meeting `fileName`. Local file rows use a non-empty user `titleOverride` when explicitly renamed, then the original media `fileName`; transcript-derived opening words never replace that source identity. URL rows retain the non-empty `titleOverride`, `derivedTitle`, then `fileName` fallback. Library cards, detail headers, title sort, agent-facing title fields, and GUI export filename suggestions use that effective title. Search still matches the override, original filename, derived title, and transcript content. Public CLI exact-name lookup and export defaults remain tied to the existing CLI contract.
+Visible transcription titles are source-aware. Meeting rows use their meeting `fileName`. Local file rows use a non-empty user `titleOverride` when explicitly renamed, then the original media `fileName`; transcript-derived opening words never replace that source identity. URL rows retain the non-empty `titleOverride`, `derivedTitle`, then `fileName` fallback. Library cards, detail headers, title sort, agent-facing title fields, and GUI export filename suggestions use that effective title. Search still matches the override, original filename, derived title, and transcript content. `macparakeet-cli history rename --title` uses the same gates: meetings update `fileName`, local files update `titleOverride`, and URL/podcast rows are rejected. Public CLI exact-name lookup and export defaults remain tied to `fileName`.
 
 ### F27: Home Page Redesign
 
@@ -2144,12 +2185,30 @@ The existing completion handler reads the auto-open preference before presenting
 - [x] CLI `calendar upcoming` membership, `--filter`, and existing flat JSON fields stay as today; only new JSON fields are `skipped` / `skipScope` (`occurrence` | `event` | null); `isRecurring` stays internal; contract **entry added**
 - [x] Telemetry may send skip counts and scope, never event titles or attendees
 
+### F49: Start Meetings Muted
+
+> Status: **IMPLEMENTED** — [issue #882](https://github.com/moona3k/macparakeet/issues/882) remainder. Governing ADR: [ADR-014 §12](adr/014-meeting-recording.md).
+
+**What:** Optional default-off preference to start microphone-capturing meetings muted until the setting is turned off, then unmute from the live panel. Mute-during-recording already existed; this slice silences the microphone **before the first captured frame** so joining a call does not leak the first seconds of room audio. System-audio-only capture ignores the preference. Unmute still appends the completed mute host-time range so in-flight buffers stay silent.
+
+**Acceptance criteria:**
+- [x] Settings → Meeting Recording has "Start meetings muted" (default off), next to Audio sources; disabled for system-audio-only
+- [x] `UserDefaultsAppRuntimePreferences.startMeetingsMuted` uses `object as? Bool ?? false` (not `bool(forKey:)`)
+- [x] `MeetingRecordingService` applies mute with host time `0` before `audioCaptureService.start`
+- [x] `microphoneMuteState.isMuted` reports the mute intent while capture is still starting (`canMute` may still be false)
+- [x] The live panel shows the muted microphone control during `.starting` when the preference is on and the source captures a microphone (the mute control stays disabled until the mic is ready)
+- [x] Unmute after start writes live microphone audio again
+- [x] CLI `config get|set|list` exposes `start-meetings-muted`
+- [x] Focused tests cover first-buffer silence, unmute, system-only ignore, and the default-off preference
+
 ---
 
-## Development additions after 0.7.3
+## Library, meetings, and transcript workflow
 
-These are implemented in source; release availability follows the
-[canonical status table](README.md#release-channels-and-feature-flags).
+These are implemented in current source. Meeting import/split, timed
+corrections, DAPT, per-prompt settings, and the live-transcription toggle
+shipped in 0.8.0–0.8.7; local retrieval predates that train. Confirm each
+surface against the [canonical status table](README.md#release-channels-and-feature-flags).
 
 | Surface | Current behavior | Governing reference |
 |---|---|---|
@@ -2161,7 +2220,12 @@ These are implemented in source; release availability follows the
 | Vocabulary cleanup | Confirmed deletion of selected rules, including all search matches, without rewriting existing transcripts. | [Deletion contract](contracts/custom-word-deletion.md) |
 | DAPT export | Timed speaker-attributed events at automatic word or corrected segment alignment; untimed fallback otherwise. | [DAPT contract](contracts/dapt-export-v1.md) |
 | Split and transcribe | User-approved cuts create independently owned saved meetings while preserving the original; sequential transcription and enabled completion can continue or resume from durable receipts in the app and public CLI. | [Split contract](contracts/meeting-splitting.md) |
-| Live transcription toggle | "Live transcription during recording" in Meeting Recording settings (`meetingLiveTranscriptionEnabled`, default on). Off skips the live STT pass entirely — recording is unaffected, and the final transcript still runs a full post-stop STT pass over the saved audio, same as when an engine can't support live preview at all. | [ADR-014 §9](adr/014-meeting-recording.md) |
+| Live transcription toggle | "Live transcription during recording" in Meeting Recording settings (`meetingLiveTranscriptionEnabled`, default on). Off skips the live STT pass entirely — recording is unaffected, and the final transcript still runs a full post-stop STT pass over the saved audio, same as when an engine can't support live preview at all. The Transcript empty-state seed-of-life sits still and faded while preview is off; it does not spin. | [ADR-014 §9](adr/014-meeting-recording.md), [UI patterns](04-ui-patterns.md#meeting-recording-panel-v06) |
+| Start meetings muted | Default-off Meeting Recording setting (`startMeetingsMuted`). While on, every microphone-capturing meeting starts with the mic off until the setting is turned off; unmute from the live panel. System-audio-only capture ignores it. | [F49](02-features.md#f49-start-meetings-muted), [ADR-014 §12](adr/014-meeting-recording.md) |
+| Preserve discarded dictations | Default-off Dictation setting (`preserveDiscardedDictations`). Cancel and undo-window expiry transcribe into History as `cancelled` instead of deleting. Requires Save dictation history. Nothing is pasted, and menu-bar Paste Last / Recent Dictations stay completed-only. Voice stats still count only completed takes. | [F1](02-features.md#f1-system-wide-dictation) |
+| Skip-microphone onboarding | First-run Microphone step stays visible, but Continue is not gated on grant. File-only users can skip it. Dictation and mic-backed meetings still request access on first use. | [ADR-005](adr/005-onboarding-first-run.md) |
+| AI Formatter routing | New installs leave “Use for transcripts” and “Use for dictation” off. Each surface has its own prompt. Inherited transcript-on stays on. | [F8](02-features.md#f8-ai-formatter) |
+| Streaming cursor | Optional Settings → Dictation insert path (default off). Finished text types at the caret; Reduce Motion, unknown IMEs, and newline/tab still paste. | [F1](02-features.md#f1-system-wide-dictation) |
 
 These do not enable activity-based meeting detection, app-aware AI Formatter
 profiles or public in-process MLX. Corpus-wide Ask and cross-file speaker
