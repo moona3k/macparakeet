@@ -49,6 +49,11 @@ public final class MeetingRecordingPanelViewModel {
     /// Meeting-local mic mute. Unlike pause, system audio keeps recording.
     public var isMicrophoneMuted: Bool = false
     public var canToggleMicrophoneMute: Bool = false
+    /// Keep the muted mic control visible during `.starting` even though the
+    /// toggle stays disabled until the microphone is ready.
+    public var showsMicrophoneMuteControl: Bool {
+        canToggleMicrophoneMute || isMicrophoneMuted
+    }
     public var previewLines: [MeetingRecordingPreviewLine] = []
     public var isTranscriptionLagging: Bool = false
     public private(set) var liveTranscriptStatus: LiveTranscriptStatus = .listening
@@ -387,6 +392,14 @@ public final class MeetingRecordingPanelViewModel {
             return
                 "Audio is still recording. If preview does not recover, retry transcription from Library after the meeting."
         }
+    }
+
+    /// Transcript empty-state seed-of-life sits still and faded when live
+    /// preview is off. Pause is a different "held breath" freeze that keeps
+    /// full color and the current animation frame. Notes keeps the living
+    /// rosette because the meeting is still recording.
+    public var isTranscriptRosetteQuiet: Bool {
+        liveTranscriptStatus == .previewOff
     }
 
     private var livePreviewStatusMessage: String? {

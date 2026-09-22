@@ -99,6 +99,84 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 - Saved prompt-result JSON includes additive nullable
   `outputLanguagePolicySnapshot`.
 
+## [4.5.0] — 2026-09-20
+
+### Added
+
+- `voice-control replay <session.json> [--goal …] [--observation N]
+  [--history op:targetID[:receipt],…] [--jev] [--json]` routes an instruction
+  against a saved Voice Control observation (`latest.json` or
+  `sessions/*.json`) without touching the screen. Reports the compiled local
+  action or the Jev request the router would have sent; with `--jev` and
+  `JEV_API_KEY`, also the per-head probability distribution. Experimental:
+  the Voice Control feature itself is a DEBUG-only app experiment, and this
+  command's JSON shape may change while it is.
+
+## [4.4.0] — 2026-09-18
+
+### Added
+
+- `parakeet-model` accepts `orukeet`. `config set parakeet-model orukeet`,
+  `transcribe` / `retranscribe --parakeet-model orukeet`, and
+  `models download|select|delete parakeet-orukeet` address that preview.
+  `models list` may include the additive `parakeet-orukeet` entry (engine
+  `parakeet`, variant `orukeet`). The default remains `v3`. Transcription
+  results from this build report `engineVariant` `orukeet`. Native streaming,
+  tail-window dictation preview, and recognition-time vocabulary boosting stay
+  off.
+- Inline `--provider` accepts `moonshot` (aliases `kimi`, `moonshotai`),
+  `deepseek`, `qwen` (aliases `alibaba`, `dashscope`), `zai` (aliases `zhipu`,
+  `z.ai`, `glm`), and `minimax`. Default env keys are `MOONSHOT_API_KEY` /
+  `KIMI_API_KEY`, `DEEPSEEK_API_KEY`, `DASHSCOPE_API_KEY` / `QWEN_API_KEY`,
+  `ZAI_API_KEY` / `ZHIPU_API_KEY`, and `MINIMAX_API_KEY`.
+- `meetings corrections rename|assign|merge-speakers` wrap the existing speaker
+  identity journal (same `--expected-revision` and JSON transcript payload as
+  timed-text corrections).
+- `history rename --title` matches the GUI gates: meetings update `fileName`
+  (and refresh artifacts best-effort); local files update `titleOverride`.
+  YouTube/podcast rows are rejected.
+- `history favorite` / `history unfavorite` accept `--json`.
+- `vocab words add` and `vocab snippets add` accept `--json` and return the
+  saved row, including its id.
+- `config get|set|list` includes `custom-vocabulary-boosting` (`on`/`off`,
+  default off). It writes the existing Parakeet TDT recognition-boosting
+  preference. Settings shows boosting status but has no toggle; the runtime
+  stays off unless this key (or a direct defaults write) turns it on.
+
+### Changed
+
+- Homebrew/standalone `cards generate` and meeting import/split auto-prompts
+  now read the shared app preference suite for LLM provider config, matching
+  the GUI.
+- `spec --json` documents `transcribe --no-diarize`.
+- Identical `history rename --title` values succeed without writing. Identical
+  `meetings corrections rename` labels succeed without inserting a journal row.
+
+## [4.3.0] — 2026-09-16
+
+### Added
+
+- `config` key `remove-um-filler` (`on|off`, default `on`). Clean processing
+  strips standalone English hesitation `um`. Portuguese and German users
+  should set this to `off`.
+- `config get|set|list` includes `preserve-discarded-dictations` (`on`/`off`,
+  default off). When on, cancelled dictations are transcribed into History
+  instead of being deleted. Nothing is pasted, including menu-bar Paste Last.
+  History JSON may now include `"status": "cancelled"`; the human-readable
+  list marks those rows `[cancelled]`. Older CLI builds that decode
+  `DictationStatus` strictly will fail on those rows until upgraded.
+- `config get|set|list` includes `start-meetings-muted` (`on`/`off`, default
+  off). While on, every microphone-capturing meeting starts muted until the
+  setting is turned off; unmute from the live meeting panel.
+  System-audio-only capture ignores it.
+
+### Changed
+
+- `vocab process` and Clean-mode dictation/file transcription now strip
+  standalone `um` by default. The previous multilingual-safe default is the
+  off value of `remove-um-filler`. Meetings stay verbatim: they do not run
+  filler removal.
+
 ## [4.2.0] — 2026-09-15
 
 ### Added

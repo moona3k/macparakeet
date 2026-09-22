@@ -210,6 +210,36 @@ private struct NoSpeechLightDrift: View {
     }
 }
 
+/// Side inset for the dictation capsule. Persistent recording and cancelled/Undo
+/// match the 7pt vertical pad so end controls sit in the hemispheres.
+/// Hold-to-talk keeps the wider 16pt cluster; command recording stays a card.
+enum DictationOverlayChrome {
+    static let compactSideInset: CGFloat = 7
+    static let wideSideInset: CGFloat = 16
+    static let iconSideInset: CGFloat = 10
+
+    static func horizontalPadding(
+        state: DictationOverlayViewModel.OverlayState,
+        sessionKind: DictationOverlayViewModel.SessionKind,
+        recordingMode: FnKeyStateMachine.RecordingMode,
+        isReady: Bool,
+        isIconOnly: Bool,
+        isNoSpeechExpanded: Bool
+    ) -> CGFloat {
+        if isReady { return compactSideInset }
+        if isIconOnly || isNoSpeechExpanded { return iconSideInset }
+        switch state {
+        case .cancelled:
+            return compactSideInset
+        case .recording:
+            guard sessionKind != .command else { return wideSideInset }
+            return recordingMode == .holdToTalk ? wideSideInset : compactSideInset
+        default:
+            return wideSideInset
+        }
+    }
+}
+
 /// The dictation overlay — compact dark capsule during dictation, wider card for errors.
 struct DictationOverlayView: View {
     @Bindable var viewModel: DictationOverlayViewModel
@@ -315,12 +345,20 @@ struct DictationOverlayView: View {
             // smaller and lighter than the 46×46 processing / noSpeech
             // circles, reinforcing that `.ready` is a brief, poised pause
             // rather than active work.
-            let horizontalPadding: CGFloat = {
-                if isReady { return 7 }
-                if isIconOnly { return 10 }
-                if isNoSpeechExpanded { return 10 }
-                return 16
-            }()
+            //
+            // Persistent dictation recording and cancelled/Undo use the same
+            // 7pt side inset as the vertical padding so end controls sit in
+            // the capsule hemispheres. Hold-to-talk has no end circles and
+            // looked right at 16pt, so it stays wide. Command recording
+            // keeps 16pt — it's a text card.
+            let horizontalPadding = DictationOverlayChrome.horizontalPadding(
+                state: viewModel.state,
+                sessionKind: viewModel.sessionKind,
+                recordingMode: viewModel.recordingMode,
+                isReady: isReady,
+                isIconOnly: isIconOnly,
+                isNoSpeechExpanded: isNoSpeechExpanded
+            )
             let verticalPadding: CGFloat = {
                 if isReady { return 7 }
                 if isIconOnly { return 10 }

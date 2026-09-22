@@ -1,0 +1,23 @@
+{
+  "input": "typed goal",
+  "speech": false,
+  "api": "live Jev",
+  "model": "jev-1.13.0",
+  "transport": "extension-native-host-unix-socket",
+  "fixtureOnlyAutomaticConfirmations": true,
+  "testManifestLoopbackPermission": true,
+  "sameOriginRebind": true,
+  "staleDocumentRejected": true,
+  "decisionMilliseconds": [
+    270,
+    194,
+    212,
+    251,
+    158,
+    162,
+    152
+  ],
+  "goalMilliseconds": 1549,
+  "observedResult": "Flights found: One way, Zürich → London, 20 September. Route and date verified.",
+  "screenshot": "browser-proof.png"
+}

@@ -536,6 +536,51 @@ final class HotkeyManagerTests: XCTestCase {
         )
     }
 
+    func testPassiveFnPreLatchedCapsLockPhysicalKeyStateDoesNotBlockHold() {
+        let holdManager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+        holdManager.setPhysicalKeyStateProviderForTesting { $0 == 57 }
+
+        XCTAssertEqual(
+            holdManager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskSecondaryFn, .maskAlphaShift],
+                timestampMs: 1_000,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            ),
+            [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs)]
+        )
+        XCTAssertEqual(
+            holdManager.startupDebounceElapsedForTesting(),
+            [.startRecording(mode: .holdToTalk)]
+        )
+
+        let tapManager = HotkeyManager(trigger: .fn, gestureMode: .doubleTapOnly)
+        tapManager.setPhysicalKeyStateProviderForTesting { $0 == 57 }
+        XCTAssertEqual(
+            tapManager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskSecondaryFn, .maskAlphaShift],
+                timestampMs: 2_000,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            ),
+            []
+        )
+        XCTAssertEqual(
+            tapManager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskAlphaShift],
+                timestampMs: 2_050,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            ),
+            [.cancelStartupDebounce, .cancelHoldWindow, .showReadyForSecondTap]
+        )
+        XCTAssertEqual(
+            tapManager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskSecondaryFn, .maskAlphaShift],
+                timestampMs: 2_100,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            ),
+            [.startRecording(mode: .persistent)]
+        )
+    }
+
     func testPassiveFnPreLatchedCapsLockAllowsHoldAndDoubleTap() {
         let holdManager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
         holdManager.setPhysicalKeyStateProviderForTesting { _ in false }
@@ -646,6 +691,32 @@ final class HotkeyManagerTests: XCTestCase {
                 changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
             ),
             [.cancelStartupDebounce, .cancelHoldWindow]
+        )
+    }
+
+    func testPassiveFnRecoveryAllowsPreLatchedCapsLockWhenKeyStateReportsDown() {
+        let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
+        manager.setPhysicalKeyStateProviderForTesting { $0 == 57 }
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskSecondaryFn, .maskAlphaShift],
+                timestampMs: 1_000,
+                changedKeyCode: HotkeyTrigger.canonicalFnKeyCode
+            ),
+            [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs)]
+        )
+        XCTAssertEqual(
+            manager.recoverFromDisabledTapForTesting(
+                flags: [.maskSecondaryFn, .maskAlphaShift],
+                triggerKeyPressed: true,
+                timestampMs: 1_050
+            ),
+            []
+        )
+        XCTAssertEqual(
+            manager.startupDebounceElapsedForTesting(),
+            [.startRecording(mode: .holdToTalk)]
         )
     }
 

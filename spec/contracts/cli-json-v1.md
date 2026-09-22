@@ -241,16 +241,29 @@ with human progress/status kept off stdout.
   whole-text edits. The same payload's `wordTimestamps` retain the
   automatic recognized text and timing as immutable evidence, so consumers
   must not substitute them for corrected-word timing.
-- `meetings corrections edit-line|merge-lines|undo|redo|reset` mutates the
+- `meetings corrections edit-line|merge-lines|rename|assign|merge-speakers|undo|redo|reset`
+  mutates the
   same reversible correction journal as the app. Every command requires
-  `--expected-revision` from the last transcript read; edit/merge target current
-  segment UUIDs from `meetings transcript --format json`. A stale revision or
-  segment is rejected without advancing history. JSON success output is the
+  `--expected-revision` from the last transcript read; edit/merge/assign
+  target current
+  segment UUIDs from `meetings transcript --format json`. Speaker rename and
+  merge-speakers use speaker ids from that same JSON. A stale revision or
+  segment is rejected without advancing history. An identical speaker rename
+  (trimmed label already on that speaker) succeeds without inserting a journal
+  row or advancing revision. JSON success output is the
   updated `MeetingTranscriptRecord`, including the new revision and effective
   projection. JSON failures use `conflict` for a stale expected revision,
   `validation` for stale/unsupported segment targets and correction commands,
   and `input_empty` for blank replacement text. Conflict exits `1`; validation
   and empty-input misuse exit `2`.
+- `history favorite|unfavorite --json` returns `ok`, `id`, and `isFavorite`.
+- `history rename --title --json` returns `ok`, `kind` (`meeting` or `file`),
+  `id`, and `title` (the effective display title). An identical title still
+  succeeds without writing. YouTube and podcast rows are rejected before JSON
+  success.
+- `vocab words add --json` returns `ok` plus the stored `word` object,
+  including `id`. `vocab snippets add --json` returns `ok` plus the stored
+  `snippet` object, including `id`.
 - `meetings show --json` meeting objects can include optional `startContext`
   for meeting rows. When present it contains `triggerKind`, `sourceMode`, and
   optional `frontmostApplication` (`bundleIdentifier`, `localizedName`).
@@ -425,6 +438,10 @@ entries, JSON wrapper failure envelopes, JSON validation exit-code
 normalization, agent-facing meeting commands including durable transcript
 segments and additive artifact paths, command-level JSON failure envelopes, and
 `--json`/`--envelope` mutual exclusion.
+
+## Optional Orukeet model identity
+
+`models list` may include the additive `parakeet-orukeet` entry. Its engine is `parakeet` and variant is `orukeet`; it does not change the default v3 selection. `models download/select/delete parakeet-orukeet`, `config set parakeet-model orukeet`, and `transcribe --parakeet-model orukeet` address the independent preview cache. Transcription results attribute this model as `engineVariant: "orukeet"`, never `v3`.
 
 ## When this changes
 

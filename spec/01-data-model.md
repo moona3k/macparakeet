@@ -1091,6 +1091,7 @@ struct Dictation: Codable, Identifiable {
         case recording
         case processing
         case completed
+        case cancelled
         case error
     }
 }

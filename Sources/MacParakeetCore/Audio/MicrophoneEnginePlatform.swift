@@ -121,6 +121,11 @@ final class MutableMicrophoneTapHandler: @unchecked Sendable {
         var monitoringCallbacks = false
         var requiresNonZeroSignal: Bool
         var receivedUsableBuffer = false
+        /// Input format of the first usable buffer, captured once (issue #1102).
+        /// Immutable until reset so a later callback cannot race the commit that
+        /// records it as the absorb baseline.
+        var firstUsableBufferSampleRate: Double = 0
+        var firstUsableBufferChannelCount: AVAudioChannelCount = 0
         var tracksStartupConfiguration = false
         var latestUsableBufferConfigurationGeneration: UInt64?
         var lastCallbackUptimeNanoseconds: UInt64?
@@ -175,6 +180,8 @@ final class MutableMicrophoneTapHandler: @unchecked Sendable {
         state.withLock { state in
             state.monitoringCallbacks = true
             state.receivedUsableBuffer = false
+            state.firstUsableBufferSampleRate = 0
+            state.firstUsableBufferChannelCount = 0
             state.tracksStartupConfiguration = true
             state.latestUsableBufferConfigurationGeneration = nil
             state.lastCallbackUptimeNanoseconds = nil
@@ -230,6 +237,10 @@ final class MutableMicrophoneTapHandler: @unchecked Sendable {
                 } else {
                     state.zeroFilledSinceUptimeNanoseconds = nil
                 }
+                if !state.receivedUsableBuffer {
+                    state.firstUsableBufferSampleRate = buffer.format.sampleRate
+                    state.firstUsableBufferChannelCount = buffer.format.channelCount
+                }
                 state.receivedUsableBuffer = true
                 if state.tracksStartupConfiguration {
                     state.latestUsableBufferConfigurationGeneration =
@@ -250,6 +261,20 @@ final class MutableMicrophoneTapHandler: @unchecked Sendable {
         state.withLock { state in
             guard state.monitoringCallbacks, state.receivedUsableBuffer else { return nil }
             return state.latestUsableBufferConfigurationGeneration
+        }
+    }
+
+    /// Immutable input format of the first usable buffer that satisfied startup
+    /// readiness (issue #1102). Captured once when the winning buffer arrives so
+    /// a later callback cannot race the commit that records the absorb baseline.
+    /// The tap installs with `format: nil`, so this equals the input node's
+    /// `outputFormat(forBus:)` the observer later reads. Nil until seen.
+    func firstUsableBufferFormat() -> (sampleRate: Double, channelCount: AVAudioChannelCount)? {
+        state.withLock { state in
+            guard state.monitoringCallbacks, state.receivedUsableBuffer,
+                state.firstUsableBufferSampleRate > 0
+            else { return nil }
+            return (state.firstUsableBufferSampleRate, state.firstUsableBufferChannelCount)
         }
     }
 
@@ -393,6 +418,8 @@ final class MutableMicrophoneTapHandler: @unchecked Sendable {
             state.target = nil
             state.monitoringCallbacks = false
             state.receivedUsableBuffer = false
+            state.firstUsableBufferSampleRate = 0
+            state.firstUsableBufferChannelCount = 0
             state.tracksStartupConfiguration = false
             state.latestUsableBufferConfigurationGeneration = nil
             state.lastCallbackUptimeNanoseconds = nil
@@ -481,6 +508,10 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     private let deviceAttemptsBuilder: DeviceAttemptsBuilder?
     private let inputDeviceSetter: InputDeviceSetter
     private let engineStarter: EngineStarter?
+    /// Optional running-state probe used only by deterministic
+    /// configuration-change tests; production reads the real
+    /// `AVAudioEngine.isRunning`.
+    private let engineRunningProbe: (@Sendable (AVAudioEngine) -> Bool)?
     private let lifecycleDiagnosticsFactory: LifecycleDiagnosticsFactory
     // Only lifecycle work on the platform queue changes this reference. The
     // recorder's independent watchdog reads its own locked snapshot, never HAL.
@@ -512,6 +543,20 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     private var audioEngine = AVAudioEngine()
     private var running: Bool = false
     private var lastSucceededAttemptLocked: MeetingInputDeviceAttempt?
+    /// Input format + resolved route + attempt captured when the running engine
+    /// last committed (issue #1102). The configuration-change observer compares a
+    /// self-emitted change against these before re-broadcasting it as a route
+    /// change: an unchanged running route is absorbed rather than posting
+    /// `.macParakeetMicrophoneSelectionDidChange` and driving a warm-engine
+    /// rebuild. Bluetooth safety is re-evaluated **live** at observation time
+    /// from `committedAttempt` (mirroring the `prepared` branch) so a transport
+    /// flip behind a stable device ID/format still posts (#862). The format is
+    /// the first-usable-buffer format (immutable once captured), not a fresh HAL
+    /// query, so this adds no latency to the start path.
+    private var committedInputSampleRate: Double = 0
+    private var committedInputChannelCount: AVAudioChannelCount = 0
+    private var committedRouteSnapshot: [MeetingInputDeviceAttempt]?
+    private var committedAttempt: MeetingInputDeviceAttempt?
     /// Token for the `AVAudioEngine.configurationChangeNotification` observer
     /// installed on the current `audioEngine` instance. Cleared on
     /// `tearDown` / `resetEngine` / `replaceEngineAfterFailure` so the
@@ -634,6 +679,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         self.deviceAttemptsBuilder = deviceAttemptsBuilder
         self.inputDeviceSetter = inputDeviceSetter
         self.engineStarter = nil
+        self.engineRunningProbe = nil
         self.lifecycleDiagnosticsFactory = { operation, vpio, bufferSize in
             AudioEngineLifecycleDiagnostics(operation: operation, vpioEnabled: vpio, bufferSize: bufferSize)
         }
@@ -667,11 +713,13 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         lifecycleDiagnosticsFactory: @escaping LifecycleDiagnosticsFactory = { operation, vpio, bufferSize in
             AudioEngineLifecycleDiagnostics(operation: operation, vpioEnabled: vpio, bufferSize: bufferSize)
         },
+        engineRunningProbe: (@Sendable (AVAudioEngine) -> Bool)? = nil,
         engineStarter: @escaping EngineStarter
     ) {
         self.deviceAttemptsBuilder = deviceAttemptsBuilder
         self.inputDeviceSetter = inputDeviceSetter
         self.engineStarter = engineStarter
+        self.engineRunningProbe = engineRunningProbe
         self.lifecycleDiagnosticsFactory = lifecycleDiagnosticsFactory
         self.recoveryRetryDelays = recoveryRetryDelays.map { max(0, $0) }
         self.recoveryRouteChangeDebounce = max(0, recoveryRouteChangeDebounce)
@@ -939,6 +987,10 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                 startupCancellationGeneration: cancellationGeneration
             ) {
                 lastSucceededAttemptLocked = preparedAttempt
+                recordCommittedConfigurationLocked(
+                    attempt: preparedAttempt,
+                    route: currentRouteSnapshot
+                )
                 return
             }
         }
@@ -974,6 +1026,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             )
             if startNow {
                 lastSucceededAttemptLocked = nil
+                recordCommittedConfigurationLocked(attempt: nil, route: currentRouteSnapshot)
             } else {
                 markPreparedLocked(
                     attempt: nil,
@@ -1058,6 +1111,10 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                 )
                 if startNow {
                     lastSucceededAttemptLocked = attempt
+                    recordCommittedConfigurationLocked(
+                        attempt: attempt,
+                        route: currentRouteSnapshot
+                    )
                 } else {
                     markPreparedLocked(
                         attempt: attempt,
@@ -1568,6 +1625,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         preparedRouteSnapshot = nil
         preparedInputConfiguration = nil
         preparedConfigurationGeneration = 0
+        clearCommittedConfigurationLocked()
         if let tapHandlerBox { logSignalSnapshotLocked(tapHandlerBox, reason: "teardown") }
         tapHandlerBox?.clear()
         tapHandlerBox = nil
@@ -1612,6 +1670,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         preparedRouteSnapshot = nil
         preparedInputConfiguration = nil
         preparedConfigurationGeneration = 0
+        clearCommittedConfigurationLocked()
         if let tapHandlerBox { logSignalSnapshotLocked(tapHandlerBox, reason: "failed_attempt") }
         tapHandlerBox?.clear()
         tapHandlerBox = nil
@@ -1653,7 +1712,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             self.queue.async { [weak self, engineBox] in
                 guard let self else { return }
                 guard engineBox.wraps(self.audioEngine) else { return }
-                let engineIsRunning = engineBox.isEngineRunning()
+                let engineIsRunning = engineBox.isEngineRunning(using: self.engineRunningProbe)
                 // A stopped engine is normally the recovery case, where asking
                 // the input node for a format can block on Core Audio's failed
                 // reconfiguration. A deliberately prepared engine is also
@@ -1694,6 +1753,38 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
                         self.configurationChangeGeneration.withLock { $0 }
                     AudioCaptureDiagnostics.append(
                         "shared_mic_engine_configuration_change_ignored reason=unchanged_prepared_setup"
+                    )
+                    return
+                }
+                if !self.prepared,
+                    self.running,
+                    engineIsRunning,
+                    Self.preparedAttemptIsSafe(
+                        self.committedAttempt,
+                        bluetoothInputState: self.bluetoothInputState
+                    ),
+                    self.committedInputSampleRate > 0,
+                    let format,
+                    format.sampleRate == self.committedInputSampleRate,
+                    format.channelCount == self.committedInputChannelCount,
+                    self.deviceAttemptsBuilder?() == self.committedRouteSnapshot
+                {
+                    // A running engine self-emits a configuration change as it
+                    // selects and prepares its own input device (pronounced on
+                    // macOS 27). When the engine is still running and the
+                    // resolved route + negotiated format are unchanged on a
+                    // positively non-Bluetooth input, re-broadcasting it as a
+                    // mic-selection change drives the warm-capture rebuild loop
+                    // in issue #1102. Absorb it. A real format/route change, a
+                    // stopped engine (recovery), or any Bluetooth/unresolved
+                    // route fails these gates and follows the post path below.
+                    // There is no start-in-progress case to guard: start runs
+                    // inside `queue.sync`, this block runs `queue.async` on the
+                    // same serial queue, and a failed start replaces the engine,
+                    // so a change emitted mid-start is seen either after commit
+                    // (here) or not at all (`engineBox.wraps` above).
+                    AudioCaptureDiagnostics.append(
+                        "shared_mic_engine_configuration_change_ignored reason=unchanged_running_route"
                     )
                     return
                 }
@@ -1751,6 +1842,36 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
         }
     }
 
+    /// Snapshot the input configuration + resolved route + attempt of a freshly
+    /// committed running engine so the configuration-change observer can
+    /// distinguish a benign self-emitted change from a real route mutation
+    /// (issue #1102). The observer re-evaluates Bluetooth safety live from the
+    /// stored attempt, so a route that becomes Bluetooth/unresolved after commit
+    /// (transport flip behind a stable device ID/format) still re-broadcasts
+    /// (#862), matching the `prepared` branch.
+    private func recordCommittedConfigurationLocked(
+        attempt: MeetingInputDeviceAttempt?,
+        route: [MeetingInputDeviceAttempt]?
+    ) {
+        // Immutable format of the buffer that won startup readiness, not the
+        // mutable latest-callback snapshot, so a post-commit callback race
+        // cannot shift the baseline. The tap installs with `format: nil`, so it
+        // matches the observer's `inputFormat()` read in production; a rare
+        // tap/node skew fails the comparison and falls open to the post path.
+        let format = tapHandlerBox?.firstUsableBufferFormat()
+        committedInputSampleRate = format?.sampleRate ?? 0
+        committedInputChannelCount = format?.channelCount ?? 0
+        committedRouteSnapshot = route
+        committedAttempt = attempt
+    }
+
+    private func clearCommittedConfigurationLocked() {
+        committedInputSampleRate = 0
+        committedInputChannelCount = 0
+        committedRouteSnapshot = nil
+        committedAttempt = nil
+    }
+
     private func commitRunningIfStartupStayedCurrent(
         configurationGeneration expectedConfigurationGeneration: UInt64,
         defaultInputGeneration expectedDefaultInputGeneration: UInt64?
@@ -1787,7 +1908,7 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     private func recoverFromConfigurationChangeLocked(engineBox: UncheckedSendableAudioEngine) {
         guard running else { return }
         guard engineBox.wraps(audioEngine) else { return }
-        guard !engineBox.isEngineRunning() else { return }
+        guard !engineBox.isEngineRunning(using: engineRunningProbe) else { return }
         guard activeStartRequestLocked != nil else { return }
 
         recoverAfterLivenessFailureLocked(trigger: "configuration_change")

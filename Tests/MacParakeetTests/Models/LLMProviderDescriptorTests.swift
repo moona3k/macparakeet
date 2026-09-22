@@ -30,7 +30,10 @@ final class LLMProviderDescriptorTests: XCTestCase {
         XCTAssertEqual(LLMProviderID.gemini.modelListEndpoint, .gemini)
         XCTAssertEqual(LLMProviderID.ollama.modelListEndpoint, .ollama)
 
-        for provider in [LLMProviderID.openai, .openaiCompatible, .openrouter, .lmstudio] {
+        for provider in [
+            LLMProviderID.openai, .openaiCompatible, .openrouter, .moonshot, .deepseek, .qwen, .zai,
+            .minimax, .lmstudio,
+        ] {
             XCTAssertEqual(provider.modelListEndpoint, .openAICompatible)
         }
     }
@@ -78,6 +81,16 @@ final class LLMProviderDescriptorTests: XCTestCase {
         XCTAssertEqual(LLMProviderConfig.openrouter(apiKey: "key").modelName, LLMProviderID.openrouter.defaultModelName)
         XCTAssertEqual(
             LLMProviderConfig.openrouter(apiKey: "key").baseURL.absoluteString, LLMProviderID.openrouter.defaultBaseURL)
+        XCTAssertEqual(LLMProviderConfig.moonshot(apiKey: "key").modelName, "kimi-k2.6")
+        XCTAssertEqual(
+            LLMProviderConfig.moonshot(apiKey: "key").baseURL.absoluteString, "https://api.moonshot.ai/v1")
+        XCTAssertEqual(LLMProviderConfig.deepseek(apiKey: "key").modelName, "deepseek-v4-flash")
+        XCTAssertEqual(LLMProviderConfig.qwen(apiKey: "key").modelName, "qwen3.7-max")
+        XCTAssertEqual(LLMProviderConfig.zai(apiKey: "key").modelName, "glm-5.1")
+        XCTAssertEqual(LLMProviderConfig.minimax(apiKey: "key").modelName, "MiniMax-M2.7")
+        XCTAssertTrue(LLMProviderID.moonshot.usesOpenAICompatibleChatCompletions)
+        XCTAssertTrue(LLMProviderID.moonshot.isChinaLabCloud)
+        XCTAssertFalse(LLMProviderID.openrouter.isChinaLabCloud)
         XCTAssertEqual(LLMProviderConfig.ollama().modelName, LLMProviderID.ollama.defaultModelName)
         XCTAssertEqual(LLMProviderConfig.ollama().baseURL.absoluteString, LLMProviderID.ollama.defaultBaseURL)
         XCTAssertEqual(LLMProviderConfig.inProcessLocal().modelName, LLMProviderID.inProcessLocal.defaultModelName)
@@ -96,6 +109,11 @@ final class LLMProviderDescriptorTests: XCTestCase {
                 .openai,
                 .gemini,
                 .openrouter,
+                .moonshot,
+                .deepseek,
+                .qwen,
+                .zai,
+                .minimax,
                 .openaiCompatible,
                 .localCLI,
             ]
